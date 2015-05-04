@@ -239,6 +239,11 @@ public class BufferingFsTranslogFile implements FsTranslogFile {
         return channelReference.file();
     }
 
+    @Override
+    public boolean closed() {
+        return this.closed.get();
+    }
+
     class WrapperOutputStream extends OutputStream {
 
         @Override

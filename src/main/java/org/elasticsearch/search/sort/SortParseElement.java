@@ -21,13 +21,14 @@ package org.elasticsearch.search.sort;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
+
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.join.BitDocIdSetFilter;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
@@ -36,7 +37,6 @@ import org.elasticsearch.index.mapper.core.LongFieldMapper;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.query.support.NestedInnerQueryParseSupport;
-import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchParseException;
@@ -88,7 +88,7 @@ public class SortParseElement implements SearchParseElement {
                 } else if (token == XContentParser.Token.VALUE_STRING) {
                     addSortField(context, sortFields, parser.text(), false, null, null, null, null);
                 } else {
-                    throw new ElasticsearchIllegalArgumentException("malformed sort format, within the sort array, an object, or an actual string are allowed");
+                    throw new IllegalArgumentException("malformed sort format, within the sort array, an object, or an actual string are allowed");
                 }
             }
         } else if (token == XContentParser.Token.VALUE_STRING) {
@@ -96,7 +96,7 @@ public class SortParseElement implements SearchParseElement {
         } else if (token == XContentParser.Token.START_OBJECT) {
             addCompoundSortField(parser, context, sortFields);
         } else {
-            throw new ElasticsearchIllegalArgumentException("malformed sort format, either start with array, object, or an actual string");
+            throw new IllegalArgumentException("malformed sort format, either start with array, object, or an actual string");
         }
         if (!sortFields.isEmpty()) {
             // optimize if we just sort on score non reversed, we don't really need sorting
@@ -136,7 +136,7 @@ public class SortParseElement implements SearchParseElement {
                     } else if (direction.equals("desc")) {
                         reverse = !SCORE_FIELD_NAME.equals(fieldName);
                     } else {
-                        throw new ElasticsearchIllegalArgumentException("sort direction [" + fieldName + "] not supported");
+                        throw new IllegalArgumentException("sort direction [" + fieldName + "] not supported");
                     }
                     addSortField(context, sortFields, fieldName, reverse, unmappedType, missing, sortMode, nestedFilterParseHelper);
                 } else {
@@ -173,7 +173,7 @@ public class SortParseElement implements SearchParseElement {
                                     }
                                     nestedFilterParseHelper.setPath(parser.text());
                                 } else {
-                                    throw new ElasticsearchIllegalArgumentException("sort option [" + innerJsonName + "] not supported");
+                                    throw new IllegalArgumentException("sort option [" + innerJsonName + "] not supported");
                                 }
                             } else if (token == XContentParser.Token.START_OBJECT) {
                                 if ("nested_filter".equals(innerJsonName) || "nestedFilter".equals(innerJsonName)) {
@@ -182,7 +182,7 @@ public class SortParseElement implements SearchParseElement {
                                     }
                                     nestedFilterParseHelper.filter();
                                 } else {
-                                    throw new ElasticsearchIllegalArgumentException("sort option [" + innerJsonName + "] not supported");
+                                    throw new IllegalArgumentException("sort option [" + innerJsonName + "] not supported");
                                 }
                             }
                         }
@@ -212,12 +212,12 @@ public class SortParseElement implements SearchParseElement {
                 if (unmappedType != null) {
                     fieldMapper = context.mapperService().unmappedFieldMapper(unmappedType);
                 } else {
-                    throw new SearchParseException(context, "No mapping found for [" + fieldName + "] in order to sort on");
+                    throw new SearchParseException(context, "No mapping found for [" + fieldName + "] in order to sort on", null);
                 }
             }
 
             if (!fieldMapper.isSortable()) {
-                throw new SearchParseException(context, "Sorting not supported for field[" + fieldName + "]");
+                throw new SearchParseException(context, "Sorting not supported for field[" + fieldName + "]", null);
             }
 
             // Enable when we also know how to detect fields that do tokenize, but only emit one token
@@ -252,12 +252,12 @@ public class SortParseElement implements SearchParseElement {
             }
             final Nested nested;
             if (nestedHelper != null && nestedHelper.getPath() != null) {
-                BitDocIdSetFilter rootDocumentsFilter = context.bitsetFilterCache().getBitDocIdSetFilter(NonNestedDocsFilter.INSTANCE);
+                BitDocIdSetFilter rootDocumentsFilter = context.bitsetFilterCache().getBitDocIdSetFilter(Queries.newNonNestedFilter());
                 Filter innerDocumentsFilter;
                 if (nestedHelper.filterFound()) {
-                    innerDocumentsFilter = context.filterCache().cache(nestedHelper.getInnerFilter(), null, context.queryParserService().autoFilterCachePolicy());
+                    innerDocumentsFilter = nestedHelper.getInnerFilter();
                 } else {
-                    innerDocumentsFilter = context.filterCache().cache(nestedHelper.getNestedObjectMapper().nestedTypeFilter(), null, context.queryParserService().autoFilterCachePolicy());
+                    innerDocumentsFilter = nestedHelper.getNestedObjectMapper().nestedTypeFilter();
                 }
                 nested = new Nested(rootDocumentsFilter, innerDocumentsFilter);
             } else {

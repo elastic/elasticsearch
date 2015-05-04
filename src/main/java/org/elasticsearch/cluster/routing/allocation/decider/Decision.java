@@ -20,7 +20,6 @@
 package org.elasticsearch.cluster.routing.allocation.decider;
 
 import com.google.common.collect.Lists;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -117,7 +116,7 @@ public abstract class Decision implements ToXContent {
                 case 2:
                     return THROTTLE;
                 default:
-                    throw new ElasticsearchIllegalArgumentException("No Type for integer [" + i + "]");
+                    throw new IllegalArgumentException("No Type for integer [" + i + "]");
             }
         }
 
@@ -133,7 +132,7 @@ public abstract class Decision implements ToXContent {
                     out.writeVInt(2);
                     break;
                 default:
-                    throw new ElasticsearchIllegalArgumentException("Invalid Type [" + type + "]");
+                    throw new IllegalArgumentException("Invalid Type [" + type + "]");
             }
         }
     }

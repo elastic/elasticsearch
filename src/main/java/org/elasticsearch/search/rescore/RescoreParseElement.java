@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.rescore;
 
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchParseElement;
@@ -62,12 +61,12 @@ public class RescoreParseElement implements SearchParseElement {
                 if ("window_size".equals(fieldName)) {
                     windowSize = parser.intValue();
                 } else {
-                    throw new ElasticsearchIllegalArgumentException("rescore doesn't support [" + fieldName + "]");
+                    throw new IllegalArgumentException("rescore doesn't support [" + fieldName + "]");
                 }
             }
         }
         if (rescoreContext == null) {
-            throw new ElasticsearchIllegalArgumentException("missing rescore type");
+            throw new IllegalArgumentException("missing rescore type");
         }
         if (windowSize != null) {
             rescoreContext.setWindowSize(windowSize.intValue());

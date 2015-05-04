@@ -19,10 +19,8 @@
 
 package org.elasticsearch.search.preference;
 
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
@@ -36,6 +34,7 @@ import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.*;
 
+@ElasticsearchIntegrationTest.ClusterScope(minNumDataNodes = 2)
 public class SearchPreferenceTests extends ElasticsearchIntegrationTest {
 
     @Test // see #2896
@@ -111,7 +110,7 @@ public class SearchPreferenceTests extends ElasticsearchIntegrationTest {
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
     }
 
-    @Test (expected = ElasticsearchIllegalArgumentException.class)
+    @Test (expected = IllegalArgumentException.class)
     public void testThatSpecifyingNonExistingNodesReturnsUsefulError() throws Exception {
         createIndex("test");
         ensureGreen();

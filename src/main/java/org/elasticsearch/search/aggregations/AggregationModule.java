@@ -56,6 +56,12 @@ import org.elasticsearch.search.aggregations.metrics.stats.extended.ExtendedStat
 import org.elasticsearch.search.aggregations.metrics.sum.SumParser;
 import org.elasticsearch.search.aggregations.metrics.tophits.TopHitsParser;
 import org.elasticsearch.search.aggregations.metrics.valuecount.ValueCountParser;
+import org.elasticsearch.search.aggregations.reducers.Reducer;
+import org.elasticsearch.search.aggregations.reducers.bucketmetrics.max.MaxBucketParser;
+import org.elasticsearch.search.aggregations.reducers.bucketmetrics.min.MinBucketParser;
+import org.elasticsearch.search.aggregations.reducers.derivative.DerivativeParser;
+import org.elasticsearch.search.aggregations.reducers.movavg.MovAvgParser;
+import org.elasticsearch.search.aggregations.reducers.movavg.models.MovAvgModelModule;
 
 import java.util.List;
 
@@ -64,40 +70,46 @@ import java.util.List;
  */
 public class AggregationModule extends AbstractModule implements SpawnModules{
 
-    private List<Class<? extends Aggregator.Parser>> parsers = Lists.newArrayList();
+    private List<Class<? extends Aggregator.Parser>> aggParsers = Lists.newArrayList();
+    private List<Class<? extends Reducer.Parser>> reducerParsers = Lists.newArrayList();
 
     public AggregationModule() {
-        parsers.add(AvgParser.class);
-        parsers.add(SumParser.class);
-        parsers.add(MinParser.class);
-        parsers.add(MaxParser.class);
-        parsers.add(StatsParser.class);
-        parsers.add(ExtendedStatsParser.class);
-        parsers.add(ValueCountParser.class);
-        parsers.add(PercentilesParser.class);
-        parsers.add(PercentileRanksParser.class);
-        parsers.add(CardinalityParser.class);
+        aggParsers.add(AvgParser.class);
+        aggParsers.add(SumParser.class);
+        aggParsers.add(MinParser.class);
+        aggParsers.add(MaxParser.class);
+        aggParsers.add(StatsParser.class);
+        aggParsers.add(ExtendedStatsParser.class);
+        aggParsers.add(ValueCountParser.class);
+        aggParsers.add(PercentilesParser.class);
+        aggParsers.add(PercentileRanksParser.class);
+        aggParsers.add(CardinalityParser.class);
 
-        parsers.add(GlobalParser.class);
-        parsers.add(MissingParser.class);
-        parsers.add(FilterParser.class);
-        parsers.add(FiltersParser.class);
-        parsers.add(SamplerParser.class);
-        parsers.add(TermsParser.class);
-        parsers.add(SignificantTermsParser.class);
-        parsers.add(RangeParser.class);
-        parsers.add(DateRangeParser.class);
-        parsers.add(IpRangeParser.class);
-        parsers.add(HistogramParser.class);
-        parsers.add(DateHistogramParser.class);
-        parsers.add(GeoDistanceParser.class);
-        parsers.add(GeoHashGridParser.class);
-        parsers.add(NestedParser.class);
-        parsers.add(ReverseNestedParser.class);
-        parsers.add(TopHitsParser.class);
-        parsers.add(GeoBoundsParser.class);
-        parsers.add(ScriptedMetricParser.class);
-        parsers.add(ChildrenParser.class);
+        aggParsers.add(GlobalParser.class);
+        aggParsers.add(MissingParser.class);
+        aggParsers.add(FilterParser.class);
+        aggParsers.add(FiltersParser.class);
+        aggParsers.add(SamplerParser.class);
+        aggParsers.add(TermsParser.class);
+        aggParsers.add(SignificantTermsParser.class);
+        aggParsers.add(RangeParser.class);
+        aggParsers.add(DateRangeParser.class);
+        aggParsers.add(IpRangeParser.class);
+        aggParsers.add(HistogramParser.class);
+        aggParsers.add(DateHistogramParser.class);
+        aggParsers.add(GeoDistanceParser.class);
+        aggParsers.add(GeoHashGridParser.class);
+        aggParsers.add(NestedParser.class);
+        aggParsers.add(ReverseNestedParser.class);
+        aggParsers.add(TopHitsParser.class);
+        aggParsers.add(GeoBoundsParser.class);
+        aggParsers.add(ScriptedMetricParser.class);
+        aggParsers.add(ChildrenParser.class);
+
+        reducerParsers.add(DerivativeParser.class);
+        reducerParsers.add(MaxBucketParser.class);
+        reducerParsers.add(MinBucketParser.class);
+        reducerParsers.add(MovAvgParser.class);
     }
 
     /**
@@ -106,14 +118,18 @@ public class AggregationModule extends AbstractModule implements SpawnModules{
      * @param parser The parser for the custom aggregator.
      */
     public void addAggregatorParser(Class<? extends Aggregator.Parser> parser) {
-        parsers.add(parser);
+        aggParsers.add(parser);
     }
 
     @Override
     protected void configure() {
-        Multibinder<Aggregator.Parser> multibinder = Multibinder.newSetBinder(binder(), Aggregator.Parser.class);
-        for (Class<? extends Aggregator.Parser> parser : parsers) {
-            multibinder.addBinding().to(parser);
+        Multibinder<Aggregator.Parser> multibinderAggParser = Multibinder.newSetBinder(binder(), Aggregator.Parser.class);
+        for (Class<? extends Aggregator.Parser> parser : aggParsers) {
+            multibinderAggParser.addBinding().to(parser);
+        }
+        Multibinder<Reducer.Parser> multibinderReducerParser = Multibinder.newSetBinder(binder(), Reducer.Parser.class);
+        for (Class<? extends Reducer.Parser> parser : reducerParsers) {
+            multibinderReducerParser.addBinding().to(parser);
         }
         bind(AggregatorParsers.class).asEagerSingleton();
         bind(AggregationParseElement.class).asEagerSingleton();
@@ -122,7 +138,7 @@ public class AggregationModule extends AbstractModule implements SpawnModules{
 
     @Override
     public Iterable<? extends Module> spawnModules() {
-        return ImmutableList.of(new SignificantTermsHeuristicModule());
+        return ImmutableList.of(new SignificantTermsHeuristicModule(), new MovAvgModelModule());
     }
 
 }

@@ -19,213 +19,290 @@
 
 package org.elasticsearch.indices.cache.filter;
 
-import com.carrotsearch.hppc.ObjectOpenHashSet;
-import com.google.common.base.Objects;
-import com.google.common.cache.Cache;
-import com.google.common.cache.CacheBuilder;
-import com.google.common.cache.RemovalListener;
-import com.google.common.cache.RemovalNotification;
-import org.apache.lucene.search.DocIdSet;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.Explanation;
+import org.apache.lucene.search.LRUQueryCache;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryCache;
+import org.apache.lucene.search.QueryCachingPolicy;
+import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.Weight;
+import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.lucene.ShardCoreKeyMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.MemorySizeValue;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.index.cache.filter.weighted.WeightedFilterCache;
-import org.elasticsearch.node.settings.NodeSettingsService;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.index.cache.filter.FilterCacheStats;
+import org.elasticsearch.index.shard.ShardId;
 
-import java.util.Iterator;
+import java.io.Closeable;
+import java.io.IOException;
+import java.util.HashMap;
+import java.util.IdentityHashMap;
+import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.ConcurrentHashMap;
 
-public class IndicesFilterCache extends AbstractComponent implements RemovalListener<WeightedFilterCache.FilterCacheKey, DocIdSet> {
+public class IndicesFilterCache extends AbstractComponent implements QueryCache, Closeable {
 
-    private final ThreadPool threadPool;
+    public static final String INDICES_CACHE_QUERY_SIZE = "indices.cache.filter.size";
+    public static final String INDICES_CACHE_QUERY_COUNT = "indices.cache.filter.count";
 
-    private Cache<WeightedFilterCache.FilterCacheKey, DocIdSet> cache;
+    private final LRUQueryCache cache;
+    private final ShardCoreKeyMap shardKeyMap = new ShardCoreKeyMap();
+    private final Map<ShardId, Stats> shardStats = new ConcurrentHashMap<>();
+    private volatile long sharedRamBytesUsed;
 
-    private volatile String size;
-    private volatile long sizeInBytes;
-    private volatile TimeValue expire;
-    private volatile int concurrencyLevel;
-
-    private final TimeValue cleanInterval;
-    private final int minimumEntryWeight;
-
-    private final Set<Object> readersKeysToClean = ConcurrentCollections.newConcurrentSet();
-
-    private volatile boolean closed;
-
-    public static final String INDICES_CACHE_FILTER_SIZE = "indices.cache.filter.size";
-    public static final String INDICES_CACHE_FILTER_EXPIRE = "indices.cache.filter.expire";
-    public static final String INDICES_CACHE_FILTER_CONCURRENCY_LEVEL = "indices.cache.filter.concurrency_level";
-    public static final String INDICES_CACHE_FILTER_CLEAN_INTERVAL = "indices.cache.filter.clean_interval";
-    public static final String INDICES_CACHE_FILTER_MINIMUM_ENTRY_WEIGHT = "indices.cache.filter.minimum_entry_weight";
-
-    class ApplySettings implements NodeSettingsService.Listener {
-        @Override
-        public void onRefreshSettings(Settings settings) {
-            boolean replace = false;
-            String size = settings.get(INDICES_CACHE_FILTER_SIZE, IndicesFilterCache.this.size);
-            if (!size.equals(IndicesFilterCache.this.size)) {
-                logger.info("updating [{}] from [{}] to [{}]",
-                        INDICES_CACHE_FILTER_SIZE, IndicesFilterCache.this.size, size);
-                IndicesFilterCache.this.size = size;
-                replace = true;
-            }
-            TimeValue expire = settings.getAsTime(INDICES_CACHE_FILTER_EXPIRE, IndicesFilterCache.this.expire);
-            if (!Objects.equal(expire, IndicesFilterCache.this.expire)) {
-                logger.info("updating [{}] from [{}] to [{}]",
-                        INDICES_CACHE_FILTER_EXPIRE, IndicesFilterCache.this.expire, expire);
-                IndicesFilterCache.this.expire = expire;
-                replace = true;
-            }
-            final int concurrencyLevel = settings.getAsInt(INDICES_CACHE_FILTER_CONCURRENCY_LEVEL, IndicesFilterCache.this.concurrencyLevel);
-            if (concurrencyLevel <= 0) {
-                throw new ElasticsearchIllegalArgumentException("concurrency_level must be > 0 but was: " + concurrencyLevel);
-            }
-            if (!Objects.equal(concurrencyLevel, IndicesFilterCache.this.concurrencyLevel)) {
-                logger.info("updating [{}] from [{}] to [{}]",
-                        INDICES_CACHE_FILTER_CONCURRENCY_LEVEL, IndicesFilterCache.this.concurrencyLevel, concurrencyLevel);
-                IndicesFilterCache.this.concurrencyLevel = concurrencyLevel;
-                replace = true;
-            }
-            if (replace) {
-                Cache<WeightedFilterCache.FilterCacheKey, DocIdSet> oldCache = IndicesFilterCache.this.cache;
-                computeSizeInBytes();
-                buildCache();
-                oldCache.invalidateAll();
-            }
-        }
-    }
+    // This is a hack for the fact that the close listener for the
+    // ShardCoreKeyMap will be called before onDocIdSetEviction
+    // See onDocIdSetEviction for more info
+    private final Map<Object, StatsAndCount> stats2 = new IdentityHashMap<>();
 
     @Inject
-    public IndicesFilterCache(Settings settings, ThreadPool threadPool, NodeSettingsService nodeSettingsService) {
+    public IndicesFilterCache(Settings settings) {
         super(settings);
-        this.threadPool = threadPool;
-        this.size = settings.get(INDICES_CACHE_FILTER_SIZE, "10%");
-        this.expire = settings.getAsTime(INDICES_CACHE_FILTER_EXPIRE, null);
-        this.minimumEntryWeight = settings.getAsInt(INDICES_CACHE_FILTER_MINIMUM_ENTRY_WEIGHT, 1024); // 1k per entry minimum
-        if (minimumEntryWeight <= 0) {
-            throw new ElasticsearchIllegalArgumentException("minimum_entry_weight must be > 0 but was: " + minimumEntryWeight);
+        final String sizeString = settings.get(INDICES_CACHE_QUERY_SIZE, "10%");
+        final ByteSizeValue size = MemorySizeValue.parseBytesSizeValueOrHeapRatio(sizeString);
+        final int count = settings.getAsInt(INDICES_CACHE_QUERY_COUNT, 100000);
+        logger.debug("using [node] weighted filter cache with size [{}], actual_size [{}], max filter count [{}]",
+                sizeString, size, count);
+        cache = new LRUQueryCache(count, size.bytes()) {
+
+            private Stats getStats(Object coreKey) {
+                final ShardId shardId = shardKeyMap.getShardId(coreKey);
+                if (shardId == null) {
+                    return null;
+                }
+                return shardStats.get(shardId);
+            }
+
+            private Stats getOrCreateStats(Object coreKey) {
+                final ShardId shardId = shardKeyMap.getShardId(coreKey);
+                Stats stats = shardStats.get(shardId);
+                if (stats == null) {
+                    stats = new Stats();
+                    shardStats.put(shardId, stats);
+                }
+                return stats;
+            }
+
+            // It's ok to not protect these callbacks by a lock since it is
+            // done in LRUQueryCache
+            @Override
+            protected void onClear() {
+                assert Thread.holdsLock(this);
+                super.onClear();
+                for (Stats stats : shardStats.values()) {
+                    // don't throw away hit/miss
+                    stats.cacheSize = 0;
+                    stats.ramBytesUsed = 0;
+                }
+                sharedRamBytesUsed = 0;
+            }
+
+            @Override
+            protected void onQueryCache(Query filter, long ramBytesUsed) {
+                assert Thread.holdsLock(this);
+                super.onQueryCache(filter, ramBytesUsed);
+                sharedRamBytesUsed += ramBytesUsed;
+            }
+
+            @Override
+            protected void onQueryEviction(Query filter, long ramBytesUsed) {
+                assert Thread.holdsLock(this);
+                super.onQueryEviction(filter, ramBytesUsed);
+                sharedRamBytesUsed -= ramBytesUsed;
+            }
+
+            @Override
+            protected void onDocIdSetCache(Object readerCoreKey, long ramBytesUsed) {
+                assert Thread.holdsLock(this);
+                super.onDocIdSetCache(readerCoreKey, ramBytesUsed);
+                final Stats shardStats = getOrCreateStats(readerCoreKey);
+                shardStats.cacheSize += 1;
+                shardStats.cacheCount += 1;
+                shardStats.ramBytesUsed += ramBytesUsed;
+
+                StatsAndCount statsAndCount = stats2.get(readerCoreKey);
+                if (statsAndCount == null) {
+                    statsAndCount = new StatsAndCount(shardStats);
+                    stats2.put(readerCoreKey, statsAndCount);
+                }
+                statsAndCount.count += 1;
+            }
+
+            @Override
+            protected void onDocIdSetEviction(Object readerCoreKey, int numEntries, long sumRamBytesUsed) {
+                assert Thread.holdsLock(this);
+                super.onDocIdSetEviction(readerCoreKey, numEntries, sumRamBytesUsed);
+                // We can't use ShardCoreKeyMap here because its core closed
+                // listener is called before the listener of the cache which
+                // triggers this eviction. So instead we use use stats2 that
+                // we only evict when nothing is cached anymore on the segment
+                // instead of relying on close listeners
+                final StatsAndCount statsAndCount = stats2.get(readerCoreKey);
+                final Stats shardStats = statsAndCount.stats;
+                shardStats.cacheSize -= numEntries;
+                shardStats.ramBytesUsed -= sumRamBytesUsed;
+                statsAndCount.count -= numEntries;
+                if (statsAndCount.count == 0) {
+                    stats2.remove(readerCoreKey);
+                }
+            }
+
+            @Override
+            protected void onHit(Object readerCoreKey, Query filter) {
+                assert Thread.holdsLock(this);
+                super.onHit(readerCoreKey, filter);
+                final Stats shardStats = getStats(readerCoreKey);
+                shardStats.hitCount += 1;
+            }
+
+            @Override
+            protected void onMiss(Object readerCoreKey, Query filter) {
+                assert Thread.holdsLock(this);
+                super.onMiss(readerCoreKey, filter);
+                final Stats shardStats = getOrCreateStats(readerCoreKey);
+                shardStats.missCount += 1;
+            }
+        };
+        sharedRamBytesUsed = 0;
+    }
+
+    /** Get usage statistics for the given shard. */
+    public FilterCacheStats getStats(ShardId shard) {
+        final Map<ShardId, FilterCacheStats> stats = new HashMap<>();
+        for (Map.Entry<ShardId, Stats> entry : shardStats.entrySet()) {
+            stats.put(entry.getKey(), entry.getValue().toQueryCacheStats());
         }
-        this.cleanInterval = settings.getAsTime(INDICES_CACHE_FILTER_CLEAN_INTERVAL, TimeValue.timeValueSeconds(60));
-        // defaults to 4, but this is a busy map for all indices, increase it a bit
-        this.concurrencyLevel =  settings.getAsInt(INDICES_CACHE_FILTER_CONCURRENCY_LEVEL, 16);
-        if (concurrencyLevel <= 0) {
-            throw new ElasticsearchIllegalArgumentException("concurrency_level must be > 0 but was: " + concurrencyLevel);
+        FilterCacheStats shardStats = new FilterCacheStats();
+        FilterCacheStats info = stats.get(shard);
+        if (info == null) {
+            info = new FilterCacheStats();
         }
-        computeSizeInBytes();
-        buildCache();
-        logger.debug("using [node] weighted filter cache with size [{}], actual_size [{}], expire [{}], clean_interval [{}]",
-                size, new ByteSizeValue(sizeInBytes), expire, cleanInterval);
+        shardStats.add(info);
 
-        nodeSettingsService.addListener(new ApplySettings());
-        threadPool.schedule(cleanInterval, ThreadPool.Names.SAME, new ReaderCleaner());
-    }
-
-    private void buildCache() {
-        CacheBuilder<WeightedFilterCache.FilterCacheKey, DocIdSet> cacheBuilder = CacheBuilder.newBuilder()
-                .removalListener(this)
-                .maximumWeight(sizeInBytes).weigher(new WeightedFilterCache.FilterCacheValueWeigher(minimumEntryWeight));
-
-        cacheBuilder.concurrencyLevel(this.concurrencyLevel);
-
-        if (expire != null) {
-            cacheBuilder.expireAfterAccess(expire.millis(), TimeUnit.MILLISECONDS);
+        // We also have some shared ram usage that we try to distribute to
+        // proportionally to their number of cache entries of each shard
+        long totalSize = 0;
+        for (FilterCacheStats s : stats.values()) {
+            totalSize += s.getCacheSize();
         }
-
-        cache = cacheBuilder.build();
-    }
-
-    private void computeSizeInBytes() {
-        this.sizeInBytes = MemorySizeValue.parseBytesSizeValueOrHeapRatio(size).bytes();
-    }
-
-    public void addReaderKeyToClean(Object readerKey) {
-        readersKeysToClean.add(readerKey);
-    }
-
-    public void close() {
-        closed = true;
-        cache.invalidateAll();
-    }
-
-    public Cache<WeightedFilterCache.FilterCacheKey, DocIdSet> cache() {
-        return this.cache;
+        final double weight = totalSize == 0
+                ? 1d / stats.size()
+                : shardStats.getCacheSize() / totalSize;
+        final long additionalRamBytesUsed = Math.round(weight * sharedRamBytesUsed);
+        shardStats.add(new FilterCacheStats(additionalRamBytesUsed, 0, 0, 0, 0));
+        return shardStats;
     }
 
     @Override
-    public void onRemoval(RemovalNotification<WeightedFilterCache.FilterCacheKey, DocIdSet> removalNotification) {
-        WeightedFilterCache.FilterCacheKey key = removalNotification.getKey();
-        if (key == null) {
-            return;
+    public Weight doCache(Weight weight, QueryCachingPolicy policy) {
+        while (weight instanceof CachingWeightWrapper) {
+            weight = ((CachingWeightWrapper) weight).in;
         }
-        if (key.removalListener != null) {
-            key.removalListener.onRemoval(removalNotification);
+        final Weight in = cache.doCache(weight, policy);
+        // We wrap the weight to track the readers it sees and map them with
+        // the shards they belong to
+        return new CachingWeightWrapper(in);
+    }
+
+    private class CachingWeightWrapper extends Weight {
+
+        private final Weight in;
+
+        protected CachingWeightWrapper(Weight in) {
+            super(in.getQuery());
+            this.in = in;
+        }
+
+        @Override
+        public void extractTerms(Set<Term> terms) {
+            in.extractTerms(terms);
+        }
+
+        @Override
+        public Explanation explain(LeafReaderContext context, int doc) throws IOException {
+            shardKeyMap.add(context.reader());
+            return in.explain(context, doc);
+        }
+
+        @Override
+        public float getValueForNormalization() throws IOException {
+            return in.getValueForNormalization();
+        }
+
+        @Override
+        public void normalize(float norm, float topLevelBoost) {
+            in.normalize(norm, topLevelBoost);
+        }
+
+        @Override
+        public Scorer scorer(LeafReaderContext context, Bits acceptDocs) throws IOException {
+            shardKeyMap.add(context.reader());
+            return in.scorer(context, acceptDocs);
         }
     }
 
-    /**
-     * The reason we need this class is because we need to clean all the filters that are associated
-     * with a reader. We don't want to do it every time a reader closes, since iterating over all the map
-     * is expensive. There doesn't seem to be a nicer way to do it (and maintaining a list per reader
-     * of the filters will cost more).
-     */
-    class ReaderCleaner implements Runnable {
-
-        // this is thread safe since we only schedule the next cleanup once the current one is
-        // done, so no concurrent execution
-        private final ObjectOpenHashSet<Object> keys = ObjectOpenHashSet.newInstance();
-
-        @Override
-        public void run() {
-            if (closed) {
-                return;
-            }
-            if (readersKeysToClean.isEmpty()) {
-                schedule();
-                return;
-            }
-            try {
-                threadPool.executor(ThreadPool.Names.GENERIC).execute(new Runnable() {
-                    @Override
-                    public void run() {
-                        keys.clear();
-                        for (Iterator<Object> it = readersKeysToClean.iterator(); it.hasNext(); ) {
-                            keys.add(it.next());
-                            it.remove();
-                        }
-                        if (!keys.isEmpty()) {
-                            for (Iterator<WeightedFilterCache.FilterCacheKey> it = cache.asMap().keySet().iterator(); it.hasNext(); ) {
-                                WeightedFilterCache.FilterCacheKey filterCacheKey = it.next();
-                                if (keys.contains(filterCacheKey.readerKey())) {
-                                    // same as invalidate
-                                    it.remove();
-                                }
-                            }
-                        }
-                        cache.cleanUp();
-                        schedule();
-                        keys.clear();
-                    }
-                });
-            } catch (EsRejectedExecutionException ex) {
-                logger.debug("Can not run ReaderCleaner - execution rejected", ex);
-            }
+    /** Clear all entries that belong to the given index. */
+    public void clearIndex(String index) {
+        final Set<Object> coreCacheKeys = shardKeyMap.getCoreKeysForIndex(index);
+        for (Object coreKey : coreCacheKeys) {
+            cache.clearCoreCacheKey(coreKey);
         }
 
-        private void schedule() {
-            try {
-                threadPool.schedule(cleanInterval, ThreadPool.Names.SAME, this);
-            } catch (EsRejectedExecutionException ex) {
-                logger.debug("Can not schedule ReaderCleaner - execution rejected", ex);
-            }
+        // This cache stores two things: filters, and doc id sets. Calling
+        // clear only removes the doc id sets, but if we reach the situation
+        // that the cache does not contain any DocIdSet anymore, then it
+        // probably means that the user wanted to remove everything.
+        if (cache.getCacheSize() == 0) {
+            cache.clear();
         }
+    }
+
+    @Override
+    public void close() {
+        assert shardKeyMap.size() == 0 : shardKeyMap.size();
+        assert shardStats.isEmpty();
+        assert stats2.isEmpty() : stats2;
+        cache.clear();
+    }
+
+    private static class Stats implements Cloneable {
+
+        volatile long ramBytesUsed;
+        volatile long hitCount;
+        volatile long missCount;
+        volatile long cacheCount;
+        volatile long cacheSize;
+
+        FilterCacheStats toQueryCacheStats() {
+            return new FilterCacheStats(ramBytesUsed, hitCount, missCount, cacheCount, cacheSize);
+        }
+    }
+
+    private static class StatsAndCount {
+        int count;
+        final Stats stats;
+
+        StatsAndCount(Stats stats) {
+            this.stats = stats;
+            this.count = 0;
+        }
+    }
+
+    private boolean empty(Stats stats) {
+        if (stats == null) {
+            return true;
+        }
+        return stats.cacheSize == 0 && stats.ramBytesUsed == 0;
+    }
+
+    public void onClose(ShardId shardId) {
+        assert empty(shardStats.get(shardId));
+        shardStats.remove(shardId);
     }
 }

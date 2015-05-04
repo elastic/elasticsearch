@@ -119,16 +119,22 @@ public class FiltersFunctionScoreQuery extends Query {
         // TODO: needsScores
         // if we dont need scores, just return the underlying Weight?
         Weight subQueryWeight = subQuery.createWeight(searcher, needsScores);
-        return new CustomBoostFactorWeight(this, subQueryWeight);
+        Weight[] filterWeights = new Weight[filterFunctions.length];
+        for (int i = 0; i < filterFunctions.length; ++i) {
+            filterWeights[i] = searcher.createNormalizedWeight(filterFunctions[i].filter, false);
+        }
+        return new CustomBoostFactorWeight(this, subQueryWeight, filterWeights);
     }
 
     class CustomBoostFactorWeight extends Weight {
 
         final Weight subQueryWeight;
+        final Weight[] filterWeights;
 
-        public CustomBoostFactorWeight(Query parent, Weight subQueryWeight) throws IOException {
+        public CustomBoostFactorWeight(Query parent, Weight subQueryWeight, Weight[] filterWeights) throws IOException {
             super(parent);
             this.subQueryWeight = subQueryWeight;
+            this.filterWeights = filterWeights;
         }
 
         @Override
@@ -162,7 +168,8 @@ public class FiltersFunctionScoreQuery extends Query {
             for (int i = 0; i < filterFunctions.length; i++) {
                 FilterFunction filterFunction = filterFunctions[i];
                 functions[i] = filterFunction.function.getLeafScoreFunction(context);
-                docSets[i] = DocIdSets.asSequentialAccessBits(context.reader().maxDoc(), filterFunction.filter.getDocIdSet(context, acceptDocs));
+                Scorer filterScorer = filterWeights[i].scorer(context, null); // no need to apply accepted docs
+                docSets[i] = DocIdSets.asSequentialAccessBits(context.reader().maxDoc(), filterScorer);
             }
             return new FiltersFunctionFactorScorer(this, subQueryScorer, scoreMode, filterFunctions, maxBoost, functions, docSets, combineFunction, minScore);
         }
@@ -175,9 +182,10 @@ public class FiltersFunctionScoreQuery extends Query {
                 return subQueryExpl;
             }
             // First: Gather explanations for all filters
-            List<ComplexExplanation> filterExplanations = new ArrayList<>();
+            List<Explanation> filterExplanations = new ArrayList<>();
             float weightSum = 0;
-            for (FilterFunction filterFunction : filterFunctions) {
+            for (int i = 0; i < filterFunctions.length; ++i) {
+                FilterFunction filterFunction = filterFunctions[i];
 
                 if (filterFunction.function instanceof WeightFactorFunction) {
                     weightSum += ((WeightFactorFunction) filterFunction.function).getWeight();
@@ -186,23 +194,21 @@ public class FiltersFunctionScoreQuery extends Query {
                 }
 
                 Bits docSet = DocIdSets.asSequentialAccessBits(context.reader().maxDoc(),
-                        filterFunction.filter.getDocIdSet(context, context.reader().getLiveDocs()));
+                        filterWeights[i].scorer(context, null));
                 if (docSet.get(doc)) {
                     Explanation functionExplanation = filterFunction.function.getLeafScoreFunction(context).explainScore(doc, subQueryExpl);
                     double factor = functionExplanation.getValue();
                     float sc = CombineFunction.toFloat(factor);
-                    ComplexExplanation filterExplanation = new ComplexExplanation(true, sc, "function score, product of:");
-                    filterExplanation.addDetail(new Explanation(1.0f, "match filter: " + filterFunction.filter.toString()));
-                    filterExplanation.addDetail(functionExplanation);
+                    Explanation filterExplanation = Explanation.match(sc, "function score, product of:",
+                            Explanation.match(1.0f, "match filter: " + filterFunction.filter.toString()), functionExplanation);
                     filterExplanations.add(filterExplanation);
                 }
             }
             if (filterExplanations.size() == 0) {
                 float sc = getBoost() * subQueryExpl.getValue();
-                Explanation res = new ComplexExplanation(true, sc, "function score, no filter match, product of:");
-                res.addDetail(subQueryExpl);
-                res.addDetail(new Explanation(getBoost(), "queryBoost"));
-                return res;
+                return Explanation.match(sc, "function score, no filter match, product of:",
+                        subQueryExpl,
+                        Explanation.match(getBoost(), "queryBoost"));
             }
 
             // Second: Compute the factor that would have been computed by the
@@ -242,12 +248,11 @@ public class FiltersFunctionScoreQuery extends Query {
                     }
                 }
             }
-            ComplexExplanation factorExplanaition = new ComplexExplanation(true, CombineFunction.toFloat(factor),
-                    "function score, score mode [" + scoreMode.toString().toLowerCase(Locale.ROOT) + "]");
-            for (int i = 0; i < filterExplanations.size(); i++) {
-                factorExplanaition.addDetail(filterExplanations.get(i));
-            }
-            return combineFunction.explain(getBoost(), subQueryExpl, factorExplanaition, maxBoost);
+            Explanation factorExplanation = Explanation.match(
+                    CombineFunction.toFloat(factor),
+                    "function score, score mode [" + scoreMode.toString().toLowerCase(Locale.ROOT) + "]",
+                    filterExplanations);
+            return combineFunction.explain(getBoost(), subQueryExpl, factorExplanation, maxBoost);
         }
     }
 

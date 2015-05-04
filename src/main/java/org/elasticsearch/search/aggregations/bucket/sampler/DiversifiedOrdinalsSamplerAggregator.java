@@ -27,15 +27,16 @@ import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.search.DiversifiedTopDocsCollector;
 import org.apache.lucene.search.DiversifiedTopDocsCollector.ScoreDocKey;
 import org.apache.lucene.search.TopDocsCollector;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.BestDocsDeferringCollector;
 import org.elasticsearch.search.aggregations.bucket.DeferringBucketCollector;
+import org.elasticsearch.search.aggregations.reducers.Reducer;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 public class DiversifiedOrdinalsSamplerAggregator extends SamplerAggregator {
@@ -44,9 +45,9 @@ public class DiversifiedOrdinalsSamplerAggregator extends SamplerAggregator {
     private int maxDocsPerValue;
 
     public DiversifiedOrdinalsSamplerAggregator(String name, int shardSize, AggregatorFactories factories,
-            AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData,
+            AggregationContext aggregationContext, Aggregator parent, List<Reducer> reducers, Map<String, Object> metaData,
             ValuesSource.Bytes.WithOrdinals.FieldData valuesSource, int maxDocsPerValue) throws IOException {
-        super(name, shardSize, factories, aggregationContext, parent, metaData);
+        super(name, shardSize, factories, aggregationContext, parent, reducers, metaData);
         this.valuesSource = valuesSource;
         this.maxDocsPerValue = maxDocsPerValue;
     }
@@ -100,7 +101,7 @@ public class DiversifiedOrdinalsSamplerAggregator extends SamplerAggregator {
                         globalOrds.setDocument(doc);
                         final long valuesCount = globalOrds.cardinality();
                         if (valuesCount > 1) {
-                            throw new ElasticsearchIllegalArgumentException("Sample diversifying key must be a single valued-field");
+                            throw new IllegalArgumentException("Sample diversifying key must be a single valued-field");
                         }
                         if (valuesCount == 1) {
                             long result = globalOrds.ordAt(0);

@@ -24,7 +24,6 @@ import org.apache.lucene.analysis.core.LowerCaseFilter;
 import org.apache.lucene.analysis.el.GreekLowerCaseFilter;
 import org.apache.lucene.analysis.ga.IrishLowerCaseFilter;
 import org.apache.lucene.analysis.tr.TurkishLowerCaseFilter;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
@@ -61,7 +60,7 @@ public class LowerCaseTokenFilterFactory extends AbstractTokenFilterFactory {
         } else if (lang.equalsIgnoreCase("turkish")) {
             return new TurkishLowerCaseFilter(tokenStream);
         } else {
-            throw new ElasticsearchIllegalArgumentException("language [" + lang + "] not support for lower case");
+            throw new IllegalArgumentException("language [" + lang + "] not support for lower case");
         }
     }
 }

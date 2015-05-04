@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common.util.concurrent;
 
-import org.elasticsearch.ElasticsearchIllegalStateException;
 
 import java.util.AbstractQueue;
 import java.util.Collection;
@@ -146,13 +145,13 @@ public class SizeBlockingQueue<E> extends AbstractQueue<E> implements BlockingQu
     @Override
     public boolean offer(E e, long timeout, TimeUnit unit) throws InterruptedException {
         // note, not used in ThreadPoolExecutor
-        throw new ElasticsearchIllegalStateException("offer with timeout not allowed on size queue");
+        throw new IllegalStateException("offer with timeout not allowed on size queue");
     }
 
     @Override
     public void put(E e) throws InterruptedException {
         // note, not used in ThreadPoolExecutor
-        throw new ElasticsearchIllegalStateException("put not allowed on size queue");
+        throw new IllegalStateException("put not allowed on size queue");
     }
 
     @Override

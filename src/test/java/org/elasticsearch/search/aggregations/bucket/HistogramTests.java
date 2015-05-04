@@ -1017,7 +1017,7 @@ public class HistogramTests extends ElasticsearchIntegrationTest {
                     .addAggregation(histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(-1).minDocCount(0)).execute().actionGet();
             fail();
         } catch (SearchPhaseExecutionException e) {
-            assertThat(e.getMessage(), containsString("Missing required field [interval]"));
+            assertThat(e.toString(), containsString("Missing required field [interval]"));
         }
     }
 

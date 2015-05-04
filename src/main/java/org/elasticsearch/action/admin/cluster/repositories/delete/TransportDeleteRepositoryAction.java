@@ -44,7 +44,7 @@ public class TransportDeleteRepositoryAction extends TransportMasterNodeOperatio
     @Inject
     public TransportDeleteRepositoryAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                            RepositoriesService repositoriesService, ThreadPool threadPool, ActionFilters actionFilters) {
-        super(settings, DeleteRepositoryAction.NAME, transportService, clusterService, threadPool, actionFilters);
+        super(settings, DeleteRepositoryAction.NAME, transportService, clusterService, threadPool, actionFilters, DeleteRepositoryRequest.class);
         this.repositoriesService = repositoriesService;
     }
 
@@ -54,22 +54,17 @@ public class TransportDeleteRepositoryAction extends TransportMasterNodeOperatio
     }
 
     @Override
-    protected DeleteRepositoryRequest newRequest() {
-        return new DeleteRepositoryRequest();
-    }
-
-    @Override
     protected DeleteRepositoryResponse newResponse() {
         return new DeleteRepositoryResponse();
     }
 
     @Override
     protected ClusterBlockException checkBlock(DeleteRepositoryRequest request, ClusterState state) {
-        return state.blocks().indexBlockedException(ClusterBlockLevel.METADATA, "");
+        return state.blocks().indexBlockedException(ClusterBlockLevel.METADATA_WRITE, "");
     }
 
     @Override
-    protected void masterOperation(final DeleteRepositoryRequest request, ClusterState state, final ActionListener<DeleteRepositoryResponse> listener) throws ElasticsearchException {
+    protected void masterOperation(final DeleteRepositoryRequest request, ClusterState state, final ActionListener<DeleteRepositoryResponse> listener) {
         repositoriesService.unregisterRepository(
                 new RepositoriesService.UnregisterRepositoryRequest("delete_repository [" + request.name() + "]", request.name())
                         .masterNodeTimeout(request.masterNodeTimeout()).ackTimeout(request.timeout()),

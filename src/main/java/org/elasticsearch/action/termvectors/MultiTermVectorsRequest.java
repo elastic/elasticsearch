@@ -20,7 +20,6 @@
 package org.elasticsearch.action.termvectors;
 
 import com.google.common.collect.Iterators;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.*;
 import org.elasticsearch.common.Nullable;
@@ -98,7 +97,7 @@ public class MultiTermVectorsRequest extends ActionRequest<MultiTermVectorsReque
                         if ("docs".equals(currentFieldName)) {
                             while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                                 if (token != XContentParser.Token.START_OBJECT) {
-                                    throw new ElasticsearchIllegalArgumentException("docs array element should include an object");
+                                    throw new IllegalArgumentException("docs array element should include an object");
                                 }
                                 TermVectorsRequest termVectorsRequest = new TermVectorsRequest(template);
                                 TermVectorsRequest.parseRequest(termVectorsRequest, parser);
@@ -107,7 +106,7 @@ public class MultiTermVectorsRequest extends ActionRequest<MultiTermVectorsReque
                         } else if ("ids".equals(currentFieldName)) {
                             while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                                 if (!token.isValue()) {
-                                    throw new ElasticsearchIllegalArgumentException("ids array element should only contain ids");
+                                    throw new IllegalArgumentException("ids array element should only contain ids");
                                 }
                                 ids.add(parser.text());
                             }

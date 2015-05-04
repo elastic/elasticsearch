@@ -42,7 +42,7 @@ public class TransportDeleteIndexTemplateAction extends TransportMasterNodeOpera
     @Inject
     public TransportDeleteIndexTemplateAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                               ThreadPool threadPool, MetaDataIndexTemplateService indexTemplateService, ActionFilters actionFilters) {
-        super(settings, DeleteIndexTemplateAction.NAME, transportService, clusterService, threadPool, actionFilters);
+        super(settings, DeleteIndexTemplateAction.NAME, transportService, clusterService, threadPool, actionFilters, DeleteIndexTemplateRequest.class);
         this.indexTemplateService = indexTemplateService;
     }
 
@@ -53,22 +53,17 @@ public class TransportDeleteIndexTemplateAction extends TransportMasterNodeOpera
     }
 
     @Override
-    protected DeleteIndexTemplateRequest newRequest() {
-        return new DeleteIndexTemplateRequest();
-    }
-
-    @Override
     protected DeleteIndexTemplateResponse newResponse() {
         return new DeleteIndexTemplateResponse();
     }
 
     @Override
     protected ClusterBlockException checkBlock(DeleteIndexTemplateRequest request, ClusterState state) {
-        return state.blocks().indexBlockedException(ClusterBlockLevel.METADATA, "");
+        return state.blocks().indexBlockedException(ClusterBlockLevel.METADATA_WRITE, "");
     }
 
     @Override
-    protected void masterOperation(final DeleteIndexTemplateRequest request, final ClusterState state, final ActionListener<DeleteIndexTemplateResponse> listener) throws ElasticsearchException {
+    protected void masterOperation(final DeleteIndexTemplateRequest request, final ClusterState state, final ActionListener<DeleteIndexTemplateResponse> listener) {
         indexTemplateService.removeTemplates(new MetaDataIndexTemplateService.RemoveRequest(request.name()).masterTimeout(request.masterNodeTimeout()), new MetaDataIndexTemplateService.RemoveListener() {
             @Override
             public void onResponse(MetaDataIndexTemplateService.RemoveResponse response) {

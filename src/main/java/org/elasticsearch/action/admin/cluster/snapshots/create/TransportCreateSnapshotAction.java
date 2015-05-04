@@ -44,7 +44,7 @@ public class TransportCreateSnapshotAction extends TransportMasterNodeOperationA
     @Inject
     public TransportCreateSnapshotAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                          ThreadPool threadPool, SnapshotsService snapshotsService, ActionFilters actionFilters) {
-        super(settings, CreateSnapshotAction.NAME, transportService, clusterService, threadPool, actionFilters);
+        super(settings, CreateSnapshotAction.NAME, transportService, clusterService, threadPool, actionFilters, CreateSnapshotRequest.class);
         this.snapshotsService = snapshotsService;
     }
 
@@ -54,22 +54,17 @@ public class TransportCreateSnapshotAction extends TransportMasterNodeOperationA
     }
 
     @Override
-    protected CreateSnapshotRequest newRequest() {
-        return new CreateSnapshotRequest();
-    }
-
-    @Override
     protected CreateSnapshotResponse newResponse() {
         return new CreateSnapshotResponse();
     }
 
     @Override
     protected ClusterBlockException checkBlock(CreateSnapshotRequest request, ClusterState state) {
-        return state.blocks().indexBlockedException(ClusterBlockLevel.METADATA, "");
+        return state.blocks().indexBlockedException(ClusterBlockLevel.METADATA_WRITE, "");
     }
 
     @Override
-    protected void masterOperation(final CreateSnapshotRequest request, ClusterState state, final ActionListener<CreateSnapshotResponse> listener) throws ElasticsearchException {
+    protected void masterOperation(final CreateSnapshotRequest request, ClusterState state, final ActionListener<CreateSnapshotResponse> listener) {
         SnapshotsService.SnapshotRequest snapshotRequest =
                 new SnapshotsService.SnapshotRequest("create_snapshot[" + request.snapshot() + "]", request.snapshot(), request.repository())
                         .indices(request.indices())

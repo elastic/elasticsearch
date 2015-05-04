@@ -20,7 +20,6 @@
 package org.elasticsearch.action.admin.cluster.health;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -45,7 +44,7 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadOperati
     @Inject
     public TransportClusterHealthAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
                                         ClusterName clusterName, ActionFilters actionFilters) {
-        super(settings, ClusterHealthAction.NAME, transportService, clusterService, threadPool, actionFilters);
+        super(settings, ClusterHealthAction.NAME, transportService, clusterService, threadPool, actionFilters, ClusterHealthRequest.class);
         this.clusterName = clusterName;
     }
 
@@ -61,17 +60,12 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadOperati
     }
 
     @Override
-    protected ClusterHealthRequest newRequest() {
-        return new ClusterHealthRequest();
-    }
-
-    @Override
     protected ClusterHealthResponse newResponse() {
         return new ClusterHealthResponse();
     }
 
     @Override
-    protected void masterOperation(final ClusterHealthRequest request, final ClusterState unusedState, final ActionListener<ClusterHealthResponse> listener) throws ElasticsearchException {
+    protected void masterOperation(final ClusterHealthRequest request, final ClusterState unusedState, final ActionListener<ClusterHealthResponse> listener) {
         if (request.waitForEvents() != null) {
             final long endTime = System.currentTimeMillis() + request.timeout().millis();
             clusterService.submitStateUpdateTask("cluster_health (wait_for_events [" + request.waitForEvents() + "])", request.waitForEvents(), new ProcessedClusterStateUpdateTask() {
@@ -146,7 +140,7 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadOperati
 
             @Override
             public void onClusterServiceClose() {
-                listener.onFailure(new ElasticsearchIllegalStateException("ClusterService was close during health call"));
+                listener.onFailure(new IllegalStateException("ClusterService was close during health call"));
             }
 
             @Override

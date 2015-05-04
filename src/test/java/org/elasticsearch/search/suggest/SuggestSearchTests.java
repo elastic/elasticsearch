@@ -19,13 +19,10 @@
 
 package org.elasticsearch.search.suggest;
 
-import com.carrotsearch.randomizedtesting.annotations.Nightly;
 import com.google.common.base.Charsets;
 import com.google.common.collect.ImmutableList;
 import com.google.common.io.Resources;
-import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.*;
@@ -124,11 +121,11 @@ public class SuggestSearchTests extends ElasticsearchIntegrationTest {
             searchSuggest( termSuggest);
             fail(" can not suggest across multiple indices with different analysis chains");
         } catch (ReduceSearchPhaseException ex) {
-            assertThat(ex.getCause(), instanceOf(ElasticsearchIllegalStateException.class));
+            assertThat(ex.getCause(), instanceOf(IllegalStateException.class));
             assertThat(ex.getCause().getMessage(),
                     anyOf(endsWith("Suggest entries have different sizes actual [1] expected [2]"),
                             endsWith("Suggest entries have different sizes actual [2] expected [1]")));
-        } catch (ElasticsearchIllegalStateException ex) {
+        } catch (IllegalStateException ex) {
             assertThat(ex.getMessage(), anyOf(endsWith("Suggest entries have different sizes actual [1] expected [2]"),
                     endsWith("Suggest entries have different sizes actual [2] expected [1]")));
         }
@@ -144,10 +141,10 @@ public class SuggestSearchTests extends ElasticsearchIntegrationTest {
             searchSuggest( termSuggest);
             fail(" can not suggest across multiple indices with different analysis chains");
         } catch (ReduceSearchPhaseException ex) {
-            assertThat(ex.getCause(), instanceOf(ElasticsearchIllegalStateException.class));
+            assertThat(ex.getCause(), instanceOf(IllegalStateException.class));
             assertThat(ex.getCause().getMessage(), anyOf(endsWith("Suggest entries have different text actual [ABCD] expected [abcd]"),
                     endsWith("Suggest entries have different text actual [abcd] expected [ABCD]")));
-        } catch (ElasticsearchIllegalStateException ex) {
+        } catch (IllegalStateException ex) {
             assertThat(ex.getMessage(), anyOf(endsWith("Suggest entries have different text actual [ABCD] expected [abcd]"),
                     endsWith("Suggest entries have different text actual [abcd] expected [ABCD]")));
         }
@@ -412,7 +409,7 @@ public class SuggestSearchTests extends ElasticsearchIntegrationTest {
     }
     
     @Test // see #2817
-    public void testStopwordsOnlyPhraseSuggest() throws ElasticsearchException, IOException {
+    public void testStopwordsOnlyPhraseSuggest() throws IOException {
         assertAcked(prepareCreate("test").addMapping("typ1", "body", "type=string,analyzer=stopwd").setSettings(
                 settingsBuilder()
                         .put("index.analysis.analyzer.stopwd.tokenizer", "whitespace")
@@ -430,7 +427,7 @@ public class SuggestSearchTests extends ElasticsearchIntegrationTest {
     }
     
     @Test
-    public void testPrefixLength() throws ElasticsearchException, IOException {  // Stopped here
+    public void testPrefixLength() throws IOException {  // Stopped here
         CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(settingsBuilder()
                 .put(SETTING_NUMBER_OF_SHARDS, 1)
                 .put("index.analysis.analyzer.reverse.tokenizer", "standard")
@@ -475,7 +472,7 @@ public class SuggestSearchTests extends ElasticsearchIntegrationTest {
     @Test
     @Slow
     @Nightly
-    public void testMarvelHerosPhraseSuggest() throws ElasticsearchException, IOException {
+    public void testMarvelHerosPhraseSuggest() throws IOException {
         CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(settingsBuilder()
                 .put(indexSettings())
                 .put("index.analysis.analyzer.reverse.tokenizer", "standard")
@@ -671,7 +668,7 @@ public class SuggestSearchTests extends ElasticsearchIntegrationTest {
 
     @Test
     @Nightly
-    public void testPhraseBoundaryCases() throws ElasticsearchException, IOException {
+    public void testPhraseBoundaryCases() throws IOException {
         CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(settingsBuilder()
                 .put(indexSettings()).put(SETTING_NUMBER_OF_SHARDS, 1) // to get reliable statistics we should put this all into one shard
                 .put("index.analysis.analyzer.body.tokenizer", "standard")
@@ -878,7 +875,7 @@ public class SuggestSearchTests extends ElasticsearchIntegrationTest {
      * score during the reduce phase.  Failures don't occur every time - maybe two out of five tries but we don't repeat it to save time.
      */
     @Test
-    public void testSearchForRarePhrase() throws ElasticsearchException, IOException {
+    public void testSearchForRarePhrase() throws IOException {
         // If there isn't enough chaf per shard then shards can become unbalanced, making the cutoff recheck this is testing do more harm then good.
         int chafPerShard = 100;
 

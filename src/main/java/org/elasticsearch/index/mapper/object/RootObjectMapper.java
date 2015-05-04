@@ -255,14 +255,9 @@ public class RootObjectMapper extends ObjectMapper {
     }
 
     @Override
-    protected boolean allowValue() {
-        return true;
-    }
-
-    @Override
-    protected void doMerge(ObjectMapper mergeWith, MergeContext mergeContext) {
+    protected void doMerge(ObjectMapper mergeWith, MergeResult mergeResult) {
         RootObjectMapper mergeWithObject = (RootObjectMapper) mergeWith;
-        if (!mergeContext.mergeFlags().simulate()) {
+        if (!mergeResult.simulate()) {
             // merge them
             List<DynamicTemplate> mergedTemplates = Lists.newArrayList(Arrays.asList(this.dynamicTemplates));
             for (DynamicTemplate template : mergeWithObject.dynamicTemplates) {

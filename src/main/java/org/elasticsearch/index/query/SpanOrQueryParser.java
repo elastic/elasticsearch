@@ -66,12 +66,12 @@ public class SpanOrQueryParser implements QueryParser {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         Query query = parseContext.parseInnerQuery();
                         if (!(query instanceof SpanQuery)) {
-                            throw new QueryParsingException(parseContext.index(), "spanOr [clauses] must be of type span query");
+                            throw new QueryParsingException(parseContext, "spanOr [clauses] must be of type span query");
                         }
                         clauses.add((SpanQuery) query);
                     }
                 } else {
-                    throw new QueryParsingException(parseContext.index(), "[span_or] query does not support [" + currentFieldName + "]");
+                    throw new QueryParsingException(parseContext, "[span_or] query does not support [" + currentFieldName + "]");
                 }
             } else {
                 if ("boost".equals(currentFieldName)) {
@@ -79,12 +79,12 @@ public class SpanOrQueryParser implements QueryParser {
                 } else if ("_name".equals(currentFieldName)) {
                     queryName = parser.text();
                 } else {
-                    throw new QueryParsingException(parseContext.index(), "[span_or] query does not support [" + currentFieldName + "]");
+                    throw new QueryParsingException(parseContext, "[span_or] query does not support [" + currentFieldName + "]");
                 }
             }
         }
         if (clauses.isEmpty()) {
-            throw new QueryParsingException(parseContext.index(), "spanOr must include [clauses]");
+            throw new QueryParsingException(parseContext, "spanOr must include [clauses]");
         }
 
         SpanOrQuery query = new SpanOrQuery(clauses.toArray(new SpanQuery[clauses.size()]));

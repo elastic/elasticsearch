@@ -31,7 +31,6 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -120,7 +119,7 @@ public class IndicesQueryCache extends AbstractComponent implements RemovalListe
         // defaults to 4, but this is a busy map for all indices, increase it a bit by default
         this.concurrencyLevel =  settings.getAsInt(INDICES_CACHE_QUERY_CONCURRENCY_LEVEL, 16);
         if (concurrencyLevel <= 0) {
-            throw new ElasticsearchIllegalArgumentException("concurrency_level must be > 0 but was: " + concurrencyLevel);
+            throw new IllegalArgumentException("concurrency_level must be > 0 but was: " + concurrencyLevel);
         }
         buildCache();
 

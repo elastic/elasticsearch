@@ -49,7 +49,8 @@ public class ValueCountParser implements Aggregator.Parser {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (!vsParser.token(currentFieldName, token, parser)) {
-                throw new SearchParseException(context, "Unexpected token " + token + " in [" + aggregationName + "].");
+                throw new SearchParseException(context, "Unexpected token " + token + " in [" + aggregationName + "].",
+                        parser.getTokenLocation());
             }
         }
 

@@ -18,8 +18,6 @@
  */
 package org.elasticsearch.index.shard;
 
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.MutableShardRouting;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -58,7 +56,7 @@ public class IndexShardTests extends ElasticsearchSingleNodeTest {
         try {
             assertAcked(client().admin().indices().prepareUpdateSettings("test").setSettings(settingsBuilder().put(IndexShard.INDEX_FLUSH_ON_CLOSE, "FOOBAR").build()));
             fail("exception expected");
-        } catch (ElasticsearchIllegalArgumentException ex) {
+        } catch (IllegalArgumentException ex) {
 
         }
         assertEquals(newValue, shard.isFlushOnClose());
@@ -147,7 +145,7 @@ public class IndexShardTests extends ElasticsearchSingleNodeTest {
         try {
             shard.deleteShardState();
             fail("shard is active metadata delete must fail");
-        } catch (ElasticsearchIllegalStateException ex) {
+        } catch (IllegalStateException ex) {
             // fine - only delete if non-active
         }
 

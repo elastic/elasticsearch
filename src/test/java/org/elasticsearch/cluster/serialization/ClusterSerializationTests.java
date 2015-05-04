@@ -81,7 +81,7 @@ public class ClusterSerializationTests extends ElasticsearchAllocationTestCase {
         RoutingTable source = strategy.reroute(clusterState).routingTable();
 
         BytesStreamOutput outStream = new BytesStreamOutput();
-        RoutingTable.Builder.writeTo(source, outStream);
+        source.writeTo(outStream);
         BytesStreamInput inStream = new BytesStreamInput(outStream.bytes().toBytes());
         RoutingTable target = RoutingTable.Builder.readFrom(inStream);
 

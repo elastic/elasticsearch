@@ -21,7 +21,7 @@ package org.elasticsearch.search.internal;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.MultimapBuilder;
-import org.apache.lucene.search.Filter;
+
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
@@ -34,7 +34,6 @@ import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
-import org.elasticsearch.index.cache.filter.FilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldMappers;
@@ -43,7 +42,6 @@ import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.query.ParsedFilter;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.index.query.support.NestedScope;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.script.ScriptService;
@@ -112,7 +110,7 @@ public abstract class SearchContext implements Releasable {
      */
     public abstract void preProcess();
 
-    public abstract Filter searchFilter(String[] types);
+    public abstract Query searchFilter(String[] types);
 
     public abstract long id();
 
@@ -213,8 +211,6 @@ public abstract class SearchContext implements Releasable {
 
     public abstract BigArrays bigArrays();
 
-    public abstract FilterCache filterCache();
-
     public abstract BitsetFilterCache bitsetFilterCache();
 
     public abstract IndexFieldDataService fieldData();
@@ -243,7 +239,7 @@ public abstract class SearchContext implements Releasable {
 
     public abstract ParsedFilter parsedPostFilter();
 
-    public abstract Filter aliasFilter();
+    public abstract Query aliasFilter();
 
     public abstract SearchContext parsedQuery(ParsedQuery query);
 

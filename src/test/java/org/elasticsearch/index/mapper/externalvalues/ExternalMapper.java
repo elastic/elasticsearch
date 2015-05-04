@@ -33,7 +33,7 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldMapperListener;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MergeContext;
+import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.index.mapper.ObjectMapperListener;
 import org.elasticsearch.index.mapper.ParseContext;
@@ -111,7 +111,7 @@ public class ExternalMapper extends AbstractFieldMapper<Object> {
             BooleanFieldMapper boolMapper = boolBuilder.build(context);
             GeoPointFieldMapper pointMapper = pointBuilder.build(context);
             GeoShapeFieldMapper shapeMapper = shapeBuilder.build(context);
-            Mapper stringMapper = stringBuilder.build(context);
+            FieldMapper stringMapper = (FieldMapper)stringBuilder.build(context);
             context.path().remove();
 
             context.path().pathType(origPathType);
@@ -157,12 +157,12 @@ public class ExternalMapper extends AbstractFieldMapper<Object> {
     private final BooleanFieldMapper boolMapper;
     private final GeoPointFieldMapper pointMapper;
     private final GeoShapeFieldMapper shapeMapper;
-    private final Mapper stringMapper;
+    private final FieldMapper stringMapper;
 
     public ExternalMapper(FieldMapper.Names names,
                           String generatedValue, String mapperName,
                           BinaryFieldMapper binMapper, BooleanFieldMapper boolMapper, GeoPointFieldMapper pointMapper,
-                          GeoShapeFieldMapper shapeMapper, Mapper stringMapper, Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
+                          GeoShapeFieldMapper shapeMapper, FieldMapper stringMapper, Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
         super(names, 1.0f, Defaults.FIELD_TYPE, false, null, null, null, null, null, indexSettings,
                 multiFields, copyTo);
         this.generatedValue = generatedValue;
@@ -207,9 +207,6 @@ public class ExternalMapper extends AbstractFieldMapper<Object> {
         stringMapper.parse(context);
 
         multiFields.parse(this, context);
-        if (copyTo != null) {
-            copyTo.parse(context);
-        }
         return null;
     }
 
@@ -219,7 +216,7 @@ public class ExternalMapper extends AbstractFieldMapper<Object> {
     }
 
     @Override
-    public void merge(Mapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
+    public void merge(Mapper mergeWith, MergeResult mergeResult) throws MergeMappingException {
         // ignore this for now
     }
 

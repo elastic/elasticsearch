@@ -20,6 +20,7 @@
 package org.elasticsearch.search.aggregations;
 
 import com.google.common.collect.Lists;
+
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.bytes.BytesArray;

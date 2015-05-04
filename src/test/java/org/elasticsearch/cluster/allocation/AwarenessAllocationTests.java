@@ -47,7 +47,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
-@ClusterScope(scope= ElasticsearchIntegrationTest.Scope.TEST, numDataNodes =0)
+@ClusterScope(scope= ElasticsearchIntegrationTest.Scope.TEST, numDataNodes =0, minNumDataNodes = 2)
 public class AwarenessAllocationTests extends ElasticsearchIntegrationTest {
 
     private final ESLogger logger = Loggers.getLogger(AwarenessAllocationTests.class);

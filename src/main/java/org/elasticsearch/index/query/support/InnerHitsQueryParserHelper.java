@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.query.support;
 
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -73,7 +72,7 @@ public class InnerHitsQueryParserHelper {
                 }
             }
         } catch (Exception e) {
-            throw new QueryParsingException(parserContext.index(), "Failed to parse [_inner_hits]", e);
+            throw new QueryParsingException(parserContext, "Failed to parse [_inner_hits]", e);
         }
         return new Tuple<>(innerHitName, subSearchContext);
     }
@@ -95,7 +94,7 @@ public class InnerHitsQueryParserHelper {
                     scriptFieldsParseElement.parse(parser, subSearchContext);
                     break;
                 default:
-                    throw new ElasticsearchIllegalArgumentException("Unknown key for a " + token + " for nested query: [" + fieldName + "].");
+                    throw new IllegalArgumentException("Unknown key for a " + token + " for nested query: [" + fieldName + "].");
             }
         } else if (token == XContentParser.Token.START_ARRAY) {
             switch (fieldName) {
@@ -115,7 +114,7 @@ public class InnerHitsQueryParserHelper {
                     }
                     break;
                 default:
-                    throw new ElasticsearchIllegalArgumentException("Unknown key for a " + token + " for nested query: [" + fieldName + "].");
+                    throw new IllegalArgumentException("Unknown key for a " + token + " for nested query: [" + fieldName + "].");
             }
         } else if (token.isValue()) {
             switch (fieldName) {
@@ -139,7 +138,7 @@ public class InnerHitsQueryParserHelper {
                     subSearchContext.fieldNames().add(parser.text());
                     break;
                 default:
-                    throw new ElasticsearchIllegalArgumentException("Unknown key for a " + token + " for nested query: [" + fieldName + "].");
+                    throw new IllegalArgumentException("Unknown key for a " + token + " for nested query: [" + fieldName + "].");
             }
         }
     }

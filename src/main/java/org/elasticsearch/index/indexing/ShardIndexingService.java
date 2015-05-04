@@ -216,19 +216,6 @@ public class ShardIndexingService extends AbstractIndexShardComponent {
         typeStats(delete.type()).deleteCurrent.dec();
     }
 
-    public Engine.DeleteByQuery preDeleteByQuery(Engine.DeleteByQuery deleteByQuery) {
-        for (IndexingOperationListener listener : listeners) {
-            deleteByQuery = listener.preDeleteByQuery(deleteByQuery);
-        }
-        return deleteByQuery;
-    }
-
-    public void postDeleteByQuery(Engine.DeleteByQuery deleteByQuery) {
-        for (IndexingOperationListener listener : listeners) {
-            listener.postDeleteByQuery(deleteByQuery);
-        }
-    }
-
     public void noopUpdate(String type) {
         totalStats.noopUpdates.inc();
         typeStats(type).noopUpdates.inc();

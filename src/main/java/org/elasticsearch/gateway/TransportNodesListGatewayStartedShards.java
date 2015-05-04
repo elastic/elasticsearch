@@ -55,7 +55,8 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesOperat
 
     @Inject
     public TransportNodesListGatewayStartedShards(Settings settings, ClusterName clusterName, ThreadPool threadPool, ClusterService clusterService, TransportService transportService, ActionFilters actionFilters, NodeEnvironment env) {
-        super(settings, ACTION_NAME, clusterName, threadPool, clusterService, transportService, actionFilters);
+        super(settings, ACTION_NAME, clusterName, threadPool, clusterService, transportService, actionFilters,
+                Request.class, NodeRequest.class, ThreadPool.Names.GENERIC);
         this.nodeEnv = env;
     }
 
@@ -64,23 +65,8 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesOperat
     }
 
     @Override
-    protected String executor() {
-        return ThreadPool.Names.GENERIC;
-    }
-
-    @Override
     protected boolean transportCompress() {
         return true; // this can become big...
-    }
-
-    @Override
-    protected Request newRequestInstance() {
-        return new Request();
-    }
-
-    @Override
-    protected NodeRequest newNodeRequest() {
-        return new NodeRequest();
     }
 
     @Override
@@ -112,7 +98,7 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesOperat
     }
 
     @Override
-    protected NodeGatewayStartedShards nodeOperation(NodeRequest request) throws ElasticsearchException {
+    protected NodeGatewayStartedShards nodeOperation(NodeRequest request) {
         try {
             final ShardId shardId = request.getShardId();
             final String indexUUID = request.getIndexUUID();

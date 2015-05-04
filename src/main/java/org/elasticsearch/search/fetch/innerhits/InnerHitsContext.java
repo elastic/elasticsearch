@@ -31,12 +31,12 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.FilteredQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryWrapperFilter;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopDocsCollector;
 import org.apache.lucene.search.TopFieldCollector;
 import org.apache.lucene.search.TopScoreDocCollector;
-import org.apache.lucene.search.TotalHitCountCollector;
 import org.apache.lucene.search.join.BitDocIdSetFilter;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.Bits;
@@ -50,7 +50,6 @@ import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.query.ParsedQuery;
-import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
 import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.internal.FilteredSearchContext;
@@ -126,12 +125,12 @@ public final class InnerHitsContext {
         public TopDocs topDocs(SearchContext context, FetchSubPhase.HitContext hitContext) throws IOException {
             Filter rawParentFilter;
             if (parentObjectMapper == null) {
-                rawParentFilter = NonNestedDocsFilter.INSTANCE;
+                rawParentFilter = Queries.newNonNestedFilter();
             } else {
                 rawParentFilter = parentObjectMapper.nestedTypeFilter();
             }
             BitDocIdSetFilter parentFilter = context.bitsetFilterCache().getBitDocIdSetFilter(rawParentFilter);
-            Filter childFilter = context.filterCache().cache(childObjectMapper.nestedTypeFilter(), null, context.queryParserService().autoFilterCachePolicy());
+            Filter childFilter = childObjectMapper.nestedTypeFilter();
             Query q = new FilteredQuery(query, new NestedChildrenFilter(parentFilter, childFilter, hitContext));
 
             if (size() == 0) {
@@ -166,6 +165,28 @@ public final class InnerHitsContext {
                 this.childFilter = childFilter;
                 this.docId = hitContext.docId();
                 this.atomicReader = hitContext.readerContext().reader();
+            }
+
+            @Override
+            public boolean equals(Object obj) {
+                if (super.equals(obj) == false) {
+                    return false;
+                }
+                NestedChildrenFilter other = (NestedChildrenFilter) obj;
+                return parentFilter.equals(other.parentFilter)
+                        && childFilter.equals(other.childFilter)
+                        && docId == other.docId
+                        && atomicReader.getCoreCacheKey() == other.atomicReader.getCoreCacheKey();
+            }
+
+            @Override
+            public int hashCode() {
+                int hash = super.hashCode();
+                hash = 31 * hash + parentFilter.hashCode();
+                hash = 31 * hash + childFilter.hashCode();
+                hash = 31 * hash + docId;
+                hash = 31 * hash + atomicReader.getCoreCacheKey().hashCode();
+                return hash;
             }
 
             @Override
@@ -285,7 +306,7 @@ public final class InnerHitsContext {
                     term = (String) fieldsVisitor.fields().get(ParentFieldMapper.NAME).get(0);
                 }
             }
-            Filter filter = Queries.wrap(new TermQuery(new Term(field, term))); // Only include docs that have the current hit as parent
+            Filter filter = new QueryWrapperFilter(new TermQuery(new Term(field, term))); // Only include docs that have the current hit as parent
             Filter typeFilter = documentMapper.typeFilter(); // Only include docs that have this inner hits type.
 
             BooleanQuery filteredQuery = new BooleanQuery();

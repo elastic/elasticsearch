@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper.internal;
 
+import org.apache.lucene.index.IndexOptions;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -60,6 +61,20 @@ public class FieldNamesFieldMapperTests extends ElasticsearchSingleNodeTest {
         assertEquals(set("", ".a"), extract(".a"));
         assertEquals(set("a", "a."), extract("a."));
         assertEquals(set("", ".", ".."), extract(".."));
+    }
+
+    public void testFieldType() throws Exception {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+            .startObject("_field_names").endObject()
+            .endObject().endObject().string();
+
+        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        FieldNamesFieldMapper fieldNamesMapper = docMapper.rootMapper(FieldNamesFieldMapper.class);
+        assertFalse(fieldNamesMapper.hasDocValues());
+        assertEquals(IndexOptions.DOCS, fieldNamesMapper.fieldType().indexOptions());
+        assertFalse(fieldNamesMapper.fieldType().tokenized());
+        assertFalse(fieldNamesMapper.fieldType().stored());
+        assertTrue(fieldNamesMapper.fieldType().omitNorms());
     }
 
     public void testInjectIntoDocDuringParsing() throws Exception {
@@ -162,11 +177,11 @@ public class FieldNamesFieldMapperTests extends ElasticsearchSingleNodeTest {
         
         DocumentMapper mapperEnabled = parser.parse(enabledMapping);
         DocumentMapper mapperDisabled = parser.parse(disabledMapping);
-        mapperEnabled.merge(mapperDisabled.mapping(), DocumentMapper.MergeFlags.mergeFlags().simulate(false));
+        mapperEnabled.merge(mapperDisabled.mapping(), false);
         assertFalse(mapperEnabled.rootMapper(FieldNamesFieldMapper.class).enabled());
 
         mapperEnabled = parser.parse(enabledMapping);
-        mapperDisabled.merge(mapperEnabled.mapping(), DocumentMapper.MergeFlags.mergeFlags().simulate(false));
+        mapperDisabled.merge(mapperEnabled.mapping(), false);
         assertTrue(mapperEnabled.rootMapper(FieldNamesFieldMapper.class).enabled());
     }
 }

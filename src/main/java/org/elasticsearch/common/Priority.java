@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.common;
 
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -51,7 +50,7 @@ public final class Priority implements Comparable<Priority> {
             case 3: return LOW;
             case 4: return LANGUID;
             default:
-                throw new ElasticsearchIllegalArgumentException("can't find priority for [" + b + "]");
+                throw new IllegalArgumentException("can't find priority for [" + b + "]");
         }
     }
 

@@ -39,7 +39,7 @@ public class BigArraysTests extends ElasticsearchSingleNodeTest {
 
     public static BigArrays randombigArrays() {
         final PageCacheRecycler recycler = randomBoolean() ? null : ElasticsearchSingleNodeTest.getInstanceFromNode(PageCacheRecycler.class);
-        return new MockBigArrays(ImmutableSettings.EMPTY, recycler, new NoneCircuitBreakerService());
+        return new MockBigArrays(recycler, new NoneCircuitBreakerService());
     }
 
     private BigArrays bigArrays;
@@ -339,7 +339,7 @@ public class BigArraysTests extends ElasticsearchSingleNodeTest {
                             .put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING, size - 1)
                             .build(),
                     new NodeSettingsService(ImmutableSettings.EMPTY));
-            BigArrays bigArrays = new BigArrays(ImmutableSettings.EMPTY, null, hcbs).withCircuitBreaking();
+            BigArrays bigArrays = new BigArrays(null, hcbs).withCircuitBreaking();
             Method create = BigArrays.class.getMethod("new" + type + "Array", long.class);
             try {
                 create.invoke(bigArrays, size);
@@ -359,7 +359,7 @@ public class BigArraysTests extends ElasticsearchSingleNodeTest {
                             .put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING, maxSize)
                             .build(),
                     new NodeSettingsService(ImmutableSettings.EMPTY));
-            BigArrays bigArrays = new BigArrays(ImmutableSettings.EMPTY, null, hcbs).withCircuitBreaking();
+            BigArrays bigArrays = new BigArrays(null, hcbs).withCircuitBreaking();
             Method create = BigArrays.class.getMethod("new" + type + "Array", long.class);
             final int size = scaledRandomIntBetween(1, 20);
             BigArray array = (BigArray) create.invoke(bigArrays, size);

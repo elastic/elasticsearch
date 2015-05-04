@@ -19,14 +19,12 @@
 package org.elasticsearch.index.shard;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.index.aliases.IndexAliasesService;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.IgnoreOnRecoveryEngineException;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperAnalyzer;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperUtils;
@@ -90,7 +88,7 @@ public class TranslogRecoveryPerformer {
      * Performs a single recovery operation, and returns the indexing operation (or null if its not an indexing operation)
      * that can then be used for mapping updates (for example) if needed.
      */
-    public void performRecoveryOperation(Engine engine, Translog.Operation operation) throws ElasticsearchException {
+    public void performRecoveryOperation(Engine engine, Translog.Operation operation) {
         try {
             switch (operation.opType()) {
                 case CREATE:
@@ -128,7 +126,7 @@ public class TranslogRecoveryPerformer {
                             deleteByQuery.source(), deleteByQuery.filteringAliases(), Engine.Operation.Origin.RECOVERY, deleteByQuery.types()));
                     break;
                 default:
-                    throw new ElasticsearchIllegalStateException("No operation defined for [" + operation + "]");
+                    throw new IllegalStateException("No operation defined for [" + operation + "]");
             }
         } catch (ElasticsearchException e) {
             boolean hasIgnoreOnRecoveryException = false;

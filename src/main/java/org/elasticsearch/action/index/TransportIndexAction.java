@@ -25,6 +25,7 @@ import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
+import org.elasticsearch.action.index.IndexRequest.OpType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.replication.TransportShardReplicationOperationAction;
@@ -42,9 +43,11 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndexAlreadyExistsException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.river.RiverIndexName;
@@ -64,22 +67,23 @@ import org.elasticsearch.transport.TransportService;
 public class TransportIndexAction extends TransportShardReplicationOperationAction<IndexRequest, IndexRequest, IndexResponse> {
 
     private final AutoCreateIndex autoCreateIndex;
-
     private final boolean allowIdGeneration;
-
     private final TransportCreateIndexAction createIndexAction;
-
     private final MappingUpdatedAction mappingUpdatedAction;
+
+    private final ClusterService clusterService;
 
     @Inject
     public TransportIndexAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                 IndicesService indicesService, ThreadPool threadPool, ShardStateAction shardStateAction,
                                 TransportCreateIndexAction createIndexAction, MappingUpdatedAction mappingUpdatedAction, ActionFilters actionFilters) {
-        super(settings, IndexAction.NAME, transportService, clusterService, indicesService, threadPool, shardStateAction, actionFilters);
+        super(settings, IndexAction.NAME, transportService, clusterService, indicesService, threadPool, shardStateAction, actionFilters,
+                IndexRequest.class, IndexRequest.class, ThreadPool.Names.INDEX);
         this.createIndexAction = createIndexAction;
         this.mappingUpdatedAction = mappingUpdatedAction;
         this.autoCreateIndex = new AutoCreateIndex(settings);
         this.allowIdGeneration = settings.getAsBoolean("action.allow_id_generation", true);
+        this.clusterService = clusterService;
     }
 
     @Override
@@ -142,46 +146,14 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
     }
 
     @Override
-    protected IndexRequest newRequestInstance() {
-        return new IndexRequest();
-    }
-
-    @Override
-    protected IndexRequest newReplicaRequestInstance() {
-        return newRequestInstance();
-    }
-
-    @Override
     protected IndexResponse newResponseInstance() {
         return new IndexResponse();
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.INDEX;
     }
 
     @Override
     protected ShardIterator shards(ClusterState clusterState, InternalRequest request) {
         return clusterService.operationRouting()
                 .indexShards(clusterService.state(), request.concreteIndex(), request.request().type(), request.request().id(), request.request().routing());
-    }
-
-    private void applyMappingUpdate(IndexService indexService, String type, Mapping update) throws Throwable {
-        // HACK: Rivers seem to have something specific that triggers potential
-        // deadlocks when doing concurrent indexing. So for now they keep the
-        // old behaviour of updating mappings locally first and then
-        // asynchronously notifying the master
-        // this can go away when rivers are removed
-        final String indexName = indexService.index().name();
-        final String indexUUID = indexService.indexUUID();
-        if (indexName.equals(RiverIndexName.Conf.indexName(settings))) {
-            indexService.mapperService().merge(type, new CompressedString(update.toBytes()), true);
-            mappingUpdatedAction.updateMappingOnMaster(indexName, indexUUID, type, update, null);
-        } else {
-            mappingUpdatedAction.updateMappingOnMasterSynchronously(indexName, indexUUID, type, update);
-            indexService.mapperService().merge(type, new CompressedString(update.toBytes()), true);
-        }
     }
 
     @Override
@@ -201,27 +173,39 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
         IndexShard indexShard = indexService.shardSafe(shardRequest.shardId.id());
         SourceToParse sourceToParse = SourceToParse.source(SourceToParse.Origin.PRIMARY, request.source()).type(request.type()).id(request.id())
                 .routing(request.routing()).parent(request.parent()).timestamp(request.timestamp()).ttl(request.ttl());
-        long version;
-        boolean created;
 
+        final Engine.IndexingOperation operation;
         if (request.opType() == IndexRequest.OpType.INDEX) {
-            Engine.Index index = indexShard.prepareIndex(sourceToParse, request.version(), request.versionType(), Engine.Operation.Origin.PRIMARY, request.canHaveDuplicates());
-            if (index.parsedDoc().dynamicMappingsUpdate() != null) {
-                applyMappingUpdate(indexService, request.type(), index.parsedDoc().dynamicMappingsUpdate());
-            }
-            indexShard.index(index);
-            version = index.version();
-            created = index.created();
+            operation = indexShard.prepareIndex(sourceToParse, request.version(), request.versionType(), Engine.Operation.Origin.PRIMARY, request.canHaveDuplicates());
         } else {
-            Engine.Create create = indexShard.prepareCreate(sourceToParse,
+            assert request.opType() == IndexRequest.OpType.CREATE : request.opType();
+            operation = indexShard.prepareCreate(sourceToParse,
                     request.version(), request.versionType(), Engine.Operation.Origin.PRIMARY, request.canHaveDuplicates(), request.autoGeneratedId());
-            if (create.parsedDoc().dynamicMappingsUpdate() != null) {
-                applyMappingUpdate(indexService, request.type(), create.parsedDoc().dynamicMappingsUpdate());
-            }
-            indexShard.create(create);
-            version = create.version();
-            created = true;
         }
+
+        final boolean created;
+        Mapping update = operation.parsedDoc().dynamicMappingsUpdate();
+        if (update != null) {
+            final String indexName = indexService.index().name();
+            if (indexName.equals(RiverIndexName.Conf.indexName(settings))) {
+                // With rivers, we have a chicken and egg problem if indexing
+                // the _meta document triggers a mapping update. Because we would
+                // like to validate the mapping update first, but on the other
+                // hand putting the mapping would start the river, which expects
+                // to find a _meta document
+                // So we have no choice but to index first and send mappings afterwards
+                MapperService mapperService = indexService.mapperService();
+                mapperService.merge(request.type(), new CompressedString(update.toBytes()), true);
+                created = operation.execute(indexShard);
+                mappingUpdatedAction.updateMappingOnMasterAsynchronously(indexName, request.type(), update);
+            } else {
+                mappingUpdatedAction.updateMappingOnMasterSynchronously(indexName, request.type(), update);
+                created = operation.execute(indexShard);
+            }
+        } else {
+            created = operation.execute(indexShard);
+        }
+
         if (request.refresh()) {
             try {
                 indexShard.refresh("refresh_flag_index");
@@ -231,6 +215,7 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
         }
 
         // update the version on the request, so it will be used for the replicas
+        final long version = operation.version();
         request.version(version);
         request.versionType(request.versionType().versionTypeForReplicationAndRecovery());
 
@@ -239,19 +224,24 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
     }
 
     @Override
-    protected void shardOperationOnReplica(ReplicaOperationRequest shardRequest) {
-        IndexShard indexShard = indicesService.indexServiceSafe(shardRequest.shardId.getIndex()).shardSafe(shardRequest.shardId.id());
-        IndexRequest request = shardRequest.request;
+    protected void shardOperationOnReplica(ShardId shardId, IndexRequest request) {
+        IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
+        IndexShard indexShard = indexService.shardSafe(shardId.id());
         SourceToParse sourceToParse = SourceToParse.source(SourceToParse.Origin.REPLICA, request.source()).type(request.type()).id(request.id())
                 .routing(request.routing()).parent(request.parent()).timestamp(request.timestamp()).ttl(request.ttl());
+
+        final Engine.IndexingOperation operation;
         if (request.opType() == IndexRequest.OpType.INDEX) {
-            Engine.Index index = indexShard.prepareIndex(sourceToParse, request.version(), request.versionType(), Engine.Operation.Origin.REPLICA, request.canHaveDuplicates());
-            indexShard.index(index);
+            operation = indexShard.prepareIndex(sourceToParse, request.version(), request.versionType(), Engine.Operation.Origin.REPLICA, request.canHaveDuplicates());
         } else {
-            Engine.Create create = indexShard.prepareCreate(sourceToParse,
-                    request.version(), request.versionType(), Engine.Operation.Origin.REPLICA, request.canHaveDuplicates(), request.autoGeneratedId());
-            indexShard.create(create);
+            assert request.opType() == IndexRequest.OpType.CREATE : request.opType();
+            operation = indexShard.prepareCreate(sourceToParse, request.version(), request.versionType(), Engine.Operation.Origin.REPLICA, request.canHaveDuplicates(), request.autoGeneratedId());
         }
+        Mapping update = operation.parsedDoc().dynamicMappingsUpdate();
+        if (update != null) {
+            throw new RetryOnReplicaException(shardId, "Mappings are not available on the replica yet, triggered update: " + update);
+        }
+        operation.execute(indexShard);
         if (request.refresh()) {
             try {
                 indexShard.refresh("refresh_flag_index");

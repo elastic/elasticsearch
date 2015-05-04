@@ -27,7 +27,6 @@ import com.spatial4j.core.shape.ShapeCollection;
 import com.spatial4j.core.shape.jts.JtsGeometry;
 import com.spatial4j.core.shape.jts.JtsPoint;
 import com.vividsolutions.jts.geom.*;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -35,7 +34,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.test.hamcrest.ElasticsearchGeoAssertions;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -539,7 +537,7 @@ public class GeoJSONShapeParserTests extends ElasticsearchTestCase {
 
         parser = JsonXContent.jsonXContent.createParser(invalidPoly);
         parser.nextToken();
-        ElasticsearchGeoAssertions.assertValidException(parser, ElasticsearchIllegalArgumentException.class);
+        ElasticsearchGeoAssertions.assertValidException(parser, IllegalArgumentException.class);
 
         // test case 5: create an invalid polygon with 1 invalid LinearRing
         invalidPoly = XContentFactory.jsonBuilder().startObject().field("type", "polygon")
@@ -550,7 +548,7 @@ public class GeoJSONShapeParserTests extends ElasticsearchTestCase {
 
         parser = JsonXContent.jsonXContent.createParser(invalidPoly);
         parser.nextToken();
-        ElasticsearchGeoAssertions.assertValidException(parser, ElasticsearchIllegalArgumentException.class);
+        ElasticsearchGeoAssertions.assertValidException(parser, IllegalArgumentException.class);
 
         // test case 6: create an invalid polygon with 0 LinearRings
         invalidPoly = XContentFactory.jsonBuilder().startObject().field("type", "polygon")

@@ -29,6 +29,7 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.QueryWrapperFilter;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.join.BitDocIdSetFilter;
 import org.apache.lucene.util.BitDocIdSet;
@@ -40,7 +41,6 @@ import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.LongBitSet;
 import org.apache.lucene.util.SparseFixedBitSet;
 import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.index.mapper.Uid;
@@ -66,9 +66,9 @@ final class ParentIdsFilter extends Filter {
                 BooleanQuery bq = new BooleanQuery();
                 bq.add(new TermQuery(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(parentType, id))), Occur.MUST);
                 bq.add(nonNestedDocsFilter, Occur.MUST);
-                return Queries.wrap(bq);
+                return new QueryWrapperFilter(bq);
             } else {
-                return Queries.wrap(new TermQuery(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(parentType, id))));
+                return new QueryWrapperFilter(new TermQuery(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(parentType, id))));
             }
         } else {
             BytesRefHash parentIds= null;
@@ -98,9 +98,9 @@ final class ParentIdsFilter extends Filter {
                 BooleanQuery bq = new BooleanQuery();
                 bq.add(new TermQuery(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(parentType, id))), Occur.MUST);
                 bq.add(nonNestedDocsFilter, Occur.MUST);
-                return Queries.wrap(bq);
+                return new QueryWrapperFilter(bq);
             } else {
-                return Queries.wrap(new TermQuery(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(parentType, id))));
+                return new QueryWrapperFilter(new TermQuery(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(parentType, id))));
             }
         } else {
             BytesRefHash parentIds = null;
@@ -194,5 +194,25 @@ final class ParentIdsFilter extends Filter {
     @Override
     public String toString(String field) {
         return "parentsFilter(type=" + parentTypeBr.utf8ToString() + ")";
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (super.equals(obj) == false) {
+            return false;
+        }
+        ParentIdsFilter other = (ParentIdsFilter) obj;
+        return parentTypeBr.equals(other.parentTypeBr)
+                && parentIds.equals(other.parentIds)
+                && nonNestedDocsFilter.equals(nonNestedDocsFilter);
+    }
+
+    @Override
+    public int hashCode() {
+        int h = super.hashCode();
+        h = 31 * h + parentTypeBr.hashCode();
+        h = 31 * h + parentIds.hashCode();
+        h = 31 * h + nonNestedDocsFilter.hashCode();
+        return h;
     }
 }

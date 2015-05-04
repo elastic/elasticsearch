@@ -41,9 +41,6 @@ public class RangeFilterBuilder extends BaseFilterBuilder {
 
     private boolean includeUpper = true;
 
-    private Boolean cache;
-    private String cacheKey;
-
     private String filterName;
 
     private String execution;
@@ -342,19 +339,6 @@ public class RangeFilterBuilder extends BaseFilterBuilder {
     }
 
     /**
-     * Should the filter be cached or not. Defaults to <tt>true</tt>.
-     */
-    public RangeFilterBuilder cache(boolean cache) {
-        this.cache = cache;
-        return this;
-    }
-
-    public RangeFilterBuilder cacheKey(String cacheKey) {
-        this.cacheKey = cacheKey;
-        return this;
-    }
-
-    /**
      * Sets the execution mode that controls how the range filter is executed. Valid values are: "index" and "fielddata".
      * <ol>
      * <li> The <code>index</code> execution uses the field's inverted in order to determine of documents fall with in
@@ -396,12 +380,6 @@ public class RangeFilterBuilder extends BaseFilterBuilder {
 
         if (filterName != null) {
             builder.field("_name", filterName);
-        }
-        if (cache != null) {
-            builder.field("_cache", cache);
-        }
-        if (cacheKey != null) {
-            builder.field("_cache_key", cacheKey);
         }
         if (execution != null) {
             builder.field("execution", execution);

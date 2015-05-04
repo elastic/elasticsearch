@@ -46,21 +46,21 @@ public class RiversManager extends AbstractLifecycleComponent<RiversManager> {
     }
 
     @Override
-    protected void doStart() throws ElasticsearchException {
+    protected void doStart() {
         riversRouter.start();
         riversService.start();
         clusterService.start();
     }
 
     @Override
-    protected void doStop() throws ElasticsearchException {
+    protected void doStop() {
         riversRouter.stop();
         clusterService.stop();
         riversService.stop();
     }
 
     @Override
-    protected void doClose() throws ElasticsearchException {
+    protected void doClose() {
         riversRouter.close();
         clusterService.close();
         riversService.close();

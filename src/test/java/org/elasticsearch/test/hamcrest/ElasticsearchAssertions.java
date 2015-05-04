@@ -26,7 +26,6 @@ import com.google.common.collect.Iterables;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionFuture;
@@ -54,6 +53,8 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationResponse;
 import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.cluster.block.ClusterBlock;
+import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -65,9 +66,6 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.test.VersionUtils;
-import org.elasticsearch.test.engine.AssertingSearcher;
-import org.elasticsearch.test.engine.MockEngineSupport;
-import org.elasticsearch.test.store.MockDirectoryHelper;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 import org.junit.Assert;
@@ -78,11 +76,11 @@ import java.lang.reflect.InvocationTargetException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
-import java.util.concurrent.TimeUnit;
 
 import static com.google.common.base.Predicates.isNull;
 import static org.elasticsearch.test.ElasticsearchTestCase.*;
 import static org.elasticsearch.test.VersionUtils.randomVersion;
+import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
@@ -116,6 +114,42 @@ public class ElasticsearchAssertions {
     public static void assertAcked(DeleteIndexResponse response) {
         assertThat("Delete Index failed - not acked", response.isAcknowledged(), equalTo(true));
         assertVersionSerializable(response);
+    }
+
+    /**
+     * Executes the request and fails if the request has not been blocked.
+     *
+     * @param builder the request builder
+     */
+    public static void assertBlocked(ActionRequestBuilder builder) {
+        assertBlocked(builder, null);
+    }
+
+    /**
+     * Executes the request and fails if the request has not been blocked by a specific {@link ClusterBlock}.
+     *
+     * @param builder the request builder
+     * @param expectedBlock the expected block
+     */
+    public static void assertBlocked(ActionRequestBuilder builder, ClusterBlock expectedBlock) {
+        try {
+            builder.get();
+            fail("Request executed with success but a ClusterBlockException was expected");
+        } catch (ClusterBlockException e) {
+            assertThat(e.blocks().size(), greaterThan(0));
+            assertThat(e.status(), equalTo(RestStatus.FORBIDDEN));
+
+            if (expectedBlock != null) {
+                boolean found = false;
+                for (ClusterBlock clusterBlock : e.blocks()) {
+                    if (clusterBlock.id() == expectedBlock.id()) {
+                        found = true;
+                        break;
+                    }
+                }
+                assertThat("Request should have been blocked by [" + expectedBlock + "] instead of " + e.blocks(), found, equalTo(true));
+            }
+        }
     }
 
     public static String formatShardStatus(BroadcastOperationResponse response) {
@@ -271,7 +305,7 @@ public class ElasticsearchAssertions {
             assertVersionSerializable(searchResponse);
         } catch (SearchPhaseExecutionException e) {
             assertThat(e.status(), equalTo(restStatus));
-            assertThat(e.getMessage(), reasonMatcher);
+            assertThat(e.toString(), reasonMatcher);
             for (ShardSearchFailure shardSearchFailure : e.shardFailures()) {
                 assertThat(shardSearchFailure.status(), equalTo(restStatus));
                 assertThat(shardSearchFailure.reason(), reasonMatcher);
@@ -642,67 +676,6 @@ public class ElasticsearchAssertions {
         assertNoFailures(response);
         assertThat("One or more shards were not successful but didn't trigger a failure", response.getSuccessfulShards(), equalTo(response.getTotalShards()));
         return response;
-    }
-
-    public static void assertAllSearchersClosed() {
-        /* in some cases we finish a test faster than the freeContext calls make it to the
-         * shards. Let's wait for some time if there are still searchers. If the are really
-         * pending we will fail anyway.*/
-        try {
-            if (awaitBusy(new Predicate<Object>() {
-                @Override
-                public boolean apply(Object o) {
-                    return MockEngineSupport.INFLIGHT_ENGINE_SEARCHERS.isEmpty();
-                }
-            }, 5, TimeUnit.SECONDS)) {
-                return;
-            }
-        } catch (InterruptedException ex) {
-            if (MockEngineSupport.INFLIGHT_ENGINE_SEARCHERS.isEmpty()) {
-                return;
-            }
-        }
-        try {
-            RuntimeException ex = null;
-            StringBuilder builder = new StringBuilder("Unclosed Searchers instance for shards: [");
-            for (Map.Entry<AssertingSearcher, RuntimeException> entry : MockEngineSupport.INFLIGHT_ENGINE_SEARCHERS.entrySet()) {
-                ex = entry.getValue();
-                builder.append(entry.getKey().shardId()).append(",");
-            }
-            builder.append("]");
-            throw new RuntimeException(builder.toString(), ex);
-        } finally {
-            MockEngineSupport.INFLIGHT_ENGINE_SEARCHERS.clear();
-        }
-    }
-
-    public static void assertAllFilesClosed() {
-        try {
-            for (final MockDirectoryHelper.ElasticsearchMockDirectoryWrapper w : MockDirectoryHelper.wrappers) {
-                try {
-                    w.awaitClosed(5000);
-                } catch (InterruptedException e) {
-                    Thread.interrupted();
-                }
-                if (!w.successfullyClosed()) {
-                    if (w.closeException() == null) {
-                        try {
-                            w.close();
-                        } catch (IOException e) {
-                            throw new ElasticsearchIllegalStateException("directory close threw IOException", e);
-                        }
-                        if (w.closeException() != null) {
-                            throw w.closeException();
-                        }
-                    } else {
-                        throw w.closeException();
-                    }
-                }
-                assertThat(w.isOpen(), is(false));
-            }
-        } finally {
-            MockDirectoryHelper.wrappers.clear();
-        }
     }
 
     public static void assertNodeContainsPlugins(NodesInfoResponse response, String nodeId,

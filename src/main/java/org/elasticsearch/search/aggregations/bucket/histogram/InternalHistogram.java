@@ -22,7 +22,6 @@ import com.google.common.collect.Lists;
 
 import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.PriorityQueue;
-import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -30,6 +29,7 @@ import org.elasticsearch.common.rounding.Rounding;
 import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -37,6 +37,7 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.BucketStreamContext;
 import org.elasticsearch.search.aggregations.bucket.BucketStreams;
+import org.elasticsearch.search.aggregations.reducers.Reducer;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatterStreams;
 
@@ -50,7 +51,8 @@ import java.util.Map;
 /**
  * TODO should be renamed to InternalNumericHistogram (see comment on {@link Histogram})?
  */
-public class InternalHistogram<B extends InternalHistogram.Bucket> extends InternalMultiBucketAggregation implements Histogram {
+public class InternalHistogram<B extends InternalHistogram.Bucket> extends InternalMultiBucketAggregation<InternalHistogram, B> implements
+        Histogram {
 
     final static Type TYPE = new Type("histogram", "histo");
 
@@ -68,7 +70,7 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
         public Bucket readResult(StreamInput in, BucketStreamContext context) throws IOException {
             Factory<?> factory = (Factory<?>) context.attributes().get("factory");
             if (factory == null) {
-                throw new ElasticsearchIllegalStateException("No factory found for histogram buckets");
+                throw new IllegalStateException("No factory found for histogram buckets");
             }
             Bucket histogram = new Bucket(context.keyed(), context.formatter(), factory);
             histogram.readFrom(in);
@@ -185,6 +187,14 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
             out.writeVLong(docCount);
             aggregations.writeTo(out);
         }
+
+        public ValueFormatter getFormatter() {
+            return formatter;
+        }
+
+        public boolean getKeyed() {
+            return keyed;
+        }
     }
 
     static class EmptyBucketInfo {
@@ -223,7 +233,7 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
 
     }
 
-    static class Factory<B extends InternalHistogram.Bucket> {
+    public static class Factory<B extends InternalHistogram.Bucket> {
 
         protected Factory() {
         }
@@ -233,12 +243,27 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
         }
 
         public InternalHistogram<B> create(String name, List<B> buckets, InternalOrder order, long minDocCount,
-                                           EmptyBucketInfo emptyBucketInfo, @Nullable ValueFormatter formatter, boolean keyed, Map<String, Object> metaData) {
-            return new InternalHistogram<>(name, buckets, order, minDocCount, emptyBucketInfo, formatter, keyed, this, metaData);
+                EmptyBucketInfo emptyBucketInfo, @Nullable ValueFormatter formatter, boolean keyed, List<Reducer> reducers,
+                Map<String, Object> metaData) {
+            return new InternalHistogram<>(name, buckets, order, minDocCount, emptyBucketInfo, formatter, keyed, this, reducers, metaData);
         }
 
-        public B createBucket(long key, long docCount, InternalAggregations aggregations, boolean keyed, @Nullable ValueFormatter formatter) {
-            return (B) new Bucket(key, docCount, keyed, formatter, this, aggregations);
+        public InternalHistogram<B> create(List<B> buckets, InternalHistogram<B> prototype) {
+            return new InternalHistogram<>(prototype.name, buckets, prototype.order, prototype.minDocCount, prototype.emptyBucketInfo,
+                    prototype.formatter, prototype.keyed, this, prototype.reducers(), prototype.metaData);
+        }
+
+        public B createBucket(InternalAggregations aggregations, B prototype) {
+            return (B) new Bucket(prototype.key, prototype.docCount, prototype.getKeyed(), prototype.formatter, this, aggregations);
+        }
+
+        public B createBucket(Object key, long docCount, InternalAggregations aggregations, boolean keyed,
+                @Nullable ValueFormatter formatter) {
+            if (key instanceof Number) {
+                return (B) new Bucket(((Number) key).longValue(), docCount, keyed, formatter, this, aggregations);
+            } else {
+                throw new AggregationExecutionException("Expected key of type Number but got [" + key + "]");
+            }
         }
 
         protected B createEmptyBucket(boolean keyed, @Nullable ValueFormatter formatter) {
@@ -259,8 +284,8 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
 
     InternalHistogram(String name, List<B> buckets, InternalOrder order, long minDocCount,
  EmptyBucketInfo emptyBucketInfo,
-            @Nullable ValueFormatter formatter, boolean keyed, Factory<B> factory, Map<String, Object> metaData) {
-        super(name, metaData);
+            @Nullable ValueFormatter formatter, boolean keyed, Factory<B> factory, List<Reducer> reducers, Map<String, Object> metaData) {
+        super(name, reducers, metaData);
         this.buckets = buckets;
         this.order = order;
         assert (minDocCount == 0) == (emptyBucketInfo != null);
@@ -281,8 +306,18 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
         return buckets;
     }
 
-    protected Factory<B> getFactory() {
+    public Factory<B> getFactory() {
         return factory;
+    }
+
+    @Override
+    public InternalHistogram<B> create(List<B> buckets) {
+        return getFactory().create(buckets, this);
+    }
+
+    @Override
+    public B createBucket(InternalAggregations aggregations, B prototype) {
+        return getFactory().createBucket(aggregations, prototype);
     }
 
     private static class IteratorAndCurrent<B> {
@@ -411,7 +446,7 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
     }
 
     @Override
-    public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         List<B> reducedBuckets = reduceBuckets(aggregations, reduceContext);
 
         // adding empty buckets if needed
@@ -431,7 +466,8 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
             CollectionUtil.introSort(reducedBuckets, order.comparator());
         }
 
-        return getFactory().create(getName(), reducedBuckets, order, minDocCount, emptyBucketInfo, formatter, keyed, getMetaData());
+        return getFactory().create(getName(), reducedBuckets, order, minDocCount, emptyBucketInfo, formatter, keyed, reducers(),
+                getMetaData());
     }
 
     @Override
@@ -461,7 +497,7 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
         } else if (factoryType.equals(TYPE.name())) {
             return new Factory<>();
         } else {
-            throw new ElasticsearchIllegalStateException("Invalid histogram factory type [" + factoryType + "]");
+            throw new IllegalStateException("Invalid histogram factory type [" + factoryType + "]");
         }
     }
 

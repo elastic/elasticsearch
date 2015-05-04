@@ -197,7 +197,7 @@ public class UpdateNoopTests extends ElasticsearchIntegrationTest {
         update(false, 2, XContentFactory.jsonBuilder().startObject().endObject());
     }
 
-    private XContentBuilder fields(Object... fields) throws ElasticsearchException, IOException {
+    private XContentBuilder fields(Object... fields) throws IOException {
         assertEquals("Fields must field1, value1, field2, value2, etc", 0, fields.length % 2);
         
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject();

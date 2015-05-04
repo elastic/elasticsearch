@@ -26,7 +26,6 @@ import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.StopWatch;
@@ -211,7 +210,7 @@ public class TimeDataHistogramAggregationBenchmark {
     private static SearchResponse doTermsAggsSearch(String name, String field, float matchPercentage) {
         SearchResponse response = client.prepareSearch()
                 .setSize(0)
-                .setQuery(QueryBuilders.constantScoreQuery(FilterBuilders.scriptFilter("random()<matchP").addParam("matchP", matchPercentage).cache(true)))
+                .setQuery(QueryBuilders.constantScoreQuery(FilterBuilders.scriptFilter("random()<matchP").addParam("matchP", matchPercentage)))
                 .addAggregation(AggregationBuilders.histogram(name).field(field).interval(3600 * 1000)).get();
 
         if (response.getHits().totalHits() < COUNT * matchPercentage * 0.7) {

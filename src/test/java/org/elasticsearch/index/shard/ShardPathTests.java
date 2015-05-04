@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.index.shard;
 
-import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -52,7 +51,7 @@ public class ShardPathTests extends ElasticsearchTestCase {
         }
     }
 
-    @Test(expected = ElasticsearchIllegalStateException.class)
+    @Test(expected = IllegalStateException.class)
     public void testFailLoadShardPathOnMultiState() throws IOException {
         try (final NodeEnvironment env = newNodeEnvironment(settingsBuilder().build())) {
             ImmutableSettings.Builder builder = settingsBuilder().put(IndexMetaData.SETTING_UUID, "0xDEADBEEF");
@@ -66,7 +65,7 @@ public class ShardPathTests extends ElasticsearchTestCase {
         }
     }
 
-    @Test(expected = ElasticsearchIllegalStateException.class)
+    @Test(expected = IllegalStateException.class)
     public void testFailLoadShardPathIndexUUIDMissmatch() throws IOException {
         try (final NodeEnvironment env = newNodeEnvironment(settingsBuilder().build())) {
             ImmutableSettings.Builder builder = settingsBuilder().put(IndexMetaData.SETTING_UUID, "foobar");

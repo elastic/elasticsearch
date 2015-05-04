@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.query;
 
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -42,9 +41,6 @@ public class GeoBoundingBoxFilterBuilder extends BaseFilterBuilder {
     private final String name;
 
     private double[] box = {Double.NaN, Double.NaN, Double.NaN, Double.NaN};
-
-    private Boolean cache;
-    private String cacheKey;
 
     private String filterName;
     private String type;
@@ -142,19 +138,6 @@ public class GeoBoundingBoxFilterBuilder extends BaseFilterBuilder {
     }
 
     /**
-     * Should the filter be cached or not. Defaults to <tt>false</tt>.
-     */
-    public GeoBoundingBoxFilterBuilder cache(boolean cache) {
-        this.cache = cache;
-        return this;
-    }
-
-    public GeoBoundingBoxFilterBuilder cacheKey(String cacheKey) {
-        this.cacheKey = cacheKey;
-        return this;
-    }
-
-    /**
      * Sets the type of executing of the geo bounding box. Can be either `memory` or `indexed`. Defaults
      * to `memory`.
      */
@@ -167,13 +150,13 @@ public class GeoBoundingBoxFilterBuilder extends BaseFilterBuilder {
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         // check values
         if(Double.isNaN(box[TOP])) {
-            throw new ElasticsearchIllegalArgumentException("geo_bounding_box requires top latitude to be set");
+            throw new IllegalArgumentException("geo_bounding_box requires top latitude to be set");
         } else if(Double.isNaN(box[BOTTOM])) {
-            throw new ElasticsearchIllegalArgumentException("geo_bounding_box requires bottom latitude to be set");
+            throw new IllegalArgumentException("geo_bounding_box requires bottom latitude to be set");
         } else if(Double.isNaN(box[RIGHT])) {
-            throw new ElasticsearchIllegalArgumentException("geo_bounding_box requires right longitude to be set");
+            throw new IllegalArgumentException("geo_bounding_box requires right longitude to be set");
         } else if(Double.isNaN(box[LEFT])) {
-            throw new ElasticsearchIllegalArgumentException("geo_bounding_box requires left longitude to be set");
+            throw new IllegalArgumentException("geo_bounding_box requires left longitude to be set");
         }
                 
         builder.startObject(GeoBoundingBoxFilterParser.NAME);
@@ -185,12 +168,6 @@ public class GeoBoundingBoxFilterBuilder extends BaseFilterBuilder {
 
         if (filterName != null) {
             builder.field("_name", filterName);
-        }
-        if (cache != null) {
-            builder.field("_cache", cache);
-        }
-        if (cacheKey != null) {
-            builder.field("_cache_key", cacheKey);
         }
         if (type != null) {
             builder.field("type", type);

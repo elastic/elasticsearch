@@ -22,9 +22,6 @@ package org.elasticsearch.script.groovy;
 import groovy.lang.Binding;
 import groovy.lang.GroovyClassLoader;
 import groovy.lang.Script;
-
-import com.google.common.collect.ImmutableSet;
-
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Scorer;
 import org.codehaus.groovy.ast.ClassCodeExpressionTransformer;
@@ -40,28 +37,18 @@ import org.codehaus.groovy.control.customizers.CompilationCustomizer;
 import org.codehaus.groovy.control.customizers.ImportCustomizer;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.script.CompiledScript;
-import org.elasticsearch.script.ExecutableScript;
-import org.elasticsearch.script.LeafSearchScript;
-import org.elasticsearch.script.ScoreAccessor;
-import org.elasticsearch.script.ScriptEngineService;
-import org.elasticsearch.script.ScriptException;
-import org.elasticsearch.script.SearchScript;
+import org.elasticsearch.script.*;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.math.BigDecimal;
-import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -70,47 +57,17 @@ import java.util.concurrent.atomic.AtomicLong;
 public class GroovyScriptEngineService extends AbstractComponent implements ScriptEngineService {
 
     public static final String NAME = "groovy";
-    public static String GROOVY_SCRIPT_SANDBOX_ENABLED = "script.groovy.sandbox.enabled";
-    public static String GROOVY_SCRIPT_BLACKLIST_PATCH = "script.groovy.sandbox.method_blacklist_patch";
-
     private final AtomicLong counter = new AtomicLong();
-    private final boolean sandboxed;
-    private volatile GroovyClassLoader loader;
-    private volatile Set<String> blacklistAdditions;
+    private final GroovyClassLoader loader;
 
     @Inject
     public GroovyScriptEngineService(Settings settings) {
         super(settings);
-        this.sandboxed = settings.getAsBoolean(GROOVY_SCRIPT_SANDBOX_ENABLED, false);
-        this.blacklistAdditions = ImmutableSet.copyOf(settings.getAsArray(GROOVY_SCRIPT_BLACKLIST_PATCH, Strings.EMPTY_ARRAY));
-        reloadConfig();
-    }
-
-    public Set<String> blacklistAdditions() {
-        return this.blacklistAdditions;
-    }
-
-    /**
-     * Appends the additional blacklisted methods to the current blacklist,
-     * returns true if the black list has changed
-     */
-    public boolean addToBlacklist(String... additions) {
-        Set<String> newBlackList = new HashSet<>(blacklistAdditions);
-        Collections.addAll(newBlackList, additions);
-        boolean changed = this.blacklistAdditions.equals(newBlackList) == false;
-        this.blacklistAdditions = ImmutableSet.copyOf(newBlackList);
-        return changed;
-    }
-
-    public void reloadConfig() {
         ImportCustomizer imports = new ImportCustomizer();
         imports.addStarImports("org.joda.time");
         imports.addStaticStars("java.lang.Math");
         CompilerConfiguration config = new CompilerConfiguration();
         config.addCompilationCustomizers(imports);
-        if (this.sandboxed) {
-            config.addCompilationCustomizers(GroovySandboxExpressionChecker.getSecureASTCustomizer(settings, this.blacklistAdditions));
-        }
         // Add BigDecimal -> Double transformer
         config.addCompilationCustomizers(new GroovyBigDecimalTransformer(CompilePhase.CONVERSION));
         this.loader = new GroovyClassLoader(settings.getClassLoader(), config);
@@ -148,7 +105,7 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
 
     @Override
     public boolean sandboxed() {
-        return this.sandboxed;
+        return false;
     }
 
     @Override
@@ -360,5 +317,4 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
             return super.transform(newExpr);
         }
     }
-
 }

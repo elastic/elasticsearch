@@ -114,7 +114,6 @@ import org.elasticsearch.index.translog.TranslogService;
 import org.elasticsearch.index.translog.fs.FsTranslog;
 import org.elasticsearch.index.translog.fs.FsTranslogFile;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.indices.cache.filter.IndicesFilterCache;
 import org.elasticsearch.indices.cache.query.IndicesQueryCache;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.recovery.RecoverySettings;
@@ -166,6 +165,8 @@ import java.util.concurrent.atomic.AtomicLong;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.test.XContentTestUtils.convertToMap;
+import static org.elasticsearch.test.XContentTestUtils.mapsEqualIgnoringArrayOrder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
@@ -357,7 +358,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
      * Creates a randomized index template. This template is used to pass in randomized settings on a
      * per index basis. Allows to enable/disable the randomization for number of shards and replicas
      */
-    private void randomIndexTemplate() throws IOException {
+    public void randomIndexTemplate() throws IOException {
 
         // TODO move settings for random directory etc here into the index based randomized settings.
         if (cluster().size() > 0) {
@@ -488,9 +489,6 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         }
 
         if (random.nextBoolean()) {
-            builder.put(StoreModule.DISTIBUTOR_KEY, random.nextBoolean() ? StoreModule.LEAST_USED_DISTRIBUTOR : StoreModule.RANDOM_WEIGHT_DISTRIBUTOR);
-        }
-        if (random.nextBoolean()) {
             builder.put(ConcurrentMergeSchedulerProvider.AUTO_THROTTLE, false);
         }
 
@@ -521,7 +519,6 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         if (random.nextBoolean()) {
             builder.put(IndicesQueryCache.INDICES_CACHE_QUERY_CONCURRENCY_LEVEL, RandomInts.randomIntBetween(random, 1, 32));
             builder.put(IndicesFieldDataCache.FIELDDATA_CACHE_CONCURRENCY_LEVEL, RandomInts.randomIntBetween(random, 1, 32));
-            builder.put(IndicesFilterCache.INDICES_CACHE_FILTER_CONCURRENCY_LEVEL, RandomInts.randomIntBetween(random, 1, 32));
         }
         if (random.nextBoolean()) {
             builder.put(NettyTransport.PING_SCHEDULE, RandomInts.randomIntBetween(random, 100, 2000) + "ms");
@@ -650,6 +647,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                             .transientSettings().getAsMap().size(), equalTo(0));
                     }
                     ensureClusterSizeConsistency();
+                    ensureClusterStateConsistency();
                     cluster().wipe(); // wipe after to make sure we fail in the test that didn't ack the delete
                     if (afterClass || currentClusterScope == Scope.TEST) {
                         cluster().close();
@@ -1088,8 +1086,8 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
      */
     public void setMinimumMasterNodes(int n) {
         assertTrue(client().admin().cluster().prepareUpdateSettings().setTransientSettings(
-            settingsBuilder().put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES, n))
-            .get().isAcknowledged());
+                settingsBuilder().put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES, n))
+                .get().isAcknowledged());
     }
 
     /**
@@ -1134,6 +1132,50 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
             logger.trace("Check consistency for [{}] nodes", cluster().size());
             assertNoTimeout(client().admin().cluster().prepareHealth().setWaitForNodes(Integer.toString(cluster().size())).get());
         }
+    }
+
+    /**
+     * Verifies that all nodes that have the same version of the cluster state as master have same cluster state
+     */
+    protected void ensureClusterStateConsistency() throws IOException {
+        if (cluster() != null) {
+            boolean getResolvedAddress = InetSocketTransportAddress.getResolveAddress();
+            try {
+                InetSocketTransportAddress.setResolveAddress(false);
+                ClusterState masterClusterState = client().admin().cluster().prepareState().all().get().getState();
+                byte[] masterClusterStateBytes = ClusterState.Builder.toBytes(masterClusterState);
+                // remove local node reference
+                masterClusterState = ClusterState.Builder.fromBytes(masterClusterStateBytes, null);
+                Map<String, Object> masterStateMap = convertToMap(masterClusterState);
+                int masterClusterStateSize = ClusterState.Builder.toBytes(masterClusterState).length;
+                String masterId = masterClusterState.nodes().masterNodeId();
+                for (Client client : cluster()) {
+                    ClusterState localClusterState = client.admin().cluster().prepareState().all().setLocal(true).get().getState();
+                    byte[] localClusterStateBytes = ClusterState.Builder.toBytes(localClusterState);
+                    // remove local node reference
+                    localClusterState = ClusterState.Builder.fromBytes(localClusterStateBytes, null);
+                    Map<String, Object> localStateMap = convertToMap(localClusterState);
+                    int localClusterStateSize = localClusterStateBytes.length;
+                    // Check that the non-master node has the same version of the cluster state as the master and that this node didn't disconnect from the master
+                    if (masterClusterState.version() == localClusterState.version() && localClusterState.nodes().nodes().containsKey(masterId)) {
+                        try {
+                            assertThat(masterClusterState.uuid(), equalTo(localClusterState.uuid()));
+                            // We cannot compare serialization bytes since serialization order of maps is not guaranteed
+                            // but we can compare serialization sizes - they should be the same
+                            assertThat(masterClusterStateSize, equalTo(localClusterStateSize));
+                            // Compare JSON serialization
+                            assertThat(mapsEqualIgnoringArrayOrder(masterStateMap, localStateMap), equalTo(true));
+                        } catch (AssertionError error) {
+                            logger.error("Cluster state from master:\n{}\nLocal cluster state:\n{}", masterClusterState.toString(), localClusterState.toString());
+                            throw error;
+                        }
+                    }
+                }
+            } finally {
+                InetSocketTransportAddress.setResolveAddress(getResolvedAddress);
+            }
+        }
+
     }
 
     /**
@@ -1421,6 +1463,24 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         client().admin().indices().prepareUpdateSettings(index).setSettings(settings).get();
     }
 
+    /** Disables an index block for the specified index */
+    public static void disableIndexBlock(String index, String block) {
+        Settings settings = ImmutableSettings.builder().put(block, false).build();
+        client().admin().indices().prepareUpdateSettings(index).setSettings(settings).get();
+    }
+
+    /** Enables an index block for the specified index */
+    public static void enableIndexBlock(String index, String block) {
+        Settings settings = ImmutableSettings.builder().put(block, true).build();
+        client().admin().indices().prepareUpdateSettings(index).setSettings(settings).get();
+    }
+
+    /** Sets or unsets the cluster read_only mode **/
+    public static void setClusterReadOnly(boolean value) {
+        Settings settings = settingsBuilder().put(MetaData.SETTING_READ_ONLY, value).build();
+        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings).get());
+    }
+
     private static CountDownLatch newLatch(List<CountDownLatch> latches) {
         CountDownLatch l = new CountDownLatch(1);
         latches.add(l);
@@ -1485,16 +1545,16 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         int numDataNodes() default -1;
 
         /**
-         * Returns the minimum number of nodes in the cluster. Default is {@link InternalTestCluster#DEFAULT_MIN_NUM_DATA_NODES}.
+         * Returns the minimum number of nodes in the cluster. Default is <tt>-1</tt>.
          * Ignored when {@link ClusterScope#numDataNodes()} is set.
          */
-        int minNumDataNodes() default InternalTestCluster.DEFAULT_MIN_NUM_DATA_NODES;
+        int minNumDataNodes() default -1;
 
         /**
-         * Returns the maximum number of nodes in the cluster.  Default is {@link InternalTestCluster#DEFAULT_MAX_NUM_DATA_NODES}.
+         * Returns the maximum number of nodes in the cluster.  Default is <tt>-1</tt>.
          * Ignored when {@link ClusterScope#numDataNodes()} is set.
          */
-        int maxNumDataNodes() default InternalTestCluster.DEFAULT_MAX_NUM_DATA_NODES;
+        int maxNumDataNodes() default -1;
 
         /**
          * Returns the number of client nodes in the cluster. Default is {@link InternalTestCluster#DEFAULT_NUM_CLIENT_NODES}, a
@@ -1595,12 +1655,12 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
 
     private int getMinNumDataNodes() {
         ClusterScope annotation = getAnnotation(this.getClass());
-        return annotation == null ? InternalTestCluster.DEFAULT_MIN_NUM_DATA_NODES : annotation.minNumDataNodes();
+        return annotation == null || annotation.minNumDataNodes() == -1 ? InternalTestCluster.DEFAULT_MIN_NUM_DATA_NODES  : annotation.minNumDataNodes();
     }
 
     private int getMaxNumDataNodes() {
         ClusterScope annotation = getAnnotation(this.getClass());
-        return annotation == null ? InternalTestCluster.DEFAULT_MAX_NUM_DATA_NODES : annotation.maxNumDataNodes();
+        return annotation == null || annotation.maxNumDataNodes() == -1 ? InternalTestCluster.DEFAULT_MAX_NUM_DATA_NODES : annotation.maxNumDataNodes();
     }
 
     private int getNumClientNodes() {

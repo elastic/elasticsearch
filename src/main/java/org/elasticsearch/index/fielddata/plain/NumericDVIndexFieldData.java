@@ -26,7 +26,6 @@ import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.Bits;
-import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
@@ -57,7 +56,7 @@ public class NumericDVIndexFieldData extends DocValuesIndexFieldData implements 
                     final Bits docsWithField = DocValues.getDocsWithField(reader, field);
                     return DocValues.singleton(values, docsWithField);
                 } catch (IOException e) {
-                    throw new ElasticsearchIllegalStateException("Cannot load doc values", e);
+                    throw new IllegalStateException("Cannot load doc values", e);
                 }
             }
             

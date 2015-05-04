@@ -26,7 +26,6 @@ import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.FilteredQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryWrapperFilter;
 import org.apache.lucene.search.ScoreDoc;
@@ -44,7 +43,6 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
-import org.elasticsearch.index.cache.filter.FilterCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -207,7 +205,7 @@ public class DefaultSearchContext extends SearchContext {
     }
 
     @Override
-    public void doClose() throws ElasticsearchException {
+    public void doClose() {
         if (scanContext != null) {
             scanContext.clear();
         }
@@ -235,14 +233,17 @@ public class DefaultSearchContext extends SearchContext {
         if (queryBoost() != 1.0f) {
             parsedQuery(new ParsedQuery(new FunctionScoreQuery(query(), new BoostScoreFunction(queryBoost)), parsedQuery()));
         }
-        Filter searchFilter = searchFilter(types());
+        Query searchFilter = searchFilter(types());
         if (searchFilter != null) {
             if (Queries.isConstantMatchAllQuery(query())) {
                 Query q = new ConstantScoreQuery(searchFilter);
                 q.setBoost(query().getBoost());
                 parsedQuery(new ParsedQuery(q, parsedQuery()));
             } else {
-                parsedQuery(new ParsedQuery(new FilteredQuery(query(), searchFilter), parsedQuery()));
+                BooleanQuery filtered = new BooleanQuery();
+                filtered.add(query(), Occur.MUST);
+                filtered.add(searchFilter, Occur.FILTER);
+                parsedQuery(new ParsedQuery(filtered, parsedQuery()));
             }
         }
     }
@@ -255,12 +256,12 @@ public class DefaultSearchContext extends SearchContext {
         }
         BooleanQuery bq = new BooleanQuery();
         if (filter != null) {
-            bq.add(filterCache().cache(filter, null, indexService.queryParserService().autoFilterCachePolicy()), Occur.MUST);
+            bq.add(filter, Occur.MUST);
         }
         if (aliasFilter != null) {
             bq.add(aliasFilter, Occur.MUST);
         }
-        return Queries.wrap(bq);
+        return new QueryWrapperFilter(bq);
     }
 
     @Override
@@ -478,11 +479,6 @@ public class DefaultSearchContext extends SearchContext {
     @Override
     public BigArrays bigArrays() {
         return bigArrays;
-    }
-
-    @Override
-    public FilterCache filterCache() {
-        return indexService.cache().filter();
     }
 
     @Override

@@ -20,7 +20,6 @@
 package org.elasticsearch.discovery.zen.fd;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
@@ -77,7 +76,7 @@ public class MasterFaultDetection extends FaultDetection {
 
         logger.debug("[master] uses ping_interval [{}], ping_timeout [{}], ping_retries [{}]", pingInterval, pingRetryTimeout, pingRetryCount);
 
-        transportService.registerHandler(MASTER_PING_ACTION_NAME, new MasterPingRequestHandler());
+        transportService.registerRequestHandler(MASTER_PING_ACTION_NAME, MasterPingRequest.class, ThreadPool.Names.SAME, new MasterPingRequestHandler());
     }
 
     public DiscoveryNode masterNode() {
@@ -295,7 +294,7 @@ public class MasterFaultDetection extends FaultDetection {
     }
 
     /** Thrown when a ping reaches the wrong node */
-    static class ThisIsNotTheMasterYouAreLookingForException extends ElasticsearchIllegalStateException {
+    static class ThisIsNotTheMasterYouAreLookingForException extends IllegalStateException {
 
         ThisIsNotTheMasterYouAreLookingForException(String msg) {
             super(msg);
@@ -310,19 +309,14 @@ public class MasterFaultDetection extends FaultDetection {
         }
     }
 
-    static class NodeDoesNotExistOnMasterException extends ElasticsearchIllegalStateException {
+    static class NodeDoesNotExistOnMasterException extends IllegalStateException {
         @Override
         public Throwable fillInStackTrace() {
             return null;
         }
     }
 
-    private class MasterPingRequestHandler extends BaseTransportRequestHandler<MasterPingRequest> {
-
-        @Override
-        public MasterPingRequest newInstance() {
-            return new MasterPingRequest();
-        }
+    private class MasterPingRequestHandler implements TransportRequestHandler<MasterPingRequest> {
 
         @Override
         public void messageReceived(final MasterPingRequest request, final TransportChannel channel) throws Exception {
@@ -356,7 +350,7 @@ public class MasterFaultDetection extends FaultDetection {
                         // if we are no longer master, fail...
                         DiscoveryNodes nodes = currentState.nodes();
                         if (!nodes.localNodeMaster()) {
-                            throw new NotMasterException();
+                            throw new NotMasterException("local node is not master");
                         }
                         if (!nodes.nodeExists(request.nodeId)) {
                             throw new NodeDoesNotExistOnMasterException();
@@ -389,11 +383,6 @@ public class MasterFaultDetection extends FaultDetection {
                 // send a response, and note if we are connected to the master or not
                 channel.sendResponse(new MasterPingResponseResponse());
             }
-        }
-
-        @Override
-        public String executor() {
-            return ThreadPool.Names.SAME;
         }
     }
 

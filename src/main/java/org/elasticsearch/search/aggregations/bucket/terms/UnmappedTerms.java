@@ -23,6 +23,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.reducers.Reducer;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -32,7 +34,7 @@ import java.util.Map;
 /**
  *
  */
-public class UnmappedTerms extends InternalTerms {
+public class UnmappedTerms extends InternalTerms<UnmappedTerms, InternalTerms.Bucket> {
 
     public static final Type TYPE = new Type("terms", "umterms");
 
@@ -54,13 +56,29 @@ public class UnmappedTerms extends InternalTerms {
 
     UnmappedTerms() {} // for serialization
 
-    public UnmappedTerms(String name, Terms.Order order, int requiredSize, int shardSize, long minDocCount, Map<String, Object> metaData) {
-        super(name, order, requiredSize, shardSize, minDocCount, BUCKETS, false, 0, 0, metaData);
+    public UnmappedTerms(String name, Terms.Order order, int requiredSize, int shardSize, long minDocCount, List<Reducer> reducers,
+            Map<String, Object> metaData) {
+        super(name, order, requiredSize, shardSize, minDocCount, BUCKETS, false, 0, 0, reducers, metaData);
     }
 
     @Override
     public Type type() {
         return TYPE;
+    }
+
+    @Override
+    public UnmappedTerms create(List<InternalTerms.Bucket> buckets) {
+        return new UnmappedTerms(this.name, this.order, this.requiredSize, this.shardSize, this.minDocCount, this.reducers(), this.metaData);
+    }
+
+    @Override
+    public InternalTerms.Bucket createBucket(InternalAggregations aggregations, InternalTerms.Bucket prototype) {
+        throw new UnsupportedOperationException("not supported for UnmappedTerms");
+    }
+
+    @Override
+    protected UnmappedTerms create(String name, List<Bucket> buckets, long docCountError, long otherDocCount, InternalTerms prototype) {
+        throw new UnsupportedOperationException("not supported for UnmappedTerms");
     }
 
     @Override
@@ -81,18 +99,13 @@ public class UnmappedTerms extends InternalTerms {
     }
 
     @Override
-    public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         for (InternalAggregation agg : aggregations) {
             if (!(agg instanceof UnmappedTerms)) {
                 return agg.reduce(aggregations, reduceContext);
             }
         }
         return this;
-    }
-
-    @Override
-    protected InternalTerms newAggregation(String name, List<Bucket> buckets, boolean showTermDocCountError, long docCountError, long otherDocCount, Map<String, Object> metaData) {
-        throw new UnsupportedOperationException("How did you get there?");
     }
 
     @Override

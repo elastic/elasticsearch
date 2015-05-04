@@ -36,14 +36,13 @@ import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.XFilteredDocIdSetIterator;
 import org.apache.lucene.search.join.BitDocIdSetFilter;
 import org.apache.lucene.util.Bits;
-import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.ToStringUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.common.lucene.IndexCacheableQuery;
 import org.elasticsearch.common.lucene.docset.DocIdSets;
 import org.elasticsearch.common.lucene.search.NoopCollector;
-import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.FloatArray;
 import org.elasticsearch.common.util.IntArray;
@@ -65,28 +64,25 @@ import java.util.Set;
  * all parent documents having the same uid value that is collected in the first phase are emitted as hit including
  * a score based on the aggregated child scores and score type.
  */
-public class ChildrenQuery extends Query {
+public final class ChildrenQuery extends IndexCacheableQuery {
 
     protected final ParentChildIndexFieldData ifd;
     protected final String parentType;
     protected final String childType;
     protected final Filter parentFilter;
     protected final ScoreType scoreType;
-    protected Query originalChildQuery;
+    protected Query childQuery;
     protected final int minChildren;
     protected final int maxChildren;
     protected final int shortCircuitParentDocSet;
     protected final BitDocIdSetFilter nonNestedDocsFilter;
-
-    protected Query rewrittenChildQuery;
-    protected IndexReader rewriteIndexReader;
 
     public ChildrenQuery(ParentChildIndexFieldData ifd, String parentType, String childType, Filter parentFilter, Query childQuery, ScoreType scoreType, int minChildren, int maxChildren, int shortCircuitParentDocSet, BitDocIdSetFilter nonNestedDocsFilter) {
         this.ifd = ifd;
         this.parentType = parentType;
         this.childType = childType;
         this.parentFilter = parentFilter;
-        this.originalChildQuery = childQuery;
+        this.childQuery = childQuery;
         this.scoreType = scoreType;
         this.shortCircuitParentDocSet = shortCircuitParentDocSet;
         this.nonNestedDocsFilter = nonNestedDocsFilter;
@@ -96,22 +92,30 @@ public class ChildrenQuery extends Query {
     }
 
     @Override
+    public Query rewrite(IndexReader reader) throws IOException {
+        final Query childRewritten = childQuery.rewrite(reader);
+        if (childRewritten != childQuery) {
+            Query rewritten = new ChildrenQuery(ifd, parentType, childType, parentFilter, childRewritten, scoreType, minChildren, maxChildren, shortCircuitParentDocSet, nonNestedDocsFilter);
+            rewritten.setBoost(getBoost());
+            return rewritten;
+        }
+        return super.rewrite(reader);
+    }
+
+    @Override
     public boolean equals(Object obj) {
         if (this == obj) {
             return true;
         }
-        if (obj == null || obj.getClass() != this.getClass()) {
+        if (super.equals(obj) == false) {
             return false;
         }
 
         ChildrenQuery that = (ChildrenQuery) obj;
-        if (!originalChildQuery.equals(that.originalChildQuery)) {
+        if (!childQuery.equals(that.childQuery)) {
             return false;
         }
         if (!childType.equals(that.childType)) {
-            return false;
-        }
-        if (getBoost() != that.getBoost()) {
             return false;
         }
         if (minChildren != that.minChildren) {
@@ -125,9 +129,9 @@ public class ChildrenQuery extends Query {
 
     @Override
     public int hashCode() {
-        int result = originalChildQuery.hashCode();
+        int result = super.hashCode();
+        result = 31 * result + childQuery.hashCode();
         result = 31 * result + childType.hashCode();
-        result = 31 * result + Float.floatToIntBits(getBoost());
         result = 31 * result + minChildren;
         result = 31 * result + maxChildren;
         return result;
@@ -137,36 +141,12 @@ public class ChildrenQuery extends Query {
     public String toString(String field) {
         int max = maxChildren == 0 ? Integer.MAX_VALUE : maxChildren;
         return "ChildrenQuery[min(" + Integer.toString(minChildren) + ") max(" + Integer.toString(max) + ")of " + childType + "/"
-                + parentType + "](" + originalChildQuery.toString(field) + ')' + ToStringUtils.boost(getBoost());
+                + parentType + "](" + childQuery.toString(field) + ')' + ToStringUtils.boost(getBoost());
     }
 
     @Override
-    // See TopChildrenQuery#rewrite
-    public Query rewrite(IndexReader reader) throws IOException {
-        if (rewrittenChildQuery == null) {
-            rewriteIndexReader = reader;
-            rewrittenChildQuery = originalChildQuery.rewrite(reader);
-        }
-        return this;
-    }
-
-    @Override
-    public Query clone() {
-        ChildrenQuery q = (ChildrenQuery) super.clone();
-        q.originalChildQuery = originalChildQuery.clone();
-        if (q.rewrittenChildQuery != null) {
-            q.rewrittenChildQuery = rewrittenChildQuery.clone();
-        }
-        return q;
-    }
-
-    @Override
-    public Weight createWeight(IndexSearcher searcher, boolean needsScores) throws IOException {
+    public Weight doCreateWeight(IndexSearcher searcher, boolean needsScores) throws IOException {
         SearchContext sc = SearchContext.current();
-        assert rewrittenChildQuery != null;
-        assert rewriteIndexReader == searcher.getIndexReader() : "not equal, rewriteIndexReader=" + rewriteIndexReader
-                + " searcher.getIndexReader()=" + searcher.getIndexReader();
-        final Query childQuery = rewrittenChildQuery;
 
         IndexParentChildFieldData globalIfd = ifd.loadGlobal(searcher.getIndexReader());
         if (globalIfd == null) {
@@ -175,6 +155,7 @@ public class ChildrenQuery extends Query {
         }
         IndexSearcher indexSearcher = new IndexSearcher(searcher.getIndexReader());
         indexSearcher.setSimilarity(searcher.getSimilarity());
+        indexSearcher.setQueryCache(null);
 
         boolean abort = true;
         long numFoundParents;
@@ -232,7 +213,7 @@ public class ChildrenQuery extends Query {
         } else {
             parentFilter = this.parentFilter;
         }
-        return new ParentWeight(this, rewrittenChildQuery.createWeight(searcher, needsScores), parentFilter, numFoundParents, collector, minChildren,
+        return new ParentWeight(this, childQuery.createWeight(searcher, needsScores), parentFilter, numFoundParents, collector, minChildren,
                 maxChildren);
     }
 
@@ -264,7 +245,7 @@ public class ChildrenQuery extends Query {
 
         @Override
         public Explanation explain(LeafReaderContext context, int doc) throws IOException {
-            return new Explanation(getBoost(), "not implemented yet...");
+            return Explanation.match(getBoost(), "not implemented yet...");
         }
 
         @Override
@@ -380,7 +361,7 @@ public class ChildrenQuery extends Query {
         }
 
         @Override
-        public void close() throws ElasticsearchException {
+        public void close() {
             Releasables.close(parentIdxs);
         }
     }
@@ -406,7 +387,7 @@ public class ChildrenQuery extends Query {
         }
 
         @Override
-        public void close() throws ElasticsearchException {
+        public void close() {
             Releasables.close(parentIdxs, scores);
         }
     }
@@ -429,7 +410,7 @@ public class ChildrenQuery extends Query {
         }
 
         @Override
-        public void close() throws ElasticsearchException {
+        public void close() {
             Releasables.close(parentIdxs, scores, occurrences);
         }
     }
@@ -455,7 +436,7 @@ public class ChildrenQuery extends Query {
         }
 
         @Override
-        public void close() throws ElasticsearchException {
+        public void close() {
             Releasables.close(parentIdxs, occurrences);
         }
     }

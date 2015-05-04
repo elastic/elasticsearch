@@ -24,7 +24,6 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -39,9 +38,11 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -143,7 +144,7 @@ public class TransportClientNodesService extends AbstractComponent {
     public TransportClientNodesService addTransportAddresses(TransportAddress... transportAddresses) {
         synchronized (mutex) {
             if (closed) {
-                throw new ElasticsearchIllegalStateException("transport client is closed, can't add an address");
+                throw new IllegalStateException("transport client is closed, can't add an address");
             }
             List<TransportAddress> filtered = Lists.newArrayListWithExpectedSize(transportAddresses.length);
             for (TransportAddress transportAddress : transportAddresses) {
@@ -178,7 +179,7 @@ public class TransportClientNodesService extends AbstractComponent {
     public TransportClientNodesService removeTransportAddress(TransportAddress transportAddress) {
         synchronized (mutex) {
             if (closed) {
-                throw new ElasticsearchIllegalStateException("transport client is closed, can't remove an address");
+                throw new IllegalStateException("transport client is closed, can't remove an address");
             }
             ImmutableList.Builder<DiscoveryNode> builder = ImmutableList.builder();
             for (DiscoveryNode otherNode : listedNodes) {
@@ -194,11 +195,11 @@ public class TransportClientNodesService extends AbstractComponent {
         return this;
     }
 
-    public <Response> void execute(NodeListenerCallback<Response> callback, ActionListener<Response> listener) throws ElasticsearchException {
+    public <Response> void execute(NodeListenerCallback<Response> callback, ActionListener<Response> listener) {
         ImmutableList<DiscoveryNode> nodes = this.nodes;
         ensureNodesAreAvailable(nodes);
         int index = getNodeNumber();
-        RetryListener<Response> retryListener = new RetryListener<>(callback, listener, nodes, index);
+        RetryListener<Response> retryListener = new RetryListener<>(callback, listener, nodes, index, threadPool, logger);
         DiscoveryNode node = nodes.get((index) % nodes.size());
         try {
             callback.doWithNode(node, retryListener);
@@ -212,15 +213,20 @@ public class TransportClientNodesService extends AbstractComponent {
         private final NodeListenerCallback<Response> callback;
         private final ActionListener<Response> listener;
         private final ImmutableList<DiscoveryNode> nodes;
+        private final ESLogger logger;
         private final int index;
+        private ThreadPool threadPool;
 
         private volatile int i;
 
-        public RetryListener(NodeListenerCallback<Response> callback, ActionListener<Response> listener, ImmutableList<DiscoveryNode> nodes, int index) {
+        public RetryListener(NodeListenerCallback<Response> callback, ActionListener<Response> listener, ImmutableList<DiscoveryNode> nodes,
+                             int index, ThreadPool threadPool, ESLogger logger) {
             this.callback = callback;
             this.listener = listener;
             this.nodes = nodes;
             this.index = index;
+            this.threadPool = threadPool;
+            this.logger = logger;
         }
 
         @Override
@@ -233,18 +239,37 @@ public class TransportClientNodesService extends AbstractComponent {
             if (ExceptionsHelper.unwrapCause(e) instanceof ConnectTransportException) {
                 int i = ++this.i;
                 if (i >= nodes.size()) {
-                    listener.onFailure(new NoNodeAvailableException("None of the configured nodes were available: " + nodes, e));
+                    runFailureInListenerThreadPool(new NoNodeAvailableException("None of the configured nodes were available: " + nodes, e));
                 } else {
                     try {
                         callback.doWithNode(nodes.get((index + i) % nodes.size()), this);
-                    } catch(Throwable t) {
-                        //this exception can't come from the TransportService as it doesn't throw exceptions at all
-                        listener.onFailure(t);
+                    } catch(final Throwable t) {
+                        // this exception can't come from the TransportService as it doesn't throw exceptions at all
+                        runFailureInListenerThreadPool(t);
                     }
                 }
             } else {
-                listener.onFailure(e);
+                runFailureInListenerThreadPool(e);
             }
+        }
+
+        // need to ensure to not block the netty I/O thread, in case of retry due to the node sampling
+        private void runFailureInListenerThreadPool(final Throwable t) {
+            threadPool.executor(ThreadPool.Names.LISTENER).execute(new AbstractRunnable() {
+                @Override
+                protected void doRun() throws Exception {
+                    listener.onFailure(t);
+                }
+
+                @Override
+                public void onFailure(Throwable t) {
+                    if (logger.isDebugEnabled()) {
+                        logger.debug("Could not execute failure listener: [{}]", t, t.getMessage());
+                    } else {
+                        logger.error("Could not execute failure listener: [{}]", t.getMessage());
+                    }
+                }
+            });
         }
     }
 

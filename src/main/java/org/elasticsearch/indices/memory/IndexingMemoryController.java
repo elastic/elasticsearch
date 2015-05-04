@@ -125,19 +125,19 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
     }
 
     @Override
-    protected void doStart() throws ElasticsearchException {
+    protected void doStart() {
         // its fine to run it on the scheduler thread, no busy work
         this.scheduler = threadPool.scheduleWithFixedDelay(new ShardsIndicesStatusChecker(), interval);
     }
 
     @Override
-    protected void doStop() throws ElasticsearchException {
+    protected void doStop() {
         FutureUtils.cancel(scheduler);
         scheduler = null;
     }
 
     @Override
-    protected void doClose() throws ElasticsearchException {
+    protected void doClose() {
     }
 
     /**

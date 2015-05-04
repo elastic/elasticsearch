@@ -26,6 +26,7 @@ import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
+import org.elasticsearch.search.aggregations.reducers.Reducer;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatterStreams;
 
@@ -70,8 +71,9 @@ public class InternalStats extends InternalNumericMetricsAggregation.MultiValue 
     protected InternalStats() {} // for serialization
 
     public InternalStats(String name, long count, double sum, double min, double max, @Nullable ValueFormatter formatter,
+            List<Reducer> reducers,
             Map<String, Object> metaData) {
-        super(name, metaData);
+        super(name, reducers, metaData);
         this.count = count;
         this.sum = sum;
         this.min = min;
@@ -149,7 +151,7 @@ public class InternalStats extends InternalNumericMetricsAggregation.MultiValue 
     }
 
     @Override
-    public InternalStats reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public InternalStats doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         long count = 0;
         double min = Double.POSITIVE_INFINITY;
         double max = Double.NEGATIVE_INFINITY;
@@ -161,7 +163,7 @@ public class InternalStats extends InternalNumericMetricsAggregation.MultiValue 
             max = Math.max(max, stats.getMax());
             sum += stats.getSum();
         }
-        return new InternalStats(name, count, sum, min, max, valueFormatter, getMetaData());
+        return new InternalStats(name, count, sum, min, max, valueFormatter, reducers(), getMetaData());
     }
 
     @Override

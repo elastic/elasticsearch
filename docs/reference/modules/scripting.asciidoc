@@ -11,26 +11,11 @@ The scripting module uses by default http://groovy.codehaus.org/[groovy]
 scripting language with some extensions. Groovy is used since it is extremely
 fast and very simple to use.
 
-.Groovy dynamic scripting disabled by default from v1.4.3
+.Groovy dynamic scripting off by default from v1.4.3
 [IMPORTANT]
 ===================================================
 
-Elasticsearch versions 1.3.0-1.3.7 and 1.4.0-1.4.2 have a vulnerability in the
-Groovy scripting engine.  The vulnerability allows an attacker to construct
-Groovy scripts that escape the sandbox and execute shell commands as the user
-running the Elasticsearch Java VM.
-
-If you are running a vulnerable version of Elasticsearch, you should either
-upgrade to at least v1.3.8 or v1.4.3, or disable dynamic Groovy scripts by
-adding this setting to the `config/elasticsearch.yml` file in all nodes in the
-cluster:
-
-[source,yaml]
------------------------------------
-script.groovy.sandbox.enabled: false
------------------------------------
-
-This will turn off the Groovy sandbox, thus preventing dynamic Groovy scripts
+Groovy dynamic scripting is off by default, preventing dynamic Groovy scripts
 from being accepted as part of a request or retrieved from the special
 `.scripts` index. You will still be able to use Groovy scripts stored in files
 in the `config/scripts/` directory on every node.
@@ -69,7 +54,7 @@ GET /_search
 {
     "script_fields": {
         "my_field": {
-            "script_file": "my_test",
+            "script_file": "my_script",
             "params": {
               "my_var": 2
             }
@@ -352,39 +337,6 @@ The default scripting language (assuming no `lang` parameter is provided) is
 appropriate language.
 
 [float]
-=== Groovy Sandboxing
-
-Elasticsearch sandboxes Groovy scripts that are compiled and executed in order
-to ensure they don't perform unwanted actions. There are a number of options
-that can be used for configuring this sandbox:
-
-`script.groovy.sandbox.receiver_whitelist`::
-
-    Comma-separated list of string classes for objects that may have methods
-    invoked.
-
-`script.groovy.sandbox.package_whitelist`::
-
-    Comma-separated list of packages under which new objects may be constructed.
-
-`script.groovy.sandbox.class_whitelist`::
-
-    Comma-separated list of classes that are allowed to be constructed.
-
-`script.groovy.sandbox.method_blacklist`::
-
-    Comma-separated list of methods that are never allowed to be invoked,
-    regardless of target object.
-
-`script.groovy.sandbox.enabled`::
-
-    Flag to enable the sandbox (defaults to `false` meaning the sandbox is
-    disabled).
-
-When specifying whitelist or blacklist settings for the groovy sandbox, all
-options replace the current whitelist, they are not additive.
-
-[float]
 === Automatic Script Reloading
 
 The `config/scripts` directory is scanned periodically for changes.
@@ -424,10 +376,7 @@ automatically loaded.
 [float]
 === Lucene Expressions Scripts
 
-[WARNING]
-========================
-This feature is *experimental* and subject to change in future versions.
-========================
+experimental[The Lucene expressions module is undergoing significant development and the exposed functionality is likely to change in the future]
 
 Lucene's expressions module provides a mechanism to compile a
 `javascript` expression to bytecode.  This allows very fast execution,
@@ -440,8 +389,22 @@ for details on what operators and functions are available.
 Variables in `expression` scripts are available to access:
 
 * Single valued document fields, e.g. `doc['myfield'].value`
+* Single valued document fields can also be accessed without `.value` e.g. `doc['myfield']`
 * Parameters passed into the script, e.g. `mymodifier`
 * The current document's score, `_score` (only available when used in a `script_score`)
+
+Variables in `expression` scripts that are of type `date` may use the following member methods:
+
+* getYear()
+* getMonth()
+* getDayOfMonth()
+* getHourOfDay()
+* getMinutes()
+* getSeconds()
+
+The following example shows the difference in years between the `date` fields date0 and date1:
+
+`doc['date1'].getYear() - doc['date0'].getYear()`
 
 There are a few limitations relative to other script languages:
 

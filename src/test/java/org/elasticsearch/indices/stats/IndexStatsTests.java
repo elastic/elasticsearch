@@ -19,12 +19,13 @@
 
 package org.elasticsearch.indices.stats;
 
-import org.apache.lucene.util.Version;
 import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
+import org.apache.lucene.util.Version;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
+import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequestBuilder;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
@@ -39,12 +40,14 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.cache.filter.FilterCacheModule;
+import org.elasticsearch.index.cache.filter.FilterCacheStats;
 import org.elasticsearch.index.cache.filter.FilterCacheModule.FilterCacheSettings;
-import org.elasticsearch.index.cache.filter.weighted.WeightedFilterCache;
+import org.elasticsearch.index.cache.filter.index.IndexFilterCache;
 import org.elasticsearch.index.merge.policy.TieredMergePolicyProvider;
 import org.elasticsearch.index.merge.scheduler.ConcurrentMergeSchedulerProvider;
 import org.elasticsearch.index.query.FilterBuilders;
-import org.elasticsearch.index.store.support.AbstractIndexStore;
+import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.indices.cache.query.IndicesQueryCache;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
@@ -59,9 +62,7 @@ import java.util.Random;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.QueryBuilders.filteredQuery;
-import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
@@ -77,37 +78,10 @@ public class IndexStatsTests extends ElasticsearchIntegrationTest {
     protected Settings nodeSettings(int nodeOrdinal) {
         //Filter/Query cache is cleaned periodically, default is 60s, so make sure it runs often. Thread.sleep for 60s is bad
         return ImmutableSettings.settingsBuilder().put(super.nodeSettings(nodeOrdinal))
-                .put("indices.cache.filter.clean_interval", "1ms")
                 .put(IndicesQueryCache.INDICES_CACHE_QUERY_CLEAN_INTERVAL, "1ms")
                 .put(FilterCacheSettings.FILTER_CACHE_EVERYTHING, true)
-                .put(FilterCacheModule.FilterCacheSettings.FILTER_CACHE_TYPE, WeightedFilterCache.class)
+                .put(FilterCacheModule.FilterCacheSettings.FILTER_CACHE_TYPE, IndexFilterCache.class)
                 .build();
-    }
-
-    @Test
-    public void testClearCacheFilterKeys() {
-        client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 2)).execute().actionGet();
-        ensureGreen();
-        client().prepareIndex("test", "type", "1").setSource("field", "value").execute().actionGet();
-        client().admin().indices().prepareRefresh().execute().actionGet();
-
-        NodesStatsResponse nodesStats = client().admin().cluster().prepareNodesStats().setIndices(true).execute().actionGet();
-        assertThat(nodesStats.getNodes()[0].getIndices().getFilterCache().getMemorySizeInBytes() + nodesStats.getNodes()[1].getIndices().getFilterCache().getMemorySizeInBytes(), equalTo(0l));
-        IndicesStatsResponse indicesStats = client().admin().indices().prepareStats("test").clear().setFilterCache(true).execute().actionGet();
-        assertThat(indicesStats.getTotal().getFilterCache().getMemorySizeInBytes(), equalTo(0l));
-
-        SearchResponse searchResponse = client().prepareSearch().setQuery(filteredQuery(matchAllQuery(), FilterBuilders.termFilter("field", "value").cacheKey("test_key"))).execute().actionGet();
-        assertThat(searchResponse.getHits().getHits().length, equalTo(1));
-        nodesStats = client().admin().cluster().prepareNodesStats().setIndices(true).execute().actionGet();
-        assertThat(nodesStats.getNodes()[0].getIndices().getFilterCache().getMemorySizeInBytes() + nodesStats.getNodes()[1].getIndices().getFilterCache().getMemorySizeInBytes(), greaterThan(0l));
-        indicesStats = client().admin().indices().prepareStats("test").clear().setFilterCache(true).execute().actionGet();
-        assertThat(indicesStats.getTotal().getFilterCache().getMemorySizeInBytes(), greaterThan(0l));
-
-        client().admin().indices().prepareClearCache().setFilterKeys("test_key").execute().actionGet();
-        nodesStats = client().admin().cluster().prepareNodesStats().setIndices(true).execute().actionGet();
-        assertThat(nodesStats.getNodes()[0].getIndices().getFilterCache().getMemorySizeInBytes() + nodesStats.getNodes()[1].getIndices().getFilterCache().getMemorySizeInBytes(), equalTo(0l));
-        indicesStats = client().admin().indices().prepareStats("test").clear().setFilterCache(true).execute().actionGet();
-        assertThat(indicesStats.getTotal().getFilterCache().getMemorySizeInBytes(), equalTo(0l));
     }
 
     @Test
@@ -308,7 +282,7 @@ public class IndexStatsTests extends ElasticsearchIntegrationTest {
     public void nonThrottleStats() throws Exception {
         assertAcked(prepareCreate("test")
                 .setSettings(ImmutableSettings.builder()
-                                .put(AbstractIndexStore.INDEX_STORE_THROTTLE_TYPE, "merge")
+                                .put(IndexStore.INDEX_STORE_THROTTLE_TYPE, "merge")
                                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, "1")
                                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "0")
                                 .put(TieredMergePolicyProvider.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE, "2")
@@ -341,7 +315,7 @@ public class IndexStatsTests extends ElasticsearchIntegrationTest {
     public void throttleStats() throws Exception {
         assertAcked(prepareCreate("test")
                     .setSettings(ImmutableSettings.builder()
-                                 .put(AbstractIndexStore.INDEX_STORE_THROTTLE_TYPE, "merge")
+                                 .put(IndexStore.INDEX_STORE_THROTTLE_TYPE, "merge")
                                  .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, "1")
                                  .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "0")
                                  .put(TieredMergePolicyProvider.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE, "2")
@@ -989,6 +963,92 @@ public class IndexStatsTests extends ElasticsearchIntegrationTest {
                 fail("new flag? " + flag);
                 return false;
         }
+    }
+
+    private void assertEquals(FilterCacheStats stats1, FilterCacheStats stats2) {
+        assertEquals(stats1.getCacheCount(), stats2.getCacheCount());
+        assertEquals(stats1.getCacheSize(), stats2.getCacheSize());
+        assertEquals(stats1.getEvictions(), stats2.getEvictions());
+        assertEquals(stats1.getHitCount(), stats2.getHitCount());
+        assertEquals(stats2.getMemorySizeInBytes(), stats2.getMemorySizeInBytes());
+        assertEquals(stats1.getMissCount(), stats2.getMissCount());
+        assertEquals(stats1.getTotalCount(), stats2.getTotalCount());
+    }
+
+    private void assertCumulativeFilterCacheStats(IndicesStatsResponse response) {
+        assertAllSuccessful(response);
+        FilterCacheStats total = response.getTotal().filterCache;
+        FilterCacheStats indexTotal = new FilterCacheStats();
+        FilterCacheStats shardTotal = new FilterCacheStats();
+        for (IndexStats indexStats : response.getIndices().values()) {
+            indexTotal.add(indexStats.getTotal().filterCache);
+            for (ShardStats shardStats : response.getShards()) {
+                shardTotal.add(shardStats.getStats().filterCache);
+            }
+        }
+        assertEquals(total, indexTotal);
+        assertEquals(total, shardTotal);
+    }
+
+    public void testFilterCacheStats() throws Exception {
+        assertAcked(prepareCreate("index").setSettings("number_of_replicas", 0).get());
+        indexRandom(true,
+                client().prepareIndex("index", "type", "1").setSource("foo", "bar"),
+                client().prepareIndex("index", "type", "2").setSource("foo", "baz"));
+        ensureGreen();
+
+        IndicesStatsResponse response = client().admin().indices().prepareStats("index").setFilterCache(true).get();
+        assertCumulativeFilterCacheStats(response);
+        assertEquals(0, response.getTotal().filterCache.getCacheSize());
+
+        SearchResponse r;
+        assertSearchResponse(r = client().prepareSearch("index").setQuery(QueryBuilders.constantScoreQuery(QueryBuilders.matchQuery("foo", "baz"))).get());
+        response = client().admin().indices().prepareStats("index").setFilterCache(true).get();
+        assertCumulativeFilterCacheStats(response);
+        assertThat(response.getTotal().filterCache.getHitCount(), equalTo(0L));
+        assertThat(response.getTotal().filterCache.getEvictions(), equalTo(0L));
+        assertThat(response.getTotal().filterCache.getMissCount(), greaterThan(0L));
+        assertThat(response.getTotal().filterCache.getCacheSize(), greaterThan(0L));
+
+        assertSearchResponse(client().prepareSearch("index").setQuery(QueryBuilders.constantScoreQuery(QueryBuilders.matchQuery("foo", "baz"))).get());
+        response = client().admin().indices().prepareStats("index").setFilterCache(true).get();
+        assertCumulativeFilterCacheStats(response);
+        assertThat(response.getTotal().filterCache.getHitCount(), greaterThan(0L));
+        assertThat(response.getTotal().filterCache.getEvictions(), equalTo(0L));
+        assertThat(response.getTotal().filterCache.getMissCount(), greaterThan(0L));
+        assertThat(response.getTotal().filterCache.getCacheSize(), greaterThan(0L));
+
+        assertTrue(client().prepareDelete("index", "type", "1").get().isFound());
+        assertTrue(client().prepareDelete("index", "type", "2").get().isFound());
+        refresh();
+        response = client().admin().indices().prepareStats("index").setFilterCache(true).get();
+        assertCumulativeFilterCacheStats(response);
+        assertThat(response.getTotal().filterCache.getHitCount(), greaterThan(0L));
+        assertThat(response.getTotal().filterCache.getEvictions(), greaterThan(0L));
+        assertThat(response.getTotal().filterCache.getCacheSize(), equalTo(0L));
+        assertThat(response.getTotal().filterCache.getCacheCount(), greaterThan(0L));
+
+        indexRandom(true,
+                client().prepareIndex("index", "type", "1").setSource("foo", "bar"),
+                client().prepareIndex("index", "type", "2").setSource("foo", "baz"));
+        assertSearchResponse(client().prepareSearch("index").setQuery(QueryBuilders.constantScoreQuery(QueryBuilders.matchQuery("foo", "baz"))).get());
+
+        response = client().admin().indices().prepareStats("index").setFilterCache(true).get();
+        assertCumulativeFilterCacheStats(response);
+        assertThat(response.getTotal().filterCache.getHitCount(), greaterThan(0L));
+        assertThat(response.getTotal().filterCache.getEvictions(), greaterThan(0L));
+        assertThat(response.getTotal().filterCache.getMissCount(), greaterThan(0L));
+        assertThat(response.getTotal().filterCache.getCacheSize(), greaterThan(0L));
+        assertThat(response.getTotal().filterCache.getMemorySizeInBytes(), greaterThan(0L));
+
+        assertAllSuccessful(client().admin().indices().prepareClearCache("index").setFilterCache(true).get());
+        response = client().admin().indices().prepareStats("index").setFilterCache(true).get();
+        assertCumulativeFilterCacheStats(response);
+        assertThat(response.getTotal().filterCache.getHitCount(), greaterThan(0L));
+        assertThat(response.getTotal().filterCache.getEvictions(), greaterThan(0L));
+        assertThat(response.getTotal().filterCache.getMissCount(), greaterThan(0L));
+        assertThat(response.getTotal().filterCache.getCacheSize(), equalTo(0L));
+        assertThat(response.getTotal().filterCache.getMemorySizeInBytes(), equalTo(0L));
     }
 
 }

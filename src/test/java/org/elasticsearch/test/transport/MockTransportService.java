@@ -228,10 +228,10 @@ public class MockTransportService extends TransportService {
                 }
 
                 // poor mans request cloning...
-                TransportRequestHandler handler = MockTransportService.this.getHandler(action);
+                RequestHandlerRegistry reg = MockTransportService.this.getRequestHandler(action);
                 BytesStreamOutput bStream = new BytesStreamOutput();
                 request.writeTo(bStream);
-                final TransportRequest clonedRequest = handler.newInstance();
+                final TransportRequest clonedRequest = reg.newRequest();
                 clonedRequest.readFrom(new BytesStreamInput(bStream.bytes()));
 
                 threadPool.schedule(delay, ThreadPool.Names.GENERIC, new AbstractRunnable() {
@@ -387,19 +387,19 @@ public class MockTransportService extends TransportService {
         }
 
         @Override
-        public Transport start() throws ElasticsearchException {
+        public Transport start() {
             transport.start();
             return this;
         }
 
         @Override
-        public Transport stop() throws ElasticsearchException {
+        public Transport stop() {
             transport.stop();
             return this;
         }
 
         @Override
-        public void close() throws ElasticsearchException {
+        public void close() {
             transport.close();
         }
 

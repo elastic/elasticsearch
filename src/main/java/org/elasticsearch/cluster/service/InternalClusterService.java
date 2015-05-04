@@ -20,8 +20,6 @@
 package org.elasticsearch.cluster.service;
 
 import com.google.common.collect.Iterables;
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.ClusterState.Builder;
@@ -60,6 +58,9 @@ import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadF
  */
 public class InternalClusterService extends AbstractLifecycleComponent<ClusterService> implements ClusterService {
 
+    public static final String SETTING_CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD = "cluster.service.slow_task_logging_threshold";
+    public static final String SETTING_CLUSTER_SERVICE_RECONNECT_INTERVAL = "cluster.service.reconnect_interval";
+
     public static final String UPDATE_THREAD_NAME = "clusterService#updateTask";
     private final ThreadPool threadPool;
 
@@ -74,6 +75,8 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
     private final Version version;
 
     private final TimeValue reconnectInterval;
+
+    private TimeValue slowTaskLoggingThreshold;
 
     private volatile PrioritizedEsThreadPoolExecutor updateTasksExecutor;
 
@@ -116,8 +119,11 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
         this.clusterState = ClusterState.builder(clusterName).build();
 
         this.nodeSettingsService.setClusterService(this);
+        this.nodeSettingsService.addListener(new ApplySettings());
 
-        this.reconnectInterval = this.settings.getAsTime("cluster.service.reconnect_interval", TimeValue.timeValueSeconds(10));
+        this.reconnectInterval = this.settings.getAsTime(SETTING_CLUSTER_SERVICE_RECONNECT_INTERVAL, TimeValue.timeValueSeconds(10));
+
+        this.slowTaskLoggingThreshold = this.settings.getAsTime(SETTING_CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD, TimeValue.timeValueSeconds(30));
 
         localNodeMasterListeners = new LocalNodeMasterListeners(threadPool);
 
@@ -129,23 +135,23 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
     }
 
     @Override
-    public void addInitialStateBlock(ClusterBlock block) throws ElasticsearchIllegalStateException {
+    public void addInitialStateBlock(ClusterBlock block) throws IllegalStateException {
         if (lifecycle.started()) {
-            throw new ElasticsearchIllegalStateException("can't set initial block when started");
+            throw new IllegalStateException("can't set initial block when started");
         }
         initialBlocks.addGlobalBlock(block);
     }
 
     @Override
-    public void removeInitialStateBlock(ClusterBlock block) throws ElasticsearchIllegalStateException {
+    public void removeInitialStateBlock(ClusterBlock block) throws IllegalStateException {
         if (lifecycle.started()) {
-            throw new ElasticsearchIllegalStateException("can't set initial block when started");
+            throw new IllegalStateException("can't set initial block when started");
         }
         initialBlocks.removeGlobalBlock(block);
     }
 
     @Override
-    protected void doStart() throws ElasticsearchException {
+    protected void doStart() {
         add(localNodeMasterListeners);
         this.clusterState = ClusterState.builder(clusterState).blocks(initialBlocks).build();
         this.updateTasksExecutor = EsExecutors.newSinglePrioritizing(daemonThreadFactory(settings, UPDATE_THREAD_NAME));
@@ -160,7 +166,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
     }
 
     @Override
-    protected void doStop() throws ElasticsearchException {
+    protected void doStop() {
         FutureUtils.cancel(this.reconnectToNodes);
         for (NotifyTimeout onGoingTimeout : onGoingTimeouts) {
             onGoingTimeout.cancel();
@@ -171,7 +177,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
     }
 
     @Override
-    protected void doClose() throws ElasticsearchException {
+    protected void doClose() {
     }
 
     @Override
@@ -230,7 +236,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
     }
 
     @Override
-    public void add(final TimeValue timeout, final TimeoutClusterStateListener listener) {
+    public void add(@Nullable final TimeValue timeout, final TimeoutClusterStateListener listener) {
         if (lifecycle.stoppedOrClosed()) {
             listener.onClose();
             return;
@@ -240,9 +246,11 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
             updateTasksExecutor.execute(new TimedPrioritizedRunnable(Priority.HIGH, "_add_listener_") {
                 @Override
                 public void run() {
-                    NotifyTimeout notifyTimeout = new NotifyTimeout(listener, timeout);
-                    notifyTimeout.future = threadPool.schedule(timeout, ThreadPool.Names.GENERIC, notifyTimeout);
-                    onGoingTimeouts.add(notifyTimeout);
+                    if (timeout != null) {
+                        NotifyTimeout notifyTimeout = new NotifyTimeout(listener, timeout);
+                        notifyTimeout.future = threadPool.schedule(timeout, ThreadPool.Names.GENERIC, notifyTimeout);
+                        onGoingTimeouts.add(notifyTimeout);
+                    }
                     postAppliedListeners.add(listener);
                     listener.postAdded();
                 }
@@ -370,22 +378,24 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
                 return;
             }
             ClusterState newClusterState;
+            long startTime = System.currentTimeMillis();
             try {
                 newClusterState = updateTask.execute(previousClusterState);
             } catch (Throwable e) {
+                TimeValue executionTime = TimeValue.timeValueMillis(Math.max(0, System.currentTimeMillis() - startTime));
                 if (logger.isTraceEnabled()) {
-                    StringBuilder sb = new StringBuilder("failed to execute cluster state update, state:\nversion [").append(previousClusterState.version()).append("], source [").append(source).append("]\n");
+                    StringBuilder sb = new StringBuilder("failed to execute cluster state update in ").append(executionTime).append(", state:\nversion [").append(previousClusterState.version()).append("], source [").append(source).append("]\n");
                     sb.append(previousClusterState.nodes().prettyPrint());
                     sb.append(previousClusterState.routingTable().prettyPrint());
                     sb.append(previousClusterState.readOnlyRoutingNodes().prettyPrint());
                     logger.trace(sb.toString(), e);
                 }
+                warnAboutSlowTaskIfNeeded(executionTime, source);
                 updateTask.onFailure(source, e);
                 return;
             }
 
             if (previousClusterState == newClusterState) {
-                logger.debug("processing [{}]: no change in cluster_state", source);
                 if (updateTask instanceof AckedClusterStateUpdateTask) {
                     //no need to wait for ack if nothing changed, the update can be counted as acknowledged
                     ((AckedClusterStateUpdateTask) updateTask).onAllNodesAcked(null);
@@ -393,6 +403,9 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
                 if (updateTask instanceof ProcessedClusterStateUpdateTask) {
                     ((ProcessedClusterStateUpdateTask) updateTask).clusterStateProcessed(source, previousClusterState, newClusterState);
                 }
+                TimeValue executionTime = TimeValue.timeValueMillis(Math.max(0, System.currentTimeMillis() - startTime));
+                logger.debug("processing [{}]: took {} no change in cluster_state", source, executionTime);
+                warnAboutSlowTaskIfNeeded(executionTime, source);
                 return;
             }
 
@@ -400,7 +413,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
                 Discovery.AckListener ackListener = new NoOpAckListener();
                 if (newClusterState.nodes().localNodeMaster()) {
                     // only the master controls the version numbers
-                    Builder builder = ClusterState.builder(newClusterState).version(newClusterState.version() + 1);
+                    Builder builder = ClusterState.builder(newClusterState).incrementVersion();
                     if (previousClusterState.routingTable() != newClusterState.routingTable()) {
                         builder.routingTable(RoutingTable.builder(newClusterState.routingTable()).version(newClusterState.routingTable().version() + 1));
                     }
@@ -465,7 +478,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
                 // we don't want to notify
                 if (newClusterState.nodes().localNodeMaster()) {
                     logger.debug("publishing cluster state version {}", newClusterState.version());
-                    discoveryService.publish(newClusterState, ackListener);
+                    discoveryService.publish(clusterChangedEvent, ackListener);
                 }
 
                 // update the current cluster state
@@ -510,15 +523,24 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
                     ((ProcessedClusterStateUpdateTask) updateTask).clusterStateProcessed(source, previousClusterState, newClusterState);
                 }
 
-                logger.debug("processing [{}]: done applying updated cluster_state (version: {})", source, newClusterState.version());
+                TimeValue executionTime = TimeValue.timeValueMillis(Math.max(0, System.currentTimeMillis() - startTime));
+                logger.debug("processing [{}]: took {} done applying updated cluster_state (version: {}, uuid: {})", source, executionTime, newClusterState.version(), newClusterState.uuid());
+                warnAboutSlowTaskIfNeeded(executionTime, source);
             } catch (Throwable t) {
-                StringBuilder sb = new StringBuilder("failed to apply updated cluster state:\nversion [").append(newClusterState.version()).append("], source [").append(source).append("]\n");
+                TimeValue executionTime = TimeValue.timeValueMillis(Math.max(0, System.currentTimeMillis() - startTime));
+                StringBuilder sb = new StringBuilder("failed to apply updated cluster state in ").append(executionTime).append(":\nversion [").append(newClusterState.version()).append("], uuid [").append(newClusterState.uuid()).append("], source [").append(source).append("]\n");
                 sb.append(newClusterState.nodes().prettyPrint());
                 sb.append(newClusterState.routingTable().prettyPrint());
                 sb.append(newClusterState.readOnlyRoutingNodes().prettyPrint());
                 logger.warn(sb.toString(), t);
                 // TODO: do we want to call updateTask.onFailure here?
             }
+        }
+    }
+
+    private void warnAboutSlowTaskIfNeeded(TimeValue executionTime, String source) {
+        if (executionTime.getMillis() > slowTaskLoggingThreshold.getMillis()) {
+            logger.warn("cluster state update task [{}] took {} above the warn threshold of {}", source, executionTime, slowTaskLoggingThreshold);
         }
     }
 
@@ -754,4 +776,13 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
             }
         }
     }
+
+    class ApplySettings implements NodeSettingsService.Listener {
+        @Override
+        public void onRefreshSettings(Settings settings) {
+            final TimeValue slowTaskLoggingThreshold = settings.getAsTime(SETTING_CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD, InternalClusterService.this.slowTaskLoggingThreshold);
+            InternalClusterService.this.slowTaskLoggingThreshold = slowTaskLoggingThreshold;
+        }
+    }
+
 }

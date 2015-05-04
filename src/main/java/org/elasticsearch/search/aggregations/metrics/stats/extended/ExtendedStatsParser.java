@@ -65,15 +65,17 @@ public class ExtendedStatsParser  implements Aggregator.Parser {
                 if (SIGMA.match(currentFieldName)) {
                     sigma = parser.doubleValue();
                 } else {
-                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
+                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: ["
+                            + currentFieldName + "].", parser.getTokenLocation());
                 }
             } else {
-                throw new SearchParseException(context, "Unexpected token " + token + " in [" + aggregationName + "].");
+                throw new SearchParseException(context, "Unexpected token " + token + " in [" + aggregationName + "].",
+                        parser.getTokenLocation());
             }
         }
 
         if (sigma < 0) {
-            throw new SearchParseException(context, "[sigma] must not be negative. Value provided was" + sigma );
+            throw new SearchParseException(context, "[sigma] must not be negative. Value provided was" + sigma, parser.getTokenLocation());
         }
 
         return createFactory(aggregationName, vsParser.config(), sigma);

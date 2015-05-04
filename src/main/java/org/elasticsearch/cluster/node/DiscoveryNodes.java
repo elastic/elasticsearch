@@ -24,8 +24,8 @@ import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.UnmodifiableIterator;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -45,9 +45,10 @@ import static com.google.common.collect.Lists.newArrayList;
  * This class holds all {@link DiscoveryNode} in the cluster and provides convenience methods to
  * access, modify merge / diff discovery nodes.
  */
-public class DiscoveryNodes implements Iterable<DiscoveryNode> {
+public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements Iterable<DiscoveryNode> {
 
     public static final DiscoveryNodes EMPTY_NODES = builder().build();
+    public static final DiscoveryNodes PROTO = EMPTY_NODES;
 
     private final ImmutableOpenMap<String, DiscoveryNode> nodes;
     private final ImmutableOpenMap<String, DiscoveryNode> dataNodes;
@@ -311,15 +312,15 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode> {
      *
      * @param node id of the node to discover
      * @return discovered node matching the given id
-     * @throws org.elasticsearch.ElasticsearchIllegalArgumentException if more than one node matches the request or no nodes have been resolved
+     * @throws IllegalArgumentException if more than one node matches the request or no nodes have been resolved
      */
     public DiscoveryNode resolveNode(String node) {
         String[] resolvedNodeIds = resolveNodesIds(node);
         if (resolvedNodeIds.length > 1) {
-            throw new ElasticsearchIllegalArgumentException("resolved [" + node + "] into [" + resolvedNodeIds.length + "] nodes, where expected to be resolved to a single node");
+            throw new IllegalArgumentException("resolved [" + node + "] into [" + resolvedNodeIds.length + "] nodes, where expected to be resolved to a single node");
         }
         if (resolvedNodeIds.length == 0) {
-            throw new ElasticsearchIllegalArgumentException("failed to resolve [" + node + " ], no matching nodes");
+            throw new IllegalArgumentException("failed to resolve [" + node + " ], no matching nodes");
         }
         return nodes.get(resolvedNodeIds[0]);
     }
@@ -568,6 +569,44 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode> {
         }
     }
 
+    public void writeTo(StreamOutput out) throws IOException {
+        if (masterNodeId == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            out.writeString(masterNodeId);
+        }
+        out.writeVInt(nodes.size());
+        for (DiscoveryNode node : this) {
+            node.writeTo(out);
+        }
+    }
+
+    public DiscoveryNodes readFrom(StreamInput in, DiscoveryNode localNode) throws IOException {
+        Builder builder = new Builder();
+        if (in.readBoolean()) {
+            builder.masterNodeId(in.readString());
+        }
+        if (localNode != null) {
+            builder.localNodeId(localNode.id());
+        }
+        int size = in.readVInt();
+        for (int i = 0; i < size; i++) {
+            DiscoveryNode node = DiscoveryNode.readNode(in);
+            if (localNode != null && node.id().equals(localNode.id())) {
+                // reuse the same instance of our address and local node id for faster equality
+                node = localNode;
+            }
+            builder.put(node);
+        }
+        return builder.build();
+    }
+
+    @Override
+    public DiscoveryNodes readFrom(StreamInput in) throws IOException {
+        return readFrom(in, localNode());
+    }
+
     public static Builder builder() {
         return new Builder();
     }
@@ -632,37 +671,8 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode> {
             return new DiscoveryNodes(nodes.build(), dataNodesBuilder.build(), masterNodesBuilder.build(), masterNodeId, localNodeId, minNodeVersion, minNonClientNodeVersion);
         }
 
-        public static void writeTo(DiscoveryNodes nodes, StreamOutput out) throws IOException {
-            if (nodes.masterNodeId() == null) {
-                out.writeBoolean(false);
-            } else {
-                out.writeBoolean(true);
-                out.writeString(nodes.masterNodeId);
-            }
-            out.writeVInt(nodes.size());
-            for (DiscoveryNode node : nodes) {
-                node.writeTo(out);
-            }
-        }
-
         public static DiscoveryNodes readFrom(StreamInput in, @Nullable DiscoveryNode localNode) throws IOException {
-            Builder builder = new Builder();
-            if (in.readBoolean()) {
-                builder.masterNodeId(in.readString());
-            }
-            if (localNode != null) {
-                builder.localNodeId(localNode.id());
-            }
-            int size = in.readVInt();
-            for (int i = 0; i < size; i++) {
-                DiscoveryNode node = DiscoveryNode.readNode(in);
-                if (localNode != null && node.id().equals(localNode.id())) {
-                    // reuse the same instance of our address and local node id for faster equality
-                    node = localNode;
-                }
-                builder.put(node);
-            }
-            return builder.build();
+            return PROTO.readFrom(in, localNode);
         }
     }
 }

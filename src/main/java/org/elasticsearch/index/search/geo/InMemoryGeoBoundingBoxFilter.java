@@ -76,6 +76,26 @@ public class InMemoryGeoBoundingBoxFilter extends Filter {
         return "GeoBoundingBoxFilter(" + indexFieldData.getFieldNames().indexName() + ", " + topLeft + ", " + bottomRight + ")";
     }
 
+    @Override
+    public boolean equals(Object obj) {
+        if (super.equals(obj) == false) {
+            return false;
+        }
+        InMemoryGeoBoundingBoxFilter other = (InMemoryGeoBoundingBoxFilter) obj;
+        return fieldName().equalsIgnoreCase(other.fieldName())
+                && topLeft.equals(other.topLeft)
+                && bottomRight.equals(other.bottomRight);
+    }
+
+    @Override
+    public int hashCode() {
+        int h = super.hashCode();
+        h = 31 * h + fieldName().hashCode();
+        h = 31 * h + topLeft.hashCode();
+        h = 31 * h + bottomRight.hashCode();
+        return h;
+    }
+
     public static class Meridian180GeoBoundingBoxDocSet extends DocValuesDocIdSet {
         private final MultiGeoPointValues values;
         private final GeoPoint topLeft;

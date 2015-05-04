@@ -12,7 +12,7 @@ of the request includes the updated settings, for example:
 {
     "index" : {
         "number_of_replicas" : 4
-    } 
+    }
 }
 --------------------------------------------------
 
@@ -25,7 +25,7 @@ curl -XPUT 'localhost:9200/my_index/_settings' -d '
 {
     "index" : {
         "number_of_replicas" : 4
-    } 
+    }
 }'
 --------------------------------------------------
 
@@ -60,9 +60,6 @@ settings API:
 
 `index.refresh_interval`::
     The async refresh interval of a shard.
-
-`index.index_concurrency`::
-    experimental[] Defaults to `8`.
 
 `index.translog.flush_threshold_ops`::
     When to flush based on operations.
@@ -150,14 +147,6 @@ settings API:
 
 `index.translog.fs.type`::
     experimental[] Either `simple` or `buffered` (default).
-
-`index.compound_format`::
-    experimental[] See <<index-compound-format,`index.compound_format`>> in
-    <<index-modules-settings>>.
-
-`index.compound_on_flush`::
-    experimental[] See <<index-compound-on-flush,`index.compound_on_flush>> in
-    <<index-modules-settings>>.
 
 <<index-modules-slowlog>>::
     All the settings for slow log.

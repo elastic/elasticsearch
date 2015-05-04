@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.query;
 
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -383,7 +382,7 @@ public class MoreLikeThisQueryBuilder extends BaseQueryBuilder implements Boosta
             builder.endArray();
         }
         if (this.docs.isEmpty()) {
-            throw new ElasticsearchIllegalArgumentException("more_like_this requires '" + likeFieldName + "' to be provided");
+            throw new IllegalArgumentException("more_like_this requires '" + likeFieldName + "' to be provided");
         } else {
             builder.field(likeFieldName, docs);
         }

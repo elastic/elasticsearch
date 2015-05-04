@@ -21,7 +21,6 @@ package org.elasticsearch.index.fielddata.plain;
 
 import com.google.common.collect.ImmutableSet;
 import org.apache.lucene.index.IndexReader;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
@@ -98,7 +97,7 @@ public abstract class DocValuesIndexFieldData {
             final Settings fdSettings = mapper.fieldDataType().getSettings();
             final Map<String, Settings> filter = fdSettings.getGroups("filter");
             if (filter != null && !filter.isEmpty()) {
-                throw new ElasticsearchIllegalArgumentException("Doc values field data doesn't support filters [" + fieldNames.name() + "]");
+                throw new IllegalArgumentException("Doc values field data doesn't support filters [" + fieldNames.name() + "]");
             }
 
             if (BINARY_INDEX_FIELD_NAMES.contains(fieldNames.indexName())) {

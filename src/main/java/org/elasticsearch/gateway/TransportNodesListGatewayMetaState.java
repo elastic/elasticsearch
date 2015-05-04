@@ -53,7 +53,8 @@ public class TransportNodesListGatewayMetaState extends TransportNodesOperationA
 
     @Inject
     public TransportNodesListGatewayMetaState(Settings settings, ClusterName clusterName, ThreadPool threadPool, ClusterService clusterService, TransportService transportService, ActionFilters actionFilters) {
-        super(settings, ACTION_NAME, clusterName, threadPool, clusterService, transportService, actionFilters);
+        super(settings, ACTION_NAME, clusterName, threadPool, clusterService, transportService, actionFilters,
+                Request.class, NodeRequest.class, ThreadPool.Names.GENERIC);
     }
 
     TransportNodesListGatewayMetaState init(GatewayMetaState metaState) {
@@ -66,23 +67,8 @@ public class TransportNodesListGatewayMetaState extends TransportNodesOperationA
     }
 
     @Override
-    protected String executor() {
-        return ThreadPool.Names.GENERIC;
-    }
-
-    @Override
     protected boolean transportCompress() {
         return true; // compress since the metadata can become large
-    }
-
-    @Override
-    protected Request newRequestInstance() {
-        return new Request();
-    }
-
-    @Override
-    protected NodeRequest newNodeRequest() {
-        return new NodeRequest();
     }
 
     @Override
@@ -114,7 +100,7 @@ public class TransportNodesListGatewayMetaState extends TransportNodesOperationA
     }
 
     @Override
-    protected NodeGatewayMetaState nodeOperation(NodeRequest request) throws ElasticsearchException {
+    protected NodeGatewayMetaState nodeOperation(NodeRequest request) {
         try {
             return new NodeGatewayMetaState(clusterService.localNode(), metaState.loadMetaState());
         } catch (Exception e) {
@@ -235,7 +221,7 @@ public class TransportNodesListGatewayMetaState extends TransportNodesOperationA
                 out.writeBoolean(false);
             } else {
                 out.writeBoolean(true);
-                MetaData.Builder.writeTo(metaData, out);
+                metaData.writeTo(out);
             }
         }
     }

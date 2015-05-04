@@ -28,9 +28,8 @@ import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 import com.carrotsearch.randomizedtesting.generators.RandomInts;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
+import com.carrotsearch.randomizedtesting.rules.TestRuleAdapter;
 import com.google.common.base.Predicate;
-
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.uninverting.UninvertingReader;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
@@ -57,37 +56,27 @@ import org.elasticsearch.test.junit.listeners.LoggingListener;
 import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
 import org.elasticsearch.test.search.MockSearchService;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.junit.After;
-import org.junit.AfterClass;
-import org.junit.Before;
-import org.junit.BeforeClass;
+import org.junit.*;
+import org.junit.rules.RuleChain;
 
-import java.io.Closeable;
 import java.io.IOException;
 import java.lang.reflect.Field;
 import java.nio.file.FileSystem;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Formatter;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Random;
+import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllFilesClosed;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSearchersClosed;
+import static com.google.common.collect.Lists.newArrayList;
 
 /**
  * Base testcase for randomized unit testing with Elasticsearch
  */
 @Listeners({
-    ReproduceInfoPrinter.class,
-    LoggingListener.class
+        ReproduceInfoPrinter.class,
+        LoggingListener.class
 })
 @ThreadLeakScope(Scope.SUITE)
 @ThreadLeakLingering(linger = 5000) // 5 sec lingering
@@ -96,39 +85,50 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllS
 // we suppress pretty much all the lucene codecs for now, except asserting
 // assertingcodec is the winner for a codec here: it finds bugs and gives clear exceptions.
 @SuppressCodecs({
-    "SimpleText", "Memory", "CheapBastard", "Direct", "Compressing", "FST50", "FSTOrd50", 
-    "TestBloomFilteredLucenePostings", "MockRandom", "BlockTreeOrds", "LuceneFixedGap", 
-    "LuceneVarGapFixedInterval", "LuceneVarGapDocFreqInterval", "Lucene50"
+        "SimpleText", "Memory", "CheapBastard", "Direct", "Compressing", "FST50", "FSTOrd50",
+        "TestBloomFilteredLucenePostings", "MockRandom", "BlockTreeOrds", "LuceneFixedGap",
+        "LuceneVarGapFixedInterval", "LuceneVarGapDocFreqInterval", "Lucene50"
 })
 @LuceneTestCase.SuppressReproduceLine
 public abstract class ElasticsearchTestCase extends LuceneTestCase {
-    
+
     static {
         SecurityHack.ensureInitialized();
     }
-    
+
     protected final ESLogger logger = Loggers.getLogger(getClass());
 
     // -----------------------------------------------------------------
     // Suite and test case setup/cleanup.
     // -----------------------------------------------------------------
 
-    // TODO: Parent/child and other things does not work with the query cache
-    // We must disable query cache for both suite and test to override lucene, but LTC resets it after the suite
-    
-    @BeforeClass
-    public static void disableQueryCacheSuite() {
-        IndexSearcher.setDefaultQueryCache(null);
+    @Rule
+    public RuleChain failureAndSuccessEvents = RuleChain.outerRule(new TestRuleAdapter() {
+        @Override
+        protected void afterIfSuccessful() throws Throwable {
+            ElasticsearchTestCase.this.afterIfSuccessful();
+        }
+
+        @Override
+        protected void afterAlways(List<Throwable> errors) throws Throwable {
+            if (errors != null && errors.isEmpty() == false) {
+                ElasticsearchTestCase.this.afterIfFailed(errors);
+            }
+            super.afterAlways(errors);
+        }
+    });
+
+    /** called when a test fails, supplying the errors it generated */
+    protected void afterIfFailed(List<Throwable> errors) {
     }
-    
-    @Before
-    public final void disableQueryCache() {
-        IndexSearcher.setDefaultQueryCache(null);
+
+    /** called after a test is finished, but only if succesfull */
+    protected void afterIfSuccessful() {
     }
-    
+
     // setup mock filesystems for this test run. we change PathUtils
     // so that all accesses are plumbed thru any mock wrappers
-    
+
     @BeforeClass
     public static void setFileSystem() throws Exception {
         Field field = PathUtils.class.getDeclaredField("DEFAULT");
@@ -137,7 +137,7 @@ public abstract class ElasticsearchTestCase extends LuceneTestCase {
         field.set(null, mock);
         assertEquals(mock, PathUtils.getDefaultFileSystem());
     }
-    
+
     @AfterClass
     public static void restoreFileSystem() throws Exception {
         Field field1 = PathUtils.class.getDeclaredField("ACTUAL_DEFAULT");
@@ -149,66 +149,46 @@ public abstract class ElasticsearchTestCase extends LuceneTestCase {
 
     // setup a default exception handler which knows when and how to print a stacktrace
     private static Thread.UncaughtExceptionHandler defaultHandler;
-    
+
     @BeforeClass
     public static void setDefaultExceptionHandler() throws Exception {
         defaultHandler = Thread.getDefaultUncaughtExceptionHandler();
         Thread.setDefaultUncaughtExceptionHandler(new ElasticsearchUncaughtExceptionHandler(defaultHandler));
     }
-    
+
     @AfterClass
     public static void restoreDefaultExceptionHandler() throws Exception {
         Thread.setDefaultUncaughtExceptionHandler(defaultHandler);
     }
 
     // randomize content type for request builders
-    
+
     @BeforeClass
     public static void setContentType() throws Exception {
         Requests.CONTENT_TYPE = randomFrom(XContentType.values());
         Requests.INDEX_CONTENT_TYPE = randomFrom(XContentType.values());
     }
-    
+
     @AfterClass
     public static void restoreContentType() {
         Requests.CONTENT_TYPE = XContentType.SMILE;
         Requests.INDEX_CONTENT_TYPE = XContentType.JSON;
     }
-    
+
     // randomize and override the number of cpus so tests reproduce regardless of real number of cpus
-    
+
     @BeforeClass
     public static void setProcessors() {
         int numCpu = TestUtil.nextInt(random(), 1, 4);
         System.setProperty(EsExecutors.DEFAULT_SYSPROP, Integer.toString(numCpu));
         assertEquals(numCpu, EsExecutors.boundedNumberOfProcessors(ImmutableSettings.EMPTY));
     }
-    
+
     @AfterClass
     public static void restoreProcessors() {
         System.clearProperty(EsExecutors.DEFAULT_SYSPROP);
     }
 
-    // check some things (like MockDirectoryWrappers) are closed where we currently
-    // manage them. TODO: can we add these to LuceneTestCase.closeAfterSuite directly?
-    // or something else simpler instead of the fake closeables?
-    
-    @BeforeClass
-    public static void setAfterSuiteAssertions() throws Exception {
-        closeAfterSuite(new Closeable() {
-            @Override
-            public void close() throws IOException {
-                assertAllFilesClosed();
-            }
-        });
-        closeAfterSuite(new Closeable() {
-            @Override
-            public void close() throws IOException {
-                assertAllSearchersClosed();
-            }
-        });
-    }
-    
     @After
     public final void ensureCleanedUp() throws Exception {
         MockPageCacheRecycler.ensureAllPagesAreReleased();
@@ -228,18 +208,18 @@ public abstract class ElasticsearchTestCase extends LuceneTestCase {
             }
         });
     }
-    
+
     // mockdirectorywrappers currently set this boolean if checkindex fails
     // TODO: can we do this cleaner???
-    
+
     /** MockFSDirectoryService sets this: */
     public static boolean checkIndexFailed;
-    
+
     @Before
     public final void resetCheckIndexStatus() throws Exception {
         checkIndexFailed = false;
     }
-    
+
     @After
     public final void ensureCheckIndexPassed() throws Exception {
         assertFalse("at least one shard failed CheckIndex", checkIndexFailed);
@@ -248,7 +228,7 @@ public abstract class ElasticsearchTestCase extends LuceneTestCase {
     // -----------------------------------------------------------------
     // Test facilities and facades for subclasses. 
     // -----------------------------------------------------------------
-    
+
     // TODO: replaces uses of getRandom() with random()
     // TODO: decide on one set of naming for between/scaledBetween and remove others
     // TODO: replace frequently() with usually()
@@ -258,114 +238,133 @@ public abstract class ElasticsearchTestCase extends LuceneTestCase {
         // TODO: replace uses of this function with random()
         return random();
     }
-    
+
     /**
      * Returns a "scaled" random number between min and max (inclusive).
+     *
      * @see RandomizedTest#scaledRandomIntBetween(int, int);
      */
     public static int scaledRandomIntBetween(int min, int max) {
         return RandomizedTest.scaledRandomIntBetween(min, max);
     }
-    
-    /** 
+
+    /**
      * A random integer from <code>min</code> to <code>max</code> (inclusive).
+     *
      * @see #scaledRandomIntBetween(int, int)
      */
     public static int randomIntBetween(int min, int max) {
-      return RandomInts.randomIntBetween(random(), min, max);
+        return RandomInts.randomIntBetween(random(), min, max);
     }
-    
+
     /**
      * Returns a "scaled" number of iterations for loops which can have a variable
-     * iteration count. This method is effectively 
+     * iteration count. This method is effectively
      * an alias to {@link #scaledRandomIntBetween(int, int)}.
      */
     public static int iterations(int min, int max) {
         return scaledRandomIntBetween(min, max);
     }
-    
-    /** 
-     * An alias for {@link #randomIntBetween(int, int)}. 
-     * 
+
+    /**
+     * An alias for {@link #randomIntBetween(int, int)}.
+     *
      * @see #scaledRandomIntBetween(int, int)
      */
     public static int between(int min, int max) {
-      return randomIntBetween(min, max);
+        return randomIntBetween(min, max);
     }
-    
+
     /**
      * The exact opposite of {@link #rarely()}.
      */
     public static boolean frequently() {
-      return !rarely();
+        return !rarely();
     }
-    
+
     public static boolean randomBoolean() {
         return random().nextBoolean();
     }
-    
-    public static byte    randomByte()     { return (byte) random().nextInt(); }
-    public static short   randomShort()    { return (short) random().nextInt(); }
-    public static int     randomInt()      { return random().nextInt(); }
-    public static float   randomFloat()    { return random().nextFloat(); }
-    public static double  randomDouble()   { return random().nextDouble(); }
-    public static long    randomLong()     { return random().nextLong(); }
+
+    public static byte randomByte() {
+        return (byte) random().nextInt();
+    }
+
+    public static short randomShort() {
+        return (short) random().nextInt();
+    }
+
+    public static int randomInt() {
+        return random().nextInt();
+    }
+
+    public static float randomFloat() {
+        return random().nextFloat();
+    }
+
+    public static double randomDouble() {
+        return random().nextDouble();
+    }
+
+    public static long randomLong() {
+        return random().nextLong();
+    }
 
     /** A random integer from 0..max (inclusive). */
     public static int randomInt(int max) {
         return RandomizedTest.randomInt(max);
     }
-    
+
     /** Pick a random object from the given array. The array must not be empty. */
     public static <T> T randomFrom(T... array) {
-      return RandomPicks.randomFrom(random(), array);
+        return RandomPicks.randomFrom(random(), array);
     }
 
     /** Pick a random object from the given list. */
     public static <T> T randomFrom(List<T> list) {
-      return RandomPicks.randomFrom(random(), list);
+        return RandomPicks.randomFrom(random(), list);
     }
-    
+
     public static String randomAsciiOfLengthBetween(int minCodeUnits, int maxCodeUnits) {
-      return RandomizedTest.randomAsciiOfLengthBetween(minCodeUnits, maxCodeUnits);
+        return RandomizedTest.randomAsciiOfLengthBetween(minCodeUnits, maxCodeUnits);
     }
-    
+
     public static String randomAsciiOfLength(int codeUnits) {
-      return RandomizedTest.randomAsciiOfLength(codeUnits);
+        return RandomizedTest.randomAsciiOfLength(codeUnits);
     }
-    
+
     public static String randomUnicodeOfLengthBetween(int minCodeUnits, int maxCodeUnits) {
-      return RandomizedTest.randomUnicodeOfLengthBetween(minCodeUnits, maxCodeUnits);
+        return RandomizedTest.randomUnicodeOfLengthBetween(minCodeUnits, maxCodeUnits);
     }
-    
+
     public static String randomUnicodeOfLength(int codeUnits) {
-      return RandomizedTest.randomUnicodeOfLength(codeUnits);
+        return RandomizedTest.randomUnicodeOfLength(codeUnits);
     }
 
     public static String randomUnicodeOfCodepointLengthBetween(int minCodePoints, int maxCodePoints) {
-      return RandomizedTest.randomUnicodeOfCodepointLengthBetween(minCodePoints, maxCodePoints);
+        return RandomizedTest.randomUnicodeOfCodepointLengthBetween(minCodePoints, maxCodePoints);
     }
-    
+
     public static String randomUnicodeOfCodepointLength(int codePoints) {
-      return RandomizedTest.randomUnicodeOfCodepointLength(codePoints);
+        return RandomizedTest.randomUnicodeOfCodepointLength(codePoints);
     }
 
     public static String randomRealisticUnicodeOfLengthBetween(int minCodeUnits, int maxCodeUnits) {
-      return RandomizedTest.randomRealisticUnicodeOfLengthBetween(minCodeUnits, maxCodeUnits);
+        return RandomizedTest.randomRealisticUnicodeOfLengthBetween(minCodeUnits, maxCodeUnits);
     }
-    
+
     public static String randomRealisticUnicodeOfLength(int codeUnits) {
-      return RandomizedTest.randomRealisticUnicodeOfLength(codeUnits);
+        return RandomizedTest.randomRealisticUnicodeOfLength(codeUnits);
     }
 
     public static String randomRealisticUnicodeOfCodepointLengthBetween(int minCodePoints, int maxCodePoints) {
-      return RandomizedTest.randomRealisticUnicodeOfCodepointLengthBetween(minCodePoints, maxCodePoints);
+        return RandomizedTest.randomRealisticUnicodeOfCodepointLengthBetween(minCodePoints, maxCodePoints);
     }
-    
+
     public static String randomRealisticUnicodeOfCodepointLength(int codePoints) {
-      return RandomizedTest.randomRealisticUnicodeOfCodepointLength(codePoints);
+        return RandomizedTest.randomRealisticUnicodeOfCodepointLength(codePoints);
     }
-    
+
     public static String[] generateRandomStringArray(int maxArraySize, int maxStringSize, boolean allowNull) {
         if (allowNull && random().nextBoolean()) {
             return null;
@@ -425,7 +424,7 @@ public abstract class ElasticsearchTestCase extends LuceneTestCase {
             throw e;
         }
     }
-    
+
     public static boolean awaitBusy(Predicate<?> breakPredicate) throws InterruptedException {
         return awaitBusy(breakPredicate, 10, TimeUnit.SECONDS);
     }
@@ -497,9 +496,9 @@ public abstract class ElasticsearchTestCase extends LuceneTestCase {
 
     public NodeEnvironment newNodeEnvironment(Settings settings) throws IOException {
         Settings build = ImmutableSettings.builder()
-            .put(settings)
-            .put("path.home", createTempDir().toAbsolutePath())
-            .putArray("path.data", tmpPaths()).build();
+                .put(settings)
+                .put("path.home", createTempDir().toAbsolutePath())
+                .putArray("path.data", tmpPaths()).build();
         return new NodeEnvironment(build, new Environment(build));
     }
 
@@ -524,7 +523,7 @@ public abstract class ElasticsearchTestCase extends LuceneTestCase {
         private ElasticsearchUncaughtExceptionHandler(Thread.UncaughtExceptionHandler parent) {
             this.parent = parent;
         }
-        
+
         @Override
         public void uncaughtException(Thread t, Throwable e) {
             if (e instanceof EsRejectedExecutionException) {
@@ -552,8 +551,9 @@ public abstract class ElasticsearchTestCase extends LuceneTestCase {
         int cnt = 1;
         final Formatter f = new Formatter(message, Locale.ENGLISH);
         for (Map.Entry<Thread, StackTraceElement[]> e : threads.entrySet()) {
-            if (e.getKey().isAlive())
+            if (e.getKey().isAlive()) {
                 f.format(Locale.ENGLISH, "\n  %2d) %s", cnt++, threadName(e.getKey())).flush();
+            }
             if (e.getValue().length == 0) {
                 message.append("\n        at (empty stack)");
             } else {
@@ -581,4 +581,17 @@ public abstract class ElasticsearchTestCase extends LuceneTestCase {
             return threadGroup.getName();
         }
     }
+
+    /**
+     * Returns size random values
+     */
+    public static <T> List<T> randomSubsetOf(int size, T... values) {
+        if (size > values.length) {
+            throw new IllegalArgumentException("Can\'t pick " + size + " random objects from a list of " + values.length + " objects");
+        }
+        List<T> list = newArrayList(values);
+        Collections.shuffle(list);
+        return list.subList(0, size);
+    }
+
 }

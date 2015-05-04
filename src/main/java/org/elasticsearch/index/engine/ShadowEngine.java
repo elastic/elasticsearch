@@ -28,8 +28,10 @@ import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
+import org.elasticsearch.index.shard.IndexShardException;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -55,6 +57,10 @@ import java.util.List;
  */
 public class ShadowEngine extends Engine {
 
+    /** how long to wait for an index to exist */
+    public final static String NONEXISTENT_INDEX_RETRY_WAIT = "index.shadow.wait_for_initial_commit";
+    public final static TimeValue DEFAULT_NONEXISTENT_INDEX_RETRY_WAIT = TimeValue.timeValueSeconds(5);
+
     private volatile SearcherManager searcherManager;
 
     private volatile SegmentInfos lastCommittedSegmentInfos;
@@ -62,15 +68,24 @@ public class ShadowEngine extends Engine {
     public ShadowEngine(EngineConfig engineConfig)  {
         super(engineConfig);
         SearcherFactory searcherFactory = new EngineSearcherFactory(engineConfig);
+        final long nonexistentRetryTime = engineConfig.getIndexSettings()
+                .getAsTime(NONEXISTENT_INDEX_RETRY_WAIT, DEFAULT_NONEXISTENT_INDEX_RETRY_WAIT)
+                .getMillis();
         try {
             DirectoryReader reader = null;
             store.incRef();
             boolean success = false;
             try {
-                reader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(store.directory()), shardId);
-                this.searcherManager = new SearcherManager(reader, searcherFactory);
-                this.lastCommittedSegmentInfos = store.readLastCommittedSegmentsInfo();
-                success = true;
+                if (Lucene.waitForIndex(store.directory(), nonexistentRetryTime)) {
+                    reader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(store.directory()), shardId);
+                    this.searcherManager = new SearcherManager(reader, searcherFactory);
+                    this.lastCommittedSegmentInfos = store.readLastCommittedSegmentsInfo();
+                    success = true;
+                } else {
+                    throw new IndexShardException(shardId, "failed to open a shadow engine after" +
+                            nonexistentRetryTime + "ms, " +
+                            "directory is not an index");
+                }
             } catch (Throwable e) {
                 logger.warn("failed to create new reader", e);
                 throw e;
@@ -93,7 +108,7 @@ public class ShadowEngine extends Engine {
     }
 
     @Override
-    public void index(Index index) throws EngineException {
+    public boolean index(Index index) throws EngineException {
         throw new UnsupportedOperationException(shardId + " index operation not allowed on shadow engine");
     }
 
@@ -102,6 +117,8 @@ public class ShadowEngine extends Engine {
         throw new UnsupportedOperationException(shardId + " delete operation not allowed on shadow engine");
     }
 
+    /** @deprecated This was removed, but we keep this API so translog can replay any DBQs on upgrade. */
+    @Deprecated
     @Override
     public void delete(DeleteByQuery delete) throws EngineException {
         throw new UnsupportedOperationException(shardId + " delete-by-query operation not allowed on shadow engine");
@@ -203,7 +220,7 @@ public class ShadowEngine extends Engine {
     }
 
     @Override
-    protected void closeNoLock(String reason) throws ElasticsearchException {
+    protected void closeNoLock(String reason) {
         if (isClosed.compareAndSet(false, true)) {
             try {
                 logger.debug("shadow replica close searcher manager refCount: {}", store.refCount());

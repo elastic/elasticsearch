@@ -29,7 +29,6 @@ import org.apache.lucene.spatial.prefix.tree.GeohashPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.PackedQuadPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.QuadPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.SpatialPrefixTree;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.GeoUtils;
@@ -43,7 +42,7 @@ import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MergeContext;
+import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
@@ -168,7 +167,7 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper<String> {
                             .QUADTREE_LEVELS, false));
                 }
             } else {
-                throw new ElasticsearchIllegalArgumentException("Unknown prefix tree type [" + tree + "]");
+                throw new IllegalArgumentException("Unknown prefix tree type [" + tree + "]");
             }
 
             return new GeoShapeFieldMapper(names, prefixTree, strategyName, distanceErrorPct, orientation, fieldType,
@@ -281,10 +280,10 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper<String> {
     }
 
     @Override
-    public void merge(Mapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
-        super.merge(mergeWith, mergeContext);
+    public void merge(Mapper mergeWith, MergeResult mergeResult) throws MergeMappingException {
+        super.merge(mergeWith, mergeResult);
         if (!this.getClass().equals(mergeWith.getClass())) {
-            mergeContext.addConflict("mapper [" + names.fullName() + "] has different field type");
+            mergeResult.addConflict("mapper [" + names.fullName() + "] has different field type");
             return;
         }
         final GeoShapeFieldMapper fieldMergeWith = (GeoShapeFieldMapper) mergeWith;
@@ -292,7 +291,7 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper<String> {
 
         // prevent user from changing strategies
         if (!(this.defaultStrategy.getClass().equals(mergeWithStrategy.getClass()))) {
-            mergeContext.addConflict("mapper [" + names.fullName() + "] has different strategy");
+            mergeResult.addConflict("mapper [" + names.fullName() + "] has different strategy");
         }
 
         final SpatialPrefixTree grid = this.defaultStrategy.getGrid();
@@ -300,17 +299,17 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper<String> {
 
         // prevent user from changing trees (changes encoding)
         if (!grid.getClass().equals(mergeGrid.getClass())) {
-            mergeContext.addConflict("mapper [" + names.fullName() + "] has different tree");
+            mergeResult.addConflict("mapper [" + names.fullName() + "] has different tree");
         }
 
         // TODO we should allow this, but at the moment levels is used to build bookkeeping variables
         // in lucene's SpatialPrefixTree implementations, need a patch to correct that first
         if (grid.getMaxLevels() != mergeGrid.getMaxLevels()) {
-            mergeContext.addConflict("mapper [" + names.fullName() + "] has different tree_levels or precision");
+            mergeResult.addConflict("mapper [" + names.fullName() + "] has different tree_levels or precision");
         }
 
         // bail if there were merge conflicts
-        if (mergeContext.hasConflicts() || mergeContext.mergeFlags().simulate()) {
+        if (mergeResult.hasConflicts() || mergeResult.simulate()) {
             return;
         }
 
@@ -384,7 +383,7 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper<String> {
         if (SpatialStrategy.TERM.getStrategyName().equals(strategyName)) {
             return termStrategy;
         }
-        throw new ElasticsearchIllegalArgumentException("Unknown prefix tree strategy [" + strategyName + "]");
+        throw new IllegalArgumentException("Unknown prefix tree strategy [" + strategyName + "]");
     }
 
 }

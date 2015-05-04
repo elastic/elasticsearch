@@ -38,7 +38,7 @@ public class MultiPercolatorRequestTests extends ElasticsearchTestCase {
         byte[] data = Streams.copyToBytesFromClasspath("/org/elasticsearch/action/percolate/mpercolate1.json");
         MultiPercolateRequest request = new MultiPercolateRequest().add(data, 0, data.length);
 
-        assertThat(request.requests().size(), equalTo(6));
+        assertThat(request.requests().size(), equalTo(8));
         PercolateRequest percolateRequest = request.requests().get(0);
         assertThat(percolateRequest.indices()[0], equalTo("my-index1"));
         assertThat(percolateRequest.documentType(), equalTo("my-type1"));
@@ -61,8 +61,8 @@ public class MultiPercolatorRequestTests extends ElasticsearchTestCase {
         assertThat(percolateRequest.onlyCount(), equalTo(false));
         assertThat(percolateRequest.getRequest(), nullValue());
         assertThat(percolateRequest.source(), notNullValue());
-        sourceMap =  XContentFactory.xContent(percolateRequest.source()).createParser(percolateRequest.source()).map();
-        assertThat(sourceMap.get("doc"), equalTo((Object)MapBuilder.newMapBuilder().put("field1", "value2").map()));
+        sourceMap = XContentFactory.xContent(percolateRequest.source()).createParser(percolateRequest.source()).map();
+        assertThat(sourceMap.get("doc"), equalTo((Object) MapBuilder.newMapBuilder().put("field1", "value2").map()));
 
         percolateRequest = request.requests().get(2);
         assertThat(percolateRequest.indices()[0], equalTo("my-index4"));
@@ -74,8 +74,8 @@ public class MultiPercolatorRequestTests extends ElasticsearchTestCase {
         assertThat(percolateRequest.onlyCount(), equalTo(true));
         assertThat(percolateRequest.getRequest(), nullValue());
         assertThat(percolateRequest.source(), notNullValue());
-        sourceMap =  XContentFactory.xContent(percolateRequest.source()).createParser(percolateRequest.source()).map();
-        assertThat(sourceMap.get("doc"), equalTo((Object)MapBuilder.newMapBuilder().put("field1", "value3").map()));
+        sourceMap = XContentFactory.xContent(percolateRequest.source()).createParser(percolateRequest.source()).map();
+        assertThat(sourceMap.get("doc"), equalTo((Object) MapBuilder.newMapBuilder().put("field1", "value3").map()));
 
         percolateRequest = request.requests().get(3);
         assertThat(percolateRequest.indices()[0], equalTo("my-index6"));
@@ -114,8 +114,40 @@ public class MultiPercolatorRequestTests extends ElasticsearchTestCase {
         assertThat(percolateRequest.onlyCount(), equalTo(false));
         assertThat(percolateRequest.getRequest(), nullValue());
         assertThat(percolateRequest.source(), notNullValue());
-        sourceMap =  XContentFactory.xContent(percolateRequest.source()).createParser(percolateRequest.source()).map();
-        assertThat(sourceMap.get("doc"), equalTo((Object)MapBuilder.newMapBuilder().put("field1", "value4").map()));
+        sourceMap = XContentFactory.xContent(percolateRequest.source()).createParser(percolateRequest.source()).map();
+        assertThat(sourceMap.get("doc"), equalTo((Object) MapBuilder.newMapBuilder().put("field1", "value4").map()));
+
+        percolateRequest = request.requests().get(6);
+        assertThat(percolateRequest.indices()[0], equalTo("percolate-index1"));
+        assertThat(percolateRequest.documentType(), equalTo("other-type"));
+        assertThat(percolateRequest.routing(), equalTo("percolate-routing-1"));
+        assertThat(percolateRequest.preference(), equalTo("_local"));
+        assertThat(percolateRequest.getRequest(), notNullValue());
+        assertThat(percolateRequest.getRequest().indices()[0], equalTo("my-index9"));
+        assertThat(percolateRequest.getRequest().type(), equalTo("my-type1"));
+        assertThat(percolateRequest.getRequest().routing(), nullValue());
+        assertThat(percolateRequest.getRequest().preference(), nullValue());
+        assertThat(percolateRequest.indicesOptions(), equalTo(IndicesOptions.strictExpandOpenAndForbidClosed()));
+        assertThat(percolateRequest.onlyCount(), equalTo(false));
+        assertThat(percolateRequest.source(), notNullValue());
+        sourceMap = XContentFactory.xContent(percolateRequest.source()).createParser(percolateRequest.source()).map();
+        assertThat(sourceMap.get("doc"), nullValue());
+
+        percolateRequest = request.requests().get(7);
+        assertThat(percolateRequest.indices()[0], equalTo("my-index10"));
+        assertThat(percolateRequest.documentType(), equalTo("my-type1"));
+        assertThat(percolateRequest.routing(), nullValue());
+        assertThat(percolateRequest.preference(), nullValue());
+        assertThat(percolateRequest.getRequest(), notNullValue());
+        assertThat(percolateRequest.getRequest().indices()[0], equalTo("my-index10"));
+        assertThat(percolateRequest.getRequest().type(), equalTo("my-type1"));
+        assertThat(percolateRequest.getRequest().routing(), nullValue());
+        assertThat(percolateRequest.getRequest().preference(), nullValue());
+        assertThat(percolateRequest.indicesOptions(), equalTo(IndicesOptions.fromOptions(false, false, true, false, IndicesOptions.strictExpandOpenAndForbidClosed())));
+        assertThat(percolateRequest.onlyCount(), equalTo(false));
+        assertThat(percolateRequest.source(), notNullValue());
+        sourceMap = XContentFactory.xContent(percolateRequest.source()).createParser(percolateRequest.source()).map();
+        assertThat(sourceMap.get("doc"), nullValue());
     }
 
     @Test
@@ -147,8 +179,8 @@ public class MultiPercolatorRequestTests extends ElasticsearchTestCase {
         assertThat(percolateRequest.onlyCount(), equalTo(false));
         assertThat(percolateRequest.getRequest(), nullValue());
         assertThat(percolateRequest.source(), notNullValue());
-        sourceMap =  XContentFactory.xContent(percolateRequest.source()).createParser(percolateRequest.source()).map();
-        assertThat(sourceMap.get("doc"), equalTo((Object)MapBuilder.newMapBuilder().put("field1", "value2").map()));
+        sourceMap = XContentFactory.xContent(percolateRequest.source()).createParser(percolateRequest.source()).map();
+        assertThat(sourceMap.get("doc"), equalTo((Object) MapBuilder.newMapBuilder().put("field1", "value2").map()));
 
         percolateRequest = request.requests().get(2);
         assertThat(percolateRequest.indices()[0], equalTo("my-index1"));
@@ -157,8 +189,8 @@ public class MultiPercolatorRequestTests extends ElasticsearchTestCase {
         assertThat(percolateRequest.onlyCount(), equalTo(false));
         assertThat(percolateRequest.getRequest(), nullValue());
         assertThat(percolateRequest.source(), notNullValue());
-        sourceMap =  XContentFactory.xContent(percolateRequest.source()).createParser(percolateRequest.source()).map();
-        assertThat(sourceMap.get("doc"), equalTo((Object)MapBuilder.newMapBuilder().put("field1", "value3").map()));
+        sourceMap = XContentFactory.xContent(percolateRequest.source()).createParser(percolateRequest.source()).map();
+        assertThat(sourceMap.get("doc"), equalTo((Object) MapBuilder.newMapBuilder().put("field1", "value3").map()));
     }
 
 }

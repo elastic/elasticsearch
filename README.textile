@@ -34,6 +34,10 @@ h2. Getting Started
 
 First of all, DON'T PANIC. It will take 5 minutes to get the gist of what Elasticsearch is all about.
 
+h3. Requirements
+
+You need to have a recent version of Java installed. See the "Setup":http://www.elastic.co/guide/en/elasticsearch/reference/current/setup.html#jvm-version page for more information.
+
 h3. Installation
 
 * "Download":https://www.elastic.co/downloads/elasticsearch and unzip the Elasticsearch official distribution.

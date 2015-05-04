@@ -71,7 +71,9 @@ class MultiDocumentPercolatorIndex implements PercolatorIndex {
         try {
             MultiReader mReader = new MultiReader(memoryIndices, true);
             LeafReader slowReader = SlowCompositeReaderWrapper.wrap(mReader);
-            DocSearcher docSearcher = new DocSearcher(new IndexSearcher(slowReader), rootDocMemoryIndex);
+            final IndexSearcher slowSearcher = new IndexSearcher(slowReader);
+            slowSearcher.setQueryCache(null);
+            DocSearcher docSearcher = new DocSearcher(slowSearcher, rootDocMemoryIndex);
             context.initialize(docSearcher, parsedDocument);
         } catch (IOException e) {
             throw new ElasticsearchException("Failed to create index for percolator with nested document ", e);
@@ -107,7 +109,7 @@ class MultiDocumentPercolatorIndex implements PercolatorIndex {
         }
 
         @Override
-        public void close() throws ElasticsearchException {
+        public void close() {
             try {
                 this.reader().close();
                 rootDocMemoryIndex.reset();

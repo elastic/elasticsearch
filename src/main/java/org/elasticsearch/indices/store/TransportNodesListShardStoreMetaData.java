@@ -43,6 +43,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
+import org.elasticsearch.index.store.IndexStoreModule;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.indices.IndicesService;
@@ -70,28 +71,14 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesOperatio
     @Inject
     public TransportNodesListShardStoreMetaData(Settings settings, ClusterName clusterName, ThreadPool threadPool, ClusterService clusterService, TransportService transportService,
                                                 IndicesService indicesService, NodeEnvironment nodeEnv, ActionFilters actionFilters) {
-        super(settings, ACTION_NAME, clusterName, threadPool, clusterService, transportService, actionFilters);
+        super(settings, ACTION_NAME, clusterName, threadPool, clusterService, transportService, actionFilters,
+                Request.class, NodeRequest.class, ThreadPool.Names.GENERIC);
         this.indicesService = indicesService;
         this.nodeEnv = nodeEnv;
     }
 
     public ActionFuture<NodesStoreFilesMetaData> list(ShardId shardId, boolean onlyUnallocated, String[] nodesIds, @Nullable TimeValue timeout) {
         return execute(new Request(shardId, onlyUnallocated, nodesIds).timeout(timeout));
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.GENERIC;
-    }
-
-    @Override
-    protected Request newRequestInstance() {
-        return new Request();
-    }
-
-    @Override
-    protected NodeRequest newNodeRequest() {
-        return new NodeRequest();
     }
 
     @Override
@@ -123,7 +110,7 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesOperatio
     }
 
     @Override
-    protected NodeStoreFilesMetaData nodeOperation(NodeRequest request) throws ElasticsearchException {
+    protected NodeStoreFilesMetaData nodeOperation(NodeRequest request) {
         if (request.unallocated) {
             IndexService indexService = indicesService.indexService(request.shardId.index().name());
             if (indexService == null) {
@@ -168,7 +155,7 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesOperatio
             if (metaData == null) {
                 return new StoreFilesMetaData(false, shardId, ImmutableMap.<String, StoreFileMetaData>of());
             }
-            String storeType = metaData.settings().get("index.store.type", "fs");
+            String storeType = metaData.settings().get(IndexStoreModule.STORE_TYPE, "fs");
             if (!storeType.contains("fs")) {
                 return new StoreFilesMetaData(false, shardId, ImmutableMap.<String, StoreFileMetaData>of());
             }

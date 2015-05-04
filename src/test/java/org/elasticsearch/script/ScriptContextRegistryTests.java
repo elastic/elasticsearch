@@ -20,7 +20,6 @@
 package org.elasticsearch.script;
 
 import com.google.common.collect.Lists;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.hamcrest.Matchers;
 import org.junit.Test;
@@ -36,7 +35,7 @@ public class ScriptContextRegistryTests extends ElasticsearchTestCase {
                 //try to register a prohibited script context
                 new ScriptContextRegistry(Lists.newArrayList(new ScriptContext.Plugin("test", rejectedContext)));
                 fail("ScriptContextRegistry initialization should have failed");
-            } catch(ElasticsearchIllegalArgumentException e) {
+            } catch(IllegalArgumentException e) {
                 assertThat(e.getMessage(), Matchers.containsString("[" + rejectedContext + "] is a reserved name, it cannot be registered as a custom script context"));
             }
         }
@@ -49,18 +48,18 @@ public class ScriptContextRegistryTests extends ElasticsearchTestCase {
                 //try to register a prohibited script context
                 new ScriptContextRegistry(Lists.newArrayList(new ScriptContext.Plugin(rejectedContext, "test")));
                 fail("ScriptContextRegistry initialization should have failed");
-            } catch(ElasticsearchIllegalArgumentException e) {
+            } catch(IllegalArgumentException e) {
                 assertThat(e.getMessage(), Matchers.containsString("[" + rejectedContext + "] is a reserved name, it cannot be registered as a custom script context"));
             }
         }
     }
 
-    @Test(expected = ElasticsearchIllegalArgumentException.class)
+    @Test(expected = IllegalArgumentException.class)
     public void testValidateCustomScriptContextsEmptyPluginName() throws IOException {
         new ScriptContext.Plugin(randomBoolean() ? null : "", "test");
     }
 
-    @Test(expected = ElasticsearchIllegalArgumentException.class)
+    @Test(expected = IllegalArgumentException.class)
     public void testValidateCustomScriptContextsEmptyOperation() throws IOException {
         new ScriptContext.Plugin("test", randomBoolean() ? null : "");
     }
@@ -71,7 +70,7 @@ public class ScriptContextRegistryTests extends ElasticsearchTestCase {
             //try to register a prohibited script context
             new ScriptContextRegistry(Lists.newArrayList(new ScriptContext.Plugin("testplugin", "test"), new ScriptContext.Plugin("testplugin", "test")));
             fail("ScriptContextRegistry initialization should have failed");
-        } catch(ElasticsearchIllegalArgumentException e) {
+        } catch(IllegalArgumentException e) {
             assertThat(e.getMessage(), Matchers.containsString("script context [testplugin_test] cannot be registered twice"));
         }
     }

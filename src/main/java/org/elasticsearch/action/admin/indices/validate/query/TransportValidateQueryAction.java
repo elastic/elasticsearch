@@ -76,7 +76,8 @@ public class TransportValidateQueryAction extends TransportBroadcastOperationAct
 
     @Inject
     public TransportValidateQueryAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService, IndicesService indicesService, ScriptService scriptService, PageCacheRecycler pageCacheRecycler, BigArrays bigArrays, ActionFilters actionFilters) {
-        super(settings, ValidateQueryAction.NAME, threadPool, clusterService, transportService, actionFilters);
+        super(settings, ValidateQueryAction.NAME, threadPool, clusterService, transportService, actionFilters,
+                ValidateQueryRequest.class, ShardValidateQueryRequest.class, ThreadPool.Names.SEARCH);
         this.indicesService = indicesService;
         this.scriptService = scriptService;
         this.pageCacheRecycler = pageCacheRecycler;
@@ -87,21 +88,6 @@ public class TransportValidateQueryAction extends TransportBroadcastOperationAct
     protected void doExecute(ValidateQueryRequest request, ActionListener<ValidateQueryResponse> listener) {
         request.nowInMillis = System.currentTimeMillis();
         super.doExecute(request, listener);
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.SEARCH;
-    }
-
-    @Override
-    protected ValidateQueryRequest newRequestInstance() {
-        return new ValidateQueryRequest();
-    }
-
-    @Override
-    protected ShardValidateQueryRequest newShardRequest() {
-        return new ShardValidateQueryRequest();
     }
 
     @Override
@@ -170,7 +156,7 @@ public class TransportValidateQueryAction extends TransportBroadcastOperationAct
     }
 
     @Override
-    protected ShardValidateQueryResponse shardOperation(ShardValidateQueryRequest request) throws ElasticsearchException {
+    protected ShardValidateQueryResponse shardOperation(ShardValidateQueryRequest request) {
         IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
         IndexQueryParserService queryParserService = indexService.queryParserService();
         IndexShard indexShard = indexService.shardSafe(request.shardId().id());

@@ -54,7 +54,7 @@ public class MatchedQueriesFetchSubPhase implements FetchSubPhase {
     }
 
     @Override
-    public void hitsExecute(SearchContext context, InternalSearchHit[] hits) throws ElasticsearchException {
+    public void hitsExecute(SearchContext context, InternalSearchHit[] hits) {
     }
 
     @Override
@@ -64,7 +64,7 @@ public class MatchedQueriesFetchSubPhase implements FetchSubPhase {
     }
 
     @Override
-    public void hitExecute(SearchContext context, HitContext hitContext) throws ElasticsearchException {
+    public void hitExecute(SearchContext context, HitContext hitContext) {
         List<String> matchedQueries = Lists.newArrayListWithCapacity(2);
 
         try {

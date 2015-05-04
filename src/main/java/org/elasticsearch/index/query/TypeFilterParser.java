@@ -21,10 +21,10 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.QueryWrapperFilter;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
@@ -50,15 +50,15 @@ public class TypeFilterParser implements FilterParser {
 
         XContentParser.Token token = parser.nextToken();
         if (token != XContentParser.Token.FIELD_NAME) {
-            throw new QueryParsingException(parseContext.index(), "[type] filter should have a value field, and the type name");
+            throw new QueryParsingException(parseContext, "[type] filter should have a value field, and the type name");
         }
         String fieldName = parser.currentName();
         if (!fieldName.equals("value")) {
-            throw new QueryParsingException(parseContext.index(), "[type] filter should have a value field, and the type name");
+            throw new QueryParsingException(parseContext, "[type] filter should have a value field, and the type name");
         }
         token = parser.nextToken();
         if (token != XContentParser.Token.VALUE_STRING) {
-            throw new QueryParsingException(parseContext.index(), "[type] filter should have a value field, and the type name");
+            throw new QueryParsingException(parseContext, "[type] filter should have a value field, and the type name");
         }
         BytesRef type = parser.utf8Bytes();
         // move to the next token
@@ -68,10 +68,10 @@ public class TypeFilterParser implements FilterParser {
         //LUCENE 4 UPGRADE document mapper should use bytesref as well? 
         DocumentMapper documentMapper = parseContext.mapperService().documentMapper(type.utf8ToString());
         if (documentMapper == null) {
-            filter = Queries.wrap(new TermQuery(new Term(TypeFieldMapper.NAME, type)));
+            filter = new QueryWrapperFilter(new TermQuery(new Term(TypeFieldMapper.NAME, type)));
         } else {
             filter = documentMapper.typeFilter();
         }
-        return parseContext.cacheFilter(filter, null, parseContext.autoFilterCachePolicy());
+        return filter;
     }
 }

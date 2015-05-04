@@ -25,7 +25,7 @@ import com.carrotsearch.hppc.cursors.IntObjectCursor;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Sets;
 import com.google.common.collect.UnmodifiableIterator;
-import org.elasticsearch.ElasticsearchIllegalStateException;
+import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.collect.ImmutableOpenIntMap;
@@ -56,7 +56,9 @@ import static com.google.common.collect.Lists.newArrayList;
  * represented as {@link ShardRouting}.
  * </p>
  */
-public class IndexRoutingTable implements Iterable<IndexShardRoutingTable> {
+public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> implements Iterable<IndexShardRoutingTable> {
+
+    public static final IndexRoutingTable PROTO = builder("").build();
 
     private final String index;
     private final ShardShuffler shuffler;
@@ -315,7 +317,49 @@ public class IndexRoutingTable implements Iterable<IndexShardRoutingTable> {
         return new GroupShardsIterator(set);
     }
 
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        IndexRoutingTable that = (IndexRoutingTable) o;
+
+        if (!index.equals(that.index)) return false;
+        if (!shards.equals(that.shards)) return false;
+
+        return true;
+    }
+
+    @Override
+    public int hashCode() {
+        int result = index.hashCode();
+        result = 31 * result + shards.hashCode();
+        return result;
+    }
+
     public void validate() throws RoutingValidationException {
+    }
+
+    @Override
+    public IndexRoutingTable readFrom(StreamInput in) throws IOException {
+        String index = in.readString();
+        Builder builder = new Builder(index);
+
+        int size = in.readVInt();
+        for (int i = 0; i < size; i++) {
+            builder.addIndexShard(IndexShardRoutingTable.Builder.readFromThin(in, index));
+        }
+
+        return builder.build();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeString(index);
+        out.writeVInt(shards.size());
+        for (IndexShardRoutingTable indexShard : this) {
+            IndexShardRoutingTable.Builder.writeToThin(indexShard, out);
+        }
     }
 
     public static Builder builder(String index) {
@@ -339,30 +383,7 @@ public class IndexRoutingTable implements Iterable<IndexShardRoutingTable> {
          * @throws IOException if something happens during read
          */
         public static IndexRoutingTable readFrom(StreamInput in) throws IOException {
-            String index = in.readString();
-            Builder builder = new Builder(index);
-
-            int size = in.readVInt();
-            for (int i = 0; i < size; i++) {
-                builder.addIndexShard(IndexShardRoutingTable.Builder.readFromThin(in, index));
-            }
-
-            return builder.build();
-        }
-
-        /**
-         * Writes an {@link IndexRoutingTable} to a {@link StreamOutput}.
-         *
-         * @param index {@link IndexRoutingTable} to write
-         * @param out   {@link StreamOutput} to write to
-         * @throws IOException if something happens during write
-         */
-        public static void writeTo(IndexRoutingTable index, StreamOutput out) throws IOException {
-            out.writeString(index.index());
-            out.writeVInt(index.shards.size());
-            for (IndexShardRoutingTable indexShard : index) {
-                IndexShardRoutingTable.Builder.writeToThin(indexShard, out);
-            }
+            return PROTO.readFrom(in);
         }
 
         /**
@@ -398,7 +419,7 @@ public class IndexRoutingTable implements Iterable<IndexShardRoutingTable> {
          */
         private Builder initializeAsRestore(IndexMetaData indexMetaData, RestoreSource restoreSource, IntSet ignoreShards, boolean asNew) {
             if (!shards.isEmpty()) {
-                throw new ElasticsearchIllegalStateException("trying to initialize an index with fresh shards, but already has shards created");
+                throw new IllegalStateException("trying to initialize an index with fresh shards, but already has shards created");
             }
             for (int shardId = 0; shardId < indexMetaData.numberOfShards(); shardId++) {
                 IndexShardRoutingTable.Builder indexShardRoutingBuilder = new IndexShardRoutingTable.Builder(new ShardId(indexMetaData.index(), shardId), asNew ? false : true);
@@ -420,7 +441,7 @@ public class IndexRoutingTable implements Iterable<IndexShardRoutingTable> {
          */
         private Builder initializeEmpty(IndexMetaData indexMetaData, boolean asNew) {
             if (!shards.isEmpty()) {
-                throw new ElasticsearchIllegalStateException("trying to initialize an index with fresh shards, but already has shards created");
+                throw new IllegalStateException("trying to initialize an index with fresh shards, but already has shards created");
             }
             for (int shardId = 0; shardId < indexMetaData.numberOfShards(); shardId++) {
                 IndexShardRoutingTable.Builder indexShardRoutingBuilder = new IndexShardRoutingTable.Builder(new ShardId(indexMetaData.index(), shardId), asNew ? false : true);

@@ -19,20 +19,43 @@
 
 package org.elasticsearch.search.aggregations;
 
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
+import org.elasticsearch.search.aggregations.reducers.Reducer;
 
 import java.util.List;
 import java.util.Map;
 
-public abstract class InternalMultiBucketAggregation extends InternalAggregation implements MultiBucketsAggregation {
+public abstract class InternalMultiBucketAggregation<A extends InternalMultiBucketAggregation, B extends InternalMultiBucketAggregation.InternalBucket>
+        extends InternalAggregation implements MultiBucketsAggregation {
 
     public InternalMultiBucketAggregation() {
     }
 
-    public InternalMultiBucketAggregation(String name, Map<String, Object> metaData) {
-        super(name, metaData);
+    public InternalMultiBucketAggregation(String name, List<Reducer> reducers, Map<String, Object> metaData) {
+        super(name, reducers, metaData);
     }
+
+    /**
+     * Create a new copy of this {@link Aggregation} with the same settings as
+     * this {@link Aggregation} and contains the provided buckets.
+     * 
+     * @param buckets
+     *            the buckets to use in the new {@link Aggregation}
+     * @return the new {@link Aggregation}
+     */
+    public abstract A create(List<B> buckets);
+
+    /**
+     * Create a new {@link InternalBucket} using the provided prototype bucket
+     * and aggregations.
+     * 
+     * @param aggregations
+     *            the aggregations for the new bucket
+     * @param prototype
+     *            the bucket to use as a prototype
+     * @return the new bucket
+     */
+    public abstract B createBucket(InternalAggregations aggregations, B prototype);
 
     @Override
     public Object getProperty(List<String> path) {
@@ -58,18 +81,19 @@ public abstract class InternalMultiBucketAggregation extends InternalAggregation
             String aggName = path.get(0);
             if (aggName.equals("_count")) {
                 if (path.size() > 1) {
-                    throw new ElasticsearchIllegalArgumentException("_count must be the last element in the path");
+                    throw new InvalidAggregationPathException("_count must be the last element in the path");
                 }
                 return getDocCount();
             } else if (aggName.equals("_key")) {
                 if (path.size() > 1) {
-                    throw new ElasticsearchIllegalArgumentException("_key must be the last element in the path");
+                    throw new InvalidAggregationPathException("_key must be the last element in the path");
                 }
                 return getKey();
             }
             InternalAggregation aggregation = aggregations.get(aggName);
             if (aggregation == null) {
-                throw new ElasticsearchIllegalArgumentException("Cannot find an aggregation named [" + aggName + "] in [" + containingAggName + "]");
+                throw new InvalidAggregationPathException("Cannot find an aggregation named [" + aggName + "] in [" + containingAggName
+                        + "]");
             }
             return aggregation.getProperty(path.subList(1, path.size()));
         }

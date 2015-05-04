@@ -19,7 +19,6 @@
 
 package org.elasticsearch.rest.action.search;
 
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.ClearScrollResponse;
 import org.elasticsearch.client.Client;
@@ -27,7 +26,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -57,15 +55,15 @@ public class RestClearScrollAction extends BaseRestHandler {
         String scrollIds = request.param("scroll_id");
         ClearScrollRequest clearRequest = new ClearScrollRequest();
         clearRequest.setScrollIds(Arrays.asList(splitScrollIds(scrollIds)));
-        if (request.hasContent()) {
-            XContentType type = XContentFactory.xContentType(request.content());
+        if (RestActions.hasBodyContent(request)) {
+            XContentType type = RestActions.guessBodyContentType(request);
            if (type == null) {
                scrollIds = RestActions.getRestContent(request).toUtf8();
                clearRequest.setScrollIds(Arrays.asList(splitScrollIds(scrollIds)));
            } else {
                // NOTE: if rest request with xcontent body has request parameters, these parameters does not override xcontent value
                clearRequest.setScrollIds(null);
-               buildFromContent(request.content(), clearRequest);
+               buildFromContent(RestActions.getRestContent(request), clearRequest);
            }
         }
 
@@ -79,10 +77,10 @@ public class RestClearScrollAction extends BaseRestHandler {
         return Strings.splitStringByCommaToArray(scrollIds);
     }
 
-    public static void buildFromContent(BytesReference content, ClearScrollRequest clearScrollRequest) throws ElasticsearchIllegalArgumentException {
+    public static void buildFromContent(BytesReference content, ClearScrollRequest clearScrollRequest) {
         try (XContentParser parser = XContentHelper.createParser(content)) {
             if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
-                throw new ElasticsearchIllegalArgumentException("Malformed content, must start with an object");
+                throw new IllegalArgumentException("Malformed content, must start with an object");
             } else {
                 XContentParser.Token token;
                 String currentFieldName = null;
@@ -92,17 +90,17 @@ public class RestClearScrollAction extends BaseRestHandler {
                     } else if ("scroll_id".equals(currentFieldName) && token == XContentParser.Token.START_ARRAY) {
                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                             if (token.isValue() == false) {
-                                throw new ElasticsearchIllegalArgumentException("scroll_id array element should only contain scroll_id");
+                                throw new IllegalArgumentException("scroll_id array element should only contain scroll_id");
                             }
                             clearScrollRequest.addScrollId(parser.text());
                         }
                     } else {
-                        throw new ElasticsearchIllegalArgumentException("Unknown parameter [" + currentFieldName + "] in request body or parameter is of the wrong type[" + token + "] ");
+                        throw new IllegalArgumentException("Unknown parameter [" + currentFieldName + "] in request body or parameter is of the wrong type[" + token + "] ");
                     }
                 }
             }
         } catch (IOException e) {
-            throw new ElasticsearchIllegalArgumentException("Failed to parse request body", e);
+            throw new IllegalArgumentException("Failed to parse request body", e);
         }
     }
 

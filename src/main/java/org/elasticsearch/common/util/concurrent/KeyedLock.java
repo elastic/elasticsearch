@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common.util.concurrent;
 
-import org.elasticsearch.ElasticsearchIllegalStateException;
 
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -39,6 +38,19 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
  * */
 public class KeyedLock<T> {
 
+    private final boolean fair;
+
+    /**
+     * @param fair Use fair locking, ie threads get the lock in the order they requested it
+     */
+    public KeyedLock(boolean fair) {
+        this.fair = fair;
+    }
+
+    public KeyedLock() {
+        this(false);
+    }
+
     private final ConcurrentMap<T, KeyLock> map = ConcurrentCollections.newConcurrentMap();
 
     protected final ThreadLocal<KeyLock> threadLocal = new ThreadLocal<>();
@@ -47,12 +59,12 @@ public class KeyedLock<T> {
         while (true) {
             if (threadLocal.get() != null) {
                 // if we are here, the thread already has the lock
-                throw new ElasticsearchIllegalStateException("Lock already acquired in Thread" + Thread.currentThread().getId()
+                throw new IllegalStateException("Lock already acquired in Thread" + Thread.currentThread().getId()
                         + " for key " + key);
             }
             KeyLock perNodeLock = map.get(key);
             if (perNodeLock == null) {
-                KeyLock newLock = new KeyLock();
+                KeyLock newLock = new KeyLock(fair);
                 perNodeLock = map.putIfAbsent(key, newLock);
                 if (perNodeLock == null) {
                     newLock.lock();
@@ -73,7 +85,7 @@ public class KeyedLock<T> {
     public void release(T key) {
         KeyLock lock = threadLocal.get();
         if (lock == null) {
-            throw new ElasticsearchIllegalStateException("Lock not acquired");
+            throw new IllegalStateException("Lock not acquired");
         }
         release(key, lock);
     }
@@ -92,6 +104,10 @@ public class KeyedLock<T> {
 
     @SuppressWarnings("serial")
     private final static class KeyLock extends ReentrantLock {
+        KeyLock(boolean fair) {
+            super(fair);
+        }
+
         private final AtomicInteger count = new AtomicInteger(1);
     }
 
@@ -105,7 +121,17 @@ public class KeyedLock<T> {
      */
     public final static class GlobalLockable<T> extends KeyedLock<T> {
 
-        private final ReadWriteLock lock = new ReentrantReadWriteLock();
+
+        private final ReadWriteLock lock;
+
+        public GlobalLockable(boolean fair){
+            super(fair);
+            lock = new ReentrantReadWriteLock(fair);
+        }
+
+        public GlobalLockable() {
+            this(false);
+        }
 
         @Override
         public void acquire(T key) {
@@ -125,7 +151,7 @@ public class KeyedLock<T> {
         public void release(T key) {
             KeyLock keyLock = threadLocal.get();
             if (keyLock == null) {
-                throw new ElasticsearchIllegalStateException("Lock not acquired");
+                throw new IllegalStateException("Lock not acquired");
             }
             try {
                 release(key, keyLock);

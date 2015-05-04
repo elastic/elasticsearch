@@ -19,7 +19,6 @@
 
 package org.elasticsearch.script.expression;
 
-
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.queries.function.FunctionValues;
 import org.apache.lucene.queries.function.ValueSource;
@@ -29,15 +28,18 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * A {@link ValueSource} wrapper for field data.
  */
 class FieldDataValueSource extends ValueSource {
 
-    IndexFieldData<?> fieldData;
+    protected IndexFieldData<?> fieldData;
 
-    FieldDataValueSource(IndexFieldData<?> d) {
+    protected FieldDataValueSource(IndexFieldData<?> d) {
+        Objects.requireNonNull(d);
+
         fieldData = d;
     }
 
@@ -49,8 +51,13 @@ class FieldDataValueSource extends ValueSource {
     }
 
     @Override
-    public boolean equals(Object other) {
-        return fieldData.equals(other);
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        FieldDataValueSource that = (FieldDataValueSource) o;
+
+        return fieldData.equals(that.fieldData);
     }
 
     @Override

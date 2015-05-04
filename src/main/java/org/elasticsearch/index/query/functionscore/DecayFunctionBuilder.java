@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.query.functionscore;
 
-import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.MultiValueMode;
 
@@ -48,7 +47,7 @@ public abstract class DecayFunctionBuilder extends ScoreFunctionBuilder {
 
     public DecayFunctionBuilder setDecay(double decay) {
         if (decay <= 0 || decay >= 1.0) {
-            throw new ElasticsearchIllegalStateException("scale weight parameter must be in range 0..1!");
+            throw new IllegalStateException("scale weight parameter must be in range 0..1!");
         }
         this.decay = decay;
         return this;

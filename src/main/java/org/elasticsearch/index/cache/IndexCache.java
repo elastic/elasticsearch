@@ -19,19 +19,14 @@
 
 package org.elasticsearch.index.cache;
 
+import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.util.IOUtils;
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.ClusterService;
-import org.elasticsearch.cluster.ClusterStateListener;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.cache.filter.FilterCache;
-import org.elasticsearch.index.cache.query.parser.QueryParserCache;
 import org.elasticsearch.index.settings.IndexSettings;
 
 import java.io.Closeable;
@@ -40,32 +35,26 @@ import java.io.IOException;
 /**
  *
  */
-public class IndexCache extends AbstractIndexComponent implements Closeable, ClusterStateListener {
+public class IndexCache extends AbstractIndexComponent implements Closeable {
 
     private final FilterCache filterCache;
-    private final QueryParserCache queryParserCache;
+    private final QueryCachingPolicy filterCachingPolicy;
     private final BitsetFilterCache bitsetFilterCache;
 
-    private ClusterService clusterService;
-
     @Inject
-    public IndexCache(Index index, @IndexSettings Settings indexSettings, FilterCache filterCache, QueryParserCache queryParserCache, BitsetFilterCache bitsetFilterCache) {
+    public IndexCache(Index index, @IndexSettings Settings indexSettings, FilterCache filterCache, QueryCachingPolicy filterCachingPolicy, BitsetFilterCache bitsetFilterCache) {
         super(index, indexSettings);
         this.filterCache = filterCache;
-        this.queryParserCache = queryParserCache;
+        this.filterCachingPolicy = filterCachingPolicy;
         this.bitsetFilterCache = bitsetFilterCache;
-    }
-
-    @Inject(optional = true)
-    public void setClusterService(@Nullable ClusterService clusterService) {
-        this.clusterService = clusterService;
-        if (clusterService != null) {
-            clusterService.add(this);
-        }
     }
 
     public FilterCache filter() {
         return filterCache;
+    }
+
+    public QueryCachingPolicy filterPolicy() {
+        return filterCachingPolicy;
     }
 
     /**
@@ -75,29 +64,14 @@ public class IndexCache extends AbstractIndexComponent implements Closeable, Clu
         return bitsetFilterCache;
     }
 
-    public QueryParserCache queryParserCache() {
-        return this.queryParserCache;
-    }
-
     @Override
     public void close() throws IOException {
-        IOUtils.close(filterCache, queryParserCache, bitsetFilterCache);
-        if (clusterService != null) {
-            clusterService.remove(this);
-        }
+        IOUtils.close(filterCache, bitsetFilterCache);
     }
 
     public void clear(String reason) {
         filterCache.clear(reason);
-        queryParserCache.clear();
         bitsetFilterCache.clear(reason);
     }
 
-    @Override
-    public void clusterChanged(ClusterChangedEvent event) {
-        // clear the query parser cache if the metadata (mappings) changed...
-        if (event.metaDataChanged()) {
-            queryParserCache.clear();
-        }
-    }
 }

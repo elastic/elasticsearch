@@ -23,7 +23,6 @@ import com.google.common.base.Preconditions;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
 import org.apache.commons.cli.GnuParser;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -146,7 +145,7 @@ public abstract class CliTool {
         } catch (IOException ioe) {
             terminal.printError(ioe);
             return ExitStatus.IO_ERROR.status;
-        } catch (IllegalArgumentException | ElasticsearchIllegalArgumentException ilae) {
+        } catch (IllegalArgumentException ilae) {
             terminal.printError(ilae);
             return ExitStatus.USAGE.status;
         } catch (Throwable t) {

@@ -34,6 +34,7 @@ import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryWrapperFilter;
 import org.apache.lucene.search.RegexpQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
@@ -41,7 +42,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -49,7 +49,7 @@ import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.InternalMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MergeContext;
+import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.RootMapper;
@@ -200,7 +200,7 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
         if (fieldType.indexOptions() != IndexOptions.NONE || context == null) {
             return super.termFilter(value, context);
         }
-        return Queries.wrap(new TermsQuery(UidFieldMapper.NAME, Uid.createTypeUids(context.queryTypes(), value)));
+        return new QueryWrapperFilter(new TermsQuery(UidFieldMapper.NAME, Uid.createTypeUids(context.queryTypes(), value)));
     }
 
     @Override
@@ -208,7 +208,7 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
         if (fieldType.indexOptions() != IndexOptions.NONE || context == null) {
             return super.termsFilter(values, context);
         }
-        return Queries.wrap(new TermsQuery(UidFieldMapper.NAME, Uid.createTypeUids(context.queryTypes(), values)));
+        return new QueryWrapperFilter(new TermsQuery(UidFieldMapper.NAME, Uid.createTypeUids(context.queryTypes(), values)));
     }
 
     @Override
@@ -238,7 +238,7 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
         for (String queryType : queryTypes) {
             filter.add(new PrefixQuery(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(queryType, BytesRefs.toBytesRef(value)))), BooleanClause.Occur.SHOULD);
         }
-        return Queries.wrap(filter);
+        return new QueryWrapperFilter(filter);
     }
 
     @Override
@@ -277,7 +277,7 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
             filter.add(new RegexpQuery(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(queryType, BytesRefs.toBytesRef(value))),
                                         flags, maxDeterminizedStates), BooleanClause.Occur.SHOULD);
         }
-        return Queries.wrap(filter);
+        return new QueryWrapperFilter(filter);
     }
 
     @Override
@@ -361,7 +361,7 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
     }
 
     @Override
-    public void merge(Mapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
+    public void merge(Mapper mergeWith, MergeResult mergeResult) throws MergeMappingException {
         // do nothing here, no merging, but also no exception
     }
 }

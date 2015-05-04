@@ -123,7 +123,7 @@ public class MockRepository extends FsRepository {
     }
 
     @Override
-    protected void doStop() throws ElasticsearchException {
+    protected void doStop() {
         unblock();
         super.doStop();
     }

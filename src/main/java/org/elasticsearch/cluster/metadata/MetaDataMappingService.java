@@ -40,6 +40,7 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidTypeNameException;
@@ -48,8 +49,6 @@ import org.elasticsearch.percolator.PercolatorService;
 import java.util.*;
 
 import static com.google.common.collect.Maps.newHashMap;
-import static org.elasticsearch.index.mapper.DocumentMapper.MergeFlags.mergeFlags;
-
 /**
  * Service responsible for submitting mapping changes
  */
@@ -331,47 +330,6 @@ public class MetaDataMappingService extends AbstractComponent {
         });
     }
 
-    public void updateMapping(final String index, final String indexUUID, final String type, final CompressedString mappingSource, final String nodeId, final ActionListener<ClusterStateUpdateResponse> listener) {
-        final long insertOrder;
-        synchronized (refreshOrUpdateMutex) {
-            insertOrder = ++refreshOrUpdateInsertOrder;
-            refreshOrUpdateQueue.add(new UpdateTask(index, indexUUID, type, mappingSource, nodeId, listener));
-        }
-        clusterService.submitStateUpdateTask("update-mapping [" + index + "][" + type + "] / node [" + nodeId + "]", Priority.HIGH, new ProcessedClusterStateUpdateTask() {
-            private volatile List<MappingTask> allTasks;
-
-            @Override
-            public void onFailure(String source, Throwable t) {
-                listener.onFailure(t);
-            }
-
-            @Override
-            public ClusterState execute(final ClusterState currentState) throws Exception {
-                Tuple<ClusterState, List<MappingTask>> tuple = executeRefreshOrUpdate(currentState, insertOrder);
-                this.allTasks = tuple.v2();
-                return tuple.v1();
-            }
-
-            @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                if (allTasks == null) {
-                    return;
-                }
-                for (Object task : allTasks) {
-                    if (task instanceof UpdateTask) {
-                        UpdateTask uTask = (UpdateTask) task;
-                        ClusterStateUpdateResponse response = new ClusterStateUpdateResponse(true);
-                        try {
-                            uTask.listener.onResponse(response);
-                        } catch (Throwable t) {
-                            logger.debug("failed to ping back on response of mapping processing for task [{}]", t, uTask.listener);
-                        }
-                    }
-                }
-            }
-        });
-    }
-
     public void putMapping(final PutMappingClusterStateUpdateRequest request, final ActionListener<ClusterStateUpdateResponse> listener) {
 
         clusterService.submitStateUpdateTask("put-mapping [" + request.type() + "]", Priority.HIGH, new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(request, listener) {
@@ -423,10 +381,10 @@ public class MetaDataMappingService extends AbstractComponent {
                             newMapper = indexService.mapperService().parse(request.type(), new CompressedString(request.source()), existingMapper == null);
                             if (existingMapper != null) {
                                 // first, simulate
-                                DocumentMapper.MergeResult mergeResult = existingMapper.merge(newMapper.mapping(), mergeFlags().simulate(true));
+                                MergeResult mergeResult = existingMapper.merge(newMapper.mapping(), true);
                                 // if we have conflicts, and we are not supposed to ignore them, throw an exception
                                 if (!request.ignoreConflicts() && mergeResult.hasConflicts()) {
-                                    throw new MergeMappingException(mergeResult.conflicts());
+                                    throw new MergeMappingException(mergeResult.buildConflicts());
                                 }
                             }
                         }

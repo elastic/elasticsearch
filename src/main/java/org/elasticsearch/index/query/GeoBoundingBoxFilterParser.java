@@ -20,12 +20,10 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.QueryCachingPolicy;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lucene.HashedBytesRef;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -72,8 +70,6 @@ public class GeoBoundingBoxFilterParser implements FilterParser {
     public Filter parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
-        QueryCachingPolicy cache = parseContext.autoFilterCachePolicy();
-        HashedBytesRef cacheKey = null;
         String fieldName = null;
 
         double top = Double.NaN;
@@ -100,7 +96,9 @@ public class GeoBoundingBoxFilterParser implements FilterParser {
                     if (token == XContentParser.Token.FIELD_NAME) {
                         currentFieldName = parser.currentName();
                         token = parser.nextToken();
-                        if (FIELD.equals(currentFieldName)) {
+                        if (parseContext.isDeprecatedSetting(currentFieldName)) {
+                            // skip
+                        } else if (FIELD.equals(currentFieldName)) {
                             fieldName = parser.text();
                         } else if (TOP.equals(currentFieldName)) {
                             top = parser.doubleValue();
@@ -138,16 +136,12 @@ public class GeoBoundingBoxFilterParser implements FilterParser {
             } else if (token.isValue()) {
                 if ("_name".equals(currentFieldName)) {
                     filterName = parser.text();
-                } else if ("_cache".equals(currentFieldName)) {
-                    cache = parseContext.parseFilterCachePolicy();
-                } else if ("_cache_key".equals(currentFieldName) || "_cacheKey".equals(currentFieldName)) {
-                    cacheKey = new HashedBytesRef(parser.text());
                 } else if ("normalize".equals(currentFieldName)) {
                     normalize = parser.booleanValue();
                 } else if ("type".equals(currentFieldName)) {
                     type = parser.text();
                 } else {
-                    throw new QueryParsingException(parseContext.index(), "[geo_bbox] filter does not support [" + currentFieldName + "]");
+                    throw new QueryParsingException(parseContext, "[geo_bbox] filter does not support [" + currentFieldName + "]");
                 }
             }
         }
@@ -169,11 +163,11 @@ public class GeoBoundingBoxFilterParser implements FilterParser {
 
         MapperService.SmartNameFieldMappers smartMappers = parseContext.smartFieldMappers(fieldName);
         if (smartMappers == null || !smartMappers.hasMapper()) {
-            throw new QueryParsingException(parseContext.index(), "failed to find geo_point field [" + fieldName + "]");
+            throw new QueryParsingException(parseContext, "failed to find geo_point field [" + fieldName + "]");
         }
         FieldMapper<?> mapper = smartMappers.mapper();
         if (!(mapper instanceof GeoPointFieldMapper)) {
-            throw new QueryParsingException(parseContext.index(), "field [" + fieldName + "] is not a geo_point field");
+            throw new QueryParsingException(parseContext, "field [" + fieldName + "] is not a geo_point field");
         }
         GeoPointFieldMapper geoMapper = ((GeoPointFieldMapper) mapper);
 
@@ -184,12 +178,10 @@ public class GeoBoundingBoxFilterParser implements FilterParser {
             IndexGeoPointFieldData indexFieldData = parseContext.getForField(mapper);
             filter = new InMemoryGeoBoundingBoxFilter(topLeft, bottomRight, indexFieldData);
         } else {
-            throw new QueryParsingException(parseContext.index(), "geo bounding box type [" + type + "] not supported, either 'indexed' or 'memory' are allowed");
+            throw new QueryParsingException(parseContext, "geo bounding box type [" + type
+                    + "] not supported, either 'indexed' or 'memory' are allowed");
         }
 
-        if (cache != null) {
-            filter = parseContext.cacheFilter(filter, cacheKey, cache);
-        }
         if (filterName != null) {
             parseContext.addNamedFilter(filterName, filter);
         }

@@ -21,7 +21,6 @@ package org.elasticsearch.action.bulk;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
-import com.google.common.collect.Sets;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
@@ -68,19 +67,15 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class TransportBulkAction extends HandledTransportAction<BulkRequest, BulkResponse> {
 
     private final AutoCreateIndex autoCreateIndex;
-
     private final boolean allowIdGeneration;
-
     private final ClusterService clusterService;
-
     private final TransportShardBulkAction shardBulkAction;
-
     private final TransportCreateIndexAction createIndexAction;
 
     @Inject
     public TransportBulkAction(Settings settings, ThreadPool threadPool, TransportService transportService, ClusterService clusterService,
                                TransportShardBulkAction shardBulkAction, TransportCreateIndexAction createIndexAction, ActionFilters actionFilters) {
-        super(settings, BulkAction.NAME, threadPool, transportService, actionFilters);
+        super(settings, BulkAction.NAME, threadPool, transportService, actionFilters, BulkRequest.class);
         this.clusterService = clusterService;
         this.shardBulkAction = shardBulkAction;
         this.createIndexAction = createIndexAction;
@@ -90,32 +85,38 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
     }
 
     @Override
-    public BulkRequest newRequestInstance(){
-        return new BulkRequest();
-    }
-
-    @Override
     protected void doExecute(final BulkRequest bulkRequest, final ActionListener<BulkResponse> listener) {
         final long startTime = System.currentTimeMillis();
         final AtomicArray<BulkItemResponse> responses = new AtomicArray<>(bulkRequest.requests.size());
 
         if (autoCreateIndex.needToCheck()) {
-            final Set<String> indices = Sets.newHashSet();
+            // Keep track of all unique indices and all unique types per index for the create index requests:
+            final Map<String, Set<String>> indicesAndTypes = new HashMap<>();
             for (ActionRequest request : bulkRequest.requests) {
                 if (request instanceof DocumentRequest) {
                     DocumentRequest req = (DocumentRequest) request;
-                    if (!indices.contains(req.index())) {
-                        indices.add(req.index());
+                    Set<String> types = indicesAndTypes.get(req.index());
+                    if (types == null) {
+                        indicesAndTypes.put(req.index(), types = new HashSet<>());
                     }
+                    types.add(req.type());
                 } else {
                     throw new ElasticsearchException("Parsed unknown request in bulk actions: " + request.getClass().getSimpleName());
                 }
             }
-            final AtomicInteger counter = new AtomicInteger(indices.size());
+            final AtomicInteger counter = new AtomicInteger(indicesAndTypes.size());
             ClusterState state = clusterService.state();
-            for (final String index : indices) {
+            for (Map.Entry<String, Set<String>> entry : indicesAndTypes.entrySet()) {
+                final String index = entry.getKey();
                 if (autoCreateIndex.shouldAutoCreate(index, state)) {
-                    createIndexAction.execute(new CreateIndexRequest(bulkRequest).index(index).cause("auto(bulk api)").masterNodeTimeout(bulkRequest.timeout()), new ActionListener<CreateIndexResponse>() {
+                    CreateIndexRequest createIndexRequest = new CreateIndexRequest(bulkRequest);
+                    createIndexRequest.index(index);
+                    for (String type : entry.getValue()) {
+                        createIndexRequest.mapping(type);
+                    }
+                    createIndexRequest.cause("auto(bulk api)");
+                    createIndexRequest.masterNodeTimeout(bulkRequest.timeout());
+                    createIndexAction.execute(createIndexRequest, new ActionListener<CreateIndexResponse>() {
                         @Override
                         public void onResponse(CreateIndexResponse result) {
                             if (counter.decrementAndGet() == 0) {

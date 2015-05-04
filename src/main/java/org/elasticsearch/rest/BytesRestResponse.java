@@ -20,13 +20,16 @@
 package org.elasticsearch.rest;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Collections;
 
-import static org.elasticsearch.ExceptionsHelper.detailedMessage;
 
 public class BytesRestResponse extends RestResponse {
 
@@ -78,7 +81,7 @@ public class BytesRestResponse extends RestResponse {
     }
 
     public BytesRestResponse(RestChannel channel, Throwable t) throws IOException {
-        this(channel, ((t instanceof ElasticsearchException) ? ((ElasticsearchException) t).status() : RestStatus.INTERNAL_SERVER_ERROR), t);
+        this(channel, ExceptionsHelper.status(t), t);
     }
 
     public BytesRestResponse(RestChannel channel, RestStatus status, Throwable t) throws IOException {
@@ -114,9 +117,22 @@ public class BytesRestResponse extends RestResponse {
     private static XContentBuilder convert(RestChannel channel, RestStatus status, Throwable t) throws IOException {
         XContentBuilder builder = channel.newBuilder().startObject();
         if (t == null) {
-            builder.field("error", "Unknown");
+            builder.field("error", "unknown");
         } else if (channel.detailedErrorsEnabled()) {
-            builder.field("error", detailedMessage(t));
+            builder.field("error");
+            builder.startObject();
+            final ElasticsearchException[] rootCauses = ElasticsearchException.guessRootCauses(t);
+            builder.field("root_cause");
+            builder.startArray();
+            for (ElasticsearchException rootCause : rootCauses){
+                builder.startObject();
+                rootCause.toXContent(builder, new ToXContent.DelegatingMapParams(Collections.singletonMap(ElasticsearchException.REST_EXCEPTION_SKIP_CAUSE, "true"), channel.request()));
+                builder.endObject();
+            }
+            builder.endArray();
+
+            ElasticsearchException.toXContent(builder, channel.request(), t);
+            builder.endObject();
             if (channel.request().paramAsBoolean("error_trace", false)) {
                 buildErrorTrace(t, builder);
             }
@@ -127,6 +143,7 @@ public class BytesRestResponse extends RestResponse {
         builder.endObject();
         return builder;
     }
+
 
     private static void buildErrorTrace(Throwable t, XContentBuilder builder) throws IOException {
         builder.startObject("error_trace");

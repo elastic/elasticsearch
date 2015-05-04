@@ -27,6 +27,7 @@ import org.apache.lucene.search.FilteredQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryWrapperFilter;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TopDocs;
@@ -68,7 +69,7 @@ public class FloatNestedSortingTests extends DoubleNestedSortingTests {
 
     protected void assertAvgScoreMode(Filter parentFilter, IndexSearcher searcher, IndexFieldData.XFieldComparatorSource innerFieldComparator) throws IOException {
         MultiValueMode sortMode = MultiValueMode.AVG;
-        Filter childFilter = Queries.wrap(Queries.not(parentFilter));
+        Filter childFilter = new QueryWrapperFilter(Queries.not(parentFilter));
         XFieldComparatorSource nestedComparatorSource = createFieldComparator("field2", sortMode, -127, createNested(parentFilter, childFilter));
         Query query = new ToParentBlockJoinQuery(new FilteredQuery(new MatchAllDocsQuery(), childFilter), new BitDocIdSetCachingWrapperFilter(parentFilter), ScoreMode.None);
         Sort sort = new Sort(new SortField("field2", nestedComparatorSource));

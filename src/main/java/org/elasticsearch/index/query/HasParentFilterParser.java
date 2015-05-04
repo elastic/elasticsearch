@@ -20,19 +20,18 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryWrapperFilter;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.support.InnerHitsQueryParserHelper;
 import org.elasticsearch.index.query.support.XContentStructure;
-import org.elasticsearch.index.search.child.CustomQueryWrappingFilter;
 import org.elasticsearch.search.internal.SubSearchContext;
 
 import java.io.IOException;
 
 import static org.elasticsearch.index.query.HasParentQueryParser.createParentQuery;
-import static org.elasticsearch.index.query.QueryParserUtils.ensureNotDeleteByQuery;
 
 /**
  *
@@ -55,7 +54,6 @@ public class HasParentFilterParser implements FilterParser {
 
     @Override
     public Filter parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
-        ensureNotDeleteByQuery(NAME, parseContext);
         XContentParser parser = parseContext.parser();
 
         boolean queryFound = false;
@@ -71,6 +69,8 @@ public class HasParentFilterParser implements FilterParser {
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
+            } else if (parseContext.isDeprecatedSetting(currentFieldName)) {
+                // skip
             } else if (token == XContentParser.Token.START_OBJECT) {
                 // Usually, the query would be parsed here, but the child
                 // type may not have been extracted yet, so use the
@@ -85,27 +85,23 @@ public class HasParentFilterParser implements FilterParser {
                 } else if ("inner_hits".equals(currentFieldName)) {
                     innerHits = innerHitsQueryParserHelper.parse(parseContext);
                 } else {
-                    throw new QueryParsingException(parseContext.index(), "[has_parent] filter does not support [" + currentFieldName + "]");
+                    throw new QueryParsingException(parseContext, "[has_parent] filter does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
                 if ("type".equals(currentFieldName) || "parent_type".equals(currentFieldName) || "parentType".equals(currentFieldName)) {
                     parentType = parser.text();
                 } else if ("_name".equals(currentFieldName)) {
                     filterName = parser.text();
-                } else if ("_cache".equals(currentFieldName)) {
-                    // noop to be backwards compatible
-                } else if ("_cache_key".equals(currentFieldName) || "_cacheKey".equals(currentFieldName)) {
-                    // noop to be backwards compatible
                 } else {
-                    throw new QueryParsingException(parseContext.index(), "[has_parent] filter does not support [" + currentFieldName + "]");
+                    throw new QueryParsingException(parseContext, "[has_parent] filter does not support [" + currentFieldName + "]");
                 }
             }
         }
         if (!queryFound && !filterFound) {
-            throw new QueryParsingException(parseContext.index(), "[has_parent] filter requires 'query' or 'filter' field");
+            throw new QueryParsingException(parseContext, "[has_parent] filter requires 'query' or 'filter' field");
         }
         if (parentType == null) {
-            throw new QueryParsingException(parseContext.index(), "[has_parent] filter requires 'parent_type' field");
+            throw new QueryParsingException(parseContext, "[has_parent] filter requires 'parent_type' field");
         }
 
         Query innerQuery;
@@ -124,9 +120,9 @@ public class HasParentFilterParser implements FilterParser {
             return null;
         }
         if (filterName != null) {
-            parseContext.addNamedFilter(filterName, new CustomQueryWrappingFilter(parentQuery));
+            parseContext.addNamedFilter(filterName, new QueryWrapperFilter(parentQuery));
         }
-        return new CustomQueryWrappingFilter(parentQuery);
+        return new QueryWrapperFilter(parentQuery);
     }
 
 }

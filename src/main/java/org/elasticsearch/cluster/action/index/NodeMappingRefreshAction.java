@@ -52,10 +52,10 @@ public class NodeMappingRefreshAction extends AbstractComponent {
         super(settings);
         this.transportService = transportService;
         this.metaDataMappingService = metaDataMappingService;
-        transportService.registerHandler(ACTION_NAME, new NodeMappingRefreshTransportHandler());
+        transportService.registerRequestHandler(ACTION_NAME, NodeMappingRefreshRequest.class, ThreadPool.Names.SAME, new NodeMappingRefreshTransportHandler());
     }
 
-    public void nodeMappingRefresh(final ClusterState state, final NodeMappingRefreshRequest request) throws ElasticsearchException {
+    public void nodeMappingRefresh(final ClusterState state, final NodeMappingRefreshRequest request) {
         final DiscoveryNodes nodes = state.nodes();
         if (nodes.masterNode() == null) {
             logger.warn("can't send mapping refresh for [{}][{}], no master known.", request.index(), Strings.arrayToCommaDelimitedString(request.types()));
@@ -64,22 +64,12 @@ public class NodeMappingRefreshAction extends AbstractComponent {
         transportService.sendRequest(nodes.masterNode(), ACTION_NAME, request, EmptyTransportResponseHandler.INSTANCE_SAME);
     }
 
-    private class NodeMappingRefreshTransportHandler extends BaseTransportRequestHandler<NodeMappingRefreshRequest> {
-
-        @Override
-        public NodeMappingRefreshRequest newInstance() {
-            return new NodeMappingRefreshRequest();
-        }
+    private class NodeMappingRefreshTransportHandler implements TransportRequestHandler<NodeMappingRefreshRequest> {
 
         @Override
         public void messageReceived(NodeMappingRefreshRequest request, TransportChannel channel) throws Exception {
             metaDataMappingService.refreshMapping(request.index(), request.indexUUID(), request.types());
             channel.sendResponse(TransportResponse.Empty.INSTANCE);
-        }
-
-        @Override
-        public String executor() {
-            return ThreadPool.Names.SAME;
         }
     }
 

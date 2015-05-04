@@ -19,12 +19,9 @@
 
 package org.elasticsearch.common;
 
-import org.elasticsearch.ElasticsearchIllegalStateException;
 
 import java.io.IOException;
-import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
 
 /** These are essentially flake ids (http://boundary.com/blog/2012/01/12/flake-a-decentralized-k-ordered-unique-id-generator-in-erlang) but
  *  we use 6 (not 8) bytes for timestamp, and use 3 (not 2) bytes for sequence number. */
@@ -87,7 +84,7 @@ class TimeBasedUUIDGenerator implements UUIDGenerator {
         try {
             encoded = Base64.encodeBytesToBytes(uuidBytes, 0, uuidBytes.length, Base64.URL_SAFE);
         } catch (IOException e) {
-            throw new ElasticsearchIllegalStateException("should not be thrown", e);
+            throw new IllegalStateException("should not be thrown", e);
         }
 
         // We are a multiple of 3 bytes so we should not see any padding:

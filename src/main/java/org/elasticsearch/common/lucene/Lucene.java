@@ -39,7 +39,6 @@ import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.search.Collector;
-import org.apache.lucene.search.ComplexExplanation;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Filter;
@@ -62,8 +61,6 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Counter;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -514,7 +511,7 @@ public class Lucene {
 
     public static void writeScoreDoc(StreamOutput out, ScoreDoc scoreDoc) throws IOException {
         if (!scoreDoc.getClass().equals(ScoreDoc.class)) {
-            throw new ElasticsearchIllegalArgumentException("This method can only be used to serialize a ScoreDoc, not a " + scoreDoc.getClass());
+            throw new IllegalArgumentException("This method can only be used to serialize a ScoreDoc, not a " + scoreDoc.getClass());
         }
         out.writeVInt(scoreDoc.doc);
         out.writeFloat(scoreDoc.score);
@@ -530,48 +527,29 @@ public class Lucene {
     }
 
     public static Explanation readExplanation(StreamInput in) throws IOException {
-        Explanation explanation;
-        if (in.readBoolean()) {
-            Boolean match = in.readOptionalBoolean();
-            explanation = new ComplexExplanation();
-            ((ComplexExplanation) explanation).setMatch(match);
-
+        boolean match = in.readBoolean();
+        String description = in.readString();
+        final Explanation[] subExplanations = new Explanation[in.readVInt()];
+        for (int i = 0; i < subExplanations.length; ++i) {
+            subExplanations[i] = readExplanation(in);
+        }
+        if (match) {
+            return Explanation.match(in.readFloat(), description, subExplanations);
         } else {
-            explanation = new Explanation();
+            return Explanation.noMatch(description, subExplanations);
         }
-        explanation.setValue(in.readFloat());
-        explanation.setDescription(in.readString());
-        if (in.readBoolean()) {
-            int size = in.readVInt();
-            for (int i = 0; i < size; i++) {
-                explanation.addDetail(readExplanation(in));
-            }
-        }
-        return explanation;
     }
 
     public static void writeExplanation(StreamOutput out, Explanation explanation) throws IOException {
-
-        if (explanation instanceof ComplexExplanation) {
-            out.writeBoolean(true);
-            out.writeOptionalBoolean(((ComplexExplanation) explanation).getMatch());
-        } else {
-            out.writeBoolean(false);
-        }
-        out.writeFloat(explanation.getValue());
-        if (explanation.getDescription() == null) {
-            throw new ElasticsearchIllegalArgumentException("Explanation descriptions should NOT be null\n[" + explanation.toString() + "]");
-        }
+        out.writeBoolean(explanation.isMatch());
         out.writeString(explanation.getDescription());
         Explanation[] subExplanations = explanation.getDetails();
-        if (subExplanations == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            out.writeVInt(subExplanations.length);
-            for (Explanation subExp : subExplanations) {
-                writeExplanation(out, subExp);
-            }
+        out.writeVInt(subExplanations.length);
+        for (Explanation subExp : subExplanations) {
+            writeExplanation(out, subExp);
+        }
+        if (explanation.isMatch()) {
+            out.writeFloat(explanation.getValue());
         }
     }
 
@@ -653,6 +631,35 @@ public class Lucene {
     }
 
     /**
+     * Wait for an index to exist for up to {@code timeLimitMillis}. Returns
+     * true if the index eventually exists, false if not.
+     *
+     * Will retry the directory every second for at least {@code timeLimitMillis}
+     */
+    public static final boolean waitForIndex(final Directory directory, final long timeLimitMillis)
+            throws IOException {
+        final long DELAY = 1000;
+        long waited = 0;
+        try {
+            while (true) {
+                if (waited >= timeLimitMillis) {
+                    break;
+                }
+                if (indexExists(directory)) {
+                    return true;
+                }
+                Thread.sleep(DELAY);
+                waited += DELAY;
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return false;
+        }
+        // one more try after all retries
+        return indexExists(directory);
+    }
+
+    /**
      * Returns <tt>true</tt> iff the given exception or
      * one of it's causes is an instance of {@link CorruptIndexException}, 
      * {@link IndexFormatTooOldException}, or {@link IndexFormatTooNewException} otherwise <tt>false</tt>.
@@ -690,27 +697,27 @@ public class Lucene {
         return new Scorer(null) {
             @Override
             public float score() throws IOException {
-                throw new ElasticsearchIllegalStateException(message);
+                throw new IllegalStateException(message);
             }
             @Override
             public int freq() throws IOException {
-                throw new ElasticsearchIllegalStateException(message);
+                throw new IllegalStateException(message);
             }
             @Override
             public int advance(int arg0) throws IOException {
-                throw new ElasticsearchIllegalStateException(message);
+                throw new IllegalStateException(message);
             }
             @Override
             public long cost() {
-                throw new ElasticsearchIllegalStateException(message);
+                throw new IllegalStateException(message);
             }
             @Override
             public int docID() {
-                throw new ElasticsearchIllegalStateException(message);
+                throw new IllegalStateException(message);
             }
             @Override
             public int nextDoc() throws IOException {
-                throw new ElasticsearchIllegalStateException(message);
+                throw new IllegalStateException(message);
             }
         };
     }

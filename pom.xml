@@ -323,6 +323,16 @@
                             <include>javax.activation:activation</include>
                         </includes>
                     </artifactSet>
+                    <relocations>
+                        <relocation>
+                            <pattern>com.google.common</pattern>
+                            <shadedPattern>org.elasticsearch.watcher.common</shadedPattern>
+                        </relocation>
+                        <relocation>
+                            <pattern>org.owasp</pattern>
+                            <shadedPattern>org.elasticsearch.watcher.common.owasp</shadedPattern>
+                        </relocation>
+                    </relocations>
                     <filters>
                         <filter>
                             <artifact>*:*</artifact>

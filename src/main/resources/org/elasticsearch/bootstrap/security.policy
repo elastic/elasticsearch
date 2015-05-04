@@ -82,9 +82,6 @@ grant {
   // needed by groovy scripting
   permission java.lang.RuntimePermission "getProtectionDomain";
 
-  // needed for natives calls
-  permission java.lang.RuntimePermission "loadLibrary.*";
-
   // reflection hacks:
   // needed for Striped64 (what is this doing), also enables unmap hack
   permission java.lang.RuntimePermission "accessClassInPackage.sun.misc";

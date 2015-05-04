@@ -635,6 +635,9 @@
                                 <tests.security.manager>${tests.security.manager}</tests.security.manager>
                                 <tests.compatibility>${tests.compatibility}</tests.compatibility>
                                 <java.awt.headless>true</java.awt.headless>
+                                <!-- true if we are running tests from maven (as opposed to IDE, etc).
+                                     allows us to assert certain things work, like libsigar -->
+                                <tests.maven>true</tests.maven>
                                 <!-- security manager / test.policy -->
                                 <java.security.policy>${basedir}/src/main/resources/org/elasticsearch/bootstrap/security.policy</java.security.policy>
                             </systemProperties>

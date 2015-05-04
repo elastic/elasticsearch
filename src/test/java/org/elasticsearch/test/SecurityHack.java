@@ -21,6 +21,10 @@ package org.elasticsearch.test;
 
 import org.apache.lucene.util.TestSecurityManager;
 import org.elasticsearch.bootstrap.Bootstrap;
+import org.elasticsearch.bootstrap.ESPolicy;
+
+import java.security.Permissions;
+import java.security.Policy;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.systemPropertyAsBoolean;
 
@@ -36,10 +40,14 @@ class SecurityHack {
     static {
         // just like bootstrap, initialize natives, then SM
         Bootstrap.initializeNatives(true, true);
-        // for IDEs, we check that security.policy is set
-        if (systemPropertyAsBoolean("tests.security.manager", true) && 
-                System.getProperty("java.security.policy") != null) {
-            System.setSecurityManager(new TestSecurityManager());
+        // install security manager if requested
+        if (systemPropertyAsBoolean("tests.security.manager", false)) {
+            try {
+                Policy.setPolicy(new ESPolicy(new Permissions()));
+                System.setSecurityManager(new TestSecurityManager());
+            } catch (Exception e) {
+                throw new RuntimeException("unable to install test security manager", e);
+            }
         }
     }
 

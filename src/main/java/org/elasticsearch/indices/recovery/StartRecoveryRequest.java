@@ -109,7 +109,7 @@ public class StartRecoveryRequest extends TransportRequest {
         sourceNode = DiscoveryNode.readNode(in);
         targetNode = DiscoveryNode.readNode(in);
         markAsRelocated = in.readBoolean();
-        metadataSnapshot = Store.MetadataSnapshot.read(in);
+        metadataSnapshot = new Store.MetadataSnapshot(in);
         recoveryType = RecoveryState.Type.fromId(in.readByte());
 
     }

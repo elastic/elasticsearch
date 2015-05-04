@@ -36,6 +36,7 @@ import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.Lucene;
@@ -532,7 +533,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      *
      * @param reason         the reason for this cleanup operation logged for each deleted file
      * @param sourceMetaData the metadata used for cleanup. all files in this metadata should be kept around.
-     * @throws IOException                        if an IOException occurs
+     * @throws IOException           if an IOException occurs
      * @throws IllegalStateException if the latest snapshot in this store differs from the given one after the cleanup.
      */
     public void cleanupAndVerify(String reason, MetadataSnapshot sourceMetaData) throws IOException {
@@ -658,7 +659,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      *
      * @see StoreFileMetaData
      */
-    public final static class MetadataSnapshot implements Iterable<StoreFileMetaData> {
+    public final static class MetadataSnapshot implements Iterable<StoreFileMetaData>, Writeable<MetadataSnapshot> {
         private static final ESLogger logger = Loggers.getLogger(MetadataSnapshot.class);
         private static final Version FIRST_LUCENE_CHECKSUM_VERSION = Version.LUCENE_4_8;
 
@@ -684,6 +685,24 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             Tuple<ImmutableMap<String, StoreFileMetaData>, ImmutableMap<String, String>> loadedMetadata = loadMetadata(commit, directory, logger);
             metadata = loadedMetadata.v1();
             commitUserData = loadedMetadata.v2();
+            assert metadata.isEmpty() || numSegmentFiles() == 1 : "numSegmentFiles: " + numSegmentFiles();
+        }
+
+        public MetadataSnapshot(StreamInput in) throws IOException {
+            int size = in.readVInt();
+            ImmutableMap.Builder<String, StoreFileMetaData> metadataBuilder = ImmutableMap.builder();
+            for (int i = 0; i < size; i++) {
+                StoreFileMetaData meta = StoreFileMetaData.readStoreFileMetaData(in);
+                metadataBuilder.put(meta.name(), meta);
+            }
+            ImmutableMap.Builder<String, String> commitUserDataBuilder = ImmutableMap.builder();
+            int num = in.readVInt();
+            for (int i = num; i > 0; i--) {
+                commitUserDataBuilder.put(in.readString(), in.readString());
+            }
+
+            this.commitUserData = commitUserDataBuilder.build();
+            this.metadata = metadataBuilder.build();
             assert metadata.isEmpty() || numSegmentFiles() == 1 : "numSegmentFiles: " + numSegmentFiles();
         }
 
@@ -967,24 +986,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             return metadata.size();
         }
 
-        public static MetadataSnapshot read(StreamInput in) throws IOException {
-            int size = in.readVInt();
-            Map<String, StoreFileMetaData> metadata = new HashMap<>();
-            for (int i = 0; i < size; i++) {
-                StoreFileMetaData meta = StoreFileMetaData.readStoreFileMetaData(in);
-                metadata.put(meta.name(), meta);
-            }
-            Map<String, String> commitUserData = new HashMap<>();
-            int num = in.readVInt();
-            for (int i = num; i > 0; i--) {
-                commitUserData.put(in.readString(), in.readString());
-            }
-
-            MetadataSnapshot storeFileMetaDatas = new MetadataSnapshot(metadata, commitUserData);
-            assert metadata.isEmpty() || storeFileMetaDatas.numSegmentFiles() == 1 : "numSegmentFiles: " + storeFileMetaDatas.numSegmentFiles();
-            return storeFileMetaDatas;
-        }
-
+        @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeVInt(this.metadata.size());
             for (StoreFileMetaData meta : this) {
@@ -1033,6 +1035,11 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
 
         public String getSyncId() {
             return commitUserData.get(Engine.SYNC_COMMIT_ID);
+        }
+
+        @Override
+        public MetadataSnapshot readFrom(StreamInput in) throws IOException {
+            return new MetadataSnapshot(in);
         }
     }
 

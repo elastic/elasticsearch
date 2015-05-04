@@ -226,7 +226,7 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesOperatio
         public void readFrom(StreamInput in) throws IOException {
             allocated = in.readBoolean();
             shardId = ShardId.readShardId(in);
-            this.metadataSnapshot = Store.MetadataSnapshot.read(in);
+            this.metadataSnapshot = new Store.MetadataSnapshot(in);
         }
 
         @Override

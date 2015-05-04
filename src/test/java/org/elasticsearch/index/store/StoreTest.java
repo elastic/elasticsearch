@@ -1110,7 +1110,7 @@ public class StoreTest extends ElasticsearchTestCase {
         ByteArrayInputStream inBuffer = new ByteArrayInputStream(outBuffer.toByteArray());
         InputStreamStreamInput in = new InputStreamStreamInput(inBuffer);
         in.setVersion(targetNodeVersion);
-        Store.MetadataSnapshot inMetadataSnapshot = Store.MetadataSnapshot.read(in);
+        Store.MetadataSnapshot inMetadataSnapshot = new Store.MetadataSnapshot(in);
         Map<String, StoreFileMetaData> origEntries = new HashMap<>();
         origEntries.putAll(outMetadataSnapshot.asMap());
         for (Map.Entry<String, StoreFileMetaData> entry : inMetadataSnapshot.asMap().entrySet()) {

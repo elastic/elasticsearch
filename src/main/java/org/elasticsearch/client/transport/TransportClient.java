@@ -93,7 +93,7 @@ import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilde
  */
 public class TransportClient extends AbstractClient {
 
-    private static final String CLIENT_TYPE = "transport";
+    public static final String CLIENT_TYPE = "transport";
 
     final Injector injector;
 

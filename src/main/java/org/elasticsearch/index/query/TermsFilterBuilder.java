@@ -32,9 +32,6 @@ public class TermsFilterBuilder extends BaseFilterBuilder {
 
     private final Object values;
 
-    private Boolean cache;
-    private String cacheKey;
-
     private String filterName;
 
     private String execution;
@@ -134,19 +131,6 @@ public class TermsFilterBuilder extends BaseFilterBuilder {
         return this;
     }
 
-    /**
-     * Should the filter be cached or not. Defaults to <tt>false</tt>.
-     */
-    public TermsFilterBuilder cache(boolean cache) {
-        this.cache = cache;
-        return this;
-    }
-
-    public TermsFilterBuilder cacheKey(String cacheKey) {
-        this.cacheKey = cacheKey;
-        return this;
-    }
-
     @Override
     public void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(TermsFilterParser.NAME);
@@ -158,12 +142,6 @@ public class TermsFilterBuilder extends BaseFilterBuilder {
 
         if (filterName != null) {
             builder.field("_name", filterName);
-        }
-        if (cache != null) {
-            builder.field("_cache", cache);
-        }
-        if (cacheKey != null) {
-            builder.field("_cache_key", cacheKey);
         }
 
         builder.endObject();

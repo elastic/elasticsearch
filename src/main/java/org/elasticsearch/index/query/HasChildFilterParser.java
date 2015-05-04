@@ -21,6 +21,7 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.FilteredQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryWrapperFilter;
 import org.apache.lucene.search.join.BitDocIdSetFilter;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
@@ -34,7 +35,6 @@ import org.elasticsearch.index.query.support.InnerHitsQueryParserHelper;
 import org.elasticsearch.index.query.support.XContentStructure;
 import org.elasticsearch.index.search.child.ChildrenConstantScoreQuery;
 import org.elasticsearch.index.search.child.ChildrenQuery;
-import org.elasticsearch.index.search.child.CustomQueryWrappingFilter;
 import org.elasticsearch.index.search.child.ScoreType;
 import org.elasticsearch.search.fetch.innerhits.InnerHitsContext;
 import org.elasticsearch.search.internal.SubSearchContext;
@@ -80,6 +80,8 @@ public class HasChildFilterParser implements FilterParser {
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
+            } else if (parseContext.isDeprecatedSetting(currentFieldName)) {
+                // skip
             } else if (token == XContentParser.Token.START_OBJECT) {
                 // Usually, the query would be parsed here, but the child
                 // type may not have been extracted yet, so use the
@@ -101,10 +103,6 @@ public class HasChildFilterParser implements FilterParser {
                     childType = parser.text();
                 } else if ("_name".equals(currentFieldName)) {
                     filterName = parser.text();
-                } else if ("_cache".equals(currentFieldName)) {
-                    // noop to be backwards compatible
-                } else if ("_cache_key".equals(currentFieldName) || "_cacheKey".equals(currentFieldName)) {
-                    // noop to be backwards compatible
                 } else if ("short_circuit_cutoff".equals(currentFieldName)) {
                     shortCircuitParentDocSet = parser.intValue();
                 } else if ("min_children".equals(currentFieldName) || "minChildren".equals(currentFieldName)) {
@@ -150,7 +148,7 @@ public class HasChildFilterParser implements FilterParser {
         String parentType = parentFieldMapper.type();
 
         // wrap the query with type query
-        query = new FilteredQuery(query, parseContext.cacheFilter(childDocMapper.typeFilter(), null, parseContext.autoFilterCachePolicy()));
+        query = new FilteredQuery(query, childDocMapper.typeFilter());
 
         DocumentMapper parentDocMapper = parseContext.mapperService().documentMapper(parentType);
         if (parentDocMapper == null) {
@@ -167,7 +165,7 @@ public class HasChildFilterParser implements FilterParser {
             nonNestedDocsFilter = parseContext.bitsetFilter(Queries.newNonNestedFilter());
         }
 
-        Filter parentFilter = parseContext.cacheFilter(parentDocMapper.typeFilter(), null, parseContext.autoFilterCachePolicy());
+        Filter parentFilter = parentDocMapper.typeFilter();
         ParentChildIndexFieldData parentChildIndexFieldData = parseContext.getForField(parentFieldMapper);
 
         Query childrenQuery;
@@ -178,9 +176,9 @@ public class HasChildFilterParser implements FilterParser {
                     shortCircuitParentDocSet, nonNestedDocsFilter);
         }
         if (filterName != null) {
-            parseContext.addNamedFilter(filterName, new CustomQueryWrappingFilter(childrenQuery));
+            parseContext.addNamedFilter(filterName, new QueryWrapperFilter(childrenQuery));
         }
-        return new CustomQueryWrappingFilter(childrenQuery);
+        return new QueryWrapperFilter(childrenQuery);
     }
 
 }

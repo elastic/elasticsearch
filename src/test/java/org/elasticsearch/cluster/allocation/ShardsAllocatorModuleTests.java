@@ -20,7 +20,6 @@
 package org.elasticsearch.cluster.allocation;
 
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
-import org.elasticsearch.cluster.routing.allocation.allocator.EvenShardsCountAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocatorModule;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -42,20 +41,20 @@ public class ShardsAllocatorModuleTests extends ElasticsearchIntegrationTest {
     }
 
     public void testLoadByShortKeyShardsAllocator() throws IOException {
-        Settings build = settingsBuilder().put(ShardsAllocatorModule.TYPE_KEY, ShardsAllocatorModule.EVEN_SHARD_COUNT_ALLOCATOR_KEY)
+        Settings build = settingsBuilder().put(ShardsAllocatorModule.TYPE_KEY, "even_shard") // legacy just to make sure we don't barf
                 .build();
-        assertAllocatorInstance(build, EvenShardsCountAllocator.class);
+        assertAllocatorInstance(build, BalancedShardsAllocator.class);
         build = settingsBuilder().put(ShardsAllocatorModule.TYPE_KEY, ShardsAllocatorModule.BALANCED_ALLOCATOR_KEY).build();
         assertAllocatorInstance(build, BalancedShardsAllocator.class);
     }
 
     public void testLoadByClassNameShardsAllocator() throws IOException {
-        Settings build = settingsBuilder().put(ShardsAllocatorModule.TYPE_KEY, "EvenShardsCount").build();
-        assertAllocatorInstance(build, EvenShardsCountAllocator.class);
+        Settings build = settingsBuilder().put(ShardsAllocatorModule.TYPE_KEY, "BalancedShards").build();
+        assertAllocatorInstance(build, BalancedShardsAllocator.class);
 
         build = settingsBuilder().put(ShardsAllocatorModule.TYPE_KEY,
-                "org.elasticsearch.cluster.routing.allocation.allocator.EvenShardsCountAllocator").build();
-        assertAllocatorInstance(build, EvenShardsCountAllocator.class);
+                "org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator").build();
+        assertAllocatorInstance(build, BalancedShardsAllocator.class);
     }
 
     private void assertAllocatorInstance(Settings settings, Class<? extends ShardsAllocator> clazz) throws IOException {

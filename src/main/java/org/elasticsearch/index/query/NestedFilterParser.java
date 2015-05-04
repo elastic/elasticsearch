@@ -20,12 +20,11 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.QueryWrapperFilter;
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.search.join.ToParentBlockJoinQuery;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lucene.HashedBytesRef;
-import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.support.InnerHitsQueryParserHelper;
 
@@ -53,8 +52,6 @@ public class NestedFilterParser implements FilterParser {
         final NestedQueryParser.ToBlockJoinQueryBuilder builder = new NestedQueryParser.ToBlockJoinQueryBuilder(parseContext);
 
         float boost = 1.0f;
-        boolean cache = false;
-        HashedBytesRef cacheKey = null;
         String filterName = null;
 
         String currentFieldName = null;
@@ -62,6 +59,8 @@ public class NestedFilterParser implements FilterParser {
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
+            } else if (parseContext.isDeprecatedSetting(currentFieldName)) {
+                // skip
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if ("query".equals(currentFieldName)) {
                     builder.query();
@@ -79,10 +78,6 @@ public class NestedFilterParser implements FilterParser {
                     boost = parser.floatValue();
                 } else if ("_name".equals(currentFieldName)) {
                     filterName = parser.text();
-                } else if ("_cache".equals(currentFieldName)) {
-                    cache = parser.booleanValue();
-                } else if ("_cache_key".equals(currentFieldName) || "_cacheKey".equals(currentFieldName)) {
-                    cacheKey = new HashedBytesRef(parser.text());
                 } else {
                     throw new QueryParsingException(parseContext, "[nested] filter does not support [" + currentFieldName + "]");
                 }
@@ -92,10 +87,7 @@ public class NestedFilterParser implements FilterParser {
         ToParentBlockJoinQuery joinQuery = builder.build();
         if (joinQuery != null) {
             joinQuery.getChildQuery().setBoost(boost);
-            Filter nestedFilter = Queries.wrap(joinQuery, parseContext);
-            if (cache) {
-                nestedFilter = parseContext.cacheFilter(nestedFilter, cacheKey, parseContext.autoFilterCachePolicy());
-            }
+            Filter nestedFilter = new QueryWrapperFilter(joinQuery);
             if (filterName != null) {
                 parseContext.addNamedFilter(filterName, nestedFilter);
             }

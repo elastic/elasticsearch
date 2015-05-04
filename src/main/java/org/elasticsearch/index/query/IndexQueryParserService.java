@@ -23,7 +23,6 @@ import com.google.common.collect.ImmutableMap;
 
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.util.CloseableThreadLocal;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
@@ -94,8 +93,6 @@ public class IndexQueryParserService extends AbstractIndexComponent {
 
     final BitsetFilterCache bitsetFilterCache;
 
-    final QueryCachingPolicy autoFilterCachePolicy;
-
     private final Map<String, QueryParser> queryParsers;
 
     private final Map<String, FilterParser> filterParsers;
@@ -111,7 +108,6 @@ public class IndexQueryParserService extends AbstractIndexComponent {
                                    ScriptService scriptService, AnalysisService analysisService,
                                    MapperService mapperService, IndexCache indexCache, IndexFieldDataService fieldDataService,
                                    BitsetFilterCache bitsetFilterCache,
-                                   QueryCachingPolicy autoFilterCachePolicy,
                                    @Nullable SimilarityService similarityService,
                                    @Nullable Map<String, QueryParserFactory> namedQueryParsers,
                                    @Nullable Map<String, FilterParserFactory> namedFilterParsers) {
@@ -123,7 +119,6 @@ public class IndexQueryParserService extends AbstractIndexComponent {
         this.indexCache = indexCache;
         this.fieldDataService = fieldDataService;
         this.bitsetFilterCache = bitsetFilterCache;
-        this.autoFilterCachePolicy = autoFilterCachePolicy;
 
         this.defaultField = indexSettings.get(DEFAULT_FIELD, AllFieldMapper.NAME);
         this.queryStringLenient = indexSettings.getAsBoolean(QUERY_STRING_LENIENT, false);
@@ -183,10 +178,6 @@ public class IndexQueryParserService extends AbstractIndexComponent {
 
     public String defaultField() {
         return this.defaultField;
-    }
-
-    public QueryCachingPolicy autoFilterCachePolicy() {
-        return autoFilterCachePolicy;
     }
 
     public boolean queryStringLenient() {

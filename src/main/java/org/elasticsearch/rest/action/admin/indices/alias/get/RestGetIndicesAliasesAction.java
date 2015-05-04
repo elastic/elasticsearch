@@ -61,7 +61,6 @@ public class RestGetIndicesAliasesAction extends BaseRestHandler {
                 .nodes(false)
                 .indices(indices);
         clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
-        clusterStateRequest.listenerThreaded(false);
 
         client.admin().cluster().state(clusterStateRequest, new RestBuilderListener<ClusterStateResponse>(channel) {
             @Override

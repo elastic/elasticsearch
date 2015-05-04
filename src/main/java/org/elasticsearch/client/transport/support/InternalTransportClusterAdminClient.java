@@ -23,6 +23,7 @@ import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.action.*;
 import org.elasticsearch.action.admin.cluster.ClusterAction;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.client.ClusterAdminClient;
 import org.elasticsearch.client.support.AbstractClusterAdminClient;
 import org.elasticsearch.client.support.Headers;
@@ -30,6 +31,8 @@ import org.elasticsearch.client.transport.TransportClientNodesService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -42,17 +45,17 @@ import java.util.Map;
 @SuppressWarnings("unchecked")
 public class InternalTransportClusterAdminClient extends AbstractClusterAdminClient implements ClusterAdminClient {
 
+    private final ESLogger logger;
     private final TransportClientNodesService nodesService;
-
     private final ThreadPool threadPool;
-
     private final ImmutableMap<ClusterAction, TransportActionNodeProxy> actions;
-
     private final Headers headers;
+    private final ThreadedActionListener.Wrapper threadedWrapper;
 
     @Inject
     public InternalTransportClusterAdminClient(Settings settings, TransportClientNodesService nodesService, ThreadPool threadPool, TransportService transportService,
                                                Map<String, GenericAction> actions, Headers headers) {
+        this.logger = Loggers.getLogger(getClass(), settings);
         this.nodesService = nodesService;
         this.threadPool = threadPool;
         this.headers = headers;
@@ -63,6 +66,7 @@ public class InternalTransportClusterAdminClient extends AbstractClusterAdminCli
             }
         }
         this.actions = actionsBuilder.immutableMap();
+        this.threadedWrapper = new ThreadedActionListener.Wrapper(logger, settings, threadPool);
     }
 
     @Override
@@ -80,8 +84,9 @@ public class InternalTransportClusterAdminClient extends AbstractClusterAdminCli
 
     @SuppressWarnings("unchecked")
     @Override
-    public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder, ClusterAdminClient>> void execute(final Action<Request, Response, RequestBuilder, ClusterAdminClient> action, final Request request, final ActionListener<Response> listener) {
+    public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder, ClusterAdminClient>> void execute(final Action<Request, Response, RequestBuilder, ClusterAdminClient> action, final Request request, ActionListener<Response> listener) {
         headers.applyTo(request);
+        listener = threadedWrapper.wrap(listener);
         final TransportActionNodeProxy<Request, Response> proxy = actions.get(action);
         nodesService.execute(new TransportClientNodesService.NodeListenerCallback<Response>() {
             @Override

@@ -51,6 +51,7 @@ import org.elasticsearch.client.support.Headers;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportMessage;
 import org.junit.After;
 import org.junit.Before;
@@ -84,6 +85,7 @@ public abstract class AbstractClientHeadersTests extends ElasticsearchTestCase {
                 CreateIndexAction.INSTANCE, IndicesStatsAction.INSTANCE, ClearIndicesCacheAction.INSTANCE, FlushAction.INSTANCE
     };
 
+    protected ThreadPool threadPool;
     private Client client;
 
     @Before
@@ -92,12 +94,14 @@ public abstract class AbstractClientHeadersTests extends ElasticsearchTestCase {
                 .put(HEADER_SETTINGS)
                 .put("path.home", createTempDir().toString())
                 .build();
+        threadPool = new ThreadPool("test-" + getTestName());
         client = buildClient(settings, ACTIONS);
     }
 
     @After
-    public void cleanupClient() {
+    public void cleanupClient() throws Exception {
         client.close();
+        terminate(threadPool);
     }
 
     protected abstract Client buildClient(Settings headersSettings, GenericAction[] testedActions);

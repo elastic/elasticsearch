@@ -390,7 +390,7 @@ public class FetchPhase implements SearchPhase {
                 parentFilter = Queries.newNonNestedFilter();
             }
 
-            Filter childFilter = context.filterCache().cache(nestedObjectMapper.nestedTypeFilter(), null, context.queryParserService().autoFilterCachePolicy());
+            Filter childFilter = nestedObjectMapper.nestedTypeFilter();
             if (childFilter == null) {
                 current = nestedParentObjectMapper;
                 continue;

@@ -22,10 +22,8 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.QueryCachingPolicy;
+import org.apache.lucene.search.QueryWrapperFilter;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lucene.HashedBytesRef;
-import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -56,9 +54,6 @@ public class AndFilterParser implements FilterParser {
         ArrayList<Filter> filters = newArrayList();
         boolean filtersFound = false;
 
-        QueryCachingPolicy cache = parseContext.autoFilterCachePolicy();
-        HashedBytesRef cacheKey = null;
-
         String filterName = null;
         String currentFieldName = null;
         XContentParser.Token token = parser.currentToken();
@@ -74,6 +69,8 @@ public class AndFilterParser implements FilterParser {
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
+                } else if (parseContext.isDeprecatedSetting(currentFieldName)) {
+                    // skip
                 } else if (token == XContentParser.Token.START_ARRAY) {
                     if ("filters".equals(currentFieldName)) {
                         filtersFound = true;
@@ -93,12 +90,8 @@ public class AndFilterParser implements FilterParser {
                         }
                     }
                 } else if (token.isValue()) {
-                    if ("_cache".equals(currentFieldName)) {
-                        cache = parseContext.parseFilterCachePolicy();
-                    } else if ("_name".equals(currentFieldName)) {
+                    if ("_name".equals(currentFieldName)) {
                         filterName = parser.text();
-                    } else if ("_cache_key".equals(currentFieldName) || "_cacheKey".equals(currentFieldName)) {
-                        cacheKey = new HashedBytesRef(parser.text());
                     } else {
                         throw new QueryParsingException(parseContext, "[and] filter does not support [" + currentFieldName + "]");
                     }
@@ -120,10 +113,7 @@ public class AndFilterParser implements FilterParser {
         for (Filter filter : filters) {
             boolQuery.add(filter, Occur.MUST);
         }
-        Filter filter = Queries.wrap(boolQuery);
-        if (cache != null) {
-            filter = parseContext.cacheFilter(filter, cacheKey, cache);
-        }
+        Filter filter = new QueryWrapperFilter(boolQuery);
         if (filterName != null) {
             parseContext.addNamedFilter(filterName, filter);
         }

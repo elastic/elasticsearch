@@ -22,10 +22,8 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.QueryCachingPolicy;
+import org.apache.lucene.search.QueryWrapperFilter;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lucene.HashedBytesRef;
-import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -52,9 +50,6 @@ public class BoolFilterParser implements FilterParser {
 
         BooleanQuery boolFilter = new BooleanQuery();
 
-        QueryCachingPolicy cache = parseContext.autoFilterCachePolicy();
-        HashedBytesRef cacheKey = null;
-
         String filterName = null;
         String currentFieldName = null;
         XContentParser.Token token;
@@ -64,6 +59,8 @@ public class BoolFilterParser implements FilterParser {
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
+            } else if (parseContext.isDeprecatedSetting(currentFieldName)) {
+                // skip
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if ("must".equals(currentFieldName)) {
                     hasAnyFilter = true;
@@ -117,12 +114,8 @@ public class BoolFilterParser implements FilterParser {
                     throw new QueryParsingException(parseContext, "[bool] filter does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
-                if ("_cache".equals(currentFieldName)) {
-                    cache = parseContext.parseFilterCachePolicy();
-                } else if ("_name".equals(currentFieldName)) {
+                if ("_name".equals(currentFieldName)) {
                     filterName = parser.text();
-                } else if ("_cache_key".equals(currentFieldName) || "_cacheKey".equals(currentFieldName)) {
-                    cacheKey = new HashedBytesRef(parser.text());
                 } else {
                     throw new QueryParsingException(parseContext, "[bool] filter does not support [" + currentFieldName + "]");
                 }
@@ -138,10 +131,7 @@ public class BoolFilterParser implements FilterParser {
             return null;
         }
 
-        Filter filter = Queries.wrap(boolFilter);
-        if (cache != null) {
-            filter = parseContext.cacheFilter(filter, cacheKey, cache);
-        }
+        Filter filter = new QueryWrapperFilter(boolFilter);
         if (filterName != null) {
             parseContext.addNamedFilter(filterName, filter);
         }

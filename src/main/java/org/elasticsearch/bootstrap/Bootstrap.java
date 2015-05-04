@@ -19,6 +19,7 @@
 
 package org.elasticsearch.bootstrap;
 
+import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.PidFile;
@@ -27,6 +28,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.CreationException;
 import org.elasticsearch.common.inject.spi.Message;
 import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.common.jna.Kernel32Library;
 import org.elasticsearch.common.jna.Natives;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
@@ -38,6 +40,7 @@ import org.elasticsearch.monitor.process.JmxProcessProbe;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeBuilder;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
+import org.hyperic.sigar.Sigar;
 
 import java.util.Locale;
 import java.util.Set;
@@ -57,24 +60,16 @@ public class Bootstrap {
     private static volatile Thread keepAliveThread;
     private static volatile CountDownLatch keepAliveLatch;
     private static Bootstrap bootstrap;
-
-    private void setup(boolean addShutdownHook, Settings settings, Environment environment) throws Exception {
-        if (settings.getAsBoolean("bootstrap.mlockall", false)) {
+    
+    /** initialize native resources */
+    public static void initializeNatives(boolean mlockAll, boolean ctrlHandler) {
+        // mlockall if requested
+        if (mlockAll) {
             Natives.tryMlockall();
         }
 
-        NodeBuilder nodeBuilder = NodeBuilder.nodeBuilder().settings(settings).loadConfigSettings(false);
-        node = nodeBuilder.build();
-        if (addShutdownHook) {
-            Runtime.getRuntime().addShutdownHook(new Thread() {
-                @Override
-                public void run() {
-                    node.close();
-                }
-            });
-        }
-
-        if (settings.getAsBoolean("bootstrap.ctrlhandler", true)) {
+        // listener for windows close event
+        if (ctrlHandler) {
             Natives.addConsoleCtrlHandler(new ConsoleCtrlHandler() {
                 @Override
                 public boolean handle(int code) {
@@ -89,7 +84,36 @@ public class Bootstrap {
                 }
             });
         }
-        // install SM after natives, JNA can require strange permissions
+        Kernel32Library.getInstance();
+ 
+        // initialize sigar explicitly
+        try {
+            Sigar.load();
+            Loggers.getLogger(Bootstrap.class).trace("sigar libraries loaded successfully");
+        } catch (Throwable t) {
+            Loggers.getLogger(Bootstrap.class).trace("failed to load sigar libraries", t);
+        }
+
+        // init lucene random seed. it will use /dev/urandom where available:
+        StringHelper.randomId();
+    }
+
+    private void setup(boolean addShutdownHook, Settings settings, Environment environment) throws Exception {
+        initializeNatives(settings.getAsBoolean("bootstrap.mlockall", false), 
+                          settings.getAsBoolean("bootstrap.ctrlhandler", true));
+
+        NodeBuilder nodeBuilder = NodeBuilder.nodeBuilder().settings(settings).loadConfigSettings(false);
+        node = nodeBuilder.build();
+        if (addShutdownHook) {
+            Runtime.getRuntime().addShutdownHook(new Thread() {
+                @Override
+                public void run() {
+                    node.close();
+                }
+            });
+        }
+        
+        // install SM after natives, shutdown hooks, etc.
         setupSecurity(settings, environment);
     }
     

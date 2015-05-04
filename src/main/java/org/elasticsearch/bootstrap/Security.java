@@ -19,7 +19,6 @@
 
 package org.elasticsearch.bootstrap;
 
-import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.env.Environment;
 
 import java.io.*;
@@ -49,9 +48,6 @@ class Security {
      * Can only happen once!
      */
     static void configure(Environment environment) throws Exception {
-        // init lucene random seed. it will use /dev/urandom where available:
-        StringHelper.randomId();
-
         // enable security policy: union of template and environment-based paths.
         URI template = Security.class.getResource(POLICY_RESOURCE).toURI();
         Policy.setPolicy(new ESPolicy(template, createPermissions(environment)));

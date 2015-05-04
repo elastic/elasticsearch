@@ -90,7 +90,7 @@ public abstract class BaseQueryBuilder implements QueryBuilder {
     @Override
     public ActionRequestValidationException validate() {
         // default impl does not validate, subclasses should override.
-        // TODO Remove once all queries support validation
+        //norelease to be removed once all queries support validation
         return null;
     }
 }

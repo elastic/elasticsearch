@@ -30,6 +30,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.junit.Test;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.HashSet;
@@ -208,6 +209,24 @@ public class IndexShardTests extends ElasticsearchSingleNodeTest {
         } catch (IndexShardClosedException e) {
             // expected
         }
+    }
+
+    @Test
+    public void testIndexShardCounter() throws InterruptedException, ExecutionException, IOException {
+        assertAcked(client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0)).get());
+        ensureGreen("test");
+        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        IndexService indexService = indicesService.indexServiceSafe("test");
+        IndexShard indexShard = indexService.shard(0);
+        indexShard.incrementOperationCounter();
+        assertEquals(2, indexShard.getOperationsCount());
+        indexShard.incrementOperationCounter();
+        assertEquals(3, indexShard.getOperationsCount());
+        indexShard.decrementOperationCounter();
+        indexShard.decrementOperationCounter();
+        assertEquals(1, indexShard.getOperationsCount());
+
+
     }
 
     public static ShardStateMetaData load(ESLogger logger, Path... shardPaths) throws IOException {

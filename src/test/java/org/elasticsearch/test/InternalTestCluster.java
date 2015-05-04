@@ -76,6 +76,7 @@ import org.elasticsearch.index.cache.filter.none.NoneFilterCache;
 import org.elasticsearch.index.cache.filter.weighted.WeightedFilterCache;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardModule;
+import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.IndexStoreModule;
 import org.elasticsearch.indices.IndicesService;
@@ -982,7 +983,10 @@ public final class InternalTestCluster extends TestCluster {
             IndicesService indexServices = getInstance(IndicesService.class, nodeAndClient.name);
             for (IndexService indexService : indexServices) {
                 for (IndexShard indexShard : indexService) {
-                    assertThat(indexShard.getOperationsCount(), equalTo(1));
+                    assertThat(indexShard.getOperationsCount(), anyOf(equalTo(1), equalTo(0)));
+                    if (indexShard.getOperationsCount() == 0) {
+                        assertThat(indexShard.state(), equalTo(IndexShardState.CLOSED));
+                    }
                 }
             }
         }

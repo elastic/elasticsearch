@@ -220,7 +220,6 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
 
         public RetryOnReplicaException(ShardId shardId, String msg, Throwable cause) {
             super(shardId, msg, cause);
-
         }
     }
 
@@ -279,7 +278,6 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
 
         @Override
         protected void doRun() throws Exception {
-
             try (Releasable shardReference = getIndexShardOperationsCounter(request.internalShardId)) {
                 shardOperationOnReplica(request.internalShardId, request);
             } catch (Throwable t) {
@@ -288,9 +286,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
             }
             channel.sendResponse(TransportResponse.Empty.INSTANCE);
         }
-
     }
-
 
     protected class PrimaryOperationRequest {
         public final ShardId shardId;
@@ -634,7 +630,6 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
         IndexService indexService = indicesService.indexServiceSafe(shardId.index().getName());
         IndexShard indexShard = indexService.shardSafe(shardId.id());
         return new IndexShardReference(indexShard);
-
     }
 
     private void failReplicaIfNeeded(String index, int shardId, Throwable t) {
@@ -988,7 +983,6 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
         public String concreteIndex() {
             return concreteIndex;
         }
-
     }
 
     static class IndexShardReference implements Releasable {
@@ -1008,5 +1002,4 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
             }
         }
     }
-
 }

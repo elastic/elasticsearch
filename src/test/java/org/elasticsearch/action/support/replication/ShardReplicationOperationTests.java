@@ -315,7 +315,6 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
             assertThat(capturedRequests.get(0).action, equalTo("testAction"));
             assertIndexShardUninitialized();
         }
-
     }
 
     @Test
@@ -380,7 +379,6 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
             for (int i = 0; i < replicaStates.length; i++) {
                 replicaStates[i] = ShardRoutingState.STARTED;
             }
-
             clusterService.setState(state(index, true, ShardRoutingState.STARTED, replicaStates));
             assertTrue("once the consistency level met, operation should continue", request.processedOnPrimary.get());
             assertIndexShardCounter(2);
@@ -501,21 +499,6 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
         // all replicas have responded so the counter should be decreased again
         assertIndexShardCounter(1);
     }
-
-    /*@Test
-    public void testIndexShardRefCounter() throws IOException {
-        IndexShard.IndexShardOperationCounter indexShardOperationsCounter = new IndexShard.IndexShardOperationCounter(logger, new ShardId("test", 0));
-
-        assertThat(indexShardOperationsCounter.refCount(), equalTo(1));
-        indexShardOperationsCounter.incRef();
-        assertThat(indexShardOperationsCounter.refCount(), equalTo(2));
-        indexShardOperationsCounter.decRef();
-        assertThat(indexShardOperationsCounter.refCount(), equalTo(1));
-        indexShardOperationsCounter.incRef();
-        assertThat(indexShardOperationsCounter.refCount(), equalTo(2));
-        indexShardOperationsCounter.decRef();
-        assertThat(indexShardOperationsCounter.refCount(), equalTo(1));
-    }*/
 
     @Test
     public void testCounterOnPrimary() throws InterruptedException, ExecutionException, IOException {

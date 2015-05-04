@@ -1251,7 +1251,6 @@ public class IndexShard extends AbstractIndexShardComponent {
     }
 
 
-
     /**
      * Returns <code>true</code> iff this shard allows primary promotion, otherwise <code>false</code>
      */

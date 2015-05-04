@@ -84,9 +84,6 @@ grant {
   // needed for natives calls
   permission java.lang.RuntimePermission "loadLibrary.*";
 
-  // needed for testing access rules etc
-  permission java.lang.RuntimePermission "createSecurityManager";
-
   // reflection hacks:
   // needed for Striped64 (what is this doing), also enables unmap hack
   permission java.lang.RuntimePermission "accessClassInPackage.sun.misc";

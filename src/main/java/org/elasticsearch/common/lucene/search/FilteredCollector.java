@@ -31,18 +31,18 @@ import java.io.IOException;
 public class FilteredCollector implements Collector {
 
     private final Collector collector;
-    private final Filter filter;
+    private final Weight filter;
 
-    public FilteredCollector(Collector collector, Filter filter) {
+    public FilteredCollector(Collector collector, Weight filter) {
         this.collector = collector;
         this.filter = filter;
     }
 
     @Override
     public LeafCollector getLeafCollector(LeafReaderContext context) throws IOException {
-        final DocIdSet set = filter.getDocIdSet(context, null);
+        final Scorer filterScorer = filter.scorer(context, null);
         final LeafCollector in = collector.getLeafCollector(context);
-        final Bits bits = DocIdSets.asSequentialAccessBits(context.reader().maxDoc(), set);
+        final Bits bits = DocIdSets.asSequentialAccessBits(context.reader().maxDoc(), filterScorer);
 
         return new FilterLeafCollector(in) {
             @Override

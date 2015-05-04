@@ -17,27 +17,6 @@ specifying the `tweet` type in the document itself:
 --------------------------------------------------
 
 [float]
-==== Index / Search Analyzers
-
-The root object allows to define type mapping level analyzers for index
-and search that will be used with all different fields that do not
-explicitly set analyzers on their own. Here is an example:
-
-[source,js]
---------------------------------------------------
-{
-    "tweet" : {
-        "analyzer" : "standard",
-        "search_analyzer" : "standard_with_synonyms"
-    }
-}
---------------------------------------------------
-
-The above simply explicitly defines both the `analyzer` and
-`search_analyzer` that will be used. If `search_analyzer` is not specified,
-it defaults to the value of `analyzer`.
-
-[float]
 ==== dynamic_date_formats
 
 `dynamic_date_formats` (old setting called `date_formats` still works)

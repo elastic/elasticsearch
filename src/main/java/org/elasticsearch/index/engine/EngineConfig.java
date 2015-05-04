@@ -21,6 +21,8 @@ package org.elasticsearch.index.engine;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.search.QueryCache;
+import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.similarities.Similarity;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
@@ -73,6 +75,8 @@ public final class EngineConfig {
     private final CodecService codecService;
     private final Engine.FailedEngineListener failedEngineListener;
     private final boolean ignoreUnknownTranslog;
+    private final QueryCache filterCache;
+    private final QueryCachingPolicy filterCachingPolicy;
 
     /**
      * Index setting for index concurrency / number of threadstates in the indexwriter.
@@ -134,7 +138,11 @@ public final class EngineConfig {
     /**
      * Creates a new {@link org.elasticsearch.index.engine.EngineConfig}
      */
-    public EngineConfig(ShardId shardId, ThreadPool threadPool, ShardIndexingService indexingService, IndexSettingsService indexSettingsService, IndicesWarmer warmer, Store store, SnapshotDeletionPolicy deletionPolicy, MergePolicyProvider mergePolicyProvider, MergeSchedulerProvider mergeScheduler, Analyzer analyzer, Similarity similarity, CodecService codecService, Engine.FailedEngineListener failedEngineListener, TranslogRecoveryPerformer translogRecoveryPerformer) {
+    public EngineConfig(ShardId shardId, ThreadPool threadPool, ShardIndexingService indexingService,
+            IndexSettingsService indexSettingsService, IndicesWarmer warmer, Store store, SnapshotDeletionPolicy deletionPolicy,
+            MergePolicyProvider mergePolicyProvider, MergeSchedulerProvider mergeScheduler, Analyzer analyzer,
+            Similarity similarity, CodecService codecService, Engine.FailedEngineListener failedEngineListener,
+            TranslogRecoveryPerformer translogRecoveryPerformer, QueryCache filterCache, QueryCachingPolicy filterCachingPolicy) {
         this.shardId = shardId;
         this.threadPool = threadPool;
         this.indexingService = indexingService;
@@ -159,6 +167,8 @@ public final class EngineConfig {
         updateVersionMapSize();
         this.translogRecoveryPerformer = translogRecoveryPerformer;
         this.ignoreUnknownTranslog = indexSettings.getAsBoolean(INDEX_IGNORE_UNKNOWN_TRANSLOG, false);
+        this.filterCache = filterCache;
+        this.filterCachingPolicy = filterCachingPolicy;
     }
 
     /** updates {@link #versionMapSize} based on current setting and {@link #indexingBufferSize} */
@@ -396,5 +406,19 @@ public final class EngineConfig {
      */
     public TranslogRecoveryPerformer getTranslogRecoveryPerformer() {
         return translogRecoveryPerformer;
+    }
+
+    /**
+     * Return the cache to use for filters.
+     */
+    public QueryCache getFilterCache() {
+        return filterCache;
+    }
+
+    /**
+     * Return the policy to use when caching filters.
+     */
+    public QueryCachingPolicy getFilterCachingPolicy() {
+        return filterCachingPolicy;
     }
 }

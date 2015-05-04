@@ -37,6 +37,7 @@ import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.TermsQuery;
 import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.QueryWrapperFilter;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
@@ -158,7 +159,7 @@ public class FreqTermsEnumTests extends ElasticsearchTestCase {
                 }
             }
         }
-        filter = Queries.wrap(new TermsQuery(filterTerms));
+        filter = new QueryWrapperFilter(new TermsQuery(filterTerms));
     }
 
     private void addFreqs(Document doc, Map<String, FreqHolder> reference) {

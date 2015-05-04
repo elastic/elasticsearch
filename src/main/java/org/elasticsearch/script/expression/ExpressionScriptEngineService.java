@@ -23,6 +23,7 @@ import org.apache.lucene.expressions.Expression;
 import org.apache.lucene.expressions.SimpleBindings;
 import org.apache.lucene.expressions.js.JavascriptCompiler;
 import org.apache.lucene.expressions.js.VariableContext;
+import org.apache.lucene.queries.function.ValueSource;
 import org.apache.lucene.queries.function.valuesource.DoubleConstValueSource;
 import org.apache.lucene.search.SortField;
 import org.elasticsearch.common.Nullable;
@@ -32,6 +33,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.core.DateFieldMapper;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
@@ -40,6 +42,7 @@ import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.text.ParseException;
+import java.util.Calendar;
 import java.util.Map;
 
 /**
@@ -49,6 +52,13 @@ import java.util.Map;
 public class ExpressionScriptEngineService extends AbstractComponent implements ScriptEngineService {
 
     public static final String NAME = "expression";
+
+    protected static final String GET_YEAR_METHOD         = "getYear";
+    protected static final String GET_MONTH_METHOD        = "getMonth";
+    protected static final String GET_DAY_OF_MONTH_METHOD = "getDayOfMonth";
+    protected static final String GET_HOUR_OF_DAY_METHOD  = "getHourOfDay";
+    protected static final String GET_MINUTES_METHOD      = "getMinutes";
+    protected static final String GET_SECONDS_METHOD      = "getSeconds";
 
     @Inject
     public ExpressionScriptEngineService(Settings settings) {
@@ -112,19 +122,30 @@ public class ExpressionScriptEngineService extends AbstractComponent implements 
                 }
 
             } else {
+                String fieldname = null;
+                String methodname = null;
                 VariableContext[] parts = VariableContext.parse(variable);
                 if (parts[0].text.equals("doc") == false) {
                     throw new ExpressionScriptCompilationException("Unknown variable [" + parts[0].text + "] in expression");
                 }
                 if (parts.length < 2 || parts[1].type != VariableContext.Type.STR_INDEX) {
-                    throw new ExpressionScriptCompilationException("Variable 'doc' in expression must be used with a specific field like: doc['myfield'].value");
+                    throw new ExpressionScriptCompilationException("Variable 'doc' in expression must be used with a specific field like: doc['myfield']");
+                } else {
+                    fieldname = parts[1].text;
                 }
-                if (parts.length < 3 || parts[2].type != VariableContext.Type.MEMBER || parts[2].text.equals("value") == false) {
-                    throw new ExpressionScriptCompilationException("Invalid member for field data in expression.  Only '.value' is currently supported.");
+                if (parts.length == 3) {
+                    if (parts[2].type == VariableContext.Type.METHOD) {
+                        methodname = parts[2].text;
+                    } else if (parts[2].type != VariableContext.Type.MEMBER || !"value".equals(parts[2].text)) {
+                        throw new ExpressionScriptCompilationException("Only the member variable [value] or member methods may be accessed on a field when not accessing the field directly");
+                    }
                 }
-                String fieldname = parts[1].text;
+                if (parts.length > 3) {
+                    throw new ExpressionScriptCompilationException("Variable [" + variable + "] does not follow an allowed format of either doc['field'] or doc['field'].method()");
+                }
 
                 FieldMapper<?> field = mapper.smartNameFieldMapper(fieldname);
+
                 if (field == null) {
                     throw new ExpressionScriptCompilationException("Field [" + fieldname + "] used in expression does not exist in mappings");
                 }
@@ -132,12 +153,44 @@ public class ExpressionScriptEngineService extends AbstractComponent implements 
                     // TODO: more context (which expression?)
                     throw new ExpressionScriptCompilationException("Field [" + fieldname + "] used in expression must be numeric");
                 }
+
                 IndexFieldData<?> fieldData = lookup.doc().fieldDataService().getForField((NumberFieldMapper)field);
-                bindings.add(variable, new FieldDataValueSource(fieldData));
+                if (methodname == null) {
+                    bindings.add(variable, new FieldDataValueSource(fieldData));
+                } else {
+                    bindings.add(variable, getMethodValueSource(field, fieldData, fieldname, methodname));
+                }
             }
         }
 
         return new ExpressionScript((Expression)compiledScript, bindings, specialValue);
+    }
+
+    protected ValueSource getMethodValueSource(FieldMapper<?> field, IndexFieldData<?> fieldData, String fieldName, String methodName) {
+        switch (methodName) {
+            case GET_YEAR_METHOD:
+                return getDateMethodValueSource(field, fieldData, fieldName, methodName, Calendar.YEAR);
+            case GET_MONTH_METHOD:
+                return getDateMethodValueSource(field, fieldData, fieldName, methodName, Calendar.MONTH);
+            case GET_DAY_OF_MONTH_METHOD:
+                return getDateMethodValueSource(field, fieldData, fieldName, methodName, Calendar.DAY_OF_MONTH);
+            case GET_HOUR_OF_DAY_METHOD:
+                return getDateMethodValueSource(field, fieldData, fieldName, methodName, Calendar.HOUR_OF_DAY);
+            case GET_MINUTES_METHOD:
+                return getDateMethodValueSource(field, fieldData, fieldName, methodName, Calendar.MINUTE);
+            case GET_SECONDS_METHOD:
+                return getDateMethodValueSource(field, fieldData, fieldName, methodName, Calendar.SECOND);
+            default:
+                throw new IllegalArgumentException("Member method [" + methodName + "] does not exist.");
+        }
+    }
+
+    protected ValueSource getDateMethodValueSource(FieldMapper<?> field, IndexFieldData<?> fieldData, String fieldName, String methodName, int calendarType) {
+        if (!(field instanceof DateFieldMapper)) {
+            throw new IllegalArgumentException("Member method [" + methodName + "] can only be used with a date field type, not the field [" + fieldName + "].");
+        }
+
+        return new DateMethodValueSource(fieldData, methodName, calendarType);
     }
 
     @Override

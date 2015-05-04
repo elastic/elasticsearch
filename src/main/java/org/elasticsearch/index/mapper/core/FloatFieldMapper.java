@@ -31,6 +31,7 @@ import org.apache.lucene.index.Terms;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.NumericRangeQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryWrapperFilter;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.NumericUtils;
@@ -39,7 +40,6 @@ import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.util.ByteUtils;
@@ -212,7 +212,7 @@ public class FloatFieldMapper extends NumberFieldMapper<Float> {
 
     @Override
     public Filter rangeFilter(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
-        return Queries.wrap(NumericRangeQuery.newFloatRange(names.indexName(), precisionStep,
+        return new QueryWrapperFilter(NumericRangeQuery.newFloatRange(names.indexName(), precisionStep,
                 lowerTerm == null ? null : parseValue(lowerTerm),
                 upperTerm == null ? null : parseValue(upperTerm),
                 includeLower, includeUpper));
@@ -231,7 +231,7 @@ public class FloatFieldMapper extends NumberFieldMapper<Float> {
         if (nullValue == null) {
             return null;
         }
-        return Queries.wrap(NumericRangeQuery.newFloatRange(names.indexName(), precisionStep,
+        return new QueryWrapperFilter(NumericRangeQuery.newFloatRange(names.indexName(), precisionStep,
                 nullValue,
                 nullValue,
                 true, true));

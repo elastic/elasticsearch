@@ -32,8 +32,6 @@ public class NestedFilterBuilder extends BaseFilterBuilder {
     private final String path;
     private Boolean join;
 
-    private Boolean cache;
-    private String cacheKey;
     private String filterName;
 
     private QueryInnerHitBuilder innerHit = null;
@@ -52,19 +50,6 @@ public class NestedFilterBuilder extends BaseFilterBuilder {
 
     public NestedFilterBuilder join(boolean join) {
         this.join = join;
-        return this;
-    }
-
-    /**
-     * Should the filter be cached or not. Defaults to <tt>false</tt>.
-     */
-    public NestedFilterBuilder cache(boolean cache) {
-        this.cache = cache;
-        return this;
-    }
-
-    public NestedFilterBuilder cacheKey(String cacheKey) {
-        this.cacheKey = cacheKey;
         return this;
     }
 
@@ -100,12 +85,6 @@ public class NestedFilterBuilder extends BaseFilterBuilder {
         builder.field("path", path);
         if (filterName != null) {
             builder.field("_name", filterName);
-        }
-        if (cache != null) {
-            builder.field("_cache", cache);
-        }
-        if (cacheKey != null) {
-            builder.field("_cache_key", cacheKey);
         }
         if (innerHit != null) {
             builder.startObject("inner_hits");

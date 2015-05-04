@@ -37,6 +37,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -73,6 +74,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
     public static ByteSizeValue INACTIVE_SHARD_TRANSLOG_BUFFER = ByteSizeValue.parseBytesSizeValue("1kb");
     public static final String TRANSLOG_ID_KEY = "translog_id";
+    public static final String INDEX_TRANSLOG_DURABILITY = "index.translog.durability";
     public static final String INDEX_TRANSLOG_FS_TYPE = "index.translog.fs.type";
     public static final String INDEX_TRANSLOG_BUFFER_SIZE = "index.translog.fs.buffer_size";
     public static final String INDEX_TRANSLOG_SYNC_INTERVAL = "index.translog.sync_interval";
@@ -80,6 +82,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     static final Pattern PARSE_ID_PATTERN = Pattern.compile(TRANSLOG_FILE_PREFIX + "(\\d+)(\\.recovering)?$");
     private final TimeValue syncInterval;
     private volatile ScheduledFuture<?> syncScheduler;
+    private volatile Durabilty durabilty = Durabilty.REQUEST;
 
 
     // this is a concurrent set and is not protected by any of the locks. The main reason
@@ -94,6 +97,12 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             if (type != Translog.this.type) {
                 logger.info("updating type from [{}] to [{}]", Translog.this.type, type);
                 Translog.this.type = type;
+            }
+
+            final Durabilty durabilty = Durabilty.getFromSettings(logger, settings, Translog.this.durabilty);
+            if (durabilty != Translog.this.durabilty) {
+                logger.info("updating durability from [{}] to [{}]", Translog.this.durabilty, durabilty);
+                Translog.this.durabilty = durabilty;
             }
         }
     }
@@ -140,7 +149,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         ReadWriteLock rwl = new ReentrantReadWriteLock();
         readLock = new ReleasableLock(rwl.readLock());
         writeLock = new ReleasableLock(rwl.writeLock());
-
+        this.durabilty = Durabilty.getFromSettings(logger, indexSettings, durabilty);
         this.indexSettingsService = indexSettingsService;
         this.bigArrays = bigArrays;
         this.location = location;
@@ -494,10 +503,9 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      */
     public void sync() throws IOException {
         try (ReleasableLock lock = readLock.acquire()) {
-            if (closed.get()) {
-                return;
+            if (closed.get() == false) {
+                current.sync();
             }
-            current.sync();
         }
     }
 
@@ -510,6 +518,20 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     /** package private for testing */
     String getFilename(long translogId) {
         return TRANSLOG_FILE_PREFIX + translogId;
+    }
+
+
+    /**
+     * Ensures that the given location has be synced / written to the underlying storage.
+     * @return Returns <code>true</code> iff this call caused an actual sync operation otherwise <code>false</code>
+     */
+    public boolean ensureSynced(Location location) throws IOException {
+        try (ReleasableLock lock = readLock.acquire()) {
+            if (location.translogId == current.id) { // if we have a new one it's already synced
+                return current.syncUpTo(location.translogLocation + location.size);
+            }
+        }
+        return false;
     }
 
     /**
@@ -546,6 +568,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             }
         }
     }
+
 
     /**
      * a view into the translog, capturing all translog file at the moment of creation
@@ -676,7 +699,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         }
     }
 
-    public static class Location implements Accountable {
+    public static class Location implements Accountable, Comparable<Location> {
 
         public final long translogId;
         public final long translogLocation;
@@ -701,6 +724,35 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         @Override
         public String toString() {
             return "[id: " + translogId + ", location: " + translogLocation + ", size: " + size + "]";
+        }
+
+        @Override
+        public int compareTo(Location o) {
+            if (translogId == o.translogId) {
+                return Long.compare(translogLocation, o.translogLocation);
+            }
+            return Long.compare(translogId, o.translogId);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+
+            Location location = (Location) o;
+
+            if (translogId != location.translogId) return false;
+            if (translogLocation != location.translogLocation) return false;
+            return size == location.size;
+
+        }
+
+        @Override
+        public int hashCode() {
+            int result = (int) (translogId ^ (translogId >>> 32));
+            result = 31 * result + (int) (translogLocation ^ (translogLocation >>> 32));
+            result = 31 * result + size;
+            return result;
         }
     }
 
@@ -1428,6 +1480,34 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             return "DeleteByQuery{" +
                     "types=" + Arrays.toString(types) +
                     '}';
+        }
+    }
+
+    /**
+     * Returns the current durability mode of this translog.
+     */
+    public Durabilty getDurabilty() {
+        return durabilty;
+    }
+
+    public enum Durabilty {
+        /**
+         * Async durability - translogs are synced based on a time interval.
+         */
+        ASYNC,
+        /**
+         * Request durability - translogs are synced for each high levle request (bulk, index, delete)
+         */
+        REQUEST;
+
+        public static Durabilty getFromSettings(ESLogger logger, Settings settings, Durabilty defaultValue) {
+            final String value = settings.get(INDEX_TRANSLOG_DURABILITY, defaultValue.name());
+            try {
+                return valueOf(value.toUpperCase(Locale.ROOT));
+            } catch (IllegalArgumentException ex) {
+                logger.warn("Can't apply {} illegal value: {} using {} instead, use one of: {}", INDEX_TRANSLOG_DURABILITY, value, defaultValue, Arrays.toString(values()));
+                return defaultValue;
+            }
         }
     }
 }

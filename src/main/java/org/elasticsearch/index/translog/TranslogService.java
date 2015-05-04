@@ -21,6 +21,7 @@ package org.elasticsearch.index.translog;
 
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -33,6 +34,8 @@ import org.elasticsearch.index.shard.*;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
+import java.util.Arrays;
+import java.util.Locale;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ThreadLocalRandom;
 
@@ -53,7 +56,6 @@ public class TranslogService extends AbstractIndexShardComponent implements Clos
     private final ThreadPool threadPool;
     private final IndexSettingsService indexSettingsService;
     private final IndexShard indexShard;
-    private volatile Translog translog;
 
     private volatile TimeValue interval;
     private volatile int flushThresholdOperations;
@@ -75,7 +77,6 @@ public class TranslogService extends AbstractIndexShardComponent implements Clos
         this.flushThresholdPeriod = indexSettings.getAsTime(INDEX_TRANSLOG_FLUSH_THRESHOLD_PERIOD, TimeValue.timeValueMinutes(30));
         this.interval = indexSettings.getAsTime(INDEX_TRANSLOG_FLUSH_INTERVAL, timeValueMillis(5000));
         this.disableFlush = indexSettings.getAsBoolean(INDEX_TRANSLOG_DISABLE_FLUSH, false);
-
         logger.debug("interval [{}], flush_threshold_ops [{}], flush_threshold_size [{}], flush_threshold_period [{}]", interval, flushThresholdOperations, flushThresholdSize, flushThresholdPeriod);
 
         this.future = threadPool.schedule(interval, ThreadPool.Names.SAME, new TranslogBasedFlush());
@@ -141,12 +142,11 @@ public class TranslogService extends AbstractIndexShardComponent implements Clos
                 reschedule();
                 return;
             }
-
-            if (indexShard.engine().getTranslog() == null) {
+            Translog translog = indexShard.engine().getTranslog();
+            if (translog == null) {
                 reschedule();
                 return;
             }
-
             int currentNumberOfOperations = translog.totalOperations();
             if (currentNumberOfOperations == 0) {
                 reschedule();

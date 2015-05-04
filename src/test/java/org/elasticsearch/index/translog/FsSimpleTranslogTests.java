@@ -21,15 +21,13 @@ package org.elasticsearch.index.translog;
 
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.io.IOException;
 
 /**
  *
  */
-@TestLogging("index.translog.fs:TRACE")
-public class FsSimpleTranslogTests extends AbstractTranslogTests {
+public class FsSimpleTranslogTests extends TranslogTests {
 
     @Override
     protected Translog create() throws IOException {

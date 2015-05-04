@@ -985,7 +985,7 @@ public final class InternalTestCluster extends TestCluster {
             IndicesService indexServices = getInstance(IndicesService.class, nodeAndClient.name);
             for (IndexService indexService : indexServices) {
                 for (IndexShard indexShard : indexService) {
-                    assertThat(indexShard.getOperationsCounter().refCount(), anyOf(equalTo(1)));
+                    assertThat(indexShard.getOperationsCount(), anyOf(equalTo(1)));
                 }
             }
         }

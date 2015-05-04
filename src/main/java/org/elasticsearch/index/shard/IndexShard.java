@@ -786,7 +786,9 @@ public class IndexShard extends AbstractIndexShardComponent {
         return this;
     }
 
-    /** called before starting to copy index files over */
+    /**
+     * called before starting to copy index files over
+     */
     public void prepareForIndexRecovery() {
         if (state != IndexShardState.RECOVERING) {
             throw new IndexShardNotRecoveringException(shardId, state);
@@ -841,10 +843,10 @@ public class IndexShard extends AbstractIndexShardComponent {
      * a remote peer.
      */
     public void skipTranslogRecovery() {
-       assert engineUnsafe() == null : "engine was already created";
-       Map<String, Mapping> recoveredTypes = internalPerformTranslogRecovery(true);
-       assert recoveredTypes.isEmpty();
-       assert recoveryState.getTranslog().recoveredOperations() == 0;
+        assert engineUnsafe() == null : "engine was already created";
+        Map<String, Mapping> recoveredTypes = internalPerformTranslogRecovery(true);
+        assert recoveredTypes.isEmpty();
+        assert recoveryState.getTranslog().recoveredOperations() == 0;
     }
 
     /**
@@ -1015,10 +1017,6 @@ public class IndexShard extends AbstractIndexShardComponent {
 
     public ShardPath shardPath() {
         return path;
-    }
-
-    public IndexShardOperationCounter getOperationsCounter() {
-        return indexShardOperationCounter;
     }
 
     private class ApplyRefreshSettings implements IndexSettingsService.Listener {
@@ -1314,7 +1312,7 @@ public class IndexShard extends AbstractIndexShardComponent {
                 mapperAnalyzer, similarityService.similarity(), codecService, failedEngineListener, translogRecoveryPerformer);
     }
 
-    public static class IndexShardOperationCounter extends AbstractRefCounted {
+    private static class IndexShardOperationCounter extends AbstractRefCounted {
         final private ESLogger logger;
         private final ShardId shardId;
 
@@ -1330,14 +1328,25 @@ public class IndexShard extends AbstractIndexShardComponent {
         }
 
         @Override
-        public void incRef() {
-            if (tryIncRef() == false) {
-                throw new IndexShardClosedException(shardId, "could not increment operation counter. shard is closed.");
-            }
+        protected void alreadyClosed() {
+            throw new IndexShardClosedException(shardId, "could not increment operation counter. shard is closed.");
         }
 
         public ShardId getShardId() {
             return shardId;
         }
+
+    }
+
+    public void incrementOperationCounter() {
+        indexShardOperationCounter.incRef();
+    }
+
+    public void decrementOperationCounter() {
+        indexShardOperationCounter.decRef();
+    }
+
+    public int getOperationsCount() {
+        return indexShardOperationCounter.refCount();
     }
 }

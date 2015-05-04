@@ -46,12 +46,10 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.DummyTransportAddress;
-import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
-import org.elasticsearch.common.util.concurrent.RefCounted;
-import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardNotStartedException;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
@@ -64,10 +62,15 @@ import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponseOptions;
 import org.elasticsearch.transport.TransportService;
-import org.junit.*;
+import org.junit.AfterClass;
+import org.junit.Before;
+import org.junit.BeforeClass;
+import org.junit.Test;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -89,7 +92,6 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
     * TransportShardReplicationOperationAction needs an instance of IndexShard to count operations.
     * indexShards is reset to null before each test and will be initialized upon request in the tests.
     */
-    volatile AbstractRefCounted testIndexShardOperationsCounter;
 
     @BeforeClass
     public static void beforeClass() {
@@ -104,7 +106,7 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
         transportService = new TransportService(transport, threadPool);
         transportService.start();
         action = new Action(ImmutableSettings.EMPTY, "testAction", transportService, clusterService, threadPool);
-        testIndexShardOperationsCounter = null;
+        count.set(1);
     }
 
     @AfterClass
@@ -156,7 +158,7 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
     }
 
     public void assertIndexShardUninitialized() {
-        assertNull("index shard should not be initialized because no operations should have been performed", testIndexShardOperationsCounter);
+        assertEquals(1, count.get());
     }
 
     ClusterState stateWithStartedPrimary(String index, boolean primaryLocal, int numberOfReplicas) {
@@ -446,13 +448,12 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
 
         final TransportShardReplicationOperationAction<Request, Request, Response>.InternalRequest internalRequest = action.new InternalRequest(request);
         internalRequest.concreteIndex(shardId.index().name());
-        TransportShardReplicationOperationAction.IndexShardReference indexShardAtomicReference = new TransportShardReplicationOperationAction.IndexShardReference();
-        indexShardAtomicReference.setReference(getOrCreateIndexShardOperationsCounter(shardId));
+        Releasable reference = getOrCreateIndexShardOperationsCounter();
         assertIndexShardCounter(2);
         TransportShardReplicationOperationAction<Request, Request, Response>.ReplicationPhase replicationPhase =
                 action.new ReplicationPhase(shardIt, request,
                         new Response(), new ClusterStateObserver(clusterService, logger),
-                        primaryShard, internalRequest, listener, indexShardAtomicReference);
+                        primaryShard, internalRequest, listener, reference);
 
         assertThat(replicationPhase.totalShards(), equalTo(totalShards));
         assertThat(replicationPhase.pending(), equalTo(assignedReplicas));
@@ -501,7 +502,7 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
         assertIndexShardCounter(1);
     }
 
-    @Test
+    /*@Test
     public void testIndexShardRefCounter() throws IOException {
         IndexShard.IndexShardOperationCounter indexShardOperationsCounter = new IndexShard.IndexShardOperationCounter(logger, new ShardId("test", 0));
 
@@ -514,7 +515,7 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
         assertThat(indexShardOperationsCounter.refCount(), equalTo(2));
         indexShardOperationsCounter.decRef();
         assertThat(indexShardOperationsCounter.refCount(), equalTo(1));
-    }
+    }*/
 
     @Test
     public void testCounterOnPrimary() throws InterruptedException, ExecutionException, IOException {
@@ -547,11 +548,7 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
         awaitBusy(new Predicate<Object>() {
             @Override
             public boolean apply(@Nullable Object input) {
-                if (testIndexShardOperationsCounter != null) {
-                    return testIndexShardOperationsCounter.refCount() == 2;
-                } else {
-                    return false;
-                }
+                    return (count.get() == 2);
             }
         });
 
@@ -614,11 +611,7 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
         awaitBusy(new Predicate<Object>() {
             @Override
             public boolean apply(@Nullable Object input) {
-                if (testIndexShardOperationsCounter != null) {
-                    return testIndexShardOperationsCounter.refCount() == 2;
-                } else {
-                    return false;
-                }
+                return count.get() == 2;
             }
         });
         ((ActionWithDelay) action).countDownLatch.countDown();
@@ -655,19 +648,22 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
     }
 
     private void assertIndexShardCounter(int expected) {
-        assertThat(testIndexShardOperationsCounter.refCount(), equalTo(expected));
+        assertThat(count.get(), equalTo(expected));
     }
+
+    private final AtomicInteger count = new AtomicInteger(0);
 
     /*
     * Returns testIndexShardOperationsCounter or initializes it if it was already created in this test run.
     * */
-    private synchronized RefCounted getOrCreateIndexShardOperationsCounter(ShardId shardId) {
-        if (testIndexShardOperationsCounter == null) {
-            testIndexShardOperationsCounter = new IndexShard.IndexShardOperationCounter(logger, shardId);
-        } else {
-            assertThat(shardId, equalTo(((IndexShard.IndexShardOperationCounter) testIndexShardOperationsCounter).getShardId()));
-        }
-        return testIndexShardOperationsCounter;
+    private synchronized Releasable getOrCreateIndexShardOperationsCounter() {
+        count.incrementAndGet();
+        return new Releasable() {
+            @Override
+            public void close() {
+                count.decrementAndGet();
+            }
+        };
     }
 
     static class Request extends ShardReplicationOperationRequest<Request> {
@@ -745,8 +741,8 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
         }
 
         @Override
-        protected RefCounted getIndexShardOperationsCounter(ShardId shardId) {
-            return getOrCreateIndexShardOperationsCounter(shardId);
+        protected Releasable getIndexShardOperationsCounter(ShardId shardId) {
+            return getOrCreateIndexShardOperationsCounter();
         }
     }
 
@@ -831,6 +827,7 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
             } catch (InterruptedException e) {
             }
         }
+
     }
 
     /*

@@ -95,7 +95,8 @@ public class TribeUnitTests extends ElasticsearchTestCase {
         //tribe node doesn't need the node.mode setting, as it's forced local internally anyways. The tribe clients do need it to make sure
         //they can find their corresponding tribes using the proper transport
         Settings settings = ImmutableSettings.builder().put("http.enabled", false).put("node.name", "tribe_node")
-                .put("tribe.t1.node.mode", NODE_MODE).put("tribe.t2.node.mode", NODE_MODE).put(extraSettings).build();
+                .put("tribe.t1.node.mode", NODE_MODE).put("tribe.t2.node.mode", NODE_MODE)
+                .put("path.home", createTempDir()).put(extraSettings).build();
 
         try (Node node = NodeBuilder.nodeBuilder().settings(settings).node()) {
             try (Client client = node.client()) {

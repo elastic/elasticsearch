@@ -33,6 +33,7 @@ public class ASCIIFoldingTokenFilterFactoryTests extends ElasticsearchTokenStrea
     @Test
     public void testDefault() throws IOException {
         AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromSettings(settingsBuilder()
+                .put("path.home", createTempDir().toString())
                 .put("index.analysis.filter.my_ascii_folding.type", "asciifolding")
                 .build());
         TokenFilterFactory tokenFilter = analysisService.tokenFilter("my_ascii_folding");
@@ -46,6 +47,7 @@ public class ASCIIFoldingTokenFilterFactoryTests extends ElasticsearchTokenStrea
     @Test
     public void testPreserveOriginal() throws IOException {
         AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromSettings(settingsBuilder()
+                .put("path.home", createTempDir().toString())
                 .put("index.analysis.filter.my_ascii_folding.type", "asciifolding")
                 .put("index.analysis.filter.my_ascii_folding.preserve_original", true)
                 .build());

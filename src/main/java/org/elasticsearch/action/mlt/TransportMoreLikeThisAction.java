@@ -119,7 +119,6 @@ public class TransportMoreLikeThisAction extends HandledTransportAction<MoreLike
                 .type(request.type())
                 .id(request.id())
                 .routing(request.routing())
-                .listenerThreaded(true)
                 .operationThreaded(true);
 
         getAction.execute(getRequest, new ActionListener<GetResponse>() {
@@ -197,8 +196,7 @@ public class TransportMoreLikeThisAction extends HandledTransportAction<MoreLike
                 SearchRequest searchRequest = new SearchRequest(request).indices(searchIndices)
                         .types(searchTypes)
                         .searchType(request.searchType())
-                        .scroll(request.searchScroll())
-                        .listenerThreaded(request.listenerThreaded());
+                        .scroll(request.searchScroll());
 
                 SearchSourceBuilder extraSource = searchSource().query(boolBuilder);
                 if (request.searchFrom() != 0) {

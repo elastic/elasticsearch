@@ -34,6 +34,7 @@ public class WordDelimiterTokenFilterFactoryTests extends ElasticsearchTokenStre
     @Test
     public void testDefault() throws IOException {
         AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromSettings(settingsBuilder()
+                .put("path.home", createTempDir().toString())
                 .put("index.analysis.filter.my_word_delimiter.type", "word_delimiter")
                 .build());
         TokenFilterFactory tokenFilter = analysisService.tokenFilter("my_word_delimiter");
@@ -47,6 +48,7 @@ public class WordDelimiterTokenFilterFactoryTests extends ElasticsearchTokenStre
     @Test
     public void testCatenateWords() throws IOException {
         AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromSettings(settingsBuilder()
+                .put("path.home", createTempDir().toString())
                 .put("index.analysis.filter.my_word_delimiter.type", "word_delimiter")
                 .put("index.analysis.filter.my_word_delimiter.catenate_words", "true")
                 .put("index.analysis.filter.my_word_delimiter.generate_word_parts", "false")
@@ -62,6 +64,7 @@ public class WordDelimiterTokenFilterFactoryTests extends ElasticsearchTokenStre
     @Test
     public void testCatenateNumbers() throws IOException {
         AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromSettings(settingsBuilder()
+                .put("path.home", createTempDir().toString())
                 .put("index.analysis.filter.my_word_delimiter.type", "word_delimiter")
                 .put("index.analysis.filter.my_word_delimiter.generate_number_parts", "false")
                 .put("index.analysis.filter.my_word_delimiter.catenate_numbers", "true")
@@ -77,6 +80,7 @@ public class WordDelimiterTokenFilterFactoryTests extends ElasticsearchTokenStre
     @Test
     public void testCatenateAll() throws IOException {
         AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromSettings(settingsBuilder()
+                .put("path.home", createTempDir().toString())
                 .put("index.analysis.filter.my_word_delimiter.type", "word_delimiter")
                 .put("index.analysis.filter.my_word_delimiter.generate_word_parts", "false")
                 .put("index.analysis.filter.my_word_delimiter.generate_number_parts", "false")
@@ -93,6 +97,7 @@ public class WordDelimiterTokenFilterFactoryTests extends ElasticsearchTokenStre
     @Test
     public void testSplitOnCaseChange() throws IOException {
         AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromSettings(settingsBuilder()
+                .put("path.home", createTempDir().toString())
                 .put("index.analysis.filter.my_word_delimiter.type", "word_delimiter")
                 .put("index.analysis.filter.my_word_delimiter.split_on_case_change", "false")
                 .build());
@@ -107,6 +112,7 @@ public class WordDelimiterTokenFilterFactoryTests extends ElasticsearchTokenStre
     @Test
     public void testPreserveOriginal() throws IOException {
         AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromSettings(settingsBuilder()
+                .put("path.home", createTempDir().toString())
                 .put("index.analysis.filter.my_word_delimiter.type", "word_delimiter")
                 .put("index.analysis.filter.my_word_delimiter.preserve_original", "true")
                 .build());
@@ -121,6 +127,7 @@ public class WordDelimiterTokenFilterFactoryTests extends ElasticsearchTokenStre
     @Test
     public void testStemEnglishPossessive() throws IOException {
         AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromSettings(settingsBuilder()
+                .put("path.home", createTempDir().toString())
                 .put("index.analysis.filter.my_word_delimiter.type", "word_delimiter")
                 .put("index.analysis.filter.my_word_delimiter.stem_english_possessive", "false")
                 .build());
@@ -136,6 +143,7 @@ public class WordDelimiterTokenFilterFactoryTests extends ElasticsearchTokenStre
     @Test
     public void testPartsAndCatenate() throws IOException {
         AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromSettings(settingsBuilder()
+                .put("path.home", createTempDir().toString())
                 .put("index.analysis.filter.my_word_delimiter.type", "word_delimiter")
                 .put("index.analysis.filter.my_word_delimiter.catenate_words", "true")
                 .put("index.analysis.filter.my_word_delimiter.generate_word_parts", "true")
@@ -153,6 +161,7 @@ public class WordDelimiterTokenFilterFactoryTests extends ElasticsearchTokenStre
     @Test
     public void testDeprecatedPartsAndCatenate() throws IOException {
         AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromSettings(settingsBuilder()
+                .put("path.home", createTempDir().toString())
                 .put("index.analysis.filter.my_word_delimiter.type", "word_delimiter")
                 .put("index.analysis.filter.my_word_delimiter.catenate_words", "true")
                 .put("index.analysis.filter.my_word_delimiter.generate_word_parts", "true")

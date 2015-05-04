@@ -39,14 +39,6 @@ public class SearchScrollRequestBuilder extends ActionRequestBuilder<SearchScrol
     }
 
     /**
-     * Should the listener be called on a separate thread if needed.
-     */
-    public SearchScrollRequestBuilder listenerThreaded(boolean threadedListener) {
-        request.listenerThreaded(threadedListener);
-        return this;
-    }
-
-    /**
      * The scroll id to use to continue scrolling.
      */
     public SearchScrollRequestBuilder setScrollId(String scrollId) {

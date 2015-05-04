@@ -24,20 +24,15 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.BaseTransportResponseHandler;
-import org.elasticsearch.transport.TransportException;
-import org.elasticsearch.transport.TransportRequestOptions;
-import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.*;
 
 /**
  * A generic proxy that will execute the given action against a specific node.
  */
 public class TransportActionNodeProxy<Request extends ActionRequest, Response extends ActionResponse> extends AbstractComponent {
 
-    protected final TransportService transportService;
-
+    private final TransportService transportService;
     private final GenericAction<Request, Response> action;
-
     private final TransportRequestOptions transportOptions;
 
     @Inject
@@ -48,36 +43,17 @@ public class TransportActionNodeProxy<Request extends ActionRequest, Response ex
         this.transportOptions = action.transportOptions(settings);
     }
 
-    public void execute(DiscoveryNode node, final Request request, final ActionListener<Response> listener) {
+    public void execute(final DiscoveryNode node, final Request request, final ActionListener<Response> listener) {
         ActionRequestValidationException validationException = request.validate();
         if (validationException != null) {
             listener.onFailure(validationException);
             return;
         }
-        transportService.sendRequest(node, action.name(), request, transportOptions, new BaseTransportResponseHandler<Response>() {
+        transportService.sendRequest(node, action.name(), request, transportOptions, new ActionListenerResponseHandler<Response>(listener) {
             @Override
             public Response newInstance() {
                 return action.newResponse();
             }
-
-            @Override
-            public String executor() {
-                if (request.listenerThreaded()) {
-                    return ThreadPool.Names.LISTENER;
-                }
-                return ThreadPool.Names.SAME;
-            }
-
-            @Override
-            public void handleResponse(Response response) {
-                listener.onResponse(response);
-            }
-
-            @Override
-            public void handleException(TransportException exp) {
-                listener.onFailure(exp);
-            }
         });
     }
-
 }

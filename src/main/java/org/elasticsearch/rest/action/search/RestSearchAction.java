@@ -77,7 +77,6 @@ public class RestSearchAction extends BaseRestHandler {
     public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
         SearchRequest searchRequest;
         searchRequest = RestSearchAction.parseSearchRequest(request);
-        searchRequest.listenerThreaded(false);
         client.search(searchRequest, new RestStatusToXContentListener<SearchResponse>(channel));
     }
 

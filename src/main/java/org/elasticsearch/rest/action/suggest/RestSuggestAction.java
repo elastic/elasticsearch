@@ -59,7 +59,6 @@ public class RestSuggestAction extends BaseRestHandler {
     public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
         SuggestRequest suggestRequest = new SuggestRequest(Strings.splitStringByCommaToArray(request.param("index")));
         suggestRequest.indicesOptions(IndicesOptions.fromRequest(request, suggestRequest.indicesOptions()));
-        suggestRequest.listenerThreaded(false);
         if (RestActions.hasBodyContent(request)) {
             suggestRequest.suggest(RestActions.getRestContent(request));
         } else {

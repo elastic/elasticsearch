@@ -49,19 +49,13 @@ public abstract class ActionRequestBuilder<Request extends ActionRequest, Respon
     }
 
     @SuppressWarnings("unchecked")
-    public final RequestBuilder setListenerThreaded(boolean listenerThreaded) {
-        request.listenerThreaded(listenerThreaded);
-        return (RequestBuilder) this;
-    }
-
-    @SuppressWarnings("unchecked")
     public final RequestBuilder putHeader(String key, Object value) {
         request.putHeader(key, value);
         return (RequestBuilder) this;
     }
 
     public ListenableActionFuture<Response> execute() {
-        PlainListenableActionFuture<Response> future = new PlainListenableActionFuture<>(request.listenerThreaded(), threadPool);
+        PlainListenableActionFuture<Response> future = new PlainListenableActionFuture<>(threadPool);
         execute(future);
         return future;
     }

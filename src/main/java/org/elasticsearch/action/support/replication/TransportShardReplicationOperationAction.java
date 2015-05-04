@@ -631,7 +631,9 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
     }
 
     protected Releasable getIndexShardOperationsCounter(ShardId shardId) {
-        return new IndexShardReference(indicesService.indexServiceSafe(shardId.index().getName()).shardSafe(shardId.id()));
+        IndexService indexService = indicesService.indexServiceSafe(shardId.index().getName());
+        IndexShard indexShard = indexService.shardSafe(shardId.id());
+        return new IndexShardReference(indexShard);
 
     }
 

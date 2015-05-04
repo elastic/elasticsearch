@@ -19,8 +19,6 @@
 
 package org.elasticsearch.bootstrap;
 
-import org.elasticsearch.common.SuppressForbidden;
-
 import java.net.URI;
 import java.security.Permission;
 import java.security.PermissionCollection;
@@ -37,17 +35,14 @@ public class ESPolicy extends Policy {
     final Policy template;
     final PermissionCollection dynamic;
 
-    @SuppressForbidden(reason = "ok")
     public ESPolicy(PermissionCollection dynamic) throws Exception {
         URI uri = getClass().getResource(POLICY_RESOURCE).toURI();
-        System.out.println("temp=" + System.getProperty("java.io.tmpdir"));
         this.template = Policy.getInstance("JavaPolicy", new URIParameter(uri));
         this.dynamic = dynamic;
     }
 
-    @Override @SuppressForbidden(reason = "ok")
+    @Override
     public boolean implies(ProtectionDomain domain, Permission permission) {
-        //System.out.println("domain=" + domain);
         return template.implies(domain, permission) || dynamic.implies(permission);
     }
 }

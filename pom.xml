@@ -37,7 +37,7 @@
         <testframework.version>2.1.14</testframework.version>
         <tests.jvms>auto</tests.jvms>
         <tests.shuffle>true</tests.shuffle>
-        <tests.output>always</tests.output>
+        <tests.output>onerror</tests.output>
         <tests.client.ratio></tests.client.ratio>
         <tests.bwc.path>${project.basedir}/backwards</tests.bwc.path>
         <tests.locale>random</tests.locale>
@@ -584,7 +584,6 @@
                                 <param>-Des.logger.prefix=</param>
                                 <param>-XX:+HeapDumpOnOutOfMemoryError</param>
                                 <param>-XX:HeapDumpPath=${tests.heapdump.path}</param>
-                                <param>-Djava.security.debug=access:failure,policy</param>
                             </jvmArgs>
                             <shuffleOnSlave>${tests.shuffle}</shuffleOnSlave>
                             <sysouts>${tests.verbose}</sysouts>

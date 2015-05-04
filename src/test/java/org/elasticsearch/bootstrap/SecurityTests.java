@@ -40,11 +40,12 @@ public class SecurityTests extends ElasticsearchTestCase {
         Settings settings = settingsBuilder.build();
 
         Environment environment = new Environment(settings);
-        Permissions permissions = Security.createPermissions(environment);
+        // we pass false to not include temp (or it will grant permissions to everything here)
+        Permissions permissions = Security.createPermissions(environment, false);
       
         // the fake es home
         assertTrue(permissions.implies(new FilePermission(esHome.toString(), "read")));
-        // its parent
+        // its filesystem root
         assertFalse(permissions.implies(new FilePermission(path.toString(), "read")));
         // some other sibling
         assertFalse(permissions.implies(new FilePermission(path.resolve("other").toString(), "read")));
@@ -63,7 +64,7 @@ public class SecurityTests extends ElasticsearchTestCase {
         Settings settings = settingsBuilder.build();
 
         Environment environment = new Environment(settings);
-        Permissions permissions = Security.createPermissions(environment);
+        Permissions permissions = Security.createPermissions(environment, false);
 
         // check that all directories got permissions:
         // homefile: this is needed unless we break out rules for "lib" dir.

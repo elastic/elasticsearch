@@ -19,10 +19,10 @@
 
 package org.elasticsearch.bootstrap;
 
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.env.Environment;
 
 import java.io.*;
-import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.Permissions;
@@ -34,7 +34,7 @@ import java.security.Policy;
  * We use a template file (the one we test with), and add additional 
  * permissions based on the environment (data paths, etc)
  */
-class Security {
+public class Security {
        
     /** 
      * Initializes securitymanager for the environment
@@ -42,7 +42,7 @@ class Security {
      */
     static void configure(Environment environment) throws Exception {
         // enable security policy: union of template and environment-based paths.
-        Policy.setPolicy(new ESPolicy(createPermissions(environment)));
+        Policy.setPolicy(new ESPolicy(createPermissions(environment, true)));
 
         // enable security manager
         System.setSecurityManager(new SecurityManager());
@@ -52,10 +52,13 @@ class Security {
     }
 
     /** returns dynamic Permissions to configured paths */
-    static Permissions createPermissions(Environment environment) throws IOException {
+    static Permissions createPermissions(Environment environment, boolean addTempDir) throws IOException {
         // TODO: improve test infra so we can reduce permissions where read/write
         // is not really needed...
         Permissions policy = new Permissions();
+        if (addTempDir) {
+            addPath(policy, PathUtils.get(System.getProperty("java.io.tmpdir")), "read,readlink,write,delete");
+        }
         addPath(policy, environment.homeFile(), "read,readlink,write,delete");
         addPath(policy, environment.configFile(), "read,readlink,write,delete");
         addPath(policy, environment.logsFile(), "read,readlink,write,delete");
@@ -71,7 +74,7 @@ class Security {
     }
     
     /** Add access to path (and all files underneath it */
-    static void addPath(Permissions policy, Path path, String permissions) throws IOException {
+    public static void addPath(Permissions policy, Path path, String permissions) throws IOException {
         // paths may not exist yet
         Files.createDirectories(path);
         // add each path twice: once for itself, again for files underneath it
@@ -80,7 +83,7 @@ class Security {
     }
 
     /** Simple checks that everything is ok */
-    static void selfTest() {
+    public static void selfTest() {
         // check we can manipulate temporary files
         try {
             Files.delete(Files.createTempFile(null, null));

@@ -31,6 +31,8 @@ import java.io.IOException;
 import java.nio.channels.FileChannel;
 import java.nio.file.OpenOption;
 import java.nio.file.Path;
+import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.Map;
 
 class ChannelReference extends AbstractRefCounted {
@@ -47,8 +49,6 @@ class ChannelReference extends AbstractRefCounted {
         this.channel = FileChannel.open(file, openOptions);
         try {
             this.stream = TranslogStreams.translogStreamFor(file);
-            final Map<FsChannelReader, RuntimeException> existing = openedFiles.put(file().toString(), ConcurrentCollections.<FsChannelReader, RuntimeException>newConcurrentMap());
-            assert existing == null || existing.size() == 0 : "a channel for the file[" + file + "] was previously opened from " + ExceptionsHelper.stackTrace(Iterables.getFirst(existing.values(), null));
         } catch (Throwable t) {
             IOUtils.closeWhileHandlingException(channel);
             throw t;
@@ -67,27 +67,6 @@ class ChannelReference extends AbstractRefCounted {
         return this.stream;
     }
 
-    /**
-     * called to add this owner to the list of reference holders (used for leakage detection).
-     * also asserts that there is no double "attachment"
-     */
-    boolean assertAttach(FsChannelReader owner) {
-        Map<FsChannelReader, RuntimeException> ownerMap = openedFiles.get(file().toString());
-        Throwable previous = ownerMap.put(owner, new RuntimeException(file.toString() + " attached", null));
-        assert previous == null : "double attachment by the same owner";
-        return true;
-    }
-
-    /** removes an owner to the least of list holders (used for leakage detection).
-     * also asserts that this owner did attach before.
-     */
-    boolean assertDetach(FsChannelReader owner) {
-        Map<FsChannelReader, RuntimeException> ownerMap = openedFiles.get(file().toString());
-        Throwable previous = ownerMap.remove(owner);
-        assert previous != null : "reader detaches, but was never attached";
-        return true;
-    }
-
     @Override
     public String toString() {
         return "channel: file [" + file + "], ref count [" + refCount() + "]";
@@ -96,21 +75,5 @@ class ChannelReference extends AbstractRefCounted {
     @Override
     protected void closeInternal() {
         IOUtils.closeWhileHandlingException(channel);
-        assert openedFiles.remove(file().toString()) != null;
     }
-
-    // per file, which objects refer to it and a throwable of the allocation code
-    static final Map<String, Map<FsChannelReader, RuntimeException>> openedFiles;
-
-    static {
-        boolean assertsEnabled = false;
-        assert (assertsEnabled = true);
-        if (assertsEnabled) {
-            openedFiles = ConcurrentCollections.newConcurrentMap();
-        } else {
-            openedFiles = null;
-        }
-    }
-
-
 }

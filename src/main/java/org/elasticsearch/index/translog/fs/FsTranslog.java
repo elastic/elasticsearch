@@ -151,9 +151,15 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog,
         if (indexSettingsService != null) {
             indexSettingsService.addListener(applySettings);
         }
-        recoverFromFiles();
-        // now that we know which files are there, create a new current one.
-        current = createTranslogFile(null);
+        try {
+            recoverFromFiles();
+            // now that we know which files are there, create a new current one.
+            current = createTranslogFile(null);
+        } catch (Throwable t) {
+            // close the opened translog files if we fail to create a new translog...
+            IOUtils.closeWhileHandlingException(uncommittedTranslogs);
+            throw t;
+        }
     }
 
     /** recover all translog files found on disk */
@@ -267,59 +273,6 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog,
             }
         }
         return size;
-    }
-
-    /** asserts that all files were closed, if not throws an {@link AssertionError} with details regarding the open files */
-    public static void assertAllClosed() {
-        if (ChannelReference.openedFiles == null) {
-            return;
-        }
-        RuntimeException exampleAllocator = null;
-        ArrayList<String> files = new ArrayList<>();
-        for (Map.Entry<String, Map<FsChannelReader, RuntimeException>> file : ChannelReference.openedFiles.entrySet()) {
-            files.add(file.getKey());
-            for (RuntimeException allocator : file.getValue().values()) {
-                if (exampleAllocator == null) {
-                    exampleAllocator = new RuntimeException(file.getKey() + " is still open", allocator);
-                } else {
-                    exampleAllocator.addSuppressed(allocator);
-                }
-            }
-        }
-        if (exampleAllocator != null) {
-            throw new AssertionError("some translog files are still open [" + Strings.collectionToCommaDelimitedString(files) + "]", exampleAllocator);
-        }
-    }
-
-    /** force close an open reference captured in assertion code * */
-    public static void assertForceCloseAllReferences() {
-        if (ChannelReference.openedFiles == null) {
-            return;
-        }
-        for (Map.Entry<String, Map<FsChannelReader, RuntimeException>> file : ChannelReference.openedFiles.entrySet()) {
-            IOUtils.closeWhileHandlingException(file.getValue().keySet());
-        }
-    }
-
-    /** gets a list of unreferenced files (only works if assertions are enabled, returns an empty array otherwise) */
-    public String[] getUnreferenced() throws IOException {
-        if (ChannelReference.openedFiles == null) {
-            return Strings.EMPTY_ARRAY; // not supported
-        }
-        ArrayList<String> result = new ArrayList<>();
-        try (ReleasableLock lock = writeLock.acquire()) {
-            try (DirectoryStream<Path> stream = Files.newDirectoryStream(location, TRANSLOG_FILE_PREFIX + "[0-9]*")) {
-                for (Path file : stream) {
-                    final long id = parseIdFromFileName(file);
-                    if (id < 0) {
-                        logger.trace("failed to extract translog id from [{}]", file);
-                    } else if (ChannelReference.openedFiles.containsKey(file.toString()) == false) {
-                        result.add(file.toString());
-                    }
-                }
-            }
-        }
-        return result.toArray(Strings.EMPTY_ARRAY);
     }
 
     @Override

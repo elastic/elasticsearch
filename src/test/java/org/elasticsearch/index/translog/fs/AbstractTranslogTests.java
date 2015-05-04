@@ -72,7 +72,6 @@ public abstract class AbstractTranslogTests extends ElasticsearchTestCase {
         super.afterIfSuccessful();
 
         if (translog.isOpen()) {
-            assertNotLeaking();
             if (translog.currentId() > 1) {
                 translog.markCommitted(translog.currentId());
                 assertFileDeleted(translog, translog.currentId() - 1);
@@ -106,27 +105,6 @@ public abstract class AbstractTranslogTests extends ElasticsearchTestCase {
 
     protected abstract FsTranslog create() throws IOException;
 
-    protected void assertNotLeaking() throws Exception {
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    assertThat(translog.getUnreferenced(), emptyArray());
-                } catch (IOException e) {
-                    logger.warn("error while checking for unreferenced files in translog");
-                }
-            }
-        });
-    }
-
-    protected void assertTranslogFilesClosed() throws Exception {
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                FsTranslog.assertAllClosed();
-            }
-        });
-    }
 
     protected void addToTranslogAndList(Translog translog, ArrayList<Translog.Operation> list, Translog.Operation op) {
         list.add(op);
@@ -354,7 +332,6 @@ public abstract class AbstractTranslogTests extends ElasticsearchTestCase {
         ArrayList<Translog.Operation> secOps = new ArrayList<>();
         addToTranslogAndList(translog, secOps, new Translog.Index("test", "2", new byte[]{2}));
         assertThat(firstSnapshot.estimatedTotalOperations(), equalTo(1));
-        assertNotLeaking();
 
         Translog.Snapshot secondSnapshot = translog.newSnapshot();
         translog.add(new Translog.Index("test", "3", new byte[]{3}));
@@ -362,17 +339,14 @@ public abstract class AbstractTranslogTests extends ElasticsearchTestCase {
         assertThat(secondSnapshot.estimatedTotalOperations(), equalTo(1));
         assertFileIsPresent(translog, 1);
         assertFileIsPresent(translog, 2);
-        assertNotLeaking();
 
         firstSnapshot.close();
         assertFileDeleted(translog, 1);
         assertFileIsPresent(translog, 2);
         secondSnapshot.close();
         assertFileIsPresent(translog, 2); // it's the current nothing should be deleted
-        assertNotLeaking();
         translog.newTranslog();
         translog.markCommitted(translog.currentId());
-        assertNotLeaking();
         assertFileIsPresent(translog, 3); // it's the current nothing should be deleted
         assertFileDeleted(translog, 2);
 

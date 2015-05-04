@@ -23,8 +23,6 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -214,13 +212,13 @@ public class TermQueryBuilder extends BaseQueryBuilder implements Streamable, Bo
     }
 
     @Override
-    public ActionRequestValidationException validate() {
-        ActionRequestValidationException validationException = null;
+    public QueryValidationException validate() {
+        QueryValidationException validationException = null;
         if (this.fieldName == null || this.fieldName.isEmpty()) {
-            validationException = ValidateActions.addValidationError("field name cannot be null or empty.", validationException);
+            validationException = QueryValidationException.addValidationError("field name cannot be null or empty.", validationException);
         }
         if (this.value == null) {
-            validationException = ValidateActions.addValidationError("value cannot be null.", validationException);
+            validationException = QueryValidationException.addValidationError("value cannot be null.", validationException);
         }
         return validationException;
     }

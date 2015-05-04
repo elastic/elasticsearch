@@ -88,7 +88,7 @@ public abstract class BaseQueryBuilder implements QueryBuilder {
     protected abstract void doXContent(XContentBuilder builder, Params params) throws IOException;
 
     @Override
-    public ActionRequestValidationException validate() {
+    public QueryValidationException validate() {
         // default impl does not validate, subclasses should override.
         //norelease to be removed once all queries support validation
         return null;

@@ -51,5 +51,5 @@ public interface QueryBuilder extends ToXContent {
      * @return {@code null} if query is valid, otherwise {@link ActionRequestValidationException} containing error messages,
      * e.g. if fields that are needed to create the lucene query are missing.
      */
-    ActionRequestValidationException validate();
+    QueryValidationException validate();
 }

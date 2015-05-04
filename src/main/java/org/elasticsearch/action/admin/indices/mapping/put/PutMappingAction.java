@@ -19,12 +19,12 @@
 
 package org.elasticsearch.action.admin.indices.mapping.put;
 
-import org.elasticsearch.action.admin.indices.IndicesAction;
-import org.elasticsearch.client.IndicesAdminClient;
+import org.elasticsearch.action.Action;
+import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  */
-public class PutMappingAction extends IndicesAction<PutMappingRequest, PutMappingResponse, PutMappingRequestBuilder> {
+public class PutMappingAction extends Action<PutMappingRequest, PutMappingResponse, PutMappingRequestBuilder> {
 
     public static final PutMappingAction INSTANCE = new PutMappingAction();
     public static final String NAME = "indices:admin/mapping/put";
@@ -39,7 +39,7 @@ public class PutMappingAction extends IndicesAction<PutMappingRequest, PutMappin
     }
 
     @Override
-    public PutMappingRequestBuilder newRequestBuilder(IndicesAdminClient client) {
-        return new PutMappingRequestBuilder(client);
+    public PutMappingRequestBuilder newRequestBuilder(ElasticsearchClient client) {
+        return new PutMappingRequestBuilder(client, this);
     }
 }

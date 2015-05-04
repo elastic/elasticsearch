@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.bulk;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -28,7 +27,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.TimeValue;
 
@@ -36,10 +35,10 @@ import org.elasticsearch.common.unit.TimeValue;
  * A bulk request holds an ordered {@link IndexRequest}s and {@link DeleteRequest}s and allows to executes
  * it in a single batch.
  */
-public class BulkRequestBuilder extends ActionRequestBuilder<BulkRequest, BulkResponse, BulkRequestBuilder, Client> {
+public class BulkRequestBuilder extends ActionRequestBuilder<BulkRequest, BulkResponse, BulkRequestBuilder> {
 
-    public BulkRequestBuilder(Client client) {
-        super(client, new BulkRequest());
+    public BulkRequestBuilder(ElasticsearchClient client, BulkAction action) {
+        super(client, action, new BulkRequest());
     }
 
     /**
@@ -148,10 +147,5 @@ public class BulkRequestBuilder extends ActionRequestBuilder<BulkRequest, BulkRe
      */
     public int numberOfActions() {
         return request.numberOfActions();
-    }
-
-    @Override
-    protected void doExecute(ActionListener<BulkResponse> listener) {
-        client.bulk(request, listener);
     }
 }

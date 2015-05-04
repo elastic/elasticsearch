@@ -19,10 +19,9 @@
 
 package org.elasticsearch.action.admin.indices.mapping.put;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
-import org.elasticsearch.client.IndicesAdminClient;
+import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.util.Map;
@@ -30,10 +29,10 @@ import java.util.Map;
 /**
  * Builder for a put mapping request
  */
-public class PutMappingRequestBuilder extends AcknowledgedRequestBuilder<PutMappingRequest, PutMappingResponse, PutMappingRequestBuilder, IndicesAdminClient> {
+public class PutMappingRequestBuilder extends AcknowledgedRequestBuilder<PutMappingRequest, PutMappingResponse, PutMappingRequestBuilder> {
 
-    public PutMappingRequestBuilder(IndicesAdminClient indicesClient) {
-        super(indicesClient, new PutMappingRequest());
+    public PutMappingRequestBuilder(ElasticsearchClient client, PutMappingAction action) {
+        super(client, action, new PutMappingRequest());
     }
 
     public PutMappingRequestBuilder setIndices(String... indices) {
@@ -43,7 +42,7 @@ public class PutMappingRequestBuilder extends AcknowledgedRequestBuilder<PutMapp
 
     /**
      * Specifies what type of requested indices to ignore and wildcard indices expressions.
-     *
+     * <p/>
      * For example indices that don't exist.
      */
     public PutMappingRequestBuilder setIndicesOptions(IndicesOptions options) {
@@ -100,10 +99,5 @@ public class PutMappingRequestBuilder extends AcknowledgedRequestBuilder<PutMapp
     public PutMappingRequestBuilder setIgnoreConflicts(boolean ignoreConflicts) {
         request.ignoreConflicts(ignoreConflicts);
         return this;
-    }
-
-    @Override
-    protected void doExecute(ActionListener<PutMappingResponse> listener) {
-        client.putMapping(request, listener);
     }
 }

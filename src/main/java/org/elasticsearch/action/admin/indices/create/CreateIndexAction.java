@@ -19,12 +19,12 @@
 
 package org.elasticsearch.action.admin.indices.create;
 
-import org.elasticsearch.action.admin.indices.IndicesAction;
-import org.elasticsearch.client.IndicesAdminClient;
+import org.elasticsearch.action.Action;
+import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  */
-public class CreateIndexAction extends IndicesAction<CreateIndexRequest, CreateIndexResponse, CreateIndexRequestBuilder> {
+public class CreateIndexAction extends Action<CreateIndexRequest, CreateIndexResponse, CreateIndexRequestBuilder> {
 
     public static final CreateIndexAction INSTANCE = new CreateIndexAction();
     public static final String NAME = "indices:admin/create";
@@ -39,7 +39,7 @@ public class CreateIndexAction extends IndicesAction<CreateIndexRequest, CreateI
     }
 
     @Override
-    public CreateIndexRequestBuilder newRequestBuilder(IndicesAdminClient client) {
-        return new CreateIndexRequestBuilder(client);
+    public CreateIndexRequestBuilder newRequestBuilder(ElasticsearchClient client) {
+        return new CreateIndexRequestBuilder(client, this);
     }
 }

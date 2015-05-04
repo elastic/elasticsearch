@@ -19,26 +19,26 @@
 
 package org.elasticsearch.action.admin.indices.close;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
-import org.elasticsearch.client.IndicesAdminClient;
+import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  * Builder for close index request
  */
-public class CloseIndexRequestBuilder extends AcknowledgedRequestBuilder<CloseIndexRequest, CloseIndexResponse, CloseIndexRequestBuilder, IndicesAdminClient> {
+public class CloseIndexRequestBuilder extends AcknowledgedRequestBuilder<CloseIndexRequest, CloseIndexResponse, CloseIndexRequestBuilder> {
 
-    public CloseIndexRequestBuilder(IndicesAdminClient indicesClient) {
-        super(indicesClient, new CloseIndexRequest());
+    public CloseIndexRequestBuilder(ElasticsearchClient client, CloseIndexAction action) {
+        super(client, action, new CloseIndexRequest());
     }
 
-    public CloseIndexRequestBuilder(IndicesAdminClient indicesClient, String... indices) {
-        super(indicesClient, new CloseIndexRequest(indices));
+    public CloseIndexRequestBuilder(ElasticsearchClient client, CloseIndexAction action, String... indices) {
+        super(client, action, new CloseIndexRequest(indices));
     }
 
     /**
      * Sets the indices to be closed
+     *
      * @param indices the indices to be closed
      * @return the request itself
      */
@@ -57,10 +57,5 @@ public class CloseIndexRequestBuilder extends AcknowledgedRequestBuilder<CloseIn
     public CloseIndexRequestBuilder setIndicesOptions(IndicesOptions indicesOptions) {
         request.indicesOptions(indicesOptions);
         return this;
-    }
-
-    @Override
-    protected void doExecute(ActionListener<CloseIndexResponse> listener) {
-        client.close(request, listener);
     }
 }

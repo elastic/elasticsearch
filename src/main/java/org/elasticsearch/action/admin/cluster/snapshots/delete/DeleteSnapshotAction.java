@@ -19,13 +19,13 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.delete;
 
-import org.elasticsearch.action.admin.cluster.ClusterAction;
-import org.elasticsearch.client.ClusterAdminClient;
+import org.elasticsearch.action.Action;
+import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  * Delete snapshot action
  */
-public class DeleteSnapshotAction extends ClusterAction<DeleteSnapshotRequest, DeleteSnapshotResponse, DeleteSnapshotRequestBuilder> {
+public class DeleteSnapshotAction extends Action<DeleteSnapshotRequest, DeleteSnapshotResponse, DeleteSnapshotRequestBuilder> {
 
     public static final DeleteSnapshotAction INSTANCE = new DeleteSnapshotAction();
     public static final String NAME = "cluster:admin/snapshot/delete";
@@ -40,8 +40,8 @@ public class DeleteSnapshotAction extends ClusterAction<DeleteSnapshotRequest, D
     }
 
     @Override
-    public DeleteSnapshotRequestBuilder newRequestBuilder(ClusterAdminClient client) {
-        return new DeleteSnapshotRequestBuilder(client);
+    public DeleteSnapshotRequestBuilder newRequestBuilder(ElasticsearchClient client) {
+        return new DeleteSnapshotRequestBuilder(client, this);
     }
 }
 

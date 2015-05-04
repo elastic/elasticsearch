@@ -72,7 +72,7 @@ public final class ExternalTestCluster extends TestCluster {
                 .put("client.transport.ignore_cluster_name", true)
                 .put("node.mode", "network").build(); // we require network here!
 
-        this.client = new TransportClient(clientSettings).addTransportAddresses(transportAddresses);
+        this.client = TransportClient.builder().settings(clientSettings).build().addTransportAddresses(transportAddresses);
 
         NodesInfoResponse nodeInfos = this.client.admin().cluster().prepareNodesInfo().clear().setSettings(true).setHttp(true).get();
         httpAddresses = new InetSocketAddress[nodeInfos.getNodes().length];

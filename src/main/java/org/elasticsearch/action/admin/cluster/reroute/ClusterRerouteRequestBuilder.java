@@ -19,19 +19,18 @@
 
 package org.elasticsearch.action.admin.cluster.reroute;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
-import org.elasticsearch.client.ClusterAdminClient;
+import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommand;
 import org.elasticsearch.common.bytes.BytesReference;
 
 /**
  * Builder for a cluster reroute request
  */
-public class ClusterRerouteRequestBuilder extends AcknowledgedRequestBuilder<ClusterRerouteRequest, ClusterRerouteResponse, ClusterRerouteRequestBuilder, ClusterAdminClient> {
+public class ClusterRerouteRequestBuilder extends AcknowledgedRequestBuilder<ClusterRerouteRequest, ClusterRerouteResponse, ClusterRerouteRequestBuilder> {
 
-    public ClusterRerouteRequestBuilder(ClusterAdminClient clusterClient) {
-        super(clusterClient, new ClusterRerouteRequest());
+    public ClusterRerouteRequestBuilder(ElasticsearchClient client, ClusterRerouteAction action) {
+        super(client, action, new ClusterRerouteRequest());
     }
 
     /**
@@ -67,10 +66,5 @@ public class ClusterRerouteRequestBuilder extends AcknowledgedRequestBuilder<Clu
     public ClusterRerouteRequestBuilder setSource(BytesReference source) throws Exception {
         request.source(source);
         return this;
-    }
-
-    @Override
-    protected void doExecute(ActionListener<ClusterRerouteResponse> listener) {
-        client.reroute(request, listener);
     }
 }

@@ -19,10 +19,9 @@
 
 package org.elasticsearch.action.indexedscripts.put;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -33,10 +32,10 @@ import java.util.Map;
 /**
  * An index document action request builder.
  */
-public class PutIndexedScriptRequestBuilder extends ActionRequestBuilder<PutIndexedScriptRequest, PutIndexedScriptResponse, PutIndexedScriptRequestBuilder, Client> {
+public class PutIndexedScriptRequestBuilder extends ActionRequestBuilder<PutIndexedScriptRequest, PutIndexedScriptResponse, PutIndexedScriptRequestBuilder> {
 
-    public PutIndexedScriptRequestBuilder(Client client) {
-        super(client, new PutIndexedScriptRequest());
+    public PutIndexedScriptRequestBuilder(ElasticsearchClient client, PutIndexedScriptAction action) {
+        super(client, action, new PutIndexedScriptRequest());
     }
 
     /**
@@ -126,7 +125,7 @@ public class PutIndexedScriptRequestBuilder extends ActionRequestBuilder<PutInde
 
     /**
      * Constructs a simple document with a field name and value pairs.
-     * <b>Note: the number of objects passed to this method must be an even number.</b> 
+     * <b>Note: the number of objects passed to this method must be an even number.</b>
      */
     public PutIndexedScriptRequestBuilder setSource(Object... source) {
         request.source(source);
@@ -181,28 +180,5 @@ public class PutIndexedScriptRequestBuilder extends ActionRequestBuilder<PutInde
     public PutIndexedScriptRequestBuilder setVersionType(VersionType versionType) {
         request.versionType(versionType);
         return this;
-    }
-
-
-    @Override
-    protected void doExecute(final ActionListener<PutIndexedScriptResponse> listener) {
-        client.putIndexedScript(request, listener);
-        /*
-        try {
-            scriptService.putScriptToIndex(client, request.safeSource(), request.id(), request.scriptLang(), null, request.opType().toString(), new ActionListener<IndexResponse>() {
-                @Override
-                public void onResponse(IndexResponse indexResponse) {
-                    listener.onResponse(new PutIndexedScriptResponse(indexResponse.getType(),indexResponse.getId(),indexResponse.getVersion(),indexResponse.isCreated()));
-                }
-
-                @Override
-                public void onFailure(Throwable e) {
-                    listener.onFailure(e);
-                }
-            });
-        } catch (IOException ioe) {
-            listener.onFailure(ioe);
-        }
-         */
     }
 }

@@ -20,40 +20,12 @@
 package org.elasticsearch.client.transport;
 
 import com.google.common.collect.ImmutableList;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.*;
-import org.elasticsearch.action.bulk.BulkRequest;
-import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.count.CountRequest;
-import org.elasticsearch.action.count.CountResponse;
-import org.elasticsearch.action.delete.DeleteRequest;
-import org.elasticsearch.action.delete.DeleteResponse;
-import org.elasticsearch.action.explain.ExplainRequest;
-import org.elasticsearch.action.explain.ExplainResponse;
-import org.elasticsearch.action.get.GetRequest;
-import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.action.get.MultiGetRequest;
-import org.elasticsearch.action.get.MultiGetResponse;
-import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.action.mlt.MoreLikeThisRequest;
-import org.elasticsearch.action.percolate.PercolateRequest;
-import org.elasticsearch.action.percolate.PercolateResponse;
-import org.elasticsearch.action.search.*;
-import org.elasticsearch.action.suggest.SuggestRequest;
-import org.elasticsearch.action.suggest.SuggestResponse;
-import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
-import org.elasticsearch.action.termvectors.MultiTermVectorsResponse;
-import org.elasticsearch.action.termvectors.TermVectorsRequest;
-import org.elasticsearch.action.termvectors.TermVectorsResponse;
-import org.elasticsearch.action.update.UpdateRequest;
-import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
-import org.elasticsearch.client.AdminClient;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.client.support.AbstractClient;
-import org.elasticsearch.client.transport.support.InternalTransportClient;
+import org.elasticsearch.client.support.Headers;
+import org.elasticsearch.client.transport.support.TransportProxyClient;
 import org.elasticsearch.cluster.ClusterNameModule;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.collect.Tuple;
@@ -93,92 +65,99 @@ import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilde
  */
 public class TransportClient extends AbstractClient {
 
+    /**
+     * Handy method ot create a {@link org.elasticsearch.client.transport.TransportClient.Builder}.
+     */
+    public static Builder builder() {
+        return new Builder();
+    }
+
+    /**
+     * A builder used to create an instance of the transport client.
+     */
+    public static class Builder {
+
+        private Settings settings = ImmutableSettings.EMPTY;
+        private boolean loadConfigSettings = true;
+
+        /**
+         * The settings to configure the transport client with.
+         */
+        public Builder settings(Settings.Builder settings) {
+            return settings(settings.build());
+        }
+
+        /**
+         * The settings to configure the transport client with.
+         */
+        public Builder settings(Settings settings) {
+            this.settings = settings;
+            return this;
+        }
+
+        /**
+         * Should the transport client load file based configuration automatically or not (and rely
+         * only on the provided settings), defaults to true.
+         */
+        public Builder loadConfigSettings(boolean loadConfigSettings) {
+            this.loadConfigSettings = loadConfigSettings;
+            return this;
+        }
+
+        /**
+         * Builds a new instance of the transport client.
+         */
+        public TransportClient build() {
+            Tuple<Settings, Environment> tuple = InternalSettingsPreparer.prepareSettings(settings, loadConfigSettings);
+            Settings settings = settingsBuilder()
+                    .put(NettyTransport.PING_SCHEDULE, "5s") // enable by default the transport schedule ping interval
+                    .put(tuple.v1())
+                    .put("network.server", false)
+                    .put("node.client", true)
+                    .put(CLIENT_TYPE_SETTING, CLIENT_TYPE)
+                    .build();
+            Environment environment = tuple.v2();
+
+            PluginsService pluginsService = new PluginsService(settings, tuple.v2());
+            this.settings = pluginsService.updatedSettings();
+
+            Version version = Version.CURRENT;
+
+            CompressorFactory.configure(this.settings);
+
+            ModulesBuilder modules = new ModulesBuilder();
+            modules.add(new Version.Module(version));
+            modules.add(new PluginsModule(this.settings, pluginsService));
+            modules.add(new EnvironmentModule(environment));
+            modules.add(new SettingsModule(this.settings));
+            modules.add(new NetworkModule());
+            modules.add(new ClusterNameModule(this.settings));
+            modules.add(new ThreadPoolModule(this.settings));
+            modules.add(new TransportSearchModule());
+            modules.add(new TransportModule(this.settings));
+            modules.add(new ActionModule(true));
+            modules.add(new ClientTransportModule());
+            modules.add(new CircuitBreakerModule(this.settings));
+
+            Injector injector = modules.createInjector();
+            injector.getInstance(TransportService.class).start();
+
+            return new TransportClient(injector);
+        }
+    }
+
     public static final String CLIENT_TYPE = "transport";
 
     final Injector injector;
 
-    private final Settings settings;
-    private final Environment environment;
-    private final PluginsService pluginsService;
     private final TransportClientNodesService nodesService;
-    private final InternalTransportClient internalClient;
+    private final TransportProxyClient proxy;
 
-    /**
-     * Constructs a new transport client with explicit settings and settings loaded either from the classpath or the file
-     * system (the <tt>elasticsearch.(yml|json)</tt> files optionally prefixed with <tt>config/</tt>).
-     */
-    public TransportClient(Settings settings) {
-        this(settings, true);
-    }
-
-    /**
-     * Constructs a new transport client with explicit settings and settings loaded either from the classpath or the file
-     * system (the <tt>elasticsearch.(yml|json)</tt> files optionally prefixed with <tt>config/</tt>).
-     */
-    public TransportClient(Settings.Builder settings) {
-        this(settings.build(), true);
-    }
-
-    /**
-     * Constructs a new transport client with the provided settings and the ability to control if settings will
-     * be loaded from the classpath / file system (the <tt>elasticsearch.(yml|json)</tt> files optionally prefixed with
-     * <tt>config/</tt>).
-     *
-     * @param settings           The explicit settings.
-     * @param loadConfigSettings <tt>true</tt> if settings should be loaded from the classpath/file system.
-     * @throws org.elasticsearch.ElasticsearchException
-     */
-    public TransportClient(Settings.Builder settings, boolean loadConfigSettings) {
-        this(settings.build(), loadConfigSettings);
-    }
-
-    /**
-     * Constructs a new transport client with the provided settings and the ability to control if settings will
-     * be loaded from the classpath / file system (the <tt>elasticsearch.(yml|json)</tt> files optionally prefixed with
-     * <tt>config/</tt>).
-     *
-     * @param pSettings          The explicit settings.
-     * @param loadConfigSettings <tt>true</tt> if settings should be loaded from the classpath/file system.
-     * @throws org.elasticsearch.ElasticsearchException
-     */
-    public TransportClient(Settings pSettings, boolean loadConfigSettings) {
-        Tuple<Settings, Environment> tuple = InternalSettingsPreparer.prepareSettings(pSettings, loadConfigSettings);
-        Settings settings = settingsBuilder()
-                .put(NettyTransport.PING_SCHEDULE, "5s") // enable by default the transport schedule ping interval
-                .put(tuple.v1())
-                .put("network.server", false)
-                .put("node.client", true)
-                .put(CLIENT_TYPE_SETTING, CLIENT_TYPE)
-                .build();
-        this.environment = tuple.v2();
-
-        this.pluginsService = new PluginsService(settings, tuple.v2());
-        this.settings = pluginsService.updatedSettings();
-
-        Version version = Version.CURRENT;
-
-        CompressorFactory.configure(this.settings);
-
-        ModulesBuilder modules = new ModulesBuilder();
-        modules.add(new Version.Module(version));
-        modules.add(new PluginsModule(this.settings, pluginsService));
-        modules.add(new EnvironmentModule(environment));
-        modules.add(new SettingsModule(this.settings));
-        modules.add(new NetworkModule());
-        modules.add(new ClusterNameModule(this.settings));
-        modules.add(new ThreadPoolModule(this.settings));
-        modules.add(new TransportSearchModule());
-        modules.add(new TransportModule(this.settings));
-        modules.add(new ActionModule(true));
-        modules.add(new ClientTransportModule());
-        modules.add(new CircuitBreakerModule(this.settings));
-
-        injector = modules.createInjector();
-
-        injector.getInstance(TransportService.class).start();
-
+    private TransportClient(Injector injector) {
+        super(injector.getInstance(Settings.class), injector.getInstance(ThreadPool.class), injector.getInstance(Headers.class));
+        this.injector = injector;
         nodesService = injector.getInstance(TransportClientNodesService.class);
-        internalClient = injector.getInstance(InternalTransportClient.class);
+        proxy = injector.getInstance(TransportProxyClient.class);
     }
 
     TransportClientNodesService nodeService() {
@@ -265,7 +244,7 @@ public class TransportClient extends AbstractClient {
             // ignore, might not be bounded
         }
 
-        for (Class<? extends LifecycleComponent> plugin : pluginsService.services()) {
+        for (Class<? extends LifecycleComponent> plugin : injector.getInstance(PluginsService.class).services()) {
             injector.getInstance(plugin).close();
         }
         try {
@@ -278,187 +257,7 @@ public class TransportClient extends AbstractClient {
     }
 
     @Override
-    public Settings settings() {
-        return this.settings;
-    }
-
-    @Override
-    public ThreadPool threadPool() {
-        return internalClient.threadPool();
-    }
-
-    @Override
-    public AdminClient admin() {
-        return internalClient.admin();
-    }
-
-    @Override
-    public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder, Client>> ActionFuture<Response> execute(Action<Request, Response, RequestBuilder, Client> action, Request request) {
-        return internalClient.execute(action, request);
-    }
-
-    @Override
-    public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder, Client>> void execute(Action<Request, Response, RequestBuilder, Client> action, Request request, ActionListener<Response> listener) {
-        internalClient.execute(action, request, listener);
-    }
-
-    @Override
-    public ActionFuture<IndexResponse> index(IndexRequest request) {
-        return internalClient.index(request);
-    }
-
-    @Override
-    public void index(IndexRequest request, ActionListener<IndexResponse> listener) {
-        internalClient.index(request, listener);
-    }
-
-    @Override
-    public ActionFuture<UpdateResponse> update(UpdateRequest request) {
-        return internalClient.update(request);
-    }
-
-    @Override
-    public void update(UpdateRequest request, ActionListener<UpdateResponse> listener) {
-        internalClient.update(request, listener);
-    }
-
-    @Override
-    public ActionFuture<DeleteResponse> delete(DeleteRequest request) {
-        return internalClient.delete(request);
-    }
-
-    @Override
-    public void delete(DeleteRequest request, ActionListener<DeleteResponse> listener) {
-        internalClient.delete(request, listener);
-    }
-
-    @Override
-    public ActionFuture<BulkResponse> bulk(BulkRequest request) {
-        return internalClient.bulk(request);
-    }
-
-    @Override
-    public void bulk(BulkRequest request, ActionListener<BulkResponse> listener) {
-        internalClient.bulk(request, listener);
-    }
-
-    @Override
-    public ActionFuture<GetResponse> get(GetRequest request) {
-        return internalClient.get(request);
-    }
-
-    @Override
-    public void get(GetRequest request, ActionListener<GetResponse> listener) {
-        internalClient.get(request, listener);
-    }
-
-    @Override
-    public ActionFuture<MultiGetResponse> multiGet(MultiGetRequest request) {
-        return internalClient.multiGet(request);
-    }
-
-    @Override
-    public void multiGet(MultiGetRequest request, ActionListener<MultiGetResponse> listener) {
-        internalClient.multiGet(request, listener);
-    }
-
-    @Override
-    public ActionFuture<CountResponse> count(CountRequest request) {
-        return internalClient.count(request);
-    }
-
-    @Override
-    public void count(CountRequest request, ActionListener<CountResponse> listener) {
-        internalClient.count(request, listener);
-    }
-
-    @Override
-    public ActionFuture<SuggestResponse> suggest(SuggestRequest request) {
-        return internalClient.suggest(request);
-    }
-
-    @Override
-    public void suggest(SuggestRequest request, ActionListener<SuggestResponse> listener) {
-        internalClient.suggest(request, listener);
-    }
-
-    @Override
-    public ActionFuture<SearchResponse> search(SearchRequest request) {
-        return internalClient.search(request);
-    }
-
-    @Override
-    public void search(SearchRequest request, ActionListener<SearchResponse> listener) {
-        internalClient.search(request, listener);
-    }
-
-    @Override
-    public ActionFuture<SearchResponse> searchScroll(SearchScrollRequest request) {
-        return internalClient.searchScroll(request);
-    }
-
-    @Override
-    public void searchScroll(SearchScrollRequest request, ActionListener<SearchResponse> listener) {
-        internalClient.searchScroll(request, listener);
-    }
-
-    @Override
-    public ActionFuture<MultiSearchResponse> multiSearch(MultiSearchRequest request) {
-        return internalClient.multiSearch(request);
-    }
-
-    @Override
-    public void multiSearch(MultiSearchRequest request, ActionListener<MultiSearchResponse> listener) {
-        internalClient.multiSearch(request, listener);
-    }
-
-    @Override
-    public ActionFuture<SearchResponse> moreLikeThis(MoreLikeThisRequest request) {
-        return internalClient.moreLikeThis(request);
-    }
-
-    @Override
-    public void moreLikeThis(MoreLikeThisRequest request, ActionListener<SearchResponse> listener) {
-        internalClient.moreLikeThis(request, listener);
-    }
-
-    @Override
-    public ActionFuture<TermVectorsResponse> termVectors(TermVectorsRequest request) {
-        return internalClient.termVectors(request);
-    }
-
-    @Override
-    public void termVectors(TermVectorsRequest request, ActionListener<TermVectorsResponse> listener) {
-        internalClient.termVectors(request, listener);
-    }
-
-    @Override
-    public ActionFuture<MultiTermVectorsResponse> multiTermVectors(final MultiTermVectorsRequest request) {
-        return internalClient.multiTermVectors(request);
-    }
-
-    @Override
-    public void multiTermVectors(final MultiTermVectorsRequest request, final ActionListener<MultiTermVectorsResponse> listener) {
-        internalClient.multiTermVectors(request, listener);
-    }
-
-    @Override
-    public ActionFuture<PercolateResponse> percolate(PercolateRequest request) {
-        return internalClient.percolate(request);
-    }
-
-    @Override
-    public void percolate(PercolateRequest request, ActionListener<PercolateResponse> listener) {
-        internalClient.percolate(request, listener);
-    }
-
-    @Override
-    public ActionFuture<ExplainResponse> explain(ExplainRequest request) {
-        return internalClient.explain(request);
-    }
-
-    @Override
-    public void explain(ExplainRequest request, ActionListener<ExplainResponse> listener) {
-        internalClient.explain(request, listener);
+    protected <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> void doExecute(Action<Request, Response, RequestBuilder> action, Request request, ActionListener<Response> listener) {
+        proxy.execute(action, request, listener);
     }
 }

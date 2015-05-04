@@ -19,12 +19,12 @@
 
 package org.elasticsearch.action.count;
 
-import org.elasticsearch.action.ClientAction;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.action.Action;
+import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  */
-public class CountAction extends ClientAction<CountRequest, CountResponse, CountRequestBuilder> {
+public class CountAction extends Action<CountRequest, CountResponse, CountRequestBuilder> {
 
     public static final CountAction INSTANCE = new CountAction();
     public static final String NAME = "indices:data/read/count";
@@ -39,7 +39,7 @@ public class CountAction extends ClientAction<CountRequest, CountResponse, Count
     }
 
     @Override
-    public CountRequestBuilder newRequestBuilder(Client client) {
-        return new CountRequestBuilder(client);
+    public CountRequestBuilder newRequestBuilder(ElasticsearchClient client) {
+        return new CountRequestBuilder(client, this);
     }
 }

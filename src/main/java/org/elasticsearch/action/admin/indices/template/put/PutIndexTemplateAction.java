@@ -19,12 +19,12 @@
 
 package org.elasticsearch.action.admin.indices.template.put;
 
-import org.elasticsearch.action.admin.indices.IndicesAction;
-import org.elasticsearch.client.IndicesAdminClient;
+import org.elasticsearch.action.Action;
+import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  */
-public class PutIndexTemplateAction extends IndicesAction<PutIndexTemplateRequest, PutIndexTemplateResponse, PutIndexTemplateRequestBuilder> {
+public class PutIndexTemplateAction extends Action<PutIndexTemplateRequest, PutIndexTemplateResponse, PutIndexTemplateRequestBuilder> {
 
     public static final PutIndexTemplateAction INSTANCE = new PutIndexTemplateAction();
     public static final String NAME = "indices:admin/template/put";
@@ -39,7 +39,7 @@ public class PutIndexTemplateAction extends IndicesAction<PutIndexTemplateReques
     }
 
     @Override
-    public PutIndexTemplateRequestBuilder newRequestBuilder(IndicesAdminClient client) {
-        return new PutIndexTemplateRequestBuilder(client);
+    public PutIndexTemplateRequestBuilder newRequestBuilder(ElasticsearchClient client) {
+        return new PutIndexTemplateRequestBuilder(client, this);
     }
 }

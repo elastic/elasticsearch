@@ -49,7 +49,7 @@ public class ManyIndicesRemoteStressTest {
         Node node = null;
         // TODO: what is this? a public static void main test?!?!?!
         if (true) {
-            client = new TransportClient(ImmutableSettings.EMPTY).addTransportAddress(new InetSocketTransportAddress("localhost", 9300));
+            client = TransportClient.builder().settings(ImmutableSettings.EMPTY).build().addTransportAddress(new InetSocketTransportAddress("localhost", 9300));
         } else {
             node = NodeBuilder.nodeBuilder().client(true).node();
             client = node.client();

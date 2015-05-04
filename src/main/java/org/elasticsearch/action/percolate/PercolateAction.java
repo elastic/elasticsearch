@@ -19,12 +19,12 @@
 
 package org.elasticsearch.action.percolate;
 
-import org.elasticsearch.action.ClientAction;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.action.Action;
+import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  */
-public class PercolateAction extends ClientAction<PercolateRequest, PercolateResponse, PercolateRequestBuilder> {
+public class PercolateAction extends Action<PercolateRequest, PercolateResponse, PercolateRequestBuilder> {
 
     public static final PercolateAction INSTANCE = new PercolateAction();
     public static final String NAME = "indices:data/read/percolate";
@@ -39,7 +39,7 @@ public class PercolateAction extends ClientAction<PercolateRequest, PercolateRes
     }
 
     @Override
-    public PercolateRequestBuilder newRequestBuilder(Client client) {
-        return new PercolateRequestBuilder(client);
+    public PercolateRequestBuilder newRequestBuilder(ElasticsearchClient client) {
+        return new PercolateRequestBuilder(client, this);
     }
 }

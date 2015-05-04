@@ -62,6 +62,10 @@ public final class ThreadedActionListener<Response> implements ActionListener<Re
             if (listener instanceof Future) {
                 return listener;
             }
+            // already threaded...
+            if (listener instanceof ThreadedActionListener) {
+                return listener;
+            }
             return new ThreadedActionListener<>(logger, threadPool, ThreadPool.Names.LISTENER, listener);
         }
     }

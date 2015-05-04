@@ -37,12 +37,13 @@
         <testframework.version>2.1.14</testframework.version>
         <tests.jvms>auto</tests.jvms>
         <tests.shuffle>true</tests.shuffle>
-        <tests.output>onerror</tests.output>
+        <tests.output>always</tests.output>
         <tests.client.ratio></tests.client.ratio>
         <tests.bwc.path>${project.basedir}/backwards</tests.bwc.path>
         <tests.locale>random</tests.locale>
         <tests.timezone>random</tests.timezone>
         <tests.slow>false</tests.slow>
+        <tests.security.manager>true</tests.security.manager>
         <es.logger.level>ERROR</es.logger.level>
         <tests.heap.size>512m</tests.heap.size>
         <tests.heapdump.path>${basedir}/logs/</tests.heapdump.path>
@@ -583,6 +584,7 @@
                                 <param>-Des.logger.prefix=</param>
                                 <param>-XX:+HeapDumpOnOutOfMemoryError</param>
                                 <param>-XX:HeapDumpPath=${tests.heapdump.path}</param>
+                                <param>-Djava.security.debug=access:failure,policy</param>
                             </jvmArgs>
                             <shuffleOnSlave>${tests.shuffle}</shuffleOnSlave>
                             <sysouts>${tests.verbose}</sysouts>
@@ -638,8 +640,6 @@
                                 <!-- true if we are running tests from maven (as opposed to IDE, etc).
                                      allows us to assert certain things work, like libsigar -->
                                 <tests.maven>true</tests.maven>
-                                <!-- security manager / test.policy -->
-                                <java.security.policy>${basedir}/src/main/resources/org/elasticsearch/bootstrap/security.policy</java.security.policy>
                             </systemProperties>
                         </configuration>
                     </execution>

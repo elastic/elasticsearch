@@ -25,12 +25,8 @@ import java.io.*;
 import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.Permission;
-import java.security.PermissionCollection;
 import java.security.Permissions;
 import java.security.Policy;
-import java.security.ProtectionDomain;
-import java.security.URIParameter;
 
 /** 
  * Initializes securitymanager with necessary permissions.
@@ -39,18 +35,14 @@ import java.security.URIParameter;
  * permissions based on the environment (data paths, etc)
  */
 class Security {
-    
-    /** template policy file, the one used in tests */
-    static final String POLICY_RESOURCE = "security.policy";
-    
+       
     /** 
      * Initializes securitymanager for the environment
      * Can only happen once!
      */
     static void configure(Environment environment) throws Exception {
         // enable security policy: union of template and environment-based paths.
-        URI template = Security.class.getResource(POLICY_RESOURCE).toURI();
-        Policy.setPolicy(new ESPolicy(template, createPermissions(environment)));
+        Policy.setPolicy(new ESPolicy(createPermissions(environment)));
 
         // enable security manager
         System.setSecurityManager(new SecurityManager());
@@ -96,22 +88,6 @@ class Security {
             // potentially virus scanner
         } catch (SecurityException problem) {
             throw new SecurityException("Security misconfiguration: cannot access java.io.tmpdir", problem);
-        }
-    }
-
-    /** custom policy for union of static and dynamic permissions */
-    static class ESPolicy extends Policy {
-        final Policy template;
-        final PermissionCollection dynamic;
-
-        ESPolicy(URI template, PermissionCollection dynamic) throws Exception {
-            this.template = Policy.getInstance("JavaPolicy", new URIParameter(template));
-            this.dynamic = dynamic;
-        }
-
-        @Override
-        public boolean implies(ProtectionDomain domain, Permission permission) {
-            return template.implies(domain, permission) || dynamic.implies(permission);
         }
     }
 }

@@ -30,6 +30,7 @@ import org.elasticsearch.common.inject.spi.Message;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.jna.Kernel32Library;
 import org.elasticsearch.common.jna.Natives;
+import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.logging.log4j.LogConfigurator;
@@ -177,9 +178,7 @@ public class Bootstrap {
 
     private void stop() {
         try {
-            if (node != null) {
-                node.close();
-            }
+            Releasables.close(node);
         } finally {
             keepAliveLatch.countDown();
         }

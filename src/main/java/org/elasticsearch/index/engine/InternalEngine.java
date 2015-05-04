@@ -669,7 +669,7 @@ public class InternalEngine extends Engine {
             if (flushLock.tryLock() == false) {
                 // if we can't get the lock right away we block if needed otherwise barf
                 if (waitIfOngoing) {
-                    logger.trace("waiting fore in-flight flush to finish");
+                    logger.trace("waiting for in-flight flush to finish");
                     flushLock.lock();
                     logger.trace("acquired flush lock after blocking");
                 } else {

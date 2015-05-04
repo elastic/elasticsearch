@@ -19,30 +19,42 @@
 
 package org.elasticsearch.index;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShadowIndexShard;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.recovery.RecoveryTarget;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.InternalTestCluster;
+import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.transport.*;
 import org.junit.Test;
 
+import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static com.google.common.collect.Lists.newArrayList;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -307,6 +319,174 @@ public class IndexWithShadowReplicasTests extends ElasticsearchIntegrationTest {
         assertTrue(gResp2.isExists());
         assertThat(gResp1.getField("foo").getValue().toString(), equalTo("bar"));
         assertThat(gResp2.getField("foo").getValue().toString(), equalTo("bar"));
+    }
+
+    @Test
+    public void testPrimaryRelocationWithConcurrentIndexing() throws Exception {
+        Settings nodeSettings = ImmutableSettings.builder()
+                .put("node.add_id_to_custom_path", false)
+                .put("node.enable_custom_paths", true)
+                .build();
+
+        String node1 = internalCluster().startNode(nodeSettings);
+        Path dataPath = createTempDir();
+        final String IDX = "test";
+
+        Settings idxSettings = ImmutableSettings.builder()
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+                .put(IndexMetaData.SETTING_DATA_PATH, dataPath.toAbsolutePath().toString())
+                .put(IndexMetaData.SETTING_SHADOW_REPLICAS, true)
+                .put(IndexMetaData.SETTING_SHARED_FILESYSTEM, true)
+                .build();
+
+        prepareCreate(IDX).setSettings(idxSettings).addMapping("doc", "foo", "type=string").get();
+        ensureYellow(IDX);
+        // Node1 has the primary, now node2 has the replica
+        String node2 = internalCluster().startNode(nodeSettings);
+        ensureGreen(IDX);
+        flushAndRefresh(IDX);
+        String node3 = internalCluster().startNode(nodeSettings);
+        final AtomicInteger counter = new AtomicInteger(0);
+        final CountDownLatch started = new CountDownLatch(1);
+
+        final int numPhase1Docs = scaledRandomIntBetween(25, 200);
+        final int numPhase2Docs = scaledRandomIntBetween(25, 200);
+        final CountDownLatch phase1finished = new CountDownLatch(1);
+        final CountDownLatch phase2finished = new CountDownLatch(1);
+
+        Thread thread = new Thread() {
+            @Override
+            public void run() {
+                started.countDown();
+                while (counter.get() < (numPhase1Docs + numPhase2Docs)) {
+                    final IndexResponse indexResponse = client().prepareIndex(IDX, "doc",
+                            Integer.toString(counter.incrementAndGet())).setSource("foo", "bar").get();
+                    assertTrue(indexResponse.isCreated());
+                    final int docCount = counter.get();
+                    if (docCount == numPhase1Docs) {
+                        phase1finished.countDown();
+                    }
+                }
+                logger.info("--> stopping indexing thread");
+                phase2finished.countDown();
+            }
+        };
+        thread.start();
+        started.await();
+        phase1finished.await(); // wait for a certain number of documents to be indexed
+        logger.info("--> excluding {} from allocation", node1);
+        // now prevent primary from being allocated on node 1 move to node_3
+        Settings build = ImmutableSettings.builder().put("index.routing.allocation.exclude._name", node1).build();
+        client().admin().indices().prepareUpdateSettings(IDX).setSettings(build).execute().actionGet();
+        // wait for more documents to be indexed post-recovery, also waits for
+        // indexing thread to stop
+        phase2finished.await();
+        ensureGreen(IDX);
+        thread.join();
+        logger.info("--> performing query");
+        flushAndRefresh();
+
+        SearchResponse resp = client().prepareSearch(IDX).setQuery(matchAllQuery()).get();
+        assertHitCount(resp, counter.get());
+        assertHitCount(resp, numPhase1Docs + numPhase2Docs);
+    }
+
+    @Test
+    public void testPrimaryRelocationWhereRecoveryFails() throws Exception {
+        Settings nodeSettings = ImmutableSettings.builder()
+                .put("node.add_id_to_custom_path", false)
+                .put("node.enable_custom_paths", true)
+                .put(TransportModule.TRANSPORT_SERVICE_TYPE_KEY, MockTransportService.class.getName())
+                .build();
+
+        String node1 = internalCluster().startNode(nodeSettings);
+        Path dataPath = createTempDir();
+        final String IDX = "test";
+
+        Settings idxSettings = ImmutableSettings.builder()
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+                .put(IndexMetaData.SETTING_DATA_PATH, dataPath.toAbsolutePath().toString())
+                .put(IndexMetaData.SETTING_SHADOW_REPLICAS, true)
+                .put(IndexMetaData.SETTING_SHARED_FILESYSTEM, true)
+                .build();
+
+        prepareCreate(IDX).setSettings(idxSettings).addMapping("doc", "foo", "type=string").get();
+        ensureYellow(IDX);
+        // Node1 has the primary, now node2 has the replica
+        String node2 = internalCluster().startNode(nodeSettings);
+        ensureGreen(IDX);
+        flushAndRefresh(IDX);
+        String node3 = internalCluster().startNode(nodeSettings);
+        final AtomicInteger counter = new AtomicInteger(0);
+        final CountDownLatch started = new CountDownLatch(1);
+
+        final int numPhase1Docs = scaledRandomIntBetween(25, 200);
+        final int numPhase2Docs = scaledRandomIntBetween(25, 200);
+        final int numPhase3Docs = scaledRandomIntBetween(25, 200);
+        final CountDownLatch phase1finished = new CountDownLatch(1);
+        final CountDownLatch phase2finished = new CountDownLatch(1);
+        final CountDownLatch phase3finished = new CountDownLatch(1);
+
+        final AtomicBoolean keepFailing = new AtomicBoolean(true);
+
+        MockTransportService mockTransportService = ((MockTransportService) internalCluster().getInstance(TransportService.class, node1));
+        mockTransportService.addDelegate(internalCluster().getInstance(Discovery.class, node3).localNode(),
+                new MockTransportService.DelegateTransport(mockTransportService.original()) {
+
+                    @Override
+                    public void sendRequest(DiscoveryNode node, long requestId, String action,
+                                            TransportRequest request, TransportRequestOptions options)
+                            throws IOException, TransportException {
+                        if (keepFailing.get() && action.equals(RecoveryTarget.Actions.TRANSLOG_OPS)) {
+                            logger.info("--> failing translog ops");
+                            throw new ElasticsearchException("failing on purpose");
+                        }
+                        super.sendRequest(node, requestId, action, request, options);
+                    }
+                });
+
+        Thread thread = new Thread() {
+            @Override
+            public void run() {
+                started.countDown();
+                while (counter.get() < (numPhase1Docs + numPhase2Docs + numPhase3Docs)) {
+                    final IndexResponse indexResponse = client().prepareIndex(IDX, "doc",
+                            Integer.toString(counter.incrementAndGet())).setSource("foo", "bar").get();
+                    assertTrue(indexResponse.isCreated());
+                    final int docCount = counter.get();
+                    if (docCount == numPhase1Docs) {
+                        phase1finished.countDown();
+                    } else if (docCount == (numPhase1Docs + numPhase2Docs)) {
+                        phase2finished.countDown();
+                    }
+                }
+                logger.info("--> stopping indexing thread");
+                phase3finished.countDown();
+            }
+        };
+        thread.start();
+        started.await();
+        phase1finished.await(); // wait for a certain number of documents to be indexed
+        logger.info("--> excluding {} from allocation", node1);
+        // now prevent primary from being allocated on node 1 move to node_3
+        Settings build = ImmutableSettings.builder().put("index.routing.allocation.exclude._name", node1).build();
+        client().admin().indices().prepareUpdateSettings(IDX).setSettings(build).execute().actionGet();
+        // wait for more documents to be indexed post-recovery, also waits for
+        // indexing thread to stop
+        phase2finished.await();
+        // stop failing
+        keepFailing.set(false);
+        // wait for more docs to be indexed
+        phase3finished.await();
+        ensureGreen(IDX);
+        thread.join();
+        logger.info("--> performing query");
+        flushAndRefresh();
+
+        SearchResponse resp = client().prepareSearch(IDX).setQuery(matchAllQuery()).get();
+        assertHitCount(resp, counter.get());
     }
 
     @Test

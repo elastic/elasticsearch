@@ -1,0 +1,16 @@
+---
+"Index seal rest test":
+- do:
+   indices.create:
+      index: testing
+
+- do:
+   cluster.health:
+      wait_for_status: green
+- do:
+   indices.seal:
+      index: testing
+- do:
+   indices.stats: {level: shards}
+
+- is_true: indices.testing.shards.0.0.commit.user_data.sync_id

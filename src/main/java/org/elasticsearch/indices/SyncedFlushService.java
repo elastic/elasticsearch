@@ -18,17 +18,13 @@
  */
 package org.elasticsearch.indices;
 
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.LatchedActionListener;
-import org.elasticsearch.action.admin.cluster.node.liveness.LivenessRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
-import org.elasticsearch.action.support.DelegatingActionListener;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.ImmutableShardRouting;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -39,7 +35,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.Callback;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.index.IndexService;
@@ -56,10 +51,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
 
 public class SyncedFlushService extends AbstractComponent {
 
@@ -135,7 +128,6 @@ public class SyncedFlushService extends AbstractComponent {
             if (inflight != 1) {
                 actionListener.onResponse(new SyncedFlushResult(shardId, "operation counter on primary is non zero [" + inflight + "]"));
             }
-
             String syncId = Strings.base64UUID();
             sendSyncRequests(syncId, activeShards, state, commitIds, shardId, actionListener);
         } catch (Throwable t) {
@@ -155,6 +147,7 @@ public class SyncedFlushService extends AbstractComponent {
         }
         final AtomicInteger result = new AtomicInteger(-1);
         final CountDownLatch latch = new CountDownLatch(1);
+        logger.trace("{} retrieving in flight operation count", shardId);
         transportService.sendRequest(primaryNode, IN_FLIGHT_OPS_ACTION_NAME, new InFlightOpsRequest(shardId),
                 new BaseTransportResponseHandler<InFlightOpsResponse>() {
                     @Override
@@ -340,21 +333,25 @@ public class SyncedFlushService extends AbstractComponent {
         return new InFlightOpsResponse(opCount);
     }
 
-    public static class SyncedFlushResult {
-        private final String failureReason;
-        private final Map<ShardRouting, SyncedFlushResponse> shardResponses;
-        private final String syncId;
+    public static class SyncedFlushResult extends TransportResponse {
+        private String failureReason;
+        private Map<ShardRouting, SyncedFlushResponse> shardResponses;
+        private String syncId;
+        private ShardId shardId;
+
+        public SyncedFlushResult() {
+
+        }
 
         public ShardId getShardId() {
             return shardId;
         }
 
-        private final ShardId shardId;
-
         /**
          * failure constructor
          */
-        SyncedFlushResult(ShardId shardId, String failureReason) {
+
+        public SyncedFlushResult(ShardId shardId, String failureReason) {
             this.syncId = null;
             this.failureReason = failureReason;
             this.shardResponses = new HashMap<>();
@@ -364,7 +361,8 @@ public class SyncedFlushService extends AbstractComponent {
         /**
          * success constructor
          */
-        SyncedFlushResult(ShardId shardId, String syncId, Map<ShardRouting, SyncedFlushResponse> shardResponses) {
+
+        public SyncedFlushResult(ShardId shardId, String syncId, Map<ShardRouting, SyncedFlushResponse> shardResponses) {
             this.failureReason = null;
             this.shardResponses = shardResponses;
             this.syncId = syncId;
@@ -404,6 +402,38 @@ public class SyncedFlushService extends AbstractComponent {
             return shardResponses;
         }
 
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeOptionalString(failureReason);
+            out.writeOptionalString(syncId);
+            out.writeVInt(shardResponses.size());
+            for (Map.Entry<ShardRouting, SyncedFlushResponse> result : shardResponses.entrySet()) {
+                result.getKey().writeTo(out);
+                result.getValue().writeTo(out);
+            }
+            shardId.writeTo(out);
+        }
+
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
+            super.readFrom(in);
+            failureReason = in.readOptionalString();
+            syncId = in.readOptionalString();
+            int size = in.readVInt();
+            shardResponses = new HashMap<>();
+            for (int i = 0; i < size; i++) {
+                ImmutableShardRouting shardRouting = ImmutableShardRouting.readShardRoutingEntry(in);
+                SyncedFlushResponse syncedFlushRsponse = new SyncedFlushResponse();
+                syncedFlushRsponse.readFrom(in);
+                shardResponses.put(shardRouting, syncedFlushRsponse);
+            }
+            shardId = ShardId.readShardId(in);
+        }
+
+        public ShardId shardId() {
+            return shardId;
+        }
     }
 
     final static class PreSyncedFlushRequest extends TransportRequest {
@@ -521,7 +551,7 @@ public class SyncedFlushService extends AbstractComponent {
         }
     }
 
-    static final class SyncedFlushResponse extends TransportResponse {
+    public static final class SyncedFlushResponse extends TransportResponse {
 
         /**
          * a non null value indicates a failure to sync flush. null means success

@@ -41,7 +41,7 @@ public class GroovySecurityTests extends ElasticsearchIntegrationTest {
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        assumeTrue("security manager is enabled", System.getSecurityManager() != null);
+        assumeTrue("test requires security manager to be enabled", System.getSecurityManager() != null);
     }
 
     @Test

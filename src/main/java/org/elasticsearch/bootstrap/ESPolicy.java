@@ -43,7 +43,7 @@ public class ESPolicy extends Policy {
         this.dynamic = dynamic;
     }
 
-    @Override @SuppressForbidden(reason = "I know what i am doing")
+    @Override @SuppressForbidden(reason = "fast equals check is desired")
     public boolean implies(ProtectionDomain domain, Permission permission) {
         // run groovy scripts with no permissions
         if ("/groovy/script".equals(domain.getCodeSource().getLocation().getFile())) {

@@ -7,13 +7,13 @@ h3. "https://www.elastic.co/products/elasticsearch":https://www.elastic.co/produ
 Elasticsearch is a distributed RESTful search engine built for the cloud. Features include:
 
 * Distributed and Highly Available Search Engine.
-** Each index is fully sharded with a configurable number of shards.
+** Each index is fully shared with a configurable number of shards.
 ** Each shard can have one or more replicas.
 ** Read / Search operations performed on either one of the replica shard.
 * Multi Tenant with Multi Types.
 ** Support for more than one index.
 ** Support for more than one type per index.
-** Index level configuration (number of shards, index storage, ...).
+** Index level configuration (number of shards, index storage …).
 * Various set of APIs
 ** HTTP RESTful API
 ** Native Java API.
@@ -41,7 +41,7 @@ You need to have a recent version of Java installed. See the "Setup":http://www.
 h3. Installation
 
 * "Download":https://www.elastic.co/downloads/elasticsearch and unzip the Elasticsearch official distribution.
-* Run @bin/elasticsearch@ on unix, or @bin\elasticsearch.bat@ on windows.
+* Run @bin/elasticsearch@ on Unix, or @bin\elasticsearch.bat@ on windows.
 * Run @curl -X GET http://localhost:9200/@.
 * Start more servers ...
 

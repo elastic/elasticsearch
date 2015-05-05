@@ -43,7 +43,7 @@ to be allocated to a node. This is in contrast to `include` which will
 include a node if ANY rule matches.
 
 The `include`, `exclude` and `require` values can have generic simple
-matching wildcards, for example, `value1*`. Additonally, special attribute
+matching wildcards, for example, `value1*`. Additionally, special attribute
 names called `_ip`, `_name`, `_id` and `_host` can be used to match by node
 ip address, name, id or host name, respectively.
 

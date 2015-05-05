@@ -309,7 +309,7 @@ Fields of type `murmur3` can no longer change `doc_values` or `index` setting.
 They are always stored with doc values, and not indexed.
 
 ==== Source field configuration
-The `_source` field no longer supports `includes` and `excludes` paramters. When
+The `_source` field no longer supports `includes` and `excludes` parameters. When
 `_source` is enabled, the entire original source will be stored.
 
 ==== Config based mappings

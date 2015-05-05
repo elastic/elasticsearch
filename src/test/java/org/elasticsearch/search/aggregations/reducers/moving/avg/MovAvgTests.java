@@ -65,7 +65,6 @@ import static org.hamcrest.core.IsNull.notNullValue;
 import static org.hamcrest.core.IsNull.nullValue;
 
 @ElasticsearchIntegrationTest.SuiteScopeTest
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/10972")
 public class MovAvgTests extends ElasticsearchIntegrationTest {
 
     private static final String INTERVAL_FIELD = "l_value";

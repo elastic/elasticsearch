@@ -21,5 +21,13 @@
                 <exclude>org.elasticsearch:elasticsearch</exclude>
             </excludes>
         </dependencySet>
+        <dependencySet>
+	  <outputDirectory>/</outputDirectory>
+          <useTransitiveDependencies>false</useTransitiveDependencies>
+          <includes>
+            <include>javax.mail:mail</include>
+            <include>javax.activation:activation</include>
+          </includes>
+        </dependencySet>
     </dependencySets>
 </assembly>

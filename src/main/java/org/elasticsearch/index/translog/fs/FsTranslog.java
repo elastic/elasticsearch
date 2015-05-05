@@ -462,11 +462,6 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
     @Override
     public void syncOnEachOperation(boolean syncOnEachOperation) {
         this.syncOnEachOperation = syncOnEachOperation;
-        if (syncOnEachOperation) {
-            type = FsTranslogFile.Type.SIMPLE;
-        } else {
-            type = FsTranslogFile.Type.BUFFERED;
-        }
     }
 
     @Override

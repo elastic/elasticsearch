@@ -21,7 +21,6 @@ package org.elasticsearch.index.mapper.attachment.test.unit;
 
 import org.apache.tika.Tika;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.ParseContext;
@@ -50,7 +49,7 @@ public class VariousDocTest extends AttachmentUnitTestCase {
 
     @Before
     public void createMapper() throws IOException {
-        DocumentMapperParser mapperParser = MapperTestUtils.newMapperParser(ImmutableSettings.builder().build());
+        DocumentMapperParser mapperParser = MapperTestUtils.newMapperParser(createTempDir());
         mapperParser.putTypeParser(AttachmentMapper.CONTENT_TYPE, new AttachmentMapper.TypeParser());
 
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/attachment/test/unit/various-doc/test-mapping.json");

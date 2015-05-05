@@ -45,7 +45,7 @@ public class EncryptedDocMapperTest extends AttachmentUnitTestCase {
 
     @Test
     public void testMultipleDocsEncryptedLast() throws IOException {
-        DocumentMapperParser mapperParser = MapperTestUtils.newMapperParser();
+        DocumentMapperParser mapperParser = MapperTestUtils.newMapperParser(createTempDir());
         mapperParser.putTypeParser(AttachmentMapper.CONTENT_TYPE, new AttachmentMapper.TypeParser());
 
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/attachment/test/unit/encrypted/test-mapping.json");
@@ -78,7 +78,7 @@ public class EncryptedDocMapperTest extends AttachmentUnitTestCase {
 
     @Test
     public void testMultipleDocsEncryptedFirst() throws IOException {
-        DocumentMapperParser mapperParser = MapperTestUtils.newMapperParser();
+        DocumentMapperParser mapperParser = MapperTestUtils.newMapperParser(createTempDir());
         mapperParser.putTypeParser(AttachmentMapper.CONTENT_TYPE, new AttachmentMapper.TypeParser());
 
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/attachment/test/unit/encrypted/test-mapping.json");
@@ -111,7 +111,11 @@ public class EncryptedDocMapperTest extends AttachmentUnitTestCase {
 
     @Test(expected = MapperParsingException.class)
     public void testMultipleDocsEncryptedNotIgnoringErrors() throws IOException {
-        DocumentMapperParser mapperParser = MapperTestUtils.newMapperParser(ImmutableSettings.builder().put("index.mapping.attachment.ignore_errors", false).build());
+        DocumentMapperParser mapperParser = MapperTestUtils.newMapperParser(
+            ImmutableSettings.builder()
+                             .put("path.home", createTempDir())
+                             .put("index.mapping.attachment.ignore_errors", false)
+                             .build());
         mapperParser.putTypeParser(AttachmentMapper.CONTENT_TYPE, new AttachmentMapper.TypeParser());
 
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/attachment/test/unit/encrypted/test-mapping.json");

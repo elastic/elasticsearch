@@ -34,6 +34,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
+import org.elasticsearch.index.mapper.core.AbstractFieldMapper.CopyTo;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -176,18 +177,18 @@ public class AttachmentMapper extends AbstractFieldMapper<Object> {
             context.path().pathType(pathType);
 
             // create the content mapper under the actual name
-            Mapper contentMapper = contentBuilder.build(context);
+            FieldMapper<?> contentMapper = (FieldMapper<?>) contentBuilder.build(context);
 
             // create the DC one under the name
             context.path().add(name);
-            Mapper dateMapper = dateBuilder.build(context);
-            Mapper authorMapper = authorBuilder.build(context);
-            Mapper titleMapper = titleBuilder.build(context);
-            Mapper nameMapper = nameBuilder.build(context);
-            Mapper keywordsMapper = keywordsBuilder.build(context);
-            Mapper contentTypeMapper = contentTypeBuilder.build(context);
-            Mapper contentLength = contentLengthBuilder.build(context);
-            Mapper language = languageBuilder.build(context);
+            FieldMapper<?> dateMapper = (FieldMapper<?>) dateBuilder.build(context);
+            FieldMapper<?> authorMapper = (FieldMapper<?>) authorBuilder.build(context);
+            FieldMapper<?> titleMapper = (FieldMapper<?>) titleBuilder.build(context);
+            FieldMapper<?> nameMapper = (FieldMapper<?>) nameBuilder.build(context);
+            FieldMapper<?> keywordsMapper = (FieldMapper<?>) keywordsBuilder.build(context);
+            FieldMapper<?> contentTypeMapper = (FieldMapper<?>) contentTypeBuilder.build(context);
+            FieldMapper<?> contentLength = (FieldMapper<?>) contentLengthBuilder.build(context);
+            FieldMapper<?> language = (FieldMapper<?>) languageBuilder.build(context);
             context.path().remove();
 
             context.path().pathType(origPathType);
@@ -335,29 +336,29 @@ public class AttachmentMapper extends AbstractFieldMapper<Object> {
 
     private final boolean defaultLangDetect;
 
-    private final Mapper contentMapper;
+    private final FieldMapper<?> contentMapper;
 
-    private final Mapper dateMapper;
+    private final FieldMapper<?> dateMapper;
 
-    private final Mapper authorMapper;
+    private final FieldMapper<?> authorMapper;
 
-    private final Mapper titleMapper;
+    private final FieldMapper<?> titleMapper;
 
-    private final Mapper nameMapper;
+    private final FieldMapper<?> nameMapper;
 
-    private final Mapper keywordsMapper;
+    private final FieldMapper<?> keywordsMapper;
 
-    private final Mapper contentTypeMapper;
+    private final FieldMapper<?> contentTypeMapper;
 
-    private final Mapper contentLengthMapper;
+    private final FieldMapper<?> contentLengthMapper;
 
-    private final Mapper languageMapper;
+    private final FieldMapper<?> languageMapper;
 
     public AttachmentMapper(Names names, ContentPath.Type pathType, int defaultIndexedChars, Boolean ignoreErrors,
-                            Boolean defaultLangDetect, Mapper contentMapper,
-                            Mapper dateMapper, Mapper titleMapper, Mapper nameMapper, Mapper authorMapper,
-                            Mapper keywordsMapper, Mapper contentTypeMapper, Mapper contentLengthMapper,
-                            Mapper languageMapper, Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
+                            Boolean defaultLangDetect, FieldMapper<?> contentMapper,
+                            FieldMapper<?> dateMapper, FieldMapper<?> titleMapper, FieldMapper<?> nameMapper, FieldMapper<?> authorMapper,
+                            FieldMapper<?> keywordsMapper, FieldMapper<?> contentTypeMapper, FieldMapper<?> contentLengthMapper,
+                            FieldMapper<?> languageMapper, Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
         super(names, 1.0f, AbstractFieldMapper.Defaults.FIELD_TYPE, false, null, null, null, null, null,
                 indexSettings, multiFields, copyTo);
         this.pathType = pathType;
@@ -388,6 +389,11 @@ public class AttachmentMapper extends AbstractFieldMapper<Object> {
     @Override
     public FieldDataType defaultFieldDataType() {
         return null;
+    }
+
+    @Override
+    public CopyTo copyTo() {
+      return this.copyTo; // ask rjernst
     }
 
     @Override
@@ -577,9 +583,6 @@ public class AttachmentMapper extends AbstractFieldMapper<Object> {
         }
 
 //        multiFields.parse(this, context);
-        if (copyTo != null) {
-            copyTo.parse(context);
-        }
 
         return null;
     }

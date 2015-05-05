@@ -42,7 +42,11 @@ import static org.hamcrest.Matchers.*;
  */
 public class MetadataMapperTest extends AttachmentUnitTestCase {
 
-    protected void checkMeta(String filename, Settings settings, Long expectedDate, Long expectedLength) throws IOException {
+    protected void checkMeta(String filename, Settings otherSettings, Long expectedDate, Long expectedLength) throws IOException {
+        Settings settings = ImmutableSettings.builder()
+                                             .put(this.testSettings)
+                                             .put(otherSettings)
+                                             .build();
         DocumentMapperParser mapperParser = MapperTestUtils.newMapperParser(settings);
         mapperParser.putTypeParser(AttachmentMapper.CONTENT_TYPE, new AttachmentMapper.TypeParser());
 

@@ -19,7 +19,10 @@
 
 package org.elasticsearch.index.mapper.attachment.test.unit;
 
+import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchTestCase;
+import org.junit.Before;
 import org.junit.BeforeClass;
 
 import static org.elasticsearch.index.mapper.attachment.test.MapperTestUtils.assumeCorrectLocale;
@@ -32,5 +35,14 @@ public class AttachmentUnitTestCase extends ElasticsearchTestCase {
     @BeforeClass
     public static void checkLocale() {
         assumeCorrectLocale();
+    }
+    
+    protected Settings testSettings;
+    
+    @Before
+    public void createSettings() throws Exception {
+      testSettings = ImmutableSettings.builder()
+                                      .put("path.home", createTempDir())
+                                      .build();
     }
 }

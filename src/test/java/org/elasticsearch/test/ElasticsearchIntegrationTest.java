@@ -49,6 +49,7 @@ import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.optimize.OptimizeResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentResponse;
+import org.elasticsearch.action.admin.indices.seal.SealIndicesResponse;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequestBuilder;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -1497,8 +1498,13 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                 client().admin().indices().prepareRefresh(indices).setIndicesOptions(IndicesOptions.lenientExpandOpen()).execute(
                         new LatchedActionListener<RefreshResponse>(newLatch(inFlightAsyncOperations)));
             } else if (maybeFlush && rarely()) {
-                client().admin().indices().prepareFlush(indices).setIndicesOptions(IndicesOptions.lenientExpandOpen()).execute(
-                        new LatchedActionListener<FlushResponse>(newLatch(inFlightAsyncOperations)));
+                if (randomBoolean()) {
+                    client().admin().indices().prepareFlush(indices).setIndicesOptions(IndicesOptions.lenientExpandOpen()).execute(
+                            new LatchedActionListener<FlushResponse>(newLatch(inFlightAsyncOperations)));
+                } else {
+                    client().admin().indices().prepareSealIndices(indices).execute(
+                            new LatchedActionListener<SealIndicesResponse>(newLatch(inFlightAsyncOperations)));
+                }
             } else if (rarely()) {
                 client().admin().indices().prepareOptimize(indices).setIndicesOptions(IndicesOptions.lenientExpandOpen()).setMaxNumSegments(between(1, 10)).setFlush(maybeFlush && randomBoolean()).execute(
                         new LatchedActionListener<OptimizeResponse>(newLatch(inFlightAsyncOperations)));

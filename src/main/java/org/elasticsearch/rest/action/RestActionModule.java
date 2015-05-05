@@ -23,6 +23,9 @@ import com.google.common.collect.Lists;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.multibindings.Multibinder;
 import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.action.admin.indices.seal.RestSealIndicesAction;
+import org.elasticsearch.rest.action.admin.indices.upgrade.RestUpgradeAction;
+import org.elasticsearch.rest.action.admin.cluster.repositories.verify.RestVerifyRepositoryAction;
 import org.elasticsearch.rest.action.admin.cluster.health.RestClusterHealthAction;
 import org.elasticsearch.rest.action.admin.cluster.node.hotthreads.RestNodesHotThreadsAction;
 import org.elasticsearch.rest.action.admin.cluster.node.info.RestNodesInfoAction;
@@ -30,7 +33,6 @@ import org.elasticsearch.rest.action.admin.cluster.node.stats.RestNodesStatsActi
 import org.elasticsearch.rest.action.admin.cluster.repositories.delete.RestDeleteRepositoryAction;
 import org.elasticsearch.rest.action.admin.cluster.repositories.get.RestGetRepositoriesAction;
 import org.elasticsearch.rest.action.admin.cluster.repositories.put.RestPutRepositoryAction;
-import org.elasticsearch.rest.action.admin.cluster.repositories.verify.RestVerifyRepositoryAction;
 import org.elasticsearch.rest.action.admin.cluster.reroute.RestClusterRerouteAction;
 import org.elasticsearch.rest.action.admin.cluster.settings.RestClusterGetSettingsAction;
 import org.elasticsearch.rest.action.admin.cluster.settings.RestClusterUpdateSettingsAction;
@@ -73,7 +75,6 @@ import org.elasticsearch.rest.action.admin.indices.template.delete.RestDeleteInd
 import org.elasticsearch.rest.action.admin.indices.template.get.RestGetIndexTemplateAction;
 import org.elasticsearch.rest.action.admin.indices.template.head.RestHeadIndexTemplateAction;
 import org.elasticsearch.rest.action.admin.indices.template.put.RestPutIndexTemplateAction;
-import org.elasticsearch.rest.action.admin.indices.upgrade.RestUpgradeAction;
 import org.elasticsearch.rest.action.admin.indices.validate.query.RestValidateQueryAction;
 import org.elasticsearch.rest.action.admin.indices.warmer.delete.RestDeleteWarmerAction;
 import org.elasticsearch.rest.action.admin.indices.warmer.get.RestGetWarmerAction;
@@ -182,6 +183,7 @@ public class RestActionModule extends AbstractModule {
 
         bind(RestRefreshAction.class).asEagerSingleton();
         bind(RestFlushAction.class).asEagerSingleton();
+        bind(RestSealIndicesAction.class).asEagerSingleton();
         bind(RestOptimizeAction.class).asEagerSingleton();
         bind(RestUpgradeAction.class).asEagerSingleton();
         bind(RestClearIndicesCacheAction.class).asEagerSingleton();

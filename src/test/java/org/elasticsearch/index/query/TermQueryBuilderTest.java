@@ -24,7 +24,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryWrapperFilter;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.lucene.BytesRefs;
-import org.elasticsearch.index.search.child.CustomQueryWrappingFilter;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -83,9 +82,7 @@ public class TermQueryBuilderTest extends BaseQueryTestCase<TermQueryBuilder> {
         if (queryBuilder.queryName() != null) {
             Filter namedQuery = context.copyNamedFilters().get(queryBuilder.queryName());
             assertNotNull(namedQuery);
-            if (namedQuery instanceof CustomQueryWrappingFilter) {
-                assertThat(query, is(((CustomQueryWrappingFilter) namedQuery).getQuery()));
-            } else if (namedQuery instanceof QueryWrapperFilter) {
+            if (namedQuery instanceof QueryWrapperFilter) {
                 assertThat(query, is(((QueryWrapperFilter) namedQuery).getQuery()));
             } else {
                 fail("Expected either a QueryWrapperFilter or a CustomQueryWrappingFilter to be registered under " + queryBuilder.queryName() +

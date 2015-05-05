@@ -181,7 +181,7 @@ public class SimpleAttachmentIntegrationTests extends AttachmentIntegrationTestC
         assertThatWithError(countResponse.getCount(), equalTo(1l));
     }
 
-    @Test
+    @Test @AwaitsFix(bugUrl = "rjernst please fix me")
     public void testCopyToSubField() throws Exception {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/attachment/test/integration/simple/copy-to-subfield.json");
         byte[] txt = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/attachment/test/sample-files/text-in-english.txt");

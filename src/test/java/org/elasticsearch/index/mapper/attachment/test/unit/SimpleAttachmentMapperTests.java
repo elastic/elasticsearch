@@ -43,7 +43,7 @@ public class SimpleAttachmentMapperTests extends AttachmentUnitTestCase {
 
     @Before
     public void setupMapperParser() {
-        mapperParser = MapperTestUtils.newMapperParser();
+        mapperParser = MapperTestUtils.newMapperParser(createTempDir());
         mapperParser.putTypeParser(AttachmentMapper.CONTENT_TYPE, new AttachmentMapper.TypeParser());
     }
 

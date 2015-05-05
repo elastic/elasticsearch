@@ -193,22 +193,14 @@ public class Bootstrap {
     public static void main(String[] args) {
         System.setProperty("es.logger.prefix", "");
         INSTANCE = new Bootstrap();
-        final String pidFile = System.getProperty("es.pidfile", System.getProperty("es-pidfile"));
 
-        if (pidFile != null) {
-            try {
-                PidFile.create(PathUtils.get(pidFile), true);
-            } catch (Exception e) {
-                String errorMessage = buildErrorMessage("pid", e);
-                sysError(errorMessage, true);
-                System.exit(3);
-            }
-        }
         boolean foreground = System.getProperty("es.foreground", System.getProperty("es-foreground")) != null;
         // handle the wrapper system property, if its a service, don't run as a service
         if (System.getProperty("wrapper.service", "XXX").equalsIgnoreCase("true")) {
             foreground = false;
         }
+
+        String stage = "Settings";
 
         Settings settings = null;
         Environment environment = null;
@@ -216,9 +208,16 @@ public class Bootstrap {
             Tuple<Settings, Environment> tuple = initialSettings();
             settings = tuple.v1();
             environment = tuple.v2();
+
+            if (environment.pidFile() != null) {
+                stage = "Pid";
+                PidFile.create(environment.pidFile(), true);
+            }
+
+            stage = "Logging";
             setupLogging(settings, environment);
         } catch (Exception e) {
-            String errorMessage = buildErrorMessage("Setup", e);
+            String errorMessage = buildErrorMessage(stage, e);
             sysError(errorMessage, true);
             System.exit(3);
         }
@@ -234,7 +233,7 @@ public class Bootstrap {
             logger.warn("jvm uses the client vm, make sure to run `java` with the server vm for best performance by adding `-server` to the command line");
         }
 
-        String stage = "Initialization";
+        stage = "Initialization";
         try {
             if (!foreground) {
                 Loggers.disableConsoleLogging();

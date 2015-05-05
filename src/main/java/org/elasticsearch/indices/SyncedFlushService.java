@@ -104,7 +104,7 @@ public class SyncedFlushService extends AbstractComponent {
         }
 
         int inflight = getInflightOpsCount(shardId, state, shardRoutingTable);
-        if (inflight < 0 || inflight > 0) {
+        if (inflight != 1) {
             return new SyncedFlushResult("operation counter on primary is non zero [" + inflight + "]");
         }
 
@@ -307,8 +307,7 @@ public class SyncedFlushService extends AbstractComponent {
         if (indexShard.routingEntry().primary() == false) {
             throw new IndexShardException(request.shardId(), "expected a primary shard");
         }
-        // nocommit - implement :)
-        int opCount = 0;
+        int opCount = indexShard.getOperationsCount();
         logger.trace("{} in flight operations sampled at [{}]", request.shardId(), opCount);
         return new InFlightOpsResponse(opCount);
     }

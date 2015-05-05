@@ -465,64 +465,6 @@ public class RecoveryFromGatewayTests extends ElasticsearchIntegrationTest {
 
     @Test
     @Slow
-    @TestLogging("indices.recovery:TRACE,index.store:TRACE")
-    public void testSyncFlushedRecovery() throws Exception {
-        final Settings settings = settingsBuilder()
-                .put("action.admin.cluster.node.shutdown.delay", "10ms")
-                .put(MockFSDirectoryService.CHECK_INDEX_ON_CLOSE, false)
-                .put("gateway.recover_after_nodes", 4)
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_CONCURRENT_RECOVERIES, 4).build();
-
-        internalCluster().startNodesAsync(4, settings).get();
-        // prevent any rebalance actions during the recovery
-        assertAcked(prepareCreate("test").setSettings(ImmutableSettings.builder()
-                .put(indexSettings())
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE, EnableAllocationDecider.Rebalance.NONE)));
-        ensureGreen();
-        logger.info("--> indexing docs");
-        for (int i = 0; i < 1000; i++) {
-            client().prepareIndex("test", "type").setSource("field", "value").execute().actionGet();
-        }
-
-        logger.info("--> disabling allocation while the cluster is shut down");
-
-        // Disable allocations while we are closing nodes
-        client().admin().cluster().prepareUpdateSettings()
-                .setTransientSettings(settingsBuilder()
-                        .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE, EnableAllocationDecider.Allocation.NONE))
-                .get();
-
-        SyncedFlushService syncedFlushService = internalCluster().getInstance(SyncedFlushService.class);
-        assertTrue(syncedFlushService.attemptSyncedFlush(new ShardId("test", 0)).success());
-        logger.info("--> full cluster restart");
-        internalCluster().fullRestart();
-
-        logger.info("--> waiting for cluster to return to green after first shutdown");
-        ensureGreen();
-        logClusterState();
-        RecoveryResponse recoveryResponse = client().admin().indices().prepareRecoveries("test").get();
-        for (ShardRecoveryResponse response : recoveryResponse.shardResponses().get("test")) {
-            RecoveryState recoveryState = response.recoveryState();
-            if (!recoveryState.getPrimary()) {
-                logger.info("--> replica shard {} recovered from {} to {}, recovered {}, reuse {}",
-                        response.getShardId(), recoveryState.getSourceNode().name(), recoveryState.getTargetNode().name(),
-                        recoveryState.getIndex().recoveredBytes(), recoveryState.getIndex().reusedBytes());
-            } else {
-                logger.info("--> replica shard {} recovered from {} to {}, recovered {}, reuse {}",
-                        response.getShardId(), recoveryState.getSourceNode().name(), recoveryState.getTargetNode().name(),
-                        recoveryState.getIndex().recoveredBytes(), recoveryState.getIndex().reusedBytes());
-            }
-            assertThat("no bytes should be recovered", recoveryState.getIndex().recoveredBytes(), equalTo(0l));
-            assertThat("data should have been reused", recoveryState.getIndex().reusedBytes(), equalTo(recoveryState.getIndex().totalBytes()));
-            assertThat("no files should be recovered", recoveryState.getIndex().recoveredFileCount(), equalTo(0));
-            assertThat("all files should be reused", recoveryState.getIndex().reusedFileCount(), equalTo(recoveryState.getIndex().totalFileCount()));
-        }
-    }
-
-    @Test
-    @Slow
     public void testRecoveryDifferentNodeOrderStartup() throws Exception {
         // we need different data paths so we make sure we start the second node fresh
 

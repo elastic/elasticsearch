@@ -21,6 +21,12 @@ package org.elasticsearch.test;
 
 import org.apache.lucene.util.TestSecurityManager;
 import org.elasticsearch.bootstrap.Bootstrap;
+import org.elasticsearch.bootstrap.ESPolicy;
+import org.elasticsearch.bootstrap.Security;
+import org.elasticsearch.common.io.PathUtils;
+
+import java.security.Permissions;
+import java.security.Policy;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.systemPropertyAsBoolean;
 
@@ -28,18 +34,29 @@ import static com.carrotsearch.randomizedtesting.RandomizedTest.systemPropertyAs
  * Installs test security manager (ensures it happens regardless of which
  * test case happens to be first, test ordering, etc). 
  * <p>
- * Note that this is BS, this should be done by the jvm (by passing -Djava.security.manager).
- * turning it on/off needs to be the role of maven, not this stuff.
+ * The idea is to mimic as much as possible what happens with ES in production
+ * mode (e.g. assign permissions and install security manager the same way)
  */
-class SecurityHack {
+class SecurityBootstrap {
+    
+    // TODO: can we share more code with the non-test side here
+    // without making things complex???
 
     static {
         // just like bootstrap, initialize natives, then SM
         Bootstrap.initializeNatives(true, true);
-        // for IDEs, we check that security.policy is set
-        if (systemPropertyAsBoolean("tests.security.manager", true) && 
-                System.getProperty("java.security.policy") != null) {
-            System.setSecurityManager(new TestSecurityManager());
+        // install security manager if requested
+        if (systemPropertyAsBoolean("tests.security.manager", false)) {
+            try {
+                // initialize tmpdir the same exact way as bootstrap.
+                Permissions perms = new Permissions();
+                Security.addPath(perms, PathUtils.get(System.getProperty("java.io.tmpdir")), "read,readlink,write,delete");
+                Policy.setPolicy(new ESPolicy(perms));
+                System.setSecurityManager(new TestSecurityManager());
+                Security.selfTest();
+            } catch (Exception e) {
+                throw new RuntimeException("unable to install test security manager", e);
+            }
         }
     }
 

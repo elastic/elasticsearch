@@ -40,7 +40,15 @@ public class SecurityTests extends ElasticsearchTestCase {
         Settings settings = settingsBuilder.build();
 
         Environment environment = new Environment(settings);
-        Permissions permissions = Security.createPermissions(environment);
+        Path fakeTmpDir = createTempDir();
+        String realTmpDir = System.getProperty("java.io.tmpdir");
+        Permissions permissions;
+        try {
+            System.setProperty("java.io.tmpdir", fakeTmpDir.toString());
+            permissions = Security.createPermissions(environment);
+        } finally {
+            System.setProperty("java.io.tmpdir", realTmpDir);
+        }
       
         // the fake es home
         assertTrue(permissions.implies(new FilePermission(esHome.toString(), "read")));
@@ -48,6 +56,8 @@ public class SecurityTests extends ElasticsearchTestCase {
         assertFalse(permissions.implies(new FilePermission(path.toString(), "read")));
         // some other sibling
         assertFalse(permissions.implies(new FilePermission(path.resolve("other").toString(), "read")));
+        // double check we overwrote java.io.tmpdir correctly for the test
+        assertFalse(permissions.implies(new FilePermission(realTmpDir.toString(), "read")));
     }
 
     /** test generated permissions for all configured paths */
@@ -63,7 +73,15 @@ public class SecurityTests extends ElasticsearchTestCase {
         Settings settings = settingsBuilder.build();
 
         Environment environment = new Environment(settings);
-        Permissions permissions = Security.createPermissions(environment);
+        Path fakeTmpDir = createTempDir();
+        String realTmpDir = System.getProperty("java.io.tmpdir");
+        Permissions permissions;
+        try {
+            System.setProperty("java.io.tmpdir", fakeTmpDir.toString());
+            permissions = Security.createPermissions(environment);
+        } finally {
+            System.setProperty("java.io.tmpdir", realTmpDir);
+        }
 
         // check that all directories got permissions:
         // homefile: this is needed unless we break out rules for "lib" dir.
@@ -83,5 +101,9 @@ public class SecurityTests extends ElasticsearchTestCase {
         }
         // logs: r/w
         assertTrue(permissions.implies(new FilePermission(environment.logsFile().toString(), "read,readlink,write,delete")));
+        // temp dir: r/w
+        assertTrue(permissions.implies(new FilePermission(fakeTmpDir.toString(), "read,readlink,write,delete")));
+        // double check we overwrote java.io.tmpdir correctly for the test
+        assertFalse(permissions.implies(new FilePermission(realTmpDir.toString(), "read")));
     }
 }

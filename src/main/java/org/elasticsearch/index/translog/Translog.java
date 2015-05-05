@@ -152,10 +152,10 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
         syncInterval = indexSettings.getAsTime(INDEX_TRANSLOG_SYNC_INTERVAL, TimeValue.timeValueSeconds(5));
         if (syncInterval.millis() > 0 && threadPool != null) {
-            syncOnEachOperation(false);
+            this.syncOnEachOperation = false;
             syncScheduler = threadPool.schedule(syncInterval, ThreadPool.Names.SAME, new Sync());
         } else if (syncInterval.millis() == 0) {
-            syncOnEachOperation(true);
+            this.syncOnEachOperation = true;
         }
 
         if (indexSettingsService != null) {
@@ -504,15 +504,6 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     public boolean syncNeeded() {
         try (ReleasableLock lock = readLock.acquire()) {
             return current.syncNeeded();
-        }
-    }
-
-    public void syncOnEachOperation(boolean syncOnEachOperation) {
-        this.syncOnEachOperation = syncOnEachOperation;
-        if (syncOnEachOperation) {
-            type = TranslogFile.Type.SIMPLE;
-        } else {
-            type = TranslogFile.Type.BUFFERED;
         }
     }
 

@@ -44,4 +44,11 @@ public interface QueryBuilder extends ToXContent {
      * @throws IOException
      */
     Query toQuery(QueryParseContext parseContext) throws QueryParsingException, IOException;
+
+    /**
+     * Validate the query.
+     * @return a {@link QueryValidationException} containing error messages, {@code null} if query is valid.
+     * e.g. if fields that are needed to create the lucene query are missing.
+     */
+    QueryValidationException validate();
 }

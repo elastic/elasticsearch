@@ -19,20 +19,15 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.index.Term;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.MapperService;
 
 import java.io.IOException;
 
 /**
- *
+ * Parser for the TermQuery.
  */
-public class TermQueryParser extends BaseQueryParserTemp {
+public class TermQueryParser extends BaseQueryParser {
 
     public static final String NAME = "term";
 
@@ -45,8 +40,7 @@ public class TermQueryParser extends BaseQueryParserTemp {
         return new String[]{NAME};
     }
 
-    @Override
-    public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public QueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
         XContentParser.Token token = parser.nextToken();
@@ -80,27 +74,19 @@ public class TermQueryParser extends BaseQueryParserTemp {
             }
             parser.nextToken();
         } else {
-            value = parser.text();
+            value = parser.objectText();
             // move to the next token
             parser.nextToken();
         }
 
-        if (value == null) {
-            throw new QueryParsingException(parseContext, "No value specified for term query");
+        TermQueryBuilder termQuery = new TermQueryBuilder(fieldName, value);
+        if (boost != 1.0f) {
+            termQuery.boost(boost);
         }
-
-        Query query = null;
-        MapperService.SmartNameFieldMappers smartNameFieldMappers = parseContext.smartFieldMappers(fieldName);
-        if (smartNameFieldMappers != null && smartNameFieldMappers.hasMapper()) {
-            query = smartNameFieldMappers.mapper().termQuery(value, parseContext);
-        }
-        if (query == null) {
-            query = new TermQuery(new Term(fieldName, BytesRefs.toBytesRef(value)));
-        }
-        query.setBoost(boost);
         if (queryName != null) {
-            parseContext.addNamedQuery(queryName, query);
+            termQuery.queryName(queryName);
         }
-        return query;
+        termQuery.validate();
+        return termQuery;
     }
 }

@@ -29,7 +29,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import java.io.IOException;
 
 /**
- *
+ * Base class with common code for all {@link QueryBuilder} implementations.
  */
 public abstract class BaseQueryBuilder implements QueryBuilder {
 
@@ -85,4 +85,11 @@ public abstract class BaseQueryBuilder implements QueryBuilder {
     protected abstract String parserName();
 
     protected abstract void doXContent(XContentBuilder builder, Params params) throws IOException;
+
+    @Override
+    public QueryValidationException validate() {
+        // default impl does not validate, subclasses should override.
+        //norelease to be removed once all queries support validation
+        return null;
+    }
 }

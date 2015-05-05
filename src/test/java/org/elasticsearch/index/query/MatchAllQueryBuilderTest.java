@@ -33,7 +33,7 @@ import static org.hamcrest.Matchers.is;
 public class MatchAllQueryBuilderTest extends BaseQueryTestCase<MatchAllQueryBuilder> {
 
     @Override
-    protected void assertLuceneQuery(MatchAllQueryBuilder queryBuilder, Query query) throws IOException {
+    protected void assertLuceneQuery(MatchAllQueryBuilder queryBuilder, Query query, QueryParseContext context) throws IOException {
         assertThat(query, instanceOf(MatchAllDocsQuery.class));
         assertThat(query.getBoost(), is(queryBuilder.boost()));
     }

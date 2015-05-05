@@ -34,6 +34,7 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.EnvironmentModule;
 import org.elasticsearch.index.Index;
@@ -56,6 +57,8 @@ import org.junit.Ignore;
 import org.junit.Test;
 
 import java.io.IOException;
+
+import static org.hamcrest.Matchers.*;
 
 @Ignore
 public abstract class BaseQueryTestCase<QB extends BaseQueryBuilder & Streamable> extends ElasticsearchTestCase {
@@ -117,8 +120,11 @@ public abstract class BaseQueryTestCase<QB extends BaseQueryBuilder & Streamable
 
     /**
      * Subclass should handle assertions on the lucene query produced by the query builder under test here
+     * @param queryBuilder the original queryBuilder used in this test
+     * @param query the lucene query constructed from this
+     * @param context the {@link QueryParseContext} that can be used for assertions
      */
-    protected abstract void assertLuceneQuery(QB queryBuilder, Query query) throws IOException;
+    protected abstract void assertLuceneQuery(QB queryBuilder, Query query, QueryParseContext context) throws IOException;
 
     /**
      * Creates an empty builder of the type of query under test
@@ -131,9 +137,11 @@ public abstract class BaseQueryTestCase<QB extends BaseQueryBuilder & Streamable
      */
     @Test
     public void testFromXContent() throws IOException {
-        QueryParseContext context = new QueryParseContext(index, queryParserService);
+        QueryParseContext context = createContext();
         String contentString = testQuery.toString();
-        context.reset(XContentFactory.xContent(contentString).createParser(contentString));
+        XContentParser parser = XContentFactory.xContent(contentString).createParser(contentString);
+        context.reset(parser);
+        assertQueryHeader(parser, testQuery.parserName());
 
         QueryBuilder newQuery = queryParserService.queryParser(testQuery.parserName()).fromXContent(context);
         assertNotSame(newQuery, testQuery);
@@ -146,13 +154,13 @@ public abstract class BaseQueryTestCase<QB extends BaseQueryBuilder & Streamable
      */
     @Test
     public void testToQuery() throws IOException {
-        QueryParseContext context = new QueryParseContext(index, queryParserService);
-        assertLuceneQuery(this.testQuery, this.testQuery.toQuery(context));
+        QueryParseContext context = createContext();
+        context.setMapUnmappedFieldAsString(true);
+        assertLuceneQuery(testQuery, testQuery.toQuery(context), context);
     }
 
     /**
      * Test serialization and deserialization of the test query.
-     * @throws IOException
      */
     @Test
     public void testSerialization() throws IOException {
@@ -165,5 +173,19 @@ public abstract class BaseQueryTestCase<QB extends BaseQueryBuilder & Streamable
 
         assertEquals(deserializedQuery, testQuery);
         assertNotSame(deserializedQuery, testQuery);
+    }
+
+    /**
+     * @return a new {@link QueryParseContext} based on the base test index and queryParserService
+     */
+    protected static QueryParseContext createContext() {
+        return new QueryParseContext(index, queryParserService);
+    }
+
+    private static void assertQueryHeader(XContentParser parser, String expectedParserName) throws IOException {
+        assertThat(parser.nextToken(), is(XContentParser.Token.START_OBJECT));
+        assertThat(parser.nextToken(), is(XContentParser.Token.FIELD_NAME));
+        assertThat(parser.currentName(), is(expectedParserName));
+        assertThat(parser.nextToken(), is(XContentParser.Token.START_OBJECT));
     }
 }

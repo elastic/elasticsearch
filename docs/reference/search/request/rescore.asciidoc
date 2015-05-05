@@ -73,7 +73,7 @@ curl -s -XPOST 'localhost:9200/_search' -d '{
 '
 --------------------------------------------------
 
-The way the scores are combined can be controled with the `score_mode`:
+The way the scores are combined can be controlled with the `score_mode`:
 [cols="<,<",options="header",]
 |=======================================================================
 |Score Mode |Description

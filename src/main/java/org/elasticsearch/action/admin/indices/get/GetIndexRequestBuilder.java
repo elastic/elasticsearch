@@ -19,18 +19,17 @@
 
 package org.elasticsearch.action.admin.indices.get;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest.Feature;
 import org.elasticsearch.action.support.master.info.ClusterInfoRequestBuilder;
-import org.elasticsearch.client.IndicesAdminClient;
+import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  *
  */
 public class GetIndexRequestBuilder extends ClusterInfoRequestBuilder<GetIndexRequest, GetIndexResponse, GetIndexRequestBuilder> {
 
-    public GetIndexRequestBuilder(IndicesAdminClient client, String... indices) {
-        super(client, new GetIndexRequest().indices(indices));
+    public GetIndexRequestBuilder(ElasticsearchClient client, GetIndexAction action, String... indices) {
+        super(client, action, new GetIndexRequest().indices(indices));
     }
 
     public GetIndexRequestBuilder setFeatures(Feature... features) {
@@ -41,10 +40,5 @@ public class GetIndexRequestBuilder extends ClusterInfoRequestBuilder<GetIndexRe
     public GetIndexRequestBuilder addFeatures(Feature... features) {
         request.addFeatures(features);
         return this;
-    }
-
-    @Override
-    protected void doExecute(ActionListener<GetIndexResponse> listener) {
-        client.getIndex(request, listener);
     }
 }

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.script.expression;
 
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -53,7 +52,7 @@ public class ExpressionScriptTests extends ElasticsearchIntegrationTest {
             paramsMap.put(params[i].toString(), params[i + 1]);
         }
 
-        SearchRequestBuilder req = new SearchRequestBuilder(client()).setIndices("test");
+        SearchRequestBuilder req = client().prepareSearch().setIndices("test");
         req.setQuery(QueryBuilders.matchAllQuery())
            .addSort(SortBuilders.fieldSort("_uid")
                                 .order(SortOrder.ASC)).addScriptField("foo", "expression", script, paramsMap);
@@ -86,7 +85,7 @@ public class ExpressionScriptTests extends ElasticsearchIntegrationTest {
             client().prepareIndex("test", "doc", "2").setSource("text", "hello hello hello goodbye"),
             client().prepareIndex("test", "doc", "3").setSource("text", "hello hello goodebye"));
         ScoreFunctionBuilder score = ScoreFunctionBuilders.scriptFunction("1 / _score", "expression");
-        SearchRequestBuilder req = new SearchRequestBuilder(client()).setIndices("test");
+        SearchRequestBuilder req = client().prepareSearch().setIndices("test");
         req.setQuery(QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("text", "hello"), score).boostMode("replace"));
         req.setSearchType(SearchType.DFS_QUERY_THEN_FETCH); // make sure DF is consistent
         SearchResponse rsp = req.get();
@@ -274,7 +273,7 @@ public class ExpressionScriptTests extends ElasticsearchIntegrationTest {
             client().prepareIndex("test", "doc", "2").setSource("x", 10, "y", 1.4),
             client().prepareIndex("test", "doc", "3").setSource("x", 13, "y", 1.8));
 
-        SearchRequestBuilder req = new SearchRequestBuilder(client()).setIndices("test");
+        SearchRequestBuilder req = client().prepareSearch().setIndices("test");
         req.setQuery(QueryBuilders.matchAllQuery())
            .addAggregation(AggregationBuilders.stats("int_agg").field("x").script("_value * 3").lang(ExpressionScriptEngineService.NAME))
            .addAggregation(AggregationBuilders.stats("double_agg").field("y").script("_value - 1.1").lang(ExpressionScriptEngineService.NAME));
@@ -300,7 +299,7 @@ public class ExpressionScriptTests extends ElasticsearchIntegrationTest {
                 client().prepareIndex("test", "doc", "2").setSource("text", "goodbye"),
                 client().prepareIndex("test", "doc", "3").setSource("text", "hello"));
 
-        SearchRequestBuilder req = new SearchRequestBuilder(client()).setIndices("test");
+        SearchRequestBuilder req = client().prepareSearch().setIndices("test");
         req.setQuery(QueryBuilders.matchAllQuery())
            .addAggregation(AggregationBuilders.terms("term_agg").field("text").script("_value").lang(ExpressionScriptEngineService.NAME));
 

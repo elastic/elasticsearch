@@ -19,13 +19,13 @@
 
 package org.elasticsearch.action.mlt;
 
-import org.elasticsearch.action.ClientAction;
+import org.elasticsearch.action.Action;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  */
-public class MoreLikeThisAction extends ClientAction<MoreLikeThisRequest, SearchResponse, MoreLikeThisRequestBuilder> {
+public class MoreLikeThisAction extends Action<MoreLikeThisRequest, SearchResponse, MoreLikeThisRequestBuilder> {
 
     public static final MoreLikeThisAction INSTANCE = new MoreLikeThisAction();
     public static final String NAME = "indices:data/read/mlt";
@@ -40,7 +40,7 @@ public class MoreLikeThisAction extends ClientAction<MoreLikeThisRequest, Search
     }
 
     @Override
-    public MoreLikeThisRequestBuilder newRequestBuilder(Client client) {
-        return new MoreLikeThisRequestBuilder(client);
+    public MoreLikeThisRequestBuilder newRequestBuilder(ElasticsearchClient client) {
+        return new MoreLikeThisRequestBuilder(client, this);
     }
 }

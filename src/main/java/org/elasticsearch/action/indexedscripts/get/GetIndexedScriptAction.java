@@ -19,12 +19,12 @@
 
 package org.elasticsearch.action.indexedscripts.get;
 
-import org.elasticsearch.action.ClientAction;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.action.Action;
+import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  */
-public class GetIndexedScriptAction extends ClientAction<GetIndexedScriptRequest, GetIndexedScriptResponse, GetIndexedScriptRequestBuilder> {
+public class GetIndexedScriptAction extends Action<GetIndexedScriptRequest, GetIndexedScriptResponse, GetIndexedScriptRequestBuilder> {
 
     public static final GetIndexedScriptAction INSTANCE = new GetIndexedScriptAction();
     public static final String NAME = "indices:data/read/script/get";
@@ -39,8 +39,8 @@ public class GetIndexedScriptAction extends ClientAction<GetIndexedScriptRequest
     }
 
     @Override
-    public GetIndexedScriptRequestBuilder newRequestBuilder(Client client) {
-        return new GetIndexedScriptRequestBuilder(client);
+    public GetIndexedScriptRequestBuilder newRequestBuilder(ElasticsearchClient client) {
+        return new GetIndexedScriptRequestBuilder(client, this);
     }
 
 }

@@ -22,15 +22,15 @@ package org.elasticsearch.action.admin.cluster.node.stats;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.support.nodes.NodesOperationRequestBuilder;
-import org.elasticsearch.client.ClusterAdminClient;
+import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  *
  */
 public class NodesStatsRequestBuilder extends NodesOperationRequestBuilder<NodesStatsRequest, NodesStatsResponse, NodesStatsRequestBuilder> {
 
-    public NodesStatsRequestBuilder(ClusterAdminClient clusterClient) {
-        super(clusterClient, new NodesStatsRequest());
+    public NodesStatsRequestBuilder(ElasticsearchClient client, NodesStatsAction action) {
+        super(client, action, new NodesStatsRequest());
     }
 
     /**
@@ -132,10 +132,5 @@ public class NodesStatsRequestBuilder extends NodesOperationRequestBuilder<Nodes
     public NodesStatsRequestBuilder setHttp(boolean http) {
         request.http(http);
         return this;
-    }
-
-    @Override
-    protected void doExecute(ActionListener<NodesStatsResponse> listener) {
-        client.nodesStats(request, listener);
     }
 }

@@ -19,21 +19,15 @@
 
 package org.elasticsearch.action.admin.cluster.stats;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.nodes.NodesOperationRequestBuilder;
-import org.elasticsearch.client.ClusterAdminClient;
+import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  *
  */
 public class ClusterStatsRequestBuilder extends NodesOperationRequestBuilder<ClusterStatsRequest, ClusterStatsResponse, ClusterStatsRequestBuilder> {
 
-    public ClusterStatsRequestBuilder(ClusterAdminClient clusterClient) {
-        super(clusterClient, new ClusterStatsRequest());
-    }
-
-    @Override
-    protected void doExecute(ActionListener<ClusterStatsResponse> listener) {
-        client.clusterStats(request, listener);
+    public ClusterStatsRequestBuilder(ElasticsearchClient client, ClusterStatsAction action) {
+        super(client, action, new ClusterStatsRequest());
     }
 }

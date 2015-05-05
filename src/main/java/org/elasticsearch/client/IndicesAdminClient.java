@@ -112,7 +112,7 @@ import org.elasticsearch.common.Nullable;
  *
  * @see AdminClient#indices()
  */
-public interface IndicesAdminClient extends ElasticsearchClient<IndicesAdminClient> {
+public interface IndicesAdminClient extends ElasticsearchClient {
 
 
     /**

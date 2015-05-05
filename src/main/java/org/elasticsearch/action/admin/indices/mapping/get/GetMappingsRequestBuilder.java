@@ -19,20 +19,14 @@
 
 package org.elasticsearch.action.admin.indices.mapping.get;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.info.ClusterInfoRequestBuilder;
-import org.elasticsearch.client.IndicesAdminClient;
+import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  */
 public class GetMappingsRequestBuilder extends ClusterInfoRequestBuilder<GetMappingsRequest, GetMappingsResponse, GetMappingsRequestBuilder> {
 
-    public GetMappingsRequestBuilder(IndicesAdminClient client, String... indices) {
-        super(client, new GetMappingsRequest().indices(indices));
-    }
-
-    @Override
-    protected void doExecute(ActionListener<GetMappingsResponse> listener) {
-        client.getMappings(request, listener);
+    public GetMappingsRequestBuilder(ElasticsearchClient client, GetMappingsAction action, String... indices) {
+        super(client, action, new GetMappingsRequest().indices(indices));
     }
 }

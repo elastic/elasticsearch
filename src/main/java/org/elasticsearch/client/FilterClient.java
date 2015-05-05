@@ -20,10 +20,6 @@ package org.elasticsearch.client;
 
 import org.elasticsearch.action.*;
 import org.elasticsearch.client.support.AbstractClient;
-import org.elasticsearch.client.support.AbstractClusterAdminClient;
-import org.elasticsearch.client.support.AbstractIndicesAdminClient;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.threadpool.ThreadPool;
 
 
 /**
@@ -31,16 +27,18 @@ import org.elasticsearch.threadpool.ThreadPool;
  * uses as its basic source, possibly transforming the requests / responses along the
  * way or providing additional functionality.
  */
-public abstract class FilterClient extends AbstractClient implements AdminClient {
+public abstract class FilterClient extends AbstractClient {
 
     protected final Client in;
 
     /**
      * Creates a new FilterClient
+     *
      * @param in the client to delegate to
      * @see #in()
      */
     public FilterClient(Client in) {
+        super(in.settings(), in.threadPool(), in.headers());
         this.in = in;
     }
 
@@ -50,30 +48,8 @@ public abstract class FilterClient extends AbstractClient implements AdminClient
     }
 
     @Override
-    public AdminClient admin() {
-        return this;
-    }
-
-    @Override
-    public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder, Client>> ActionFuture<Response> execute(
-            Action<Request, Response, RequestBuilder, Client> action, Request request) {
-        return in().execute(action, request);
-    }
-
-    @Override
-    public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder, Client>> void execute(
-            Action<Request, Response, RequestBuilder, Client> action, Request request, ActionListener<Response> listener) {
+    protected <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> void doExecute(Action<Request, Response, RequestBuilder> action, Request request, ActionListener<Response> listener) {
         in().execute(action, request, listener);
-    }
-
-    @Override
-    public Settings settings() {
-        return in().settings();
-    }
-
-    @Override
-    public ThreadPool threadPool() {
-        return in().threadPool();
     }
 
     /**
@@ -81,96 +57,5 @@ public abstract class FilterClient extends AbstractClient implements AdminClient
      */
     protected Client in() {
         return in;
-    }
-
-    @Override
-    public ClusterAdminClient cluster() {
-        return in().admin().cluster();
-    }
-
-    @Override
-    public IndicesAdminClient indices() {
-        return in().admin().indices();
-    }
-
-    /**
-     * A {@link IndicesAdminClient} that contains another {@link IndicesAdminClient} which it
-     * uses as its basic source, possibly transforming the requests / responses along the
-     * way or providing additional functionality.
-     */
-    public static class IndicesAdmin extends AbstractIndicesAdminClient {
-        protected final IndicesAdminClient in;
-
-        /**
-         * Creates a new IndicesAdmin
-         * @param in the client to delegate to
-         * @see #in()
-         */
-        public IndicesAdmin(IndicesAdminClient in) {
-            this.in = in;
-        }
-
-        @Override
-        public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder, IndicesAdminClient>> ActionFuture<Response> execute(Action<Request, Response, RequestBuilder, IndicesAdminClient> action, Request request) {
-            return in().execute(action, request);
-        }
-
-        @Override
-        public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder, IndicesAdminClient>> void execute(Action<Request, Response, RequestBuilder, IndicesAdminClient> action, Request request, ActionListener<Response> listener) {
-            in().execute(action, request, listener);
-        }
-
-
-        /**
-         * Returns the delegate {@link Client}
-         */
-        protected IndicesAdminClient in() {
-            return in;
-        }
-
-        @Override
-        public ThreadPool threadPool() {
-            return in().threadPool();
-        }
-    }
-
-    /**
-     * A {@link ClusterAdminClient} that contains another {@link ClusterAdminClient} which it
-     * uses as its basic source, possibly transforming the requests / responses along the
-     * way or providing additional functionality.
-     */
-    public static class ClusterAdmin extends AbstractClusterAdminClient {
-        protected final ClusterAdminClient in;
-
-        /**
-         * Creates a new ClusterAdmin
-         * @param in the client to delegate to
-         * @see #in()
-         */
-        public ClusterAdmin(ClusterAdminClient in) {
-            this.in = in;
-        }
-
-        @Override
-        public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder, ClusterAdminClient>> ActionFuture<Response> execute(Action<Request, Response, RequestBuilder, ClusterAdminClient> action, Request request) {
-            return in().execute(action, request);
-        }
-
-        @Override
-        public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder, ClusterAdminClient>> void execute(Action<Request, Response, RequestBuilder, ClusterAdminClient> action, Request request, ActionListener<Response> listener) {
-            in().execute(action, request, listener);
-        }
-
-        /**
-         * Returns the delegate {@link Client}
-         */
-        protected ClusterAdminClient in() {
-            return in;
-        }
-
-        @Override
-        public ThreadPool threadPool() {
-            return in().threadPool();
-        }
     }
 }

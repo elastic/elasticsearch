@@ -19,18 +19,17 @@
 
 package org.elasticsearch.action.get;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.Nullable;
 
 /**
  * A multi get document action request builder.
  */
-public class MultiGetRequestBuilder extends ActionRequestBuilder<MultiGetRequest, MultiGetResponse, MultiGetRequestBuilder, Client> {
+public class MultiGetRequestBuilder extends ActionRequestBuilder<MultiGetRequest, MultiGetResponse, MultiGetRequestBuilder> {
 
-    public MultiGetRequestBuilder(Client client) {
-        super(client, new MultiGetRequest());
+    public MultiGetRequestBuilder(ElasticsearchClient client, MultiGetAction action) {
+        super(client, action, new MultiGetRequest());
     }
 
     public MultiGetRequestBuilder add(String index, @Nullable String type, String id) {
@@ -85,10 +84,5 @@ public class MultiGetRequestBuilder extends ActionRequestBuilder<MultiGetRequest
     public MultiGetRequestBuilder setIgnoreErrorsOnGeneratedFields(boolean ignoreErrorsOnGeneratedFields) {
         request.ignoreErrorsOnGeneratedFields(ignoreErrorsOnGeneratedFields);
         return this;
-    }
-
-    @Override
-    protected void doExecute(ActionListener<MultiGetResponse> listener) {
-        client.multiGet(request, listener);
     }
 }

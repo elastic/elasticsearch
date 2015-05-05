@@ -20,10 +20,9 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.TimeValue;
@@ -34,7 +33,6 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
-import org.elasticsearch.search.aggregations.reducers.ReducerBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.innerhits.InnerHitsBuilder;
 import org.elasticsearch.search.highlight.HighlightBuilder;
@@ -48,12 +46,12 @@ import java.util.Map;
 /**
  * A search action request builder.
  */
-public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, SearchResponse, SearchRequestBuilder, Client> {
+public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, SearchResponse, SearchRequestBuilder> {
 
     private SearchSourceBuilder sourceBuilder;
 
-    public SearchRequestBuilder(Client client) {
-        super(client, new SearchRequest());
+    public SearchRequestBuilder(ElasticsearchClient client, SearchAction action) {
+        super(client, action, new SearchRequest());
     }
 
     /**
@@ -168,7 +166,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
 
     /**
      * Specifies what type of requested indices to ignore and wildcard indices expressions.
-     *
+     * <p/>
      * For example indices that don't exist.
      */
     public SearchRequestBuilder setIndicesOptions(IndicesOptions indicesOptions) {
@@ -703,6 +701,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     /**
      * Sets the size of the fragment to return from the beginning of the field if there are no matches to
      * highlight and the field doesn't also define noMatchSize.
+     *
      * @param noMatchSize integer to set or null to leave out of request.  default is null.
      * @return this builder for chaining
      */
@@ -734,6 +733,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
 
     /**
      * Send the fields to be highlighted using a syntax that is specific about the order in which they should be highlighted.
+     *
      * @return this for chaining
      */
     public SearchRequestBuilder setHighlighterExplicitFieldOrder(boolean explicitFieldOrder) {
@@ -765,6 +765,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     /**
      * Clears all rescorers on the builder and sets the first one.  To use multiple rescore windows use
      * {@link #addRescorer(org.elasticsearch.search.rescore.RescoreBuilder.Rescorer, int)}.
+     *
      * @param rescorer rescorer configuration
      * @return this for chaining
      */
@@ -776,8 +777,9 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     /**
      * Clears all rescorers on the builder and sets the first one.  To use multiple rescore windows use
      * {@link #addRescorer(org.elasticsearch.search.rescore.RescoreBuilder.Rescorer, int)}.
+     *
      * @param rescorer rescorer configuration
-     * @param window rescore window
+     * @param window   rescore window
      * @return this for chaining
      */
     public SearchRequestBuilder setRescorer(RescoreBuilder.Rescorer rescorer, int window) {
@@ -787,6 +789,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
 
     /**
      * Adds a new rescorer.
+     *
      * @param rescorer rescorer configuration
      * @return this for chaining
      */
@@ -797,8 +800,9 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
 
     /**
      * Adds a new rescorer.
+     *
      * @param rescorer rescorer configuration
-     * @param window rescore window
+     * @param window   rescore window
      * @return this for chaining
      */
     public SearchRequestBuilder addRescorer(RescoreBuilder.Rescorer rescorer, int window) {
@@ -808,6 +812,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
 
     /**
      * Clears all rescorers from the builder.
+     *
      * @return this for chaining
      */
     public SearchRequestBuilder clearRescorers() {
@@ -817,6 +822,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
 
     /**
      * Sets the rescore window for all rescorers that don't specify a window when added.
+     *
      * @param window rescore window
      * @return this for chaining
      */
@@ -944,7 +950,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
         return this;
     }
 
-    public SearchRequestBuilder setTemplateParams(Map<String,Object> templateParams) {
+    public SearchRequestBuilder setTemplateParams(Map<String, Object> templateParams) {
         request.templateParams(templateParams);
         return this;
     }
@@ -994,7 +1000,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
         if (request.source() != null) {
             try {
                 return XContentHelper.convertToJson(request.source().toBytesArray(), false, true);
-            } catch(Exception e) {
+            } catch (Exception e) {
                 return "{ \"error\" : \"" + ExceptionsHelper.detailedMessage(e) + "\"}";
             }
         }
@@ -1010,11 +1016,11 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     }
 
     @Override
-    protected void doExecute(ActionListener<SearchResponse> listener) {
+    protected SearchRequest beforeExecute(SearchRequest request) {
         if (sourceBuilder != null) {
             request.source(sourceBuilder());
         }
-        client.search(request, listener);
+        return request;
     }
 
     private SearchSourceBuilder sourceBuilder() {

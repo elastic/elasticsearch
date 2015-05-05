@@ -19,6 +19,7 @@
 
 package org.elasticsearch.bootstrap;
 
+import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.PidFile;
@@ -27,7 +28,9 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.CreationException;
 import org.elasticsearch.common.inject.spi.Message;
 import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.common.jna.Kernel32Library;
 import org.elasticsearch.common.jna.Natives;
+import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.logging.log4j.LogConfigurator;
@@ -38,6 +41,7 @@ import org.elasticsearch.monitor.process.JmxProcessProbe;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeBuilder;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
+import org.hyperic.sigar.Sigar;
 
 import java.util.Locale;
 import java.util.Set;
@@ -52,16 +56,74 @@ import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_
  */
 public class Bootstrap {
 
+    private static volatile Bootstrap INSTANCE;
+
     private Node node;
+    private final CountDownLatch keepAliveLatch = new CountDownLatch(1);
+    private final Thread keepAliveThread;
 
-    private static volatile Thread keepAliveThread;
-    private static volatile CountDownLatch keepAliveLatch;
-    private static Bootstrap bootstrap;
-
-    private void setup(boolean addShutdownHook, Settings settings, Environment environment) throws Exception {
-        if (settings.getAsBoolean("bootstrap.mlockall", false)) {
+    /** creates a new instance */
+    Bootstrap() {
+        keepAliveThread = new Thread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    keepAliveLatch.await();
+                } catch (InterruptedException e) {
+                    // bail out
+                }
+            }
+        }, "elasticsearch[keepAlive/" + Version.CURRENT + "]");
+        keepAliveThread.setDaemon(false);
+        // keep this thread alive (non daemon thread) until we shutdown
+        Runtime.getRuntime().addShutdownHook(new Thread() {
+            @Override
+            public void run() {
+                keepAliveLatch.countDown();
+            }
+        });
+    }
+    
+    /** initialize native resources */
+    public static void initializeNatives(boolean mlockAll, boolean ctrlHandler) {
+        // mlockall if requested
+        if (mlockAll) {
             Natives.tryMlockall();
         }
+
+        // listener for windows close event
+        if (ctrlHandler) {
+            Natives.addConsoleCtrlHandler(new ConsoleCtrlHandler() {
+                @Override
+                public boolean handle(int code) {
+                    if (CTRL_CLOSE_EVENT == code) {
+                        ESLogger logger = Loggers.getLogger(Bootstrap.class);
+                        logger.info("running graceful exit on windows");
+
+                        Bootstrap.INSTANCE.stop();
+                        return true;
+                    }
+                    return false;
+                }
+            });
+        }
+        Kernel32Library.getInstance();
+ 
+        // initialize sigar explicitly
+        try {
+            Sigar.load();
+            Loggers.getLogger(Bootstrap.class).trace("sigar libraries loaded successfully");
+        } catch (Throwable t) {
+            Loggers.getLogger(Bootstrap.class).trace("failed to load sigar libraries", t);
+        }
+
+        // init lucene random seed. it will use /dev/urandom where available:
+        StringHelper.randomId();
+    }
+
+    private void setup(boolean addShutdownHook, Settings settings, Environment environment) throws Exception {
+        initializeNatives(settings.getAsBoolean("bootstrap.mlockall", false), 
+                          settings.getAsBoolean("bootstrap.ctrlhandler", true));
 
         NodeBuilder nodeBuilder = NodeBuilder.nodeBuilder().settings(settings).loadConfigSettings(false);
         node = nodeBuilder.build();
@@ -73,23 +135,8 @@ public class Bootstrap {
                 }
             });
         }
-
-        if (settings.getAsBoolean("bootstrap.ctrlhandler", true)) {
-            Natives.addConsoleCtrlHandler(new ConsoleCtrlHandler() {
-                @Override
-                public boolean handle(int code) {
-                    if (CTRL_CLOSE_EVENT == code) {
-                        ESLogger logger = Loggers.getLogger(Bootstrap.class);
-                        logger.info("running graceful exit on windows");
-
-                        System.exit(0);
-                        return true;
-                    }
-                    return false;
-                }
-            });
-        }
-        // install SM after natives, JNA can require strange permissions
+        
+        // install SM after natives, shutdown hooks, etc.
         setupSecurity(settings, environment);
     }
     
@@ -124,47 +171,22 @@ public class Bootstrap {
         return InternalSettingsPreparer.prepareSettings(EMPTY_SETTINGS, true);
     }
 
-    /**
-     * hook for JSVC
-     */
-    public void init(String[] args) throws Exception {
-        Tuple<Settings, Environment> tuple = initialSettings();
-        Settings settings = tuple.v1();
-        Environment environment = tuple.v2();
-        setupLogging(settings, environment);
-        setup(true, settings, environment);
-    }
-
-    /**
-     * hook for JSVC
-     */
-    public void start() {
+    private void start() {
         node.start();
+        keepAliveThread.start();
     }
 
-    /**
-     * hook for JSVC
-     */
-    public void stop() {
-       destroy();
-    }
-
-
-    /**
-     * hook for JSVC
-     */
-    public void destroy() {
-        node.close();
-    }
-
-    public static void close(String[] args) {
-        bootstrap.destroy();
-        keepAliveLatch.countDown();
+    private void stop() {
+        try {
+            Releasables.close(node);
+        } finally {
+            keepAliveLatch.countDown();
+        }
     }
 
     public static void main(String[] args) {
         System.setProperty("es.logger.prefix", "");
-        bootstrap = new Bootstrap();
+        INSTANCE = new Bootstrap();
         final String pidFile = System.getProperty("es.pidfile", System.getProperty("es-pidfile"));
 
         if (pidFile != null) {
@@ -216,40 +238,18 @@ public class Bootstrap {
             // fail if using broken version
             JVMCheck.check();
 
-            keepAliveLatch = new CountDownLatch(1);
-            // keep this thread alive (non daemon thread) until we shutdown
-            Runtime.getRuntime().addShutdownHook(new Thread() {
-                @Override
-                public void run() {
-                    keepAliveLatch.countDown();
-                }
-            });
-
-            bootstrap.setup(true, settings, environment);
+            INSTANCE.setup(true, settings, environment);
 
             stage = "Startup";
-            bootstrap.start();
+            INSTANCE.start();
 
             if (!foreground) {
                 closeSysError();
             }
-
-            keepAliveThread = new Thread(new Runnable() {
-                @Override
-                public void run() {
-                    try {
-                        keepAliveLatch.await();
-                    } catch (InterruptedException e) {
-                        // bail out
-                    }
-                }
-            }, "elasticsearch[keepAlive/" + Version.CURRENT + "]");
-            keepAliveThread.setDaemon(false);
-            keepAliveThread.start();
         } catch (Throwable e) {
             ESLogger logger = Loggers.getLogger(Bootstrap.class);
-            if (bootstrap.node != null) {
-                logger = Loggers.getLogger(Bootstrap.class, bootstrap.node.settings().get("name"));
+            if (INSTANCE.node != null) {
+                logger = Loggers.getLogger(Bootstrap.class, INSTANCE.node.settings().get("name"));
             }
             String errorMessage = buildErrorMessage(stage, e);
             if (foreground) {

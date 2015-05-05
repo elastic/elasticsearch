@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.support.master;
 
+import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.ClusterAdminClient;
 import org.elasticsearch.client.ElasticsearchClient;
@@ -27,11 +28,11 @@ import org.elasticsearch.client.IndicesAdminClient;
 /**
  * Base request builder for master node read operations that can be executed on the local node as well
  */
-public abstract class MasterNodeReadOperationRequestBuilder<Request extends MasterNodeReadOperationRequest<Request>, Response extends ActionResponse, RequestBuilder extends MasterNodeReadOperationRequestBuilder<Request, Response, RequestBuilder, Client>, Client extends ElasticsearchClient>
-        extends MasterNodeOperationRequestBuilder<Request, Response, RequestBuilder, Client> {
+public abstract class MasterNodeReadOperationRequestBuilder<Request extends MasterNodeReadOperationRequest<Request>, Response extends ActionResponse, RequestBuilder extends MasterNodeReadOperationRequestBuilder<Request, Response, RequestBuilder>>
+        extends MasterNodeOperationRequestBuilder<Request, Response, RequestBuilder> {
 
-    protected MasterNodeReadOperationRequestBuilder(Client client, Request request) {
-        super(client, request);
+    protected MasterNodeReadOperationRequestBuilder(ElasticsearchClient client, Action<Request, Response, RequestBuilder> action, Request request) {
+        super(client, action, request);
     }
 
     /**

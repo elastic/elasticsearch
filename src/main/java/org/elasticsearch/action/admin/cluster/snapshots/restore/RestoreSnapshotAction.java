@@ -19,13 +19,13 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.restore;
 
-import org.elasticsearch.action.admin.cluster.ClusterAction;
-import org.elasticsearch.client.ClusterAdminClient;
+import org.elasticsearch.action.Action;
+import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  * Restore snapshot action
  */
-public class RestoreSnapshotAction extends ClusterAction<RestoreSnapshotRequest, RestoreSnapshotResponse, RestoreSnapshotRequestBuilder> {
+public class RestoreSnapshotAction extends Action<RestoreSnapshotRequest, RestoreSnapshotResponse, RestoreSnapshotRequestBuilder> {
 
     public static final RestoreSnapshotAction INSTANCE = new RestoreSnapshotAction();
     public static final String NAME = "cluster:admin/snapshot/restore";
@@ -40,8 +40,8 @@ public class RestoreSnapshotAction extends ClusterAction<RestoreSnapshotRequest,
     }
 
     @Override
-    public RestoreSnapshotRequestBuilder newRequestBuilder(ClusterAdminClient client) {
-        return new RestoreSnapshotRequestBuilder(client);
+    public RestoreSnapshotRequestBuilder newRequestBuilder(ElasticsearchClient client) {
+        return new RestoreSnapshotRequestBuilder(client, this);
     }
 }
 

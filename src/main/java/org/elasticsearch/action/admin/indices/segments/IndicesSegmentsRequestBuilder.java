@@ -19,26 +19,20 @@
 
 package org.elasticsearch.action.admin.indices.segments;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequestBuilder;
-import org.elasticsearch.client.IndicesAdminClient;
+import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  *
  */
-public class IndicesSegmentsRequestBuilder extends BroadcastOperationRequestBuilder<IndicesSegmentsRequest, IndicesSegmentResponse, IndicesSegmentsRequestBuilder, IndicesAdminClient> {
+public class IndicesSegmentsRequestBuilder extends BroadcastOperationRequestBuilder<IndicesSegmentsRequest, IndicesSegmentResponse, IndicesSegmentsRequestBuilder> {
 
-    public IndicesSegmentsRequestBuilder(IndicesAdminClient indicesClient) {
-        super(indicesClient, new IndicesSegmentsRequest());
+    public IndicesSegmentsRequestBuilder(ElasticsearchClient client, IndicesSegmentsAction action) {
+        super(client, action, new IndicesSegmentsRequest());
     }
-    
+
     public IndicesSegmentsRequestBuilder setVerbose(boolean verbose) {
         request.verbose = verbose;
         return this;
-    }
-
-    @Override
-    protected void doExecute(ActionListener<IndicesSegmentResponse> listener) {
-        client.segments(request, listener);
     }
 }

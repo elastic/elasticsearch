@@ -19,10 +19,10 @@
 package org.elasticsearch.action.exists;
 
 
-import org.elasticsearch.action.ClientAction;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.action.Action;
+import org.elasticsearch.client.ElasticsearchClient;
 
-public class ExistsAction extends ClientAction<ExistsRequest, ExistsResponse, ExistsRequestBuilder> {
+public class ExistsAction extends Action<ExistsRequest, ExistsResponse, ExistsRequestBuilder> {
 
     public static final ExistsAction INSTANCE = new ExistsAction();
     public static final String NAME = "indices:data/read/exists";
@@ -37,7 +37,7 @@ public class ExistsAction extends ClientAction<ExistsRequest, ExistsResponse, Ex
     }
 
     @Override
-    public ExistsRequestBuilder newRequestBuilder(Client client) {
-        return new ExistsRequestBuilder(client);
+    public ExistsRequestBuilder newRequestBuilder(ElasticsearchClient client) {
+        return new ExistsRequestBuilder(client, this);
     }
 }

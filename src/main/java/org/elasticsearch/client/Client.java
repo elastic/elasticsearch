@@ -62,6 +62,7 @@ import org.elasticsearch.action.termvectors.*;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.action.update.UpdateResponse;
+import org.elasticsearch.client.support.Headers;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Settings;
@@ -79,7 +80,7 @@ import org.elasticsearch.common.settings.Settings;
  * @see org.elasticsearch.node.Node#client()
  * @see org.elasticsearch.client.transport.TransportClient
  */
-public interface Client extends ElasticsearchClient<Client>, Releasable {
+public interface Client extends ElasticsearchClient, Releasable {
 
     String CLIENT_TYPE_SETTING = "client.type";
 
@@ -256,18 +257,11 @@ public interface Client extends ElasticsearchClient<Client>, Releasable {
 
     /**
      * Put the indexed script
-     * @param scriptLang
-     * @param id
-     * @param source
-     * @return
      */
     PutIndexedScriptRequestBuilder preparePutIndexedScript(@Nullable String scriptLang, String id, String source);
 
     /**
      * delete an indexed script
-     *
-     * @param request
-     * @param listener
      */
     void deleteIndexedScript(DeleteIndexedScriptRequest request, ActionListener<DeleteIndexedScriptResponse> listener);
 
@@ -287,17 +281,11 @@ public interface Client extends ElasticsearchClient<Client>, Releasable {
 
     /**
      * Delete an indexed script
-     * @param scriptLang
-     * @param id
-     * @return
      */
     DeleteIndexedScriptRequestBuilder prepareDeleteIndexedScript(@Nullable String scriptLang, String id);
 
     /**
      * Put an indexed script
-     *
-     * @param request
-     * @param listener
      */
     void putIndexedScript(PutIndexedScriptRequest request, ActionListener<PutIndexedScriptResponse> listener);
 
@@ -317,17 +305,11 @@ public interface Client extends ElasticsearchClient<Client>, Releasable {
 
     /**
      * Get the indexed script
-     * @param scriptLang
-     * @param id
-     * @return
      */
     GetIndexedScriptRequestBuilder prepareGetIndexedScript(@Nullable String scriptLang, String id);
 
     /**
      * Get an indexed script
-     *
-     * @param request
-     * @param listener
      */
     void getIndexedScript(GetIndexedScriptRequest request, ActionListener<GetIndexedScriptResponse> listener);
 
@@ -670,4 +652,5 @@ public interface Client extends ElasticsearchClient<Client>, Releasable {
      */
     Settings settings();
 
+    Headers headers();
 }

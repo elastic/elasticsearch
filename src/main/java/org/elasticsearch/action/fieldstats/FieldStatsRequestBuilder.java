@@ -19,16 +19,15 @@
 
 package org.elasticsearch.action.fieldstats;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequestBuilder;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  */
-public class FieldStatsRequestBuilder extends BroadcastOperationRequestBuilder<FieldStatsRequest, FieldStatsResponse, FieldStatsRequestBuilder, Client> {
+public class FieldStatsRequestBuilder extends BroadcastOperationRequestBuilder<FieldStatsRequest, FieldStatsResponse, FieldStatsRequestBuilder> {
 
-    public FieldStatsRequestBuilder(Client client) {
-        super(client, new FieldStatsRequest());
+    public FieldStatsRequestBuilder(ElasticsearchClient client, FieldStatsAction action) {
+        super(client, action, new FieldStatsRequest());
     }
 
     public FieldStatsRequestBuilder setFields(String... fields) {
@@ -39,10 +38,5 @@ public class FieldStatsRequestBuilder extends BroadcastOperationRequestBuilder<F
     public FieldStatsRequestBuilder setLevel(String level) {
         request().level(level);
         return this;
-    }
-
-    @Override
-    protected void doExecute(ActionListener<FieldStatsResponse> listener) {
-        client.fieldStats(request, listener);
     }
 }

@@ -42,7 +42,7 @@ public class ClientFailover {
         
         // TODO: what is this? a public static void main test?!?!
 
-        final TransportClient client = new TransportClient(ImmutableSettings.EMPTY)
+        final TransportClient client = TransportClient.builder().build()
                 .addTransportAddress(new InetSocketTransportAddress("localhost", 9300))
                 .addTransportAddress(new InetSocketTransportAddress("localhost", 9301))
                 .addTransportAddress(new InetSocketTransportAddress("localhost", 9302));

@@ -19,17 +19,16 @@
 
 package org.elasticsearch.action.admin.cluster.node.info;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.nodes.NodesOperationRequestBuilder;
-import org.elasticsearch.client.ClusterAdminClient;
+import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  *
  */
 public class NodesInfoRequestBuilder extends NodesOperationRequestBuilder<NodesInfoRequest, NodesInfoResponse, NodesInfoRequestBuilder> {
 
-    public NodesInfoRequestBuilder(ClusterAdminClient clusterClient) {
-        super(clusterClient, new NodesInfoRequest());
+    public NodesInfoRequestBuilder(ElasticsearchClient client, NodesInfoAction action) {
+        super(client, action, new NodesInfoRequest());
     }
 
     /**
@@ -118,10 +117,5 @@ public class NodesInfoRequestBuilder extends NodesOperationRequestBuilder<NodesI
     public NodesInfoRequestBuilder setPlugins(boolean plugins) {
         request().plugins(plugins);
         return this;
-    }
-
-    @Override
-    protected void doExecute(ActionListener<NodesInfoResponse> listener) {
-        client.nodesInfo(request, listener);
     }
 }

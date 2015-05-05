@@ -19,20 +19,19 @@
 
 package org.elasticsearch.action.indexedscripts.get;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.VersionType;
 
 /**
  * A get document action request builder.
  */
-public class GetIndexedScriptRequestBuilder extends ActionRequestBuilder<GetIndexedScriptRequest, GetIndexedScriptResponse, GetIndexedScriptRequestBuilder, Client> {
+public class GetIndexedScriptRequestBuilder extends ActionRequestBuilder<GetIndexedScriptRequest, GetIndexedScriptResponse, GetIndexedScriptRequestBuilder> {
 
 
-    public GetIndexedScriptRequestBuilder(Client client) {
-        super(client, new GetIndexedScriptRequest());
+    public GetIndexedScriptRequestBuilder(ElasticsearchClient client, GetIndexedScriptAction action) {
+        super(client, action, new GetIndexedScriptRequest());
     }
 
     /**
@@ -68,10 +67,4 @@ public class GetIndexedScriptRequestBuilder extends ActionRequestBuilder<GetInde
         request.versionType(versionType);
         return this;
     }
-
-    @Override
-    protected void doExecute(ActionListener<GetIndexedScriptResponse> listener) {
-        client.getIndexedScript(request, listener);
-    }
-
 }

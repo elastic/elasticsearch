@@ -19,10 +19,9 @@
 
 package org.elasticsearch.action.explain;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.QuerySourceBuilder;
 import org.elasticsearch.action.support.single.shard.SingleShardOperationRequestBuilder;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -36,12 +35,12 @@ public class ExplainRequestBuilder extends SingleShardOperationRequestBuilder<Ex
 
     private QuerySourceBuilder sourceBuilder;
 
-    ExplainRequestBuilder(Client client) {
-        super(client, new ExplainRequest());
+    ExplainRequestBuilder(ElasticsearchClient client, ExplainAction action) {
+        super(client, action, new ExplainRequest());
     }
 
-    public ExplainRequestBuilder(Client client, String index, String type, String id) {
-        super(client, new ExplainRequest().index(index).type(type).id(id));
+    public ExplainRequestBuilder(ElasticsearchClient client, ExplainAction action, String index, String type, String id) {
+        super(client, action, new ExplainRequest().index(index).type(type).id(id));
     }
 
     /**
@@ -115,8 +114,7 @@ public class ExplainRequestBuilder extends SingleShardOperationRequestBuilder<Ex
         FetchSourceContext context = request.fetchSourceContext();
         if (context == null) {
             request.fetchSourceContext(new FetchSourceContext(fetch));
-        }
-        else {
+        } else {
             context.fetchSource(fetch);
         }
         return this;
@@ -131,8 +129,8 @@ public class ExplainRequestBuilder extends SingleShardOperationRequestBuilder<Ex
      */
     public ExplainRequestBuilder setFetchSource(@Nullable String include, @Nullable String exclude) {
         return setFetchSource(
-                include == null? Strings.EMPTY_ARRAY : new String[] {include},
-                exclude == null? Strings.EMPTY_ARRAY : new String[] {exclude});
+                include == null ? Strings.EMPTY_ARRAY : new String[]{include},
+                exclude == null ? Strings.EMPTY_ARRAY : new String[]{exclude});
     }
 
     /**
@@ -146,8 +144,7 @@ public class ExplainRequestBuilder extends SingleShardOperationRequestBuilder<Ex
         FetchSourceContext context = request.fetchSourceContext();
         if (context == null) {
             request.fetchSourceContext(new FetchSourceContext(includes, excludes));
-        }
-        else {
+        } else {
             context.fetchSource(true);
             context.includes(includes);
             context.excludes(excludes);
@@ -164,12 +161,11 @@ public class ExplainRequestBuilder extends SingleShardOperationRequestBuilder<Ex
     }
 
     @Override
-    protected void doExecute(ActionListener<ExplainResponse> listener) {
+    protected ExplainRequest beforeExecute(ExplainRequest request) {
         if (sourceBuilder != null) {
             request.source(sourceBuilder);
         }
-
-        client.explain(request, listener);
+        return request;
     }
 
     private QuerySourceBuilder sourceBuilder() {

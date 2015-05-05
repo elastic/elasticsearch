@@ -19,9 +19,8 @@
 
 package org.elasticsearch.action.admin.indices.optimize;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequestBuilder;
-import org.elasticsearch.client.IndicesAdminClient;
+import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  * A request to optimize one or more indices. In order to optimize on all the indices, pass an empty array or
@@ -30,10 +29,10 @@ import org.elasticsearch.client.IndicesAdminClient;
  * <p>{@link #setMaxNumSegments(int)} allows to control the number of segments to optimize down to. By default, will
  * cause the optimize process to optimize down to half the configured number of segments.
  */
-public class OptimizeRequestBuilder extends BroadcastOperationRequestBuilder<OptimizeRequest, OptimizeResponse, OptimizeRequestBuilder, IndicesAdminClient> {
+public class OptimizeRequestBuilder extends BroadcastOperationRequestBuilder<OptimizeRequest, OptimizeResponse, OptimizeRequestBuilder> {
 
-    public OptimizeRequestBuilder(IndicesAdminClient indicesClient) {
-        super(indicesClient, new OptimizeRequest());
+    public OptimizeRequestBuilder(ElasticsearchClient client, OptimizeAction action) {
+        super(client, action, new OptimizeRequest());
     }
 
     /**
@@ -60,10 +59,5 @@ public class OptimizeRequestBuilder extends BroadcastOperationRequestBuilder<Opt
     public OptimizeRequestBuilder setFlush(boolean flush) {
         request.flush(flush);
         return this;
-    }
-
-    @Override
-    protected void doExecute(ActionListener<OptimizeResponse> listener) {
-        client.optimize(request, listener);
     }
 }

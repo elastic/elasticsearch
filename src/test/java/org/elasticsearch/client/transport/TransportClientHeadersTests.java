@@ -55,12 +55,12 @@ public class TransportClientHeadersTests extends AbstractClientHeadersTests {
 
     @Override
     protected Client buildClient(Settings headersSettings, GenericAction[] testedActions) {
-        TransportClient client = new TransportClient(ImmutableSettings.builder()
+        TransportClient client = TransportClient.builder().settings(ImmutableSettings.builder()
                 .put("client.transport.sniff", false)
                 .put("node.name", "transport_client_" + this.getTestName())
                 .put(TransportModule.TRANSPORT_SERVICE_TYPE_KEY, InternalTransportService.class.getName())
                 .put(headersSettings)
-                .build());
+                .build()).build();
 
         client.addTransportAddress(address);
         return client;
@@ -68,7 +68,7 @@ public class TransportClientHeadersTests extends AbstractClientHeadersTests {
 
     @Test
     public void testWithSniffing() throws Exception {
-        TransportClient client = new TransportClient(ImmutableSettings.builder()
+        TransportClient client = TransportClient.builder().settings(ImmutableSettings.builder()
                 .put("client.transport.sniff", true)
                 .put("cluster.name", "cluster1")
                 .put("node.name", "transport_client_" + this.getTestName() + "_1")
@@ -76,7 +76,7 @@ public class TransportClientHeadersTests extends AbstractClientHeadersTests {
                 .put(TransportModule.TRANSPORT_SERVICE_TYPE_KEY, InternalTransportService.class.getName())
                 .put(HEADER_SETTINGS)
                 .put("path.home", createTempDir().toString())
-                .build());
+                .build()).build();
         try {
             client.addTransportAddress(address);
 

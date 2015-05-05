@@ -5,6 +5,28 @@ A parent reducer aggregation which calculates the derivative of a specified metr
 aggregation. The specified metric must be numeric and the enclosing histogram must have `min_doc_count` set to `0` (default
 for `histogram` aggregations).
 
+==== Syntax
+
+A `derivative` aggregation looks like this in isolation:
+
+[source,js]
+--------------------------------------------------
+{
+    "derivative": {
+        "buckets_path": "the_sum"
+    }
+}
+--------------------------------------------------
+
+.`derivative` Parameters
+|===
+|Parameter Name |Description |Required |Default Value
+|`buckets_path` |Path to the metric of interest (see <<bucket-path-syntax, `buckets_path` Syntax>> for more details |Required |
+|===
+
+
+==== First Order Derivative
+
 The following snippet calculates the derivative of the total monthly `sales`:
 
 [source,js]
@@ -82,7 +104,7 @@ And the following may be the response:
 <1> No derivative for the first bucket since we need at least 2 data points to calculate the derivative
 <2> Derivative value units are implicitly defined by the `sales` aggregation and the parent histogram so in this case the units 
 would be $/month assuming the `price` field has units of $.
-<3> The number of documents in the bucket are represented by the `doc_count` value
+<3> The number of documents in the bucket are represented by the `doc_count` f
 
 ==== Second Order Derivative
 
@@ -171,24 +193,4 @@ And the following may be the response:
 --------------------------------------------------
 <1> No second derivative for the first two buckets since we need at least 2 data points from the first derivative to calculate the 
 second derivative
-
-==== Dealing with gaps in the data
-
-There are a couple of reasons why the data output by the enclosing histogram may have gaps:
-
-* There are no documents matching the query for some buckets
-* The data for a metric is missing in all of the documents falling into a bucket (this is most likely with either a small interval 
-on the enclosing histogram or with a query matching only a small number of documents)
-
-Where there is no data available in a bucket for a given metric it presents a problem for calculating the derivative value for both 
-the current bucket and the next bucket. In the derivative reducer aggregation has a `gap_policy` parameter to define what the behavior
-should be when a gap in the data is found. There are currently two options for controlling the gap policy:
-
-_ignore_::
-				This option will not produce a derivative value for any buckets where the value in the current or previous bucket is 
-				missing
-
-_insert_zeros_::
-				This option will assume the missing value is `0` and calculate the derivative with the value `0`.
-
 

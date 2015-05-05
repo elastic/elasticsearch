@@ -68,7 +68,7 @@ public class NettyTransportMultiPortIntegrationTests extends ElasticsearchIntegr
                 .put(TransportModule.TRANSPORT_TYPE_KEY, NettyTransport.class.getName())
                 .put("path.home", createTempDir().toString())
                 .build();
-        try (TransportClient transportClient = new TransportClient(settings, false)) {
+        try (TransportClient transportClient = TransportClient.builder().settings(settings).loadConfigSettings(false).build()) {
             transportClient.addTransportAddress(new InetSocketTransportAddress("127.0.0.1", randomPort));
             ClusterHealthResponse response = transportClient.admin().cluster().prepareHealth().get();
             assertThat(response.getStatus(), is(ClusterHealthStatus.GREEN));

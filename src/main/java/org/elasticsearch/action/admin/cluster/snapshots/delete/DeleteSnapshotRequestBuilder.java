@@ -21,31 +21,25 @@ package org.elasticsearch.action.admin.cluster.snapshots.delete;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
-import org.elasticsearch.client.ClusterAdminClient;
+import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  * Delete snapshot request builder
  */
-public class DeleteSnapshotRequestBuilder extends MasterNodeOperationRequestBuilder<DeleteSnapshotRequest, DeleteSnapshotResponse, DeleteSnapshotRequestBuilder, ClusterAdminClient> {
+public class DeleteSnapshotRequestBuilder extends MasterNodeOperationRequestBuilder<DeleteSnapshotRequest, DeleteSnapshotResponse, DeleteSnapshotRequestBuilder> {
 
     /**
      * Constructs delete snapshot request builder
-     *
-     * @param clusterAdminClient cluster admin client
      */
-    public DeleteSnapshotRequestBuilder(ClusterAdminClient clusterAdminClient) {
-        super(clusterAdminClient, new DeleteSnapshotRequest());
+    public DeleteSnapshotRequestBuilder(ElasticsearchClient client, DeleteSnapshotAction action) {
+        super(client, action, new DeleteSnapshotRequest());
     }
 
     /**
      * Constructs delete snapshot request builder with specified repository and snapshot names
-     *
-     * @param clusterAdminClient cluster admin client
-     * @param repository         repository name
-     * @param snapshot           snapshot name
      */
-    public DeleteSnapshotRequestBuilder(ClusterAdminClient clusterAdminClient, String repository, String snapshot) {
-        super(clusterAdminClient, new DeleteSnapshotRequest(repository, snapshot));
+    public DeleteSnapshotRequestBuilder(ElasticsearchClient client, DeleteSnapshotAction action, String repository, String snapshot) {
+        super(client, action, new DeleteSnapshotRequest(repository, snapshot));
     }
 
     /**
@@ -68,10 +62,5 @@ public class DeleteSnapshotRequestBuilder extends MasterNodeOperationRequestBuil
     public DeleteSnapshotRequestBuilder setSnapshot(String snapshot) {
         request.snapshot(snapshot);
         return this;
-    }
-
-    @Override
-    protected void doExecute(ActionListener<DeleteSnapshotResponse> listener) {
-        client.deleteSnapshot(request, listener);
     }
 }

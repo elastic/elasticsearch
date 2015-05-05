@@ -72,7 +72,7 @@ Response:
 The `shard_size` parameter limits how many top-scoring documents are collected in the sample processed on each shard.
 The default value is 100.
 
-=== Controlling diversity
+==== Controlling diversity
 Optionally, you can use the `field` or `script` and `max_docs_per_value` settings to control the maximum number of documents collected on any one shard which share a common value.
 The choice of value (e.g. `author`) is loaded from a regular `field` or derived dynamically by a `script`.
 
@@ -139,16 +139,16 @@ The default setting is to use `global_ordinals` if this information is available
 The `bytes_hash` setting may prove faster in some cases but introduces the possibility of false positives in de-duplication logic due to the possibility of hash collisions.
 Please note that Elasticsearch will ignore the choice of execution hint if it is not applicable and that there is no backward compatibility guarantee on these hints.
 
-=== Limitations
+==== Limitations
 
-==== Cannot be nested under `breadth_first` aggregations
+===== Cannot be nested under `breadth_first` aggregations
 Being a quality-based filter the sampler aggregation needs access to the relevance score produced for each document.
 It therefore cannot be nested under a `terms` aggregation which has the `collect_mode` switched from the default `depth_first` mode to `breadth_first` as this discards scores.
 In this situation an error will be thrown.
 
-==== Limited de-dup logic.
+===== Limited de-dup logic.
 The de-duplication logic in the diversify settings applies only at a shard level so will not apply across shards.
 
-==== No specialized syntax for geo/date fields
+===== No specialized syntax for geo/date fields
 Currently the syntax for defining the diversifying values is defined by a choice of `field` or `script` - there is no added syntactical sugar for expressing geo or date units such as "1w" (1 week).
 This support may be added in a later release and users will currently have to create these sorts of values using a script.

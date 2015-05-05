@@ -21,10 +21,10 @@ it does not take into account term frequencies and other search engine
 information from the other shards. If we want to support accurate
 ranking, we would need to first gather the term frequencies from all
 shards to calculate global term frequencies, then execute the query on
-each shard using these globale frequencies.
+each shard using these global frequencies.
 
 Also, because of the need to sort the results, getting back a large
-document set, or even scrolling it, while maintaing the correct sorting
+document set, or even scrolling it, while maintaining the correct sorting
 behavior can be a very expensive operation. For large result set
 scrolling without sorting, the `scan` search type (explained below) is
 also available.

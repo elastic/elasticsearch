@@ -17,18 +17,26 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices;
+package org.elasticsearch.monitor;
 
-import org.elasticsearch.action.*;
-import org.elasticsearch.client.IndicesAdminClient;
+import org.elasticsearch.test.ElasticsearchTestCase;
+import org.hyperic.sigar.Sigar;
 
-/**
- * Indices action (used with {@link IndicesAdminClient} API).
- */
-public abstract class IndicesAction<Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder, IndicesAdminClient>>
-        extends Action<Request, Response, RequestBuilder, IndicesAdminClient> {
-
-    protected IndicesAction(String name) {
-        super(name);
+public class SigarTests extends ElasticsearchTestCase {
+    
+    @Override
+    public void setUp() throws Exception {
+        super.setUp();
+        assumeTrue("we can only ensure sigar is working when running from maven", 
+                   Boolean.parseBoolean(System.getProperty("tests.maven")));
+    }
+    
+    public void testSigarLoads() throws Exception {
+        Sigar.load();
+    }
+    
+    public void testSigarWorks() throws Exception {
+        Sigar sigar = new Sigar();
+        assertNotNull(sigar.getCpu());
     }
 }

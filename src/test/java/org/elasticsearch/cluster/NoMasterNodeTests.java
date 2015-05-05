@@ -161,7 +161,7 @@ public class NoMasterNodeTests extends ElasticsearchIntegrationTest {
         client().admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
     }
 
-    void checkWriteAction(boolean autoCreateIndex, TimeValue timeout, ActionRequestBuilder<?, ?, ?, ?> builder) {
+    void checkWriteAction(boolean autoCreateIndex, TimeValue timeout, ActionRequestBuilder<?, ?, ?> builder) {
         // we clean the metadata when loosing a master, therefore all operations on indices will auto create it, if allowed
         long now = System.currentTimeMillis();
         try {

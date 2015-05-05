@@ -19,31 +19,31 @@
 
 package org.elasticsearch.action.admin.indices.warmer.put;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
-import org.elasticsearch.client.IndicesAdminClient;
+import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  * Builder for {@link PutWarmerRequest}
+ *
  * @see PutWarmerRequest for details
  */
-public class PutWarmerRequestBuilder extends AcknowledgedRequestBuilder<PutWarmerRequest, PutWarmerResponse, PutWarmerRequestBuilder, IndicesAdminClient> {
+public class PutWarmerRequestBuilder extends AcknowledgedRequestBuilder<PutWarmerRequest, PutWarmerResponse, PutWarmerRequestBuilder> {
 
     /**
      * Creates a new {@link PutWarmerRequestBuilder} with a given name.
      */
-    public PutWarmerRequestBuilder(IndicesAdminClient indicesClient, String name) {
-        super(indicesClient, new PutWarmerRequest().name(name));
+    public PutWarmerRequestBuilder(ElasticsearchClient client, PutWarmerAction action, String name) {
+        super(client, action, new PutWarmerRequest().name(name));
     }
 
     /**
      * Creates a new {@link PutWarmerRequestBuilder}
      * Note: {@link #setName(String)} must be called with a non-null value before this request is executed.
      */
-    public PutWarmerRequestBuilder(IndicesAdminClient indicesClient) {
-        super(indicesClient, new PutWarmerRequest());
+    public PutWarmerRequestBuilder(ElasticsearchClient client, PutWarmerAction action) {
+        super(client, action, new PutWarmerRequest());
     }
 
     /**
@@ -68,10 +68,5 @@ public class PutWarmerRequestBuilder extends AcknowledgedRequestBuilder<PutWarme
     public PutWarmerRequestBuilder setSearchRequest(SearchRequestBuilder searchRequest) {
         request.searchRequest(searchRequest);
         return this;
-    }
-
-    @Override
-    protected void doExecute(ActionListener<PutWarmerResponse> listener) {
-        client.putWarmer(request, listener);
     }
 }

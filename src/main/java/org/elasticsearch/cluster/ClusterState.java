@@ -33,6 +33,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.*;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.service.InternalClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -46,6 +47,10 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.discovery.Discovery;
+import org.elasticsearch.discovery.DiscoveryService;
+import org.elasticsearch.discovery.local.LocalDiscovery;
+import org.elasticsearch.discovery.zen.publish.PublishClusterStateAction;
 
 import java.io.IOException;
 import java.util.EnumSet;
@@ -54,7 +59,29 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
+ * Represents the current state of the cluster.
  *
+ * The cluster state object is immutable with an
+ * exception of the {@link RoutingNodes} structure, which is built on demand from the {@link RoutingTable},
+ * and cluster state {@link #status}, which is updated during cluster state publishing and applying
+ * processing.  The cluster state can be updated only on the master node. All updates are performed by on a
+ * single thread and controlled by the {@link InternalClusterService}. After every update the
+ * {@link DiscoveryService#publish} method publishes new version of the cluster state to all other nodes in the
+ * cluster.  The actual publishing mechanism is delegated to the {@link Discovery#publish} method and depends on
+ * the type of discovery. For example, for local discovery it is implemented by the {@link LocalDiscovery#publish}
+ * method. In the Zen Discovery it is handled in the {@link PublishClusterStateAction#publish} method. The
+ * publishing mechanism can be overridden by other discovery.
+ *
+ * The cluster state implements the {@link Diffable} interface in order to support publishing of cluster state
+ * differences instead of the entire state on each change. The publishing mechanism should only send differences
+ * to a node if this node was present in the previous version of the cluster state. If a node is not present was
+ * not present in the previous version of the cluster state, such node is unlikely to have the previous cluster
+ * state version and should be sent a complete version. In order to make sure that the differences are applied to
+ * correct version of the cluster state, each cluster state version update generates {@link #uuid} that uniquely
+ * identifies this version of the state. This uuid is verified by the {@link ClusterStateDiff#apply} method to
+ * makes sure that the correct diffs are applied. If uuids don’t match, the {@link ClusterStateDiff#apply} method
+ * throws the {@link IncompatibleClusterStateVersionException}, which should cause the publishing mechanism to send
+ * a full version of the cluster state to the node on which this exception was thrown.
  */
 public class ClusterState implements ToXContent, Diffable<ClusterState> {
 

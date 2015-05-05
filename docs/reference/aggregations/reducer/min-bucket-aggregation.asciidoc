@@ -5,6 +5,26 @@ A sibling reducer aggregation which identifies the bucket(s) with the minimum va
 and outputs both the value and the key(s) of the bucket(s). The specified metric must be numeric and the sibling aggregation must 
 be a multi-bucket aggregation.
 
+==== Syntax
+
+A `max_bucket` aggregation looks like this in isolation:
+
+[source,js]
+--------------------------------------------------
+{
+    "min_bucket": {
+        "buckets_path": "the_sum"
+    }
+}
+--------------------------------------------------
+
+.`min_bucket` Parameters
+|===
+|Parameter Name |Description |Required |Default Value
+|`buckets_path` |Path to the metric of interest (see <<bucket-path-syntax, `buckets_path` Syntax>> for more details |Required |
+|===
+
+
 The following snippet calculates the minimum of the total monthly `sales`:
 
 [source,js]

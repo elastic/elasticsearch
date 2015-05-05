@@ -19,19 +19,21 @@
 package org.elasticsearch.action.support.master.info;
 
 import com.google.common.collect.ObjectArrays;
+import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
 import org.elasticsearch.client.ClusterAdminClient;
+import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.client.IndicesAdminClient;
 
 /**
  */
-public abstract class ClusterInfoRequestBuilder<Request extends ClusterInfoRequest<Request>, Response extends ActionResponse, Builder extends ClusterInfoRequestBuilder<Request, Response, Builder>> extends MasterNodeReadOperationRequestBuilder<Request, Response, Builder, IndicesAdminClient> {
+public abstract class ClusterInfoRequestBuilder<Request extends ClusterInfoRequest<Request>, Response extends ActionResponse, Builder extends ClusterInfoRequestBuilder<Request, Response, Builder>> extends MasterNodeReadOperationRequestBuilder<Request, Response, Builder> {
 
 
-    protected ClusterInfoRequestBuilder(IndicesAdminClient client, Request request) {
-        super(client, request);
+    protected ClusterInfoRequestBuilder(ElasticsearchClient client, Action<Request, Response, Builder> action, Request request) {
+        super(client, action, request);
     }
 
     @SuppressWarnings("unchecked")

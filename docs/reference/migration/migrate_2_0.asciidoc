@@ -309,7 +309,7 @@ Fields of type `murmur3` can no longer change `doc_values` or `index` setting.
 They are always stored with doc values, and not indexed.
 
 ==== Source field configuration
-The `_source` field no longer supports `includes` and `excludes` paramters. When
+The `_source` field no longer supports `includes` and `excludes` parameters. When
 `_source` is enabled, the entire original source will be stored.
 
 ==== Config based mappings
@@ -400,9 +400,9 @@ be used separately to control whether `routing_nodes` should be returned.
 
 === Query DSL
 
-Change to ranking behaviour: single-term queries on numeric fields now score in the same way as string fields (use of IDF, norms if enabled). 
+Change to ranking behaviour: single-term queries on numeric fields now score in the same way as string fields (use of IDF, norms if enabled).
 Previously, term queries on numeric fields were deliberately prevented from using the usual Lucene scoring logic and this behaviour was undocumented and, to some, unexpected.
-If the introduction of scoring to numeric fields is undesirable for your query clauses the fix is simple: wrap them in a `constant_score` or use a `filter` expression instead.  
+If the introduction of scoring to numeric fields is undesirable for your query clauses the fix is simple: wrap them in a `constant_score` or use a `filter` expression instead.
 
 
 The `fuzzy_like_this` and `fuzzy_like_this_field` queries have been removed.
@@ -462,4 +462,25 @@ The `index.store.distributor` setting has also been removed.
 === Hunspell dictionary configuration
 
 The parameter `indices.analysis.hunspell.dictionary.location` has been removed,
-and `<path.conf>/hunspell` is always used. 
+and `<path.conf>/hunspell` is always used.
+
+=== Java API Transport API construction
+
+The `TransportClient` construction code has changed, it now uses the builder
+pattern. Instead of using:
+
+[source,java]
+--------------------------------------------------
+Settings settings = ImmutableSettings.settingsBuilder()
+        .put("cluster.name", "myClusterName").build();
+Client client = new TransportClient(settings);
+--------------------------------------------------
+
+Use:
+
+[source,java]
+--------------------------------------------------
+Settings settings = ImmutableSettings.settingsBuilder()
+        .put("cluster.name", "myClusterName").build();
+Client client = TransportClient.builder().settings(settings).build();
+--------------------------------------------------

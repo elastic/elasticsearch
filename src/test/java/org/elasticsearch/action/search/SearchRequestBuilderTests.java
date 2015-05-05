@@ -50,7 +50,7 @@ public class SearchRequestBuilderTests extends ElasticsearchTestCase {
         Settings settings = ImmutableSettings.builder()
                 .put("path.home", createTempDir().toString())
                 .build();
-        client = new TransportClient(settings);
+        client = TransportClient.builder().settings(settings).build();
     }
 
     @AfterClass
@@ -61,20 +61,20 @@ public class SearchRequestBuilderTests extends ElasticsearchTestCase {
 
     @Test
     public void testEmptySourceToString() {
-        SearchRequestBuilder searchRequestBuilder = new SearchRequestBuilder(client);
+        SearchRequestBuilder searchRequestBuilder = client.prepareSearch();
         assertThat(searchRequestBuilder.toString(), equalTo(new SearchSourceBuilder().toString()));
     }
 
     @Test
     public void testQueryBuilderQueryToString() {
-        SearchRequestBuilder searchRequestBuilder = new SearchRequestBuilder(client);
+        SearchRequestBuilder searchRequestBuilder = client.prepareSearch();
         searchRequestBuilder.setQuery(QueryBuilders.matchAllQuery());
         assertThat(searchRequestBuilder.toString(), equalTo(new SearchSourceBuilder().query(QueryBuilders.matchAllQuery()).toString()));
     }
 
     @Test
     public void testXContentBuilderQueryToString() throws IOException {
-        SearchRequestBuilder searchRequestBuilder = new SearchRequestBuilder(client);
+        SearchRequestBuilder searchRequestBuilder = client.prepareSearch();
         XContentBuilder xContentBuilder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
         xContentBuilder.startObject();
         xContentBuilder.startObject("match_all");
@@ -86,7 +86,7 @@ public class SearchRequestBuilderTests extends ElasticsearchTestCase {
 
     @Test
     public void testStringQueryToString() {
-        SearchRequestBuilder searchRequestBuilder = new SearchRequestBuilder(client);
+        SearchRequestBuilder searchRequestBuilder = client.prepareSearch();
         String query = "{ \"match_all\" : {} }";
         searchRequestBuilder.setQuery(query);
         assertThat(searchRequestBuilder.toString(), containsString("\"query\":{ \"match_all\" : {} }"));
@@ -94,7 +94,7 @@ public class SearchRequestBuilderTests extends ElasticsearchTestCase {
 
     @Test
     public void testStringSourceToString() {
-        SearchRequestBuilder searchRequestBuilder = new SearchRequestBuilder(client);
+        SearchRequestBuilder searchRequestBuilder = client.prepareSearch();
         String source = "{ \"query\" : { \"match_all\" : {} } }";
         searchRequestBuilder.setSource(source);
         assertThat(searchRequestBuilder.toString(), equalTo(source));
@@ -102,7 +102,7 @@ public class SearchRequestBuilderTests extends ElasticsearchTestCase {
 
     @Test
     public void testXContentBuilderSourceToString() throws IOException {
-        SearchRequestBuilder searchRequestBuilder = new SearchRequestBuilder(client);
+        SearchRequestBuilder searchRequestBuilder = client.prepareSearch();
         XContentBuilder xContentBuilder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
         xContentBuilder.startObject();
         xContentBuilder.startObject("query");
@@ -125,7 +125,7 @@ public class SearchRequestBuilderTests extends ElasticsearchTestCase {
                 "            }\n" +
                 "        }\n" +
                 "        }";
-        SearchRequestBuilder searchRequestBuilder = new SearchRequestBuilder(client).setSource(source);
+        SearchRequestBuilder searchRequestBuilder = client.prepareSearch().setSource(source);
         String preToString = searchRequestBuilder.request().source().toUtf8();
         assertThat(searchRequestBuilder.toString(), equalTo(source));
         String postToString = searchRequestBuilder.request().source().toUtf8();

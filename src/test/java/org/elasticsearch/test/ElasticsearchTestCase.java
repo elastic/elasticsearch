@@ -93,7 +93,7 @@ import static com.google.common.collect.Lists.newArrayList;
 public abstract class ElasticsearchTestCase extends LuceneTestCase {
 
     static {
-        SecurityHack.ensureInitialized();
+        SecurityBootstrap.ensureInitialized();
     }
 
     protected final ESLogger logger = Loggers.getLogger(getClass());

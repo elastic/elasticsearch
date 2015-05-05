@@ -21,14 +21,19 @@
 // On startup, BootStrap reads environment and adds additional permissions
 // for configured paths to these.
 
+//// System code permissions:
+//// These permissions apply to the JDK itself:
+
+grant codeBase "file:${{java.ext.dirs}}/*" {
+        permission java.security.AllPermission;
+};
+
+//// Everything else:
+
 grant {
 
   // system jar resources
   permission java.io.FilePermission "${java.home}${/}-", "read";
-
-  // temporary files
-  permission java.io.FilePermission "${java.io.tmpdir}", "read,write";
-  permission java.io.FilePermission "${java.io.tmpdir}${/}-", "read,write,delete";
 
   // paths used for running tests
   // compiled classes
@@ -63,9 +68,6 @@ grant {
   // needed by ImmutableSettings
   permission java.lang.RuntimePermission "getenv.*";
 
-  // needed by BootStrap, etc
-  permission java.lang.RuntimePermission "exitVM.*";
-
   // needed by PluginManager
   permission java.lang.RuntimePermission "setFactory";
 
@@ -78,9 +80,6 @@ grant {
 
   // needed by groovy scripting
   permission java.lang.RuntimePermission "getProtectionDomain";
-
-  // needed for natives calls
-  permission java.lang.RuntimePermission "loadLibrary.*";
 
   // reflection hacks:
   // needed for Striped64 (what is this doing), also enables unmap hack

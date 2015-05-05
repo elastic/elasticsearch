@@ -45,14 +45,9 @@ public class NodeClientHeadersTests extends AbstractClientHeadersTests {
     @Override
     protected Client buildClient(Settings headersSettings, GenericAction[] testedActions) {
         Settings settings = HEADER_SETTINGS;
-
         Headers headers = new Headers(settings);
         Actions actions = new Actions(settings, threadPool, testedActions);
-
-        NodeClusterAdminClient clusterClient = new NodeClusterAdminClient(settings, threadPool, actions, headers);
-        NodeIndicesAdminClient indicesClient = new NodeIndicesAdminClient(settings, threadPool, actions, headers);
-        NodeAdminClient adminClient = new NodeAdminClient(settings, clusterClient, indicesClient);
-        return new NodeClient(settings, threadPool, adminClient, actions, headers);
+        return new NodeClient(settings, threadPool, headers, actions);
     }
 
     private static class Actions extends HashMap<GenericAction, TransportAction> {

@@ -62,9 +62,10 @@ public abstract class AbstractAzureTest extends ElasticsearchIntegrationTest {
                 .build();
     }
 
-    protected static Settings readSettingsFromFile() {
+    protected Settings readSettingsFromFile() {
         ImmutableSettings.Builder settings = ImmutableSettings.builder();
-        Environment environment = new Environment();
+        settings.put("path.home", createTempDir());
+        Environment environment = new Environment(settings.build());
 
         // if explicit, just load it and don't load from env
         try {

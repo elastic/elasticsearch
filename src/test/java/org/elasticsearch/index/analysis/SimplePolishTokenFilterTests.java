@@ -63,6 +63,7 @@ public class SimplePolishTokenFilterTests extends ElasticsearchTestCase {
         Index index = new Index("test");
         Settings settings = ImmutableSettings.settingsBuilder()
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put("path.home", createTempDir())
                 .put("index.analysis.filter.myStemmer.type", "polish_stem")
                 .build();
         AnalysisService analysisService = createAnalysisService(index, settings);
@@ -84,6 +85,7 @@ public class SimplePolishTokenFilterTests extends ElasticsearchTestCase {
         Index index = new Index("test");
         Settings settings = ImmutableSettings.settingsBuilder()
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put("path.home", createTempDir())
                 .build();
         AnalysisService analysisService = createAnalysisService(index, settings);
 

@@ -73,7 +73,7 @@ public class RestGetSourceAction extends BaseRestHandler {
         client.get(getRequest, new RestResponseListener<GetResponse>(channel) {
             @Override
             public RestResponse buildResponse(GetResponse response) throws Exception {
-                XContentBuilder builder = channel.newBuilder(response.getSourceInternal());
+                XContentBuilder builder = channel.newBuilder(response.getSourceInternal(), false);
                 if (!response.isExists()) {
                     return new BytesRestResponse(NOT_FOUND, builder);
                 } else {

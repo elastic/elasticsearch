@@ -82,6 +82,113 @@ consumption.  The default for the `human` flag is
 `false`.
 
 [float]
+=== Response Filtering
+
+All REST APIs accept a `filter_path` parameter that can be used to reduce
+the response returned by elasticsearch. This parameter takes a comma
+separated list of filters expressed with the dot notation:
+
+[source,sh]
+--------------------------------------------------
+curl -XGET 'localhost:9200/_search?pretty&filter_path=took,hits.hits._id,hits.hits._score'
+{
+  "took" : 3,
+  "hits" : {
+    "hits" : [
+      {
+        "_id" : "3640",
+        "_score" : 1.0
+      },
+      {
+        "_id" : "3642",
+        "_score" : 1.0
+      }
+    ]
+  }
+}
+--------------------------------------------------
+
+It also supports the `*` wildcard character to match any field or part
+of a field's name:
+
+[source,sh]
+--------------------------------------------------
+curl -XGET 'localhost:9200/_nodes/stats?filter_path=nodes.*.ho*'
+{
+  "nodes" : {
+    "lvJHed8uQQu4brS-SXKsNA" : {
+      "host" : "portable"
+    }
+  }
+}
+--------------------------------------------------
+
+And the `**` wildcard can be used to include fields without knowing the
+exact path of the field. For example, we can return the Lucene version
+of every segment with this request:
+
+[source,sh]
+--------------------------------------------------
+curl 'localhost:9200/_segments?pretty&filter_path=indices.**.version'
+{
+  "indices" : {
+    "movies" : {
+      "shards" : {
+        "0" : [ {
+          "segments" : {
+            "_0" : {
+              "version" : "5.2.0"
+            }
+          }
+        } ],
+        "2" : [ {
+          "segments" : {
+            "_0" : {
+              "version" : "5.2.0"
+            }
+          }
+        } ]
+      }
+    },
+    "books" : {
+      "shards" : {
+        "0" : [ {
+          "segments" : {
+            "_0" : {
+              "version" : "5.2.0"
+            }
+          }
+        } ]
+      }
+    }
+  }
+}
+--------------------------------------------------
+
+Note that elasticsearch sometimes returns directly the raw value of a field,
+like the `_source` field. If you want to filter _source fields, you should
+consider combining the already existing `_source` parameter (see
+<<get-source-filtering,Get API>> for more details) with the `filter_path`
+ parameter like this:
+
+[source,sh]
+--------------------------------------------------
+curl -XGET 'localhost:9200/_search?pretty&filter_path=hits.hits._source&_source=title'
+{
+  "hits" : {
+    "hits" : [ {
+      "_source":{"title":"Book #2"}
+    }, {
+      "_source":{"title":"Book #1"}
+    }, {
+      "_source":{"title":"Book #3"}
+    } ]
+  }
+}
+--------------------------------------------------
+
+
+[float]
 === Flat Settings
 
 The `flat_settings` flag affects rendering of the lists of settings. When

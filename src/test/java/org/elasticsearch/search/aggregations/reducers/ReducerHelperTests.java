@@ -101,13 +101,13 @@ public class ReducerHelperTests extends ElasticsearchTestCase {
     public static double calculateMetric(double[] values, ValuesSourceMetricsAggregationBuilder metric) {
 
         if (metric instanceof MinBuilder) {
-            double accumulator = Double.MAX_VALUE;
+            double accumulator = Double.POSITIVE_INFINITY;
             for (double value : values) {
                 accumulator = Math.min(accumulator, value);
             }
             return accumulator;
         } else if (metric instanceof MaxBuilder) {
-            double accumulator = Double.MIN_VALUE;
+            double accumulator = Double.NEGATIVE_INFINITY;
             for (double value : values) {
                 accumulator = Math.max(accumulator, value);
             }

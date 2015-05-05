@@ -168,8 +168,13 @@ public class RestFilterChainTests extends ElasticsearchTestCase {
         }
 
         @Override
-        public XContentBuilder newBuilder(@Nullable BytesReference autoDetectSource) throws IOException {
-            return super.newBuilder(autoDetectSource);
+        public XContentBuilder newErrorBuilder() throws IOException {
+            return super.newErrorBuilder();
+        }
+
+        @Override
+        public XContentBuilder newBuilder(@Nullable BytesReference autoDetectSource, boolean useFiltering) throws IOException {
+            return super.newBuilder(autoDetectSource, useFiltering);
         }
 
         @Override

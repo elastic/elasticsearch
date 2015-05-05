@@ -112,7 +112,7 @@ public class BytesRestResponse extends RestResponse {
     }
 
     private static XContentBuilder convert(RestChannel channel, RestStatus status, Throwable t) throws IOException {
-        XContentBuilder builder = channel.newBuilder().startObject();
+        XContentBuilder builder = channel.newErrorBuilder().startObject();
         if (t == null) {
             builder.field("error", "Unknown");
         } else if (channel.detailedErrorsEnabled()) {

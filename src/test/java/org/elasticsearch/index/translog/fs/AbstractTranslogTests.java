@@ -120,11 +120,19 @@ public abstract class AbstractTranslogTests extends ElasticsearchTestCase {
         file = translogDir.resolve(FsTranslog.TRANSLOG_FILE_PREFIX + id + ".recovering");
         assertThat(FsTranslog.parseIdFromFileName(file), equalTo(id));
 
-        file = translogDir.resolve(FsTranslog.TRANSLOG_FILE_PREFIX + randomRealisticUnicodeOfCodepointLength(randomIntBetween(1, 10)) + id);
+        file = translogDir.resolve(FsTranslog.TRANSLOG_FILE_PREFIX + randomNonTranslogPatternString(1, 10) + id);
         assertThat(FsTranslog.parseIdFromFileName(file), equalTo(-1l));
 
-        file = translogDir.resolve(randomRealisticUnicodeOfCodepointLength(randomIntBetween(1, FsTranslog.TRANSLOG_FILE_PREFIX.length() - 1)));
+        file = translogDir.resolve(randomNonTranslogPatternString(1, FsTranslog.TRANSLOG_FILE_PREFIX.length() - 1));
         assertThat(FsTranslog.parseIdFromFileName(file), equalTo(-1l));
+    }
+
+    private static String randomNonTranslogPatternString(int min, int max) {
+       String string;
+        do {
+            string = randomRealisticUnicodeOfCodepointLength(randomIntBetween(min, max));
+        } while (FsTranslog.PARSE_ID_PATTERN.matcher(string).matches());
+        return string;
     }
 
     @Test

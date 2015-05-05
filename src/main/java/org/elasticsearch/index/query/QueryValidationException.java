@@ -19,8 +19,6 @@
 
 package org.elasticsearch.index.query;
 
-import org.elasticsearch.action.ActionRequestValidationException;
-
 import java.util.ArrayList;
 import java.util.List;
 
@@ -31,8 +29,9 @@ public class QueryValidationException extends IllegalArgumentException {
 
     private final List<String> validationErrors = new ArrayList<>();
 
-    public QueryValidationException() {
+    public QueryValidationException(String error) {
         super("query validation failed");
+        validationErrors.add(error);
     }
 
     public void addValidationError(String error) {
@@ -62,16 +61,17 @@ public class QueryValidationException extends IllegalArgumentException {
 
     /**
      * Helper method than can be used to add error messages to an existing {@link QueryValidationException}.
-     * When passing @null as the initial exception, a new exception is created.
-     * @param validationError the error message to add
-     * @param validationException an input exception of @null. A new exception is created in this case.
+     * When passing {@code null} as the initial exception, a new exception is created.
+     * @param validationError the error message to add to an initial exception
+     * @param validationException an initial exception. Can be {@code null}, in which case a new exception is created.
      * @return a {@link QueryValidationException} with added validation error message
      */
     public static QueryValidationException addValidationError(String validationError, QueryValidationException validationException) {
         if (validationException == null) {
-            validationException = new QueryValidationException();
+            validationException = new QueryValidationException(validationError);
+        } else {
+            validationException.addValidationError(validationError);
         }
-        validationException.addValidationError(validationError);
         return validationException;
     }
 }

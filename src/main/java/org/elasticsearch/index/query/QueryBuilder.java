@@ -20,7 +20,6 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -48,7 +47,7 @@ public interface QueryBuilder extends ToXContent {
 
     /**
      * Validate the query.
-     * @return {@code null} if query is valid, otherwise {@link ActionRequestValidationException} containing error messages,
+     * @return a {@link QueryValidationException} containing error messages, {@code null} if query is valid.
      * e.g. if fields that are needed to create the lucene query are missing.
      */
     QueryValidationException validate();

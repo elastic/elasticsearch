@@ -35,7 +35,6 @@ import org.junit.Test;
 
 import java.io.IOException;
 import java.util.LinkedHashMap;
-import java.util.Map;
 
 import static org.elasticsearch.client.Requests.clusterHealthRequest;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -236,6 +235,7 @@ public class MetaDataWriteDataNodesTests extends ElasticsearchIntegrationTest {
         assertThat(clusterStateResponse.getState().getMetaData().index("red_index").getState().name(), equalTo(IndexMetaData.State.OPEN.name()));
         assertTrue(client().prepareGet("red_index", "doc", "1").get().isExists());
     }
+
     @Test
     public void testMetaWrittenWhenIndexIsClosedAndMetaUpdated() throws Exception {
         String masterNode = startMasterNode();
@@ -272,7 +272,7 @@ public class MetaDataWriteDataNodesTests extends ElasticsearchIntegrationTest {
                 .endObject()).get();
 
         GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings("red_index").addTypes("doc").get();
-        assertNotNull(((LinkedHashMap)(getMappingsResponse.getMappings().get("red_index").get("doc").getSourceAsMap().get("properties"))).get("integer_field"));
+        assertNotNull(((LinkedHashMap) (getMappingsResponse.getMappings().get("red_index").get("doc").getSourceAsMap().get("properties"))).get("integer_field"));
         // restart master with empty data folder and maybe red node
         ((InternalTestCluster) cluster()).stopCurrentMasterNode();
         masterNode = startMasterNode();
@@ -283,7 +283,7 @@ public class MetaDataWriteDataNodesTests extends ElasticsearchIntegrationTest {
         clusterStateResponse = client().admin().cluster().prepareState().get();
         assertThat(clusterStateResponse.getState().getMetaData().index("red_index").getState().name(), equalTo(IndexMetaData.State.CLOSE.name()));
         getMappingsResponse = client().admin().indices().prepareGetMappings("red_index").addTypes("doc").get();
-        assertNotNull(((LinkedHashMap)(getMappingsResponse.getMappings().get("red_index").get("doc").getSourceAsMap().get("properties"))).get("integer_field"));
+        assertNotNull(((LinkedHashMap) (getMappingsResponse.getMappings().get("red_index").get("doc").getSourceAsMap().get("properties"))).get("integer_field"));
 
     }
 
@@ -320,12 +320,20 @@ public class MetaDataWriteDataNodesTests extends ElasticsearchIntegrationTest {
         assertMetaState(nodeName, indexName, true);
     }
 
+
     private void assertMetaState(final String nodeName, final String indexName, final boolean shouldBe) throws Exception {
         awaitBusy(new Predicate<Object>() {
             @Override
             public boolean apply(Object o) {
                 logger.info("checking if meta state exists...");
-                return shouldBe == metaStateExists(nodeName, indexName);
+                try {
+                    return shouldBe == metaStateExists(nodeName, indexName);
+                } catch (Throwable t) {
+                    logger.info("failed to load meta state", t);
+                    // TODO: loading of meta state fails rarely if the state is deleted while we try to load it
+                    // this here is a hack, would be much better to use for example a WatchService
+                    return false;
+                }
             }
         });
         boolean inMetaSate = metaStateExists(nodeName, indexName);
@@ -336,15 +344,11 @@ public class MetaDataWriteDataNodesTests extends ElasticsearchIntegrationTest {
         }
     }
 
-    private boolean metaStateExists(String nodeName, String indexName) {
-        GatewayMetaState redNodeMetaState = ((InternalTestCluster) cluster()).getInstance(GatewayMetaState.class, nodeName);
-        MetaData redNodeMetaData = null;
-        try {
-            redNodeMetaData = redNodeMetaState.loadMetaState();
-        } catch (Exception e) {
-            fail("failed to load meta state");
-        }
-        ImmutableOpenMap<String, IndexMetaData> indices = redNodeMetaData.getIndices();
+    private boolean metaStateExists(String nodeName, String indexName) throws Exception {
+        GatewayMetaState nodeMetaState = ((InternalTestCluster) cluster()).getInstance(GatewayMetaState.class, nodeName);
+        MetaData nodeMetaData = null;
+        nodeMetaData = nodeMetaState.loadMetaState();
+        ImmutableOpenMap<String, IndexMetaData> indices = nodeMetaData.getIndices();
         boolean inMetaSate = false;
         for (ObjectObjectCursor<String, IndexMetaData> index : indices) {
             inMetaSate = inMetaSate || index.key.equals(indexName);

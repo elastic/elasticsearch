@@ -59,7 +59,7 @@ you now use:
 GET /_cluster/state/nodes
 ---------------
 
-Simliarly for the `nodes_stats` API, if you want the `transport` and `http`
+Similarly for the `nodes_stats` API, if you want the `transport` and `http`
 metrics only, instead of:
 
 [source,sh]

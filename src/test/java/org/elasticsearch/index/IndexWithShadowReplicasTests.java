@@ -675,7 +675,7 @@ public class IndexWithShadowReplicasTests extends ElasticsearchIntegrationTest {
         internalCluster().stopCurrentMasterNode();
 
         ensureGreen(IDX);
-        refresh();
+        flushAndRefresh(IDX);
         SearchResponse resp = client().prepareSearch(IDX).setQuery(matchAllQuery()).addFieldDataField("foo").addSort("foo", SortOrder.ASC).get();
         assertHitCount(resp, 4);
     }

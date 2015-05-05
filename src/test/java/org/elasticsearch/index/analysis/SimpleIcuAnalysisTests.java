@@ -33,6 +33,7 @@ public class SimpleIcuAnalysisTests extends ElasticsearchTestCase {
     @Test
     public void testDefaultsIcuAnalysis() {
         Settings settings = settingsBuilder()
+                .put("path.home", createTempDir())
                 .loadFromClasspath("org/elasticsearch/index/analysis/phonetic-1.yml").build();
         AnalysisService analysisService = createAnalysisService(settings);
 

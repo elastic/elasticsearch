@@ -627,4 +627,46 @@ public class IndexWithShadowReplicasTests extends ElasticsearchIntegrationTest {
         assertThat(hits[2].field("foo").getValue().toString(), equalTo("eggplant"));
         assertThat(hits[3].field("foo").getValue().toString(), equalTo("foo"));
     }
+
+    @Test
+    public void testIndexOnSharedFSRecoversToAnyNode() throws Exception {
+        Settings nodeSettings = ImmutableSettings.builder()
+                .put("node.add_id_to_custom_path", false)
+                .put("node.enable_custom_paths", true)
+                .build();
+
+        internalCluster().startNode(nodeSettings);
+        Path dataPath = createTempDir();
+        String IDX = "test";
+
+        Settings idxSettings = ImmutableSettings.builder()
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 5)
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(IndexMetaData.SETTING_DATA_PATH, dataPath.toAbsolutePath().toString())
+                .put(IndexMetaData.SETTING_SHARED_FILESYSTEM, true)
+                .put(IndexMetaData.SETTING_SHARED_FS_ALLOW_RECOVERY_ON_ANY_NODE, true)
+                .build();
+
+        // only one node, so all primaries will end up on node1
+        prepareCreate(IDX).setSettings(idxSettings).addMapping("doc", "foo", "type=string,index=not_analyzed").get();
+        ensureGreen(IDX);
+
+        // Index some documents
+        client().prepareIndex(IDX, "doc", "1").setSource("foo", "foo").get();
+        client().prepareIndex(IDX, "doc", "2").setSource("foo", "bar").get();
+        client().prepareIndex(IDX, "doc", "3").setSource("foo", "baz").get();
+        client().prepareIndex(IDX, "doc", "4").setSource("foo", "eggplant").get();
+
+        // start a second node
+        internalCluster().startNode(nodeSettings);
+
+        // node1 is master, stop that one, since we only have primaries,
+        // usually this would mean data loss, but not on shared fs!
+        internalCluster().stopCurrentMasterNode();
+
+        ensureGreen(IDX);
+        refresh();
+        SearchResponse resp = client().prepareSearch(IDX).setQuery(matchAllQuery()).addFieldDataField("foo").addSort("foo", SortOrder.ASC).get();
+        assertHitCount(resp, 4);
+    }
 }

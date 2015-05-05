@@ -19,12 +19,12 @@
 
 package org.elasticsearch.action.indexedscripts.delete;
 
-import org.elasticsearch.action.ClientAction;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.action.Action;
+import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  */
-public class DeleteIndexedScriptAction extends ClientAction<DeleteIndexedScriptRequest, DeleteIndexedScriptResponse, DeleteIndexedScriptRequestBuilder> {
+public class DeleteIndexedScriptAction extends Action<DeleteIndexedScriptRequest, DeleteIndexedScriptResponse, DeleteIndexedScriptRequestBuilder> {
 
     public static final DeleteIndexedScriptAction INSTANCE = new DeleteIndexedScriptAction();
     public static final String NAME = "indices:data/write/script/delete";
@@ -39,7 +39,7 @@ public class DeleteIndexedScriptAction extends ClientAction<DeleteIndexedScriptR
     }
 
     @Override
-    public DeleteIndexedScriptRequestBuilder newRequestBuilder(Client client) {
-        return new DeleteIndexedScriptRequestBuilder(client);
+    public DeleteIndexedScriptRequestBuilder newRequestBuilder(ElasticsearchClient client) {
+        return new DeleteIndexedScriptRequestBuilder(client, this);
     }
 }

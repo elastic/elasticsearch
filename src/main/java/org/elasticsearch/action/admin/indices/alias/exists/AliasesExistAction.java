@@ -19,13 +19,13 @@
 
 package org.elasticsearch.action.admin.indices.alias.exists;
 
-import org.elasticsearch.action.admin.indices.IndicesAction;
+import org.elasticsearch.action.Action;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
-import org.elasticsearch.client.IndicesAdminClient;
+import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  */
-public class AliasesExistAction extends IndicesAction<GetAliasesRequest, AliasesExistResponse, AliasesExistRequestBuilder> {
+public class AliasesExistAction extends Action<GetAliasesRequest, AliasesExistResponse, AliasesExistRequestBuilder> {
 
     public static final AliasesExistAction INSTANCE = new AliasesExistAction();
     public static final String NAME = "indices:admin/aliases/exists";
@@ -35,8 +35,8 @@ public class AliasesExistAction extends IndicesAction<GetAliasesRequest, Aliases
     }
 
     @Override
-    public AliasesExistRequestBuilder newRequestBuilder(IndicesAdminClient client) {
-        return new AliasesExistRequestBuilder(client);
+    public AliasesExistRequestBuilder newRequestBuilder(ElasticsearchClient client) {
+        return new AliasesExistRequestBuilder(client, this);
     }
 
     @Override

@@ -47,6 +47,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.metrics.MeanMetric;
@@ -54,6 +55,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.MetaDataStateFormat;
@@ -192,11 +194,14 @@ public class IndexShard extends AbstractIndexShardComponent {
     public static final String INDEX_FLUSH_ON_CLOSE = "index.flush_on_close";
     private final ShardPath path;
 
+    private final IndexShardOperationCounter indexShardOperationCounter;
+
     @Inject
     public IndexShard(ShardId shardId, IndexSettingsService indexSettingsService, IndicesLifecycle indicesLifecycle, Store store, MergeSchedulerProvider mergeScheduler,
                       ThreadPool threadPool, MapperService mapperService, IndexQueryParserService queryParserService, IndexCache indexCache, IndexAliasesService indexAliasesService, ShardIndexingService indexingService, ShardGetService getService, ShardSearchService searchService, ShardIndexWarmerService shardWarmerService,
                       ShardFilterCache shardFilterCache, ShardFieldData shardFieldData, PercolatorQueriesRegistry percolatorQueriesRegistry, ShardPercolateService shardPercolateService, CodecService codecService,
-                      ShardTermVectorsService termVectorsService, IndexFieldDataService indexFieldDataService, IndexService indexService, ShardSuggestService shardSuggestService, ShardQueryCache shardQueryCache, ShardBitsetFilterCache shardBitsetFilterCache,
+                      ShardTermVectorsService termVectorsService, IndexFieldDataService indexFieldDataService, IndexService indexService, ShardSuggestService shardSuggestService,
+                      ShardQueryCache shardQueryCache, ShardBitsetFilterCache shardBitsetFilterCache,
                       @Nullable IndicesWarmer warmer, SnapshotDeletionPolicy deletionPolicy, SimilarityService similarityService, MergePolicyProvider mergePolicyProvider, EngineFactory factory,
                       ClusterService clusterService, NodeEnvironment nodeEnv, ShardPath path, BigArrays bigArrays) {
         super(shardId, indexSettingsService.getSettings());
@@ -247,6 +252,7 @@ public class IndexShard extends AbstractIndexShardComponent {
 
         this.checkIndexOnStartup = indexSettings.get("index.shard.check_on_startup", "false");
         this.engineConfig = newEngineConfig();
+        this.indexShardOperationCounter = new IndexShardOperationCounter(logger, shardId);
     }
 
     public Store store() {
@@ -733,6 +739,7 @@ public class IndexShard extends AbstractIndexShardComponent {
                     mergeScheduleFuture = null;
                 }
                 changeState(IndexShardState.CLOSED, reason);
+                indexShardOperationCounter.decRef();
             } finally {
                 final Engine engine = this.currentEngineReference.getAndSet(null);
                 try {
@@ -764,7 +771,9 @@ public class IndexShard extends AbstractIndexShardComponent {
         return this;
     }
 
-    /** called before starting to copy index files over */
+    /**
+     * called before starting to copy index files over
+     */
     public void prepareForIndexRecovery() {
         if (state != IndexShardState.RECOVERING) {
             throw new IndexShardNotRecoveringException(shardId, state);
@@ -830,7 +839,9 @@ public class IndexShard extends AbstractIndexShardComponent {
         }
     }
 
-    /** called if recovery has to be restarted after network error / delay ** */
+    /**
+     * called if recovery has to be restarted after network error / delay **
+     */
     public void performRecoveryRestart() throws IOException {
         synchronized (mutex) {
             if (state != IndexShardState.RECOVERING) {
@@ -842,7 +853,9 @@ public class IndexShard extends AbstractIndexShardComponent {
         }
     }
 
-    /** returns stats about ongoing recoveries, both source and target */
+    /**
+     * returns stats about ongoing recoveries, both source and target
+     */
     public RecoveryStats recoveryStats() {
         return recoveryStats;
     }
@@ -1092,7 +1105,9 @@ public class IndexShard extends AbstractIndexShardComponent {
             });
         }
 
-        /** Schedules another (future) refresh, if refresh_interval is still enabled. */
+        /**
+         * Schedules another (future) refresh, if refresh_interval is still enabled.
+         */
         private void reschedule() {
             synchronized (mutex) {
                 if (state != IndexShardState.CLOSED && refreshInterval.millis() > 0) {
@@ -1285,5 +1300,38 @@ public class IndexShard extends AbstractIndexShardComponent {
         return new EngineConfig(shardId,
                 threadPool, indexingService, indexSettingsService, warmer, store, deletionPolicy, mergePolicyProvider, mergeScheduler,
                 mapperAnalyzer, similarityService.similarity(), codecService, failedEngineListener, translogRecoveryPerformer, indexCache.filter(), indexCache.filterPolicy(), bigArrays, shardPath().resolveTranslog());
+    }
+
+    private static class IndexShardOperationCounter extends AbstractRefCounted {
+        final private ESLogger logger;
+        private final ShardId shardId;
+
+        public IndexShardOperationCounter(ESLogger logger, ShardId shardId) {
+            super("index-shard-operations-counter");
+            this.logger = logger;
+            this.shardId = shardId;
+        }
+
+        @Override
+        protected void closeInternal() {
+            logger.debug("operations counter reached 0, will not accept any further writes");
+        }
+
+        @Override
+        protected void alreadyClosed() {
+            throw new IndexShardClosedException(shardId, "could not increment operation counter. shard is closed.");
+        }
+    }
+
+    public void incrementOperationCounter() {
+        indexShardOperationCounter.incRef();
+    }
+
+    public void decrementOperationCounter() {
+        indexShardOperationCounter.decRef();
+    }
+
+    public int getOperationsCount() {
+        return indexShardOperationCounter.refCount();
     }
 }

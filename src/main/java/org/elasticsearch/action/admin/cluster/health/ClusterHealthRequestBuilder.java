@@ -19,19 +19,18 @@
 
 package org.elasticsearch.action.admin.cluster.health;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
-import org.elasticsearch.client.ClusterAdminClient;
+import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.unit.TimeValue;
 
 /**
  *
  */
-public class ClusterHealthRequestBuilder extends MasterNodeReadOperationRequestBuilder<ClusterHealthRequest, ClusterHealthResponse, ClusterHealthRequestBuilder, ClusterAdminClient> {
+public class ClusterHealthRequestBuilder extends MasterNodeReadOperationRequestBuilder<ClusterHealthRequest, ClusterHealthResponse, ClusterHealthRequestBuilder> {
 
-    public ClusterHealthRequestBuilder(ClusterAdminClient clusterClient) {
-        super(clusterClient, new ClusterHealthRequest());
+    public ClusterHealthRequestBuilder(ElasticsearchClient client, ClusterHealthAction action) {
+        super(client, action, new ClusterHealthRequest());
     }
 
     public ClusterHealthRequestBuilder setIndices(String... indices) {
@@ -85,10 +84,5 @@ public class ClusterHealthRequestBuilder extends MasterNodeReadOperationRequestB
     public ClusterHealthRequestBuilder setWaitForEvents(Priority waitForEvents) {
         request.waitForEvents(waitForEvents);
         return this;
-    }
-
-    @Override
-    protected void doExecute(ActionListener<ClusterHealthResponse> listener) {
-        client.health(request, listener);
     }
 }

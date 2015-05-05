@@ -50,7 +50,7 @@ public class TransportClientBackwardsCompatibilityTest extends ElasticsearchBack
         CompositeTestCluster compositeTestCluster = backwardsCluster();
         TransportAddress transportAddress = compositeTestCluster.externalTransportAddress();
 
-        try(TransportClient client = new TransportClient(settings)) {
+        try(TransportClient client = TransportClient.builder().settings(settings).build()) {
             client.addTransportAddress(transportAddress);
 
             assertAcked(client.admin().indices().prepareCreate("test"));

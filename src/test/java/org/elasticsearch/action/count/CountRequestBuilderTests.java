@@ -51,7 +51,7 @@ public class CountRequestBuilderTests extends ElasticsearchTestCase {
         Settings settings = ImmutableSettings.builder()
                 .put("path.home", createTempDir().toString())
                 .build();
-        client = new TransportClient(settings);
+        client = TransportClient.builder().settings(settings).build();
     }
 
     @AfterClass
@@ -62,20 +62,20 @@ public class CountRequestBuilderTests extends ElasticsearchTestCase {
 
     @Test
     public void testEmptySourceToString() {
-        CountRequestBuilder countRequestBuilder = new CountRequestBuilder(client);
+        CountRequestBuilder countRequestBuilder = client.prepareCount();
         assertThat(countRequestBuilder.toString(), equalTo(new QuerySourceBuilder().toString()));
     }
 
     @Test
     public void testQueryBuilderQueryToString() {
-        CountRequestBuilder countRequestBuilder = new CountRequestBuilder(client);
+        CountRequestBuilder countRequestBuilder = client.prepareCount();
         countRequestBuilder.setQuery(QueryBuilders.matchAllQuery());
         assertThat(countRequestBuilder.toString(), equalTo(new QuerySourceBuilder().setQuery(QueryBuilders.matchAllQuery()).toString()));
     }
 
     @Test
     public void testStringQueryToString() {
-        CountRequestBuilder countRequestBuilder = new CountRequestBuilder(client);
+        CountRequestBuilder countRequestBuilder = client.prepareCount();
         String query = "{ \"match_all\" : {} }";
         countRequestBuilder.setQuery(new BytesArray(query));
         assertThat(countRequestBuilder.toString(), containsString("\"query\":{ \"match_all\" : {} }"));
@@ -83,7 +83,7 @@ public class CountRequestBuilderTests extends ElasticsearchTestCase {
 
     @Test
     public void testXContentBuilderQueryToString() throws IOException {
-        CountRequestBuilder countRequestBuilder = new CountRequestBuilder(client);
+        CountRequestBuilder countRequestBuilder = client.prepareCount();
         XContentBuilder xContentBuilder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
         xContentBuilder.startObject();
         xContentBuilder.startObject("match_all");
@@ -95,7 +95,7 @@ public class CountRequestBuilderTests extends ElasticsearchTestCase {
 
     @Test
     public void testStringSourceToString() {
-        CountRequestBuilder countRequestBuilder = new CountRequestBuilder(client);
+        CountRequestBuilder countRequestBuilder = client.prepareCount();
         String query = "{ \"query\": { \"match_all\" : {} } }";
         countRequestBuilder.setSource(new BytesArray(query));
         assertThat(countRequestBuilder.toString(), equalTo("{ \"query\": { \"match_all\" : {} } }"));
@@ -103,7 +103,7 @@ public class CountRequestBuilderTests extends ElasticsearchTestCase {
 
     @Test
     public void testXContentBuilderSourceToString() throws IOException {
-        CountRequestBuilder countRequestBuilder = new CountRequestBuilder(client);
+        CountRequestBuilder countRequestBuilder = client.prepareCount();
         XContentBuilder xContentBuilder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
         xContentBuilder.startObject();
         xContentBuilder.startObject("match_all");
@@ -124,7 +124,7 @@ public class CountRequestBuilderTests extends ElasticsearchTestCase {
                 "            }\n" +
                 "        }\n" +
                 "        }";
-        CountRequestBuilder countRequestBuilder = new CountRequestBuilder(client).setSource(new BytesArray(source));
+        CountRequestBuilder countRequestBuilder = client.prepareCount().setSource(new BytesArray(source));
         String preToString = countRequestBuilder.request().source().toUtf8();
         assertThat(countRequestBuilder.toString(), equalTo(source));
         String postToString = countRequestBuilder.request().source().toUtf8();

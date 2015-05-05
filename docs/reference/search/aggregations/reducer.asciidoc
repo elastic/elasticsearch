@@ -1,6 +1,0 @@
-[[search-aggregations-reducer]]
-
-include::reducer/derivative-aggregation.asciidoc[]
-include::reducer/max-bucket-aggregation.asciidoc[]
-include::reducer/min-bucket-aggregation.asciidoc[]
-include::reducer/movavg-aggregation.asciidoc[]

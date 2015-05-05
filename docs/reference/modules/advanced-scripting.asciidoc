@@ -69,7 +69,7 @@ Field statistics can be accessed with a subscript operator like this:
     documents.
 
 
-Field statistics are computed per shard and therfore these numbers can vary
+Field statistics are computed per shard and therefore these numbers can vary
 depending on the shard the current document resides in.
 The number of terms in a field cannot be accessed using the `_index` variable. See <<mapping-core-types, word count mapping type>> on how to do that.
 
@@ -90,7 +90,7 @@ affect is your set the `index_options` to `docs` (see <<mapping-core-types, mapp
 
 `_index['FIELD']['TERM'].ttf()`::
 
-    The sum of term frequencys of term `TERM` in field `FIELD` over all
+    The sum of term frequencies of term `TERM` in field `FIELD` over all
     documents. Will be returned, even if the term is not present in the
     current document.
 
@@ -108,7 +108,7 @@ If you need information on the positions of terms in a field, call
 
 [horizontal]
 `_POSITIONS`::      if you need the positions of the term
-`_OFFSETS`::        if you need the offests of the term
+`_OFFSETS`::        if you need the offsets of the term
 `_PAYLOADS`::       if you need the payloads of the term
 `_CACHE`::          if you need to iterate over all positions several times
 

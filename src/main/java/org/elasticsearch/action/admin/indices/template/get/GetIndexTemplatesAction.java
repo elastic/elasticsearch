@@ -18,13 +18,13 @@
  */
 package org.elasticsearch.action.admin.indices.template.get;
 
-import org.elasticsearch.action.admin.indices.IndicesAction;
-import org.elasticsearch.client.IndicesAdminClient;
+import org.elasticsearch.action.Action;
+import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  *
  */
-public class GetIndexTemplatesAction extends IndicesAction<GetIndexTemplatesRequest, GetIndexTemplatesResponse, GetIndexTemplatesRequestBuilder> {
+public class GetIndexTemplatesAction extends Action<GetIndexTemplatesRequest, GetIndexTemplatesResponse, GetIndexTemplatesRequestBuilder> {
 
     public static final GetIndexTemplatesAction INSTANCE = new GetIndexTemplatesAction();
     public static final String NAME = "indices:admin/template/get";
@@ -39,7 +39,7 @@ public class GetIndexTemplatesAction extends IndicesAction<GetIndexTemplatesRequ
     }
 
     @Override
-    public GetIndexTemplatesRequestBuilder newRequestBuilder(IndicesAdminClient client) {
-        return new GetIndexTemplatesRequestBuilder(client);
+    public GetIndexTemplatesRequestBuilder newRequestBuilder(ElasticsearchClient client) {
+        return new GetIndexTemplatesRequestBuilder(client, this);
     }
 }

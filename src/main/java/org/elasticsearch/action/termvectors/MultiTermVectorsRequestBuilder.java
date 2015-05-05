@@ -19,14 +19,14 @@
 
 package org.elasticsearch.action.termvectors;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.Nullable;
 
-public class MultiTermVectorsRequestBuilder extends ActionRequestBuilder<MultiTermVectorsRequest, MultiTermVectorsResponse, MultiTermVectorsRequestBuilder, Client> {
-    public MultiTermVectorsRequestBuilder(Client client) {
-        super(client, new MultiTermVectorsRequest());
+public class MultiTermVectorsRequestBuilder extends ActionRequestBuilder<MultiTermVectorsRequest, MultiTermVectorsResponse, MultiTermVectorsRequestBuilder> {
+
+    public MultiTermVectorsRequestBuilder(ElasticsearchClient client, MultiTermVectorsAction action) {
+        super(client, action, new MultiTermVectorsRequest());
     }
 
     public MultiTermVectorsRequestBuilder add(String index, @Nullable String type, Iterable<String> ids) {
@@ -46,10 +46,5 @@ public class MultiTermVectorsRequestBuilder extends ActionRequestBuilder<MultiTe
     public MultiTermVectorsRequestBuilder add(TermVectorsRequest termVectorsRequest) {
         request.add(termVectorsRequest);
         return this;
-    }
-
-    @Override
-    protected void doExecute(ActionListener<MultiTermVectorsResponse> listener) {
-        client.multiTermVectors(request, listener);
     }
 }

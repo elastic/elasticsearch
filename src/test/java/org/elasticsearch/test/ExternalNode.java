@@ -21,7 +21,6 @@ package org.elasticsearch.test;
 import com.google.common.base.Predicate;
 
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.client.Client;
@@ -200,7 +199,7 @@ final class ExternalNode implements Closeable {
                     .put("client.transport.nodes_sampler_interval", "1s")
                     .put("name", "transport_client_" + nodeInfo.getNode().name())
                     .put(ClusterName.SETTING, clusterName).put("client.transport.sniff", false).build();
-            TransportClient client = new TransportClient(clientSettings);
+            TransportClient client = TransportClient.builder().settings(clientSettings).build();
             client.addTransportAddress(addr);
             this.client = client;
         }

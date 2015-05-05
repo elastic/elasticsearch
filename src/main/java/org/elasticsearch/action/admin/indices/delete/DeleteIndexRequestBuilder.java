@@ -19,19 +19,18 @@
 
 package org.elasticsearch.action.admin.indices.delete;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
-import org.elasticsearch.client.IndicesAdminClient;
+import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.unit.TimeValue;
 
 /**
  *
  */
-public class DeleteIndexRequestBuilder extends MasterNodeOperationRequestBuilder<DeleteIndexRequest, DeleteIndexResponse, DeleteIndexRequestBuilder, IndicesAdminClient> {
+public class DeleteIndexRequestBuilder extends MasterNodeOperationRequestBuilder<DeleteIndexRequest, DeleteIndexResponse, DeleteIndexRequestBuilder> {
 
-    public DeleteIndexRequestBuilder(IndicesAdminClient indicesClient, String... indices) {
-        super(indicesClient, new DeleteIndexRequest(indices));
+    public DeleteIndexRequestBuilder(ElasticsearchClient client, DeleteIndexAction action, String... indices) {
+        super(client, action, new DeleteIndexRequest(indices));
     }
 
     /**
@@ -54,16 +53,11 @@ public class DeleteIndexRequestBuilder extends MasterNodeOperationRequestBuilder
 
     /**
      * Specifies what type of requested indices to ignore and wildcard indices expressions.
-     *
+     * <p/>
      * For example indices that don't exist.
      */
     public DeleteIndexRequestBuilder setIndicesOptions(IndicesOptions options) {
         request.indicesOptions(options);
         return this;
-    }
-
-    @Override
-    protected void doExecute(ActionListener<DeleteIndexResponse> listener) {
-        client.delete(request, listener);
     }
 }

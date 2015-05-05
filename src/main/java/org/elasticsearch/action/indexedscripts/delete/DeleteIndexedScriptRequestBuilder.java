@@ -19,18 +19,17 @@
 
 package org.elasticsearch.action.indexedscripts.delete;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.index.VersionType;
 
 /**
  * A delete document action request builder.
  */
-public class DeleteIndexedScriptRequestBuilder extends ActionRequestBuilder<DeleteIndexedScriptRequest, DeleteIndexedScriptResponse, DeleteIndexedScriptRequestBuilder, Client> {
+public class DeleteIndexedScriptRequestBuilder extends ActionRequestBuilder<DeleteIndexedScriptRequest, DeleteIndexedScriptResponse, DeleteIndexedScriptRequestBuilder> {
 
-    public DeleteIndexedScriptRequestBuilder(Client client) {
-        super(client, new DeleteIndexedScriptRequest());
+    public DeleteIndexedScriptRequestBuilder(ElasticsearchClient client, DeleteIndexedScriptAction action) {
+        super(client, action, new DeleteIndexedScriptRequest());
     }
 
     /**
@@ -55,10 +54,5 @@ public class DeleteIndexedScriptRequestBuilder extends ActionRequestBuilder<Dele
     public DeleteIndexedScriptRequestBuilder setVersionType(VersionType versionType) {
         request.versionType(versionType);
         return this;
-    }
-
-    @Override
-    protected void doExecute(final ActionListener<DeleteIndexedScriptResponse> listener) {
-        client.deleteIndexedScript(request, listener);
     }
 }

@@ -19,13 +19,13 @@
 
 package org.elasticsearch.action.admin.cluster.repositories.get;
 
-import org.elasticsearch.action.admin.cluster.ClusterAction;
-import org.elasticsearch.client.ClusterAdminClient;
+import org.elasticsearch.action.Action;
+import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  * Get repositories action
  */
-public class GetRepositoriesAction extends ClusterAction<GetRepositoriesRequest, GetRepositoriesResponse, GetRepositoriesRequestBuilder> {
+public class GetRepositoriesAction extends Action<GetRepositoriesRequest, GetRepositoriesResponse, GetRepositoriesRequestBuilder> {
 
     public static final GetRepositoriesAction INSTANCE = new GetRepositoriesAction();
     public static final String NAME = "cluster:admin/repository/get";
@@ -40,8 +40,8 @@ public class GetRepositoriesAction extends ClusterAction<GetRepositoriesRequest,
     }
 
     @Override
-    public GetRepositoriesRequestBuilder newRequestBuilder(ClusterAdminClient client) {
-        return new GetRepositoriesRequestBuilder(client);
+    public GetRepositoriesRequestBuilder newRequestBuilder(ElasticsearchClient client) {
+        return new GetRepositoriesRequestBuilder(client, this);
     }
 }
 

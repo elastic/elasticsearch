@@ -19,19 +19,14 @@
 
 package org.elasticsearch.bootstrap;
 
-import org.apache.lucene.util.StringHelper;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.env.Environment;
 
 import java.io.*;
-import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.Permission;
-import java.security.PermissionCollection;
 import java.security.Permissions;
 import java.security.Policy;
-import java.security.ProtectionDomain;
-import java.security.URIParameter;
 
 /** 
  * Initializes securitymanager with necessary permissions.
@@ -39,22 +34,15 @@ import java.security.URIParameter;
  * We use a template file (the one we test with), and add additional 
  * permissions based on the environment (data paths, etc)
  */
-class Security {
-    
-    /** template policy file, the one used in tests */
-    static final String POLICY_RESOURCE = "security.policy";
-    
+public class Security {
+       
     /** 
      * Initializes securitymanager for the environment
      * Can only happen once!
      */
     static void configure(Environment environment) throws Exception {
-        // init lucene random seed. it will use /dev/urandom where available:
-        StringHelper.randomId();
-
         // enable security policy: union of template and environment-based paths.
-        URI template = Security.class.getResource(POLICY_RESOURCE).toURI();
-        Policy.setPolicy(new ESPolicy(template, createPermissions(environment)));
+        Policy.setPolicy(new ESPolicy(createPermissions(environment)));
 
         // enable security manager
         System.setSecurityManager(new SecurityManager());
@@ -68,6 +56,7 @@ class Security {
         // TODO: improve test infra so we can reduce permissions where read/write
         // is not really needed...
         Permissions policy = new Permissions();
+        addPath(policy, PathUtils.get(System.getProperty("java.io.tmpdir")), "read,readlink,write,delete");
         addPath(policy, environment.homeFile(), "read,readlink,write,delete");
         addPath(policy, environment.configFile(), "read,readlink,write,delete");
         addPath(policy, environment.logsFile(), "read,readlink,write,delete");
@@ -83,7 +72,7 @@ class Security {
     }
     
     /** Add access to path (and all files underneath it */
-    static void addPath(Permissions policy, Path path, String permissions) throws IOException {
+    public static void addPath(Permissions policy, Path path, String permissions) throws IOException {
         // paths may not exist yet
         Files.createDirectories(path);
         // add each path twice: once for itself, again for files underneath it
@@ -92,7 +81,7 @@ class Security {
     }
 
     /** Simple checks that everything is ok */
-    static void selfTest() {
+    public static void selfTest() {
         // check we can manipulate temporary files
         try {
             Files.delete(Files.createTempFile(null, null));
@@ -100,22 +89,6 @@ class Security {
             // potentially virus scanner
         } catch (SecurityException problem) {
             throw new SecurityException("Security misconfiguration: cannot access java.io.tmpdir", problem);
-        }
-    }
-
-    /** custom policy for union of static and dynamic permissions */
-    static class ESPolicy extends Policy {
-        final Policy template;
-        final PermissionCollection dynamic;
-
-        ESPolicy(URI template, PermissionCollection dynamic) throws Exception {
-            this.template = Policy.getInstance("JavaPolicy", new URIParameter(template));
-            this.dynamic = dynamic;
-        }
-
-        @Override
-        public boolean implies(ProtectionDomain domain, Permission permission) {
-            return template.implies(domain, permission) || dynamic.implies(permission);
         }
     }
 }

@@ -19,18 +19,17 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  * A request builder for multiple search requests.
  */
-public class MultiSearchRequestBuilder extends ActionRequestBuilder<MultiSearchRequest, MultiSearchResponse, MultiSearchRequestBuilder, Client> {
+public class MultiSearchRequestBuilder extends ActionRequestBuilder<MultiSearchRequest, MultiSearchResponse, MultiSearchRequestBuilder> {
 
-    public MultiSearchRequestBuilder(Client client) {
-        super(client, new MultiSearchRequest());
+    public MultiSearchRequestBuilder(ElasticsearchClient client, MultiSearchAction action) {
+        super(client, action, new MultiSearchRequest());
     }
 
     /**
@@ -65,16 +64,11 @@ public class MultiSearchRequestBuilder extends ActionRequestBuilder<MultiSearchR
     /**
      * Specifies what type of requested indices to ignore and how to deal with wildcard indices expressions.
      * For example indices that don't exist.
-     *
+     * <p/>
      * Invoke this method before invoking {@link #add(SearchRequestBuilder)}.
      */
     public MultiSearchRequestBuilder setIndicesOptions(IndicesOptions indicesOptions) {
         request().indicesOptions(indicesOptions);
         return this;
-    }
-
-    @Override
-    protected void doExecute(ActionListener<MultiSearchResponse> listener) {
-        client.multiSearch(request, listener);
     }
 }

@@ -19,12 +19,12 @@
 
 package org.elasticsearch.action.admin.cluster.node.hotthreads;
 
-import org.elasticsearch.action.admin.cluster.ClusterAction;
-import org.elasticsearch.client.ClusterAdminClient;
+import org.elasticsearch.action.Action;
+import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  */
-public class NodesHotThreadsAction extends ClusterAction<NodesHotThreadsRequest, NodesHotThreadsResponse, NodesHotThreadsRequestBuilder> {
+public class NodesHotThreadsAction extends Action<NodesHotThreadsRequest, NodesHotThreadsResponse, NodesHotThreadsRequestBuilder> {
 
     public static final NodesHotThreadsAction INSTANCE = new NodesHotThreadsAction();
     public static final String NAME = "cluster:monitor/nodes/hot_threads";
@@ -39,7 +39,7 @@ public class NodesHotThreadsAction extends ClusterAction<NodesHotThreadsRequest,
     }
 
     @Override
-    public NodesHotThreadsRequestBuilder newRequestBuilder(ClusterAdminClient client) {
-        return new NodesHotThreadsRequestBuilder(client);
+    public NodesHotThreadsRequestBuilder newRequestBuilder(ElasticsearchClient client) {
+        return new NodesHotThreadsRequestBuilder(client, this);
     }
 }

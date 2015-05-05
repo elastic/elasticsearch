@@ -161,6 +161,12 @@ public class AnalysisModuleTests extends ElasticsearchTestCase {
 //        html = (HtmlStripCharFilterFactory) custom2.charFilters()[1];
 //        assertThat(html.readAheadLimit(), equalTo(1024));
 
+        // verify position offset gap
+        analyzer = analysisService.analyzer("custom6").analyzer();
+        assertThat(analyzer, instanceOf(CustomAnalyzer.class));
+        CustomAnalyzer custom6 = (CustomAnalyzer) analyzer;
+        assertThat(custom6.getPositionIncrementGap("any_string"), equalTo(256));
+
         // verify characters  mapping
         analyzer = analysisService.analyzer("custom5").analyzer();
         assertThat(analyzer, instanceOf(CustomAnalyzer.class));

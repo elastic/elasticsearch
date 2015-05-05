@@ -20,9 +20,8 @@
 package org.elasticsearch.action.suggest;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequestBuilder;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -35,12 +34,12 @@ import java.io.IOException;
 /**
  * A suggest action request builder.
  */
-public class SuggestRequestBuilder extends BroadcastOperationRequestBuilder<SuggestRequest, SuggestResponse, SuggestRequestBuilder , Client> {
+public class SuggestRequestBuilder extends BroadcastOperationRequestBuilder<SuggestRequest, SuggestResponse, SuggestRequestBuilder> {
 
     final SuggestBuilder suggest = new SuggestBuilder();
 
-    public SuggestRequestBuilder(Client client) {
-        super(client, new SuggestRequest());
+    public SuggestRequestBuilder(ElasticsearchClient client, SuggestAction action) {
+        super(client, action, new SuggestRequest());
     }
 
     /**
@@ -84,7 +83,7 @@ public class SuggestRequestBuilder extends BroadcastOperationRequestBuilder<Sugg
     }
 
     @Override
-    protected void doExecute(ActionListener<SuggestResponse> listener) {
+    protected SuggestRequest beforeExecute(SuggestRequest request) {
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(Requests.CONTENT_TYPE);
             suggest.toXContent(builder, ToXContent.EMPTY_PARAMS);
@@ -92,7 +91,6 @@ public class SuggestRequestBuilder extends BroadcastOperationRequestBuilder<Sugg
         } catch (IOException e) {
             throw new ElasticsearchException("Unable to build suggestion request", e);
         }
-
-        client.suggest(request, listener);
+        return request;
     }
 }

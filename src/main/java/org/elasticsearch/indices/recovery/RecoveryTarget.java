@@ -275,7 +275,7 @@ public class RecoveryTarget extends AbstractComponent {
             try (RecoveriesCollection.StatusRef statusRef = onGoingRecoveries.getStatusSafe(request.recoveryId(), request.shardId())) {
                 final RecoveryStatus recoveryStatus = statusRef.status();
                 recoveryStatus.state().getTranslog().totalOperations(request.totalTranslogOps());
-                recoveryStatus.indexShard().skipTranslogRecovery();
+                recoveryStatus.indexShard().skipTranslogRecovery(false);
             }
             channel.sendResponse(TransportResponse.Empty.INSTANCE);
         }

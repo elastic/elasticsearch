@@ -94,7 +94,6 @@ public class ShadowEngineTests extends ElasticsearchTestCase {
     private Store store;
     private Store storeReplica;
 
-    protected FsTranslog translog;
 
     protected Engine primaryEngine;
     protected Engine replicaEngine;
@@ -130,8 +129,7 @@ public class ShadowEngineTests extends ElasticsearchTestCase {
         storeReplica = createStore(dirPath);
         Lucene.cleanLuceneIndex(store.directory());
         Lucene.cleanLuceneIndex(storeReplica.directory());
-        translog = createTranslog();
-        primaryEngine = createInternalEngine(store, translog);
+        primaryEngine = createInternalEngine(store, createTempDir("translog-primary"));
         LiveIndexWriterConfig currentIndexWriterConfig = ((InternalEngine)primaryEngine).getCurrentIndexWriterConfig();
 
         assertEquals(primaryEngine.config().getCodec().getName(), codecService.codec(codecName).getName());
@@ -155,7 +153,6 @@ public class ShadowEngineTests extends ElasticsearchTestCase {
         replicaEngine.close();
         storeReplica.close();
         primaryEngine.close();
-        translog.close();
         store.close();
         terminate(threadPool);
     }
@@ -198,10 +195,6 @@ public class ShadowEngineTests extends ElasticsearchTestCase {
         return new Store(shardId, EMPTY_SETTINGS, directoryService, new DummyShardLock(shardId));
     }
 
-    protected FsTranslog createTranslog() throws IOException {
-        return new FsTranslog(shardId, EMPTY_SETTINGS, BigArrays.NON_RECYCLING_INSTANCE, createTempDir("translog-primary"));
-    }
-
     protected IndexDeletionPolicy createIndexDeletionPolicy() {
         return new KeepOnlyLastDeletionPolicy(shardId, EMPTY_SETTINGS);
     }
@@ -223,20 +216,20 @@ public class ShadowEngineTests extends ElasticsearchTestCase {
         return createShadowEngine(indexSettingsService, store, createMergeScheduler(indexSettingsService));
     }
 
-    protected InternalEngine createInternalEngine(Store store, FsTranslog translog) {
+    protected InternalEngine createInternalEngine(Store store, Path translogPath) {
         IndexSettingsService indexSettingsService = new IndexSettingsService(shardId.index(), ImmutableSettings.builder().put(defaultSettings).put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build());
-        return createInternalEngine(indexSettingsService, store, translog, createMergeScheduler(indexSettingsService));
+        return createInternalEngine(indexSettingsService, store, translogPath, createMergeScheduler(indexSettingsService));
     }
 
     protected ShadowEngine createShadowEngine(IndexSettingsService indexSettingsService, Store store, MergeSchedulerProvider mergeSchedulerProvider) {
-        return new ShadowEngine(config(indexSettingsService, store, mergeSchedulerProvider));
+        return new ShadowEngine(config(indexSettingsService, store, null, mergeSchedulerProvider));
     }
 
-    protected InternalEngine createInternalEngine(IndexSettingsService indexSettingsService, Store store, FsTranslog translog, MergeSchedulerProvider mergeSchedulerProvider) {
-        return new InternalEngine(config(indexSettingsService, store, mergeSchedulerProvider), translog, true);
+    protected InternalEngine createInternalEngine(IndexSettingsService indexSettingsService, Store store, Path translogPath, MergeSchedulerProvider mergeSchedulerProvider) {
+        return new InternalEngine(config(indexSettingsService, store, translogPath, mergeSchedulerProvider), true);
     }
 
-    public EngineConfig config(IndexSettingsService indexSettingsService, Store store, MergeSchedulerProvider mergeSchedulerProvider) {
+    public EngineConfig config(IndexSettingsService indexSettingsService, Store store, Path translogPath, MergeSchedulerProvider mergeSchedulerProvider) {
         IndexWriterConfig iwc = newIndexWriterConfig();
         EngineConfig config = new EngineConfig(shardId, threadPool, new ShardIndexingService(shardId, EMPTY_SETTINGS, new ShardSlowLogIndexingService(shardId, EMPTY_SETTINGS, indexSettingsService)), indexSettingsService
                 , null, store, createSnapshotDeletionPolicy(), createMergePolicy(), mergeSchedulerProvider,
@@ -244,7 +237,7 @@ public class ShadowEngineTests extends ElasticsearchTestCase {
             @Override
             public void onFailedEngine(ShardId shardId, String reason, @Nullable Throwable t) {
                 // we don't need to notify anybody in this test
-        }}, null, IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy());
+        }}, null, IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), BigArrays.NON_RECYCLING_INSTANCE, translogPath);
         return config;
     }
 
@@ -918,7 +911,6 @@ public class ShadowEngineTests extends ElasticsearchTestCase {
                         break;
                     }
                 }
-                translog.close();
                 holder.close();
                 assertEquals(store.refCount(), refCount);
             }
@@ -967,8 +959,7 @@ public class ShadowEngineTests extends ElasticsearchTestCase {
         // Create an InternalEngine, which creates the index so the shadow
         // replica will handle it correctly
         Store pStore = createStore(srDir);
-        FsTranslog pTranslog = createTranslog();
-        InternalEngine pEngine = createInternalEngine(pStore, pTranslog);
+        InternalEngine pEngine = createInternalEngine(pStore, createTempDir("translog-primary"));
 
         // create a document
         ParseContext.Document document = testDocumentWithTextField();
@@ -980,6 +971,6 @@ public class ShadowEngineTests extends ElasticsearchTestCase {
         t.join();
         assertTrue("ShadowEngine should have been able to be created", succeeded.get());
         // (shadow engine is already shut down in the try-with-resources)
-        IOUtils.close(srStore, pTranslog, pEngine, pStore);
+        IOUtils.close(srStore, pEngine, pStore);
     }
 }

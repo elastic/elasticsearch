@@ -115,8 +115,8 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog,
     private final AtomicBoolean closed = new AtomicBoolean();
 
     public FsTranslog(ShardId shardId, IndexSettingsService indexSettingsService,
-                      BigArrays bigArrays, ShardPath shardPath, ThreadPool threadPool) throws IOException {
-        this(shardId, indexSettingsService.getSettings(), indexSettingsService, bigArrays, shardPath.resolveTranslog(), threadPool);
+                      BigArrays bigArrays, Path location, ThreadPool threadPool) throws IOException {
+        this(shardId, indexSettingsService.getSettings(), indexSettingsService, bigArrays, location, threadPool);
     }
 
     public FsTranslog(ShardId shardId, @IndexSettings Settings indexSettings,

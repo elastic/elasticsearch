@@ -196,7 +196,7 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
                     }
                     final Translog translog;
                     try {
-                        translog = indexShard.translog();
+                        translog = indexShard.engine().getTranslog();
                     } catch (EngineClosedException e) {
                         // not ready yet to be checked for in activity
                         continue;

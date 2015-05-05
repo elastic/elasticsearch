@@ -25,7 +25,7 @@ import org.elasticsearch.index.translog.fs.FsTranslog;
  */
 public interface EngineFactory {
 
-    public Engine newReadWriteEngine(EngineConfig config, FsTranslog translog, boolean skipTranslogRecovery);
+    public Engine newReadWriteEngine(EngineConfig config, boolean skipTranslogRecovery);
 
     public Engine newReadOnlyEngine(EngineConfig config);
 }

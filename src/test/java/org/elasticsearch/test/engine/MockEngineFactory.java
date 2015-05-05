@@ -28,8 +28,8 @@ import org.elasticsearch.index.translog.fs.FsTranslog;
  */
 public final class MockEngineFactory implements EngineFactory {
     @Override
-    public Engine newReadWriteEngine(EngineConfig config, FsTranslog translog, boolean skipTranslogRecovery) {
-        return new MockInternalEngine(config, translog, skipTranslogRecovery);
+    public Engine newReadWriteEngine(EngineConfig config, boolean skipTranslogRecovery) {
+        return new MockInternalEngine(config, skipTranslogRecovery);
     }
 
     @Override

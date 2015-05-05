@@ -169,8 +169,8 @@ public class ShadowEngine extends Engine {
     }
 
     @Override
-    public Translog translog() {
-        throw new UnsupportedOperationException("shard engines don't have translogs");
+    public Translog getTranslog() {
+        throw new UnsupportedOperationException("shadow engines don't have translogs");
     }
 
     @Override

@@ -148,7 +148,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         Lucene.cleanLuceneIndex(store.directory());
         Lucene.cleanLuceneIndex(storeReplica.directory());
         primaryTranslogDir = createTempDir("translog-primary");
-        engine = createEngine(store, createTranslog());
+        engine = createEngine(store, primaryTranslogDir);
         LiveIndexWriterConfig currentIndexWriterConfig = engine.getCurrentIndexWriterConfig();
 
         assertEquals(engine.config().getCodec().getName(), codecService.codec(codecName).getName());
@@ -157,7 +157,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
             engine.config().setEnableGcDeletes(false);
         }
         replicaTranslogDir = createTempDir("translog-replica");
-        replicaEngine = createEngine(storeReplica, createTranslogReplica());
+        replicaEngine = createEngine(storeReplica, replicaTranslogDir);
         currentIndexWriterConfig = replicaEngine.getCurrentIndexWriterConfig();
 
         assertEquals(replicaEngine.config().getCodec().getName(), codecService.codec(codecName).getName());
@@ -244,16 +244,16 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         return new ConcurrentMergeSchedulerProvider(shardId, EMPTY_SETTINGS, threadPool, indexSettingsService);
     }
 
-    protected InternalEngine createEngine(Store store, FsTranslog translog) {
+    protected InternalEngine createEngine(Store store, Path translogPath) {
         IndexSettingsService indexSettingsService = new IndexSettingsService(shardId.index(), ImmutableSettings.builder().put(defaultSettings).put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build());
-        return createEngine(indexSettingsService, store, translog, createMergeScheduler(indexSettingsService));
+        return createEngine(indexSettingsService, store, translogPath, createMergeScheduler(indexSettingsService));
     }
 
-    protected InternalEngine createEngine(IndexSettingsService indexSettingsService, Store store, FsTranslog translog, MergeSchedulerProvider mergeSchedulerProvider) {
-        return new InternalEngine(config(indexSettingsService, store, mergeSchedulerProvider), translog, false);
+    protected InternalEngine createEngine(IndexSettingsService indexSettingsService, Store store, Path translogPath, MergeSchedulerProvider mergeSchedulerProvider) {
+        return new InternalEngine(config(indexSettingsService, store, translogPath, mergeSchedulerProvider), false);
     }
 
-    public EngineConfig config(IndexSettingsService indexSettingsService, Store store, MergeSchedulerProvider mergeSchedulerProvider) {
+    public EngineConfig config(IndexSettingsService indexSettingsService, Store store, Path translogPath, MergeSchedulerProvider mergeSchedulerProvider) {
         IndexWriterConfig iwc = newIndexWriterConfig();
         EngineConfig config = new EngineConfig(shardId, threadPool, new ShardIndexingService(shardId, EMPTY_SETTINGS, new ShardSlowLogIndexingService(shardId, EMPTY_SETTINGS, indexSettingsService)), indexSettingsService
                 , null, store, createSnapshotDeletionPolicy(), createMergePolicy(), mergeSchedulerProvider,
@@ -262,7 +262,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
             public void onFailedEngine(ShardId shardId, String reason, @Nullable Throwable t) {
                 // we don't need to notify anybody in this test
             }
-        }, new TranslogHandler(shardId.index().getName()), IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy());
+        }, new TranslogHandler(shardId.index().getName()), IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), BigArrays.NON_RECYCLING_INSTANCE, translogPath);
 
         return config;
     }
@@ -423,7 +423,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         ConcurrentMergeSchedulerProvider mergeSchedulerProvider = new ConcurrentMergeSchedulerProvider(shardId, EMPTY_SETTINGS, threadPool, new IndexSettingsService(shardId.index(), EMPTY_SETTINGS));
         IndexSettingsService indexSettingsService = new IndexSettingsService(shardId.index(), ImmutableSettings.builder().put(defaultSettings).put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build());
         try (Store store = createStore();
-             Engine engine = createEngine(indexSettingsService, store, createTranslog(createTempDir()), mergeSchedulerProvider)) {
+             Engine engine = createEngine(indexSettingsService, store, createTempDir(), mergeSchedulerProvider)) {
 
             ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocument(), B_1, null);
             Engine.Index index = new Engine.Index(null, newUid("1"), doc);
@@ -878,7 +878,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         int numIters = randomIntBetween(2, 10);
         for (int j = 0; j < numIters; j++) {
             try (Store store = createStore()) {
-                final InternalEngine engine = createEngine(store, createTranslog(createTempDir()));
+                final InternalEngine engine = createEngine(store, createTempDir());
                 final CountDownLatch startGun = new CountDownLatch(1);
                 final CountDownLatch indexed = new CountDownLatch(1);
 
@@ -1286,8 +1286,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
     public void testEnableGcDeletes() throws Exception {
         IndexSettingsService indexSettingsService = new IndexSettingsService(shardId.index(), ImmutableSettings.builder().put(defaultSettings).put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build());
         try (Store store = createStore();
-             Engine engine = new InternalEngine(config(indexSettingsService, store, createMergeScheduler(indexSettingsService)),
-                     createTranslog(createTempDir()), false)) {
+             Engine engine = new InternalEngine(config(indexSettingsService, store, createTempDir(), createMergeScheduler(indexSettingsService)), false)) {
             engine.config().setEnableGcDeletes(false);
 
             // Add document
@@ -1371,12 +1370,13 @@ public class InternalEngineTests extends ElasticsearchTestCase {
             wrapper.setAllowRandomFileNotFoundException(randomBoolean());
             wrapper.setRandomIOExceptionRate(randomDouble());
             wrapper.setRandomIOExceptionRateOnOpen(randomDouble());
-            try (Store store = createStore(wrapper); FsTranslog translog = createTranslog(createTempDir("testFailStart"))) {
+            final Path translogPath = createTempDir("testFailStart");
+            try (Store store = createStore(wrapper)) {
                 int refCount = store.refCount();
                 assertTrue("refCount: " + store.refCount(), store.refCount() > 0);
                 InternalEngine holder;
                 try {
-                    holder = createEngine(store, translog);
+                    holder = createEngine(store, translogPath);
                 } catch (EngineCreationFailureException ex) {
                     assertEquals(store.refCount(), refCount);
                     continue;
@@ -1387,7 +1387,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
                     try {
                         assertEquals(store.refCount(), refCount + 1);
                         holder.close();
-                        holder = createEngine(store, translog);
+                        holder = createEngine(store, translogPath);
                         assertEquals(store.refCount(), refCount + 1);
                     } catch (EngineCreationFailureException ex) {
                         // all is fine
@@ -1508,8 +1508,8 @@ public class InternalEngineTests extends ElasticsearchTestCase {
                 .put(EngineConfig.INDEX_BUFFER_SIZE_SETTING, "1kb").build();
         IndexSettingsService indexSettingsService = new IndexSettingsService(shardId.index(), indexSettings);
         try (Store store = createStore();
-             Engine engine = new InternalEngine(config(indexSettingsService, store, createMergeScheduler(indexSettingsService)),
-                     createTranslog(createTempDir()), false)) {
+             Engine engine = new InternalEngine(config(indexSettingsService, store, createTempDir(), createMergeScheduler(indexSettingsService)),
+                     false)) {
             for (int i = 0; i < 100; i++) {
                 String id = Integer.toString(i);
                 ParsedDocument doc = testParsedDocument(id, id, "test", null, -1, -1, testDocument(), B_1, null);
@@ -1550,9 +1550,8 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         translog.markCommitted(translog.currentId());
         // we have to re-open the translog because o.w. it will complain about commit information going backwards, which is OK as we did a fake markComitted
         translog.close();
-        translog = createTranslog();
         try {
-            engine = createEngine(store, translog);
+            engine = createEngine(store, primaryTranslogDir);
             fail("engine shouldn't start without a valid translog id");
         } catch (EngineCreationFailureException ex) {
             // expected
@@ -1560,7 +1559,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         // now it should be OK.
         IndexSettingsService indexSettingsService = new IndexSettingsService(shardId.index(), ImmutableSettings.builder().put(defaultSettings)
                 .put(EngineConfig.INDEX_IGNORE_UNKNOWN_TRANSLOG, true).build());
-        engine = createEngine(indexSettingsService, store, translog, createMergeScheduler(indexSettingsService));
+        engine = createEngine(indexSettingsService, store, primaryTranslogDir, createMergeScheduler(indexSettingsService));
     }
 
     @TestLogging("index.translog:TRACE")
@@ -1593,13 +1592,11 @@ public class InternalEngineTests extends ElasticsearchTestCase {
                 directory.setRandomIOExceptionRate(randomDouble());
                 directory.setFailOnOpenInput(randomBoolean());
                 directory.setAllowRandomFileNotFoundException(randomBoolean());
-                final FsTranslog translog = createTranslog();
                 try {
-                    engine = createEngine(store, translog);
+                    engine = createEngine(store, primaryTranslogDir);
                     started = true;
                     break;
                 } catch (EngineCreationFailureException ex) {
-                    translog.close();
                 }
             }
 
@@ -1608,11 +1605,11 @@ public class InternalEngineTests extends ElasticsearchTestCase {
             directory.setFailOnOpenInput(false);
             directory.setAllowRandomFileNotFoundException(false);
             if (started == false) {
-                engine = createEngine(store, createTranslog());
+                engine = createEngine(store, primaryTranslogDir);
             }
         } else {
             // no mock directory, no fun.
-            engine = createEngine(store, createTranslog());
+            engine = createEngine(store, primaryTranslogDir);
         }
         try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
             TopDocs topDocs = searcher.searcher().search(new MatchAllDocsQuery(), randomIntBetween(numDocs, numDocs + 10));
@@ -1643,7 +1640,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
             directory.setPreventDoubleWrite(false);
         }
         engine.close();
-        engine = new InternalEngine(engine.config(), createTranslog(), true);
+        engine = new InternalEngine(engine.config(), true);
 
         try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
             TopDocs topDocs = searcher.searcher().search(new MatchAllDocsQuery(), randomIntBetween(numDocs, numDocs + 10));
@@ -1684,7 +1681,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         parser.mappingUpdate = dynamicUpdate();
 
         engine.close();
-        engine = new InternalEngine(engine.config(), createTranslog(), false); // we need to reuse the engine config unless the parser.mappingModified won't work
+        engine = new InternalEngine(engine.config(), false); // we need to reuse the engine config unless the parser.mappingModified won't work
 
         try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
             TopDocs topDocs = searcher.searcher().search(new MatchAllDocsQuery(), randomIntBetween(numDocs, numDocs + 10));
@@ -1700,7 +1697,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         }
 
         engine.close();
-        engine = createEngine(store, createTranslog());
+        engine = createEngine(store, primaryTranslogDir);
         try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
             TopDocs topDocs = searcher.searcher().search(new MatchAllDocsQuery(), randomIntBetween(numDocs, numDocs + 10));
             assertThat(topDocs.totalHits, equalTo(numDocs));
@@ -1730,7 +1727,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         }
 
         engine.close();
-        engine = createEngine(store, createTranslog());
+        engine = createEngine(store, primaryTranslogDir);
         try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
             TopDocs topDocs = searcher.searcher().search(new MatchAllDocsQuery(), numDocs + 1);
             assertThat(topDocs.totalHits, equalTo(numDocs + 1));
@@ -1742,7 +1739,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
             engine.refresh("test");
         } else {
             engine.close();
-            engine = createEngine(store, createTranslog());
+            engine = createEngine(store, primaryTranslogDir);
         }
         try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
             TopDocs topDocs = searcher.searcher().search(new MatchAllDocsQuery(), numDocs);

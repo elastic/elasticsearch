@@ -33,8 +33,8 @@ final class MockInternalEngine extends InternalEngine {
     private final boolean randomizeFlushOnClose;
 
 
-    MockInternalEngine(EngineConfig config, FsTranslog translog, boolean skipInitialTranslogRecovery) throws EngineException {
-        super(config, translog, skipInitialTranslogRecovery);
+    MockInternalEngine(EngineConfig config, boolean skipInitialTranslogRecovery) throws EngineException {
+        super(config, skipInitialTranslogRecovery);
         randomizeFlushOnClose = IndexMetaData.isOnSharedFilesystem(config.getIndexSettings()) == false;
     }
 

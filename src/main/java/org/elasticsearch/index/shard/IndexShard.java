@@ -101,7 +101,6 @@ import org.elasticsearch.index.suggest.stats.SuggestStats;
 import org.elasticsearch.index.termvectors.ShardTermVectorsService;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogStats;
-import org.elasticsearch.index.translog.fs.FsTranslog;
 import org.elasticsearch.index.warmer.ShardIndexWarmerService;
 import org.elasticsearch.index.warmer.WarmerStats;
 import org.elasticsearch.indices.IndicesLifecycle;
@@ -259,8 +258,8 @@ public class IndexShard extends AbstractIndexShardComponent {
         return true;
     }
 
-    public Translog translog() {
-        return engine().translog();
+    public Translog.View newTranslogView() {
+        return engine().getTranslog().newView();
     }
 
     public ShardIndexingService indexingService() {
@@ -655,7 +654,7 @@ public class IndexShard extends AbstractIndexShardComponent {
     }
 
     public TranslogStats translogStats() {
-        return engine().translog().stats();
+        return engine().getTranslog().stats();
     }
 
     public SuggestStats suggestStats() {
@@ -817,12 +816,18 @@ public class IndexShard extends AbstractIndexShardComponent {
      * After the store has been recovered, we need to start the engine. This method starts a new engine but skips
      * the replay of the transaction log which is required in cases where we restore a previous index or recover from
      * a remote peer.
+     *
+     * @param wipeTranslogs if set to <code>true</code> all skipped / uncommitted translogs are removed.
      */
-    public void skipTranslogRecovery() {
+    public void skipTranslogRecovery(boolean wipeTranslogs) throws IOException {
         assert engineUnsafe() == null : "engine was already created";
         Map<String, Mapping> recoveredTypes = internalPerformTranslogRecovery(true);
         assert recoveredTypes.isEmpty();
         assert recoveryState.getTranslog().recoveredOperations() == 0;
+        if (wipeTranslogs) {
+            final Translog translog = engine().getTranslog();
+            translog.markCommitted(translog.currentId());
+        }
     }
 
     /** called if recovery has to be restarted after network error / delay ** */
@@ -964,7 +969,7 @@ public class IndexShard extends AbstractIndexShardComponent {
         }
         Engine engine = engineUnsafe();
         if (engine != null) {
-            engine.translog().updateBuffer(shardTranslogBufferSize);
+            engine.getTranslog().updateBuffer(shardTranslogBufferSize);
         }
     }
 
@@ -1218,21 +1223,7 @@ public class IndexShard extends AbstractIndexShardComponent {
     }
 
     protected Engine newEngine(boolean skipTranslogRecovery, EngineConfig config) {
-        final FsTranslog translog;
-        try {
-            translog = new FsTranslog(shardId, indexSettingsService, bigArrays, path, threadPool);
-        } catch (IOException e) {
-            throw new EngineCreationFailureException(shardId, "failed to create translog", e);
-        }
-        Engine engine = null;
-        try {
-            engine = engineFactory.newReadWriteEngine(config, translog, skipTranslogRecovery);
-        } finally {
-            if (engine == null) {
-                IOUtils.closeWhileHandlingException(translog);
-            }
-        }
-        return engine;
+        return engineFactory.newReadWriteEngine(config, skipTranslogRecovery);
     }
 
     /**
@@ -1293,6 +1284,6 @@ public class IndexShard extends AbstractIndexShardComponent {
         };
         return new EngineConfig(shardId,
                 threadPool, indexingService, indexSettingsService, warmer, store, deletionPolicy, mergePolicyProvider, mergeScheduler,
-                mapperAnalyzer, similarityService.similarity(), codecService, failedEngineListener, translogRecoveryPerformer, indexCache.filter(), indexCache.filterPolicy());
+                mapperAnalyzer, similarityService.similarity(), codecService, failedEngineListener, translogRecoveryPerformer, indexCache.filter(), indexCache.filterPolicy(), bigArrays, shardPath().resolveTranslog());
     }
 }

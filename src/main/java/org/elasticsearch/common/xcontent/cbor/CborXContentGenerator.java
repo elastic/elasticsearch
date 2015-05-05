@@ -19,10 +19,10 @@
 
 package org.elasticsearch.common.xcontent.cbor;
 
-import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.dataformat.cbor.CBORParser;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.BaseJsonGenerator;
 import org.elasticsearch.common.xcontent.json.JsonXContentGenerator;
 
 import java.io.IOException;
@@ -34,7 +34,7 @@ import java.io.OutputStream;
  */
 public class CborXContentGenerator extends JsonXContentGenerator {
 
-    public CborXContentGenerator(JsonGenerator generator) {
+    public CborXContentGenerator(BaseJsonGenerator generator) {
         super(generator);
     }
 

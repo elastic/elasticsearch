@@ -85,7 +85,7 @@ public class RestPutIndexedScriptAction extends BaseRestHandler {
                 putRequest.opType(IndexRequest.OpType.fromString(sOpType));
             } catch (IllegalArgumentException eia){
                 try {
-                    XContentBuilder builder = channel.newBuilder();
+                    XContentBuilder builder = channel.newErrorBuilder();
                     channel.sendResponse(new BytesRestResponse(BAD_REQUEST, builder.startObject().field("error", eia.getMessage()).endObject()));
                     return;
                 } catch (IOException e1) {

@@ -347,6 +347,7 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
             IndexShard indexShard = getShard(request);
             // make sure shard is really there before register cluster state observer
             if (indexShard == null) {
+                logger.trace("{} can't wait for shard being active - not allocated", request.shardId);
                 channel.sendResponse(new ShardActiveResponse(false, clusterService.localNode()));
             } else {
                 // create observer here. we need to register it here because we need to capture the current cluster state
@@ -359,8 +360,10 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
                 // check if shard is active. if so, all is good
                 boolean shardActive = shardActive(indexShard);
                 if (shardActive) {
+                    logger.trace("{} shard is already active", request.shardId, shardActive);
                     channel.sendResponse(new ShardActiveResponse(true, clusterService.localNode()));
                 } else {
+                    logger.trace("{} waiting for next cluster-state update with timeout {}", request.shardId, request.timeout);
                     // shard is not active, might be POST_RECOVERY so check if cluster state changed inbetween or wait for next change
                     observer.waitForNextChange(new ClusterStateObserver.Listener() {
                         @Override
@@ -375,11 +378,13 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
 
                         @Override
                         public void onTimeout(TimeValue timeout) {
+                            logger.trace("{} waiting for shard being active timed out after {}", request.shardId, timeout);
                             sendResult(shardActive(getShard(request)));
                         }
 
                         public void sendResult(boolean shardActive) {
                             try {
+                                logger.trace("{} reply with shard active: {}", request.shardId, shardActive);
                                 channel.sendResponse(new ShardActiveResponse(shardActive, clusterService.localNode()));
                             } catch (IOException e) {
                                 logger.error("failed send response for shard active while trying to delete shard {} - shard will probably not be removed", e, request.shardId);

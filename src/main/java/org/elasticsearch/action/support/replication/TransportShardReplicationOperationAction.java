@@ -278,9 +278,6 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
         protected void doRun() throws Exception {
             try (Releasable shardReference = getIndexShardOperationsCounter(request.internalShardId)) {
                 shardOperationOnReplica(request.internalShardId, request);
-            } catch (Throwable t) {
-                failReplicaIfNeeded(request.internalShardId.index().name(), request.internalShardId.id(), t);
-                throw t;
             }
             channel.sendResponse(TransportResponse.Empty.INSTANCE);
         }

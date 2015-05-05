@@ -19,12 +19,12 @@
 
 package org.elasticsearch.action.get;
 
-import org.elasticsearch.action.ClientAction;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.action.Action;
+import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  */
-public class GetAction extends ClientAction<GetRequest, GetResponse, GetRequestBuilder> {
+public class GetAction extends Action<GetRequest, GetResponse, GetRequestBuilder> {
 
     public static final GetAction INSTANCE = new GetAction();
     public static final String NAME = "indices:data/read/get";
@@ -39,7 +39,7 @@ public class GetAction extends ClientAction<GetRequest, GetResponse, GetRequestB
     }
 
     @Override
-    public GetRequestBuilder newRequestBuilder(Client client) {
-        return new GetRequestBuilder(client);
+    public GetRequestBuilder newRequestBuilder(ElasticsearchClient client) {
+        return new GetRequestBuilder(client, this);
     }
 }

@@ -21,7 +21,7 @@ package org.elasticsearch.action.admin.indices.template.put;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
-import org.elasticsearch.client.IndicesAdminClient;
+import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -31,14 +31,14 @@ import java.util.Map;
 /**
  *
  */
-public class PutIndexTemplateRequestBuilder extends MasterNodeOperationRequestBuilder<PutIndexTemplateRequest, PutIndexTemplateResponse, PutIndexTemplateRequestBuilder, IndicesAdminClient> {
+public class PutIndexTemplateRequestBuilder extends MasterNodeOperationRequestBuilder<PutIndexTemplateRequest, PutIndexTemplateResponse, PutIndexTemplateRequestBuilder> {
 
-    public PutIndexTemplateRequestBuilder(IndicesAdminClient indicesClient) {
-        super(indicesClient, new PutIndexTemplateRequest());
+    public PutIndexTemplateRequestBuilder(ElasticsearchClient client, PutIndexTemplateAction action) {
+        super(client, action, new PutIndexTemplateRequest());
     }
 
-    public PutIndexTemplateRequestBuilder(IndicesAdminClient indicesClient, String name) {
-        super(indicesClient, new PutIndexTemplateRequest(name));
+    public PutIndexTemplateRequestBuilder(ElasticsearchClient client, PutIndexTemplateAction action, String name) {
+        super(client, action, new PutIndexTemplateRequest(name));
     }
 
     /**
@@ -153,7 +153,7 @@ public class PutIndexTemplateRequestBuilder extends MasterNodeOperationRequestBu
     /**
      * Adds an alias that will be added when the index template gets created.
      *
-     * @param alias  The alias
+     * @param alias The alias
      * @return the request builder
      */
     public PutIndexTemplateRequestBuilder addAlias(Alias alias) {
@@ -237,10 +237,5 @@ public class PutIndexTemplateRequestBuilder extends MasterNodeOperationRequestBu
     public PutIndexTemplateRequestBuilder setSource(byte[] templateSource, int offset, int length) {
         request.source(templateSource, offset, length);
         return this;
-    }
-
-    @Override
-    protected void doExecute(ActionListener<PutIndexTemplateResponse> listener) {
-        client.putTemplate(request, listener);
     }
 }

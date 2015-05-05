@@ -19,19 +19,18 @@
 
 package org.elasticsearch.action.support.broadcast;
 
+import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.client.IndicesAdminClient;
 
 /**
  */
-public abstract class BroadcastOperationRequestBuilder<Request extends BroadcastOperationRequest<Request>, Response extends BroadcastOperationResponse, RequestBuilder extends BroadcastOperationRequestBuilder<Request, Response, RequestBuilder, Client>, Client extends ElasticsearchClient>
-        extends ActionRequestBuilder<Request, Response, RequestBuilder, Client> {
+public abstract class BroadcastOperationRequestBuilder<Request extends BroadcastOperationRequest<Request>, Response extends BroadcastOperationResponse, RequestBuilder extends BroadcastOperationRequestBuilder<Request, Response, RequestBuilder>>
+        extends ActionRequestBuilder<Request, Response, RequestBuilder> {
 
-    protected BroadcastOperationRequestBuilder(Client client, Request request) {
-        super(client, request);
+    protected BroadcastOperationRequestBuilder(ElasticsearchClient client, Action<Request, Response, RequestBuilder> action, Request request) {
+        super(client, action, request);
     }
 
     @SuppressWarnings("unchecked")

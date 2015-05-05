@@ -18,19 +18,21 @@
  */
 package org.elasticsearch.action.support.single.custom;
 
+import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.client.IndicesAdminClient;
 
 /**
  */
 public abstract class SingleCustomOperationRequestBuilder<Request extends SingleCustomOperationRequest<Request>, Response extends ActionResponse, RequestBuilder extends SingleCustomOperationRequestBuilder<Request, Response, RequestBuilder>>
-        extends ActionRequestBuilder<Request, Response, RequestBuilder, IndicesAdminClient> {
+        extends ActionRequestBuilder<Request, Response, RequestBuilder> {
 
 
-    protected SingleCustomOperationRequestBuilder(IndicesAdminClient client, Request request) {
-        super(client, request);
+    protected SingleCustomOperationRequestBuilder(ElasticsearchClient client, Action<Request, Response, RequestBuilder> action, Request request) {
+        super(client, action, request);
     }
 
     /**

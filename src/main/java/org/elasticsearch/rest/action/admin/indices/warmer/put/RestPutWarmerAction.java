@@ -59,7 +59,6 @@ public class RestPutWarmerAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
         PutWarmerRequest putWarmerRequest = new PutWarmerRequest(request.param("name"));
-        putWarmerRequest.listenerThreaded(false);
         SearchRequest searchRequest = new SearchRequest(Strings.splitStringByCommaToArray(request.param("index")))
                 .types(Strings.splitStringByCommaToArray(request.param("type")))
                 .queryCache(request.paramAsBoolean("query_cache", null))

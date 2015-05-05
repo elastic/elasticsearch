@@ -19,18 +19,17 @@
 
 package org.elasticsearch.action.admin.cluster.state;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
-import org.elasticsearch.client.ClusterAdminClient;
+import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  *
  */
-public class ClusterStateRequestBuilder extends MasterNodeReadOperationRequestBuilder<ClusterStateRequest, ClusterStateResponse, ClusterStateRequestBuilder, ClusterAdminClient> {
+public class ClusterStateRequestBuilder extends MasterNodeReadOperationRequestBuilder<ClusterStateRequest, ClusterStateResponse, ClusterStateRequestBuilder> {
 
-    public ClusterStateRequestBuilder(ClusterAdminClient clusterClient) {
-        super(clusterClient, new ClusterStateRequest());
+    public ClusterStateRequestBuilder(ElasticsearchClient client, ClusterStateAction action) {
+        super(client, action, new ClusterStateRequest());
     }
 
     /**
@@ -93,10 +92,5 @@ public class ClusterStateRequestBuilder extends MasterNodeReadOperationRequestBu
     public ClusterStateRequestBuilder setIndicesOptions(IndicesOptions indicesOptions) {
         request.indicesOptions(indicesOptions);
         return this;
-    }
-
-    @Override
-    protected void doExecute(ActionListener<ClusterStateResponse> listener) {
-        client.state(request, listener);
     }
 }

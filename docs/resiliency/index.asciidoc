@@ -217,7 +217,7 @@ starts.  See {GIT}9899[#9899] (STATUS; DONE, fixed in v1.5.0)
 
 Setting `zen.discovery.minimum_master_nodes` to a value higher than the current node count
 effectively leaves the cluster without a master and unable to process requests.  The only
-way to fix this is to add more master-eligibile nodes.  {GIT}8321[#8321] adds a mechanism
+way to fix this is to add more master-eligible nodes.  {GIT}8321[#8321] adds a mechanism
 to validate settings before applying them, and {GIT}9051[#9051] extends this validation
 support to settings applied during a cluster restore. (STATUS: DONE, Fixed in v1.5.0)
 

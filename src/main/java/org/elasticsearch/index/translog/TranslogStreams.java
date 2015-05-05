@@ -28,8 +28,6 @@ import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
-import java.io.File;
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -91,7 +89,6 @@ public class TranslogStreams {
      * has zero length, returns the latest version. If the header does not
      * exist, assumes Version 0 of the translog file format.
      * <p/>
-     * The caller is responsible for closing the TranslogStream.
      *
      * @throws IOException
      */

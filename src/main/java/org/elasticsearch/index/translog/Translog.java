@@ -37,17 +37,17 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShardComponent;
 
-import java.io.Closeable;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-
 
 /**
  *
  */
-public interface Translog extends IndexShardComponent, Closeable, Accountable {
+public interface Translog extends IndexShardComponent {
 
     static ByteSizeValue INACTIVE_SHARD_TRANSLOG_BUFFER = ByteSizeValue.parseBytesSizeValue("1kb");
 
@@ -61,42 +61,21 @@ public interface Translog extends IndexShardComponent, Closeable, Accountable {
     long currentId();
 
     /**
-     * Returns the number of operations in the transaction log.
+     * Returns the number of operations in the transaction files that aren't committed to lucene..
+     * Note: may return -1 if unknown
      */
-    int estimatedNumberOfOperations();
+    int totalOperations();
 
     /**
-     * Returns the size in bytes of the translog.
+     * Returns the size in bytes of the translog files that aren't committed to lucene.
      */
-    long translogSizeInBytes();
+    long sizeInBytes();
 
     /**
-     * Creates a new transaction log internally.
-     * <p/>
-     * <p>Can only be called by one thread.
-     * @param id the translog id for the new translog
+     * Creates a new transaction log file internally. That new file will be visible to all outstanding views.
+     * The id of the new translog file is returned.
      */
-    void newTranslog(long id) throws TranslogException, IOException;
-
-    /**
-     * Creates a new transient translog, where added ops will be added to the current one, and to
-     * it.
-     * <p/>
-     * <p>Can only be called by one thread.
-     */
-    void newTransientTranslog(long id) throws TranslogException;
-
-    /**
-     * Swaps the transient translog to be the current one.
-     * <p/>
-     * <p>Can only be called by one thread.
-     */
-    void makeTransientCurrent() throws IOException;
-
-    /**
-     * Reverts back to not have a transient translog.
-     */
-    void revertTransient() throws IOException;
+    long newTranslog() throws TranslogException, IOException;
 
     /**
      * Adds a create operation to the transaction log.
@@ -107,22 +86,15 @@ public interface Translog extends IndexShardComponent, Closeable, Accountable {
 
     /**
      * Snapshots the current transaction log allowing to safely iterate over the snapshot.
+     * Snapshots are fixed in time and will not be updated with future operations.
      */
-    Snapshot snapshot() throws TranslogException;
+    Snapshot newSnapshot() throws TranslogException;
 
     /**
-     * Snapshots the delta between the current state of the translog, and the state defined
-     * by the provided snapshot. If a new translog has been created after the provided snapshot
-     * has been take, will return a snapshot on the current trasnlog.
+     * Returns a view into the current translog that is guaranteed to retain all current operations
+     * while receiving future ones as well
      */
-    Snapshot snapshot(Snapshot snapshot);
-
-    /**
-     * Clears unreferenced transaction logs.
-     *
-     * @return the number of clean up files
-     */
-    int clearUnreferenced();
+    View newView();
 
     /**
      * Sync's the translog.
@@ -141,35 +113,18 @@ public interface Translog extends IndexShardComponent, Closeable, Accountable {
     public Path location();
 
     /**
-     * Returns the translog filename for the given id.
-     */
-    String getFilename(long translogId);
-
-    /**
      * return stats
      */
     TranslogStats stats();
 
     /**
-     * Returns the largest translog id present in all locations or <tt>-1</tt> if no translog is present.
+     * notifies the translog that translogId was committed as part of the commit data in lucene, together
+     * with all operations from previous translogs. This allows releasing all previous translogs.
+     *
+     * @throws FileNotFoundException if the given translog id can not be found.
      */
-    long findLargestPresentTranslogId() throws IOException;
+    void markCommitted(long translogId) throws FileNotFoundException;
 
-    /**
-     * Returns an OperationIterator to iterate over all translog entries in the given translog ID.
-     * @throws java.io.FileNotFoundException if the file for the translog ID can not be found
-     */
-    OperationIterator openIterator(long translogId) throws IOException;
-
-    /**
-     * Iterator for translog operations.
-     */
-    public static interface OperationIterator extends Releasable {
-        /**
-         * Returns the next operation in the translog or <code>null</code> if we reached the end of the stream.
-         */
-        public Translog.Operation next() throws IOException;
-    }
 
     static class Location implements Accountable {
 
@@ -185,7 +140,7 @@ public interface Translog extends IndexShardComponent, Closeable, Accountable {
 
         @Override
         public long ramBytesUsed() {
-            return RamUsageEstimator.NUM_BYTES_OBJECT_HEADER + 2*RamUsageEstimator.NUM_BYTES_LONG + RamUsageEstimator.NUM_BYTES_INT;
+            return RamUsageEstimator.NUM_BYTES_OBJECT_HEADER + 2 * RamUsageEstimator.NUM_BYTES_LONG + RamUsageEstimator.NUM_BYTES_INT;
         }
 
         @Override
@@ -202,22 +157,7 @@ public interface Translog extends IndexShardComponent, Closeable, Accountable {
     /**
      * A snapshot of the transaction log, allows to iterate over all the transaction log operations.
      */
-    static interface Snapshot extends OperationIterator {
-
-        /**
-         * The id of the translog the snapshot was taken with.
-         */
-        long translogId();
-
-        /**
-         * Returns the current position in the translog stream
-         */
-        long position();
-
-        /**
-         * Returns the internal length (*not* number of operations) of this snapshot.
-         */
-        long length();
+    static interface Snapshot extends Releasable {
 
         /**
          * The total number of operations in the translog.
@@ -225,14 +165,31 @@ public interface Translog extends IndexShardComponent, Closeable, Accountable {
         int estimatedTotalOperations();
 
         /**
-         * Seek to the specified position in the translog stream
+         * Returns the next operation in the snapshot or <code>null</code> if we reached the end.
          */
-        void seekTo(long position);
+        public Translog.Operation next() throws IOException;
+
+    }
+
+    /** a view into the current translog that receives all operations from the moment created */
+    interface View extends Releasable {
 
         /**
-         * The length in bytes of this stream.
+         * The total number of operations in the view.
          */
-        long lengthInBytes();
+        int totalOperations();
+
+        /**
+         * Returns the size in bytes of the files behind the view.
+         */
+        long sizeInBytes();
+
+        /** create a snapshot from this view */
+        Snapshot snapshot();
+
+        /** this smallest translog id in this view */
+        long minTranslogId();
+
     }
 
     /**
@@ -277,6 +234,7 @@ public interface Translog extends IndexShardComponent, Closeable, Accountable {
         long estimateSize();
 
         Source getSource();
+
     }
 
     static class Source {
@@ -435,6 +393,57 @@ public interface Translog extends IndexShardComponent, Closeable, Accountable {
             out.writeLong(ttl);
             out.writeByte(versionType.getValue());
         }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+
+            Create create = (Create) o;
+
+            if (timestamp != create.timestamp ||
+                    ttl != create.ttl ||
+                    version != create.version ||
+                    id.equals(create.id) == false ||
+                    type.equals(create.type) == false ||
+                    source.equals(create.source) == false) {
+                return false;
+            }
+            if (routing != null ? !routing.equals(create.routing) : create.routing != null) {
+                return false;
+            }
+            if (parent != null ? !parent.equals(create.parent) : create.parent != null) {
+                return false;
+            }
+            return versionType == create.versionType;
+
+        }
+
+        @Override
+        public int hashCode() {
+            int result = id.hashCode();
+            result = 31 * result + type.hashCode();
+            result = 31 * result + source.hashCode();
+            result = 31 * result + (routing != null ? routing.hashCode() : 0);
+            result = 31 * result + (parent != null ? parent.hashCode() : 0);
+            result = 31 * result + (int) (timestamp ^ (timestamp >>> 32));
+            result = 31 * result + (int) (ttl ^ (ttl >>> 32));
+            result = 31 * result + (int) (version ^ (version >>> 32));
+            result = 31 * result + versionType.hashCode();
+            return result;
+        }
+
+        @Override
+        public String toString() {
+            return "Create{" +
+                    "id='" + id + '\'' +
+                    ", type='" + type + '\'' +
+                    '}';
+        }
     }
 
     static class Index implements Operation {
@@ -581,6 +590,55 @@ public interface Translog extends IndexShardComponent, Closeable, Accountable {
             out.writeLong(ttl);
             out.writeByte(versionType.getValue());
         }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+
+            Index index = (Index) o;
+
+            if (version != index.version ||
+                    timestamp != index.timestamp ||
+                    ttl != index.ttl ||
+                    id.equals(index.id) == false ||
+                    type.equals(index.type) == false ||
+                    versionType != index.versionType ||
+                    source.equals(index.source) == false) {
+                return false;
+            }
+            if (routing != null ? !routing.equals(index.routing) : index.routing != null) {
+                return false;
+            }
+            return !(parent != null ? !parent.equals(index.parent) : index.parent != null);
+
+        }
+
+        @Override
+        public int hashCode() {
+            int result = id.hashCode();
+            result = 31 * result + type.hashCode();
+            result = 31 * result + (int) (version ^ (version >>> 32));
+            result = 31 * result + versionType.hashCode();
+            result = 31 * result + source.hashCode();
+            result = 31 * result + (routing != null ? routing.hashCode() : 0);
+            result = 31 * result + (parent != null ? parent.hashCode() : 0);
+            result = 31 * result + (int) (timestamp ^ (timestamp >>> 32));
+            result = 31 * result + (int) (ttl ^ (ttl >>> 32));
+            return result;
+        }
+
+        @Override
+        public String toString() {
+            return "Index{" +
+                    "id='" + id + '\'' +
+                    ", type='" + type + '\'' +
+                    '}';
+        }
     }
 
     static class Delete implements Operation {
@@ -657,6 +715,37 @@ public interface Translog extends IndexShardComponent, Closeable, Accountable {
             out.writeString(uid.text());
             out.writeLong(version);
             out.writeByte(versionType.getValue());
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+
+            Delete delete = (Delete) o;
+
+            return version == delete.version &&
+                    uid.equals(delete.uid) &&
+                    versionType == delete.versionType;
+        }
+
+        @Override
+        public int hashCode() {
+            int result = uid.hashCode();
+            result = 31 * result + (int) (version ^ (version >>> 32));
+            result = 31 * result + versionType.hashCode();
+            return result;
+        }
+
+        @Override
+        public String toString() {
+            return "Delete{" +
+                    "uid=" + uid +
+                    '}';
         }
     }
 
@@ -754,6 +843,41 @@ public interface Translog extends IndexShardComponent, Closeable, Accountable {
             } else {
                 out.writeVInt(0);
             }
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+
+            DeleteByQuery that = (DeleteByQuery) o;
+
+            if (!Arrays.equals(filteringAliases, that.filteringAliases)) {
+                return false;
+            }
+            if (!Arrays.equals(types, that.types)) {
+                return false;
+            }
+            return source.equals(that.source);
+        }
+
+        @Override
+        public int hashCode() {
+            int result = source.hashCode();
+            result = 31 * result + (filteringAliases != null ? Arrays.hashCode(filteringAliases) : 0);
+            result = 31 * result + Arrays.hashCode(types);
+            return result;
+        }
+
+        @Override
+        public String toString() {
+            return "DeleteByQuery{" +
+                    "types=" + Arrays.toString(types) +
+                    '}';
         }
     }
 }

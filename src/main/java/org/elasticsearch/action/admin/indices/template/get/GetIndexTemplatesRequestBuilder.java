@@ -18,25 +18,19 @@
  */
 package org.elasticsearch.action.admin.indices.template.get;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
-import org.elasticsearch.client.IndicesAdminClient;
+import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  *
  */
-public class GetIndexTemplatesRequestBuilder extends MasterNodeReadOperationRequestBuilder<GetIndexTemplatesRequest, GetIndexTemplatesResponse, GetIndexTemplatesRequestBuilder, IndicesAdminClient> {
+public class GetIndexTemplatesRequestBuilder extends MasterNodeReadOperationRequestBuilder<GetIndexTemplatesRequest, GetIndexTemplatesResponse, GetIndexTemplatesRequestBuilder> {
 
-    public GetIndexTemplatesRequestBuilder(IndicesAdminClient indicesClient) {
-        super(indicesClient, new GetIndexTemplatesRequest());
+    public GetIndexTemplatesRequestBuilder(ElasticsearchClient client, GetIndexTemplatesAction action) {
+        super(client, action, new GetIndexTemplatesRequest());
     }
 
-    public GetIndexTemplatesRequestBuilder(IndicesAdminClient indicesClient, String... names) {
-        super(indicesClient, new GetIndexTemplatesRequest(names));
-    }
-
-    @Override
-    protected void doExecute(ActionListener<GetIndexTemplatesResponse> listener) {
-        client.getTemplates(request, listener);
+    public GetIndexTemplatesRequestBuilder(ElasticsearchClient client, GetIndexTemplatesAction action, String... names) {
+        super(client, action, new GetIndexTemplatesRequest(names));
     }
 }

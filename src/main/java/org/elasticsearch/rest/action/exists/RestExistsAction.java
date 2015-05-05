@@ -48,7 +48,6 @@ public class RestExistsAction extends BaseRestHandler {
     public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
         final ExistsRequest existsRequest = new ExistsRequest(Strings.splitStringByCommaToArray(request.param("index")));
         existsRequest.indicesOptions(IndicesOptions.fromRequest(request, existsRequest.indicesOptions()));
-        existsRequest.listenerThreaded(false);
         if (RestActions.hasBodyContent(request)) {
             existsRequest.source(RestActions.getRestContent(request));
         } else {

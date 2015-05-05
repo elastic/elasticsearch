@@ -22,30 +22,25 @@ package org.elasticsearch.action.admin.cluster.snapshots.status;
 import com.google.common.collect.ObjectArrays;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
-import org.elasticsearch.client.ClusterAdminClient;
+import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  * Snapshots status request builder
  */
-public class SnapshotsStatusRequestBuilder extends MasterNodeOperationRequestBuilder<SnapshotsStatusRequest, SnapshotsStatusResponse, SnapshotsStatusRequestBuilder, ClusterAdminClient> {
+public class SnapshotsStatusRequestBuilder extends MasterNodeOperationRequestBuilder<SnapshotsStatusRequest, SnapshotsStatusResponse, SnapshotsStatusRequestBuilder> {
 
     /**
      * Constructs the new snapshotstatus request
-     *
-     * @param clusterAdminClient cluster admin client
      */
-    public SnapshotsStatusRequestBuilder(ClusterAdminClient clusterAdminClient) {
-        super(clusterAdminClient, new SnapshotsStatusRequest());
+    public SnapshotsStatusRequestBuilder(ElasticsearchClient client, SnapshotsStatusAction action) {
+        super(client, action, new SnapshotsStatusRequest());
     }
 
     /**
      * Constructs the new snapshot status request with specified repository
-     *
-     * @param clusterAdminClient cluster admin client
-     * @param repository         repository name
      */
-    public SnapshotsStatusRequestBuilder(ClusterAdminClient clusterAdminClient, String repository) {
-        super(clusterAdminClient, new SnapshotsStatusRequest(repository));
+    public SnapshotsStatusRequestBuilder(ElasticsearchClient client, SnapshotsStatusAction action, String repository) {
+        super(client, action, new SnapshotsStatusRequest(repository));
     }
 
     /**
@@ -79,10 +74,5 @@ public class SnapshotsStatusRequestBuilder extends MasterNodeOperationRequestBui
     public SnapshotsStatusRequestBuilder addSnapshots(String... snapshots) {
         request.snapshots(ObjectArrays.concat(request.snapshots(), snapshots, String.class));
         return this;
-    }
-
-    @Override
-    protected void doExecute(ActionListener<SnapshotsStatusResponse> listener) {
-        client.snapshotsStatus(request, listener);
     }
 }

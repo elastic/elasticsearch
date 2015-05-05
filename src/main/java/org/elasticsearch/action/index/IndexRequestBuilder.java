@@ -19,9 +19,8 @@
 
 package org.elasticsearch.action.index;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.replication.ShardReplicationOperationRequestBuilder;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -35,12 +34,12 @@ import java.util.Map;
  */
 public class IndexRequestBuilder extends ShardReplicationOperationRequestBuilder<IndexRequest, IndexResponse, IndexRequestBuilder> {
 
-    public IndexRequestBuilder(Client client) {
-        super(client, new IndexRequest());
+    public IndexRequestBuilder(ElasticsearchClient client, IndexAction action) {
+        super(client, action, new IndexRequest());
     }
 
-    public IndexRequestBuilder(Client client, @Nullable String index) {
-        super(client, new IndexRequest(index));
+    public IndexRequestBuilder(ElasticsearchClient client, IndexAction action, @Nullable String index) {
+        super(client, action, new IndexRequest(index));
     }
 
     /**
@@ -180,7 +179,7 @@ public class IndexRequestBuilder extends ShardReplicationOperationRequestBuilder
 
     /**
      * Constructs a simple document with a field name and value pairs.
-     * <b>Note: the number of objects passed to this method must be an even number.</b> 
+     * <b>Note: the number of objects passed to this method must be an even number.</b>
      */
     public IndexRequestBuilder setSource(Object... source) {
         request.source(source);
@@ -259,10 +258,5 @@ public class IndexRequestBuilder extends ShardReplicationOperationRequestBuilder
     public IndexRequestBuilder setTTL(long ttl) {
         request.ttl(ttl);
         return this;
-    }
-
-    @Override
-    protected void doExecute(ActionListener<IndexResponse> listener) {
-        client.index(request, listener);
     }
 }

@@ -24,7 +24,7 @@ The period with no flush happening to force a flush. Defaults to `30m`.
 How often to check if a flush is needed, randomized
 between the interval value and 2x the interval value. Defaults to `5s`.
 
-`index.gateway.local.sync`::
+`index.translog.sync_interval`::
 
 How often the translog is ++fsync++ed to disk. Defaults to `5s`.
 

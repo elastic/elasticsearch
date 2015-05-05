@@ -19,13 +19,13 @@
 
 package org.elasticsearch.action.admin.indices.warmer.delete;
 
-import org.elasticsearch.action.admin.indices.IndicesAction;
-import org.elasticsearch.client.IndicesAdminClient;
+import org.elasticsearch.action.Action;
+import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  * Action for the admin/warmers/delete API.
  */
-public class DeleteWarmerAction extends IndicesAction<DeleteWarmerRequest, DeleteWarmerResponse, DeleteWarmerRequestBuilder> {
+public class DeleteWarmerAction extends Action<DeleteWarmerRequest, DeleteWarmerResponse, DeleteWarmerRequestBuilder> {
 
     public static final DeleteWarmerAction INSTANCE = new DeleteWarmerAction();
     public static final String NAME = "indices:admin/warmers/delete";
@@ -40,7 +40,7 @@ public class DeleteWarmerAction extends IndicesAction<DeleteWarmerRequest, Delet
     }
 
     @Override
-    public DeleteWarmerRequestBuilder newRequestBuilder(IndicesAdminClient client) {
-        return new DeleteWarmerRequestBuilder(client);
+    public DeleteWarmerRequestBuilder newRequestBuilder(ElasticsearchClient client) {
+        return new DeleteWarmerRequestBuilder(client, this);
     }
 }

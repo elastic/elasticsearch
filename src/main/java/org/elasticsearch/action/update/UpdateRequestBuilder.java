@@ -19,11 +19,10 @@
 
 package org.elasticsearch.action.update;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.single.instance.InstanceShardOperationRequestBuilder;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -36,12 +35,12 @@ import java.util.Map;
  */
 public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<UpdateRequest, UpdateResponse, UpdateRequestBuilder> {
 
-    public UpdateRequestBuilder(Client client) {
-        super(client, new UpdateRequest());
+    public UpdateRequestBuilder(ElasticsearchClient client, UpdateAction action) {
+        super(client, action, new UpdateRequest());
     }
 
-    public UpdateRequestBuilder(Client client, String index, String type, String id) {
-        super(client, new UpdateRequest(index, type, id));
+    public UpdateRequestBuilder(ElasticsearchClient client, UpdateAction action, String index, String type, String id) {
+        super(client, action, new UpdateRequest(index, type, id));
     }
 
     /**
@@ -77,7 +76,7 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
     /**
      * The script to execute. Note, make sure not to send different script each times and instead
      * use script params if possible with the same (automatically compiled) script.
-     * <p>
+     * <p/>
      * The script works with the variable <code>ctx</code>, which is bound to the entry,
      * e.g. <code>ctx._source.mycounter += 1</code>.
      *
@@ -93,7 +92,7 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
      * The language of the script to execute.
      * Valid options are: mvel, js, groovy, python, and native (Java)<br>
      * Default: groovy
-     * <p>
+     * <p/>
      * Ref: http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/modules-scripting.html
      */
     public UpdateRequestBuilder setScriptLang(String scriptLang) {
@@ -344,7 +343,7 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
         request.detectNoop(detectNoop);
         return this;
     }
-    
+
 
     /**
      * Sets whether the script should be run in the case of an insert
@@ -352,10 +351,5 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
     public UpdateRequestBuilder setScriptedUpsert(boolean scriptedUpsert) {
         request.scriptedUpsert(scriptedUpsert);
         return this;
-    }    
-
-    @Override
-    protected void doExecute(ActionListener<UpdateResponse> listener) {
-        client.update(request, listener);
     }
 }

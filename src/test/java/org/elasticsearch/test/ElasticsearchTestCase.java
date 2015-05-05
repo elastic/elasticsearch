@@ -93,7 +93,7 @@ import static com.google.common.collect.Lists.newArrayList;
 public abstract class ElasticsearchTestCase extends LuceneTestCase {
 
     static {
-        SecurityHack.ensureInitialized();
+        SecurityBootstrap.ensureInitialized();
     }
 
     protected final ESLogger logger = Loggers.getLogger(getClass());
@@ -123,7 +123,7 @@ public abstract class ElasticsearchTestCase extends LuceneTestCase {
     }
 
     /** called after a test is finished, but only if succesfull */
-    protected void afterIfSuccessful() {
+    protected void afterIfSuccessful() throws Exception {
     }
 
     // setup mock filesystems for this test run. we change PathUtils

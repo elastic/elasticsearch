@@ -53,7 +53,6 @@ public class RestRefreshAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
         RefreshRequest refreshRequest = new RefreshRequest(Strings.splitStringByCommaToArray(request.param("index")));
-        refreshRequest.listenerThreaded(false);
         refreshRequest.indicesOptions(IndicesOptions.fromRequest(request, refreshRequest.indicesOptions()));
         client.admin().indices().refresh(refreshRequest, new RestBuilderListener<RefreshResponse>(channel) {
             @Override

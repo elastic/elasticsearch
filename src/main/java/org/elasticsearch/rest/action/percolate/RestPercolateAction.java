@@ -94,8 +94,6 @@ public class RestPercolateAction extends BaseRestHandler {
     }
 
     void executePercolate(final PercolateRequest percolateRequest, final RestChannel restChannel, final Client client) {
-        // we just send a response, no need to fork
-        percolateRequest.listenerThreaded(false);
         client.percolate(percolateRequest, new RestToXContentListener<PercolateResponse>(restChannel));
     }
 

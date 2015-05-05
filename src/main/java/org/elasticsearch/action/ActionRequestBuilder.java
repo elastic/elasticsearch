@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action;
 
+import com.google.common.base.Preconditions;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.PlainListenableActionFuture;
 import org.elasticsearch.client.Client;
@@ -26,18 +27,22 @@ import org.elasticsearch.client.ClusterAdminClient;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.search.aggregations.reducers.ReducerBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 
 /**
  *
  */
-public abstract class ActionRequestBuilder<Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder, Client extends ElasticsearchClient> {
+public abstract class ActionRequestBuilder<Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> {
 
+    protected final Action<Request, Response, RequestBuilder> action;
     protected final Request request;
     private final ThreadPool threadPool;
-    protected final Client client;
+    protected final ElasticsearchClient client;
 
-    protected ActionRequestBuilder(Client client, Request request) {
+    protected ActionRequestBuilder(ElasticsearchClient client, Action<Request, Response, RequestBuilder> action, Request request) {
+        Preconditions.checkNotNull(action, "action must not be null");
+        this.action = action;
         this.request = request;
         this.client = client;
         threadPool = client.threadPool();
@@ -49,19 +54,13 @@ public abstract class ActionRequestBuilder<Request extends ActionRequest, Respon
     }
 
     @SuppressWarnings("unchecked")
-    public final RequestBuilder setListenerThreaded(boolean listenerThreaded) {
-        request.listenerThreaded(listenerThreaded);
-        return (RequestBuilder) this;
-    }
-
-    @SuppressWarnings("unchecked")
     public final RequestBuilder putHeader(String key, Object value) {
         request.putHeader(key, value);
         return (RequestBuilder) this;
     }
 
     public ListenableActionFuture<Response> execute() {
-        PlainListenableActionFuture<Response> future = new PlainListenableActionFuture<>(request.listenerThreaded(), threadPool);
+        PlainListenableActionFuture<Response> future = new PlainListenableActionFuture<>(threadPool);
         execute(future);
         return future;
     }
@@ -87,9 +86,14 @@ public abstract class ActionRequestBuilder<Request extends ActionRequest, Respon
         return execute().actionGet(timeout);
     }
 
-    public void execute(ActionListener<Response> listener) {
-        doExecute(listener);
+    public final void execute(ActionListener<Response> listener) {
+        client.execute(action, beforeExecute(request), listener);
     }
 
-    protected abstract void doExecute(ActionListener<Response> listener);
+    /**
+     * A callback to additionally process the request before its executed
+     */
+    protected Request beforeExecute(Request request) {
+        return request;
+    }
 }

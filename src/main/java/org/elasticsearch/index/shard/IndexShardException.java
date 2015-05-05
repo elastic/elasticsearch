@@ -46,7 +46,7 @@ public class IndexShardException extends IndexException {
 
     @Override
     public String toString() {
-        return (shardId == null ? "_na" : shardId) + getMessage();
+        return (shardId == null ? "_na" : shardId) + " " + getMessage();
     }
 
     @Override

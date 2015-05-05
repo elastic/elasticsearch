@@ -19,32 +19,26 @@
 
 package org.elasticsearch.action.admin.cluster.repositories.verify;
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
-import org.elasticsearch.client.ClusterAdminClient;
+import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  * Builder for unregister repository request
  */
-public class VerifyRepositoryRequestBuilder extends MasterNodeOperationRequestBuilder<VerifyRepositoryRequest, VerifyRepositoryResponse, VerifyRepositoryRequestBuilder, ClusterAdminClient> {
+public class VerifyRepositoryRequestBuilder extends MasterNodeOperationRequestBuilder<VerifyRepositoryRequest, VerifyRepositoryResponse, VerifyRepositoryRequestBuilder> {
 
     /**
      * Constructs unregister repository request builder
-     *
-     * @param clusterAdminClient cluster admin client
      */
-    public VerifyRepositoryRequestBuilder(ClusterAdminClient clusterAdminClient) {
-        super(clusterAdminClient, new VerifyRepositoryRequest());
+    public VerifyRepositoryRequestBuilder(ElasticsearchClient client, VerifyRepositoryAction action) {
+        super(client, action, new VerifyRepositoryRequest());
     }
 
     /**
      * Constructs unregister repository request builder with specified repository name
-     *
-     * @param clusterAdminClient cluster adming client
      */
-    public VerifyRepositoryRequestBuilder(ClusterAdminClient clusterAdminClient, String name) {
-        super(clusterAdminClient, new VerifyRepositoryRequest(name));
+    public VerifyRepositoryRequestBuilder(ElasticsearchClient client, VerifyRepositoryAction action, String name) {
+        super(client, action, new VerifyRepositoryRequest(name));
     }
 
     /**
@@ -55,10 +49,5 @@ public class VerifyRepositoryRequestBuilder extends MasterNodeOperationRequestBu
     public VerifyRepositoryRequestBuilder setName(String name) {
         request.name(name);
         return this;
-    }
-
-    @Override
-    protected void doExecute(ActionListener<VerifyRepositoryResponse> listener) {
-        client.verifyRepository(request, listener);
     }
 }

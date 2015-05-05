@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.support.replication;
 
-import org.elasticsearch.ElasticsearchException;
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionWriteResponse;
@@ -36,17 +36,16 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.IndexRoutingTable;
-import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
-import org.elasticsearch.cluster.routing.ShardIterator;
-import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.*;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.RefCounted;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.DocumentAlreadyExistsException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
@@ -57,21 +56,15 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.BaseTransportResponseHandler;
-import org.elasticsearch.transport.ConnectTransportException;
-import org.elasticsearch.transport.EmptyTransportResponseHandler;
-import org.elasticsearch.transport.TransportChannel;
-import org.elasticsearch.transport.TransportException;
-import org.elasticsearch.transport.TransportRequestHandler;
-import org.elasticsearch.transport.TransportRequestOptions;
-import org.elasticsearch.transport.TransportResponse;
-import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.*;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  */
@@ -103,7 +96,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
         this.checkWriteConsistency = checkWriteConsistency();
 
         transportService.registerRequestHandler(actionName, request, ThreadPool.Names.SAME, new OperationTransportHandler());
-         // we must never reject on because of thread pool capacity on replicas
+        // we must never reject on because of thread pool capacity on replicas
         transportService.registerRequestHandler(transportReplicaAction, replicaRequest, executor, true, new ReplicaOperationTransportHandler());
 
         this.transportOptions = transportOptions();
@@ -186,8 +179,6 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
     class OperationTransportHandler implements TransportRequestHandler<Request> {
         @Override
         public void messageReceived(final Request request, final TransportChannel channel) throws Exception {
-            // no need to have a threaded listener since we just send back a response
-            request.listenerThreaded(false);
             // if we have a local operation, execute it on a thread since we don't spawn
             request.operationThreaded(true);
             execute(request, new ActionListener<Response>() {
@@ -285,7 +276,12 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
 
         @Override
         protected void doRun() throws Exception {
-            shardOperationOnReplica(request.internalShardId, request);
+            try (Releasable shardReference = getIndexShardOperationsCounter(request.internalShardId)) {
+                shardOperationOnReplica(request.internalShardId, request);
+            } catch (Throwable t) {
+                failReplicaIfNeeded(request.internalShardId.index().name(), request.internalShardId.id(), t);
+                throw t;
+            }
             channel.sendResponse(TransportResponse.Empty.INSTANCE);
         }
     }
@@ -311,6 +307,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
         private final InternalRequest internalRequest;
         private final ClusterStateObserver observer;
         private final AtomicBoolean finished = new AtomicBoolean(false);
+        private volatile Releasable indexShardReference;
 
 
         PrimaryPhase(Request request, ActionListener<Response> listener) {
@@ -396,7 +393,9 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
             return null;
         }
 
-        /** send the request to the node holding the primary or execute if local */
+        /**
+         * send the request to the node holding the primary or execute if local
+         */
         protected void routeRequestOrPerformLocally(final ShardRouting primary, final ShardIterator shardsIt) {
             if (primary.currentNodeId().equals(observer.observedState().nodes().localNodeId())) {
                 try {
@@ -489,7 +488,9 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
             });
         }
 
-        /** upon success, finish the first phase and transfer responsibility to the {@link ReplicationPhase} */
+        /**
+         * upon success, finish the first phase and transfer responsibility to the {@link ReplicationPhase}
+         */
         void finishAndMoveToReplication(ReplicationPhase replicationPhase) {
             if (finished.compareAndSet(false, true)) {
                 replicationPhase.run();
@@ -501,6 +502,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
 
         void finishAsFailed(Throwable failure) {
             if (finished.compareAndSet(false, true)) {
+                Releasables.close(indexShardReference);
                 logger.trace("operation failed", failure);
                 listener.onFailure(failure);
             } else {
@@ -511,6 +513,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
         void finishWithUnexpectedFailure(Throwable failure) {
             logger.warn("unexpected error during the primary phase for action [{}]", failure, actionName);
             if (finished.compareAndSet(false, true)) {
+                Releasables.close(indexShardReference);
                 listener.onFailure(failure);
             } else {
                 assert false : "finishWithUnexpectedFailure called but operation is already finished";
@@ -526,7 +529,9 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
             }
         }
 
-        /** perform the operation on the node holding the primary */
+        /**
+         * perform the operation on the node holding the primary
+         */
         void performOnPrimary(final ShardRouting primary, final ShardIterator shardsIt) {
             final String writeConsistencyFailure = checkWriteConsistency(primary);
             if (writeConsistencyFailure != null) {
@@ -535,15 +540,22 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
             }
             final ReplicationPhase replicationPhase;
             try {
+                indexShardReference = getIndexShardOperationsCounter(primary.shardId());
                 PrimaryOperationRequest por = new PrimaryOperationRequest(primary.id(), internalRequest.concreteIndex(), internalRequest.request());
                 Tuple<Response, ReplicaRequest> primaryResponse = shardOperationOnPrimary(observer.observedState(), por);
                 logger.trace("operation completed on primary [{}]", primary);
-                replicationPhase = new ReplicationPhase(shardsIt, primaryResponse.v2(), primaryResponse.v1(), observer, primary, internalRequest, listener);
+                replicationPhase = new ReplicationPhase(shardsIt, primaryResponse.v2(), primaryResponse.v1(), observer, primary, internalRequest, listener, indexShardReference);
             } catch (Throwable e) {
                 internalRequest.request.setCanHaveDuplicates();
                 // shard has not been allocated yet, retry it here
                 if (retryPrimaryException(e)) {
                     logger.trace("had an error while performing operation on primary ({}), scheduling a retry.", e.getMessage());
+                    // We have to close here because when we retry we will increment get a new reference on index shard again and we do not want to
+                    // increment twice.
+                    Releasables.close(indexShardReference);
+                    // We have to reset to null here because whe we retry it might be that we never get to the point where we assign a new reference
+                    // (for example, in case the operation was rejected because queue is full). In this case we would release again once one of the finish methods is called.
+                    indexShardReference = null;
                     retry(e);
                     return;
                 }
@@ -616,6 +628,12 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
 
     }
 
+    protected Releasable getIndexShardOperationsCounter(ShardId shardId) {
+        IndexService indexService = indicesService.indexServiceSafe(shardId.index().getName());
+        IndexShard indexShard = indexService.shardSafe(shardId.id());
+        return new IndexShardReference(indexShard);
+    }
+
     private void failReplicaIfNeeded(String index, int shardId, Throwable t) {
         logger.trace("failure on replica [{}][{}]", t, index, shardId);
         if (ignoreReplicaException(t) == false) {
@@ -633,7 +651,9 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
         }
     }
 
-    /** inner class is responsible for send the requests to all replica shards and manage the responses */
+    /**
+     * inner class is responsible for send the requests to all replica shards and manage the responses
+     */
     final class ReplicationPhase extends AbstractRunnable {
 
         private final ReplicaRequest replicaRequest;
@@ -648,6 +668,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
         private final AtomicInteger pending;
         private final int totalShards;
         private final ClusterStateObserver observer;
+        private final Releasable indexShardReference;
 
         /**
          * the constructor doesn't take any action, just calculates state. Call {@link #run()} to start
@@ -655,13 +676,14 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
          */
         public ReplicationPhase(ShardIterator originalShardIt, ReplicaRequest replicaRequest, Response finalResponse,
                                 ClusterStateObserver observer, ShardRouting originalPrimaryShard,
-                                InternalRequest internalRequest, ActionListener<Response> listener) {
+                                InternalRequest internalRequest, ActionListener<Response> listener, Releasable indexShardReference) {
             this.replicaRequest = replicaRequest;
             this.listener = listener;
             this.finalResponse = finalResponse;
             this.originalPrimaryShard = originalPrimaryShard;
             this.observer = observer;
             indexMetaData = observer.observedState().metaData().index(internalRequest.concreteIndex());
+            this.indexShardReference = indexShardReference;
 
             ShardRouting shard;
             // we double check on the state, if it got changed we need to make sure we take the latest one cause
@@ -744,17 +766,23 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
             this.pending = new AtomicInteger(numberOfPendingShardInstances);
         }
 
-        /** total shard copies */
+        /**
+         * total shard copies
+         */
         int totalShards() {
             return totalShards;
         }
 
-        /** total successful operations so far */
+        /**
+         * total successful operations so far
+         */
         int successful() {
             return success.get();
         }
 
-        /** number of pending operations */
+        /**
+         * number of pending operations
+         */
         int pending() {
             return pending.get();
         }
@@ -765,7 +793,9 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
             forceFinishAsFailed(t);
         }
 
-        /** start sending current requests to replicas */
+        /**
+         * start sending current requests to replicas
+         */
         @Override
         protected void doRun() {
             if (pending.get() == 0) {
@@ -800,7 +830,9 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
             }
         }
 
-        /** send operation to the given node or perform it if local */
+        /**
+         * send operation to the given node or perform it if local
+         */
         void performOnReplica(final ShardRouting shard, final String nodeId) {
             // if we don't have that node, it means that it might have failed and will be created again, in
             // this case, we don't have to do the operation, and just let it failover
@@ -896,12 +928,14 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
 
         private void forceFinishAsFailed(Throwable t) {
             if (finished.compareAndSet(false, true)) {
+                Releasables.close(indexShardReference);
                 listener.onFailure(t);
             }
         }
 
         private void doFinish() {
             if (finished.compareAndSet(false, true)) {
+                Releasables.close(indexShardReference);
                 final ShardId shardId = shardIt.shardId();
                 final ActionWriteResponse.ShardInfo.Failure[] failuresArray;
                 if (!shardReplicaFailures.isEmpty()) {
@@ -950,6 +984,24 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
 
         public String concreteIndex() {
             return concreteIndex;
+        }
+    }
+
+    static class IndexShardReference implements Releasable {
+
+        final private IndexShard counter;
+        private final AtomicBoolean closed = new AtomicBoolean(false);
+
+        IndexShardReference(IndexShard counter) {
+            counter.incrementOperationCounter();
+            this.counter = counter;
+        }
+
+        @Override
+        public void close() {
+            if (closed.compareAndSet(false, true)) {
+                counter.decrementOperationCounter();
+            }
         }
     }
 }

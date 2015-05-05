@@ -20,17 +20,19 @@
 package org.elasticsearch.action.admin.indices.alias.get;
 
 import com.google.common.collect.ObjectArrays;
+import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
+import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.client.IndicesAdminClient;
 
 /**
  */
-public abstract class BaseAliasesRequestBuilder<Response extends ActionResponse, Builder extends BaseAliasesRequestBuilder<Response, Builder>> extends MasterNodeReadOperationRequestBuilder<GetAliasesRequest, Response, Builder, IndicesAdminClient> {
+public abstract class BaseAliasesRequestBuilder<Response extends ActionResponse, Builder extends BaseAliasesRequestBuilder<Response, Builder>> extends MasterNodeReadOperationRequestBuilder<GetAliasesRequest, Response, Builder> {
 
-    public BaseAliasesRequestBuilder(IndicesAdminClient client, String... aliases) {
-        super(client, new GetAliasesRequest(aliases));
+    public BaseAliasesRequestBuilder(ElasticsearchClient client, Action<GetAliasesRequest, Response, Builder> action, String... aliases) {
+        super(client, action, new GetAliasesRequest(aliases));
     }
 
     @SuppressWarnings("unchecked")

@@ -110,10 +110,18 @@ public class CompoundAnalysisTests extends ElasticsearchTestCase {
     }
 
     private Settings getJsonSettings() {
-        return settingsBuilder().loadFromClasspath("org/elasticsearch/index/analysis/test1.json").put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
+        return settingsBuilder()
+                .loadFromClasspath("org/elasticsearch/index/analysis/test1.json")
+                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put("path.home", createTempDir().toString())
+                .build();
     }
 
     private Settings getYamlSettings() {
-        return settingsBuilder().loadFromClasspath("org/elasticsearch/index/analysis/test1.yml").put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
+        return settingsBuilder()
+                .loadFromClasspath("org/elasticsearch/index/analysis/test1.yml")
+                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put("path.home", createTempDir().toString())
+                .build();
     }
 }

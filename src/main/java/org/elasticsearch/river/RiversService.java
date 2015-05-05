@@ -28,6 +28,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.get.GetRequestBuilder;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -231,7 +232,7 @@ public class RiversService extends AbstractLifecycleComponent<RiversService> {
                     logger.trace("river {} is already allocated", routing.riverName().getName());
                     continue;
                 }
-                prepareGetMetaDocument(routing.riverName().name()).execute(new ActionListener<GetResponse>() {
+                prepareGetMetaDocument(routing.riverName().name()).execute(new ThreadedActionListener<>(logger, threadPool, ThreadPool.Names.LISTENER, new ActionListener<GetResponse>() {
                     @Override
                     public void onResponse(GetResponse getResponse) {
                         if (!rivers.containsKey(routing.riverName())) {
@@ -255,7 +256,7 @@ public class RiversService extends AbstractLifecycleComponent<RiversService> {
                             logger.debug("failed to get _meta from [{}]/[{}], retrying...", e, routing.riverName().type(), routing.riverName().name());
                             final ActionListener<GetResponse> listener = this;
                             try {
-                                threadPool.schedule(TimeValue.timeValueSeconds(5), ThreadPool.Names.SAME, new Runnable() {
+                                threadPool.schedule(TimeValue.timeValueSeconds(5), ThreadPool.Names.LISTENER, new Runnable() {
                                     @Override
                                     public void run() {
                                         prepareGetMetaDocument(routing.riverName().name()).execute(listener);
@@ -268,12 +269,12 @@ public class RiversService extends AbstractLifecycleComponent<RiversService> {
                             logger.warn("failed to get _meta from [{}]/[{}]", e, routing.riverName().type(), routing.riverName().name());
                         }
                     }
-                });
+                }));
             }
         }
 
         private GetRequestBuilder prepareGetMetaDocument(String riverName) {
-            return client.prepareGet(riverIndexName, riverName, "_meta").setPreference("_primary").setListenerThreaded(true);
+            return client.prepareGet(riverIndexName, riverName, "_meta").setPreference("_primary");
         }
     }
 }

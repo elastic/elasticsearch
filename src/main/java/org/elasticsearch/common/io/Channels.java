@@ -87,6 +87,22 @@ public final class Channels {
         return readFromFileChannel(channel, channelPosition, buffer);
     }
 
+
+    /**
+     * read from a file channel into a byte buffer, starting at a certain position.  An EOFException will be thrown if you
+     * attempt to read beyond the end of file.
+     *
+     * @param channel         channel to read from
+     * @param channelPosition position to read from
+     * @param dest            destination {@link java.nio.ByteBuffer} to put data in
+     */
+    public static void readFromFileChannelWithEofException(FileChannel channel, long channelPosition, ByteBuffer dest) throws IOException {
+        int read = readFromFileChannel(channel, channelPosition, dest);
+        if (read < 0) {
+            throw new EOFException("read past EOF. pos [" + channelPosition + "] length: [" + dest.limit() + "] end: [" + channel.size() + "]");
+        }
+    }
+
     /**
      * read from a file channel into a byte buffer, starting at a certain position.
      *

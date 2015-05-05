@@ -26,9 +26,7 @@ import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.client.ClusterAdminClient;
 import org.elasticsearch.client.FilterClient;
-import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -292,34 +290,7 @@ public class CompositeTestCluster extends TestCluster {
     private final class ExternalClient extends FilterClient {
 
         public ExternalClient() {
-            super(null);
-        }
-
-        @Override
-        protected Client in() {
-            return internalClient();
-        }
-
-        @Override
-        public ClusterAdminClient cluster() {
-            return new ClusterAdmin(null) {
-
-                @Override
-                protected ClusterAdminClient in() {
-                    return internalClient().admin().cluster();
-                }
-            };
-        }
-
-        @Override
-        public IndicesAdminClient indices() {
-            return new IndicesAdmin(null) {
-
-                @Override
-                protected IndicesAdminClient in() {
-                    return internalClient().admin().indices();
-                }
-            };
+            super(internalClient());
         }
 
         @Override
@@ -327,5 +298,4 @@ public class CompositeTestCluster extends TestCluster {
             // never close this client
         }
     }
-
 }

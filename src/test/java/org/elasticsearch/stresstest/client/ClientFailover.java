@@ -21,6 +21,7 @@ package org.elasticsearch.stresstest.client;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.client.transport.TransportClient;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeBuilder;
@@ -38,8 +39,10 @@ public class ClientFailover {
         for (int i = 0; i < nodes.length; i++) {
             nodes[i] = NodeBuilder.nodeBuilder().node();
         }
+        
+        // TODO: what is this? a public static void main test?!?!
 
-        final TransportClient client = new TransportClient()
+        final TransportClient client = TransportClient.builder().build()
                 .addTransportAddress(new InetSocketTransportAddress("localhost", 9300))
                 .addTransportAddress(new InetSocketTransportAddress("localhost", 9301))
                 .addTransportAddress(new InetSocketTransportAddress("localhost", 9302));

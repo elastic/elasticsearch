@@ -21,7 +21,6 @@ package org.elasticsearch.snapshots;
 
 import com.google.common.base.Predicate;
 import com.google.common.collect.ImmutableList;
-
 import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.LuceneTestCase.Slow;
@@ -44,7 +43,8 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ProcessedClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.*;
-import org.elasticsearch.cluster.metadata.SnapshotMetaData.*;
+import org.elasticsearch.cluster.metadata.SnapshotMetaData.Entry;
+import org.elasticsearch.cluster.metadata.SnapshotMetaData.ShardSnapshotStatus;
 import org.elasticsearch.cluster.metadata.SnapshotMetaData.State;
 import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -70,10 +70,11 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
 import static com.google.common.collect.Lists.newArrayList;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.*;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
+import static org.elasticsearch.index.shard.IndexShard.INDEX_REFRESH_INTERVAL;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
-import static org.elasticsearch.index.shard.IndexShard.*;
 import static org.hamcrest.Matchers.*;
 
 @Slow
@@ -135,7 +136,7 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
         for (int i = 0; i < 100; i += 2) {
             client.prepareDelete("test-idx-3", "doc", Integer.toString(i)).get();
         }
-        refresh();
+        assertAllSuccessful(refresh());
         assertHitCount(client.prepareCount("test-idx-1").get(), 50L);
         assertHitCount(client.prepareCount("test-idx-2").get(), 50L);
         assertHitCount(client.prepareCount("test-idx-3").get(), 50L);

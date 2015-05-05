@@ -19,31 +19,22 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.Scroll;
 
 /**
  * A search scroll action request builder.
  */
-public class SearchScrollRequestBuilder extends ActionRequestBuilder<SearchScrollRequest, SearchResponse, SearchScrollRequestBuilder, Client> {
+public class SearchScrollRequestBuilder extends ActionRequestBuilder<SearchScrollRequest, SearchResponse, SearchScrollRequestBuilder> {
 
-    public SearchScrollRequestBuilder(Client client) {
-        super(client, new SearchScrollRequest());
+    public SearchScrollRequestBuilder(ElasticsearchClient client, SearchScrollAction action) {
+        super(client, action, new SearchScrollRequest());
     }
 
-    public SearchScrollRequestBuilder(Client client, String scrollId) {
-        super(client, new SearchScrollRequest(scrollId));
-    }
-
-    /**
-     * Should the listener be called on a separate thread if needed.
-     */
-    public SearchScrollRequestBuilder listenerThreaded(boolean threadedListener) {
-        request.listenerThreaded(threadedListener);
-        return this;
+    public SearchScrollRequestBuilder(ElasticsearchClient client, SearchScrollAction action, String scrollId) {
+        super(client, action, new SearchScrollRequest(scrollId));
     }
 
     /**
@@ -76,10 +67,5 @@ public class SearchScrollRequestBuilder extends ActionRequestBuilder<SearchScrol
     public SearchScrollRequestBuilder setScroll(String keepAlive) {
         request.scroll(keepAlive);
         return this;
-    }
-
-    @Override
-    protected void doExecute(ActionListener<SearchResponse> listener) {
-        client.searchScroll(request, listener);
     }
 }

@@ -19,37 +19,39 @@
 
 package org.elasticsearch.index.translog.fs;
 
-import org.apache.lucene.util.Accountable;
+import com.google.common.collect.Iterables;
+import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.ReleasablePagedBytesReference;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.FileSystemUtils;
-import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.FutureUtils;
+import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
-import org.elasticsearch.index.store.IndexStore;
-import org.elasticsearch.index.translog.*;
+import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.index.translog.TranslogException;
+import org.elasticsearch.index.translog.TranslogStats;
+import org.elasticsearch.index.translog.TranslogStreams;
+import org.elasticsearch.threadpool.ThreadPool;
 
-import java.io.EOFException;
+import java.io.Closeable;
 import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.nio.channels.ClosedChannelException;
 import java.nio.file.*;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
+import java.util.*;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -59,11 +61,21 @@ import java.util.regex.Pattern;
 /**
  *
  */
-public class FsTranslog extends AbstractIndexShardComponent implements Translog {
+public class FsTranslog extends AbstractIndexShardComponent implements Translog, Closeable {
 
     public static final String INDEX_TRANSLOG_FS_TYPE = "index.translog.fs.type";
-    private static final String TRANSLOG_FILE_PREFIX = "translog-";
-    private static final Pattern PARSE_ID_PATTERN = Pattern.compile(TRANSLOG_FILE_PREFIX + "(\\d+).*");
+    public static final String INDEX_TRANSLOG_BUFFER_SIZE = "index.translog.fs.buffer_size";
+    public static final String INDEX_TRANSLOG_SYNC_INTERVAL = "index.translog.sync_interval";
+    public static final String TRANSLOG_FILE_PREFIX = "translog-";
+    static final Pattern PARSE_ID_PATTERN = Pattern.compile(TRANSLOG_FILE_PREFIX + "(\\d+)(\\.recovering)?$");
+    private final TimeValue syncInterval;
+    private volatile ScheduledFuture<?> syncScheduler;
+
+
+    // this is a concurrent set and is not protected by any of the locks. The main reason
+    // is that is being accessed by two separate classes (additions & reading are done by FsTranslog, remove by FsView when closed)
+    private final Set<FsView> outstandingViews = ConcurrentCollections.newConcurrentSet();
+
 
     class ApplySettings implements IndexSettingsService.Listener {
         @Override
@@ -78,75 +90,148 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
 
     private final IndexSettingsService indexSettingsService;
     private final BigArrays bigArrays;
+    private final ThreadPool threadPool;
 
-    private final ReadWriteLock rwl = new ReentrantReadWriteLock();
+    protected final ReleasableLock readLock;
+    protected final ReleasableLock writeLock;
+
     private final Path location;
 
-    private volatile FsTranslogFile current;
-    private volatile FsTranslogFile trans;
+    // protected by the write lock
+    private long idGenerator = 1;
+    private FsTranslogFile current;
+    // ordered by age
+    private final List<FsChannelImmutableReader> uncommittedTranslogs = new ArrayList<>();
+    private long lastCommittedTranslogId = -1; // -1 is safe as it will not cause an translog deletion.
 
     private FsTranslogFile.Type type;
 
     private boolean syncOnEachOperation = false;
 
     private volatile int bufferSize;
-    private volatile int transientBufferSize;
 
     private final ApplySettings applySettings = new ApplySettings();
 
-    @Inject
-    public FsTranslog(ShardId shardId, @IndexSettings Settings indexSettings, IndexSettingsService indexSettingsService,
-                      BigArrays bigArrays, ShardPath shardPath) throws IOException {
-        super(shardId, indexSettings);
-        this.indexSettingsService = indexSettingsService;
-        this.bigArrays = bigArrays;
-        this.location = shardPath.resolveTranslog();
-        Files.createDirectories(location);
-        this.type = FsTranslogFile.Type.fromString(indexSettings.get("index.translog.fs.type", FsTranslogFile.Type.BUFFERED.name()));
-        this.bufferSize = (int) indexSettings.getAsBytesSize("index.translog.fs.buffer_size", ByteSizeValue.parseBytesSizeValue("64k")).bytes(); // Not really interesting, updated by IndexingMemoryController...
-        this.transientBufferSize = (int) indexSettings.getAsBytesSize("index.translog.fs.transient_buffer_size", ByteSizeValue.parseBytesSizeValue("8k")).bytes();
-        indexSettingsService.addListener(applySettings);
+    private final AtomicBoolean closed = new AtomicBoolean();
+
+    public FsTranslog(ShardId shardId, IndexSettingsService indexSettingsService,
+                      BigArrays bigArrays, Path location, ThreadPool threadPool) throws IOException {
+        this(shardId, indexSettingsService.getSettings(), indexSettingsService, bigArrays, location, threadPool);
     }
 
-    public FsTranslog(ShardId shardId, @IndexSettings Settings indexSettings, Path location) throws IOException {
-        super(shardId, indexSettings);
-        this.indexSettingsService = null;
-        this.location = location;
-        Files.createDirectories(location);
-        this.bigArrays = BigArrays.NON_RECYCLING_INSTANCE;
+    public FsTranslog(ShardId shardId, @IndexSettings Settings indexSettings,
+                      BigArrays bigArrays, Path location) throws IOException {
+        this(shardId, indexSettings, null, bigArrays, location, null);
+    }
 
-        this.type = FsTranslogFile.Type.fromString(indexSettings.get("index.translog.fs.type", FsTranslogFile.Type.BUFFERED.name()));
-        this.bufferSize = (int) indexSettings.getAsBytesSize("index.translog.fs.buffer_size", ByteSizeValue.parseBytesSizeValue("64k")).bytes();
+    private FsTranslog(ShardId shardId, @IndexSettings Settings indexSettings, @Nullable IndexSettingsService indexSettingsService,
+                       BigArrays bigArrays, Path location, @Nullable ThreadPool threadPool) throws IOException {
+        super(shardId, indexSettings);
+        ReadWriteLock rwl = new ReentrantReadWriteLock();
+        readLock = new ReleasableLock(rwl.readLock());
+        writeLock = new ReleasableLock(rwl.writeLock());
+
+        this.indexSettingsService = indexSettingsService;
+        this.bigArrays = bigArrays;
+        this.location = location;
+        Files.createDirectories(this.location);
+        this.threadPool = threadPool;
+
+        this.type = FsTranslogFile.Type.fromString(indexSettings.get(INDEX_TRANSLOG_FS_TYPE, FsTranslogFile.Type.BUFFERED.name()));
+        this.bufferSize = (int) indexSettings.getAsBytesSize(INDEX_TRANSLOG_BUFFER_SIZE, ByteSizeValue.parseBytesSizeValue("64k")).bytes(); // Not really interesting, updated by IndexingMemoryController...
+
+        syncInterval = indexSettings.getAsTime(INDEX_TRANSLOG_SYNC_INTERVAL, TimeValue.timeValueSeconds(5));
+        if (syncInterval.millis() > 0 && threadPool != null) {
+            syncOnEachOperation(false);
+            syncScheduler = threadPool.schedule(syncInterval, ThreadPool.Names.SAME, new Sync());
+        } else if (syncInterval.millis() == 0) {
+            syncOnEachOperation(true);
+        }
+
+        if (indexSettingsService != null) {
+            indexSettingsService.addListener(applySettings);
+        }
+        try {
+            recoverFromFiles();
+            // now that we know which files are there, create a new current one.
+            current = createTranslogFile(null);
+        } catch (Throwable t) {
+            // close the opened translog files if we fail to create a new translog...
+            IOUtils.closeWhileHandlingException(uncommittedTranslogs);
+            throw t;
+        }
+    }
+
+    /** recover all translog files found on disk */
+    private void recoverFromFiles() throws IOException {
+        boolean success = false;
+        ArrayList<FsChannelImmutableReader> foundTranslogs = new ArrayList<>();
+        try (ReleasableLock lock = writeLock.acquire()) {
+            try (DirectoryStream<Path> stream = Files.newDirectoryStream(location, TRANSLOG_FILE_PREFIX + "[0-9]*")) {
+                for (Path file : stream) {
+                    final long id = parseIdFromFileName(file);
+                    if (id < 0) {
+                        throw new TranslogException(shardId, "failed to parse id from file name matching pattern " + file);
+                    }
+                    idGenerator = Math.max(idGenerator, id + 1);
+                    final ChannelReference raf = new InternalChannelReference(id, location.resolve(getFilename(id)), StandardOpenOption.READ);
+                    foundTranslogs.add(new FsChannelImmutableReader(id, raf, raf.channel().size(), FsChannelReader.UNKNOWN_OP_COUNT));
+                    logger.debug("found local translog with id [{}]", id);
+                }
+            }
+            CollectionUtil.timSort(foundTranslogs);
+            uncommittedTranslogs.addAll(foundTranslogs);
+            success = true;
+        } finally {
+            if (success == false) {
+                IOUtils.closeWhileHandlingException(foundTranslogs);
+            }
+        }
+    }
+
+    /* extracts the translog id from a file name. returns -1 upon failure */
+    public static long parseIdFromFileName(Path translogFile) {
+        final String fileName = translogFile.getFileName().toString();
+        final Matcher matcher = PARSE_ID_PATTERN.matcher(fileName);
+        if (matcher.matches()) {
+            try {
+                return Long.parseLong(matcher.group(1));
+            } catch (NumberFormatException e) {
+                throw new ElasticsearchException("number formatting issue in a file that passed PARSE_ID_PATTERN: " + fileName + "]", e);
+            }
+        }
+        return -1;
     }
 
     @Override
     public void updateBuffer(ByteSizeValue bufferSize) {
         this.bufferSize = bufferSize.bytesAsInt();
-        rwl.writeLock().lock();
-        try {
-            FsTranslogFile current1 = this.current;
-            if (current1 != null) {
-                current1.updateBufferSize(this.bufferSize);
-            }
-            current1 = this.trans;
-            if (current1 != null) {
-                current1.updateBufferSize(this.bufferSize);
-            }
-        } finally {
-            rwl.writeLock().unlock();
+        try (ReleasableLock lock = writeLock.acquire()) {
+            current.updateBufferSize(this.bufferSize);
         }
+    }
+
+    boolean isOpen() {
+        return closed.get() == false;
     }
 
     @Override
     public void close() throws IOException {
-        if (indexSettingsService != null) {
-            indexSettingsService.removeListener(applySettings);
-        }
-        rwl.writeLock().lock();
-        try {
-            IOUtils.close(this.trans, this.current);
-        } finally {
-            rwl.writeLock().unlock();
+        if (closed.compareAndSet(false, true)) {
+            if (indexSettingsService != null) {
+                indexSettingsService.removeListener(applySettings);
+            }
+
+            try (ReleasableLock lock = writeLock.acquire()) {
+                try {
+                    IOUtils.close(this.current);
+                } finally {
+                    IOUtils.close(uncommittedTranslogs);
+                }
+            } finally {
+                FutureUtils.cancel(syncScheduler);
+                logger.debug("translog closed");
+            }
         }
     }
 
@@ -157,137 +242,120 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
 
     @Override
     public long currentId() {
-        FsTranslogFile current1 = this.current;
-        if (current1 == null) {
-            return -1;
+        try (ReleasableLock lock = readLock.acquire()) {
+            return current.translogId();
         }
-        return current1.id();
     }
 
     @Override
-    public int estimatedNumberOfOperations() {
-        FsTranslogFile current1 = this.current;
-        if (current1 == null) {
-            return 0;
+    public int totalOperations() {
+        int ops = 0;
+        try (ReleasableLock lock = readLock.acquire()) {
+            ops += current.totalOperations();
+            for (FsChannelReader translog : uncommittedTranslogs) {
+                int tops = translog.totalOperations();
+                if (tops == FsChannelReader.UNKNOWN_OP_COUNT) {
+                    return FsChannelReader.UNKNOWN_OP_COUNT;
+                }
+                ops += tops;
+            }
         }
-        return current1.estimatedNumberOfOperations();
+        return ops;
     }
 
     @Override
-    public long ramBytesUsed() {
-        return 0;
-    }
-
-    @Override
-    public Collection<Accountable> getChildResources() {
-        return Collections.emptyList();
-    }
-
-    @Override
-    public long translogSizeInBytes() {
-        FsTranslogFile current1 = this.current;
-        if (current1 == null) {
-            return 0;
+    public long sizeInBytes() {
+        long size = 0;
+        try (ReleasableLock lock = readLock.acquire()) {
+            size += current.sizeInBytes();
+            for (FsChannelReader translog : uncommittedTranslogs) {
+                size += translog.sizeInBytes();
+            }
         }
-        return current1.translogSizeInBytes();
+        return size;
     }
 
     @Override
-    public int clearUnreferenced() {
-        rwl.writeLock().lock();
-        int deleted = 0;
-        try (DirectoryStream<Path> stream = Files.newDirectoryStream(location, TRANSLOG_FILE_PREFIX + "[0-9]*")) {
-            for (Path file : stream) {
-                if (isReferencedTranslogFile(file) == false) {
-                    try {
-                        logger.trace("delete unreferenced translog file: " + file);
-                        Files.delete(file);
-                        deleted++;
-                    } catch (Exception ex) {
-                        logger.debug("failed to delete " + file, ex);
+    public void markCommitted(final long translogId) throws FileNotFoundException {
+        try (ReleasableLock lock = writeLock.acquire()) {
+            logger.trace("updating translogs on commit of [{}]", translogId);
+            if (translogId < lastCommittedTranslogId) {
+                throw new IllegalArgumentException("committed translog id can only go up (current ["
+                        + lastCommittedTranslogId + "], got [" + translogId + "]");
+            }
+            boolean found = false;
+            if (current.translogId() == translogId) {
+                found = true;
+            } else {
+                if (translogId > current.translogId()) {
+                    throw new IllegalArgumentException("committed translog id must be lower or equal to current id (current ["
+                            + current.translogId() + "], got [" + translogId + "]");
+                }
+            }
+            if (found == false) {
+                // try to find it in uncommittedTranslogs
+                for (FsChannelImmutableReader translog : uncommittedTranslogs) {
+                    if (translog.translogId() == translogId) {
+                        found = true;
+                        break;
                     }
                 }
             }
-        } catch (IOException ex) {
-            logger.debug("failed to clear unreferenced files ", ex);
-        } finally {
-            rwl.writeLock().unlock();
-        }
-        return deleted;
-    }
-
-    @Override
-    public void newTranslog(long id) throws TranslogException, IOException {
-        rwl.writeLock().lock();
-        try {
-            FsTranslogFile newFile;
-            try {
-                newFile = type.create(shardId, id, new InternalChannelReference(location.resolve(getFilename(id)), StandardOpenOption.READ, StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW), bufferSize);
-            } catch (IOException e) {
-                throw new TranslogException(shardId, "failed to create new translog file", e);
+            if (found == false) {
+                ArrayList<Long> currentIds = new ArrayList<>();
+                for (FsChannelReader translog : Iterables.concat(uncommittedTranslogs, Collections.singletonList(current))) {
+                    currentIds.add(translog.translogId());
+                }
+                throw new FileNotFoundException("committed translog id can not be found (current ["
+                        + Strings.collectionToCommaDelimitedString(currentIds) + "], got [" + translogId + "]");
             }
-            FsTranslogFile old = current;
-            current = newFile;
-            IOUtils.close(old);
-        } finally {
-            rwl.writeLock().unlock();
+            lastCommittedTranslogId = translogId;
+            while (uncommittedTranslogs.isEmpty() == false && uncommittedTranslogs.get(0).translogId() < translogId) {
+                FsChannelReader old = uncommittedTranslogs.remove(0);
+                logger.trace("removed [{}] from uncommitted translog list", old.translogId());
+                try {
+                    old.close();
+                } catch (IOException e) {
+                    logger.error("failed to closed old translog [{}] (committed id [{}])", e, old, translogId);
+                }
+            }
         }
     }
 
     @Override
-    public void newTransientTranslog(long id) throws TranslogException {
-        rwl.writeLock().lock();
+    public long newTranslog() throws TranslogException, IOException {
+        try (ReleasableLock lock = writeLock.acquire()) {
+            final FsTranslogFile old = current;
+            final FsTranslogFile newFile = createTranslogFile(old);
+            current = newFile;
+            FsChannelImmutableReader reader = old.immutableReader();
+            uncommittedTranslogs.add(reader);
+            // notify all outstanding views of the new translog (no views are created now as
+            // we hold a write lock).
+            for (FsView view : outstandingViews) {
+                view.onNewTranslog(old.immutableReader(), current.reader());
+            }
+            IOUtils.close(old);
+            logger.trace("current translog set to [{}]", current.translogId());
+            return current.translogId();
+        }
+    }
+
+    protected FsTranslogFile createTranslogFile(@Nullable FsTranslogFile reuse) throws IOException {
+        FsTranslogFile newFile;
+        long size = Long.MAX_VALUE;
         try {
-            assert this.trans == null;
-            this.trans = type.create(shardId, id, new InternalChannelReference(location.resolve(getFilename(id)), StandardOpenOption.READ, StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW), transientBufferSize);
+            long id = idGenerator++;
+            newFile = type.create(shardId, id, new InternalChannelReference(id, location.resolve(getFilename(id)), StandardOpenOption.READ, StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW), bufferSize);
         } catch (IOException e) {
             throw new TranslogException(shardId, "failed to create new translog file", e);
-        } finally {
-            rwl.writeLock().unlock();
         }
+        if (reuse != null) {
+            newFile.reuse(reuse);
+        }
+        return newFile;
     }
 
-    @Override
-    public void makeTransientCurrent() throws IOException {
-        FsTranslogFile old;
-        rwl.writeLock().lock();
-        try {
-            assert this.trans != null;
-            old = current;
-            this.current = this.trans;
-            this.trans = null;
-        } finally {
-            rwl.writeLock().unlock();
-        }
-        old.close();
-        current.reuse(old);
-    }
-
-    @Override
-    public void revertTransient() throws IOException {
-        rwl.writeLock().lock();
-        try {
-            final FsTranslogFile toClose = this.trans;
-            this.trans = null;
-            IOUtils.close(toClose);
-        } finally {
-            rwl.writeLock().unlock();
-        }
-    }
-
-    /**
-     * Returns the translog that should be read for the specified location. If
-     * the transient or current translog does not match, returns null
-     */
-    private FsTranslogFile translogForLocation(Location location) {
-        if (trans != null && trans.id() == location.translogId) {
-            return this.trans;
-        }
-        if (current.id() == location.translogId) {
-            return this.current;
-        }
-        return null;
-    }
 
     /**
      * Read the Operation object from the given location, returns null if the
@@ -295,108 +363,112 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
      */
     @Override
     public Translog.Operation read(Location location) {
-        rwl.readLock().lock();
-        try {
-            FsTranslogFile translog = translogForLocation(location);
-            if (translog != null) {
-                byte[] data = translog.read(location);
-                try (BytesStreamInput in = new BytesStreamInput(data)) {
-                    // Return the Operation using the current version of the
-                    // stream based on which translog is being read
-                    return translog.getStream().read(in);
+        try (ReleasableLock lock = readLock.acquire()) {
+            FsChannelReader reader = null;
+            if (current.translogId() == location.translogId) {
+                reader = current;
+            } else {
+                for (FsChannelReader translog : uncommittedTranslogs) {
+                    if (translog.translogId() == location.translogId) {
+                        reader = translog;
+                        break;
+                    }
                 }
             }
-            return null;
+            return reader == null ? null : reader.read(location);
         } catch (IOException e) {
             throw new ElasticsearchException("failed to read source from translog location " + location, e);
-        } finally {
-            rwl.readLock().unlock();
         }
     }
 
     @Override
     public Location add(Operation operation) throws TranslogException {
-        rwl.readLock().lock();
-        boolean released = false;
-        ReleasableBytesStreamOutput out = null;
+        ReleasableBytesStreamOutput out = new ReleasableBytesStreamOutput(bigArrays);
         try {
-            out = new ReleasableBytesStreamOutput(bigArrays);
             TranslogStreams.writeTranslogOperation(out, operation);
             ReleasablePagedBytesReference bytes = out.bytes();
-            Location location = current.add(bytes);
-            if (syncOnEachOperation) {
-                current.sync();
-            }
-
-            assert new BytesArray(current.read(location)).equals(bytes);
-
-            FsTranslogFile trans = this.trans;
-            if (trans != null) {
-                try {
-                    location = trans.add(bytes);
-                } catch (ClosedChannelException e) {
-                    // ignore
+            try (ReleasableLock lock = readLock.acquire()) {
+                Location location = current.add(bytes);
+                if (syncOnEachOperation) {
+                    current.sync();
                 }
+
+                assert current.assertBytesAtLocation(location, bytes);
+                return location;
             }
-            Releasables.close(bytes);
-            released = true;
-            return location;
         } catch (Throwable e) {
             throw new TranslogException(shardId, "Failed to write operation [" + operation + "]", e);
         } finally {
-            rwl.readLock().unlock();
-            if (!released && out != null) {
-                Releasables.close(out.bytes());
+            Releasables.close(out.bytes());
+        }
+    }
+
+    @Override
+    public Snapshot newSnapshot() {
+        try (ReleasableLock lock = readLock.acquire()) {
+            // leave one place for current.
+            final FsChannelReader[] readers = uncommittedTranslogs.toArray(new FsChannelReader[uncommittedTranslogs.size() + 1]);
+            readers[readers.length - 1] = current;
+            return createdSnapshot(readers);
+        }
+    }
+
+    private Snapshot createdSnapshot(FsChannelReader... translogs) {
+        ArrayList<FsChannelSnapshot> channelSnapshots = new ArrayList<>();
+        boolean success = false;
+        try {
+            for (FsChannelReader translog : translogs) {
+                channelSnapshots.add(translog.newSnapshot());
+            }
+            Snapshot snapshot = new FsTranslogSnapshot(channelSnapshots, logger);
+            success = true;
+            return snapshot;
+        } finally {
+            if (success == false) {
+                IOUtils.closeWhileHandlingException(channelSnapshots);
             }
         }
     }
 
     @Override
-    public FsChannelSnapshot snapshot() throws TranslogException {
-        while (true) {
-            FsTranslogFile current = this.current;
-            FsChannelSnapshot snapshot = current.snapshot();
-            if (snapshot != null) {
-                return snapshot;
+    public Translog.View newView() {
+        // we need to acquire the read lock to make sure new translog is created
+        // and will be missed by the view we're making
+        try (ReleasableLock lock = readLock.acquire()) {
+            ArrayList<FsChannelReader> translogs = new ArrayList<>();
+            try {
+                for (FsChannelImmutableReader translog : uncommittedTranslogs) {
+                    translogs.add(translog.clone());
+                }
+                translogs.add(current.reader());
+                FsView view = new FsView(translogs);
+                // this is safe as we know that no new translog is being made at the moment
+                // (we hold a read lock) and the view will be notified of any future one
+                outstandingViews.add(view);
+                translogs.clear();
+                return view;
+            } finally {
+                // close if anything happend and we didn't reach the clear
+                IOUtils.closeWhileHandlingException(translogs);
             }
-            if (current.closed() && this.current == current) {
-                // check if we are closed and if we are still current - then this translog is closed and we can exit
-                throw new TranslogException(shardId, "current translog is already closed");
-            }
-            Thread.yield();
         }
-    }
-
-    @Override
-    public Snapshot snapshot(Snapshot snapshot) {
-        FsChannelSnapshot snap = snapshot();
-        if (snap.translogId() == snapshot.translogId()) {
-            snap.seekTo(snapshot.position());
-        }
-        return snap;
     }
 
     @Override
     public void sync() throws IOException {
-        FsTranslogFile current1 = this.current;
-        if (current1 == null) {
-            return;
-        }
-        try {
-            current1.sync();
-        } catch (IOException e) {
-            // if we switches translots (!=), then this failure is not relevant
-            // we are working on a new translog
-            if (this.current == current1) {
-                throw e;
+        try (ReleasableLock lock = readLock.acquire()) {
+            if (closed.get()) {
+                return;
             }
+            current.sync();
         }
     }
 
     @Override
     public boolean syncNeeded() {
-        FsTranslogFile current1 = this.current;
-        return current1 != null && current1.syncNeeded();
+        try (ReleasableLock lock = readLock.acquire()) {
+            return current.syncNeeded();
+        }
     }
 
     @Override
@@ -409,138 +481,169 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
         }
     }
 
-    @Override
-    public String getFilename(long translogId) {
+    /** package private for testing */
+    String getFilename(long translogId) {
         return TRANSLOG_FILE_PREFIX + translogId;
     }
 
     @Override
     public TranslogStats stats() {
-        FsTranslogFile current = this.current;
-        if (current == null) {
-            return new TranslogStats(0, 0);
-        }
-
-        return new TranslogStats(current.estimatedNumberOfOperations(), current.translogSizeInBytes());
-    }
-
-    @Override
-    public long findLargestPresentTranslogId() throws IOException {
-        rwl.readLock().lock();
-        try {
-            long maxId = this.currentId();
-            try (DirectoryStream<Path> stream = Files.newDirectoryStream(location, TRANSLOG_FILE_PREFIX + "[0-9]*")) {
-                for (Path translogFile : stream) {
-                    try {
-                        final String fileName = translogFile.getFileName().toString();
-                        final Matcher matcher = PARSE_ID_PATTERN.matcher(fileName);
-                        if (matcher.matches()) {
-                            maxId = Math.max(maxId, Long.parseLong(matcher.group(1)));
-                        }
-                    } catch (NumberFormatException ex) {
-                        logger.warn("Couldn't parse translog id from file " + translogFile + " skipping");
-                    }
-                }
-            }
-            return maxId;
-        } finally {
-            rwl.readLock().unlock();
+        // acquire lock to make the two numbers roughly consistent (no file change half way)
+        try (ReleasableLock lock = readLock.acquire()) {
+            return new TranslogStats(totalOperations(), sizeInBytes());
         }
     }
 
-    @Override
-    public OperationIterator openIterator(long translogId) throws IOException {
-        final String translogName = getFilename(translogId);
-        Path recoveringTranslogFile = null;
-        logger.trace("try open translog file {} locations {}", translogName, location);
-        // we have to support .recovering since it's a leftover from previous version but might still be on the filesystem
-        // we used to rename the foo into foo.recovering since foo was reused / overwritten but we fixed that in 2.0
-        for (Path recoveryFiles : FileSystemUtils.files(location, translogName + "{.recovering,}")) {
-            logger.trace("translog file found in {}", recoveryFiles);
-            recoveringTranslogFile = recoveryFiles;
-        }
-        final boolean translogFileExists = recoveringTranslogFile != null && Files.exists(recoveringTranslogFile);
-        if (translogFileExists) {
-            if (logger.isTraceEnabled()) {
-                logger.trace("opening iterator for translog file: {} length: {}", recoveringTranslogFile, Files.size(recoveringTranslogFile));
-            }
-            final TranslogStream translogStream = TranslogStreams.translogStreamFor(recoveringTranslogFile);
-            return new OperationIteratorImpl(logger, translogStream, translogStream.openInput(recoveringTranslogFile));
-        }
-        logger.trace("translog file NOT found in {}", location);
-        throw new FileNotFoundException("no translog file found for id: " + translogId);
-    }
-
-    private boolean isReferencedTranslogFile(Path file) {
-        final FsTranslogFile theCurrent = this.current;
-        final FsTranslogFile theTrans = this.trans;
-        return (theCurrent != null && theCurrent.getPath().equals(file)) ||
-                (theTrans != null && theTrans.getPath().equals(file));
+    private boolean isReferencedTranslogId(long translogId) {
+        return translogId >= lastCommittedTranslogId;
     }
 
     private final class InternalChannelReference extends ChannelReference {
+        final long translogId;
 
-        public InternalChannelReference(Path file, OpenOption... openOptions) throws IOException {
+        public InternalChannelReference(long translogId, Path file, OpenOption... openOptions) throws IOException {
             super(file, openOptions);
+            this.translogId = translogId;
         }
 
         @Override
         protected void closeInternal() {
             super.closeInternal();
-            rwl.writeLock().lock();
-            try {
-                if (isReferencedTranslogFile(file()) == false) {
+            try (ReleasableLock lock = writeLock.acquire()) {
+                if (isReferencedTranslogId(translogId) == false) {
                     // if the given path is not the current we can safely delete the file since all references are released
                     logger.trace("delete translog file - not referenced and not current anymore {}", file());
                     IOUtils.deleteFilesIgnoringExceptions(file());
                 }
-            } finally {
-                rwl.writeLock().unlock();
             }
         }
     }
 
     /**
-     * Iterator for translog operations.
+     * a view into the translog, capturing all translog file at the moment of creation
+     * and updated with any future translog.
      */
-    private static class OperationIteratorImpl implements org.elasticsearch.index.translog.Translog.OperationIterator {
+    class FsView implements View {
 
-        private final TranslogStream translogStream;
-        private final StreamInput input;
-        private final ESLogger logger;
+        boolean closed;
+        // last in this list is always FsTranslog.current
+        final List<FsChannelReader> orderedTranslogs;
 
-        OperationIteratorImpl(ESLogger logger, TranslogStream translogStream, StreamInput input) {
-            this.translogStream = translogStream;
-            this.input = input;
-            this.logger = logger;
+        FsView(List<FsChannelReader> orderedTranslogs) {
+            assert orderedTranslogs.isEmpty() == false;
+            // clone so we can safely mutate..
+            this.orderedTranslogs = new ArrayList<>(orderedTranslogs);
         }
 
         /**
-         * Returns the next operation in the translog or <code>null</code> if we reached the end of the stream.
+         * Called by the parent class when ever the current translog changes
+         *
+         * @param oldCurrent a new read only reader for the old current (should replace the previous reference)
+         * @param newCurrent a reader into the new current.
          */
-        public Translog.Operation next() throws IOException {
-            try {
-                if (translogStream instanceof LegacyTranslogStream) {
-                    input.readInt(); // ignored opSize
+        synchronized void onNewTranslog(FsChannelReader oldCurrent, FsChannelReader newCurrent) throws IOException {
+            // even though the close method removes this view from outstandingViews, there is no synchronisation in place
+            // between that operation and an ongoing addition of a new translog, already having an iterator.
+            // As such, this method can be called despite of the fact that we are closed. We need to check and ignore.
+            if (closed) {
+                // we have to close the new references created for as as we will not hold them
+                IOUtils.close(oldCurrent, newCurrent);
+                return;
+            }
+            orderedTranslogs.remove(orderedTranslogs.size() - 1).close();
+            orderedTranslogs.add(oldCurrent);
+            orderedTranslogs.add(newCurrent);
+        }
+
+        @Override
+        public synchronized long minTranslogId() {
+            ensureOpen();
+            return orderedTranslogs.get(0).translogId();
+        }
+
+        @Override
+        public synchronized int totalOperations() {
+            int ops = 0;
+            for (FsChannelReader translog : orderedTranslogs) {
+                int tops = translog.totalOperations();
+                if (tops == FsChannelReader.UNKNOWN_OP_COUNT) {
+                    return -1;
                 }
-                return translogStream.read(input);
-            } catch (TruncatedTranslogException | EOFException e) {
-                // ignore, not properly written the last op
-                logger.trace("ignoring translog EOF exception, the last operation was not properly written", e);
-                return null;
-            } catch (IOException e) {
-                // ignore, not properly written last op
-                logger.trace("ignoring translog IO exception, the last operation was not properly written", e);
-                return null;
+                ops += tops;
+            }
+            return ops;
+        }
+
+        @Override
+        public synchronized long sizeInBytes() {
+            long size = 0;
+            for (FsChannelReader translog : orderedTranslogs) {
+                size += translog.sizeInBytes();
+            }
+            return size;
+        }
+
+        public synchronized Snapshot snapshot() {
+            ensureOpen();
+            return createdSnapshot(orderedTranslogs.toArray(new FsChannelReader[orderedTranslogs.size()]));
+        }
+
+
+        void ensureOpen() {
+            if (closed) {
+                throw new ElasticsearchException("View is already closed");
             }
         }
 
         @Override
         public void close() {
+            List<FsChannelReader> toClose = new ArrayList<>();
             try {
-                input.close();
-            } catch (IOException ex) {
-                throw new ElasticsearchException("failed to close stream input", ex);
+                synchronized (this) {
+                    if (closed == false) {
+                        logger.trace("closing view starting at translog [{}]", minTranslogId());
+                        closed = true;
+                        outstandingViews.remove(this);
+                        toClose.addAll(orderedTranslogs);
+                        orderedTranslogs.clear();
+                    }
+                }
+            } finally {
+                try {
+                    // Close out of lock to prevent deadlocks between channel close which checks for
+                    // references in InternalChannelReference.closeInternal (waiting on a read lock)
+                    // and other FsTranslog#newTranslog calling FsView.onNewTranslog (while having a write lock)
+                    IOUtils.close(toClose);
+                } catch (Exception e) {
+                    throw new ElasticsearchException("failed to close view", e);
+                }
+            }
+        }
+    }
+
+    class Sync implements Runnable {
+        @Override
+        public void run() {
+            // don't re-schedule  if its closed..., we are done
+            if (closed.get()) {
+                return;
+            }
+            if (syncNeeded()) {
+                threadPool.executor(ThreadPool.Names.FLUSH).execute(new Runnable() {
+                    @Override
+                    public void run() {
+                        try {
+                            sync();
+                        } catch (Exception e) {
+                            logger.warn("failed to sync translog", e);
+                        }
+                        if (closed.get() == false) {
+                            syncScheduler = threadPool.schedule(syncInterval, ThreadPool.Names.SAME, Sync.this);
+                        }
+                    }
+                });
+            } else {
+                syncScheduler = threadPool.schedule(syncInterval, ThreadPool.Names.SAME, Sync.this);
             }
         }
     }

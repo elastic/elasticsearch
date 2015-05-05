@@ -19,33 +19,40 @@
 
 package org.elasticsearch.index.translog.fs;
 
+import com.google.common.collect.Iterables;
 import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.index.translog.TranslogStream;
+import org.elasticsearch.index.translog.TranslogStreams;
 
-import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.io.RandomAccessFile;
 import java.nio.channels.FileChannel;
-import java.nio.file.Files;
 import java.nio.file.OpenOption;
 import java.nio.file.Path;
-import java.nio.file.StandardOpenOption;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.Collections;
+import java.util.IdentityHashMap;
+import java.util.Map;
 
-/**
- *
- */
-abstract class ChannelReference extends AbstractRefCounted {
+class ChannelReference extends AbstractRefCounted {
 
     private final Path file;
 
     private final FileChannel channel;
 
+    private final TranslogStream stream;
+
     public ChannelReference(Path file, OpenOption... openOptions) throws IOException {
         super(file.toString());
         this.file = file;
         this.channel = FileChannel.open(file, openOptions);
+        try {
+            this.stream = TranslogStreams.translogStreamFor(file);
+        } catch (Throwable t) {
+            IOUtils.closeWhileHandlingException(channel);
+            throw t;
+        }
     }
 
     public Path file() {
@@ -54,6 +61,15 @@ abstract class ChannelReference extends AbstractRefCounted {
 
     public FileChannel channel() {
         return this.channel;
+    }
+
+    public TranslogStream stream() {
+        return this.stream;
+    }
+
+    @Override
+    public String toString() {
+        return "channel: file [" + file + "], ref count [" + refCount() + "]";
     }
 
     @Override

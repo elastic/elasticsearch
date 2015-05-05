@@ -23,6 +23,8 @@ import org.elasticsearch.action.support.QuerySourceBuilder;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -46,7 +48,10 @@ public class CountRequestBuilderTests extends ElasticsearchTestCase {
     public static void initClient() {
         //this client will not be hit by any request, but it needs to be a non null proper client
         //that is why we create it but we don't add any transport address to it
-        client = new TransportClient();
+        Settings settings = ImmutableSettings.builder()
+                .put("path.home", createTempDir().toString())
+                .build();
+        client = TransportClient.builder().settings(settings).build();
     }
 
     @AfterClass
@@ -57,20 +62,20 @@ public class CountRequestBuilderTests extends ElasticsearchTestCase {
 
     @Test
     public void testEmptySourceToString() {
-        CountRequestBuilder countRequestBuilder = new CountRequestBuilder(client);
+        CountRequestBuilder countRequestBuilder = client.prepareCount();
         assertThat(countRequestBuilder.toString(), equalTo(new QuerySourceBuilder().toString()));
     }
 
     @Test
     public void testQueryBuilderQueryToString() {
-        CountRequestBuilder countRequestBuilder = new CountRequestBuilder(client);
+        CountRequestBuilder countRequestBuilder = client.prepareCount();
         countRequestBuilder.setQuery(QueryBuilders.matchAllQuery());
         assertThat(countRequestBuilder.toString(), equalTo(new QuerySourceBuilder().setQuery(QueryBuilders.matchAllQuery()).toString()));
     }
 
     @Test
     public void testStringQueryToString() {
-        CountRequestBuilder countRequestBuilder = new CountRequestBuilder(client);
+        CountRequestBuilder countRequestBuilder = client.prepareCount();
         String query = "{ \"match_all\" : {} }";
         countRequestBuilder.setQuery(new BytesArray(query));
         assertThat(countRequestBuilder.toString(), containsString("\"query\":{ \"match_all\" : {} }"));
@@ -78,7 +83,7 @@ public class CountRequestBuilderTests extends ElasticsearchTestCase {
 
     @Test
     public void testXContentBuilderQueryToString() throws IOException {
-        CountRequestBuilder countRequestBuilder = new CountRequestBuilder(client);
+        CountRequestBuilder countRequestBuilder = client.prepareCount();
         XContentBuilder xContentBuilder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
         xContentBuilder.startObject();
         xContentBuilder.startObject("match_all");
@@ -90,7 +95,7 @@ public class CountRequestBuilderTests extends ElasticsearchTestCase {
 
     @Test
     public void testStringSourceToString() {
-        CountRequestBuilder countRequestBuilder = new CountRequestBuilder(client);
+        CountRequestBuilder countRequestBuilder = client.prepareCount();
         String query = "{ \"query\": { \"match_all\" : {} } }";
         countRequestBuilder.setSource(new BytesArray(query));
         assertThat(countRequestBuilder.toString(), equalTo("{ \"query\": { \"match_all\" : {} } }"));
@@ -98,7 +103,7 @@ public class CountRequestBuilderTests extends ElasticsearchTestCase {
 
     @Test
     public void testXContentBuilderSourceToString() throws IOException {
-        CountRequestBuilder countRequestBuilder = new CountRequestBuilder(client);
+        CountRequestBuilder countRequestBuilder = client.prepareCount();
         XContentBuilder xContentBuilder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
         xContentBuilder.startObject();
         xContentBuilder.startObject("match_all");
@@ -119,7 +124,7 @@ public class CountRequestBuilderTests extends ElasticsearchTestCase {
                 "            }\n" +
                 "        }\n" +
                 "        }";
-        CountRequestBuilder countRequestBuilder = new CountRequestBuilder(client).setSource(new BytesArray(source));
+        CountRequestBuilder countRequestBuilder = client.prepareCount().setSource(new BytesArray(source));
         String preToString = countRequestBuilder.request().source().toUtf8();
         assertThat(countRequestBuilder.toString(), equalTo(source));
         String postToString = countRequestBuilder.request().source().toUtf8();

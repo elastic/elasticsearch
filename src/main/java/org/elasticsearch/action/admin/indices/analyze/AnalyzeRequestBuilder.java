@@ -18,21 +18,20 @@
  */
 package org.elasticsearch.action.admin.indices.analyze;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.single.custom.SingleCustomOperationRequestBuilder;
-import org.elasticsearch.client.IndicesAdminClient;
+import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  *
  */
 public class AnalyzeRequestBuilder extends SingleCustomOperationRequestBuilder<AnalyzeRequest, AnalyzeResponse, AnalyzeRequestBuilder> {
 
-    public AnalyzeRequestBuilder(IndicesAdminClient indicesClient) {
-        super(indicesClient, new AnalyzeRequest());
+    public AnalyzeRequestBuilder(ElasticsearchClient client, AnalyzeAction action) {
+        super(client, action, new AnalyzeRequest());
     }
 
-    public AnalyzeRequestBuilder(IndicesAdminClient indicesClient, String index, String text) {
-        super(indicesClient, new AnalyzeRequest(index).text(text));
+    public AnalyzeRequestBuilder(ElasticsearchClient client, AnalyzeAction action, String index, String text) {
+        super(client, action, new AnalyzeRequest(index).text(text));
     }
 
     /**
@@ -86,10 +85,5 @@ public class AnalyzeRequestBuilder extends SingleCustomOperationRequestBuilder<A
     public AnalyzeRequestBuilder setCharFilters(String... charFilters) {
         request.charFilters(charFilters);
         return this;
-    }
-
-    @Override
-    protected void doExecute(ActionListener<AnalyzeResponse> listener) {
-        client.analyze(request, listener);
     }
 }

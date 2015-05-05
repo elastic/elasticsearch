@@ -21,7 +21,7 @@ package org.elasticsearch.action.admin.cluster.repositories.put;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
-import org.elasticsearch.client.ClusterAdminClient;
+import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.settings.Settings;
 
 import java.util.Map;
@@ -29,25 +29,20 @@ import java.util.Map;
 /**
  * Register repository request builder
  */
-public class PutRepositoryRequestBuilder extends AcknowledgedRequestBuilder<PutRepositoryRequest, PutRepositoryResponse, PutRepositoryRequestBuilder, ClusterAdminClient> {
+public class PutRepositoryRequestBuilder extends AcknowledgedRequestBuilder<PutRepositoryRequest, PutRepositoryResponse, PutRepositoryRequestBuilder> {
 
     /**
      * Constructs register repository request
-     *
-     * @param clusterAdminClient cluster admin client
      */
-    public PutRepositoryRequestBuilder(ClusterAdminClient clusterAdminClient) {
-        super(clusterAdminClient, new PutRepositoryRequest());
+    public PutRepositoryRequestBuilder(ElasticsearchClient client, PutRepositoryAction action) {
+        super(client, action, new PutRepositoryRequest());
     }
 
     /**
      * Constructs register repository request for the repository with a given name
-     *
-     * @param clusterAdminClient cluster admin client
-     * @param name               repository name
      */
-    public PutRepositoryRequestBuilder(ClusterAdminClient clusterAdminClient, String name) {
-        super(clusterAdminClient, new PutRepositoryRequest(name));
+    public PutRepositoryRequestBuilder(ElasticsearchClient client, PutRepositoryAction action, String name) {
+        super(client, action, new PutRepositoryRequest(name));
     }
 
     /**
@@ -125,10 +120,5 @@ public class PutRepositoryRequestBuilder extends AcknowledgedRequestBuilder<PutR
     public PutRepositoryRequestBuilder setVerify(boolean verify) {
         request.verify(verify);
         return this;
-    }
-
-    @Override
-    protected void doExecute(ActionListener<PutRepositoryResponse> listener) {
-        client.putRepository(request, listener);
     }
 }

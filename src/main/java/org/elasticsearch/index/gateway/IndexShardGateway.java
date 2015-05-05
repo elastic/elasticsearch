@@ -30,14 +30,12 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.CancellableThreads;
-import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -47,7 +45,6 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -61,9 +58,7 @@ public class IndexShardGateway extends AbstractIndexShardComponent implements Cl
     private final IndexService indexService;
     private final IndexShard indexShard;
     private final TimeValue waitForMappingUpdatePostRecovery;
-    private final TimeValue syncInterval;
 
-    private volatile ScheduledFuture<?> flushScheduler;
     private final CancellableThreads cancellableThreads = new CancellableThreads();
 
 
@@ -76,17 +71,7 @@ public class IndexShardGateway extends AbstractIndexShardComponent implements Cl
         this.indexService = indexService;
         this.indexShard = indexShard;
 
-        this.waitForMappingUpdatePostRecovery = indexSettings.getAsTime("index.gateway.wait_for_mapping_update_post_recovery", TimeValue.timeValueMinutes(15));
-        syncInterval = indexSettings.getAsTime("index.gateway.sync", TimeValue.timeValueSeconds(5));
-        if (syncInterval.millis() > 0) {
-            this.indexShard.translog().syncOnEachOperation(false);
-            flushScheduler = threadPool.schedule(syncInterval, ThreadPool.Names.SAME, new Sync());
-        } else if (syncInterval.millis() == 0) {
-            flushScheduler = null;
-            this.indexShard.translog().syncOnEachOperation(true);
-        } else {
-            flushScheduler = null;
-        }
+        this.waitForMappingUpdatePostRecovery = indexSettings.getAsTime("index.gateway.wait_for_mapping_update_post_recovery", TimeValue.timeValueSeconds(15));
     }
 
     /**
@@ -198,37 +183,7 @@ public class IndexShardGateway extends AbstractIndexShardComponent implements Cl
 
     @Override
     public void close() {
-        FutureUtils.cancel(flushScheduler);
         cancellableThreads.cancel("closed");
-    }
-
-    class Sync implements Runnable {
-        @Override
-        public void run() {
-            // don't re-schedule  if its closed..., we are done
-            if (indexShard.state() == IndexShardState.CLOSED) {
-                return;
-            }
-            if (indexShard.state() == IndexShardState.STARTED && indexShard.translog().syncNeeded()) {
-                threadPool.executor(ThreadPool.Names.FLUSH).execute(new Runnable() {
-                    @Override
-                    public void run() {
-                        try {
-                            indexShard.translog().sync();
-                        } catch (Exception e) {
-                            if (indexShard.state() == IndexShardState.STARTED) {
-                                logger.warn("failed to sync translog", e);
-                            }
-                        }
-                        if (indexShard.state() != IndexShardState.CLOSED) {
-                            flushScheduler = threadPool.schedule(syncInterval, ThreadPool.Names.SAME, Sync.this);
-                        }
-                    }
-                });
-            } else {
-                flushScheduler = threadPool.schedule(syncInterval, ThreadPool.Names.SAME, Sync.this);
-            }
-        }
     }
 
     @Override

@@ -22,16 +22,15 @@
             "condition": {
               "always": {}
             },
-            "actions": [
-            {
+            "actions": {
               "test_index": {
                 "index": {
                   "index": "test",
                   "doc_type": "test2"
                 }
               }
-            } ]
             }
+          }
   - match: { _id: "my_watch" }
 
   - do:

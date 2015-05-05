@@ -15,8 +15,10 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.watcher.WatcherException;
 import org.elasticsearch.watcher.actions.ActionFactory;
 import org.elasticsearch.watcher.actions.ActionRegistry;
 import org.elasticsearch.watcher.actions.ActionWrapper;
@@ -95,6 +97,7 @@ import java.util.Map;
 import static org.elasticsearch.watcher.input.InputBuilders.searchInput;
 import static org.elasticsearch.watcher.test.WatcherTestUtils.matchAllRequest;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 
 public class WatchTests extends ElasticsearchTestCase {
@@ -170,6 +173,38 @@ public class WatchTests extends ElasticsearchTestCase {
         }
         assertThat(parsedWatch.metadata(), equalTo(metadata));
         assertThat(parsedWatch.actions(), equalTo(actions));
+    }
+
+    @Test
+    public void testParser_BadActions() throws Exception {
+        ScheduleRegistry scheduleRegistry = registry(randomSchedule());
+        TriggerEngine triggerEngine = new ParseOnlyScheduleTriggerEngine(ImmutableSettings.EMPTY, scheduleRegistry);
+        TriggerService triggerService = new TriggerService(ImmutableSettings.EMPTY, ImmutableSet.of(triggerEngine));
+        SecretService secretService = new SecretService.PlainText();
+        ExecutableCondition condition = randomCondition();
+        ConditionRegistry conditionRegistry = registry(condition);
+        ExecutableInput input = randomInput();
+        InputRegistry inputRegistry = registry(input);
+
+        TransformRegistry transformRegistry = transformRegistry();
+
+        ExecutableActions actions = randomActions();
+        ActionRegistry actionRegistry = registry(actions, transformRegistry);
+
+
+        XContentBuilder jsonBuilder = XContentFactory.jsonBuilder();
+        jsonBuilder.startObject();
+        jsonBuilder.field("actions");
+        jsonBuilder.startArray();
+        jsonBuilder.endArray();
+        jsonBuilder.endObject();
+        Watch.Parser watchParser = new Watch.Parser(settings, mock(LicenseService.class), conditionRegistry, triggerService, transformRegistry, actionRegistry, inputRegistry, SystemClock.INSTANCE, secretService);
+        try {
+            watchParser.parse("failure", false, jsonBuilder.bytes());
+            fail("This watch should fail to parse as actions is an array");
+        } catch (WatcherException we) {
+            assertThat(we.getMessage().contains("could not parse watch [failure]. unexpected token"), is(true));
+        }
     }
 
     private static Schedule randomSchedule() {

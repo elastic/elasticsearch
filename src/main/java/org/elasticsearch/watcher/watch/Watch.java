@@ -285,13 +285,14 @@ public class Watch implements TriggerEngine.Job, ToXContent {
             TimeValue throttlePeriod = defaultThrottleTimePeriod;
 
             String currentFieldName = null;
-            XContentParser.Token token = null;
+            XContentParser.Token token = parser.nextToken();
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
-                } else if (token == null ){
-                    throw new WatcherException("could not parse watch [" + id + "]. null token");
-                } else if ((token.isValue() || token == XContentParser.Token.START_OBJECT || token == XContentParser.Token.START_ARRAY) && currentFieldName !=null ) {
+                } else if (token == null || currentFieldName == null) {
+                    throw new WatcherException("could not parse watch [{}], unexpected token [{}]", id, token);
+                } else if ((token.isValue() || token == XContentParser.Token.START_OBJECT) && currentFieldName !=null ) {
+                    assert token != XContentParser.Token.START_ARRAY;
                     if (TRIGGER_FIELD.match(currentFieldName)) {
                         trigger = triggerService.parseTrigger(id, parser);
                     } else if (INPUT_FIELD.match(currentFieldName)) {
@@ -320,6 +321,8 @@ public class Watch implements TriggerEngine.Job, ToXContent {
                     } else {
                         throw new WatcherException("could not parse watch [{}]. unexpected field [{}]", id, currentFieldName);
                     }
+                } else if (currentFieldName != null) {
+                    throw new WatcherException("could not parse watch [{}]. unexpected token [{}] in field [{}]", id, token, currentFieldName);
                 }
             }
             if (trigger == null) {

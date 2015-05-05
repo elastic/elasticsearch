@@ -94,14 +94,10 @@ public class AzureSnapshotRestoreITest extends AbstractAzureTest {
     @Before @After
     public final void wipeAzureRepositories() throws StorageException, URISyntaxException {
         wipeRepositories();
-    }
-
-    @BeforeClass @AfterClass
-    public static final void wipeAzureContainers() throws StorageException, URISyntaxException {
         cleanRepositoryFiles(
-                getContainerName(),
-                getContainerName().concat("-1"),
-                getContainerName().concat("-2"));
+            getContainerName(),
+            getContainerName().concat("-1"),
+            getContainerName().concat("-2"));
     }
 
     @Test
@@ -469,7 +465,7 @@ public class AzureSnapshotRestoreITest extends AbstractAzureTest {
     /**
      * Purge the test containers
      */
-    public static void cleanRepositoryFiles(String... containers) throws StorageException, URISyntaxException {
+    public void cleanRepositoryFiles(String... containers) throws StorageException, URISyntaxException {
         Settings settings = readSettingsFromFile();
         AzureStorageService client = new AzureStorageServiceImpl(settings);
         for (String container : containers) {

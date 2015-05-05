@@ -49,6 +49,7 @@ public class SimpleIcuCollationTokenFilterTests extends ElasticsearchTestCase {
     @Test
     public void testBasicUsage() throws Exception {
         Settings settings = ImmutableSettings.settingsBuilder()
+                .put("path.home", createTempDir())
                 .put("index.analysis.filter.myCollator.type", "icu_collation")
                 .put("index.analysis.filter.myCollator.language", "tr")
                 .put("index.analysis.filter.myCollator.strength", "primary")
@@ -65,6 +66,7 @@ public class SimpleIcuCollationTokenFilterTests extends ElasticsearchTestCase {
     @Test
     public void testNormalization() throws IOException {
         Settings settings = ImmutableSettings.settingsBuilder()
+                .put("path.home", createTempDir())
                 .put("index.analysis.filter.myCollator.type", "icu_collation")
                 .put("index.analysis.filter.myCollator.language", "tr")
                 .put("index.analysis.filter.myCollator.strength", "primary")
@@ -82,6 +84,7 @@ public class SimpleIcuCollationTokenFilterTests extends ElasticsearchTestCase {
     @Test
     public void testSecondaryStrength() throws IOException {
         Settings settings = ImmutableSettings.settingsBuilder()
+                .put("path.home", createTempDir())
                 .put("index.analysis.filter.myCollator.type", "icu_collation")
                 .put("index.analysis.filter.myCollator.language", "en")
                 .put("index.analysis.filter.myCollator.strength", "secondary")
@@ -100,6 +103,7 @@ public class SimpleIcuCollationTokenFilterTests extends ElasticsearchTestCase {
     @Test
     public void testIgnorePunctuation() throws IOException {
         Settings settings = ImmutableSettings.settingsBuilder()
+                .put("path.home", createTempDir())
                 .put("index.analysis.filter.myCollator.type", "icu_collation")
                 .put("index.analysis.filter.myCollator.language", "en")
                 .put("index.analysis.filter.myCollator.strength", "primary")
@@ -118,6 +122,7 @@ public class SimpleIcuCollationTokenFilterTests extends ElasticsearchTestCase {
     @Test
     public void testIgnoreWhitespace() throws IOException {
         Settings settings = ImmutableSettings.settingsBuilder()
+                .put("path.home", createTempDir())
                 .put("index.analysis.filter.myCollator.type", "icu_collation")
                 .put("index.analysis.filter.myCollator.language", "en")
                 .put("index.analysis.filter.myCollator.strength", "primary")
@@ -139,6 +144,7 @@ public class SimpleIcuCollationTokenFilterTests extends ElasticsearchTestCase {
     @Test
     public void testNumerics() throws IOException {
         Settings settings = ImmutableSettings.settingsBuilder()
+                .put("path.home", createTempDir())
                 .put("index.analysis.filter.myCollator.type", "icu_collation")
                 .put("index.analysis.filter.myCollator.language", "en")
                 .put("index.analysis.filter.myCollator.numeric", "true")
@@ -156,6 +162,7 @@ public class SimpleIcuCollationTokenFilterTests extends ElasticsearchTestCase {
     @Test
     public void testIgnoreAccentsButNotCase() throws IOException {
         Settings settings = ImmutableSettings.settingsBuilder()
+                .put("path.home", createTempDir())
                 .put("index.analysis.filter.myCollator.type", "icu_collation")
                 .put("index.analysis.filter.myCollator.language", "en")
                 .put("index.analysis.filter.myCollator.strength", "primary")
@@ -177,6 +184,7 @@ public class SimpleIcuCollationTokenFilterTests extends ElasticsearchTestCase {
     @Test
     public void testUpperCaseFirst() throws IOException {
         Settings settings = ImmutableSettings.settingsBuilder()
+                .put("path.home", createTempDir())
                 .put("index.analysis.filter.myCollator.type", "icu_collation")
                 .put("index.analysis.filter.myCollator.language", "en")
                 .put("index.analysis.filter.myCollator.strength", "tertiary")
@@ -207,6 +215,7 @@ public class SimpleIcuCollationTokenFilterTests extends ElasticsearchTestCase {
         String tailoredRules = tailoredCollator.getRules();
 
         Settings settings = ImmutableSettings.settingsBuilder()
+                .put("path.home", createTempDir())
                 .put("index.analysis.filter.myCollator.type", "icu_collation")
                 .put("index.analysis.filter.myCollator.rules", tailoredRules)
                 .put("index.analysis.filter.myCollator.strength", "primary")

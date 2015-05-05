@@ -39,6 +39,7 @@ public class SimpleIcuNormalizerCharFilterTests extends ElasticsearchTestCase {
     public void testDefaultSetting() throws Exception {
 
         Settings settings = ImmutableSettings.settingsBuilder()
+            .put("path.home", createTempDir())
             .put("index.analysis.char_filter.myNormalizerChar.type", "icu_normalizer")
             .build();
         AnalysisService analysisService = createAnalysisService(settings);
@@ -64,6 +65,7 @@ public class SimpleIcuNormalizerCharFilterTests extends ElasticsearchTestCase {
     public void testNameAndModeSetting() throws Exception {
 
         Settings settings = ImmutableSettings.settingsBuilder()
+            .put("path.home", createTempDir())
             .put("index.analysis.char_filter.myNormalizerChar.type", "icu_normalizer")
             .put("index.analysis.char_filter.myNormalizerChar.name", "nfkc")
             .put("index.analysis.char_filter.myNormalizerChar.mode", "decompose")

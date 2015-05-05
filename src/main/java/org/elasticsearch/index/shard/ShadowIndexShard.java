@@ -121,10 +121,4 @@ public final class ShadowIndexShard extends IndexShard {
     public boolean allowsPrimaryPromotion() {
         return false;
     }
-
-    @Override
-    @Nullable
-    public Translog translog() {
-        throw new UnsupportedOperationException("shadow shards don't have a translog");
-    }
 }

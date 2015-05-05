@@ -142,7 +142,7 @@ public class TranslogService extends AbstractIndexShardComponent implements Clos
                 return;
             }
 
-            if (indexShard.translog() == null) {
+            if (indexShard.engine().getTranslog() == null) {
                 reschedule();
                 return;
             }

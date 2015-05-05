@@ -125,8 +125,7 @@ public class IndexShardSnapshotAndRestoreService extends AbstractIndexShardCompo
                 snapshotShardId = new ShardId(restoreSource.index(), shardId.id());
             }
             indexShardRepository.restore(restoreSource.snapshotId(), shardId, snapshotShardId, recoveryState);
-            indexShard.skipTranslogRecovery();
-            indexShard.translog().markCommitted(indexShard.translog().currentId());
+            indexShard.skipTranslogRecovery(true);
             indexShard.finalizeRecovery();
             indexShard.postRecovery("restore done");
             restoreService.indexShardRestoreCompleted(restoreSource.snapshotId(), shardId);

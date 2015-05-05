@@ -104,19 +104,18 @@ public class InternalEngine extends Engine {
 
     private final IndexThrottle throttle;
 
-    public InternalEngine(EngineConfig engineConfig, FsTranslog translog, boolean skipInitialTranslogRecovery) throws EngineException {
+    public InternalEngine(EngineConfig engineConfig, boolean skipInitialTranslogRecovery) throws EngineException {
         super(engineConfig);
-        Preconditions.checkNotNull(translog, "Translog must be provided to the engine");
         this.versionMap = new LiveVersionMap();
         store.incRef();
         IndexWriter writer = null;
+        FsTranslog translog = null;
         SearcherManager manager = null;
         boolean success = false;
         try {
             this.lastDeleteVersionPruneTimeMSec = engineConfig.getThreadPool().estimatedTimeInMillis();
             this.indexingService = engineConfig.getIndexingService();
             this.warmer = engineConfig.getWarmer();
-            this.translog = translog;
             this.mergePolicyProvider = engineConfig.getMergePolicyProvider();
             this.mergeScheduler = engineConfig.getMergeScheduler();
             this.dirtyLocks = new Object[engineConfig.getIndexConcurrency() * 50]; // we multiply it to have enough...
@@ -130,10 +129,12 @@ public class InternalEngine extends Engine {
             try {
                 writer = createWriter();
                 indexWriter = writer;
+                translog = new FsTranslog(engineConfig.getShardId(), engineConfig.getIndesSettingService(), engineConfig.getBigArrays(), engineConfig.getTranslogPath(), engineConfig.getThreadPool());
                 committedTranslogId = loadCommittedTranslogId(writer, translog);
             } catch (IOException e) {
                 throw new EngineCreationFailureException(shardId, "failed to create engine", e);
             }
+            this.translog = translog;
             manager = createSearcherManager();
             this.searcherManager = manager;
             this.versionMap.setManager(searcherManager);
@@ -154,7 +155,7 @@ public class InternalEngine extends Engine {
             success = true;
         } finally {
             if (success == false) {
-                IOUtils.closeWhileHandlingException(writer, manager);
+                IOUtils.closeWhileHandlingException(writer, translog, manager);
                 versionMap.clear();
                 if (isClosed.get() == false) {
                     // failure we need to dec the store reference
@@ -166,7 +167,7 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public Translog translog() {
+    public Translog getTranslog() {
         ensureOpen();
         return translog;
     }
@@ -913,7 +914,6 @@ public class InternalEngine extends Engine {
             assert rwl.isWriteLockedByCurrentThread() || failEngineLock.isHeldByCurrentThread() : "Either the write lock must be held or the engine must be currently be failing itself";
             try {
                 this.versionMap.clear();
-                logger.trace("close searcherManager");
                 try {
                     IOUtils.close(searcherManager);
                 } catch (Throwable t) {

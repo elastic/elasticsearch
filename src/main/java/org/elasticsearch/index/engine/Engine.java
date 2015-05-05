@@ -278,7 +278,7 @@ public abstract class Engine implements Closeable {
     }
 
     /** returns the translog for this engine */
-    public abstract Translog translog();
+    public abstract Translog getTranslog();
 
     protected void ensureOpen() {
         if (isClosed.get()) {

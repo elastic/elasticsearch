@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.mlt;
+package org.elasticsearch.common.lucene.search.morelikethis;
 
 import org.apache.lucene.analysis.MockAnalyzer;
 import org.apache.lucene.analysis.MockTokenizer;

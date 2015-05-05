@@ -24,10 +24,10 @@ The following deprecated methods have been removed:
 
 Partial fields were deprecated since 1.0.0beta1 in favor of <<search-request-source-filtering,source filtering>>.
 
-=== More Like This Field
+=== More Like This
 
-The More Like This Field query has been removed in favor of the <<query-dsl-mlt-query, More Like This Query>>
-restrained set to a specific `field`.
+The More Like This API and the More Like This Field query have been removed in
+favor of the <<query-dsl-mlt-query, More Like This Query>>.
 
 === Routing
 

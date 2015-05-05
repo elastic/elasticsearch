@@ -139,8 +139,6 @@ import org.elasticsearch.action.indexedscripts.get.GetIndexedScriptAction;
 import org.elasticsearch.action.indexedscripts.get.TransportGetIndexedScriptAction;
 import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptAction;
 import org.elasticsearch.action.indexedscripts.put.TransportPutIndexedScriptAction;
-import org.elasticsearch.action.mlt.MoreLikeThisAction;
-import org.elasticsearch.action.mlt.TransportMoreLikeThisAction;
 import org.elasticsearch.action.percolate.*;
 import org.elasticsearch.action.search.*;
 import org.elasticsearch.action.search.type.*;
@@ -293,7 +291,6 @@ public class ActionModule extends AbstractModule {
                 TransportSearchScrollQueryAndFetchAction.class
         );
         registerAction(MultiSearchAction.INSTANCE, TransportMultiSearchAction.class);
-        registerAction(MoreLikeThisAction.INSTANCE, TransportMoreLikeThisAction.class);
         registerAction(PercolateAction.INSTANCE, TransportPercolateAction.class);
         registerAction(MultiPercolateAction.INSTANCE, TransportMultiPercolateAction.class, TransportShardMultiPercolateAction.class);
         registerAction(ExplainAction.INSTANCE, TransportExplainAction.class);

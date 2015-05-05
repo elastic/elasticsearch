@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.query;
+package org.elasticsearch.search.morelikethis;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.elasticsearch.action.get.MultiGetRequest;
@@ -27,6 +27,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.query.MoreLikeThisQueryBuilder;
 import org.elasticsearch.index.query.MoreLikeThisQueryBuilder.Item;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
 import org.elasticsearch.test.ElasticsearchTestCase;
@@ -134,7 +135,7 @@ public class ItemSerializationTests extends ElasticsearchTestCase {
     public void testSimpleItemSerializationFromFile() throws Exception {
         // test items from JSON
         List<MultiGetRequest.Item> itemsFromJSON = testItemsFromJSON(
-                copyToStringFromClasspath("/org/elasticsearch/index/query/items.json"));
+                copyToStringFromClasspath("/org/elasticsearch/search/morelikethis/items.json"));
 
         // create builder from items
         XContentBuilder builder = XContentFactory.jsonBuilder();

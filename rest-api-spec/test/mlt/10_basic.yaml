@@ -30,11 +30,16 @@
            wait_for_status: green
 
   - do:
-      mlt:
-          index:  test_1
-          type:   test
-          id:     1
-          mlt_fields: title
-        
+      search:
+          index:   test_1
+          type:    test
+          body:
+            query:
+              more_like_this:
+                like:
+                  -
+                    _id: 1
+                fields: ["title"]
+
   - match: {hits.total: 0}
 

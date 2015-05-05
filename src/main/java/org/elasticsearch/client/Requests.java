@@ -55,7 +55,6 @@ import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.exists.ExistsRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.mlt.MoreLikeThisRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.suggest.SuggestRequest;
@@ -156,19 +155,7 @@ public class Requests {
     public static SuggestRequest suggestRequest(String... indices) {
         return new SuggestRequest(indices);
     }
-
-    /**
-     * More like this request represents a request to search for documents that are "like" the provided (fetched)
-     * document.
-     *
-     * @param index The index to load the document from
-     * @return The more like this request
-     * @see org.elasticsearch.client.Client#moreLikeThis(org.elasticsearch.action.mlt.MoreLikeThisRequest)
-     */
-    public static MoreLikeThisRequest moreLikeThisRequest(String index) {
-        return new MoreLikeThisRequest(index);
-    }
-
+    
     /**
      * Creates a search request against one or more indices. Note, the search source must be set either using the
      * actual JSON search source, or the {@link org.elasticsearch.search.builder.SearchSourceBuilder}.

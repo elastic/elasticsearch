@@ -33,7 +33,7 @@ public class SpanContainingQueryBuilder extends BaseQueryBuilder implements Span
     private float boost = -1;
     private String queryName;
 
-    /** 
+    /**
      * Sets the little clause, it must be contained within {@code big} for a match.
      */
     public SpanContainingQueryBuilder little(SpanQueryBuilder clause) {
@@ -41,7 +41,7 @@ public class SpanContainingQueryBuilder extends BaseQueryBuilder implements Span
         return this;
     }
 
-    /** 
+    /**
      * Sets the big clause, it must enclose {@code little} for a match.
      */
     public SpanContainingQueryBuilder big(SpanQueryBuilder clause) {
@@ -88,5 +88,10 @@ public class SpanContainingQueryBuilder extends BaseQueryBuilder implements Span
         }
 
         builder.endObject();
+    }
+
+    @Override
+    protected String parserName() {
+        return SpanContainingQueryParser.NAME;
     }
 }

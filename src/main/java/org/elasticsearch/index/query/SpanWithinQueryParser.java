@@ -31,7 +31,7 @@ import java.io.IOException;
 /**
  * Parser for {@link SpanWithinQuery}
  */
-public class SpanWithinQueryParser implements QueryParser {
+public class SpanWithinQueryParser extends BaseQueryParserTemp {
 
     public static final String NAME = "span_within";
 
@@ -81,8 +81,8 @@ public class SpanWithinQueryParser implements QueryParser {
             } else {
                 throw new QueryParsingException(parseContext, "[span_within] query does not support [" + currentFieldName + "]");
             }
-        }        
-        
+        }
+
         if (big == null) {
             throw new QueryParsingException(parseContext, "span_within must include [big]");
         }

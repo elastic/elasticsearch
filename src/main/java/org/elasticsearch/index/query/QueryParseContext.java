@@ -252,13 +252,12 @@ public class QueryParseContext {
     }
 
     /**
-     * @deprecated replaced by calls to parseInnerQueryBuilder() and checkCachable() for the resulting queries
+     * @deprecated replaced by calls to parseInnerQueryBuilder() for the resulting queries
      */
     @Nullable
     @Deprecated
     public Query parseInnerQuery() throws IOException, QueryParsingException {
         QueryBuilder builder = parseInnerQueryBuilder();
-
         Query result = builder.toQuery(this);
         return result;
     }

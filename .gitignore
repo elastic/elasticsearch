@@ -11,3 +11,4 @@
 /plugin_tools
 /.local-execution-hints.log
 /.local-*-execution-hints.log
+/eclipse-build

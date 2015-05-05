@@ -34,7 +34,7 @@ class DateMethodFunctionValues extends FieldDataFunctionValues {
         super(parent, data);
 
         this.calendarType = calendarType;
-        calendar = Calendar.getInstance(TimeZone.getTimeZone("GMT"), Locale.ROOT);
+        calendar = Calendar.getInstance(TimeZone.getTimeZone("UTC"), Locale.ROOT);
     }
 
     @Override

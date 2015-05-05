@@ -999,6 +999,7 @@ public class IndexShard extends AbstractIndexShardComponent {
 
     public void markAsInactive() {
         updateBufferSize(EngineConfig.INACTIVE_SHARD_INDEXING_BUFFER, Translog.INACTIVE_SHARD_TRANSLOG_BUFFER);
+        indicesLifecycle.onShardInactive(this);
     }
 
     public final boolean isFlushOnClose() {

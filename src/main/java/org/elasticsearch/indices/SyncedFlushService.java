@@ -84,9 +84,18 @@ public class SyncedFlushService extends AbstractComponent {
         preSyncTimeout = settings.getAsTime(SETTING_PRE_SYNC_TIMEOUT, TimeValue.timeValueMinutes(5));
         syncTimeout = settings.getAsTime(SETTING_SYNC_TIMEOUT, TimeValue.timeValueMinutes(5));
         inflightOpsTimeout = settings.getAsTime(SETTING_IN_FLIGHT_OPS_TIMEOUT, TimeValue.timeValueMinutes(5));
+        indicesService.indicesLifecycle().addListener(new IndicesLifecycle.Listener() {
+            @Override
+            public void onShardInactive(IndexShard indexShard) {
+                // we only want to call sync flush once, so only trigger it when we are on a primary
+                if (indexShard.routingEntry().primary()) {
+                    attemptSyncedFlush(indexShard.shardId());
+                }
+            }
+        });
     }
 
-    public SyncedFlushResult attemptSyncedFlush(ShardId shardId) throws ExecutionException, InterruptedException {
+    public SyncedFlushResult attemptSyncedFlush(ShardId shardId) {
         final ClusterState state = clusterService.state();
         final IndexRoutingTable indexRoutingTable = state.routingTable().index(shardId.index().name());
         if (indexRoutingTable == null) {

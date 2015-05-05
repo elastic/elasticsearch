@@ -34,7 +34,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
-import org.elasticsearch.index.mapper.core.AbstractFieldMapper.CopyTo;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -389,11 +388,6 @@ public class AttachmentMapper extends AbstractFieldMapper<Object> {
     @Override
     public FieldDataType defaultFieldDataType() {
         return null;
-    }
-
-    @Override
-    public CopyTo copyTo() {
-      return this.copyTo; // ask rjernst
     }
 
     @Override

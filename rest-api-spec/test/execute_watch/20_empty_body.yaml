@@ -9,8 +9,8 @@
         id: "my_logging_watch"
         body:  > 
           {
-          "trigger" : {
-            "schedule" : { "cron" : "0 0/1 * * * ?" }
+            "trigger" : {
+              "schedule" : { "cron" : "0 0 0 1 * ? 2099" }
             },
             "input" : {
               "simple" : {

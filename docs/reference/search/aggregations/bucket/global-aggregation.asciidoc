@@ -30,7 +30,7 @@ Example:
 
 The above aggregation demonstrates how one would compute aggregations (`avg_price` in this example) on all the documents in the search context, regardless of the query (in our example, it will compute the average price over all products in our catalog, not just on the "shirts").
 
-The response for the above aggreation:
+The response for the above aggregation:
 
 [source,js]
 --------------------------------------------------

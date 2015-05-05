@@ -68,7 +68,7 @@ same scope name that will work against the child documents. For example:
 
 In order to support parent-child joins, all of the (string) parent IDs 
 must be resident in memory (in the <<index-modules-fielddata,field data cache>>. 
-Additionaly, every child document is mapped to its parent using a long 
+Additionally, every child document is mapped to its parent using a long
 value (approximately). It is advisable to keep the string parent ID short
 in order to reduce memory usage.
 

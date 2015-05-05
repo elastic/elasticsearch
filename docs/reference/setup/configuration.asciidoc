@@ -134,7 +134,7 @@ by running `ulimit -l unlimited` as `root` before starting Elasticsearch.
 
 Another possible reason why `mlockall` can fail is that the temporary directory
 (usually `/tmp`) is mounted with the `noexec` option. This can be solved by
-specfying a new temp directory, by starting Elasticsearch with:
+specifying a new temp directory, by starting Elasticsearch with:
 
 [source,sh]
 --------------

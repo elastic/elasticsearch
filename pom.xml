@@ -43,6 +43,7 @@
         <tests.locale>random</tests.locale>
         <tests.timezone>random</tests.timezone>
         <tests.slow>false</tests.slow>
+        <tests.security.manager>true</tests.security.manager>
         <es.logger.level>ERROR</es.logger.level>
         <tests.heap.size>512m</tests.heap.size>
         <tests.heapdump.path>${basedir}/logs/</tests.heapdump.path>
@@ -638,8 +639,6 @@
                                 <!-- true if we are running tests from maven (as opposed to IDE, etc).
                                      allows us to assert certain things work, like libsigar -->
                                 <tests.maven>true</tests.maven>
-                                <!-- security manager / test.policy -->
-                                <java.security.policy>${basedir}/src/main/resources/org/elasticsearch/bootstrap/security.policy</java.security.policy>
                             </systemProperties>
                         </configuration>
                     </execution>

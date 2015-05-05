@@ -1,21 +1,25 @@
 [[index-modules-translog]]
 == Translog
 
-Changes to a shard are only persisted to disk when the shard is ``flushed'',
+Changes to Lucene are only persisted to disk during a Lucene commit,
 which is a relatively heavy operation and so cannot be performed after every
-index or delete operation. Instead, changes are accumulated in an in-memory
-indexing buffer and only written to disk periodically. This would mean that
-the contents of the in-memory buffer would be lost in the event of power
-failure or some other hardware crash.
+index or delete operation. Changes that happen after one commit and before another
+will be lost in the event of process exit or HW failure.
 
 To prevent this data loss, each shard has a _transaction log_ or write ahead
-log associated with it. Any index or delete operation is first written to the
-translog before being processed by the internal Lucene index. This translog is
-only cleared once the shard has been flushed and the data in the in-memory
-buffer persisted to disk as a Lucene segment.
+log associated with it. Any index or delete operation is written to the
+translog after being processed by the internal Lucene index.
 
 In the event of a crash, recent transactions can be replayed from the
 transaction log when the shard recovers.
+
+An Elasticsearch flush is the process of performing a Lucene commit and
+starting a new translog. It is done automatically in the background in order
+to make sure the transaction log doesn't grow too large, which would make
+replaying its operations take a considerable amount of time during recovery.
+It is also exposed through an API, though its rarely needed to be performed
+manually.
+
 
 [float]
 === Flush settings
@@ -52,7 +56,8 @@ control the behaviour of the transaction log:
 
 `index.translog.sync_interval`::
 
-How often the translog is ++fsync++ed to disk. Defaults to `5s`.
+How often the translog is ++fsync++ed to disk. Defaults to `5s`. Can be set to
+`0` to sync after each operation.
 
 `index.translog.fs.type`::
 
@@ -62,7 +67,7 @@ immediately.  Whichever is used, these writes are only ++fsync++ed according
 to the `sync_interval`.
 
 The `buffered` translog is written to disk when it reaches 64kB in size, or
-whenever an `fsync` is triggered by the `sync_interval`.
+whenever a `sync` is triggered by the `sync_interval`.
 
 .Why don't we `fsync` the translog after every write?
 ******************************************************
@@ -74,12 +79,16 @@ persistence comes with a performance cost.
 However, the translog is not the only persistence mechanism in Elasticsearch.
 Any index or update request is first written to the primary shard, then
 forwarded in parallel to any replica shards. The primary waits for the action
-to be completed on the replicas before returning to success to the client.
+to be completed on the replicas before returning success to the client.
 
 If the node holding the primary shard dies for some reason, its transaction
 log could be missing the last 5 seconds of data. However, that data should
 already be available on a replica shard on a different node.  Of course, if
 the whole data centre loses power at the same time, then it is possible that
 you could lose the last 5 seconds (or `sync_interval`) of data.
+
+We are constantly monitoring the perfromance implications of better default
+translog sync semantics, so the default might change as time passes and HW,
+virtualization, and other aspects improve.
 
 ******************************************************

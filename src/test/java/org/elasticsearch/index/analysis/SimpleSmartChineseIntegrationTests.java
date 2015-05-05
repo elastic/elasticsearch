@@ -37,6 +37,7 @@ public class SimpleSmartChineseIntegrationTests extends ElasticsearchIntegration
     protected Settings nodeSettings(int nodeOrdinal) {
         return ImmutableSettings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
+                .put("path.home", createTempDir())
                 .put("plugins." + PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, true)
                 .build();
     }

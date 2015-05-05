@@ -150,7 +150,7 @@ FilterBuilder filter = geoDistanceFilter("pin.location")    <1>
 <2> center point
 <3> distance from center point
 <4> optimize bounding box: `memory`, `indexed` or `none`
-<5> distance computation mode: `GeoDistance.SLOPPY_ARC` (default), `GeoDistance.ARC` (slighly more precise but
+<5> distance computation mode: `GeoDistance.SLOPPY_ARC` (default), `GeoDistance.ARC` (slightly more precise but
     significantly slower) or `GeoDistance.PLANE` (faster, but inaccurate on long distances and close to the poles)
 
 Note that you can cache the result using

@@ -1,7 +1,7 @@
 [[search-aggregations-reducer-max-bucket-aggregation]]
 === Max Bucket Aggregation
 
-A sibling reducer aggregation which identifies the bucket(s) with the maximum value of a specified metric in a sibing aggregation 
+A sibling reducer aggregation which identifies the bucket(s) with the maximum value of a specified metric in a sibling aggregation
 and outputs both the value and the key(s) of the bucket(s). The specified metric must be numeric and the sibling aggregation must 
 be a multi-bucket aggregation.
 

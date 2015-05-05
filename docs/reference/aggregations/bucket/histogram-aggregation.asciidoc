@@ -160,7 +160,7 @@ Example:
 
 ==== Order
 
-By default the returned buckets are sorted by their `key` ascending, though the order behaviour can be controled
+By default the returned buckets are sorted by their `key` ascending, though the order behaviour can be controlled
 using the `order` setting.
 
 Ordering the buckets by their key - descending:

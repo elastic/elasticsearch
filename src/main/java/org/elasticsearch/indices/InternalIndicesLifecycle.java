@@ -245,4 +245,15 @@ public class InternalIndicesLifecycle extends AbstractComponent implements Indic
             }
         }
     }
+
+    public void onShardInactive(IndexShard indexShard) {
+        for (Listener listener : listeners) {
+            try {
+                listener.onShardInactive(indexShard);
+            } catch (Throwable t) {
+                logger.warn("{} failed to invoke on shard inactive callback", t, indexShard.shardId());
+                throw t;
+            }
+        }
+    }
 }

@@ -86,5 +86,5 @@ public class IndicesLifecycleListenerSingleNodeTests extends ElasticsearchSingle
         assertAcked(client().admin().indices().prepareDelete("test").get());
         assertEquals(7, counter.get());
     }
-
+    
 }

@@ -107,7 +107,13 @@ public class Bootstrap {
                 }
             });
         }
-        Kernel32Library.getInstance();
+
+        // force remainder of JNA to be loaded (if available).
+        try {
+            Kernel32Library.getInstance();
+        } catch (Throwable ignored) {
+            // we've already logged this.
+        }
  
         // initialize sigar explicitly
         try {

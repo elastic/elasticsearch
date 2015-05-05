@@ -50,20 +50,19 @@ public class Queries {
         return new BooleanQuery();
     }
 
-    public static Filter newMatchAllFilter() {
-        return new QueryWrapperFilter(newMatchAllQuery());
-    }
-
-    public static Filter newMatchNoDocsFilter() {
-        return new QueryWrapperFilter(newMatchNoDocsQuery());
-    }
-
     public static Filter newNestedFilter() {
         return new QueryWrapperFilter(new PrefixQuery(new Term(TypeFieldMapper.NAME, new BytesRef("__"))));
     }
 
     public static Filter newNonNestedFilter() {
         return new QueryWrapperFilter(not(newNestedFilter()));
+    }
+
+    public static BooleanQuery filtered(Query query, Query filter) {
+        BooleanQuery bq = new BooleanQuery();
+        bq.add(query, Occur.MUST);
+        bq.add(filter, Occur.FILTER);
+        return bq;
     }
 
     /** Return a query that matches all documents but those that match the given query. */

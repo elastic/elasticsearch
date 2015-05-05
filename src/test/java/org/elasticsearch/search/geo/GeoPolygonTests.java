@@ -27,7 +27,7 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.FilterBuilders.geoPolygonFilter;
+import static org.elasticsearch.index.query.QueryBuilders.geoPolygonQuery;
 import static org.elasticsearch.index.query.QueryBuilders.filteredQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -88,7 +88,7 @@ public class GeoPolygonTests extends ElasticsearchIntegrationTest {
     public void simplePolygonTest() throws Exception {
 
         SearchResponse searchResponse = client().prepareSearch("test") // from NY
-                .setQuery(filteredQuery(matchAllQuery(), geoPolygonFilter("location")
+                .setQuery(filteredQuery(matchAllQuery(), geoPolygonQuery("location")
                         .addPoint(40.7, -74.0)
                         .addPoint(40.7, -74.1)
                         .addPoint(40.8, -74.1)

@@ -23,7 +23,10 @@ import com.google.common.collect.ImmutableList;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.Sort;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Counter;
 import org.elasticsearch.action.percolate.PercolateShardRequest;
@@ -35,7 +38,6 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
-import org.elasticsearch.index.cache.filter.FilterCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -43,7 +45,6 @@ import org.elasticsearch.index.mapper.FieldMappers;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.query.IndexQueryParserService;
-import org.elasticsearch.index.query.ParsedFilter;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.similarity.SimilarityService;
@@ -60,7 +61,11 @@ import org.elasticsearch.search.fetch.innerhits.InnerHitsContext;
 import org.elasticsearch.search.fetch.script.ScriptFieldsContext;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
 import org.elasticsearch.search.highlight.SearchContextHighlight;
-import org.elasticsearch.search.internal.*;
+import org.elasticsearch.search.internal.ContextIndexSearcher;
+import org.elasticsearch.search.internal.InternalSearchHit;
+import org.elasticsearch.search.internal.InternalSearchHitField;
+import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.query.QuerySearchResult;
@@ -92,7 +97,7 @@ public class PercolateContext extends SearchContext {
     private final ScriptService scriptService;
     private final ConcurrentMap<BytesRef, Query> percolateQueries;
     private final int numberOfShards;
-    private final Filter aliasFilter;
+    private final Query aliasFilter;
     private String[] types;
 
     private Engine.Searcher docSearcher;
@@ -112,7 +117,7 @@ public class PercolateContext extends SearchContext {
 
     public PercolateContext(PercolateShardRequest request, SearchShardTarget searchShardTarget, IndexShard indexShard,
                             IndexService indexService, PageCacheRecycler pageCacheRecycler,
-                            BigArrays bigArrays, ScriptService scriptService, Filter aliasFilter) {
+                            BigArrays bigArrays, ScriptService scriptService, Query aliasFilter) {
         this.indexShard = indexShard;
         this.indexService = indexService;
         this.fieldDataService = indexService.fieldData();
@@ -148,7 +153,7 @@ public class PercolateContext extends SearchContext {
         }
         hitContext().reset(
                 new InternalSearchHit(0, "unknown", new StringText(parsedDocument.type()), fields),
-                atomicReaderContext, 0, indexReader
+                atomicReaderContext, 0, docSearcher.searcher()
         );
     }
 
@@ -280,7 +285,7 @@ public class PercolateContext extends SearchContext {
     }
 
     @Override
-    public Filter searchFilter(String[] types) {
+    public Query searchFilter(String[] types) {
         return aliasFilter();
     }
 
@@ -497,17 +502,17 @@ public class PercolateContext extends SearchContext {
     }
 
     @Override
-    public SearchContext parsedPostFilter(ParsedFilter postFilter) {
+    public SearchContext parsedPostFilter(ParsedQuery postFilter) {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public ParsedFilter parsedPostFilter() {
+    public ParsedQuery parsedPostFilter() {
         return null;
     }
 
     @Override
-    public Filter aliasFilter() {
+    public Query aliasFilter() {
         return aliasFilter;
     }
 

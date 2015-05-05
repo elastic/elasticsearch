@@ -39,7 +39,6 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldMappers;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.IndexQueryParserService;
-import org.elasticsearch.index.query.ParsedFilter;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.shard.IndexShard;
@@ -235,9 +234,9 @@ public abstract class SearchContext implements Releasable {
 
     public abstract boolean trackScores();
 
-    public abstract SearchContext parsedPostFilter(ParsedFilter postFilter);
+    public abstract SearchContext parsedPostFilter(ParsedQuery postFilter);
 
-    public abstract ParsedFilter parsedPostFilter();
+    public abstract ParsedQuery parsedPostFilter();
 
     public abstract Query aliasFilter();
 

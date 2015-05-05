@@ -27,7 +27,7 @@ import org.elasticsearch.node.NodeBuilder;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.elasticsearch.index.query.FilterBuilders.rangeFilter;
+import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
 import static org.elasticsearch.index.query.QueryBuilders.filteredQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 
@@ -60,7 +60,7 @@ public class FilterCacheGcStress {
             public void run() {
                 while (!stop.get()) {
                     client.prepareSearch()
-                            .setQuery(filteredQuery(matchAllQuery(), rangeFilter("field").from(System.currentTimeMillis() - 1000000)))
+                            .setQuery(filteredQuery(matchAllQuery(), rangeQuery("field").from(System.currentTimeMillis() - 1000000)))
                             .execute().actionGet();
                 }
             }

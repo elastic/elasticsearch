@@ -21,6 +21,7 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermRangeQuery;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.joda.DateMathParser;
 import org.elasticsearch.common.joda.Joda;
@@ -39,6 +40,7 @@ import java.io.IOException;
 public class RangeQueryParser implements QueryParser {
 
     public static final String NAME = "range";
+    private static final ParseField FIELDDATA_FIELD = new ParseField("fielddata").withAllDeprecated("[no replacement]");
 
     @Inject
     public RangeQueryParser() {
@@ -53,16 +55,7 @@ public class RangeQueryParser implements QueryParser {
     public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
-        XContentParser.Token token = parser.nextToken();
-        if (token != XContentParser.Token.FIELD_NAME) {
-            throw new QueryParsingException(parseContext, "[range] query malformed, no field to indicate field name");
-        }
-        String fieldName = parser.currentName();
-        token = parser.nextToken();
-        if (token != XContentParser.Token.START_OBJECT) {
-            throw new QueryParsingException(parseContext, "[range] query malformed, after field missing start object");
-        }
-
+        String fieldName = null;
         Object from = null;
         Object to = null;
         boolean includeLower = true;
@@ -73,48 +66,58 @@ public class RangeQueryParser implements QueryParser {
         String queryName = null;
 
         String currentFieldName = null;
+        XContentParser.Token token;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
-            } else {
-                if ("from".equals(currentFieldName)) {
-                    from = parser.objectBytes();
-                } else if ("to".equals(currentFieldName)) {
-                    to = parser.objectBytes();
-                } else if ("include_lower".equals(currentFieldName) || "includeLower".equals(currentFieldName)) {
-                    includeLower = parser.booleanValue();
-                } else if ("include_upper".equals(currentFieldName) || "includeUpper".equals(currentFieldName)) {
-                    includeUpper = parser.booleanValue();
-                } else if ("boost".equals(currentFieldName)) {
-                    boost = parser.floatValue();
-                } else if ("gt".equals(currentFieldName)) {
-                    from = parser.objectBytes();
-                    includeLower = false;
-                } else if ("gte".equals(currentFieldName) || "ge".equals(currentFieldName)) {
-                    from = parser.objectBytes();
-                    includeLower = true;
-                } else if ("lt".equals(currentFieldName)) {
-                    to = parser.objectBytes();
-                    includeUpper = false;
-                } else if ("lte".equals(currentFieldName) || "le".equals(currentFieldName)) {
-                    to = parser.objectBytes();
-                    includeUpper = true;
-                } else if ("time_zone".equals(currentFieldName) || "timeZone".equals(currentFieldName)) {
-                    timeZone = DateTimeZone.forID(parser.text());
-                } else if ("_name".equals(currentFieldName)) {
+            } else if (parseContext.isDeprecatedSetting(currentFieldName)) {
+                // skip
+            } else if (token == XContentParser.Token.START_OBJECT) {
+                fieldName = currentFieldName;
+                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                    if (token == XContentParser.Token.FIELD_NAME) {
+                        currentFieldName = parser.currentName();
+                    } else {
+                        if ("from".equals(currentFieldName)) {
+                            from = parser.objectBytes();
+                        } else if ("to".equals(currentFieldName)) {
+                            to = parser.objectBytes();
+                        } else if ("include_lower".equals(currentFieldName) || "includeLower".equals(currentFieldName)) {
+                            includeLower = parser.booleanValue();
+                        } else if ("include_upper".equals(currentFieldName) || "includeUpper".equals(currentFieldName)) {
+                            includeUpper = parser.booleanValue();
+                        } else if ("boost".equals(currentFieldName)) {
+                            boost = parser.floatValue();
+                        } else if ("gt".equals(currentFieldName)) {
+                            from = parser.objectBytes();
+                            includeLower = false;
+                        } else if ("gte".equals(currentFieldName) || "ge".equals(currentFieldName)) {
+                            from = parser.objectBytes();
+                            includeLower = true;
+                        } else if ("lt".equals(currentFieldName)) {
+                            to = parser.objectBytes();
+                            includeUpper = false;
+                        } else if ("lte".equals(currentFieldName) || "le".equals(currentFieldName)) {
+                            to = parser.objectBytes();
+                            includeUpper = true;
+                        } else if ("time_zone".equals(currentFieldName) || "timeZone".equals(currentFieldName)) {
+                            timeZone = DateTimeZone.forID(parser.text());
+                        } else if ("format".equals(currentFieldName)) {
+                            forcedDateParser = new DateMathParser(Joda.forPattern(parser.text()), DateFieldMapper.Defaults.TIME_UNIT);
+                        } else {
+                            throw new QueryParsingException(parseContext, "[range] query does not support [" + currentFieldName + "]");
+                        }
+                    }
+                }
+            } else if (token.isValue()) {
+                if ("_name".equals(currentFieldName)) {
                     queryName = parser.text();
-                } else if ("format".equals(currentFieldName)) {
-                    forcedDateParser = new DateMathParser(Joda.forPattern(parser.text()), DateFieldMapper.Defaults.TIME_UNIT);
+                } else if (FIELDDATA_FIELD.match(currentFieldName)) {
+                    // ignore
                 } else {
                     throw new QueryParsingException(parseContext, "[range] query does not support [" + currentFieldName + "]");
                 }
             }
-        }
-
-        // move to the next end object, to close the field name
-        token = parser.nextToken();
-        if (token != XContentParser.Token.END_OBJECT) {
-            throw new QueryParsingException(parseContext, "[range] query malformed, does not end with an object");
         }
 
         Query query = null;

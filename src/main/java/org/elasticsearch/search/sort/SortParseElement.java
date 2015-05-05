@@ -23,6 +23,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 
 import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.QueryWrapperFilter;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.join.BitDocIdSetFilter;
@@ -255,7 +256,8 @@ public class SortParseElement implements SearchParseElement {
                 BitDocIdSetFilter rootDocumentsFilter = context.bitsetFilterCache().getBitDocIdSetFilter(Queries.newNonNestedFilter());
                 Filter innerDocumentsFilter;
                 if (nestedHelper.filterFound()) {
-                    innerDocumentsFilter = nestedHelper.getInnerFilter();
+                    // TODO: use queries instead
+                    innerDocumentsFilter = new QueryWrapperFilter(nestedHelper.getInnerFilter());
                 } else {
                     innerDocumentsFilter = nestedHelper.getNestedObjectMapper().nestedTypeFilter();
                 }

@@ -39,7 +39,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.gateway.GatewayService;
-import org.elasticsearch.index.query.FilterBuilders;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.warmer.IndexWarmersMetaData;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
@@ -464,7 +464,7 @@ public class ClusterStateDiffTests extends ElasticsearchIntegrationTest {
     private AliasMetaData randomAlias() {
         AliasMetaData.Builder builder = newAliasMetaDataBuilder(randomName("alias"));
         if (randomBoolean()) {
-            builder.filter(FilterBuilders.termFilter("test", randomRealisticUnicodeOfCodepointLength(10)).toString());
+            builder.filter(QueryBuilders.termQuery("test", randomRealisticUnicodeOfCodepointLength(10)).toString());
         }
         if (randomBoolean()) {
             builder.routing(randomAsciiOfLength(10));

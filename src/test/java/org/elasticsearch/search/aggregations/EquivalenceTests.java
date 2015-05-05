@@ -29,8 +29,8 @@ import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.query.FilterBuilders;
-import org.elasticsearch.index.query.RangeFilterBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
@@ -129,7 +129,7 @@ public class EquivalenceTests extends ElasticsearchIntegrationTest {
 
         SearchRequestBuilder reqBuilder = client().prepareSearch("idx").addAggregation(query);
         for (int i = 0; i < ranges.length; ++i) {
-            RangeFilterBuilder filter = FilterBuilders.rangeFilter("values");
+            RangeQueryBuilder filter = QueryBuilders.rangeQuery("values");
             if (ranges[i][0] != Double.NEGATIVE_INFINITY) {
                 filter = filter.from(ranges[i][0]);
             }
@@ -343,7 +343,7 @@ public class EquivalenceTests extends ElasticsearchIntegrationTest {
         indexRandom(true, client().prepareIndex("idx", "type").setSource("f", value));
         ensureYellow("idx"); // only one document let's make sure all shards have an active primary
         SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(filter("filter").filter(FilterBuilders.matchAllFilter())
+                .addAggregation(filter("filter").filter(QueryBuilders.matchAllQuery())
                 .subAggregation(range("range")
                         .field("f")
                         .addUnboundedTo(6)

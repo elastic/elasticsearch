@@ -26,7 +26,7 @@ import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.index.query.RangeFilterBuilder;
+import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFilter;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
@@ -816,7 +816,7 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
         SearchResponse response = client()
                 .prepareSearch("idx").setTypes("gap_type")
                 .addAggregation(
-                        filter("filtered").filter(new RangeFilterBuilder(INTERVAL_FIELD).from(1)).subAggregation(
+                        filter("filtered").filter(new RangeQueryBuilder(INTERVAL_FIELD).from(1)).subAggregation(
                                 histogram("histo").field(INTERVAL_FIELD).interval(1).extendedBounds(0L, 49L)
                                         .subAggregation(randomMetric("the_metric", GAP_FIELD))
                                         .subAggregation(movingAvg("movavg_values")
@@ -859,7 +859,7 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
         SearchResponse response = client()
                 .prepareSearch("idx").setTypes("gap_type")
                 .addAggregation(
-                        filter("filtered").filter(new RangeFilterBuilder(INTERVAL_FIELD).from(1)).subAggregation(
+                        filter("filtered").filter(new RangeQueryBuilder(INTERVAL_FIELD).from(1)).subAggregation(
                                 histogram("histo").field(INTERVAL_FIELD).interval(1).extendedBounds(0L, 49L)
                                         .subAggregation(randomMetric("the_metric", GAP_FIELD))
                                         .subAggregation(movingAvg("movavg_values")
@@ -915,7 +915,7 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
         SearchResponse response = client()
                 .prepareSearch("idx").setTypes("gap_type")
                 .addAggregation(
-                        filter("filtered").filter(new RangeFilterBuilder(INTERVAL_FIELD).to(1)).subAggregation(
+                        filter("filtered").filter(new RangeQueryBuilder(INTERVAL_FIELD).to(1)).subAggregation(
                                 histogram("histo").field(INTERVAL_FIELD).interval(1).extendedBounds(0L, 49L)
                                         .subAggregation(randomMetric("the_metric", GAP_FIELD))
                                         .subAggregation(movingAvg("movavg_values")
@@ -962,7 +962,7 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
         SearchResponse response = client()
                 .prepareSearch("idx").setTypes("gap_type")
                 .addAggregation(
-                        filter("filtered").filter(new RangeFilterBuilder(INTERVAL_FIELD).to(1)).subAggregation(
+                        filter("filtered").filter(new RangeQueryBuilder(INTERVAL_FIELD).to(1)).subAggregation(
                                 histogram("histo").field(INTERVAL_FIELD).interval(1).extendedBounds(0L, 49L)
                                         .subAggregation(randomMetric("the_metric", GAP_FIELD))
                                         .subAggregation(movingAvg("movavg_values")

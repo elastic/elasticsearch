@@ -54,7 +54,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.common.unit.TimeValue.timeValueMinutes;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.FilterBuilders.termFilter;
+import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
@@ -348,8 +348,8 @@ public class TransportTwoNodesSearchTests extends ElasticsearchIntegrationTest {
                 .query(termQuery("multi", "test"))
                 .from(0).size(20).explain(true)
                 .aggregation(AggregationBuilders.global("global").subAggregation(
-                        AggregationBuilders.filter("all").filter(termFilter("multi", "test"))))
-                .aggregation(AggregationBuilders.filter("test1").filter(termFilter("name", "test1")));
+                        AggregationBuilders.filter("all").filter(termQuery("multi", "test"))))
+                .aggregation(AggregationBuilders.filter("test1").filter(termQuery("name", "test1")));
 
         SearchResponse searchResponse = client().search(searchRequest("test").source(sourceBuilder)).actionGet();
         assertNoFailures(searchResponse);

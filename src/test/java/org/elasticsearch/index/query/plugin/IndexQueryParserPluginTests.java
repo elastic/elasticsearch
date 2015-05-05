@@ -69,11 +69,6 @@ public class IndexQueryParserPluginTests extends ElasticsearchTestCase {
             public void processXContentQueryParsers(XContentQueryParsersBindings bindings) {
                 bindings.processXContentQueryParser("my", PluginJsonQueryParser.class);
             }
-
-            @Override
-            public void processXContentFilterParsers(XContentFilterParsersBindings bindings) {
-                bindings.processXContentQueryFilter("my", PluginJsonFilterParser.class);
-            }
         });
 
         Index index = new Index("test");
@@ -104,9 +99,6 @@ public class IndexQueryParserPluginTests extends ElasticsearchTestCase {
         PluginJsonQueryParser myJsonQueryParser = (PluginJsonQueryParser) indexQueryParserService.queryParser("my");
 
         assertThat(myJsonQueryParser.names()[0], equalTo("my"));
-
-        PluginJsonFilterParser myJsonFilterParser = (PluginJsonFilterParser) indexQueryParserService.filterParser("my");
-        assertThat(myJsonFilterParser.names()[0], equalTo("my"));
 
         terminate(injector.getInstance(ThreadPool.class));
     }

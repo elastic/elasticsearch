@@ -28,7 +28,6 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.TermsQuery;
-import org.apache.lucene.search.QueryWrapperFilter;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -41,10 +40,10 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.Mapper.BuilderContext;
+import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
@@ -520,7 +519,7 @@ public class SimpleStringMappingTests extends ElasticsearchSingleNodeTest {
         assertTrue(mergeResult.buildConflicts()[0].contains("cannot enable norms"));
     }
 
-    public void testTermsFilter() throws Exception {
+    public void testTermsQuery() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field").field("type", "string").field("index", "not_analyzed").endObject().endObject()
                 .endObject().endObject().string();
@@ -529,9 +528,9 @@ public class SimpleStringMappingTests extends ElasticsearchSingleNodeTest {
         FieldMapper<?> mapper = defaultMapper.mappers().getMapper("field");
         assertNotNull(mapper);
         assertTrue(mapper instanceof StringFieldMapper);
-        assertEquals(Queries.newMatchNoDocsFilter(), mapper.termsFilter(Collections.emptyList(), null));
-        assertEquals(new QueryWrapperFilter(new TermQuery(new Term("field", "value"))), mapper.termsFilter(Collections.singletonList("value"), null));
-        assertEquals(new QueryWrapperFilter(new TermsQuery(new Term("field", "value1"), new Term("field", "value2"))), mapper.termsFilter(Arrays.asList("value1", "value2"), null));
+        assertEquals(Queries.newMatchNoDocsQuery(), mapper.termsQuery(Collections.emptyList(), null));
+        assertEquals(new TermQuery(new Term("field", "value")), mapper.termsQuery(Collections.singletonList("value"), null));
+        assertEquals(new TermsQuery(new Term("field", "value1"), new Term("field", "value2")), mapper.termsQuery(Arrays.asList("value1", "value2"), null));
     }
 
 }

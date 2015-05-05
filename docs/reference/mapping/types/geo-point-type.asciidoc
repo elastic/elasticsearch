@@ -52,7 +52,7 @@ length (eg `12`, the default) or to a distance (eg `1km`).
 More usefully, set the `geohash_prefix` option to `true` to not only index
 the geohash value, but all the enclosing cells as well.  For instance, a
 geohash of `u30` will be indexed as `[u,u3,u30]`. This option can be used
-by the <<query-dsl-geohash-cell-filter>> to find geopoints within a
+by the <<query-dsl-geohash-cell-query>> to find geopoints within a
 particular cell very efficiently.
 
 [float]

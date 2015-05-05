@@ -20,7 +20,7 @@ package org.elasticsearch.search.aggregations.bucket;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.index.query.FilterBuilders;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFilter;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTerms;
@@ -74,7 +74,7 @@ public class TermsShardMinDocCountTests extends ElasticsearchIntegrationTest {
         // first, check that indeed when not setting the shardMinDocCount parameter 0 terms are returned
         SearchResponse response = client().prepareSearch(index)
                 .addAggregation(
-                        (new FilterAggregationBuilder("inclass").filter(FilterBuilders.termFilter("class", true)))
+                        (new FilterAggregationBuilder("inclass").filter(QueryBuilders.termQuery("class", true)))
                                 .subAggregation(new SignificantTermsBuilder("mySignificantTerms").field("text").minDocCount(2).size(2).executionHint(randomExecutionHint()))
                 )
                 .execute()
@@ -87,7 +87,7 @@ public class TermsShardMinDocCountTests extends ElasticsearchIntegrationTest {
 
         response = client().prepareSearch(index)
                 .addAggregation(
-                        (new FilterAggregationBuilder("inclass").filter(FilterBuilders.termFilter("class", true)))
+                        (new FilterAggregationBuilder("inclass").filter(QueryBuilders.termQuery("class", true)))
                                 .subAggregation(new SignificantTermsBuilder("mySignificantTerms").field("text").minDocCount(2).shardMinDocCount(2).size(2).executionHint(randomExecutionHint()))
                 )
                 .execute()

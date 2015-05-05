@@ -19,9 +19,11 @@
 package org.elasticsearch.search.fetch;
 
 import com.google.common.collect.Maps;
+
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.internal.InternalSearchHit;
@@ -36,16 +38,16 @@ public interface FetchSubPhase {
 
     public static class HitContext {
         private InternalSearchHit hit;
-        private IndexReader topLevelReader;
+        private IndexSearcher searcher;
         private LeafReaderContext readerContext;
         private int docId;
         private Map<String, Object> cache;
 
-        public void reset(InternalSearchHit hit, LeafReaderContext context, int docId, IndexReader topLevelReader) {
+        public void reset(InternalSearchHit hit, LeafReaderContext context, int docId, IndexSearcher searcher) {
             this.hit = hit;
             this.readerContext = context;
             this.docId = docId;
-            this.topLevelReader = topLevelReader;
+            this.searcher = searcher;
         }
 
         public InternalSearchHit hit() {
@@ -65,7 +67,11 @@ public interface FetchSubPhase {
         }
 
         public IndexReader topLevelReader() {
-            return topLevelReader;
+            return searcher.getIndexReader();
+        }
+
+        public IndexSearcher topLevelSearcher() {
+            return searcher;
         }
 
         public Map<String, Object> cache() {

@@ -44,8 +44,8 @@ import java.util.List;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.FilterBuilders.termFilter;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.filter;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.max;
@@ -418,7 +418,7 @@ public class NestedTests extends ElasticsearchIntegrationTest {
                                 terms("endDate").field("dates.month.end").subAggregation(
                                         terms("period").field("dates.month.label").subAggregation(
                                                 nested("ctxt_idfier_nested").path("comments").subAggregation(
-                                                        filter("comment_filter").filter(termFilter("comments.identifier", "29111")).subAggregation(
+                                                        filter("comment_filter").filter(termQuery("comments.identifier", "29111")).subAggregation(
                                                                 nested("nested_tags").path("comments.tags").subAggregation(
                                                                         terms("tag").field("comments.tags.name")
                                                                 )

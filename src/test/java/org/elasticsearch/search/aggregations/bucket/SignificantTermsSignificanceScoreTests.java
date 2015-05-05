@@ -28,7 +28,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.FilterBuilders;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.plugins.AbstractPlugin;
 import org.elasticsearch.script.ScriptModule;
@@ -345,18 +345,18 @@ public class SignificantTermsSignificanceScoreTests extends ElasticsearchIntegra
         assertSearchResponse(response1);
         SearchResponse response2 = client().prepareSearch(INDEX_NAME).setTypes(DOC_TYPE)
                 .addAggregation((new FilterAggregationBuilder("0"))
-                        .filter(FilterBuilders.termFilter(CLASS_FIELD, "0"))
+                        .filter(QueryBuilders.termQuery(CLASS_FIELD, "0"))
                         .subAggregation(new SignificantTermsBuilder("sig_terms")
                                 .field(TEXT_FIELD)
                                 .minDocCount(1)
-                                .backgroundFilter(FilterBuilders.termFilter(CLASS_FIELD, "1"))
+                                .backgroundFilter(QueryBuilders.termQuery(CLASS_FIELD, "1"))
                                 .significanceHeuristic(significanceHeuristicExpectingSeparateSets)))
                 .addAggregation((new FilterAggregationBuilder("1"))
-                        .filter(FilterBuilders.termFilter(CLASS_FIELD, "1"))
+                        .filter(QueryBuilders.termQuery(CLASS_FIELD, "1"))
                         .subAggregation(new SignificantTermsBuilder("sig_terms")
                                 .field(TEXT_FIELD)
                                 .minDocCount(1)
-                                .backgroundFilter(FilterBuilders.termFilter(CLASS_FIELD, "0"))
+                                .backgroundFilter(QueryBuilders.termQuery(CLASS_FIELD, "0"))
                                 .significanceHeuristic(significanceHeuristicExpectingSeparateSets)))
                 .execute()
                 .actionGet();

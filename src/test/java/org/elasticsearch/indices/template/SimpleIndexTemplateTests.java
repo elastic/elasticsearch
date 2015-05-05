@@ -34,7 +34,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.query.FilterBuilders;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.indices.IndexTemplateAlreadyExistsException;
 import org.elasticsearch.indices.InvalidAliasNameException;
@@ -46,7 +46,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
 
-import static org.elasticsearch.index.query.FilterBuilders.termFilter;
+import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.*;
@@ -346,7 +346,7 @@ public class SimpleIndexTemplateTests extends ElasticsearchIntegrationTest {
                 .addAlias(new Alias("templated_alias-{index}"))
                 .addAlias(new Alias("filtered_alias").filter("{\"type\":{\"value\":\"type2\"}}"))
                 .addAlias(new Alias("complex_filtered_alias")
-                        .filter(FilterBuilders.termsFilter("_type",  "typeX", "typeY", "typeZ").execution("bool")))
+                        .filter(QueryBuilders.termsQuery("_type",  "typeX", "typeY", "typeZ").execution("bool")))
                 .get();
 
         assertAcked(prepareCreate("test_index").addMapping("type1").addMapping("type2").addMapping("typeX").addMapping("typeY").addMapping("typeZ"));
@@ -468,8 +468,8 @@ public class SimpleIndexTemplateTests extends ElasticsearchIntegrationTest {
     public void testDuplicateAlias() throws Exception {
         client().admin().indices().preparePutTemplate("template_1")
                 .setTemplate("te*")
-                .addAlias(new Alias("my_alias").filter(termFilter("field", "value1")))
-                .addAlias(new Alias("my_alias").filter(termFilter("field", "value2")))
+                .addAlias(new Alias("my_alias").filter(termQuery("field", "value1")))
+                .addAlias(new Alias("my_alias").filter(termQuery("field", "value2")))
                 .get();
 
         GetIndexTemplatesResponse response = client().admin().indices().prepareGetTemplates("template_1").get();
@@ -497,7 +497,7 @@ public class SimpleIndexTemplateTests extends ElasticsearchIntegrationTest {
         } catch(IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("failed to parse filter for alias [invalid_alias]"));
             assertThat(e.getCause(), instanceOf(QueryParsingException.class));
-            assertThat(e.getCause().getMessage(), equalTo("No filter registered for [invalid]"));
+            assertThat(e.getCause().getMessage(), equalTo("No query registered for [invalid]"));
         }
     }
 
@@ -571,7 +571,7 @@ public class SimpleIndexTemplateTests extends ElasticsearchIntegrationTest {
                 .setOrder(0)
                 .addAlias(new Alias("alias1"))
                 .addAlias(new Alias("{index}-alias"))
-                .addAlias(new Alias("alias3").filter(FilterBuilders.missingFilter("test")))
+                .addAlias(new Alias("alias3").filter(QueryBuilders.missingQuery("test")))
                 .addAlias(new Alias("alias4")).get();
 
         client().admin().indices().preparePutTemplate("template2")
@@ -609,25 +609,25 @@ public class SimpleIndexTemplateTests extends ElasticsearchIntegrationTest {
                 .setTemplate("a*")
                 .setOrder(0)
                 .addMapping("test", "field", "type=string")
-                .addAlias(new Alias("alias1").filter(termFilter("field", "value"))).get();
+                .addAlias(new Alias("alias1").filter(termQuery("field", "value"))).get();
         // Indexing into b should succeed, because the field mapping for field 'field' is defined in the _default_ mapping and the test type exists.
         client().admin().indices().preparePutTemplate("template2")
                 .setTemplate("b*")
                 .setOrder(0)
                 .addMapping("_default_", "field", "type=string")
                 .addMapping("test")
-                .addAlias(new Alias("alias2").filter(termFilter("field", "value"))).get();
+                .addAlias(new Alias("alias2").filter(termQuery("field", "value"))).get();
         // Indexing into c should succeed, because the field mapping for field 'field' is defined in the _default_ mapping.
         client().admin().indices().preparePutTemplate("template3")
                 .setTemplate("c*")
                 .setOrder(0)
                 .addMapping("_default_", "field", "type=string")
-                .addAlias(new Alias("alias3").filter(termFilter("field", "value"))).get();
+                .addAlias(new Alias("alias3").filter(termQuery("field", "value"))).get();
         // Indexing into d index should fail, since there is field with name 'field' in the mapping
         client().admin().indices().preparePutTemplate("template4")
                 .setTemplate("d*")
                 .setOrder(0)
-                .addAlias(new Alias("alias4").filter(termFilter("field", "value"))).get();
+                .addAlias(new Alias("alias4").filter(termQuery("field", "value"))).get();
 
         client().prepareIndex("a1", "test", "test").setSource("{}").get();
         BulkResponse response = client().prepareBulk().add(new IndexRequest("a2", "test", "test").source("{}")).get();

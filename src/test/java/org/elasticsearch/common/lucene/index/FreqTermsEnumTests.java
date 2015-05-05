@@ -37,6 +37,7 @@ import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.TermsQuery;
 import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryWrapperFilter;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
@@ -191,9 +192,9 @@ public class FreqTermsEnumTests extends ElasticsearchTestCase {
 
     @Test
     public void testNonDeletedFreqs() throws Exception {
-        assertAgainstReference(true, true, Queries.newMatchAllFilter(), referenceNotDeleted);
-        assertAgainstReference(true, false, Queries.newMatchAllFilter(), referenceNotDeleted);
-        assertAgainstReference(false, true, Queries.newMatchAllFilter(), referenceNotDeleted);
+        assertAgainstReference(true, true, Queries.newMatchAllQuery(), referenceNotDeleted);
+        assertAgainstReference(true, false, Queries.newMatchAllQuery(), referenceNotDeleted);
+        assertAgainstReference(false, true, Queries.newMatchAllQuery(), referenceNotDeleted);
     }
 
     @Test
@@ -203,7 +204,7 @@ public class FreqTermsEnumTests extends ElasticsearchTestCase {
         assertAgainstReference(false, true, filter, referenceFilter);
     }
 
-    private void assertAgainstReference(boolean docFreq, boolean totalTermFreq, Filter filter, Map<String, FreqHolder> reference) throws Exception {
+    private void assertAgainstReference(boolean docFreq, boolean totalTermFreq, Query filter, Map<String, FreqHolder> reference) throws Exception {
         FreqTermsEnum freqTermsEnum = new FreqTermsEnum(reader, "field", docFreq, totalTermFreq, filter, BigArrays.NON_RECYCLING_INSTANCE);
         assertAgainstReference(freqTermsEnum, reference, docFreq, totalTermFreq);
     }

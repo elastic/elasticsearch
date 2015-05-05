@@ -161,7 +161,7 @@ public class GeoShapeQueryParser implements QueryParser {
             // this strategy doesn't support disjoint anymore: but it did before, including creating lucene fieldcache (!)
             // in this case, execute disjoint as exists && !intersects
             BooleanQuery bool = new BooleanQuery();
-            Filter exists = ExistsFilterParser.newFilter(parseContext, fieldName, null);
+            Query exists = ExistsQueryParser.newFilter(parseContext, fieldName, null);
             Filter intersects = strategy.makeFilter(getArgs(shape, ShapeRelation.INTERSECTS));
             bool.add(exists, BooleanClause.Occur.MUST);
             bool.add(intersects, BooleanClause.Occur.MUST_NOT);

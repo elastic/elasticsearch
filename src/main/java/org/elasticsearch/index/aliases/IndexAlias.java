@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.aliases;
 
-import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.compress.CompressedString;
 
@@ -28,13 +28,13 @@ import org.elasticsearch.common.compress.CompressedString;
  */
 public class IndexAlias {
 
-    private String alias;
+    private final String alias;
 
-    private CompressedString filter;
+    private final CompressedString filter;
 
-    private Filter parsedFilter;
+    private final Query parsedFilter;
 
-    public IndexAlias(String alias, @Nullable CompressedString filter, @Nullable Filter parsedFilter) {
+    public IndexAlias(String alias, @Nullable CompressedString filter, @Nullable Query parsedFilter) {
         this.alias = alias;
         this.filter = filter;
         this.parsedFilter = parsedFilter;
@@ -50,7 +50,7 @@ public class IndexAlias {
     }
 
     @Nullable
-    public Filter parsedFilter() {
+    public Query parsedFilter() {
         return parsedFilter;
     }
 

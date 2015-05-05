@@ -21,7 +21,7 @@ package org.elasticsearch.search.aggregations.bucket.filters;
 
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.ParsedFilter;
+import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -60,8 +60,8 @@ public class FiltersParser implements Aggregator.Parser {
                         if (token == XContentParser.Token.FIELD_NAME) {
                             key = parser.currentName();
                         } else {
-                            ParsedFilter filter = context.queryParserService().parseInnerFilter(parser);
-                            filters.add(new FiltersAggregator.KeyedFilter(key, filter == null ? Queries.newMatchAllFilter() : filter.filter()));
+                            ParsedQuery filter = context.queryParserService().parseInnerFilter(parser);
+                            filters.add(new FiltersAggregator.KeyedFilter(key, filter == null ? Queries.newMatchAllQuery() : filter.query()));
                         }
                     }
                 } else {
@@ -73,9 +73,9 @@ public class FiltersParser implements Aggregator.Parser {
                     keyed = false;
                     int idx = 0;
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        ParsedFilter filter = context.queryParserService().parseInnerFilter(parser);
-                        filters.add(new FiltersAggregator.KeyedFilter(String.valueOf(idx), filter == null ? Queries.newMatchAllFilter()
-                                : filter.filter()));
+                        ParsedQuery filter = context.queryParserService().parseInnerFilter(parser);
+                        filters.add(new FiltersAggregator.KeyedFilter(String.valueOf(idx), filter == null ? Queries.newMatchAllQuery()
+                                : filter.query()));
                         idx++;
                     }
                 } else {

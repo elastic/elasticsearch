@@ -31,7 +31,6 @@ import org.apache.lucene.search.QueryWrapperFilter;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.util.Counter;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.common.Nullable;
@@ -49,7 +48,6 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldMappers;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.IndexQueryParserService;
-import org.elasticsearch.index.query.ParsedFilter;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.similarity.SimilarityService;
@@ -148,9 +146,9 @@ public class DefaultSearchContext extends SearchContext {
 
     private Query query;
 
-    private ParsedFilter postFilter;
+    private ParsedQuery postFilter;
 
-    private Filter aliasFilter;
+    private Query aliasFilter;
 
     private int[] docIdsToLoad;
 
@@ -250,7 +248,7 @@ public class DefaultSearchContext extends SearchContext {
 
     @Override
     public Filter searchFilter(String[] types) {
-        Filter filter = mapperService().searchFilter(types);
+        Query filter = mapperService().searchFilter(types);
         if (filter == null && aliasFilter == null) {
             return null;
         }
@@ -545,18 +543,18 @@ public class DefaultSearchContext extends SearchContext {
     }
 
     @Override
-    public SearchContext parsedPostFilter(ParsedFilter postFilter) {
+    public SearchContext parsedPostFilter(ParsedQuery postFilter) {
         this.postFilter = postFilter;
         return this;
     }
 
     @Override
-    public ParsedFilter parsedPostFilter() {
+    public ParsedQuery parsedPostFilter() {
         return this.postFilter;
     }
 
     @Override
-    public Filter aliasFilter() {
+    public Query aliasFilter() {
         return aliasFilter;
     }
 

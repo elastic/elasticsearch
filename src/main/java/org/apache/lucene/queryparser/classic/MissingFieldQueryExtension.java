@@ -21,7 +21,7 @@ package org.apache.lucene.queryparser.classic;
 
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.index.query.MissingFilterParser;
+import org.elasticsearch.index.query.MissingQueryParser;
 import org.elasticsearch.index.query.QueryParseContext;
 
 /**
@@ -33,7 +33,7 @@ public class MissingFieldQueryExtension implements FieldQueryExtension {
 
     @Override
     public Query query(QueryParseContext parseContext, String queryText) {
-        return new ConstantScoreQuery(MissingFilterParser.newFilter(parseContext, queryText,
-                MissingFilterParser.DEFAULT_EXISTENCE_VALUE, MissingFilterParser.DEFAULT_NULL_VALUE, null));
+        return new ConstantScoreQuery(MissingQueryParser.newFilter(parseContext, queryText,
+                MissingQueryParser.DEFAULT_EXISTENCE_VALUE, MissingQueryParser.DEFAULT_NULL_VALUE, null));
     }
 }

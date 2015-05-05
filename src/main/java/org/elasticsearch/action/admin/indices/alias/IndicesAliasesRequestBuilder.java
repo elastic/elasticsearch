@@ -23,7 +23,7 @@ import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasA
 import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.metadata.AliasAction;
-import org.elasticsearch.index.query.FilterBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 
 import java.util.Map;
 
@@ -115,7 +115,7 @@ public class IndicesAliasesRequestBuilder extends AcknowledgedRequestBuilder<Ind
      * @param alias         The alias
      * @param filterBuilder The filter
      */
-    public IndicesAliasesRequestBuilder addAlias(String indices[], String alias, FilterBuilder filterBuilder) {
+    public IndicesAliasesRequestBuilder addAlias(String indices[], String alias, QueryBuilder filterBuilder) {
         request.addAlias(alias, filterBuilder, indices);
         return this;
     }
@@ -127,7 +127,7 @@ public class IndicesAliasesRequestBuilder extends AcknowledgedRequestBuilder<Ind
      * @param alias         The alias
      * @param filterBuilder The filter
      */
-    public IndicesAliasesRequestBuilder addAlias(String index, String alias, FilterBuilder filterBuilder) {
+    public IndicesAliasesRequestBuilder addAlias(String index, String alias, QueryBuilder filterBuilder) {
         request.addAlias(alias, filterBuilder, index);
         return this;
     }

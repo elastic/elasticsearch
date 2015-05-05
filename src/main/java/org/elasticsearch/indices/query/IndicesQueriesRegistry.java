@@ -21,10 +21,10 @@ package org.elasticsearch.indices.query;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
+
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.query.FilterParser;
 import org.elasticsearch.index.query.QueryParser;
 
 import java.util.Map;
@@ -36,22 +36,15 @@ import java.util.Set;
 public class IndicesQueriesRegistry extends AbstractComponent {
 
     private ImmutableMap<String, QueryParser> queryParsers;
-    private ImmutableMap<String, FilterParser> filterParsers;
 
     @Inject
-    public IndicesQueriesRegistry(Settings settings, Set<QueryParser> injectedQueryParsers, Set<FilterParser> injectedFilterParsers) {
+    public IndicesQueriesRegistry(Settings settings, Set<QueryParser> injectedQueryParsers) {
         super(settings);
         Map<String, QueryParser> queryParsers = Maps.newHashMap();
         for (QueryParser queryParser : injectedQueryParsers) {
             addQueryParser(queryParsers, queryParser);
         }
         this.queryParsers = ImmutableMap.copyOf(queryParsers);
-
-        Map<String, FilterParser> filterParsers = Maps.newHashMap();
-        for (FilterParser filterParser : injectedFilterParsers) {
-            addFilterParser(filterParsers, filterParser);
-        }
-        this.filterParsers = ImmutableMap.copyOf(filterParsers);
     }
 
     /**
@@ -63,29 +56,13 @@ public class IndicesQueriesRegistry extends AbstractComponent {
         this.queryParsers = ImmutableMap.copyOf(queryParsers);
     }
 
-    public synchronized void addFilterParser(FilterParser filterParser) {
-        Map<String, FilterParser> filterParsers = Maps.newHashMap(this.filterParsers);
-        addFilterParser(filterParsers, filterParser);
-        this.filterParsers = ImmutableMap.copyOf(filterParsers);
-    }
-
     public ImmutableMap<String, QueryParser> queryParsers() {
         return queryParsers;
-    }
-
-    public ImmutableMap<String, FilterParser> filterParsers() {
-        return filterParsers;
     }
 
     private void addQueryParser(Map<String, QueryParser> queryParsers, QueryParser queryParser) {
         for (String name : queryParser.names()) {
             queryParsers.put(name, queryParser);
-        }
-    }
-
-    private void addFilterParser(Map<String, FilterParser> filterParsers, FilterParser filterParser) {
-        for (String name : filterParser.names()) {
-            filterParsers.put(name, filterParser);
         }
     }
 }

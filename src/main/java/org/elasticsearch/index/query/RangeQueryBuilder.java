@@ -422,10 +422,10 @@ public class RangeQueryBuilder extends BaseQueryBuilder implements MultiTermQuer
         if (boost != -1) {
             builder.field("boost", boost);
         }
+        builder.endObject();
         if (queryName != null) {
             builder.field("_name", queryName);
         }
-        builder.endObject();
         builder.endObject();
     }
 }

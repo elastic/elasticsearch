@@ -19,12 +19,10 @@
 package org.elasticsearch.search.aggregations.bucket.filter;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.lucene.docset.DocIdSets;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -84,9 +82,9 @@ public class FilterAggregator extends SingleBucketAggregator {
 
     public static class Factory extends AggregatorFactory {
 
-        private org.apache.lucene.search.Filter filter;
+        private final Query filter;
 
-        public Factory(String name, Filter filter) {
+        public Factory(String name, Query filter) {
             super(name, InternalFilter.TYPE.name());
             this.filter = filter;
         }

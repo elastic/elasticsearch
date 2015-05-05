@@ -67,7 +67,7 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog,
     public static final String INDEX_TRANSLOG_BUFFER_SIZE = "index.translog.fs.buffer_size";
     public static final String INDEX_TRANSLOG_SYNC_INTERVAL = "index.translog.sync_interval";
     public static final String TRANSLOG_FILE_PREFIX = "translog-";
-    private static final Pattern PARSE_ID_PATTERN = Pattern.compile(TRANSLOG_FILE_PREFIX + "(\\d+).*");
+    static final Pattern PARSE_ID_PATTERN = Pattern.compile(TRANSLOG_FILE_PREFIX + "(\\d+)(\\.recovering)?$");
     private final TimeValue syncInterval;
     private volatile ScheduledFuture<?> syncScheduler;
 

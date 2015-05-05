@@ -22,7 +22,7 @@ package org.elasticsearch.action.admin.indices.settings.put;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
-import org.elasticsearch.client.IndicesAdminClient;
+import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.settings.Settings;
 
 import java.util.Map;
@@ -30,10 +30,10 @@ import java.util.Map;
 /**
  * Builder for an update index settings request
  */
-public class UpdateSettingsRequestBuilder extends AcknowledgedRequestBuilder<UpdateSettingsRequest, UpdateSettingsResponse, UpdateSettingsRequestBuilder, IndicesAdminClient> {
+public class UpdateSettingsRequestBuilder extends AcknowledgedRequestBuilder<UpdateSettingsRequest, UpdateSettingsResponse, UpdateSettingsRequestBuilder> {
 
-    public UpdateSettingsRequestBuilder(IndicesAdminClient indicesClient, String... indices) {
-        super(indicesClient, new UpdateSettingsRequest(indices));
+    public UpdateSettingsRequestBuilder(ElasticsearchClient client, UpdateSettingsAction action, String... indices) {
+        super(client, action, new UpdateSettingsRequest(indices));
     }
 
     /**
@@ -46,7 +46,7 @@ public class UpdateSettingsRequestBuilder extends AcknowledgedRequestBuilder<Upd
 
     /**
      * Specifies what type of requested indices to ignore and wildcard indices expressions.
-     *
+     * <p/>
      * For example indices that don't exist.
      */
     public UpdateSettingsRequestBuilder setIndicesOptions(IndicesOptions options) {
@@ -84,10 +84,5 @@ public class UpdateSettingsRequestBuilder extends AcknowledgedRequestBuilder<Upd
     public UpdateSettingsRequestBuilder setSettings(Map<String, Object> source) {
         request.settings(source);
         return this;
-    }
-
-    @Override
-    protected void doExecute(ActionListener<UpdateSettingsResponse> listener) {
-        client.updateSettings(request, listener);
     }
 }

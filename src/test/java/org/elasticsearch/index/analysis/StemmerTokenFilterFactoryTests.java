@@ -54,6 +54,7 @@ public class StemmerTokenFilterFactoryTests extends ElasticsearchTokenStreamTest
                     .put("index.analysis.analyzer.my_english.tokenizer","whitespace")
                     .put("index.analysis.analyzer.my_english.filter","my_english")
                     .put(SETTING_VERSION_CREATED,v)
+                    .put("path.home", createTempDir().toString())
                     .build();
 
             AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromSettings(settings);
@@ -87,6 +88,7 @@ public class StemmerTokenFilterFactoryTests extends ElasticsearchTokenStreamTest
                     .put("index.analysis.analyzer.my_porter2.tokenizer","whitespace")
                     .put("index.analysis.analyzer.my_porter2.filter","my_porter2")
                     .put(SETTING_VERSION_CREATED,v)
+                    .put("path.home", createTempDir().toString())
                     .build();
 
             AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromSettings(settings);

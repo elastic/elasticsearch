@@ -19,128 +19,82 @@
 
 package org.elasticsearch.index.translog.fs;
 
-import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Channels;
+import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.translog.TranslogStream;
-import org.elasticsearch.index.translog.TranslogStreams;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogException;
 
-import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.locks.ReadWriteLock;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.nio.ByteBuffer;
 
-public class SimpleFsTranslogFile implements FsTranslogFile {
-
-    private final long id;
-    private final ShardId shardId;
-    private final ChannelReference channelReference;
-    private final AtomicBoolean closed = new AtomicBoolean();
-    private final ReadWriteLock rwl = new ReentrantReadWriteLock();
-    private final TranslogStream translogStream;
-    private final int headerSize;
+public final class SimpleFsTranslogFile extends FsTranslogFile {
 
     private volatile int operationCounter = 0;
-
     private volatile long lastPosition = 0;
     private volatile long lastWrittenPosition = 0;
-
     private volatile long lastSyncPosition = 0;
 
     public SimpleFsTranslogFile(ShardId shardId, long id, ChannelReference channelReference) throws IOException {
-        this.shardId = shardId;
-        this.id = id;
-        this.channelReference = channelReference;
-        this.translogStream = TranslogStreams.translogStreamFor(this.channelReference.file());
-        this.headerSize = this.translogStream.writeHeader(channelReference.channel());
+        super(shardId, id, channelReference);
+        int headerSize = this.channelReference.stream().writeHeader(channelReference.channel());
         this.lastPosition += headerSize;
         this.lastWrittenPosition += headerSize;
         this.lastSyncPosition += headerSize;
     }
 
     @Override
-    public long id() {
-        return this.id;
-    }
-
-    @Override
-    public int estimatedNumberOfOperations() {
+    public int totalOperations() {
         return operationCounter;
     }
 
     @Override
-    public long translogSizeInBytes() {
+    public long sizeInBytes() {
         return lastWrittenPosition;
     }
 
     @Override
     public Translog.Location add(BytesReference data) throws IOException {
-        rwl.writeLock().lock();
-        try {
+        try (ReleasableLock lock = writeLock.acquire()) {
             long position = lastPosition;
             data.writeTo(channelReference.channel());
             lastPosition = lastPosition + data.length();
             lastWrittenPosition = lastWrittenPosition + data.length();
             operationCounter = operationCounter + 1;
             return new Translog.Location(id, position, data.length());
-        } finally {
-            rwl.writeLock().unlock();
         }
     }
 
     @Override
-    public byte[] read(Translog.Location location) throws IOException {
-        rwl.readLock().lock();
+    protected void readBytes(ByteBuffer buffer, long position) throws IOException {
+        try (ReleasableLock lock = readLock.acquire()) {
+            Channels.readFromFileChannelWithEofException(channelReference.channel(), position, buffer);
+        }
+    }
+
+    @Override
+    public void doClose() throws IOException {
         try {
-            return Channels.readFromFileChannel(channelReference.channel(), location.translogLocation, location.size);
+            sync();
         } finally {
-            rwl.readLock().unlock();
+            super.doClose();
         }
     }
 
-    @Override
-    public void close() throws IOException {
-        if (closed.compareAndSet(false, true)) {
-            try {
-                sync();
+    public FsChannelImmutableReader immutableReader() throws TranslogException {
+        if (channelReference.tryIncRef()) {
+            try (ReleasableLock lock = writeLock.acquire()) {
+                FsChannelImmutableReader reader = new FsChannelImmutableReader(this.id, channelReference, lastWrittenPosition, operationCounter);
+                channelReference.incRef(); // for the new object
+                return reader;
             } finally {
                 channelReference.decRef();
             }
+        } else {
+            throw new TranslogException(shardId, "can't increment channel [" + channelReference + "] channel ref count");
         }
-    }
 
-    /**
-     * Returns a snapshot on this file, <tt>null</tt> if it failed to snapshot.
-     */
-    @Override
-    public FsChannelSnapshot snapshot() throws TranslogException {
-        if (channelReference.tryIncRef()) {
-            boolean success = false;
-            try {
-                rwl.writeLock().lock();
-                try {
-                    FsChannelSnapshot snapshot = new FsChannelSnapshot(this.id, channelReference, lastWrittenPosition, operationCounter);
-                    snapshot.seekTo(this.headerSize);
-                    success = true;
-                    return snapshot;
-                } finally {
-                    rwl.writeLock().unlock();
-                }
-            } catch (FileNotFoundException e) {
-                throw new TranslogException(shardId, "failed to create snapshot", e);
-            } finally {
-                if (!success) {
-                    channelReference.decRef();
-                }
-            }
-        }
-        return null;
     }
 
     @Override
@@ -149,27 +103,14 @@ public class SimpleFsTranslogFile implements FsTranslogFile {
     }
 
     @Override
-    public TranslogStream getStream() {
-        return this.translogStream;
-    }
-
-    @Override
-    public Path getPath() {
-        return channelReference.file();
-    }
-
-    @Override
     public void sync() throws IOException {
         // check if we really need to sync here...
         if (!syncNeeded()) {
             return;
         }
-        rwl.writeLock().lock();
-        try {
+        try (ReleasableLock lock = writeLock.acquire()) {
             lastSyncPosition = lastWrittenPosition;
             channelReference.channel().force(false);
-        } finally {
-            rwl.writeLock().unlock();
         }
     }
 
@@ -182,10 +123,4 @@ public class SimpleFsTranslogFile implements FsTranslogFile {
     public void updateBufferSize(int bufferSize) throws TranslogException {
         // nothing to do here...
     }
-
-    @Override
-    public boolean closed() {
-        return this.closed.get();
-    }
-
 }

@@ -21,7 +21,7 @@ package org.elasticsearch.action.termvectors;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.VersionType;
 
@@ -34,10 +34,10 @@ import java.util.Map;
  * Note, the {@code index}, {@code type} and {@code id} are
  * required.
  */
-public class TermVectorsRequestBuilder extends ActionRequestBuilder<TermVectorsRequest, TermVectorsResponse, TermVectorsRequestBuilder, Client> {
+public class TermVectorsRequestBuilder extends ActionRequestBuilder<TermVectorsRequest, TermVectorsResponse, TermVectorsRequestBuilder> {
 
-    public TermVectorsRequestBuilder(Client client) {
-        super(client, new TermVectorsRequest());
+    public TermVectorsRequestBuilder(ElasticsearchClient client, TermVectorsAction action) {
+        super(client, action, new TermVectorsRequest());
     }
 
     /**
@@ -45,8 +45,8 @@ public class TermVectorsRequestBuilder extends ActionRequestBuilder<TermVectorsR
      * from the provided index. Use {@code index}, {@code type} and
      * {@code id} to specify the document to load.
      */
-    public TermVectorsRequestBuilder(Client client, String index, String type, String id) {
-        super(client, new TermVectorsRequest(index, type, id));
+    public TermVectorsRequestBuilder(ElasticsearchClient client, TermVectorsAction action, String index, String type, String id) {
+        super(client, action, new TermVectorsRequest(index, type, id));
     }
 
     /**
@@ -88,7 +88,7 @@ public class TermVectorsRequestBuilder extends ActionRequestBuilder<TermVectorsR
         request.routing(routing);
         return this;
     }
-    
+
     /**
      * Sets the parent id of this document. Will simply set the routing to this value, as it is only
      * used for routing with delete requests.
@@ -206,10 +206,5 @@ public class TermVectorsRequestBuilder extends ActionRequestBuilder<TermVectorsR
     public TermVectorsRequestBuilder setFilterSettings(TermVectorsRequest.FilterSettings filterSettings) {
         request.filterSettings(filterSettings);
         return this;
-    }
-
-    @Override
-    protected void doExecute(ActionListener<TermVectorsResponse> listener) {
-        client.termVectors(request, listener);
     }
 }

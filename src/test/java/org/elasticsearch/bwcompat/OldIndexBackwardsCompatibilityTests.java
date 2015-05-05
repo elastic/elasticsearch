@@ -20,7 +20,6 @@
 package org.elasticsearch.bwcompat;
 
 import com.google.common.util.concurrent.ListenableFuture;
-
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TestUtil;
@@ -60,16 +59,11 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.file.DirectoryStream;
-import java.nio.file.FileVisitResult;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.SimpleFileVisitor;
+import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.*;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 // needs at least 2 nodes since it bumps replicas to 1
@@ -381,6 +375,7 @@ public class OldIndexBackwardsCompatibilityTests extends ElasticsearchIntegratio
             // TODO: remove this once #10262 is fixed
             return;
         }
+        // these documents are supposed to be deleted by a delete by query operation in the translog
         SearchRequestBuilder searchReq = client().prepareSearch(indexName).setQuery(QueryBuilders.queryStringQuery("long_sort:[10 TO 20]"));
         assertEquals(0, searchReq.get().getHits().getTotalHits());
     }

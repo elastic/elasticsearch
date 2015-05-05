@@ -19,13 +19,13 @@
 
 package org.elasticsearch.action.admin.cluster.repositories.verify;
 
-import org.elasticsearch.action.admin.cluster.ClusterAction;
-import org.elasticsearch.client.ClusterAdminClient;
+import org.elasticsearch.action.Action;
+import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  * Unregister repository action
  */
-public class VerifyRepositoryAction extends ClusterAction<VerifyRepositoryRequest, VerifyRepositoryResponse, VerifyRepositoryRequestBuilder> {
+public class VerifyRepositoryAction extends Action<VerifyRepositoryRequest, VerifyRepositoryResponse, VerifyRepositoryRequestBuilder> {
 
     public static final VerifyRepositoryAction INSTANCE = new VerifyRepositoryAction();
     public static final String NAME = "cluster:admin/repository/verify";
@@ -40,8 +40,8 @@ public class VerifyRepositoryAction extends ClusterAction<VerifyRepositoryReques
     }
 
     @Override
-    public VerifyRepositoryRequestBuilder newRequestBuilder(ClusterAdminClient client) {
-        return new VerifyRepositoryRequestBuilder(client);
+    public VerifyRepositoryRequestBuilder newRequestBuilder(ElasticsearchClient client) {
+        return new VerifyRepositoryRequestBuilder(client, this);
     }
 }
 

@@ -19,12 +19,12 @@
 
 package org.elasticsearch.action.index;
 
-import org.elasticsearch.action.ClientAction;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.action.Action;
+import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  */
-public class IndexAction extends ClientAction<IndexRequest, IndexResponse, IndexRequestBuilder> {
+public class IndexAction extends Action<IndexRequest, IndexResponse, IndexRequestBuilder> {
 
     public static final IndexAction INSTANCE = new IndexAction();
     public static final String NAME = "indices:data/write/index";
@@ -39,7 +39,7 @@ public class IndexAction extends ClientAction<IndexRequest, IndexResponse, Index
     }
 
     @Override
-    public IndexRequestBuilder newRequestBuilder(Client client) {
-        return new IndexRequestBuilder(client);
+    public IndexRequestBuilder newRequestBuilder(ElasticsearchClient client) {
+        return new IndexRequestBuilder(client, this);
     }
 }

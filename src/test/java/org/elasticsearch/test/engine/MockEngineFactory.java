@@ -21,6 +21,7 @@ package org.elasticsearch.test.engine;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineFactory;
+import org.elasticsearch.index.translog.fs.FsTranslog;
 
 /**
  *

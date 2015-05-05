@@ -19,10 +19,9 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.restore;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
-import org.elasticsearch.client.ClusterAdminClient;
+import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.settings.Settings;
 
 import java.util.List;
@@ -31,26 +30,20 @@ import java.util.Map;
 /**
  * Restore snapshot request builder
  */
-public class RestoreSnapshotRequestBuilder extends MasterNodeOperationRequestBuilder<RestoreSnapshotRequest, RestoreSnapshotResponse, RestoreSnapshotRequestBuilder, ClusterAdminClient> {
+public class RestoreSnapshotRequestBuilder extends MasterNodeOperationRequestBuilder<RestoreSnapshotRequest, RestoreSnapshotResponse, RestoreSnapshotRequestBuilder> {
 
     /**
      * Constructs new restore snapshot request builder
-     *
-     * @param clusterAdminClient cluster admin client
      */
-    public RestoreSnapshotRequestBuilder(ClusterAdminClient clusterAdminClient) {
-        super(clusterAdminClient, new RestoreSnapshotRequest());
+    public RestoreSnapshotRequestBuilder(ElasticsearchClient client, RestoreSnapshotAction action) {
+        super(client, action, new RestoreSnapshotRequest());
     }
 
     /**
      * Constructs new restore snapshot request builder with specified repository and snapshot names
-     *
-     * @param clusterAdminClient cluster admin client
-     * @param repository         reposiory name
-     * @param name               snapshot name
      */
-    public RestoreSnapshotRequestBuilder(ClusterAdminClient clusterAdminClient, String repository, String name) {
-        super(clusterAdminClient, new RestoreSnapshotRequest(repository, name));
+    public RestoreSnapshotRequestBuilder(ElasticsearchClient client, RestoreSnapshotAction action, String repository, String name) {
+        super(client, action, new RestoreSnapshotRequest(repository, name));
     }
 
 
@@ -233,6 +226,7 @@ public class RestoreSnapshotRequestBuilder extends MasterNodeOperationRequestBui
 
     /**
      * Sets index settings that should be added or replaced during restore
+     *
      * @param settings index settings
      * @return this builder
      */
@@ -243,7 +237,7 @@ public class RestoreSnapshotRequestBuilder extends MasterNodeOperationRequestBui
 
     /**
      * Sets index settings that should be added or replaced during restore
-
+     *
      * @param settings index settings
      * @return this builder
      */
@@ -254,7 +248,7 @@ public class RestoreSnapshotRequestBuilder extends MasterNodeOperationRequestBui
 
     /**
      * Sets index settings that should be added or replaced during restore
-
+     *
      * @param source index settings
      * @return this builder
      */
@@ -265,7 +259,7 @@ public class RestoreSnapshotRequestBuilder extends MasterNodeOperationRequestBui
 
     /**
      * Sets index settings that should be added or replaced during restore
-
+     *
      * @param source index settings
      * @return this builder
      */
@@ -289,11 +283,5 @@ public class RestoreSnapshotRequestBuilder extends MasterNodeOperationRequestBui
     public RestoreSnapshotRequestBuilder setIgnoreIndexSettings(List<String> ignoreIndexSettings) {
         request.ignoreIndexSettings(ignoreIndexSettings);
         return this;
-    }
-
-
-    @Override
-    protected void doExecute(ActionListener<RestoreSnapshotResponse> listener) {
-        client.restoreSnapshot(request, listener);
     }
 }

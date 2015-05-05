@@ -382,6 +382,14 @@ public class GatewayAllocator extends AbstractComponent {
         return changed;
     }
 
+    /**
+     * Build a map of DiscoveryNodes to shard state number for the given shard.
+     * A state of -1 means the shard does not exist on the node, where any
+     * shard state >= 0 is the state version of the shard on that node's disk.
+     *
+     * A shard on shared storage will return at least shard state 0 for all
+     * nodes, indicating that the shard can be allocated to any node.
+     */
     private ObjectLongOpenHashMap<DiscoveryNode> buildShardStates(final DiscoveryNodes nodes, MutableShardRouting shard, IndexMetaData indexMetaData) {
         ObjectLongOpenHashMap<DiscoveryNode> shardStates = cachedShardsState.get(shard.shardId());
         ObjectOpenHashSet<String> nodeIds;
@@ -415,10 +423,18 @@ public class GatewayAllocator extends AbstractComponent {
         logListActionFailures(shard, "state", response.failures());
 
         for (TransportNodesListGatewayStartedShards.NodeGatewayStartedShards nodeShardState : response) {
+            long version = nodeShardState.version();
+            Settings idxSettings = indexMetaData.settings();
+            if (IndexMetaData.isOnSharedFilesystem(idxSettings) &&
+                    idxSettings.getAsBoolean(IndexMetaData.SETTING_SHARED_FS_ALLOW_RECOVERY_ON_ANY_NODE, false)) {
+                // Shared filesystems use 0 as a minimum shard state, which
+                // means that the shard can be allocated to any node
+                version = Math.max(0, version);
+            }
             // -1 version means it does not exists, which is what the API returns, and what we expect to
             logger.trace("[{}] on node [{}] has version [{}] of shard",
-                    shard, nodeShardState.getNode(), nodeShardState.version());
-            shardStates.put(nodeShardState.getNode(), nodeShardState.version());
+                    shard, nodeShardState.getNode(), version);
+            shardStates.put(nodeShardState.getNode(), version);
         }
         return shardStates;
     }

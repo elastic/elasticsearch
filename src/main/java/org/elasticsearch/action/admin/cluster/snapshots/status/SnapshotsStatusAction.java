@@ -19,13 +19,13 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.status;
 
-import org.elasticsearch.action.admin.cluster.ClusterAction;
-import org.elasticsearch.client.ClusterAdminClient;
+import org.elasticsearch.action.Action;
+import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  * Snapshots status action
  */
-public class SnapshotsStatusAction extends ClusterAction<SnapshotsStatusRequest, SnapshotsStatusResponse, SnapshotsStatusRequestBuilder> {
+public class SnapshotsStatusAction extends Action<SnapshotsStatusRequest, SnapshotsStatusResponse, SnapshotsStatusRequestBuilder> {
 
     public static final SnapshotsStatusAction INSTANCE = new SnapshotsStatusAction();
     public static final String NAME = "cluster:admin/snapshot/status";
@@ -40,8 +40,8 @@ public class SnapshotsStatusAction extends ClusterAction<SnapshotsStatusRequest,
     }
 
     @Override
-    public SnapshotsStatusRequestBuilder newRequestBuilder(ClusterAdminClient client) {
-        return new SnapshotsStatusRequestBuilder(client);
+    public SnapshotsStatusRequestBuilder newRequestBuilder(ElasticsearchClient client) {
+        return new SnapshotsStatusRequestBuilder(client, this);
     }
 }
 

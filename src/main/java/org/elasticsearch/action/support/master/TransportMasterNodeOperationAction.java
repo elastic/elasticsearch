@@ -25,6 +25,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterService;
@@ -75,14 +76,11 @@ public abstract class TransportMasterNodeOperationAction<Request extends MasterN
     }
 
     @Override
-    protected boolean forceThreadedListener() {
-        // since the callback is async, we typically can get called from within an event in the cluster service
-        // or something similar, so make sure we are threaded so we won't block it.
-        return true;
-    }
-
-    @Override
-    protected void doExecute(final Request request, final ActionListener<Response> listener) {
+    protected void doExecute(final Request request, ActionListener<Response> listener) {
+        // TODO do we really need to wrap it in a listener? the handlers should be cheap
+        if ((listener instanceof ThreadedActionListener) == false) {
+            listener = new ThreadedActionListener<>(logger, threadPool, ThreadPool.Names.LISTENER, listener);
+        }
         innerExecute(request, listener, new ClusterStateObserver(clusterService, request.masterNodeTimeout(), logger), false);
     }
 

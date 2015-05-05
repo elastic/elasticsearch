@@ -19,19 +19,19 @@
 
 package org.elasticsearch.action.admin.indices.warmer.delete;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
-import org.elasticsearch.client.IndicesAdminClient;
+import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  * A builder for the {@link DeleteWarmerRequest}
+ *
  * @see DeleteWarmerRequest for details
  */
-public class DeleteWarmerRequestBuilder extends AcknowledgedRequestBuilder<DeleteWarmerRequest, DeleteWarmerResponse, DeleteWarmerRequestBuilder, IndicesAdminClient> {
+public class DeleteWarmerRequestBuilder extends AcknowledgedRequestBuilder<DeleteWarmerRequest, DeleteWarmerResponse, DeleteWarmerRequestBuilder> {
 
-    public DeleteWarmerRequestBuilder(IndicesAdminClient indicesClient) {
-        super(indicesClient, new DeleteWarmerRequest());
+    public DeleteWarmerRequestBuilder(ElasticsearchClient client, DeleteWarmerAction action) {
+        super(client, action, new DeleteWarmerRequest());
     }
 
     public DeleteWarmerRequestBuilder setIndices(String... indices) {
@@ -50,16 +50,11 @@ public class DeleteWarmerRequestBuilder extends AcknowledgedRequestBuilder<Delet
 
     /**
      * Specifies what type of requested indices to ignore and wildcard indices expressions.
-     *
+     * <p/>
      * For example indices that don't exist.
      */
     public DeleteWarmerRequestBuilder setIndicesOptions(IndicesOptions options) {
         request.indicesOptions(options);
         return this;
-    }
-
-    @Override
-    protected void doExecute(ActionListener<DeleteWarmerResponse> listener) {
-        client.deleteWarmer(request, listener);
     }
 }

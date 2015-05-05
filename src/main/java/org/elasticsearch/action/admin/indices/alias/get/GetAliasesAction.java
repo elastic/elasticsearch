@@ -19,12 +19,12 @@
 
 package org.elasticsearch.action.admin.indices.alias.get;
 
-import org.elasticsearch.action.admin.indices.IndicesAction;
-import org.elasticsearch.client.IndicesAdminClient;
+import org.elasticsearch.action.Action;
+import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  */
-public class GetAliasesAction extends IndicesAction<GetAliasesRequest, GetAliasesResponse, GetAliasesRequestBuilder> {
+public class GetAliasesAction extends Action<GetAliasesRequest, GetAliasesResponse, GetAliasesRequestBuilder> {
 
     public static final GetAliasesAction INSTANCE = new GetAliasesAction();
     public static final String NAME = "indices:admin/aliases/get";
@@ -34,8 +34,8 @@ public class GetAliasesAction extends IndicesAction<GetAliasesRequest, GetAliase
     }
 
     @Override
-    public GetAliasesRequestBuilder newRequestBuilder(IndicesAdminClient client) {
-        return new GetAliasesRequestBuilder(client);
+    public GetAliasesRequestBuilder newRequestBuilder(ElasticsearchClient client) {
+        return new GetAliasesRequestBuilder(client, this);
     }
 
     @Override

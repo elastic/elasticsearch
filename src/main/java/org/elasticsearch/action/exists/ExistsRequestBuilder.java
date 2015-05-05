@@ -18,20 +18,18 @@
  */
 package org.elasticsearch.action.exists;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.QuerySourceBuilder;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequestBuilder;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.query.QueryBuilder;
 
-public class ExistsRequestBuilder extends BroadcastOperationRequestBuilder<ExistsRequest, ExistsResponse, ExistsRequestBuilder, Client> {
-
+public class ExistsRequestBuilder extends BroadcastOperationRequestBuilder<ExistsRequest, ExistsResponse, ExistsRequestBuilder> {
 
     private QuerySourceBuilder sourceBuilder;
 
-    public ExistsRequestBuilder(Client client) {
-        super(client, new ExistsRequest());
+    public ExistsRequestBuilder(ElasticsearchClient client, ExistsAction action) {
+        super(client, action, new ExistsRequest());
     }
 
     /**
@@ -104,12 +102,11 @@ public class ExistsRequestBuilder extends BroadcastOperationRequestBuilder<Exist
     }
 
     @Override
-    protected void doExecute(ActionListener<ExistsResponse> listener) {
+    protected ExistsRequest beforeExecute(ExistsRequest request) {
         if (sourceBuilder != null) {
             request.source(sourceBuilder);
         }
-
-        client.exists(request, listener);
+        return request;
     }
 
     private QuerySourceBuilder sourceBuilder() {

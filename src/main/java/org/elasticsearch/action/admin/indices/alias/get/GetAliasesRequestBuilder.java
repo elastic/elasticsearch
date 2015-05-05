@@ -19,20 +19,13 @@
 
 package org.elasticsearch.action.admin.indices.alias.get;
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.client.IndicesAdminClient;
+import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  */
 public class GetAliasesRequestBuilder extends BaseAliasesRequestBuilder<GetAliasesResponse, GetAliasesRequestBuilder> {
 
-    public GetAliasesRequestBuilder(IndicesAdminClient client, String... aliases) {
-        super(client, aliases);
+    public GetAliasesRequestBuilder(ElasticsearchClient client, GetAliasesAction action, String... aliases) {
+        super(client, action, aliases);
     }
-
-    @Override
-    protected void doExecute(ActionListener<GetAliasesResponse> listener) {
-        client.getAliases(request, listener);
-    }
-
 }

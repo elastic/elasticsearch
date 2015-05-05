@@ -19,20 +19,14 @@
 
 package org.elasticsearch.action.admin.cluster.tasks;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
-import org.elasticsearch.client.ClusterAdminClient;
+import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  */
-public class PendingClusterTasksRequestBuilder extends MasterNodeReadOperationRequestBuilder<PendingClusterTasksRequest, PendingClusterTasksResponse, PendingClusterTasksRequestBuilder, ClusterAdminClient> {
+public class PendingClusterTasksRequestBuilder extends MasterNodeReadOperationRequestBuilder<PendingClusterTasksRequest, PendingClusterTasksResponse, PendingClusterTasksRequestBuilder> {
 
-    public PendingClusterTasksRequestBuilder(ClusterAdminClient client) {
-        super(client, new PendingClusterTasksRequest());
-    }
-
-    @Override
-    protected void doExecute(ActionListener<PendingClusterTasksResponse> listener) {
-        client.pendingClusterTasks(request, listener);
+    public PendingClusterTasksRequestBuilder(ElasticsearchClient client, PendingClusterTasksAction action) {
+        super(client, action, new PendingClusterTasksRequest());
     }
 }

@@ -19,21 +19,14 @@
 
 package org.elasticsearch.action.admin.indices.alias.exists;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.get.BaseAliasesRequestBuilder;
-import org.elasticsearch.client.IndicesAdminClient;
+import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  */
 public class AliasesExistRequestBuilder extends BaseAliasesRequestBuilder<AliasesExistResponse, AliasesExistRequestBuilder> {
 
-    public AliasesExistRequestBuilder(IndicesAdminClient client, String... aliases) {
-        super(client, aliases);
+    public AliasesExistRequestBuilder(ElasticsearchClient client, AliasesExistAction action, String... aliases) {
+        super(client, action, aliases);
     }
-
-    @Override
-    protected void doExecute(ActionListener<AliasesExistResponse> listener) {
-        client.aliasesExist(request, listener);
-    }
-
 }

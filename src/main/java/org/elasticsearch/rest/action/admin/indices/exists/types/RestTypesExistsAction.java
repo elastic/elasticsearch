@@ -48,7 +48,6 @@ public class RestTypesExistsAction extends BaseRestHandler {
         TypesExistsRequest typesExistsRequest = new TypesExistsRequest(
                 Strings.splitStringByCommaToArray(request.param("index")), Strings.splitStringByCommaToArray(request.param("type"))
         );
-        typesExistsRequest.listenerThreaded(false);
         typesExistsRequest.local(request.paramAsBoolean("local", typesExistsRequest.local()));
         typesExistsRequest.indicesOptions(IndicesOptions.fromRequest(request, typesExistsRequest.indicesOptions()));
         client.admin().indices().typesExists(typesExistsRequest, new RestResponseListener<TypesExistsResponse>(channel) {

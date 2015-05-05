@@ -20,17 +20,16 @@
 package org.elasticsearch.action.admin.indices.settings.get;
 
 import com.google.common.collect.ObjectArrays;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
-import org.elasticsearch.client.IndicesAdminClient;
+import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  */
-public class GetSettingsRequestBuilder extends MasterNodeReadOperationRequestBuilder<GetSettingsRequest, GetSettingsResponse, GetSettingsRequestBuilder, IndicesAdminClient> {
+public class GetSettingsRequestBuilder extends MasterNodeReadOperationRequestBuilder<GetSettingsRequest, GetSettingsResponse, GetSettingsRequestBuilder> {
 
-    public GetSettingsRequestBuilder(IndicesAdminClient client, String... indices) {
-        super(client, new GetSettingsRequest().indices(indices));
+    public GetSettingsRequestBuilder(ElasticsearchClient client, GetSettingsAction action, String... indices) {
+        super(client, action, new GetSettingsRequest().indices(indices));
     }
 
     public GetSettingsRequestBuilder setIndices(String... indices) {
@@ -45,7 +44,7 @@ public class GetSettingsRequestBuilder extends MasterNodeReadOperationRequestBui
 
     /**
      * Specifies what type of requested indices to ignore and wildcard indices expressions.
-     *
+     * <p/>
      * For example indices that don't exist.
      */
     public GetSettingsRequestBuilder setIndicesOptions(IndicesOptions options) {
@@ -56,10 +55,5 @@ public class GetSettingsRequestBuilder extends MasterNodeReadOperationRequestBui
     public GetSettingsRequestBuilder setNames(String... names) {
         request.names(names);
         return this;
-    }
-
-    @Override
-    protected void doExecute(ActionListener<GetSettingsResponse> listener) {
-        client.getSettings(request, listener);
     }
 }

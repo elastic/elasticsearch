@@ -121,6 +121,20 @@ This syntax applies to Elasticsearch 1.0 and later:
 
 * Repeat this process for all remaining nodes.
 
+[IMPORTANT]
+====================================================
+During a rolling upgrade, primary shards assigned to a node with the higher
+version will never have their replicas assigned to a node with the lower
+version, because the newer version may have a different data format which is
+not understood by the older version.
+
+If it is not possible to assign the replica shards to another node with the
+higher version -- e.g. if there is only one node with the higher version in
+the cluster -- then the replica shards will remain unassigned, i.e. the
+cluster health will be status `yellow`.  As soon as another node with the
+higher version joins the cluster, the replicas should be assigned and the
+cluster health will reach status `green`.
+====================================================
 
 It may be possible to perform the upgrade by installing the new software while the service is running.  This would reduce downtime by ensuring the service was ready to run on the new version as soon as it is stopped on the node being upgraded.  This can be done by installing the new version in its own directory and using the symbolic link method outlined above.  It is important to test this procedure first to be sure that site-specific configuration data and production indices will not be overwritten during the upgrade process.
 

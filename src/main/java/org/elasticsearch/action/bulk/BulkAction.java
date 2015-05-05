@@ -19,14 +19,14 @@
 
 package org.elasticsearch.action.bulk;
 
-import org.elasticsearch.action.ClientAction;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.action.Action;
+import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.transport.TransportRequestOptions;
 
 /**
  */
-public class BulkAction extends ClientAction<BulkRequest, BulkResponse, BulkRequestBuilder> {
+public class BulkAction extends Action<BulkRequest, BulkResponse, BulkRequestBuilder> {
 
     public static final BulkAction INSTANCE = new BulkAction();
     public static final String NAME = "indices:data/write/bulk";
@@ -41,8 +41,8 @@ public class BulkAction extends ClientAction<BulkRequest, BulkResponse, BulkRequ
     }
 
     @Override
-    public BulkRequestBuilder newRequestBuilder(Client client) {
-        return new BulkRequestBuilder(client);
+    public BulkRequestBuilder newRequestBuilder(ElasticsearchClient client) {
+        return new BulkRequestBuilder(client, this);
     }
 
     @Override

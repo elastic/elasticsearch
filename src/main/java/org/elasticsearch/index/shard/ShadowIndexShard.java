@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.aliases.IndexAliasesService;
@@ -56,6 +57,8 @@ import org.elasticsearch.indices.IndicesLifecycle;
 import org.elasticsearch.indices.IndicesWarmer;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.io.IOException;
+
 /**
  * ShadowIndexShard extends {@link IndexShard} to add file synchronization
  * from the primary when a flush happens. It also ensures that a replica being
@@ -67,7 +70,7 @@ public final class ShadowIndexShard extends IndexShard {
     @Inject
     public ShadowIndexShard(ShardId shardId, IndexSettingsService indexSettingsService,
                             IndicesLifecycle indicesLifecycle, Store store, MergeSchedulerProvider mergeScheduler,
-                            Translog translog, ThreadPool threadPool, MapperService mapperService,
+                            ThreadPool threadPool, MapperService mapperService,
                             IndexQueryParserService queryParserService, IndexCache indexCache,
                             IndexAliasesService indexAliasesService, ShardIndexingService indexingService,
                             ShardGetService getService, ShardSearchService searchService,
@@ -78,14 +81,15 @@ public final class ShadowIndexShard extends IndexShard {
                             IndexService indexService, ShardSuggestService shardSuggestService, ShardQueryCache shardQueryCache,
                             ShardBitsetFilterCache shardBitsetFilterCache, @Nullable IndicesWarmer warmer,
                             SnapshotDeletionPolicy deletionPolicy, SimilarityService similarityService,
-                            MergePolicyProvider mergePolicyProvider, EngineFactory factory, ClusterService clusterService, NodeEnvironment nodeEnv, ShardPath path) {
+                            MergePolicyProvider mergePolicyProvider, EngineFactory factory, ClusterService clusterService,
+                            NodeEnvironment nodeEnv, ShardPath path, BigArrays bigArrays) throws IOException {
         super(shardId, indexSettingsService, indicesLifecycle, store, mergeScheduler,
-                translog, threadPool, mapperService, queryParserService, indexCache, indexAliasesService,
+                threadPool, mapperService, queryParserService, indexCache, indexAliasesService,
                 indexingService, getService, searchService, shardWarmerService, shardFilterCache,
                 shardFieldData, percolatorQueriesRegistry, shardPercolateService, codecService,
                 termVectorsService, indexFieldDataService, indexService, shardSuggestService,
                 shardQueryCache, shardBitsetFilterCache, warmer, deletionPolicy, similarityService,
-                mergePolicyProvider, factory, clusterService, nodeEnv, path);
+                mergePolicyProvider, factory, clusterService, nodeEnv, path, bigArrays);
     }
 
     /**
@@ -100,6 +104,11 @@ public final class ShadowIndexShard extends IndexShard {
             throw new IllegalStateException("can't promote shard to primary");
         }
         super.updateRoutingEntry(newRouting, persistState);
+    }
+
+    @Override
+    public boolean canIndex() {
+        return false;
     }
 
     @Override

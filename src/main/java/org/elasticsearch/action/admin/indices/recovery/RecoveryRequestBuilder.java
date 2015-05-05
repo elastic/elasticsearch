@@ -19,27 +19,19 @@
 
 package org.elasticsearch.action.admin.indices.recovery;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequestBuilder;
-import org.elasticsearch.client.IndicesAdminClient;
+import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  * Recovery information request builder.
  */
-public class RecoveryRequestBuilder extends BroadcastOperationRequestBuilder<RecoveryRequest, RecoveryResponse, RecoveryRequestBuilder, IndicesAdminClient> {
+public class RecoveryRequestBuilder extends BroadcastOperationRequestBuilder<RecoveryRequest, RecoveryResponse, RecoveryRequestBuilder> {
 
     /**
      * Constructs a new recovery information request builder.
-     *
-     * @param indicesClient Indices admin client
      */
-    public RecoveryRequestBuilder(IndicesAdminClient indicesClient) {
-        super(indicesClient, new RecoveryRequest());
-    }
-
-    @Override
-    protected void doExecute(ActionListener<RecoveryResponse> listener) {
-        client.recoveries(request, listener);
+    public RecoveryRequestBuilder(ElasticsearchClient client, RecoveryAction action) {
+        super(client, action, new RecoveryRequest());
     }
 
     public RecoveryRequestBuilder setDetailed(boolean detailed) {

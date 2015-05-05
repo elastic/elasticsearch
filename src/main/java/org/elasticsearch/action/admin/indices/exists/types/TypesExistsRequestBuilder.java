@@ -18,26 +18,25 @@
  */
 package org.elasticsearch.action.admin.indices.exists.types;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
-import org.elasticsearch.client.IndicesAdminClient;
+import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.Strings;
 
 /**
  * A builder for {@link TypesExistsRequest}.
  */
-public class TypesExistsRequestBuilder extends MasterNodeReadOperationRequestBuilder<TypesExistsRequest, TypesExistsResponse, TypesExistsRequestBuilder, IndicesAdminClient> {
+public class TypesExistsRequestBuilder extends MasterNodeReadOperationRequestBuilder<TypesExistsRequest, TypesExistsResponse, TypesExistsRequestBuilder> {
 
     /**
      * @param indices What indices to check for types
      */
-    public TypesExistsRequestBuilder(IndicesAdminClient indicesClient, String... indices) {
-        super(indicesClient, new TypesExistsRequest(indices, Strings.EMPTY_ARRAY));
+    public TypesExistsRequestBuilder(ElasticsearchClient client, TypesExistsAction action, String... indices) {
+        super(client, action, new TypesExistsRequest(indices, Strings.EMPTY_ARRAY));
     }
 
-    TypesExistsRequestBuilder(IndicesAdminClient client) {
-        super(client, new TypesExistsRequest());
+    TypesExistsRequestBuilder(ElasticsearchClient client, TypesExistsAction action) {
+        super(client, action, new TypesExistsRequest());
     }
 
     /**
@@ -62,10 +61,5 @@ public class TypesExistsRequestBuilder extends MasterNodeReadOperationRequestBui
     public TypesExistsRequestBuilder setIndicesOptions(IndicesOptions indicesOptions) {
         request.indicesOptions(indicesOptions);
         return this;
-    }
-
-    @Override
-    protected void doExecute(ActionListener<TypesExistsResponse> listener) {
-        client.typesExists(request, listener);
     }
 }

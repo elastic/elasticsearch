@@ -19,10 +19,7 @@
 
 package org.elasticsearch.client.node;
 
-import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.client.ClusterAdminClient;
-import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.client.support.Headers;
 import org.elasticsearch.common.inject.AbstractModule;
 
@@ -34,9 +31,6 @@ public class NodeClientModule extends AbstractModule {
     @Override
     protected void configure() {
         bind(Headers.class).asEagerSingleton();
-        bind(ClusterAdminClient.class).to(NodeClusterAdminClient.class).asEagerSingleton();
-        bind(IndicesAdminClient.class).to(NodeIndicesAdminClient.class).asEagerSingleton();
-        bind(AdminClient.class).to(NodeAdminClient.class).asEagerSingleton();
         bind(Client.class).to(NodeClient.class).asEagerSingleton();
     }
 }

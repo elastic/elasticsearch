@@ -19,17 +19,19 @@
 
 package org.elasticsearch.action.support.single.shard;
 
+import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  */
 public abstract class SingleShardOperationRequestBuilder<Request extends SingleShardOperationRequest<Request>, Response extends ActionResponse, RequestBuilder extends SingleShardOperationRequestBuilder<Request, Response, RequestBuilder>>
-        extends ActionRequestBuilder<Request, Response, RequestBuilder, Client> {
+        extends ActionRequestBuilder<Request, Response, RequestBuilder> {
 
-    protected SingleShardOperationRequestBuilder(Client client, Request request) {
-        super(client, request);
+    protected SingleShardOperationRequestBuilder(ElasticsearchClient client, Action<Request, Response, RequestBuilder> action, Request request) {
+        super(client, action, request);
     }
 
     /**

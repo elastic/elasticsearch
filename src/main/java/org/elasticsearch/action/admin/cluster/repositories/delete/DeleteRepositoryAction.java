@@ -19,13 +19,13 @@
 
 package org.elasticsearch.action.admin.cluster.repositories.delete;
 
-import org.elasticsearch.action.admin.cluster.ClusterAction;
-import org.elasticsearch.client.ClusterAdminClient;
+import org.elasticsearch.action.Action;
+import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  * Unregister repository action
  */
-public class DeleteRepositoryAction extends ClusterAction<DeleteRepositoryRequest, DeleteRepositoryResponse, DeleteRepositoryRequestBuilder> {
+public class DeleteRepositoryAction extends Action<DeleteRepositoryRequest, DeleteRepositoryResponse, DeleteRepositoryRequestBuilder> {
 
     public static final DeleteRepositoryAction INSTANCE = new DeleteRepositoryAction();
     public static final String NAME = "cluster:admin/repository/delete";
@@ -40,8 +40,8 @@ public class DeleteRepositoryAction extends ClusterAction<DeleteRepositoryReques
     }
 
     @Override
-    public DeleteRepositoryRequestBuilder newRequestBuilder(ClusterAdminClient client) {
-        return new DeleteRepositoryRequestBuilder(client);
+    public DeleteRepositoryRequestBuilder newRequestBuilder(ElasticsearchClient client) {
+        return new DeleteRepositoryRequestBuilder(client, this);
     }
 }
 

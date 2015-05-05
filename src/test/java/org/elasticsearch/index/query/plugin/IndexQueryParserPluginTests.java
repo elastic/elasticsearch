@@ -29,6 +29,8 @@ import org.elasticsearch.common.inject.util.Providers;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.EnvironmentModule;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNameModule;
 import org.elasticsearch.index.analysis.AnalysisModule;
@@ -56,7 +58,10 @@ public class IndexQueryParserPluginTests extends ElasticsearchTestCase {
 
     @Test
     public void testCustomInjection() throws InterruptedException {
-        Settings settings = ImmutableSettings.builder().put("name", "testCustomInjection").put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
+        Settings settings = ImmutableSettings.builder()
+            .put("name", "testCustomInjection")
+            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put("path.home", createTempDir()).build();
 
         IndexQueryParserModule queryParserModule = new IndexQueryParserModule(settings);
         queryParserModule.addProcessor(new IndexQueryParserModule.QueryParsersProcessor() {
@@ -73,6 +78,7 @@ public class IndexQueryParserPluginTests extends ElasticsearchTestCase {
 
         Index index = new Index("test");
         Injector injector = new ModulesBuilder().add(
+                new EnvironmentModule(new Environment(settings)),
                 new SettingsModule(settings),
                 new ThreadPoolModule(settings),
                 new IndicesQueriesModule(),

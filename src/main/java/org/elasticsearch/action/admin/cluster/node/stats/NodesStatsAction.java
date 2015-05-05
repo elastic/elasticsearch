@@ -19,12 +19,12 @@
 
 package org.elasticsearch.action.admin.cluster.node.stats;
 
-import org.elasticsearch.action.admin.cluster.ClusterAction;
-import org.elasticsearch.client.ClusterAdminClient;
+import org.elasticsearch.action.Action;
+import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  */
-public class NodesStatsAction extends ClusterAction<NodesStatsRequest, NodesStatsResponse, NodesStatsRequestBuilder> {
+public class NodesStatsAction extends Action<NodesStatsRequest, NodesStatsResponse, NodesStatsRequestBuilder> {
 
     public static final NodesStatsAction INSTANCE = new NodesStatsAction();
     public static final String NAME = "cluster:monitor/nodes/stats";
@@ -39,7 +39,7 @@ public class NodesStatsAction extends ClusterAction<NodesStatsRequest, NodesStat
     }
 
     @Override
-    public NodesStatsRequestBuilder newRequestBuilder(ClusterAdminClient client) {
-        return new NodesStatsRequestBuilder(client);
+    public NodesStatsRequestBuilder newRequestBuilder(ElasticsearchClient client) {
+        return new NodesStatsRequestBuilder(client, this);
     }
 }

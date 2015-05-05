@@ -25,13 +25,13 @@ import org.apache.lucene.search.SearcherFactory;
 import org.apache.lucene.search.SearcherManager;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.IOUtils;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
 import org.elasticsearch.index.shard.IndexShardException;
+import org.elasticsearch.index.translog.Translog;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -175,6 +175,11 @@ public class ShadowEngine extends Engine {
     }
 
     @Override
+    public Translog getTranslog() {
+        throw new UnsupportedOperationException("shadow engines don't have translogs");
+    }
+
+    @Override
     public List<Segment> segments(boolean verbose) {
         try (ReleasableLock lock = readLock.acquire()) {
             Segment[] segmentsArr = getSegmentInfo(lastCommittedSegmentInfos, verbose);
@@ -205,13 +210,8 @@ public class ShadowEngine extends Engine {
     }
 
     @Override
-    public SnapshotIndexCommit snapshotIndex() throws EngineException {
+    public SnapshotIndexCommit snapshotIndex(boolean flushFirst) throws EngineException {
         throw new UnsupportedOperationException("Can not take snapshot from a shadow engine");
-    }
-
-    @Override
-    public void recover(RecoveryHandler recoveryHandler) throws EngineException {
-        throw new UnsupportedOperationException("Can not recover from a shadow engine");
     }
 
     @Override

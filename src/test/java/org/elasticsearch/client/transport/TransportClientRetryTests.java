@@ -62,9 +62,10 @@ public class TransportClientRetryTests extends ElasticsearchIntegrationTest {
                 .put("node.mode", InternalTestCluster.nodeMode())
                 .put("plugins." + PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, false)
                 .put(ClusterName.SETTING, internalCluster().getClusterName())
-                .put("config.ignore_system_properties", true);
+                .put("config.ignore_system_properties", true)
+                .put("path.home", createTempDir());
 
-        try (TransportClient transportClient = new TransportClient(builder.build())) {
+        try (TransportClient transportClient = TransportClient.builder().settings(builder.build()).build()) {
             transportClient.addTransportAddresses(addresses);
             assertThat(transportClient.connectedNodes().size(), equalTo(internalCluster().size()));
 
@@ -84,7 +85,7 @@ public class TransportClientRetryTests extends ElasticsearchIntegrationTest {
                 if (randomBoolean()) {
                     clusterState = transportClient.admin().cluster().state(clusterStateRequest).get().getState();
                 } else {
-                    PlainListenableActionFuture<ClusterStateResponse> future = new PlainListenableActionFuture<>(clusterStateRequest.listenerThreaded(), transportClient.threadPool());
+                    PlainListenableActionFuture<ClusterStateResponse> future = new PlainListenableActionFuture<>(transportClient.threadPool());
                     transportClient.admin().cluster().state(clusterStateRequest, future);
                     clusterState = future.get().getState();
                 }

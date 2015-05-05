@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.support.master;
 
+import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.ClusterAdminClient;
@@ -29,11 +30,11 @@ import org.elasticsearch.common.unit.TimeValue;
 /**
  * Base request builder for master node operations
  */
-public abstract class MasterNodeOperationRequestBuilder<Request extends MasterNodeOperationRequest<Request>, Response extends ActionResponse, RequestBuilder extends MasterNodeOperationRequestBuilder<Request, Response, RequestBuilder, Client>, Client extends ElasticsearchClient>
-        extends ActionRequestBuilder<Request, Response, RequestBuilder, Client> {
+public abstract class MasterNodeOperationRequestBuilder<Request extends MasterNodeOperationRequest<Request>, Response extends ActionResponse, RequestBuilder extends MasterNodeOperationRequestBuilder<Request, Response, RequestBuilder>>
+        extends ActionRequestBuilder<Request, Response, RequestBuilder> {
 
-    protected MasterNodeOperationRequestBuilder(Client client, Request request) {
-        super(client, request);
+    protected MasterNodeOperationRequestBuilder(ElasticsearchClient client, Action<Request, Response, RequestBuilder> action, Request request) {
+        super(client, action, request);
     }
 
     /**

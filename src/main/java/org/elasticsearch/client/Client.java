@@ -529,7 +529,10 @@ public interface Client extends ElasticsearchClient<Client>, Releasable {
      *
      * @param request The more like this request
      * @return The response future
+     * 
+     * @deprecated The More Like This API will be removed in 2.0.  Instead, use the More Like This Query.
      */
+    @Deprecated
     ActionFuture<SearchResponse> moreLikeThis(MoreLikeThisRequest request);
 
     /**
@@ -537,7 +540,10 @@ public interface Client extends ElasticsearchClient<Client>, Releasable {
      *
      * @param request  The more like this request
      * @param listener A listener to be notified of the result
+     *
+     * @deprecated The More Like This API will be removed in 2.0.  Instead, use the More Like This Query.
      */
+    @Deprecated
     void moreLikeThis(MoreLikeThisRequest request, ActionListener<SearchResponse> listener);
 
     /**
@@ -546,7 +552,10 @@ public interface Client extends ElasticsearchClient<Client>, Releasable {
      * @param index The index to load the document from
      * @param type  The type of the document
      * @param id    The id of the document
+     *
+     * @deprecated The More Like This API will be removed in 2.0.  Instead, use the More Like This Query.
      */
+    @Deprecated
     MoreLikeThisRequestBuilder prepareMoreLikeThis(String index, String type, String id);
 
     /**

@@ -53,7 +53,10 @@ import static org.elasticsearch.search.Scroll.readScroll;
  * @see org.elasticsearch.client.Client#moreLikeThis(MoreLikeThisRequest)
  * @see org.elasticsearch.client.Requests#moreLikeThisRequest(String)
  * @see org.elasticsearch.action.search.SearchResponse
+ * 
+ * @deprecated The More Like This API will be removed in 2.0.  Instead, use the More Like This Query.
  */
+@Deprecated
 public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> implements CompositeIndicesRequest {
 
     private String index;

@@ -32,7 +32,9 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import java.util.Map;
 
 /**
+ * @deprecated The More Like This API will be removed in 2.0.  Instead, use the More Like This Query.
  */
+@Deprecated
 public class MoreLikeThisRequestBuilder extends ActionRequestBuilder<MoreLikeThisRequest, SearchResponse, MoreLikeThisRequestBuilder, Client> {
 
     public MoreLikeThisRequestBuilder(Client client) {

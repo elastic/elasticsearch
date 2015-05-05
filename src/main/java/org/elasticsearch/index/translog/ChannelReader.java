@@ -17,11 +17,10 @@
  * under the License.
  */
 
-package org.elasticsearch.index.translog.fs;
+package org.elasticsearch.index.translog;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.index.translog.Translog;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -32,7 +31,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 /**
  * A base class for all classes that allows reading ops from translog files
  */
-public abstract class FsChannelReader implements Closeable, Comparable<FsChannelReader> {
+public abstract class ChannelReader implements Closeable, Comparable<ChannelReader> {
 
     public static final int UNKNOWN_OP_COUNT = -1;
 
@@ -41,7 +40,7 @@ public abstract class FsChannelReader implements Closeable, Comparable<FsChannel
     protected final FileChannel channel;
     protected final AtomicBoolean closed = new AtomicBoolean(false);
 
-    public FsChannelReader(long id, ChannelReference channelReference) {
+    public ChannelReader(long id, ChannelReference channelReference) {
         this.id = id;
         this.channelReference = channelReference;
         this.channel = channelReference.channel();
@@ -106,7 +105,7 @@ public abstract class FsChannelReader implements Closeable, Comparable<FsChannel
     abstract protected void readBytes(ByteBuffer buffer, long position) throws IOException;
 
     /** create snapshot for this channel */
-    abstract public FsChannelSnapshot newSnapshot();
+    abstract public ChannelSnapshot newSnapshot();
 
     @Override
     public void close() throws IOException {
@@ -125,7 +124,7 @@ public abstract class FsChannelReader implements Closeable, Comparable<FsChannel
     }
 
     @Override
-    public int compareTo(FsChannelReader o) {
+    public int compareTo(ChannelReader o) {
         return Long.compare(translogId(), o.translogId());
     }
 }

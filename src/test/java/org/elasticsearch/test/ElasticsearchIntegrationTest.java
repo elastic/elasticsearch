@@ -109,10 +109,9 @@ import org.elasticsearch.index.merge.policy.MergePolicyProvider;
 import org.elasticsearch.index.merge.policy.TieredMergePolicyProvider;
 import org.elasticsearch.index.merge.scheduler.ConcurrentMergeSchedulerProvider;
 import org.elasticsearch.index.merge.scheduler.MergeSchedulerModule;
-import org.elasticsearch.index.store.StoreModule;
 import org.elasticsearch.index.translog.TranslogService;
-import org.elasticsearch.index.translog.fs.FsTranslog;
-import org.elasticsearch.index.translog.fs.FsTranslogFile;
+import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.index.translog.TranslogFile;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.cache.query.IndicesQueryCache;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
@@ -505,7 +504,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         }
 
         if (random.nextBoolean()) {
-             builder.put(FsTranslog.INDEX_TRANSLOG_FS_TYPE, RandomPicks.randomFrom(random, FsTranslogFile.Type.values()).name());
+             builder.put(Translog.INDEX_TRANSLOG_FS_TYPE, RandomPicks.randomFrom(random, TranslogFile.Type.values()).name());
         }
 
         if (random.nextBoolean()) {

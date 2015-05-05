@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.engine;
 
-import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
 import org.apache.lucene.index.*;
 import org.apache.lucene.index.IndexWriter.IndexReaderWarmer;
@@ -50,7 +49,6 @@ import org.elasticsearch.index.merge.scheduler.MergeSchedulerProvider;
 import org.elasticsearch.index.search.nested.IncludeNestedDocsQuery;
 import org.elasticsearch.index.shard.TranslogRecoveryPerformer;
 import org.elasticsearch.index.translog.Translog;
-import org.elasticsearch.index.translog.fs.FsTranslog;
 import org.elasticsearch.indices.IndicesWarmer;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -77,7 +75,7 @@ public class InternalEngine extends Engine {
     private final ShardIndexingService indexingService;
     @Nullable
     private final IndicesWarmer warmer;
-    private final FsTranslog translog;
+    private final Translog translog;
     private final MergePolicyProvider mergePolicyProvider;
     private final MergeSchedulerProvider mergeScheduler;
 
@@ -109,7 +107,7 @@ public class InternalEngine extends Engine {
         this.versionMap = new LiveVersionMap();
         store.incRef();
         IndexWriter writer = null;
-        FsTranslog translog = null;
+        Translog translog = null;
         SearcherManager manager = null;
         boolean success = false;
         try {
@@ -129,7 +127,7 @@ public class InternalEngine extends Engine {
             try {
                 writer = createWriter();
                 indexWriter = writer;
-                translog = new FsTranslog(engineConfig.getShardId(), engineConfig.getIndesSettingService(), engineConfig.getBigArrays(), engineConfig.getTranslogPath(), engineConfig.getThreadPool());
+                translog = new Translog(engineConfig.getShardId(), engineConfig.getIndesSettingService(), engineConfig.getBigArrays(), engineConfig.getTranslogPath(), engineConfig.getThreadPool());
                 committedTranslogId = loadCommittedTranslogId(writer, translog);
             } catch (IOException e) {
                 throw new EngineCreationFailureException(shardId, "failed to create engine", e);

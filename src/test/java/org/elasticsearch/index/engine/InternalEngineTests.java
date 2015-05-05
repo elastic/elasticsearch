@@ -79,7 +79,6 @@ import org.elasticsearch.index.store.DirectoryService;
 import org.elasticsearch.index.store.DirectoryUtils;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
-import org.elasticsearch.index.translog.fs.FsTranslog;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -216,15 +215,15 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         return new Store(shardId, EMPTY_SETTINGS, directoryService, new DummyShardLock(shardId));
     }
 
-    protected FsTranslog createTranslog() throws IOException {
+    protected Translog createTranslog() throws IOException {
         return createTranslog(primaryTranslogDir);
     }
 
-    protected FsTranslog createTranslog(Path translogPath) throws IOException {
-        return new FsTranslog(shardId, EMPTY_SETTINGS, BigArrays.NON_RECYCLING_INSTANCE, translogPath);
+    protected Translog createTranslog(Path translogPath) throws IOException {
+        return new Translog(shardId, EMPTY_SETTINGS, BigArrays.NON_RECYCLING_INSTANCE, translogPath);
     }
 
-    protected FsTranslog createTranslogReplica() throws IOException {
+    protected Translog createTranslogReplica() throws IOException {
         return createTranslog(replicaTranslogDir);
     }
 
@@ -1546,7 +1545,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         // test that we can force start the engine , even if the translog is missing.
         engine.close();
         // fake a new translog, causing the engine to point to a missing one.
-        FsTranslog translog = createTranslog();
+        Translog translog = createTranslog();
         translog.markCommitted(translog.currentId());
         // we have to re-open the translog because o.w. it will complain about commit information going backwards, which is OK as we did a fake markComitted
         translog.close();

@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.translog.fs;
+package org.elasticsearch.index.translog;
 
 import org.elasticsearch.common.io.Channels;
 
@@ -28,7 +28,7 @@ import java.nio.ByteBuffer;
 /**
  * a channel reader which is fixed in length
  */
-public final class FsChannelImmutableReader extends FsChannelReader {
+public final class ChannelImmutableReader extends ChannelReader {
 
     private final int totalOperations;
     private final long length;
@@ -37,17 +37,17 @@ public final class FsChannelImmutableReader extends FsChannelReader {
      * Create a snapshot of translog file channel. The length parameter should be consistent with totalOperations and point
      * at the end of the last operation in this snapshot.
      */
-    public FsChannelImmutableReader(long id, ChannelReference channelReference, long length, int totalOperations) {
+    public ChannelImmutableReader(long id, ChannelReference channelReference, long length, int totalOperations) {
         super(id, channelReference);
         this.length = length;
         this.totalOperations = totalOperations;
     }
 
 
-    public FsChannelImmutableReader clone() {
+    public ChannelImmutableReader clone() {
         if (channelReference.tryIncRef()) {
             try {
-                FsChannelImmutableReader reader = new FsChannelImmutableReader(id, channelReference, length, totalOperations);
+                ChannelImmutableReader reader = new ChannelImmutableReader(id, channelReference, length, totalOperations);
                 channelReference.incRef(); // for the new object
                 return reader;
             } finally {
@@ -80,7 +80,7 @@ public final class FsChannelImmutableReader extends FsChannelReader {
     }
 
     @Override
-    public FsChannelSnapshot newSnapshot() {
-        return new FsChannelSnapshot(clone());
+    public ChannelSnapshot newSnapshot() {
+        return new ChannelSnapshot(clone());
     }
 }

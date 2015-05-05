@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.translog.fs;
+package org.elasticsearch.index.translog;
 
 import com.google.common.collect.Iterables;
 import org.apache.lucene.util.IOUtils;

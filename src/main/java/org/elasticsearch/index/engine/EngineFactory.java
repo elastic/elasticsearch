@@ -18,8 +18,6 @@
  */
 package org.elasticsearch.index.engine;
 
-import org.elasticsearch.index.translog.fs.FsTranslog;
-
 /**
  * Simple Engine Factory
  */

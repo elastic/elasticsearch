@@ -17,15 +17,12 @@
  * under the License.
  */
 
-package org.elasticsearch.index.translog.fs;
+package org.elasticsearch.index.translog;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.translog.Translog;
-import org.elasticsearch.index.translog.TranslogException;
-import org.elasticsearch.index.translog.TranslogStream;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -33,7 +30,7 @@ import java.nio.ByteBuffer;
 
 /**
  */
-public final class BufferingFsTranslogFile extends FsTranslogFile {
+public final class BufferingTranslogFile extends TranslogFile {
 
     private volatile int operationCounter;
     private volatile long lastPosition;
@@ -45,7 +42,7 @@ public final class BufferingFsTranslogFile extends FsTranslogFile {
     private int bufferCount;
     private WrapperOutputStream bufferOs = new WrapperOutputStream();
 
-    public BufferingFsTranslogFile(ShardId shardId, long id, ChannelReference channelReference, int bufferSize) throws IOException {
+    public BufferingTranslogFile(ShardId shardId, long id, ChannelReference channelReference, int bufferSize) throws IOException {
         super(shardId, id, channelReference);
         this.buffer = new byte[bufferSize];
         final TranslogStream stream = this.channelReference.stream();
@@ -113,11 +110,11 @@ public final class BufferingFsTranslogFile extends FsTranslogFile {
         Channels.readFromFileChannelWithEofException(channelReference.channel(), position, targetBuffer);
     }
 
-    public FsChannelImmutableReader immutableReader() throws TranslogException {
+    public ChannelImmutableReader immutableReader() throws TranslogException {
         if (channelReference.tryIncRef()) {
             try (ReleasableLock lock = writeLock.acquire()) {
                 flushBuffer();
-                FsChannelImmutableReader reader = new FsChannelImmutableReader(this.id, channelReference, lastWrittenPosition, operationCounter);
+                ChannelImmutableReader reader = new ChannelImmutableReader(this.id, channelReference, lastWrittenPosition, operationCounter);
                 channelReference.incRef(); // for new reader
                 return reader;
             } catch (Exception e) {
@@ -157,14 +154,14 @@ public final class BufferingFsTranslogFile extends FsTranslogFile {
     }
 
     @Override
-    public void reuse(FsTranslogFile other) {
-        if (!(other instanceof BufferingFsTranslogFile)) {
+    public void reuse(TranslogFile other) {
+        if (!(other instanceof BufferingTranslogFile)) {
             return;
         }
         try (ReleasableLock lock = writeLock.acquire()) {
             try {
                 flushBuffer();
-                this.buffer = ((BufferingFsTranslogFile) other).buffer;
+                this.buffer = ((BufferingTranslogFile) other).buffer;
             } catch (IOException e) {
                 throw new TranslogException(shardId, "failed to flush", e);
             }

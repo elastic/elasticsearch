@@ -91,6 +91,7 @@ public abstract class AbstractAwsTest extends ElasticsearchIntegrationTest {
     protected Settings nodeSettings(int nodeOrdinal) {
                 ImmutableSettings.Builder settings = ImmutableSettings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
+                .put("path.home", createTempDir())
                 .put("plugins." + PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, true)
                 .put(AwsModule.S3_SERVICE_TYPE_KEY, TestAwsS3Service.class)
                 .put("cloud.aws.test.random", randomInt())

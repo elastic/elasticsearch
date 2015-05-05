@@ -35,8 +35,9 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 /**
- *
+ * @deprecated The More Like This API will be removed in 2.0.  Instead, use the More Like This Query.
  */
+@Deprecated
 public class RestMoreLikeThisAction extends BaseRestHandler {
 
     @Inject

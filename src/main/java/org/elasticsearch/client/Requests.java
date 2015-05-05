@@ -181,7 +181,10 @@ public class Requests {
      * @param index The index to load the document from
      * @return The more like this request
      * @see org.elasticsearch.client.Client#moreLikeThis(org.elasticsearch.action.mlt.MoreLikeThisRequest)
+     *
+     * @deprecated The More Like This API will be removed in 2.0.  Instead, use the More Like This Query.
      */
+    @Deprecated
     public static MoreLikeThisRequest moreLikeThisRequest(String index) {
         return new MoreLikeThisRequest(index);
     }

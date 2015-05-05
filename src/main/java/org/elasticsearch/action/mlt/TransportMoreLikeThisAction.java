@@ -64,7 +64,10 @@ import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 
 /**
  * The more like this action.
+ *
+ * @deprecated The More Like This API will be removed in 2.0.  Instead, use the More Like This Query.
  */
+@Deprecated
 public class TransportMoreLikeThisAction extends HandledTransportAction<MoreLikeThisRequest, SearchResponse> {
 
     private final TransportSearchAction searchAction;

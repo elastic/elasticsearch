@@ -24,7 +24,9 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 
 /**
+ * @deprecated The More Like This API will be removed in 2.0.  Instead, use the More Like This Query.
  */
+@Deprecated
 public class MoreLikeThisAction extends ClientAction<MoreLikeThisRequest, SearchResponse, MoreLikeThisRequestBuilder> {
 
     public static final MoreLikeThisAction INSTANCE = new MoreLikeThisAction();

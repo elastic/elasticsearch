@@ -21,10 +21,9 @@ package org.elasticsearch.index.shard;
 
 import com.google.common.base.Charsets;
 import com.google.common.base.Preconditions;
+
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.index.CheckIndex;
-import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.FilteredQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitDocIdSetFilter;
 import org.apache.lucene.store.AlreadyClosedException;
@@ -563,12 +562,12 @@ public class IndexShard extends AbstractIndexShardComponent {
             types = Strings.EMPTY_ARRAY;
         }
         Query query = queryParserService.parseQuery(source).query();
-        Filter searchFilter = mapperService.searchFilter(types);
+        Query searchFilter = mapperService.searchFilter(types);
         if (searchFilter != null) {
-            query = new FilteredQuery(query, searchFilter);
+            query = Queries.filtered(query, searchFilter);
         }
 
-        Filter aliasFilter = indexAliasesService.aliasFilter(filteringAliases);
+        Query aliasFilter = indexAliasesService.aliasFilter(filteringAliases);
         BitDocIdSetFilter parentFilter = mapperService.hasNested() ? indexCache.bitsetFilterCache().getBitDocIdSetFilter(Queries.newNonNestedFilter()) : null;
         return new Engine.DeleteByQuery(query, source, filteringAliases, aliasFilter, parentFilter, origin, startTime, types);
     }

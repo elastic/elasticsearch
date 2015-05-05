@@ -28,8 +28,7 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.lucene.search.function.CombineFunction;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.query.FilterBuilders;
-import org.elasticsearch.index.query.MatchAllFilterBuilder;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.functionscore.DecayFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.gauss.GaussDecayFunctionBuilder;
@@ -46,11 +45,23 @@ import java.util.concurrent.ExecutionException;
 import static org.elasticsearch.client.Requests.indexRequest;
 import static org.elasticsearch.client.Requests.searchRequest;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.QueryBuilders.*;
-import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.*;
+import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
+import static org.elasticsearch.index.query.QueryBuilders.functionScoreQuery;
+import static org.elasticsearch.index.query.QueryBuilders.termQuery;
+import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.exponentialDecayFunction;
+import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.gaussDecayFunction;
+import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.linearDecayFunction;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
-import static org.hamcrest.Matchers.*;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertOrderedSearchHits;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.isOneOf;
+import static org.hamcrest.Matchers.lessThan;
 
 public class DecayFunctionScoreTests extends ElasticsearchIntegrationTest {
 
@@ -601,9 +612,9 @@ public class DecayFunctionScoreTests extends ElasticsearchIntegrationTest {
                 searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
                         searchSource().size(numDocs).query(
                                 functionScoreQuery(termQuery("test", "value"))
-                                        .add(new MatchAllFilterBuilder(), linearDecayFunction("date", "2013-05-30", "+15d"))
-                                        .add(new MatchAllFilterBuilder(), linearDecayFunction("geo", lonlat, "1000km"))
-                                        .add(new MatchAllFilterBuilder(), linearDecayFunction("num", numDocs, numDocs / 2.0))
+                                        .add(new MatchAllQueryBuilder(), linearDecayFunction("date", "2013-05-30", "+15d"))
+                                        .add(new MatchAllQueryBuilder(), linearDecayFunction("geo", lonlat, "1000km"))
+                                        .add(new MatchAllQueryBuilder(), linearDecayFunction("num", numDocs, numDocs / 2.0))
                                         .scoreMode("multiply").boostMode(CombineFunction.REPLACE.getName()))));
 
         SearchResponse sr = response.actionGet();
@@ -639,7 +650,7 @@ public class DecayFunctionScoreTests extends ElasticsearchIntegrationTest {
                 searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
                         searchSource()
                                 .size(numDocs)
-                                .query(functionScoreQuery(termQuery("test", "value")).add(new MatchAllFilterBuilder(),
+                                .query(functionScoreQuery(termQuery("test", "value")).add(new MatchAllQueryBuilder(),
                                         linearDecayFunction("type1.geo", lonlat, "1000km")).scoreMode("multiply"))));
         SearchResponse sr = response.actionGet();
 
@@ -660,7 +671,7 @@ public class DecayFunctionScoreTests extends ElasticsearchIntegrationTest {
         ActionFuture<SearchResponse> response = client().search(
                 searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
                         searchSource().query(
-                                functionScoreQuery(termQuery("test", "value")).add(new MatchAllFilterBuilder(),
+                                functionScoreQuery(termQuery("test", "value")).add(new MatchAllQueryBuilder(),
                                         linearDecayFunction("num", 1.0, 0.5)).scoreMode("multiply"))));
         response.actionGet();
     }
@@ -680,7 +691,7 @@ public class DecayFunctionScoreTests extends ElasticsearchIntegrationTest {
         ActionFuture<SearchResponse> response = client().search(
                 searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
                         searchSource().query(
-                                functionScoreQuery().add(new MatchAllFilterBuilder(), linearDecayFunction("num", 1, 0.5)).scoreMode(
+                                functionScoreQuery().add(new MatchAllQueryBuilder(), linearDecayFunction("num", 1, 0.5)).scoreMode(
                                         "multiply"))));
         response.actionGet();
     }
@@ -911,12 +922,12 @@ public class DecayFunctionScoreTests extends ElasticsearchIntegrationTest {
 
         // next test java client
         try {
-            client().prepareSearch("t").setQuery(QueryBuilders.functionScoreQuery(FilterBuilders.matchAllFilter(), null)).get();
+            client().prepareSearch("t").setQuery(QueryBuilders.functionScoreQuery(QueryBuilders.matchAllQuery(), null)).get();
         } catch (IllegalArgumentException failure) {
             assertTrue(failure.toString().contains("function must not be null"));
         }
         try {
-            client().prepareSearch("t").setQuery(QueryBuilders.functionScoreQuery().add(FilterBuilders.matchAllFilter(), null)).get();
+            client().prepareSearch("t").setQuery(QueryBuilders.functionScoreQuery().add(QueryBuilders.matchAllQuery(), null)).get();
         } catch (IllegalArgumentException failure) {
             assertTrue(failure.toString().contains("function must not be null"));
         }

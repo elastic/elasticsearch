@@ -25,7 +25,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.query.FilterBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.highlight.HighlightBuilder;
@@ -141,14 +140,6 @@ public class PercolateRequestBuilder extends BroadcastOperationRequestBuilder<Pe
      */
     public PercolateRequestBuilder setPercolateQuery(QueryBuilder queryBuilder) {
         sourceBuilder().setQueryBuilder(queryBuilder);
-        return this;
-    }
-
-    /**
-     * Delegates to {@link PercolateSourceBuilder#setFilterBuilder(FilterBuilder)}
-     */
-    public PercolateRequestBuilder setPercolateFilter(FilterBuilder filterBuilder) {
-        sourceBuilder().setFilterBuilder(filterBuilder);
         return this;
     }
 

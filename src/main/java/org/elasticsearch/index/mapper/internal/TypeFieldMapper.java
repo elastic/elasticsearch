@@ -25,10 +25,8 @@ import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.QueryWrapperFilter;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
@@ -41,8 +39,8 @@ import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.InternalMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.MergeMappingException;
+import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.RootMapper;
 import org.elasticsearch.index.mapper.Uid;
@@ -133,15 +131,10 @@ public class TypeFieldMapper extends AbstractFieldMapper<String> implements Inte
 
     @Override
     public Query termQuery(Object value, @Nullable QueryParseContext context) {
-        return new ConstantScoreQuery(termFilter(value, context));
-    }
-
-    @Override
-    public Filter termFilter(Object value, @Nullable QueryParseContext context) {
         if (fieldType.indexOptions() == IndexOptions.NONE) {
-            return new QueryWrapperFilter(new PrefixQuery(new Term(UidFieldMapper.NAME, Uid.typePrefixAsBytes(BytesRefs.toBytesRef(value)))));
+            return new ConstantScoreQuery(new PrefixQuery(new Term(UidFieldMapper.NAME, Uid.typePrefixAsBytes(BytesRefs.toBytesRef(value)))));
         }
-        return new QueryWrapperFilter(new TermQuery(names().createIndexNameTerm(BytesRefs.toBytesRef(value))));
+        return new ConstantScoreQuery(new TermQuery(names().createIndexNameTerm(BytesRefs.toBytesRef(value))));
     }
 
     @Override

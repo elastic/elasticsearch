@@ -20,7 +20,7 @@
 
 package org.elasticsearch.search.aggregations.bucket.significant;
 
-import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.Query;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchParseException;
@@ -43,11 +43,11 @@ public class SignificantTermsParametersParser extends AbstractTermsParametersPar
         this.significanceHeuristicParserMapper = significanceHeuristicParserMapper;
     }
 
-    public Filter getFilter() {
+    public Query getFilter() {
         return filter;
     }
 
-    private Filter filter = null;
+    private Query filter = null;
 
     private SignificanceHeuristic significanceHeuristic;
 
@@ -66,7 +66,7 @@ public class SignificantTermsParametersParser extends AbstractTermsParametersPar
             if (significanceHeuristicParser != null) {
                 significanceHeuristic = significanceHeuristicParser.parse(parser);
             } else if (BACKGROUND_FILTER.match(currentFieldName)) {
-                filter = context.queryParserService().parseInnerFilter(parser).filter();
+                filter = context.queryParserService().parseInnerFilter(parser).query();
             } else {
                 throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: ["
                         + currentFieldName + "].", parser.getTokenLocation());

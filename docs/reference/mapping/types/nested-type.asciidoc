@@ -64,8 +64,7 @@ By keeping each nested object separate, the association between the
 smith` would *not* match this document.
 
 Searching on nested docs can be done using either the
-<<query-dsl-nested-query,nested query>> or
-<<query-dsl-nested-filter,nested filter>>.
+<<query-dsl-nested-query,nested query>>.
 
 ==== Mapping
 

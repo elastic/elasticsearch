@@ -20,7 +20,7 @@
 package org.elasticsearch.index.query;
 
 import com.google.common.collect.ImmutableMap;
-import org.apache.lucene.search.Filter;
+
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.lucene.search.Queries;
 
@@ -32,9 +32,9 @@ import org.elasticsearch.common.lucene.search.Queries;
 public class ParsedQuery {
 
     private final Query query;
-    private final ImmutableMap<String, Filter> namedFilters;
+    private final ImmutableMap<String, Query> namedFilters;
 
-    public ParsedQuery(Query query, ImmutableMap<String, Filter> namedFilters) {
+    public ParsedQuery(Query query, ImmutableMap<String, Query> namedFilters) {
         this.query = query;
         this.namedFilters = namedFilters;
     }
@@ -56,11 +56,11 @@ public class ParsedQuery {
         return this.query;
     }
 
-    public ImmutableMap<String, Filter> namedFilters() {
+    public ImmutableMap<String, Query> namedFilters() {
         return this.namedFilters;
     }
 
     public static ParsedQuery parsedMatchAllQuery() {
-        return new ParsedQuery(Queries.newMatchAllQuery(), ImmutableMap.<String, Filter>of());
+        return new ParsedQuery(Queries.newMatchAllQuery(), ImmutableMap.<String, Query>of());
     }
 }

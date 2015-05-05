@@ -43,8 +43,8 @@ import org.elasticsearch.common.geo.builders.PolygonBuilder;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.query.FilterBuilders;
-import org.elasticsearch.index.query.GeohashCellFilter;
+import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.GeohashCellQuery;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
@@ -59,7 +59,7 @@ import java.util.*;
 import java.util.zip.GZIPInputStream;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.FilterBuilders.*;
+import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.*;
@@ -254,7 +254,7 @@ public class GeoFilterTests extends ElasticsearchIntegrationTest {
         // Point in polygon
         SearchResponse result = client().prepareSearch()
                 .setQuery(matchAllQuery())
-                .setPostFilter(FilterBuilders.geoIntersectionFilter("area", ShapeBuilder.newPoint(3, 3)))
+                .setPostFilter(QueryBuilders.geoIntersectionQuery("area", ShapeBuilder.newPoint(3, 3)))
                 .execute().actionGet();
         assertHitCount(result, 1);
         assertFirstHit(result, hasId("1"));
@@ -262,7 +262,7 @@ public class GeoFilterTests extends ElasticsearchIntegrationTest {
         // Point in polygon hole
         result = client().prepareSearch()
                 .setQuery(matchAllQuery())
-                .setPostFilter(FilterBuilders.geoIntersectionFilter("area", ShapeBuilder.newPoint(4.5, 4.5)))
+                .setPostFilter(QueryBuilders.geoIntersectionQuery("area", ShapeBuilder.newPoint(4.5, 4.5)))
                 .execute().actionGet();
         assertHitCount(result, 0);
 
@@ -273,7 +273,7 @@ public class GeoFilterTests extends ElasticsearchIntegrationTest {
         // Point on polygon border
         result = client().prepareSearch()
                 .setQuery(matchAllQuery())
-                .setPostFilter(FilterBuilders.geoIntersectionFilter("area", ShapeBuilder.newPoint(10.0, 5.0)))
+                .setPostFilter(QueryBuilders.geoIntersectionQuery("area", ShapeBuilder.newPoint(10.0, 5.0)))
                 .execute().actionGet();
         assertHitCount(result, 1);
         assertFirstHit(result, hasId("1"));
@@ -281,7 +281,7 @@ public class GeoFilterTests extends ElasticsearchIntegrationTest {
         // Point on hole border
         result = client().prepareSearch()
                 .setQuery(matchAllQuery())
-                .setPostFilter(FilterBuilders.geoIntersectionFilter("area", ShapeBuilder.newPoint(5.0, 2.0)))
+                .setPostFilter(QueryBuilders.geoIntersectionQuery("area", ShapeBuilder.newPoint(5.0, 2.0)))
                 .execute().actionGet();
         assertHitCount(result, 1);
         assertFirstHit(result, hasId("1"));
@@ -290,14 +290,14 @@ public class GeoFilterTests extends ElasticsearchIntegrationTest {
             // Point not in polygon
             result = client().prepareSearch()
                     .setQuery(matchAllQuery())
-                    .setPostFilter(FilterBuilders.geoDisjointFilter("area", ShapeBuilder.newPoint(3, 3)))
+                    .setPostFilter(QueryBuilders.geoDisjointQuery("area", ShapeBuilder.newPoint(3, 3)))
                     .execute().actionGet();
             assertHitCount(result, 0);
 
             // Point in polygon hole
             result = client().prepareSearch()
                     .setQuery(matchAllQuery())
-                    .setPostFilter(FilterBuilders.geoDisjointFilter("area", ShapeBuilder.newPoint(4.5, 4.5)))
+                    .setPostFilter(QueryBuilders.geoDisjointQuery("area", ShapeBuilder.newPoint(4.5, 4.5)))
                     .execute().actionGet();
             assertHitCount(result, 1);
             assertFirstHit(result, hasId("1"));
@@ -318,7 +318,7 @@ public class GeoFilterTests extends ElasticsearchIntegrationTest {
         // re-check point on polygon hole
         result = client().prepareSearch()
                 .setQuery(matchAllQuery())
-                .setPostFilter(FilterBuilders.geoIntersectionFilter("area", ShapeBuilder.newPoint(4.5, 4.5)))
+                .setPostFilter(QueryBuilders.geoIntersectionQuery("area", ShapeBuilder.newPoint(4.5, 4.5)))
                 .execute().actionGet();
         assertHitCount(result, 1);
         assertFirstHit(result, hasId("2"));
@@ -338,7 +338,7 @@ public class GeoFilterTests extends ElasticsearchIntegrationTest {
 
             result = client().prepareSearch()
                     .setQuery(matchAllQuery())
-                    .setPostFilter(FilterBuilders.geoWithinFilter("area", builder))
+                    .setPostFilter(QueryBuilders.geoWithinQuery("area", builder))
                     .execute().actionGet();
             assertHitCount(result, 2);
         }
@@ -364,25 +364,25 @@ public class GeoFilterTests extends ElasticsearchIntegrationTest {
 
         result = client().prepareSearch()
                 .setQuery(matchAllQuery())
-                .setPostFilter(FilterBuilders.geoIntersectionFilter("area", ShapeBuilder.newPoint(174, -4)))
+                .setPostFilter(QueryBuilders.geoIntersectionQuery("area", ShapeBuilder.newPoint(174, -4)))
                 .execute().actionGet();
         assertHitCount(result, 1);
 
         result = client().prepareSearch()
                 .setQuery(matchAllQuery())
-                .setPostFilter(FilterBuilders.geoIntersectionFilter("area", ShapeBuilder.newPoint(-174, -4)))
+                .setPostFilter(QueryBuilders.geoIntersectionQuery("area", ShapeBuilder.newPoint(-174, -4)))
                 .execute().actionGet();
         assertHitCount(result, 1);
 
         result = client().prepareSearch()
                 .setQuery(matchAllQuery())
-                .setPostFilter(FilterBuilders.geoIntersectionFilter("area", ShapeBuilder.newPoint(180, -4)))
+                .setPostFilter(QueryBuilders.geoIntersectionQuery("area", ShapeBuilder.newPoint(180, -4)))
                 .execute().actionGet();
         assertHitCount(result, 0);
 
         result = client().prepareSearch()
                 .setQuery(matchAllQuery())
-                .setPostFilter(FilterBuilders.geoIntersectionFilter("area", ShapeBuilder.newPoint(180, -6)))
+                .setPostFilter(QueryBuilders.geoIntersectionQuery("area", ShapeBuilder.newPoint(180, -6)))
                 .execute().actionGet();
         assertHitCount(result, 1);
     }
@@ -432,7 +432,7 @@ public class GeoFilterTests extends ElasticsearchIntegrationTest {
         SearchResponse world = client().prepareSearch().addField("pin").setQuery(
                 filteredQuery(
                         matchAllQuery(),
-                        geoBoundingBoxFilter("pin")
+                        geoBoundingBoxQuery("pin")
                                 .topLeft(90, -179.99999)
                                 .bottomRight(-90, 179.99999))
         ).execute().actionGet();
@@ -442,7 +442,7 @@ public class GeoFilterTests extends ElasticsearchIntegrationTest {
         SearchResponse distance = client().prepareSearch().addField("pin").setQuery(
                 filteredQuery(
                         matchAllQuery(),
-                        geoDistanceFilter("pin").distance("425km").point(51.11, 9.851)
+                        geoDistanceQuery("pin").distance("425km").point(51.11, 9.851)
                 )).execute().actionGet();
 
         assertHitCount(distance, 5);
@@ -495,25 +495,25 @@ public class GeoFilterTests extends ElasticsearchIntegrationTest {
 
         client().admin().indices().prepareRefresh("locations").execute().actionGet();
 
-        Map<GeohashCellFilter.Builder, Long> expectedCounts = new HashMap<>();
-        Map<GeohashCellFilter.Builder, String[]> expectedResults = new HashMap<>();
+        Map<GeohashCellQuery.Builder, Long> expectedCounts = new HashMap<>();
+        Map<GeohashCellQuery.Builder, String[]> expectedResults = new HashMap<>();
 
-        expectedCounts.put(geoHashCellFilter("pin", geohash, false), 1L);
+        expectedCounts.put(geoHashCellQuery("pin", geohash, false), 1L);
 
-        expectedCounts.put(geoHashCellFilter("pin", geohash.substring(0, geohash.length() - 1), true), 2L + neighbors.size() + parentNeighbors.size());
+        expectedCounts.put(geoHashCellQuery("pin", geohash.substring(0, geohash.length() - 1), true), 2L + neighbors.size() + parentNeighbors.size());
 
         // Testing point formats and precision
         GeoPoint point = GeoHashUtils.decode(geohash);
         int precision = geohash.length();
 
-        expectedCounts.put(geoHashCellFilter("pin", point).neighbors(true).precision(precision), 1L + neighbors.size());
+        expectedCounts.put(geoHashCellQuery("pin", point).neighbors(true).precision(precision), 1L + neighbors.size());
 
         logger.info("random testing of setting");
 
-        List<GeohashCellFilter.Builder> filterBuilders = new ArrayList<>(expectedCounts.keySet());
+        List<GeohashCellQuery.Builder> filterBuilders = new ArrayList<>(expectedCounts.keySet());
         for (int j = filterBuilders.size() * 2 * randomIntBetween(1, 5); j > 0; j--) {
             Collections.shuffle(filterBuilders, getRandom());
-            for (GeohashCellFilter.Builder builder : filterBuilders) {
+            for (GeohashCellQuery.Builder builder : filterBuilders) {
                 try {
                     long expectedCount = expectedCounts.get(builder);
                     SearchResponse response = client().prepareSearch("locations").setQuery(QueryBuilders.matchAllQuery())

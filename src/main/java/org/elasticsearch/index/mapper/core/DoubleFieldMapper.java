@@ -47,14 +47,12 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.NumericDoubleAnalyzer;
 import org.elasticsearch.index.fielddata.FieldDataType;
-import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.MergeMappingException;
+import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.index.search.NumericRangeFieldDataFilter;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 
 import java.io.IOException;
@@ -200,24 +198,8 @@ public class DoubleFieldMapper extends NumberFieldMapper<Double> {
                 includeLower, includeUpper);
     }
 
-    @Override
-    public Filter rangeFilter(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
-        return new QueryWrapperFilter(NumericRangeQuery.newDoubleRange(names.indexName(), precisionStep,
-                lowerTerm == null ? null : parseDoubleValue(lowerTerm),
-                upperTerm == null ? null : parseDoubleValue(upperTerm),
-                includeLower, includeUpper));
-    }
-
     public Filter rangeFilter(Double lowerTerm, Double upperTerm, boolean includeLower, boolean includeUpper) {
         return new QueryWrapperFilter(NumericRangeQuery.newDoubleRange(names.indexName(), precisionStep, lowerTerm, upperTerm, includeLower, includeUpper));
-    }
-
-    @Override
-    public Filter rangeFilter(QueryParseContext parseContext, Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
-        return NumericRangeFieldDataFilter.newDoubleRange((IndexNumericFieldData) parseContext.getForField(this),
-                lowerTerm == null ? null : parseDoubleValue(lowerTerm),
-                upperTerm == null ? null : parseDoubleValue(upperTerm),
-                includeLower, includeUpper);
     }
 
     @Override

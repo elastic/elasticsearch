@@ -26,7 +26,6 @@ import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.joda.time.DateTime;
@@ -210,7 +209,7 @@ public class ExplainActionTests extends ElasticsearchIntegrationTest {
     public void testExplainWithFilteredAlias() throws Exception {
         assertAcked(prepareCreate("test")
                 .addMapping("test", "field2", "type=string")
-                .addAlias(new Alias("alias1").filter(FilterBuilders.termFilter("field2", "value2"))));
+                .addAlias(new Alias("alias1").filter(QueryBuilders.termQuery("field2", "value2"))));
         ensureGreen("test");
 
         client().prepareIndex("test", "test", "1").setSource("field1", "value1", "field2", "value1").get();
@@ -227,7 +226,7 @@ public class ExplainActionTests extends ElasticsearchIntegrationTest {
     public void testExplainWithFilteredAliasFetchSource() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test")
                 .addMapping("test", "field2", "type=string")
-                .addAlias(new Alias("alias1").filter(FilterBuilders.termFilter("field2", "value2"))));
+                .addAlias(new Alias("alias1").filter(QueryBuilders.termQuery("field2", "value2"))));
         ensureGreen("test");
 
         client().prepareIndex("test", "test", "1").setSource("field1", "value1", "field2", "value1").get();

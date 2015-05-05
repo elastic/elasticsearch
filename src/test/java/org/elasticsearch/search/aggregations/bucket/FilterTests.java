@@ -22,8 +22,8 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.query.AndFilterBuilder;
-import org.elasticsearch.index.query.FilterBuilder;
+import org.elasticsearch.index.query.AndQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.metrics.avg.Avg;
@@ -35,9 +35,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.FilterBuilders.matchAllFilter;
-import static org.elasticsearch.index.query.FilterBuilders.termFilter;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.avg;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.filter;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
@@ -95,7 +94,7 @@ public class FilterTests extends ElasticsearchIntegrationTest {
     @Test
     public void simple() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(filter("tag1").filter(termFilter("tag", "tag1")))
+                .addAggregation(filter("tag1").filter(termQuery("tag", "tag1")))
                 .execute().actionGet();
 
         assertSearchResponse(response);
@@ -111,7 +110,7 @@ public class FilterTests extends ElasticsearchIntegrationTest {
     // https://github.com/elasticsearch/elasticsearch/issues/8438
     @Test
     public void emptyFilterDeclarations() throws Exception {
-        FilterBuilder emptyFilter = new AndFilterBuilder();
+        QueryBuilder emptyFilter = new AndQueryBuilder();
         SearchResponse response = client().prepareSearch("idx").addAggregation(filter("tag1").filter(emptyFilter)).execute().actionGet();
 
         assertSearchResponse(response);
@@ -125,7 +124,7 @@ public class FilterTests extends ElasticsearchIntegrationTest {
     public void withSubAggregation() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(filter("tag1")
-                        .filter(termFilter("tag", "tag1"))
+                        .filter(termQuery("tag", "tag1"))
                         .subAggregation(avg("avg_value").field("value")))
                 .execute().actionGet();
 
@@ -156,7 +155,7 @@ public class FilterTests extends ElasticsearchIntegrationTest {
         try {
             client().prepareSearch("idx")
                     .addAggregation(filter("tag1")
-                            .filter(termFilter("tag", "tag1"))
+                            .filter(termQuery("tag", "tag1"))
                             .subAggregation(avg("avg_value")))
                     .execute().actionGet();
 
@@ -172,7 +171,7 @@ public class FilterTests extends ElasticsearchIntegrationTest {
         SearchResponse searchResponse = client().prepareSearch("empty_bucket_idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(histogram("histo").field("value").interval(1l).minDocCount(0)
-                        .subAggregation(filter("filter").filter(matchAllFilter())))
+                        .subAggregation(filter("filter").filter(matchAllQuery())))
                 .execute().actionGet();
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(2l));

@@ -157,7 +157,7 @@ can be specified as a whole number representing time in milliseconds, or as a ti
 === Distance Units
 
 Wherever distances need to be specified, such as the `distance` parameter in
-the <<query-dsl-geo-distance-filter>>), the default unit if none is specified is
+the <<query-dsl-geo-distance-query>>), the default unit if none is specified is
 the meter. Distances can be specified in other units, such as `"1km"` or
 `"2mi"` (2 miles).
 
@@ -174,7 +174,7 @@ Centimeter::    `cm` or `centimeters`
 Millimeter::    `mm` or `millimeters`
 Nautical mile:: `NM`, `nmi` or `nauticalmiles`
 
-The `precision` parameter in the <<query-dsl-geohash-cell-filter>> accepts
+The `precision` parameter in the <<query-dsl-geohash-cell-query>> accepts
 distances with the above units, but if no unit is specified, then the
 precision is interpreted as the length of the geohash.
 

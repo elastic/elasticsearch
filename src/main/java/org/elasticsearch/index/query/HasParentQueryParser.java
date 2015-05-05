@@ -21,9 +21,9 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.FilteredQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryWrapperFilter;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
@@ -46,6 +46,7 @@ import java.util.Set;
 public class HasParentQueryParser implements QueryParser {
 
     public static final String NAME = "has_parent";
+    private static final ParseField QUERY_FIELD = new ParseField("query", "filter");
 
     private final InnerHitsQueryParserHelper innerHitsQueryParserHelper;
 
@@ -81,7 +82,7 @@ public class HasParentQueryParser implements QueryParser {
                 // type may not have been extracted yet, so use the
                 // XContentStructure.<type> facade to parse if available,
                 // or delay parsing if not.
-                if ("query".equals(currentFieldName)) {
+                if (QUERY_FIELD.match(currentFieldName)) {
                     iq = new XContentStructure.InnerQuery(parseContext, parentType == null ? null : new String[] {parentType});
                     queryFound = true;
                 } else if ("inner_hits".equals(currentFieldName)) {
@@ -172,7 +173,7 @@ public class HasParentQueryParser implements QueryParser {
             throw new QueryParsingException(parseContext, "[has_parent] no _parent field configured");
         }
 
-        Filter parentFilter = null;
+        Query parentFilter = null;
         if (parentTypes.size() == 1) {
             DocumentMapper documentMapper = parseContext.mapperService().documentMapper(parentTypes.iterator().next());
             if (documentMapper != null) {
@@ -194,7 +195,7 @@ public class HasParentQueryParser implements QueryParser {
         }
 
         // wrap the query with type query
-        innerQuery = new FilteredQuery(innerQuery, parentDocMapper.typeFilter());
+        innerQuery = Queries.filtered(innerQuery, parentDocMapper.typeFilter());
         Filter childrenFilter = new QueryWrapperFilter(Queries.not(parentFilter));
         if (score) {
             return new ParentQuery(parentChildIndexFieldData, innerQuery, parentDocMapper.type(), childrenFilter);

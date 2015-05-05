@@ -22,8 +22,13 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -100,5 +105,33 @@ public class FlushTest extends ElasticsearchIntegrationTest {
                 assertThat(shardSyncId, equalTo(syncId));
         }
 
+        // now, start new node and relocate a shard there and see if sync id still there
+        String newNodeName = internalCluster().startNode();
+        ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
+        ShardRouting shardRouting = clusterState.getRoutingTable().index("test").shard(0).iterator().next();
+        String currentNodeName = clusterState.nodes().resolveNode(shardRouting.currentNodeId()).name();
+        assertFalse(currentNodeName.equals(newNodeName));
+        internalCluster().client().admin().cluster().prepareReroute().add(new MoveAllocationCommand(new ShardId("test", 0), currentNodeName, newNodeName)).get();
+
+        client().admin().cluster().prepareHealth()
+                .setWaitForRelocatingShards(0)
+                .get();
+        indexStats = client().admin().indices().prepareStats("test").get().getIndex("test");
+        for (ShardStats shardStats : indexStats.getShards()) {
+            assertNotNull(shardStats.getCommitStats().getUserData().get(Engine.SYNC_COMMIT_ID));
+        }
+
+        client().admin().indices().prepareUpdateSettings("test").setSettings(ImmutableSettings.builder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0).build()).get();
+        ensureGreen("test");
+        indexStats = client().admin().indices().prepareStats("test").get().getIndex("test");
+        for (ShardStats shardStats : indexStats.getShards()) {
+            assertNotNull(shardStats.getCommitStats().getUserData().get(Engine.SYNC_COMMIT_ID));
+        }
+        client().admin().indices().prepareUpdateSettings("test").setSettings(ImmutableSettings.builder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, internalCluster().numDataNodes() -1).build()).get();
+        ensureGreen("test");
+        indexStats = client().admin().indices().prepareStats("test").get().getIndex("test");
+        for (ShardStats shardStats : indexStats.getShards()) {
+            assertNotNull(shardStats.getCommitStats().getUserData().get(Engine.SYNC_COMMIT_ID));
+        }
     }
 }

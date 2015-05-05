@@ -90,6 +90,15 @@ public class Bootstrap {
         if (mlockAll) {
             Natives.tryMlockall();
         }
+        
+        // check if the user is running as root, and bail
+        if (Natives.definitelyRunningAsRoot()) {
+            if (Boolean.parseBoolean(System.getProperty("es.insecure.allow.root"))) {
+                Loggers.getLogger(Bootstrap.class).warn("running as ROOT user. this is a bad idea!");
+            } else {
+                throw new RuntimeException("don't run elasticsearch as root.");
+            }
+        }
 
         // listener for windows close event
         if (ctrlHandler) {

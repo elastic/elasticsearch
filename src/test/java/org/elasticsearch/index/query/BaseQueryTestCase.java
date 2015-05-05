@@ -73,6 +73,7 @@ public abstract class BaseQueryTestCase<QB extends BaseQueryBuilder & Streamable
     public static void init() throws IOException {
         Settings settings = ImmutableSettings.settingsBuilder()
                 .put("name", BaseQueryTestCase.class.toString())
+                .put("path.home", createTempDir())
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .build();
 

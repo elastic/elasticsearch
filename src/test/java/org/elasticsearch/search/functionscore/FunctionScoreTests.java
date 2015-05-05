@@ -172,7 +172,7 @@ public class FunctionScoreTests extends ElasticsearchIntegrationTest {
         SearchResponse responseWithWeights = client().search(
                 searchRequest().source(
                         searchSource().query(
-                                functionScoreQuery(termFilter(TEXT_FIELD, "value").cache(false))
+                                functionScoreQuery(termFilter(TEXT_FIELD, "value"))
                                         .add(gaussDecayFunction(GEO_POINT_FIELD, new GeoPoint(10, 20), "1000km"))
                                         .add(fieldValueFactorFunction(DOUBLE_FIELD).modifier(FieldValueFactorFunction.Modifier.LN).setWeight(2))
                                         .add(scriptFunction("_index['" + TEXT_FIELD + "']['value'].tf()").setWeight(3))
@@ -184,7 +184,7 @@ public class FunctionScoreTests extends ElasticsearchIntegrationTest {
         responseWithWeights = client().search(
                 searchRequest().source(
                         searchSource().query(
-                                functionScoreQuery(termFilter(TEXT_FIELD, "value").cache(false))
+                                functionScoreQuery(termFilter(TEXT_FIELD, "value"))
                                         .add(weightFactorFunction(4.0f))
                         ).explain(true))).actionGet();
         assertThat(responseWithWeights.getHits().getAt(0).getExplanation().toString(),

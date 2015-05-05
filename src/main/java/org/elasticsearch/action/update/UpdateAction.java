@@ -19,12 +19,12 @@
 
 package org.elasticsearch.action.update;
 
-import org.elasticsearch.action.ClientAction;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.action.Action;
+import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  */
-public class UpdateAction extends ClientAction<UpdateRequest, UpdateResponse, UpdateRequestBuilder> {
+public class UpdateAction extends Action<UpdateRequest, UpdateResponse, UpdateRequestBuilder> {
 
     public static final UpdateAction INSTANCE = new UpdateAction();
     public static final String NAME = "indices:data/write/update";
@@ -39,7 +39,7 @@ public class UpdateAction extends ClientAction<UpdateRequest, UpdateResponse, Up
     }
 
     @Override
-    public UpdateRequestBuilder newRequestBuilder(Client client) {
-        return new UpdateRequestBuilder(client);
+    public UpdateRequestBuilder newRequestBuilder(ElasticsearchClient client) {
+        return new UpdateRequestBuilder(client, this);
     }
 }

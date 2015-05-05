@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.engine;
 
+import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
 import org.apache.lucene.index.*;
 import org.apache.lucene.index.IndexWriter.IndexReaderWarmer;
@@ -31,9 +32,7 @@ import org.apache.lucene.util.InfoStream;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.routing.DjbHashFunction;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.LoggerInfoStream;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
@@ -51,7 +50,7 @@ import org.elasticsearch.index.merge.scheduler.MergeSchedulerProvider;
 import org.elasticsearch.index.search.nested.IncludeNestedDocsQuery;
 import org.elasticsearch.index.shard.TranslogRecoveryPerformer;
 import org.elasticsearch.index.translog.Translog;
-import org.elasticsearch.index.translog.TruncatedTranslogException;
+import org.elasticsearch.index.translog.fs.FsTranslog;
 import org.elasticsearch.indices.IndicesWarmer;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -61,7 +60,6 @@ import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -79,7 +77,7 @@ public class InternalEngine extends Engine {
     private final ShardIndexingService indexingService;
     @Nullable
     private final IndicesWarmer warmer;
-    private final Translog translog;
+    private final FsTranslog translog;
     private final MergePolicyProvider mergePolicyProvider;
     private final MergeSchedulerProvider mergeScheduler;
 
@@ -94,14 +92,12 @@ public class InternalEngine extends Engine {
     private final Lock flushLock = new ReentrantLock();
     private final ReentrantLock optimizeLock = new ReentrantLock();
 
-    protected final FlushingRecoveryCounter onGoingRecoveries;
     // A uid (in the form of BytesRef) to the version map
     // we use the hashed variant since we iterate over it and check removal and additions on existing keys
     private final LiveVersionMap versionMap;
 
     private final Object[] dirtyLocks;
 
-    private final AtomicLong translogIdGenerator = new AtomicLong();
     private final AtomicBoolean versionMapRefreshPending = new AtomicBoolean();
 
     private volatile SegmentInfos lastCommittedSegmentInfos;
@@ -113,14 +109,13 @@ public class InternalEngine extends Engine {
         this.versionMap = new LiveVersionMap();
         store.incRef();
         IndexWriter writer = null;
+        FsTranslog translog = null;
         SearcherManager manager = null;
         boolean success = false;
         try {
-            this.onGoingRecoveries = new FlushingRecoveryCounter(this, store, logger);
             this.lastDeleteVersionPruneTimeMSec = engineConfig.getThreadPool().estimatedTimeInMillis();
             this.indexingService = engineConfig.getIndexingService();
             this.warmer = engineConfig.getWarmer();
-            this.translog = engineConfig.getTranslog();
             this.mergePolicyProvider = engineConfig.getMergePolicyProvider();
             this.mergeScheduler = engineConfig.getMergeScheduler();
             this.dirtyLocks = new Object[engineConfig.getIndexConcurrency() * 50]; // we multiply it to have enough...
@@ -130,14 +125,16 @@ public class InternalEngine extends Engine {
 
             throttle = new IndexThrottle();
             this.searcherFactory = new SearchFactory(engineConfig);
-            final Tuple<Long, Long> translogId; // nextTranslogId, currentTranslogId
+            final Long committedTranslogId;
             try {
                 writer = createWriter();
                 indexWriter = writer;
-                translogId = loadTranslogIds(writer, translog);
+                translog = new FsTranslog(engineConfig.getShardId(), engineConfig.getIndesSettingService(), engineConfig.getBigArrays(), engineConfig.getTranslogPath(), engineConfig.getThreadPool());
+                committedTranslogId = loadCommittedTranslogId(writer, translog);
             } catch (IOException e) {
                 throw new EngineCreationFailureException(shardId, "failed to create engine", e);
             }
+            this.translog = translog;
             manager = createSearcherManager();
             this.searcherManager = manager;
             this.versionMap.setManager(searcherManager);
@@ -145,15 +142,12 @@ public class InternalEngine extends Engine {
             this.mergeSchedulerListener = new MergeSchedulerListener();
             this.mergeScheduler.addListener(mergeSchedulerListener);
             this.mergeScheduler.addFailureListener(mergeSchedulerFailureListener);
-            final TranslogRecoveryPerformer transformer = engineConfig.getTranslogRecoveryPerformer();
             try {
-                long nextTranslogID = translogId.v2();
-                translog.newTranslog(nextTranslogID);
-                translogIdGenerator.set(nextTranslogID);
-                if (translogId.v1() != null && skipInitialTranslogRecovery == false) {
-                    recoverFromTranslog(translogId.v1(), transformer);
+                if (skipInitialTranslogRecovery) {
+                    // make sure we point at the latest translog from now on..
+                    commitIndexWriter(writer, translog.currentId());
                 } else {
-                    flush(true, true);
+                    recoverFromTranslog(engineConfig, committedTranslogId);
                 }
             } catch (IOException | EngineException ex) {
                 throw new EngineCreationFailureException(shardId, "failed to recover from translog", ex);
@@ -161,7 +155,7 @@ public class InternalEngine extends Engine {
             success = true;
         } finally {
             if (success == false) {
-                IOUtils.closeWhileHandlingException(writer, manager);
+                IOUtils.closeWhileHandlingException(writer, translog, manager);
                 versionMap.clear();
                 if (isClosed.get() == false) {
                     // failure we need to dec the store reference
@@ -172,24 +166,71 @@ public class InternalEngine extends Engine {
         logger.trace("created new InternalEngine");
     }
 
+    @Override
+    public Translog getTranslog() {
+        ensureOpen();
+        return translog;
+    }
+
+    protected void recoverFromTranslog(EngineConfig engineConfig, Long committedTranslogId) throws IOException {
+        if (committedTranslogId != null) {
+            try {
+                // trim unneeded files
+                translog.markCommitted(committedTranslogId);
+            } catch (FileNotFoundException ex) {
+                if (engineConfig.getIgnoreUnknownTranslog()) {
+                    logger.warn("ignoring committed translog id [{}] ([{}] set to true)", committedTranslogId,
+                            EngineConfig.INDEX_IGNORE_UNKNOWN_TRANSLOG);
+                } else {
+                    throw ex;
+                }
+            }
+        }
+        int opsRecovered = 0;
+        final TranslogRecoveryPerformer handler = engineConfig.getTranslogRecoveryPerformer();
+        try (Translog.Snapshot snapshot = translog.newSnapshot()) {
+            Translog.Operation operation;
+            while ((operation = snapshot.next()) != null) {
+                try {
+                    handler.performRecoveryOperation(this, operation);
+                    opsRecovered++;
+                } catch (ElasticsearchException e) {
+                    if (e.status() == RestStatus.BAD_REQUEST) {
+                        // mainly for MapperParsingException and Failure to detect xcontent
+                        logger.info("ignoring recovery of a corrupt translog entry", e);
+                    } else {
+                        throw e;
+                    }
+                }
+            }
+        } catch (Throwable e) {
+            throw new EngineException(shardId, "failed to recover from translog", e);
+        }
+        // flush if we recovered something or if we have references to older translogs
+        // note: if opsRecovered == 0 and we have older translogs it means they are corrupted or 0 length.
+        if (opsRecovered > 0 ||
+                (committedTranslogId != null && translog.currentId() != committedTranslogId)) {
+            logger.trace("flushing post recovery from translog. ops recovered [{}]. committed translog id [{}]. current id [{}]",
+                    opsRecovered, committedTranslogId, translog.currentId());
+            flush(true, true);
+        }
+    }
+
     /**
-     * Reads the current stored translog ID (v1) from the IW commit data and generates a new/next translog ID (v2)
-     * from the largest present translog ID. If there is no stored translog ID v1 is <code>null</code>
+     * Reads the current stored translog ID from the IW commit data. If the id is not found, recommits the current
+     * translog id into lucene and returns null.
      */
-    private Tuple<Long, Long> loadTranslogIds(IndexWriter writer, Translog translog) throws IOException {
+    @Nullable
+    private Long loadCommittedTranslogId(IndexWriter writer, Translog translog) throws IOException {
         // commit on a just opened writer will commit even if there are no changes done to it
         // we rely on that for the commit data translog id key
-        final long nextTranslogId = Math.max(0, translog.findLargestPresentTranslogId()) + 1;
         final Map<String, String> commitUserData = writer.getCommitData();
         if (commitUserData.containsKey(Translog.TRANSLOG_ID_KEY)) {
-            final long currentTranslogId = Long.parseLong(commitUserData.get(Translog.TRANSLOG_ID_KEY));
-            return new Tuple<>(currentTranslogId, nextTranslogId);
+            return Long.parseLong(commitUserData.get(Translog.TRANSLOG_ID_KEY));
         }
-         // translog id is not in the metadata - fix this inconsistency some code relies on this and old indices might not have it.
-        writer.setCommitData(Collections.singletonMap(Translog.TRANSLOG_ID_KEY, Long.toString(nextTranslogId)));
-        commitIndexWriter(writer);
         logger.debug("no translog ID present in the current commit - creating one");
-        return new Tuple<>(null, nextTranslogId);
+        commitIndexWriter(writer, translog.currentId());
+        return null;
     }
 
     private SearcherManager createSearcherManager() throws EngineException {
@@ -617,12 +658,6 @@ public class InternalEngine extends Engine {
 
     private void flush(boolean commitTranslog, boolean force, boolean waitIfOngoing) throws EngineException {
         ensureOpen();
-        if (commitTranslog) {
-            // check outside the lock as well so we can check without blocking on the write lock
-            if (onGoingRecoveries.get() > 0) {
-                throw new FlushNotAllowedEngineException(shardId, "recovery is in progress, flush with committing translog is not allowed");
-            }
-        }
         /*
          * Unfortunately the lock order is important here. We have to acquire the readlock first otherwise
          * if we are flushing at the end of the recovery while holding the write lock we can deadlock if:
@@ -635,7 +670,7 @@ public class InternalEngine extends Engine {
             if (flushLock.tryLock() == false) {
                 // if we can't get the lock right away we block if needed otherwise barf
                 if (waitIfOngoing) {
-                    logger.trace("waiting fore in-flight flush to finish");
+                    logger.trace("waiting for in-flight flush to finish");
                     flushLock.lock();
                     logger.trace("acquired flush lock after blocking");
                 } else {
@@ -646,32 +681,19 @@ public class InternalEngine extends Engine {
             }
             try {
                 if (commitTranslog) {
-                    if (onGoingRecoveries.get() > 0) {
-                        throw new FlushNotAllowedEngineException(shardId, "Recovery is in progress, flush is not allowed");
-                    }
-
                     if (flushNeeded || force) {
                         flushNeeded = false;
+                        final long translogId;
                         try {
-                            long translogId = translogIdGenerator.incrementAndGet();
-                            translog.newTransientTranslog(translogId);
-                            indexWriter.setCommitData(Collections.singletonMap(Translog.TRANSLOG_ID_KEY, Long.toString(translogId)));
+                            translogId = translog.newTranslog();
                             logger.trace("starting commit for flush; commitTranslog=true");
-                            commitIndexWriter(indexWriter);
+                            commitIndexWriter(indexWriter, translogId);
                             logger.trace("finished commit for flush");
                             // we need to refresh in order to clear older version values
                             refresh("version_table_flush");
-                            // we need to move transient to current only after we refresh
-                            // so items added to current will still be around for realtime get
-                            // when tans overrides it
-                            translog.makeTransientCurrent();
+                            translog.markCommitted(translogId);
 
                         } catch (Throwable e) {
-                            try {
-                                translog.revertTransient();
-                            } catch (IOException ex) {
-                                e.addSuppressed(ex);
-                            }
                             throw new FlushFailedEngineException(shardId, e);
                         }
                     }
@@ -683,10 +705,8 @@ public class InternalEngine extends Engine {
                     // its ok to use this, only a flush will cause a new translogId, and we are locked here from
                     // other flushes use flushLock
                     try {
-                        long translogId = translog.currentId();
-                        indexWriter.setCommitData(Collections.singletonMap(Translog.TRANSLOG_ID_KEY, Long.toString(translogId)));
                         logger.trace("starting commit for flush; commitTranslog=false");
-                        commitIndexWriter(indexWriter);
+                        commitIndexWriter(indexWriter, translog.currentId());
                         logger.trace("finished commit for flush");
                     } catch (Throwable e) {
                         throw new FlushFailedEngineException(shardId, e);
@@ -807,77 +827,20 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public SnapshotIndexCommit snapshotIndex() throws EngineException {
+    public SnapshotIndexCommit snapshotIndex(final boolean flushFirst) throws EngineException {
         // we have to flush outside of the readlock otherwise we might have a problem upgrading
         // the to a write lock when we fail the engine in this operation
-        logger.trace("start flush for snapshot");
-        flush(false, false, true);
-        logger.trace("finish flush for snapshot");
+        if (flushFirst) {
+            logger.trace("start flush for snapshot");
+            flush(false, false, true);
+            logger.trace("finish flush for snapshot");
+        }
         try (ReleasableLock lock = readLock.acquire()) {
             ensureOpen();
             logger.trace("pulling snapshot");
             return deletionPolicy.snapshot();
         } catch (IOException e) {
             throw new SnapshotFailedEngineException(shardId, e);
-        }
-    }
-
-    @Override
-    public void recover(RecoveryHandler recoveryHandler) throws EngineException {
-        // take a write lock here so it won't happen while a flush is in progress
-        // this means that next commits will not be allowed once the lock is released
-        try (ReleasableLock lock = writeLock.acquire()) {
-            ensureOpen();
-            onGoingRecoveries.startRecovery();
-        }
-
-        SnapshotIndexCommit phase1Snapshot;
-        try {
-            phase1Snapshot = deletionPolicy.snapshot();
-        } catch (Throwable e) {
-            maybeFailEngine("recovery", e);
-            Releasables.closeWhileHandlingException(onGoingRecoveries);
-            throw new RecoveryEngineException(shardId, 1, "Snapshot failed", e);
-        }
-
-        try {
-            recoveryHandler.phase1(phase1Snapshot);
-        } catch (Throwable e) {
-            maybeFailEngine("recovery phase 1", e);
-            Releasables.closeWhileHandlingException(phase1Snapshot, onGoingRecoveries);
-            throw new RecoveryEngineException(shardId, 1, "Execution failed", wrapIfClosed(e));
-        }
-
-        Translog.Snapshot phase2Snapshot;
-        try {
-            phase2Snapshot = translog.snapshot();
-        } catch (Throwable e) {
-            maybeFailEngine("snapshot recovery", e);
-            Releasables.closeWhileHandlingException(phase1Snapshot, onGoingRecoveries);
-            throw new RecoveryEngineException(shardId, 2, "Snapshot failed", wrapIfClosed(e));
-        }
-        try {
-            recoveryHandler.phase2(phase2Snapshot);
-        } catch (Throwable e) {
-            maybeFailEngine("recovery phase 2", e);
-            Releasables.closeWhileHandlingException(phase1Snapshot, phase2Snapshot, onGoingRecoveries);
-            throw new RecoveryEngineException(shardId, 2, "Execution failed", wrapIfClosed(e));
-        }
-
-        writeLock.acquire();
-        Translog.Snapshot phase3Snapshot = null;
-        boolean success = false;
-        try {
-            ensureOpen();
-            phase3Snapshot = translog.snapshot(phase2Snapshot);
-            recoveryHandler.phase3(phase3Snapshot);
-            success = true;
-        } catch (Throwable e) {
-            maybeFailEngine("recovery phase 3", e);
-            throw new RecoveryEngineException(shardId, 3, "Execution failed", wrapIfClosed(e));
-        } finally {
-            Releasables.close(success, phase1Snapshot, phase2Snapshot, phase3Snapshot,
-                    onGoingRecoveries, writeLock); // hmm why can't we use try-with here?
         }
     }
 
@@ -950,17 +913,16 @@ public class InternalEngine extends Engine {
         if (isClosed.compareAndSet(false, true)) {
             assert rwl.isWriteLockedByCurrentThread() || failEngineLock.isHeldByCurrentThread() : "Either the write lock must be held or the engine must be currently be failing itself";
             try {
-                try {
-                    IOUtils.close(this.translog);
-                } catch (IOException ex) {
-                    logger.warn("failed to close translog", ex);
-                }
                 this.versionMap.clear();
-                logger.trace("close searcherManager");
                 try {
                     IOUtils.close(searcherManager);
                 } catch (Throwable t) {
                     logger.warn("Failed to close SearcherManager", t);
+                }
+                try {
+                    IOUtils.close(translog);
+                } catch (Throwable t) {
+                    logger.warn("Failed to close translog", t);
                 }
                 // no need to commit in this case!, we snapshot before we close the shard, so translog and all sync'ed
                 logger.trace("rollback indexWriter");
@@ -1044,7 +1006,7 @@ public class InternalEngine extends Engine {
                     try {
                         assert isMergedSegment(reader);
                         if (warmer != null) {
-                            final Engine.Searcher searcher = new Searcher("warmer", new IndexSearcher(reader));
+                            final Engine.Searcher searcher = new Searcher("warmer", searcherFactory.newSearcher(reader, null));
                             final IndicesWarmer.WarmerContext context = new IndicesWarmer.WarmerContext(shardId, searcher);
                             warmer.warmNewReaders(context);
                         }
@@ -1077,8 +1039,7 @@ public class InternalEngine extends Engine {
 
         @Override
         public IndexSearcher newSearcher(IndexReader reader, IndexReader previousReader) throws IOException {
-            IndexSearcher searcher = new IndexSearcher(reader);
-            searcher.setSimilarity(engineConfig.getSimilarity());
+            IndexSearcher searcher = super.newSearcher(reader, previousReader);
             if (warmer != null) {
                 // we need to pass a custom searcher that does not release anything on Engine.Search Release,
                 // we will release explicitly
@@ -1110,7 +1071,8 @@ public class InternalEngine extends Engine {
                             }
                             if (!readers.isEmpty()) {
                                 // we don't want to close the inner readers, just increase ref on them
-                                newSearcher = new IndexSearcher(new MultiReader(readers.toArray(new IndexReader[readers.size()]), false));
+                                IndexReader newReader = new MultiReader(readers.toArray(new IndexReader[readers.size()]), false);
+                                newSearcher = super.newSearcher(newReader, null);
                                 closeNewSearcher = true;
                             }
                         }
@@ -1194,47 +1156,14 @@ public class InternalEngine extends Engine {
     }
 
 
-    private void commitIndexWriter(IndexWriter writer) throws IOException {
+    private void commitIndexWriter(IndexWriter writer, long translogId) throws IOException {
         try {
+            logger.trace("committing writer with translog id [{}] ", translogId);
+            indexWriter.setCommitData(Collections.singletonMap(Translog.TRANSLOG_ID_KEY, Long.toString(translogId)));
             writer.commit();
         } catch (Throwable ex) {
             failEngine("lucene commit failed", ex);
             throw ex;
         }
     }
-
-    protected void recoverFromTranslog(long translogId, TranslogRecoveryPerformer handler) throws IOException {
-        final Translog translog = engineConfig.getTranslog();
-        int operationsRecovered = 0;
-        try (Translog.OperationIterator in = translog.openIterator(translogId)) {
-            Translog.Operation operation;
-            while ((operation = in.next()) != null) {
-                try {
-                    handler.performRecoveryOperation(this, operation);
-                    operationsRecovered++;
-                } catch (ElasticsearchException e) {
-                    if (e.status() == RestStatus.BAD_REQUEST) {
-                        // mainly for MapperParsingException and Failure to detect xcontent
-                        logger.info("ignoring recovery of a corrupt translog entry", e);
-                    } else {
-                        throw e;
-                    }
-                }
-            }
-        } catch (FileNotFoundException ex) {
-            logger.debug("no translog file found for ID: " + translogId);
-        } catch (TruncatedTranslogException e) {
-            // file is empty or header has been half-written and should be ignored
-            logger.trace("ignoring truncation exception, the translog is either empty or half-written", e);
-        } catch (Throwable e) {
-            IOUtils.closeWhileHandlingException(translog);
-            throw new EngineException(shardId, "failed to recover from translog", e);
-        }
-        flush(true, true);
-        if (operationsRecovered > 0) {
-            refresh("translog recovery");
-        }
-        translog.clearUnreferenced();
-    }
-
 }

@@ -13,7 +13,7 @@ See the {client}/perl-api/current/index.html[official Elasticsearch Perl client]
 See the {client}/python-api/current/index.html[official Elasticsearch Python client].
 
 * http://github.com/elasticsearch/elasticsearch-dsl-py[elasticsearch-dsl-py]
-  chainable query and filter construction built on top of offical client.
+  chainable query and filter construction built on top of official client.
 
 * http://github.com/rhec/pyelasticsearch[pyelasticsearch]:
   Python client.
@@ -50,13 +50,13 @@ See the {client}/ruby-api/current/index.html[official Elasticsearch Ruby client]
 
 * https://github.com/ddnexus/flex[Flex]:
   Ruby Client.
-  
+
 * https://github.com/printercu/elastics-rb[elastics]:
   Tiny client with built-in zero-downtime migrations and ActiveRecord integration.
-  
+
 * https://github.com/toptal/chewy[chewy]:
-  Chewy is ODM and wrapper for official elasticsearch client 
-  
+  Chewy is ODM and wrapper for official elasticsearch client
+
 * https://github.com/ankane/searchkick[Searchkick]:
   Intelligent search made easy
 
@@ -82,7 +82,7 @@ See the {client}/php-api/current/index.html[official Elasticsearch PHP client].
 
 * https://github.com/searchbox-io/Jest[Jest]:
   Java Rest client.
-* There is of course the http://www.elasticsearch.org/guide/en/elasticsearch/client/java-api/current/index.html[native ES Java client]
+* There is of course the {client}/java-api/current/index.html[native ES Java client]
 
 [[community-javascript]]
 === JavaScript

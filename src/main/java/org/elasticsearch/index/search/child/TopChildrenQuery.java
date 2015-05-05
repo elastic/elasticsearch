@@ -26,6 +26,7 @@ import org.apache.lucene.search.*;
 import org.apache.lucene.util.*;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.lucene.IndexCacheableQuery;
 import org.elasticsearch.common.lucene.search.EmptyScorer;
 import org.apache.lucene.search.join.BitDocIdSetFilter;
 import org.elasticsearch.index.fielddata.IndexParentChildFieldData;
@@ -53,7 +54,7 @@ import java.util.Set;
  * This query is most of the times faster than the {@link ChildrenQuery}. Usually enough parent documents can be returned
  * in the first child document query round.
  */
-public class TopChildrenQuery extends Query {
+public class TopChildrenQuery extends IndexCacheableQuery {
 
     private static final ParentDocComparator PARENT_DOC_COMP = new ParentDocComparator();
 
@@ -63,17 +64,13 @@ public class TopChildrenQuery extends Query {
     private final ScoreType scoreType;
     private final int factor;
     private final int incrementalFactor;
-    private Query originalChildQuery;
+    private Query childQuery;
     private final BitDocIdSetFilter nonNestedDocsFilter;
-
-    // This field will hold the rewritten form of originalChildQuery, so that we can reuse it
-    private Query rewrittenChildQuery;
-    private IndexReader rewriteIndexReader;
 
     // Note, the query is expected to already be filtered to only child type docs
     public TopChildrenQuery(IndexParentChildFieldData parentChildIndexFieldData, Query childQuery, String childType, String parentType, ScoreType scoreType, int factor, int incrementalFactor, BitDocIdSetFilter nonNestedDocsFilter) {
         this.parentChildIndexFieldData = parentChildIndexFieldData;
-        this.originalChildQuery = childQuery;
+        this.childQuery = childQuery;
         this.childType = childType;
         this.parentType = parentType;
         this.scoreType = scoreType;
@@ -82,35 +79,19 @@ public class TopChildrenQuery extends Query {
         this.nonNestedDocsFilter = nonNestedDocsFilter;
     }
 
-    // Rewrite invocation logic:
-    // 1) query_then|and_fetch (default): Rewrite is execute as part of the createWeight invocation, when search child docs.
-    // 2) dfs_query_then|and_fetch:: First rewrite and then createWeight is executed. During query phase rewrite isn't
-    // executed any more because searchContext#queryRewritten() returns true.
     @Override
     public Query rewrite(IndexReader reader) throws IOException {
-        if (rewrittenChildQuery == null) {
-            rewrittenChildQuery = originalChildQuery.rewrite(reader);
-            rewriteIndexReader = reader;
+        Query childRewritten = childQuery.rewrite(reader);
+        if (childRewritten != childQuery) {
+            Query rewritten = new TopChildrenQuery(parentChildIndexFieldData, childRewritten, childType, parentType, scoreType, factor, incrementalFactor, nonNestedDocsFilter);
+            rewritten.setBoost(getBoost());
+            return rewritten;
         }
-        // We can always return the current instance, and we can do this b/c the child query is executed separately
-        // before the main query (other scope) in a different IS#search() invocation than the main query.
-        // In fact we only need override the rewrite method because for the dfs phase, to get also global document
-        // frequency for the child query.
-        return this;
+        return super.rewrite(reader);
     }
 
     @Override
-    public Query clone() {
-        TopChildrenQuery q = (TopChildrenQuery) super.clone();
-        q.originalChildQuery = originalChildQuery.clone();
-        if (q.rewrittenChildQuery != null) {
-            q.rewrittenChildQuery = rewrittenChildQuery.clone();
-        }
-        return q;
-    }
-
-    @Override
-    public Weight createWeight(IndexSearcher searcher, boolean needsScores) throws IOException {
+    public Weight doCreateWeight(IndexSearcher searcher, boolean needsScores) throws IOException {
         ObjectObjectOpenHashMap<Object, ParentDoc[]> parentDocs = new ObjectObjectOpenHashMap<>();
         SearchContext searchContext = SearchContext.current();
 
@@ -121,16 +102,9 @@ public class TopChildrenQuery extends Query {
         }
         int numChildDocs = requestedDocs * factor;
 
-        Query childQuery;
-        if (rewrittenChildQuery == null) {
-            childQuery = rewrittenChildQuery = searcher.rewrite(originalChildQuery);
-        } else {
-            assert rewriteIndexReader == searcher.getIndexReader() : "not equal, rewriteIndexReader=" + rewriteIndexReader + " searcher.getIndexReader()=" + searcher.getIndexReader();
-            childQuery = rewrittenChildQuery;
-        }
-
         IndexSearcher indexSearcher = new IndexSearcher(searcher.getIndexReader());
         indexSearcher.setSimilarity(searcher.getSimilarity());
+        indexSearcher.setQueryCache(null);
         while (true) {
             parentDocs.clear();
             TopDocs topChildDocs = indexSearcher.search(childQuery, numChildDocs);
@@ -155,7 +129,7 @@ public class TopChildrenQuery extends Query {
             }
         }
 
-        ParentWeight parentWeight =  new ParentWeight(this, rewrittenChildQuery.createWeight(searcher, needsScores), parentDocs);
+        ParentWeight parentWeight =  new ParentWeight(this, childQuery.createWeight(searcher, needsScores), parentDocs);
         searchContext.addReleasable(parentWeight, Lifetime.COLLECTION);
         return parentWeight;
     }
@@ -251,12 +225,12 @@ public class TopChildrenQuery extends Query {
         if (this == obj) {
             return true;
         }
-        if (obj == null || obj.getClass() != this.getClass()) {
+        if (super.equals(obj) == false) {
             return false;
         }
 
         TopChildrenQuery that = (TopChildrenQuery) obj;
-        if (!originalChildQuery.equals(that.originalChildQuery)) {
+        if (!childQuery.equals(that.childQuery)) {
             return false;
         }
         if (!childType.equals(that.childType)) {
@@ -265,25 +239,22 @@ public class TopChildrenQuery extends Query {
         if (incrementalFactor != that.incrementalFactor) {
             return false;
         }
-        if (getBoost() != that.getBoost()) {
-            return false;
-        }
         return true;
     }
 
     @Override
     public int hashCode() {
-        int result = originalChildQuery.hashCode();
+        int result = super.hashCode();
+        result = 31 * result + childQuery.hashCode();
         result = 31 * result + parentType.hashCode();
         result = 31 * result + incrementalFactor;
-        result = 31 * result + Float.floatToIntBits(getBoost());
         return result;
     }
 
     @Override
     public String toString(String field) {
         StringBuilder sb = new StringBuilder();
-        sb.append("score_child[").append(childType).append("/").append(parentType).append("](").append(originalChildQuery.toString(field)).append(')');
+        sb.append("score_child[").append(childType).append("/").append(parentType).append("](").append(childQuery.toString(field)).append(')');
         sb.append(ToStringUtils.boost(getBoost()));
         return sb.toString();
     }

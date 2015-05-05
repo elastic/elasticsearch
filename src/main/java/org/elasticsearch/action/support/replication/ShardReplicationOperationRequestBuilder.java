@@ -19,19 +19,21 @@
 
 package org.elasticsearch.action.support.replication;
 
+import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.unit.TimeValue;
 
 /**
  */
 public abstract class ShardReplicationOperationRequestBuilder<Request extends ShardReplicationOperationRequest<Request>, Response extends ActionResponse, RequestBuilder extends ShardReplicationOperationRequestBuilder<Request, Response, RequestBuilder>>
-        extends ActionRequestBuilder<Request, Response, RequestBuilder, Client> {
+        extends ActionRequestBuilder<Request, Response, RequestBuilder> {
 
-    protected ShardReplicationOperationRequestBuilder(Client client, Request request) {
-        super(client, request);
+    protected ShardReplicationOperationRequestBuilder(ElasticsearchClient client, Action<Request, Response, RequestBuilder> action, Request request) {
+        super(client, action, request);
     }
 
     /**

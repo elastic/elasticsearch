@@ -2,10 +2,7 @@
 === Nested Filter
 
 A `nested` filter works in a similar fashion to the
-<<query-dsl-nested-query,nested>> query, except it's
-used as a filter. It follows exactly the same structure, but also allows
-to cache the results (set `_cache` to `true`), and have it named (set
-the `_name` value). For example:
+<<query-dsl-nested-query,nested>> query. For example:
 
 [source,js]
 --------------------------------------------------
@@ -26,8 +23,7 @@ the `_name` value). For example:
                             }
                         ]
                     }
-                },
-                "_cache" : true
+                }
             }
         }
     }

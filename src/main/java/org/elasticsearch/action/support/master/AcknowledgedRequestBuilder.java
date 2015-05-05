@@ -18,19 +18,18 @@
  */
 package org.elasticsearch.action.support.master;
 
-import org.elasticsearch.client.ClusterAdminClient;
+import org.elasticsearch.action.Action;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.common.unit.TimeValue;
 
 /**
  * Base request builder for master node operations that support acknowledgements
  */
-public abstract class AcknowledgedRequestBuilder<Request extends AcknowledgedRequest<Request>, Response extends AcknowledgedResponse, RequestBuilder extends AcknowledgedRequestBuilder<Request, Response, RequestBuilder, Client>, Client extends ElasticsearchClient>
-        extends MasterNodeOperationRequestBuilder<Request, Response, RequestBuilder, Client>  {
+public abstract class AcknowledgedRequestBuilder<Request extends AcknowledgedRequest<Request>, Response extends AcknowledgedResponse, RequestBuilder extends AcknowledgedRequestBuilder<Request, Response, RequestBuilder>>
+        extends MasterNodeOperationRequestBuilder<Request, Response, RequestBuilder> {
 
-    protected AcknowledgedRequestBuilder(Client client, Request request) {
-        super(client, request);
+    protected AcknowledgedRequestBuilder(ElasticsearchClient client, Action<Request, Response, RequestBuilder> action, Request request) {
+        super(client, action, request);
     }
 
     /**
@@ -39,7 +38,7 @@ public abstract class AcknowledgedRequestBuilder<Request extends AcknowledgedReq
     @SuppressWarnings("unchecked")
     public RequestBuilder setTimeout(TimeValue timeout) {
         request.timeout(timeout);
-        return (RequestBuilder)this;
+        return (RequestBuilder) this;
     }
 
     /**
@@ -49,6 +48,6 @@ public abstract class AcknowledgedRequestBuilder<Request extends AcknowledgedReq
     @SuppressWarnings("unchecked")
     public RequestBuilder setTimeout(String timeout) {
         request.timeout(timeout);
-        return (RequestBuilder)this;
+        return (RequestBuilder) this;
     }
 }

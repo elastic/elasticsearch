@@ -104,6 +104,6 @@ public class ClusterStateBackwardsCompatTests extends ElasticsearchBackwardsComp
     private TransportClient newTransportClient() {
         Settings settings = ImmutableSettings.settingsBuilder().put("client.transport.ignore_cluster_name", true)
                 .put("node.name", "transport_client_" + getTestName()).build();
-        return new TransportClient(settings);
+        return TransportClient.builder().settings(settings).build();
     }
 }

@@ -19,12 +19,12 @@
 
 package org.elasticsearch.action.admin.cluster.state;
 
-import org.elasticsearch.action.admin.cluster.ClusterAction;
-import org.elasticsearch.client.ClusterAdminClient;
+import org.elasticsearch.action.Action;
+import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  */
-public class ClusterStateAction extends ClusterAction<ClusterStateRequest, ClusterStateResponse, ClusterStateRequestBuilder> {
+public class ClusterStateAction extends Action<ClusterStateRequest, ClusterStateResponse, ClusterStateRequestBuilder> {
 
     public static final ClusterStateAction INSTANCE = new ClusterStateAction();
     public static final String NAME = "cluster:monitor/state";
@@ -39,7 +39,7 @@ public class ClusterStateAction extends ClusterAction<ClusterStateRequest, Clust
     }
 
     @Override
-    public ClusterStateRequestBuilder newRequestBuilder(ClusterAdminClient client) {
-        return new ClusterStateRequestBuilder(client);
+    public ClusterStateRequestBuilder newRequestBuilder(ElasticsearchClient client) {
+        return new ClusterStateRequestBuilder(client, this);
     }
 }

@@ -19,13 +19,13 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.create;
 
-import org.elasticsearch.action.admin.cluster.ClusterAction;
-import org.elasticsearch.client.ClusterAdminClient;
+import org.elasticsearch.action.Action;
+import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  * Create snapshot action
  */
-public class CreateSnapshotAction extends ClusterAction<CreateSnapshotRequest, CreateSnapshotResponse, CreateSnapshotRequestBuilder> {
+public class CreateSnapshotAction extends Action<CreateSnapshotRequest, CreateSnapshotResponse, CreateSnapshotRequestBuilder> {
 
     public static final CreateSnapshotAction INSTANCE = new CreateSnapshotAction();
     public static final String NAME = "cluster:admin/snapshot/create";
@@ -40,8 +40,8 @@ public class CreateSnapshotAction extends ClusterAction<CreateSnapshotRequest, C
     }
 
     @Override
-    public CreateSnapshotRequestBuilder newRequestBuilder(ClusterAdminClient client) {
-        return new CreateSnapshotRequestBuilder(client);
+    public CreateSnapshotRequestBuilder newRequestBuilder(ElasticsearchClient client) {
+        return new CreateSnapshotRequestBuilder(client, this);
     }
 }
 

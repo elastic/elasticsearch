@@ -19,17 +19,16 @@
 
 package org.elasticsearch.action.admin.cluster.shards;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
-import org.elasticsearch.client.ClusterAdminClient;
+import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  */
-public class ClusterSearchShardsRequestBuilder extends MasterNodeReadOperationRequestBuilder<ClusterSearchShardsRequest, ClusterSearchShardsResponse, ClusterSearchShardsRequestBuilder, ClusterAdminClient> {
+public class ClusterSearchShardsRequestBuilder extends MasterNodeReadOperationRequestBuilder<ClusterSearchShardsRequest, ClusterSearchShardsResponse, ClusterSearchShardsRequestBuilder> {
 
-    public ClusterSearchShardsRequestBuilder(ClusterAdminClient clusterClient) {
-        super(clusterClient, new ClusterSearchShardsRequest());
+    public ClusterSearchShardsRequestBuilder(ElasticsearchClient client, ClusterSearchShardsAction action) {
+        super(client, action, new ClusterSearchShardsRequest());
     }
 
     /**
@@ -83,10 +82,4 @@ public class ClusterSearchShardsRequestBuilder extends MasterNodeReadOperationRe
         request().indicesOptions(indicesOptions);
         return this;
     }
-
-    @Override
-    protected void doExecute(ActionListener<ClusterSearchShardsResponse> listener) {
-        client.searchShards(request, listener);
-    }
-
 }

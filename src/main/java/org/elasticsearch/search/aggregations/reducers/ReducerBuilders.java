@@ -19,7 +19,8 @@
 
 package org.elasticsearch.search.aggregations.reducers;
 
-import org.elasticsearch.search.aggregations.reducers.bucketmetrics.MaxBucketBuilder;
+import org.elasticsearch.search.aggregations.reducers.bucketmetrics.max.MaxBucketBuilder;
+import org.elasticsearch.search.aggregations.reducers.bucketmetrics.min.MinBucketBuilder;
 import org.elasticsearch.search.aggregations.reducers.derivative.DerivativeBuilder;
 import org.elasticsearch.search.aggregations.reducers.movavg.MovAvgBuilder;
 
@@ -34,6 +35,10 @@ public final class ReducerBuilders {
 
     public static final MaxBucketBuilder maxBucket(String name) {
         return new MaxBucketBuilder(name);
+    }
+
+    public static final MinBucketBuilder minBucket(String name) {
+        return new MinBucketBuilder(name);
     }
 
     public static final MovAvgBuilder movingAvg(String name) {

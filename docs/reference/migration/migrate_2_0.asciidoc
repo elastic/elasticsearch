@@ -139,6 +139,8 @@ equivalent to the former `pre_zone` option. Setting `time_zone` to a value like 
 being applied in the specified time zone but In addition to this, also the `pre_zone_adjust_large_interval` is removed because we
 now always return dates and bucket keys in UTC.
 
+Both the `histogram` and `date_histogram` aggregations now have a default `min_doc_count` of `0` instead of `1` previously.
+
 `include`/`exclude` filtering on the `terms` aggregation now uses the same syntax as regexp queries instead of the Java syntax. While simple
 regexps should still work, more complex ones might need some rewriting. Also, the `flags` parameter is not supported anymore.
 
@@ -307,8 +309,16 @@ Fields of type `murmur3` can no longer change `doc_values` or `index` setting.
 They are always stored with doc values, and not indexed.
 
 ==== Source field configuration
-The `_source` field no longer supports `includes` and `excludes` paramters. When
+The `_source` field no longer supports `includes` and `excludes` parameters. When
 `_source` is enabled, the entire original source will be stored.
+
+==== Config based mappings
+The ability to specify mappings in configuration files has been removed. To specify
+default mappings that apply to multiple indexes, use index templates.
+
+The following settings are no longer valid:
+* `index.mapper.default_mapping_location`
+* `index.mapper.default_percolator_mapping_location`
 
 === Codecs
 
@@ -390,9 +400,9 @@ be used separately to control whether `routing_nodes` should be returned.
 
 === Query DSL
 
-Change to ranking behaviour: single-term queries on numeric fields now score in the same way as string fields (use of IDF, norms if enabled). 
+Change to ranking behaviour: single-term queries on numeric fields now score in the same way as string fields (use of IDF, norms if enabled).
 Previously, term queries on numeric fields were deliberately prevented from using the usual Lucene scoring logic and this behaviour was undocumented and, to some, unexpected.
-If the introduction of scoring to numeric fields is undesirable for your query clauses the fix is simple: wrap them in a `constant_score` or use a `filter` expression instead.  
+If the introduction of scoring to numeric fields is undesirable for your query clauses the fix is simple: wrap them in a `constant_score` or use a `filter` expression instead.
 
 
 The `fuzzy_like_this` and `fuzzy_like_this_field` queries have been removed.
@@ -407,6 +417,12 @@ favour or `bool`.
 
 The `execution` option of the `terms` filter is now deprecated and ignored if
 provided.
+
+The `_cache` and `_cache_key` parameters of filters are deprecated in the REST
+layer and removed in the Java API. In case they are specified they will be
+ignored. Instead filters are always used as their own cache key and elasticsearch
+makes decisions by itself about whether it should cache filters based on how
+often they are used.
 
 === Snapshot and Restore
 
@@ -442,3 +458,29 @@ there is not enough disk space to complete this migration, the upgrade will be
 cancelled and can only be resumed once enough disk space is made available.
 
 The `index.store.distributor` setting has also been removed.
+
+=== Hunspell dictionary configuration
+
+The parameter `indices.analysis.hunspell.dictionary.location` has been removed,
+and `<path.conf>/hunspell` is always used.
+
+=== Java API Transport API construction
+
+The `TransportClient` construction code has changed, it now uses the builder
+pattern. Instead of using:
+
+[source,java]
+--------------------------------------------------
+Settings settings = ImmutableSettings.settingsBuilder()
+        .put("cluster.name", "myClusterName").build();
+Client client = new TransportClient(settings);
+--------------------------------------------------
+
+Use:
+
+[source,java]
+--------------------------------------------------
+Settings settings = ImmutableSettings.settingsBuilder()
+        .put("cluster.name", "myClusterName").build();
+Client client = TransportClient.builder().settings(settings).build();
+--------------------------------------------------

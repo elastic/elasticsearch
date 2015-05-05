@@ -142,7 +142,7 @@ class Article
 
   # Execute code after saving the model.
   #
-  after_save { puts "Successfuly saved: #{self}" }
+  after_save { puts "Successfully saved: #{self}" }
 end
 ------------------------------------
 
@@ -215,7 +215,7 @@ Any callbacks defined in the model will be triggered during the persistence oper
 [source,ruby]
 ------------------------------------
 article.save
-# Successfuly saved: #<Article {...}>
+# Successfully saved: #<Article {...}>
 ------------------------------------
 
 Please see the extensive documentation in the library

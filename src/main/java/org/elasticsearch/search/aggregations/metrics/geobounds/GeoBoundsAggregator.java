@@ -90,13 +90,13 @@ public final class GeoBoundsAggregator extends MetricsAggregator {
                     tops = bigArrays.grow(tops, bucket + 1);
                     tops.fill(from, tops.size(), Double.NEGATIVE_INFINITY);
                     bottoms = bigArrays.resize(bottoms, tops.size());
-                    bottoms.fill(from, bottoms.size(), Double.NEGATIVE_INFINITY);
+                    bottoms.fill(from, bottoms.size(), Double.POSITIVE_INFINITY);
                     posLefts = bigArrays.resize(posLefts, tops.size());
-                    posLefts.fill(from, posLefts.size(), Double.NEGATIVE_INFINITY);
+                    posLefts.fill(from, posLefts.size(), Double.POSITIVE_INFINITY);
                     posRights = bigArrays.resize(posRights, tops.size());
                     posRights.fill(from, posRights.size(), Double.NEGATIVE_INFINITY);
                     negLefts = bigArrays.resize(negLefts, tops.size());
-                    negLefts.fill(from, negLefts.size(), Double.NEGATIVE_INFINITY);
+                    negLefts.fill(from, negLefts.size(), Double.POSITIVE_INFINITY);
                     negRights = bigArrays.resize(negRights, tops.size());
                     negRights.fill(from, negRights.size(), Double.NEGATIVE_INFINITY);
                 }

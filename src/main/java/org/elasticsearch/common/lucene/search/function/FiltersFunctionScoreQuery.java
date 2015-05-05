@@ -119,16 +119,22 @@ public class FiltersFunctionScoreQuery extends Query {
         // TODO: needsScores
         // if we dont need scores, just return the underlying Weight?
         Weight subQueryWeight = subQuery.createWeight(searcher, needsScores);
-        return new CustomBoostFactorWeight(this, subQueryWeight);
+        Weight[] filterWeights = new Weight[filterFunctions.length];
+        for (int i = 0; i < filterFunctions.length; ++i) {
+            filterWeights[i] = searcher.createNormalizedWeight(filterFunctions[i].filter, false);
+        }
+        return new CustomBoostFactorWeight(this, subQueryWeight, filterWeights);
     }
 
     class CustomBoostFactorWeight extends Weight {
 
         final Weight subQueryWeight;
+        final Weight[] filterWeights;
 
-        public CustomBoostFactorWeight(Query parent, Weight subQueryWeight) throws IOException {
+        public CustomBoostFactorWeight(Query parent, Weight subQueryWeight, Weight[] filterWeights) throws IOException {
             super(parent);
             this.subQueryWeight = subQueryWeight;
+            this.filterWeights = filterWeights;
         }
 
         @Override
@@ -162,7 +168,8 @@ public class FiltersFunctionScoreQuery extends Query {
             for (int i = 0; i < filterFunctions.length; i++) {
                 FilterFunction filterFunction = filterFunctions[i];
                 functions[i] = filterFunction.function.getLeafScoreFunction(context);
-                docSets[i] = DocIdSets.asSequentialAccessBits(context.reader().maxDoc(), filterFunction.filter.getDocIdSet(context, acceptDocs));
+                Scorer filterScorer = filterWeights[i].scorer(context, null); // no need to apply accepted docs
+                docSets[i] = DocIdSets.asSequentialAccessBits(context.reader().maxDoc(), filterScorer);
             }
             return new FiltersFunctionFactorScorer(this, subQueryScorer, scoreMode, filterFunctions, maxBoost, functions, docSets, combineFunction, minScore);
         }
@@ -177,7 +184,8 @@ public class FiltersFunctionScoreQuery extends Query {
             // First: Gather explanations for all filters
             List<Explanation> filterExplanations = new ArrayList<>();
             float weightSum = 0;
-            for (FilterFunction filterFunction : filterFunctions) {
+            for (int i = 0; i < filterFunctions.length; ++i) {
+                FilterFunction filterFunction = filterFunctions[i];
 
                 if (filterFunction.function instanceof WeightFactorFunction) {
                     weightSum += ((WeightFactorFunction) filterFunction.function).getWeight();
@@ -186,7 +194,7 @@ public class FiltersFunctionScoreQuery extends Query {
                 }
 
                 Bits docSet = DocIdSets.asSequentialAccessBits(context.reader().maxDoc(),
-                        filterFunction.filter.getDocIdSet(context, context.reader().getLiveDocs()));
+                        filterWeights[i].scorer(context, null));
                 if (docSet.get(doc)) {
                     Explanation functionExplanation = filterFunction.function.getLeafScoreFunction(context).explainScore(doc, subQueryExpl);
                     double factor = functionExplanation.getValue();

@@ -19,12 +19,13 @@
 
 package org.elasticsearch.action.termvectors;
 
-import org.elasticsearch.action.ClientAction;
+import org.elasticsearch.action.Action;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  */
-public class MultiTermVectorsAction extends ClientAction<MultiTermVectorsRequest, MultiTermVectorsResponse, MultiTermVectorsRequestBuilder> {
+public class MultiTermVectorsAction extends Action<MultiTermVectorsRequest, MultiTermVectorsResponse, MultiTermVectorsRequestBuilder> {
 
     public static final MultiTermVectorsAction INSTANCE = new MultiTermVectorsAction();
     public static final String NAME = "indices:data/read/mtv";
@@ -39,7 +40,7 @@ public class MultiTermVectorsAction extends ClientAction<MultiTermVectorsRequest
     }
 
     @Override
-    public MultiTermVectorsRequestBuilder newRequestBuilder(Client client) {
-        return new MultiTermVectorsRequestBuilder(client);
+    public MultiTermVectorsRequestBuilder newRequestBuilder(ElasticsearchClient client) {
+        return new MultiTermVectorsRequestBuilder(client, this);
     }
 }

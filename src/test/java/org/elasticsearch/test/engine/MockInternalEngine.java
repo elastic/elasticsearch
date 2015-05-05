@@ -18,21 +18,24 @@
  */
 package org.elasticsearch.test.engine;
 
-import org.apache.lucene.search.AssertingIndexSearcher;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.SearcherManager;
-import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.InternalEngine;
+import org.elasticsearch.index.translog.fs.FsTranslog;
 
 import java.io.IOException;
 
 final class MockInternalEngine extends InternalEngine {
     private MockEngineSupport support;
+    private final boolean randomizeFlushOnClose;
+
 
     MockInternalEngine(EngineConfig config, boolean skipInitialTranslogRecovery) throws EngineException {
         super(config, skipInitialTranslogRecovery);
+        randomizeFlushOnClose = IndexMetaData.isOnSharedFilesystem(config.getIndexSettings()) == false;
     }
 
     private synchronized MockEngineSupport support() {
@@ -45,7 +48,7 @@ final class MockInternalEngine extends InternalEngine {
 
     @Override
     public void close() throws IOException {
-        switch(support().flushOrClose(this, MockEngineSupport.CloseAction.CLOSE)) {
+        switch (support().flushOrClose(this, MockEngineSupport.CloseAction.CLOSE)) {
             case FLUSH_AND_CLOSE:
                 super.flushAndClose();
                 break;
@@ -53,21 +56,22 @@ final class MockInternalEngine extends InternalEngine {
                 super.close();
                 break;
         }
-        logger.debug("Ongoing recoveries after engine close: " + onGoingRecoveries.get());
-
     }
 
     @Override
     public void flushAndClose() throws IOException {
-        switch(support().flushOrClose(this, MockEngineSupport.CloseAction.FLUSH_AND_CLOSE)) {
-            case FLUSH_AND_CLOSE:
-                super.flushAndClose();
-                break;
-            case CLOSE:
-                super.close();
-                break;
+        if (randomizeFlushOnClose) {
+            switch (support().flushOrClose(this, MockEngineSupport.CloseAction.FLUSH_AND_CLOSE)) {
+                case FLUSH_AND_CLOSE:
+                    super.flushAndClose();
+                    break;
+                case CLOSE:
+                    super.close();
+                    break;
+            }
+        } else {
+            super.flushAndClose();
         }
-        logger.debug("Ongoing recoveries after engine close: " + onGoingRecoveries.get());
     }
 
     @Override

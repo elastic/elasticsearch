@@ -26,16 +26,10 @@ import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import com.google.common.base.Predicate;
 import com.google.common.base.Predicates;
-import com.google.common.collect.Collections2;
-import com.google.common.collect.Iterables;
-import com.google.common.collect.Iterators;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
-import com.google.common.collect.Sets;
+import com.google.common.collect.*;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
-
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
@@ -78,9 +72,11 @@ import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.cache.filter.FilterCacheModule;
 import org.elasticsearch.index.cache.filter.FilterCacheModule.FilterCacheSettings;
+import org.elasticsearch.index.cache.filter.index.IndexFilterCache;
 import org.elasticsearch.index.cache.filter.none.NoneFilterCache;
-import org.elasticsearch.index.cache.filter.weighted.WeightedFilterCache;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardModule;
+import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.IndexStoreModule;
 import org.elasticsearch.indices.IndicesService;
@@ -112,34 +108,19 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.NavigableMap;
-import java.util.Random;
-import java.util.Set;
-import java.util.TreeMap;
+import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static junit.framework.Assert.fail;
-import static org.apache.lucene.util.LuceneTestCase.TEST_NIGHTLY;
-import static org.apache.lucene.util.LuceneTestCase.rarely;
-import static org.apache.lucene.util.LuceneTestCase.usually;
+import static org.apache.lucene.util.LuceneTestCase.*;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.node.NodeBuilder.nodeBuilder;
 import static org.elasticsearch.test.ElasticsearchTestCase.assertBusy;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.*;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThat;
 
@@ -449,7 +430,7 @@ public final class InternalTestCluster extends TestCluster {
         }
 
         if (random.nextBoolean()) {
-            builder.put(FilterCacheModule.FilterCacheSettings.FILTER_CACHE_TYPE, random.nextBoolean() ? WeightedFilterCache.class : NoneFilterCache.class);
+            builder.put(FilterCacheModule.FilterCacheSettings.FILTER_CACHE_TYPE, random.nextBoolean() ? IndexFilterCache.class : NoneFilterCache.class);
         }
 
         if (random.nextBoolean()) {
@@ -802,7 +783,7 @@ public final class InternalTestCluster extends TestCluster {
             /* no sniff client for now - doesn't work will all tests since it might throw NoNodeAvailableException if nodes are shut down.
              * we first need support of transportClientRatio as annotations or so
              */
-            return transportClient = TransportClientFactory.noSniff(settingsSource.transportClient()).client(node, clusterName);
+            return transportClient = new TransportClientFactory(false, settingsSource.transportClient(), baseDir).client(node, clusterName);
         }
 
         void resetClient() throws IOException {
@@ -855,30 +836,16 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     public static final String TRANSPORT_CLIENT_PREFIX = "transport_client_";
-    static class TransportClientFactory {
-        private static TransportClientFactory NO_SNIFF_CLIENT_FACTORY = new TransportClientFactory(false, ImmutableSettings.EMPTY);
-        private static TransportClientFactory SNIFF_CLIENT_FACTORY = new TransportClientFactory(true, ImmutableSettings.EMPTY);
 
+    static class TransportClientFactory {
         private final boolean sniff;
         private final Settings settings;
+        private final Path baseDir;
 
-        public static TransportClientFactory noSniff(Settings settings) {
-            if (settings == null || settings.names().isEmpty()) {
-                return NO_SNIFF_CLIENT_FACTORY;
-            }
-            return new TransportClientFactory(false, settings);
-        }
-
-        public static TransportClientFactory sniff(Settings settings) {
-            if (settings == null || settings.names().isEmpty()) {
-                return SNIFF_CLIENT_FACTORY;
-            }
-            return new TransportClientFactory(true, settings);
-        }
-
-        TransportClientFactory(boolean sniff, Settings settings) {
+        TransportClientFactory(boolean sniff, Settings settings, Path baseDir) {
             this.sniff = sniff;
             this.settings = settings != null ? settings : ImmutableSettings.EMPTY;
+            this.baseDir = baseDir;
         }
 
         public Client client(Node node, String clusterName) {
@@ -886,6 +853,7 @@ public final class InternalTestCluster extends TestCluster {
             Settings nodeSettings = node.settings();
             Builder builder = settingsBuilder()
                     .put("client.transport.nodes_sampler_interval", "1s")
+                    .put("path.home", baseDir)
                     .put("name", TRANSPORT_CLIENT_PREFIX + node.settings().get("name"))
                     .put("plugins." + PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, false)
                     .put(ClusterName.SETTING, clusterName).put("client.transport.sniff", sniff)
@@ -896,7 +864,7 @@ public final class InternalTestCluster extends TestCluster {
                     .put("config.ignore_system_properties", true)
                     .put(settings);
 
-            TransportClient client = new TransportClient(builder.build());
+            TransportClient client = TransportClient.builder().settings(builder.build()).build();
             client.addTransportAddress(addr);
             return client;
         }
@@ -988,6 +956,26 @@ public final class InternalTestCluster extends TestCluster {
     public synchronized void afterTest() throws IOException {
         wipeDataDirectories();
         randomlyResetClients(); /* reset all clients - each test gets its own client based on the Random instance created above. */
+    }
+
+    @Override
+    public void beforeIndexDeletion() {
+        assertShardIndexCounter();
+    }
+
+    private void assertShardIndexCounter() {
+        final Collection<NodeAndClient> nodesAndClients = nodes.values();
+        for (NodeAndClient nodeAndClient : nodesAndClients) {
+            IndicesService indexServices = getInstance(IndicesService.class, nodeAndClient.name);
+            for (IndexService indexService : indexServices) {
+                for (IndexShard indexShard : indexService) {
+                    assertThat(indexShard.getOperationsCount(), anyOf(equalTo(1), equalTo(0)));
+                    if (indexShard.getOperationsCount() == 0) {
+                        assertThat(indexShard.state(), equalTo(IndexShardState.CLOSED));
+                    }
+                }
+            }
+        }
     }
 
     private void randomlyResetClients() throws IOException {

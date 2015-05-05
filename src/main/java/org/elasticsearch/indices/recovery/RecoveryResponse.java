@@ -46,9 +46,6 @@ class RecoveryResponse extends TransportResponse {
     int phase2Operations;
     long phase2Time;
 
-    int phase3Operations;
-    long phase3Time;
-
     RecoveryResponse() {
     }
 
@@ -84,8 +81,6 @@ class RecoveryResponse extends TransportResponse {
         startTime = in.readVLong();
         phase2Operations = in.readVInt();
         phase2Time = in.readVLong();
-        phase3Operations = in.readVInt();
-        phase3Time = in.readVLong();
     }
 
     @Override
@@ -116,7 +111,5 @@ class RecoveryResponse extends TransportResponse {
         out.writeVLong(startTime);
         out.writeVInt(phase2Operations);
         out.writeVLong(phase2Time);
-        out.writeVInt(phase3Operations);
-        out.writeVLong(phase3Time);
     }
 }

@@ -19,9 +19,8 @@
 
 package org.elasticsearch.action.get;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.single.shard.SingleShardOperationRequestBuilder;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.VersionType;
@@ -32,12 +31,12 @@ import org.elasticsearch.search.fetch.source.FetchSourceContext;
  */
 public class GetRequestBuilder extends SingleShardOperationRequestBuilder<GetRequest, GetResponse, GetRequestBuilder> {
 
-    public GetRequestBuilder(Client client) {
-        super(client, new GetRequest());
+    public GetRequestBuilder(ElasticsearchClient client, GetAction action) {
+        super(client, action, new GetRequest());
     }
 
-    public GetRequestBuilder(Client client, @Nullable String index) {
-        super(client, new GetRequest(index));
+    public GetRequestBuilder(ElasticsearchClient client, GetAction action, @Nullable String index) {
+        super(client, action, new GetRequest(index));
     }
 
     /**
@@ -96,14 +95,14 @@ public class GetRequestBuilder extends SingleShardOperationRequestBuilder<GetReq
 
     /**
      * Indicates whether the response should contain the stored _source.
+     *
      * @return this for chaining
      */
     public GetRequestBuilder setFetchSource(boolean fetch) {
         FetchSourceContext context = request.fetchSourceContext();
         if (context == null) {
             request.fetchSourceContext(new FetchSourceContext(fetch));
-        }
-        else {
+        } else {
             context.fetchSource(fetch);
         }
         return this;
@@ -135,8 +134,8 @@ public class GetRequestBuilder extends SingleShardOperationRequestBuilder<GetReq
      */
     public GetRequestBuilder setFetchSource(@Nullable String include, @Nullable String exclude) {
         return setFetchSource(
-                include == null? Strings.EMPTY_ARRAY : new String[] {include},
-                exclude == null? Strings.EMPTY_ARRAY : new String[] {exclude});
+                include == null ? Strings.EMPTY_ARRAY : new String[]{include},
+                exclude == null ? Strings.EMPTY_ARRAY : new String[]{exclude});
     }
 
     /**
@@ -150,8 +149,7 @@ public class GetRequestBuilder extends SingleShardOperationRequestBuilder<GetReq
         FetchSourceContext context = request.fetchSourceContext();
         if (context == null) {
             request.fetchSourceContext(new FetchSourceContext(includes, excludes));
-        }
-        else {
+        } else {
             context.fetchSource(true);
             context.includes(includes);
             context.excludes(excludes);
@@ -195,11 +193,4 @@ public class GetRequestBuilder extends SingleShardOperationRequestBuilder<GetReq
         request.versionType(versionType);
         return this;
     }
-
-    @Override
-    protected void doExecute(ActionListener<GetResponse> listener) {
-        client.get(request, listener);
-    }
-
-
 }

@@ -24,6 +24,7 @@ import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.InternalEngineFactory;
+import org.elasticsearch.index.translog.TranslogService;
 import org.elasticsearch.index.warmer.ShardIndexWarmerService;
 
 /**
@@ -47,6 +48,9 @@ public class IndexShardModule extends AbstractModule {
         this.settings = settings;
         this.shardId = shardId;
         this.primary = primary;
+        if (settings.get("index.translog.type") != null) {
+            throw new IllegalStateException("a custom translog type is no longer supported. got [" + settings.get("index.translog.type") + "]");
+        }
     }
 
     /** Return true if a shadow engine should be used */
@@ -61,6 +65,7 @@ public class IndexShardModule extends AbstractModule {
             bind(IndexShard.class).to(ShadowIndexShard.class).asEagerSingleton();
         } else {
             bind(IndexShard.class).asEagerSingleton();
+            bind(TranslogService.class).asEagerSingleton();
         }
 
         bind(EngineFactory.class).to(settings.getAsClass(ENGINE_FACTORY, DEFAULT_ENGINE_FACTORY_CLASS, ENGINE_PREFIX, ENGINE_SUFFIX));

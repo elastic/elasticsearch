@@ -19,18 +19,17 @@
 
 package org.elasticsearch.action.admin.indices.exists.indices;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
-import org.elasticsearch.client.IndicesAdminClient;
+import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  *
  */
-public class IndicesExistsRequestBuilder extends MasterNodeReadOperationRequestBuilder<IndicesExistsRequest, IndicesExistsResponse, IndicesExistsRequestBuilder, IndicesAdminClient> {
+public class IndicesExistsRequestBuilder extends MasterNodeReadOperationRequestBuilder<IndicesExistsRequest, IndicesExistsResponse, IndicesExistsRequestBuilder> {
 
-    public IndicesExistsRequestBuilder(IndicesAdminClient indicesClient, String... indices) {
-        super(indicesClient, new IndicesExistsRequest(indices));
+    public IndicesExistsRequestBuilder(ElasticsearchClient client, IndicesExistsAction action, String... indices) {
+        super(client, action, new IndicesExistsRequest(indices));
     }
 
     public IndicesExistsRequestBuilder setIndices(String... indices) {
@@ -40,16 +39,11 @@ public class IndicesExistsRequestBuilder extends MasterNodeReadOperationRequestB
 
     /**
      * Specifies what type of requested indices to ignore and wildcard indices expressions.
-     *
+     * <p/>
      * For example indices that don't exist.
      */
     public IndicesExistsRequestBuilder setIndicesOptions(IndicesOptions options) {
         request.indicesOptions(options);
         return this;
-    }
-
-    @Override
-    protected void doExecute(ActionListener<IndicesExistsResponse> listener) {
-        client.exists(request, listener);
     }
 }

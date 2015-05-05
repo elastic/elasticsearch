@@ -20,32 +20,26 @@
 package org.elasticsearch.action.admin.cluster.repositories.get;
 
 import com.google.common.collect.ObjectArrays;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
-import org.elasticsearch.client.ClusterAdminClient;
+import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  * Get repository request builder
  */
-public class GetRepositoriesRequestBuilder extends MasterNodeReadOperationRequestBuilder<GetRepositoriesRequest, GetRepositoriesResponse, GetRepositoriesRequestBuilder, ClusterAdminClient> {
+public class GetRepositoriesRequestBuilder extends MasterNodeReadOperationRequestBuilder<GetRepositoriesRequest, GetRepositoriesResponse, GetRepositoriesRequestBuilder> {
 
     /**
      * Creates new get repository request builder
-     *
-     * @param clusterAdminClient cluster admin client
      */
-    public GetRepositoriesRequestBuilder(ClusterAdminClient clusterAdminClient) {
-        super(clusterAdminClient, new GetRepositoriesRequest());
+    public GetRepositoriesRequestBuilder(ElasticsearchClient client, GetRepositoriesAction action) {
+        super(client, action, new GetRepositoriesRequest());
     }
 
     /**
      * Creates new get repository request builder
-     *
-     * @param clusterAdminClient cluster admin client
-     * @param repositories       list of repositories to get
      */
-    public GetRepositoriesRequestBuilder(ClusterAdminClient clusterAdminClient, String... repositories) {
-        super(clusterAdminClient, new GetRepositoriesRequest(repositories));
+    public GetRepositoriesRequestBuilder(ElasticsearchClient client, GetRepositoriesAction action, String... repositories) {
+        super(client, action, new GetRepositoriesRequest(repositories));
     }
 
     /**
@@ -68,10 +62,5 @@ public class GetRepositoriesRequestBuilder extends MasterNodeReadOperationReques
     public GetRepositoriesRequestBuilder addRepositories(String... repositories) {
         request.repositories(ObjectArrays.concat(request.repositories(), repositories, String.class));
         return this;
-    }
-
-    @Override
-    protected void doExecute(ActionListener<GetRepositoriesResponse> listener) {
-        client.getRepositories(request, listener);
     }
 }

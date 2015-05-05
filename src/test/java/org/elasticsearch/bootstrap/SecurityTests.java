@@ -24,12 +24,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ElasticsearchTestCase;
 
-import java.io.ByteArrayInputStream;
 import java.io.FilePermission;
 import java.nio.file.Path;
-import java.security.Policy;
-import java.security.ProtectionDomain;
-import java.security.URIParameter;
+import java.security.Permissions;
 
 public class SecurityTests extends ElasticsearchTestCase {
     
@@ -42,17 +39,25 @@ public class SecurityTests extends ElasticsearchTestCase {
         settingsBuilder.put("path.home", esHome.toString());
         Settings settings = settingsBuilder.build();
 
-        Environment environment = new Environment(settings);        
-        Path policyFile = Security.processTemplate(new ByteArrayInputStream(new byte[0]), environment);
+        Environment environment = new Environment(settings);
+        Path fakeTmpDir = createTempDir();
+        String realTmpDir = System.getProperty("java.io.tmpdir");
+        Permissions permissions;
+        try {
+            System.setProperty("java.io.tmpdir", fakeTmpDir.toString());
+            permissions = Security.createPermissions(environment);
+        } finally {
+            System.setProperty("java.io.tmpdir", realTmpDir);
+        }
       
-        ProtectionDomain domain = getClass().getProtectionDomain();
-        Policy policy = Policy.getInstance("JavaPolicy", new URIParameter(policyFile.toUri()));
         // the fake es home
-        assertTrue(policy.implies(domain, new FilePermission(esHome.toString(), "read")));
+        assertTrue(permissions.implies(new FilePermission(esHome.toString(), "read")));
         // its parent
-        assertFalse(policy.implies(domain, new FilePermission(path.toString(), "read")));
+        assertFalse(permissions.implies(new FilePermission(path.toString(), "read")));
         // some other sibling
-        assertFalse(policy.implies(domain, new FilePermission(path.resolve("other").toString(), "read")));
+        assertFalse(permissions.implies(new FilePermission(path.resolve("other").toString(), "read")));
+        // double check we overwrote java.io.tmpdir correctly for the test
+        assertFalse(permissions.implies(new FilePermission(realTmpDir.toString(), "read")));
     }
 
     /** test generated permissions for all configured paths */
@@ -67,29 +72,38 @@ public class SecurityTests extends ElasticsearchTestCase {
         settingsBuilder.put("path.logs", path.resolve("logs").toString());
         Settings settings = settingsBuilder.build();
 
-        Environment environment = new Environment(settings);        
-        Path policyFile = Security.processTemplate(new ByteArrayInputStream(new byte[0]), environment);
-     
-        ProtectionDomain domain = getClass().getProtectionDomain();
-        Policy policy = Policy.getInstance("JavaPolicy", new URIParameter(policyFile.toUri()));
+        Environment environment = new Environment(settings);
+        Path fakeTmpDir = createTempDir();
+        String realTmpDir = System.getProperty("java.io.tmpdir");
+        Permissions permissions;
+        try {
+            System.setProperty("java.io.tmpdir", fakeTmpDir.toString());
+            permissions = Security.createPermissions(environment);
+        } finally {
+            System.setProperty("java.io.tmpdir", realTmpDir);
+        }
 
         // check that all directories got permissions:
         // homefile: this is needed unless we break out rules for "lib" dir.
         // TODO: make read-only
-        assertTrue(policy.implies(domain, new FilePermission(environment.homeFile().toString(), "read,readlink,write,delete")));
+        assertTrue(permissions.implies(new FilePermission(environment.homeFile().toString(), "read,readlink,write,delete")));
         // config file
         // TODO: make read-only
-        assertTrue(policy.implies(domain, new FilePermission(environment.configFile().toString(), "read,readlink,write,delete")));
+        assertTrue(permissions.implies(new FilePermission(environment.configFile().toString(), "read,readlink,write,delete")));
         // plugins: r/w, TODO: can this be minimized?
-        assertTrue(policy.implies(domain, new FilePermission(environment.pluginsFile().toString(), "read,readlink,write,delete")));
+        assertTrue(permissions.implies(new FilePermission(environment.pluginsFile().toString(), "read,readlink,write,delete")));
         // data paths: r/w
         for (Path dataPath : environment.dataFiles()) {
-            assertTrue(policy.implies(domain, new FilePermission(dataPath.toString(), "read,readlink,write,delete")));
+            assertTrue(permissions.implies(new FilePermission(dataPath.toString(), "read,readlink,write,delete")));
         }
         for (Path dataPath : environment.dataWithClusterFiles()) {
-            assertTrue(policy.implies(domain, new FilePermission(dataPath.toString(), "read,readlink,write,delete")));
+            assertTrue(permissions.implies(new FilePermission(dataPath.toString(), "read,readlink,write,delete")));
         }
         // logs: r/w
-        assertTrue(policy.implies(domain, new FilePermission(environment.logsFile().toString(), "read,readlink,write,delete")));
+        assertTrue(permissions.implies(new FilePermission(environment.logsFile().toString(), "read,readlink,write,delete")));
+        // temp dir: r/w
+        assertTrue(permissions.implies(new FilePermission(fakeTmpDir.toString(), "read,readlink,write,delete")));
+        // double check we overwrote java.io.tmpdir correctly for the test
+        assertFalse(permissions.implies(new FilePermission(realTmpDir.toString(), "read")));
     }
 }

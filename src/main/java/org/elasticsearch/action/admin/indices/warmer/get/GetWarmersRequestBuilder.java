@@ -20,9 +20,8 @@
 package org.elasticsearch.action.admin.indices.warmer.get;
 
 import com.google.common.collect.ObjectArrays;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.info.ClusterInfoRequestBuilder;
-import org.elasticsearch.client.IndicesAdminClient;
+import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  * Builder for {@link GetWarmersRequest}
@@ -31,8 +30,8 @@ import org.elasticsearch.client.IndicesAdminClient;
  */
 public class GetWarmersRequestBuilder extends ClusterInfoRequestBuilder<GetWarmersRequest, GetWarmersResponse, GetWarmersRequestBuilder> {
 
-    public GetWarmersRequestBuilder(IndicesAdminClient client, String... indices) {
-        super(client, new GetWarmersRequest().indices(indices));
+    public GetWarmersRequestBuilder(ElasticsearchClient client, GetWarmersAction action, String... indices) {
+        super(client, action, new GetWarmersRequest().indices(indices));
     }
 
     public GetWarmersRequestBuilder setWarmers(String... warmers) {
@@ -43,10 +42,5 @@ public class GetWarmersRequestBuilder extends ClusterInfoRequestBuilder<GetWarme
     public GetWarmersRequestBuilder addWarmers(String... warmers) {
         request.warmers(ObjectArrays.concat(request.warmers(), warmers, String.class));
         return this;
-    }
-
-    @Override
-    protected void doExecute(ActionListener<GetWarmersResponse> listener) {
-        client.getWarmers(request, listener);
     }
 }

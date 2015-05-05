@@ -24,6 +24,7 @@ import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.google.common.base.Objects;
 import com.google.common.collect.ImmutableList;
+
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
@@ -35,6 +36,7 @@ import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryWrapperFilter;
 import org.apache.lucene.search.RegexpQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
@@ -480,7 +482,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
 
     @Override
     public Filter termFilter(Object value, @Nullable QueryParseContext context) {
-        return Queries.wrap(new TermQuery(names().createIndexNameTerm(indexedValueForSearch(value))));
+        return new QueryWrapperFilter(new TermQuery(names().createIndexNameTerm(indexedValueForSearch(value))));
     }
 
     @Override
@@ -499,7 +501,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
             for (int i = 0; i < bytesRefs.length; i++) {
                 bytesRefs[i] = indexedValueForSearch(values.get(i));
             }
-            return Queries.wrap(new TermsQuery(names.indexName(), bytesRefs));
+            return new QueryWrapperFilter(new TermsQuery(names.indexName(), bytesRefs));
             
         }
     }
@@ -529,7 +531,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
 
     @Override
     public Filter rangeFilter(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
-        return Queries.wrap(new TermRangeQuery(names.indexName(),
+        return new QueryWrapperFilter(new TermRangeQuery(names.indexName(),
                 lowerTerm == null ? null : indexedValueForSearch(lowerTerm),
                 upperTerm == null ? null : indexedValueForSearch(upperTerm),
                 includeLower, includeUpper));
@@ -551,7 +553,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
 
     @Override
     public Filter prefixFilter(Object value, @Nullable QueryParseContext context) {
-        return Queries.wrap(new PrefixQuery(names().createIndexNameTerm(indexedValueForSearch(value))));
+        return new QueryWrapperFilter(new PrefixQuery(names().createIndexNameTerm(indexedValueForSearch(value))));
     }
 
     @Override
@@ -565,7 +567,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
 
     @Override
     public Filter regexpFilter(Object value, int flags, int maxDeterminizedStates, @Nullable QueryParseContext parseContext) {
-        return Queries.wrap(new RegexpQuery(names().createIndexNameTerm(indexedValueForSearch(value)), flags, maxDeterminizedStates));
+        return new QueryWrapperFilter(new RegexpQuery(names().createIndexNameTerm(indexedValueForSearch(value)), flags, maxDeterminizedStates));
     }
 
     @Override

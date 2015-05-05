@@ -134,7 +134,7 @@ be "two hop" operations).
 --------------------------------------------------
 // on startup
 
-Client client = new TransportClient()
+Client client = TransportClient.builder().build()
         .addTransportAddress(new InetSocketTransportAddress("host1", 9300))
         .addTransportAddress(new InetSocketTransportAddress("host2", 9300));
 
@@ -150,7 +150,7 @@ Note that you have to set the cluster name if you use one different than
 --------------------------------------------------
 Settings settings = ImmutableSettings.settingsBuilder()
         .put("cluster.name", "myClusterName").build();
-Client client =    new TransportClient(settings);
+Client client = TransportClient.builder().settings(settings).build();
 //Add transport addresses and do something with the client...
 --------------------------------------------------
 
@@ -166,7 +166,7 @@ used will be the ones that the other nodes were started with (the
 --------------------------------------------------
 Settings settings = ImmutableSettings.settingsBuilder()
         .put("client.transport.sniff", true).build();
-TransportClient client = new TransportClient(settings);
+TransportClient client = TransportClient.builder().settings(settings).build();
 --------------------------------------------------
 
 Other transport client level settings include:

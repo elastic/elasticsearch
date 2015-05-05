@@ -22,10 +22,8 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.QueryCachingPolicy;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lucene.HashedBytesRef;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -55,14 +53,14 @@ public class ConstantScoreQueryParser extends BaseQueryParserTemp {
         Query query = null;
         boolean queryFound = false;
         float boost = 1.0f;
-        QueryCachingPolicy cache = parseContext.autoFilterCachePolicy();
-        HashedBytesRef cacheKey = null;
 
         String currentFieldName = null;
         XContentParser.Token token;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
+            } else if (parseContext.isDeprecatedSetting(currentFieldName)) {
+                // skip
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if ("filter".equals(currentFieldName)) {
                     filter = parseContext.parseInnerFilter();
@@ -76,10 +74,6 @@ public class ConstantScoreQueryParser extends BaseQueryParserTemp {
             } else if (token.isValue()) {
                 if ("boost".equals(currentFieldName)) {
                     boost = parser.floatValue();
-                } else if ("_cache".equals(currentFieldName)) {
-                    cache = parseContext.parseFilterCachePolicy();
-                } else if ("_cache_key".equals(currentFieldName) || "_cacheKey".equals(currentFieldName)) {
-                    cacheKey = new HashedBytesRef(parser.text());
                 } else {
                     throw new QueryParsingException(parseContext, "[constant_score] query does not support [" + currentFieldName + "]");
                 }
@@ -94,11 +88,6 @@ public class ConstantScoreQueryParser extends BaseQueryParserTemp {
         }
 
         if (filter != null) {
-            // cache the filter if possible needed
-            if (cache != null) {
-                filter = parseContext.cacheFilter(filter, cacheKey, cache);
-            }
-
             Query query1 = new ConstantScoreQuery(filter);
             query1.setBoost(boost);
             return query1;

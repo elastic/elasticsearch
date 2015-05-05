@@ -38,8 +38,6 @@ public class RegexpFilterBuilder extends BaseFilterBuilder {
     private int maxDeterminizedStates = Operations.DEFAULT_MAX_DETERMINIZED_STATES;
     private boolean maxDetermizedStatesSet;
 
-    private Boolean cache;
-    private String cacheKey;
     private String filterName;
 
     /**
@@ -87,19 +85,6 @@ public class RegexpFilterBuilder extends BaseFilterBuilder {
         return this;
     }
 
-    /**
-     * Should the filter be cached or not. Defaults to <tt>false</tt>.
-     */
-    public RegexpFilterBuilder cache(boolean cache) {
-        this.cache = cache;
-        return this;
-    }
-
-    public RegexpFilterBuilder cacheKey(String cacheKey) {
-        this.cacheKey = cacheKey;
-        return this;
-    }
-
     @Override
     public void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(RegexpFilterParser.NAME);
@@ -117,12 +102,6 @@ public class RegexpFilterBuilder extends BaseFilterBuilder {
 
         if (filterName != null) {
             builder.field("_name", filterName);
-        }
-        if (cache != null) {
-            builder.field("_cache", cache);
-        }
-        if (cacheKey != null) {
-            builder.field("_cache_key", cacheKey);
         }
         builder.endObject();
     }

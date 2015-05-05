@@ -42,7 +42,6 @@ import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregatorFactory
 import org.elasticsearch.search.aggregations.metrics.sum.Sum;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -303,7 +302,7 @@ public class EquivalenceTests extends ElasticsearchIntegrationTest {
 
         SearchResponse resp = client().prepareSearch("idx")
                 .addAggregation(terms("terms").field("values").collectMode(randomFrom(SubAggCollectionMode.values())).script("floor(_value / interval)").param("interval", interval).size(maxNumTerms))
-                .addAggregation(histogram("histo").field("values").interval(interval))
+                .addAggregation(histogram("histo").field("values").interval(interval).minDocCount(1))
                 .execute().actionGet();
 
         assertSearchResponse(resp);

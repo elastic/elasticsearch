@@ -32,20 +32,10 @@ public class NotFilterBuilder extends BaseFilterBuilder {
 
     private FilterBuilder filter;
 
-    private Boolean cache;
-
     private String filterName;
 
     public NotFilterBuilder(FilterBuilder filter) {
         this.filter = filter;
-    }
-
-    /**
-     * Should the filter be cached or not. Defaults to <tt>false</tt>.
-     */
-    public NotFilterBuilder cache(boolean cache) {
-        this.cache = cache;
-        return this;
     }
 
     public NotFilterBuilder filterName(String filterName) {
@@ -58,9 +48,6 @@ public class NotFilterBuilder extends BaseFilterBuilder {
         builder.startObject(NotFilterParser.NAME);
         builder.field("filter");
         filter.toXContent(builder, params);
-        if (cache != null) {
-            builder.field("_cache", cache);
-        }
         if (filterName != null) {
             builder.field("_name", filterName);
         }

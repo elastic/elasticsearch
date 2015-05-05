@@ -164,7 +164,7 @@ public class BackgroundIndexer implements AutoCloseable {
                                     continue;
                                 }
                                 id = idGenerator.incrementAndGet();
-                                client.prepareIndex(index, type, Long.toString(id) + "-" + indexerId).setSource(generateSource(id, threadRandom)).get();
+                                client.prepareIndex(index, type, Long.toString(id)).setSource(generateSource(id, threadRandom)).get();
                                 indexCounter.incrementAndGet();
                             }
                         }

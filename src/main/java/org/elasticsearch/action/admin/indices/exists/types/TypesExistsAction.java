@@ -18,12 +18,12 @@
  */
 package org.elasticsearch.action.admin.indices.exists.types;
 
-import org.elasticsearch.action.admin.indices.IndicesAction;
-import org.elasticsearch.client.IndicesAdminClient;
+import org.elasticsearch.action.Action;
+import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  */
-public class TypesExistsAction extends IndicesAction<TypesExistsRequest, TypesExistsResponse, TypesExistsRequestBuilder> {
+public class TypesExistsAction extends Action<TypesExistsRequest, TypesExistsResponse, TypesExistsRequestBuilder> {
 
     public static final TypesExistsAction INSTANCE = new TypesExistsAction();
     public static final String NAME = "indices:admin/types/exists";
@@ -38,7 +38,7 @@ public class TypesExistsAction extends IndicesAction<TypesExistsRequest, TypesEx
     }
 
     @Override
-    public TypesExistsRequestBuilder newRequestBuilder(IndicesAdminClient client) {
-        return new TypesExistsRequestBuilder(client);
+    public TypesExistsRequestBuilder newRequestBuilder(ElasticsearchClient client) {
+        return new TypesExistsRequestBuilder(client, this);
     }
 }

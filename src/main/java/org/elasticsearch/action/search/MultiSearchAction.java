@@ -19,12 +19,12 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.action.ClientAction;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.action.Action;
+import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  */
-public class MultiSearchAction extends ClientAction<MultiSearchRequest, MultiSearchResponse, MultiSearchRequestBuilder> {
+public class MultiSearchAction extends Action<MultiSearchRequest, MultiSearchResponse, MultiSearchRequestBuilder> {
 
     public static final MultiSearchAction INSTANCE = new MultiSearchAction();
     public static final String NAME = "indices:data/read/msearch";
@@ -39,7 +39,7 @@ public class MultiSearchAction extends ClientAction<MultiSearchRequest, MultiSea
     }
 
     @Override
-    public MultiSearchRequestBuilder newRequestBuilder(Client client) {
-        return new MultiSearchRequestBuilder(client);
+    public MultiSearchRequestBuilder newRequestBuilder(ElasticsearchClient client) {
+        return new MultiSearchRequestBuilder(client, this);
     }
 }

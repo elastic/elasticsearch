@@ -67,7 +67,6 @@ public class RestPutMappingAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
         PutMappingRequest putMappingRequest = putMappingRequest(Strings.splitStringByCommaToArray(request.param("index")));
-        putMappingRequest.listenerThreaded(false);
         putMappingRequest.type(request.param("type"));
         putMappingRequest.source(request.content().toUtf8());
         putMappingRequest.timeout(request.paramAsTime("timeout", putMappingRequest.timeout()));

@@ -21,34 +21,21 @@ package org.elasticsearch.index.translog.fs;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Channels;
+import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.translog.TranslogStream;
-import org.elasticsearch.index.translog.TranslogStreams;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogException;
+import org.elasticsearch.index.translog.TranslogStream;
 
 import java.io.IOException;
 import java.io.OutputStream;
-import java.nio.file.Path;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.locks.ReadWriteLock;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.nio.ByteBuffer;
 
 /**
  */
-public class BufferingFsTranslogFile implements FsTranslogFile {
-
-    private final long id;
-    private final ShardId shardId;
-    private final ChannelReference channelReference;
-    private final TranslogStream translogStream;
-    private final int headerSize;
-
-    private final ReadWriteLock rwl = new ReentrantReadWriteLock();
-    private final AtomicBoolean closed = new AtomicBoolean();
+public final class BufferingFsTranslogFile extends FsTranslogFile {
 
     private volatile int operationCounter;
-
     private volatile long lastPosition;
     private volatile long lastWrittenPosition;
 
@@ -59,36 +46,28 @@ public class BufferingFsTranslogFile implements FsTranslogFile {
     private WrapperOutputStream bufferOs = new WrapperOutputStream();
 
     public BufferingFsTranslogFile(ShardId shardId, long id, ChannelReference channelReference, int bufferSize) throws IOException {
-        this.shardId = shardId;
-        this.id = id;
-        this.channelReference = channelReference;
+        super(shardId, id, channelReference);
         this.buffer = new byte[bufferSize];
-        this.translogStream = TranslogStreams.translogStreamFor(this.channelReference.file());
-        this.headerSize = this.translogStream.writeHeader(channelReference.channel());
+        final TranslogStream stream = this.channelReference.stream();
+        int headerSize = stream.writeHeader(channelReference.channel());
         this.lastPosition += headerSize;
         this.lastWrittenPosition += headerSize;
         this.lastSyncPosition += headerSize;
     }
 
     @Override
-    public long id() {
-        return this.id;
-    }
-
-    @Override
-    public int estimatedNumberOfOperations() {
+    public int totalOperations() {
         return operationCounter;
     }
 
     @Override
-    public long translogSizeInBytes() {
+    public long sizeInBytes() {
         return lastWrittenPosition;
     }
 
     @Override
     public Translog.Location add(BytesReference data) throws IOException {
-        rwl.writeLock().lock();
-        try {
+        try (ReleasableLock lock = writeLock.acquire()) {
             operationCounter++;
             long position = lastPosition;
             if (data.length() >= buffer.length) {
@@ -106,64 +85,49 @@ public class BufferingFsTranslogFile implements FsTranslogFile {
             data.writeTo(bufferOs);
             lastPosition += data.length();
             return new Translog.Location(id, position, data.length());
-        } finally {
-            rwl.writeLock().unlock();
         }
     }
 
     private void flushBuffer() throws IOException {
-        assert (((ReentrantReadWriteLock.WriteLock) rwl.writeLock()).isHeldByCurrentThread());
+        assert writeLock.isHeldByCurrentThread();
         if (bufferCount > 0) {
             // we use the channel to write, since on windows, writing to the RAF might not be reflected
             // when reading through the channel
             Channels.writeToChannel(buffer, 0, bufferCount, channelReference.channel());
-
             lastWrittenPosition += bufferCount;
             bufferCount = 0;
         }
     }
 
     @Override
-    public byte[] read(Translog.Location location) throws IOException {
-        rwl.readLock().lock();
-        try {
-            if (location.translogLocation >= lastWrittenPosition) {
-                byte[] data = new byte[location.size];
-                System.arraycopy(buffer, (int) (location.translogLocation - lastWrittenPosition), data, 0, location.size);
-                return data;
+    protected void readBytes(ByteBuffer targetBuffer, long position) throws IOException {
+        try (ReleasableLock lock = readLock.acquire()) {
+            if (position >= lastWrittenPosition) {
+                System.arraycopy(buffer, (int) (position - lastWrittenPosition),
+                        targetBuffer.array(), targetBuffer.position(), targetBuffer.limit());
+                return;
             }
-        } finally {
-            rwl.readLock().unlock();
         }
         // we don't have to have a read lock here because we only write ahead to the file, so all writes has been complete
         // for the requested location.
-        return Channels.readFromFileChannel(channelReference.channel(), location.translogLocation, location.size);
+        Channels.readFromFileChannelWithEofException(channelReference.channel(), position, targetBuffer);
     }
 
-    @Override
-    public FsChannelSnapshot snapshot() throws TranslogException {
+    public FsChannelImmutableReader immutableReader() throws TranslogException {
         if (channelReference.tryIncRef()) {
-            boolean success = false;
-            try {
-                rwl.writeLock().lock();
-                try {
-                    flushBuffer();
-                    FsChannelSnapshot snapshot = new FsChannelSnapshot(this.id, channelReference, lastWrittenPosition, operationCounter);
-                    snapshot.seekTo(this.headerSize);
-                    success = true;
-                    return snapshot;
-                } catch (Exception e) {
-                    throw new TranslogException(shardId, "exception while creating snapshot", e);
-                } finally {
-                    rwl.writeLock().unlock();
-                }
+            try (ReleasableLock lock = writeLock.acquire()) {
+                flushBuffer();
+                FsChannelImmutableReader reader = new FsChannelImmutableReader(this.id, channelReference, lastWrittenPosition, operationCounter);
+                channelReference.incRef(); // for new reader
+                return reader;
+            } catch (Exception e) {
+                throw new TranslogException(shardId, "exception while creating an immutable reader", e);
             } finally {
-                if (!success) {
-                    channelReference.decRef();
-                }
+                channelReference.decRef();
             }
+        } else {
+            throw new TranslogException(shardId, "can't increment channel [" + channelReference + "] ref count");
         }
-        return null;
     }
 
     @Override
@@ -172,33 +136,23 @@ public class BufferingFsTranslogFile implements FsTranslogFile {
     }
 
     @Override
-    public TranslogStream getStream() {
-        return this.translogStream;
-    }
-
-    @Override
     public void sync() throws IOException {
         if (!syncNeeded()) {
             return;
         }
-        rwl.writeLock().lock();
-        try {
+        try (ReleasableLock lock = writeLock.acquire()) {
             flushBuffer();
             lastSyncPosition = lastPosition;
-        } finally {
-            rwl.writeLock().unlock();
         }
         channelReference.channel().force(false);
     }
 
     @Override
-    public void close() throws IOException {
-        if (closed.compareAndSet(false, true)) {
-            try {
-                sync();
-            } finally {
-                channelReference.decRef();
-            }
+    protected void doClose() throws IOException {
+        try {
+            sync();
+        } finally {
+            super.doClose();
         }
     }
 
@@ -207,21 +161,18 @@ public class BufferingFsTranslogFile implements FsTranslogFile {
         if (!(other instanceof BufferingFsTranslogFile)) {
             return;
         }
-        rwl.writeLock().lock();
-        try {
-            flushBuffer();
-            this.buffer = ((BufferingFsTranslogFile) other).buffer;
-        } catch (IOException e) {
-            throw new TranslogException(shardId, "failed to flush", e);
-        } finally {
-            rwl.writeLock().unlock();
+        try (ReleasableLock lock = writeLock.acquire()) {
+            try {
+                flushBuffer();
+                this.buffer = ((BufferingFsTranslogFile) other).buffer;
+            } catch (IOException e) {
+                throw new TranslogException(shardId, "failed to flush", e);
+            }
         }
     }
 
-    @Override
     public void updateBufferSize(int bufferSize) {
-        rwl.writeLock().lock();
-        try {
+        try (ReleasableLock lock = writeLock.acquire()) {
             if (this.buffer.length == bufferSize) {
                 return;
             }
@@ -229,19 +180,7 @@ public class BufferingFsTranslogFile implements FsTranslogFile {
             this.buffer = new byte[bufferSize];
         } catch (IOException e) {
             throw new TranslogException(shardId, "failed to flush", e);
-        } finally {
-            rwl.writeLock().unlock();
         }
-    }
-
-    @Override
-    public Path getPath() {
-        return channelReference.file();
-    }
-
-    @Override
-    public boolean closed() {
-        return this.closed.get();
     }
 
     class WrapperOutputStream extends OutputStream {
@@ -258,4 +197,5 @@ public class BufferingFsTranslogFile implements FsTranslogFile {
             bufferCount += len;
         }
     }
+
 }

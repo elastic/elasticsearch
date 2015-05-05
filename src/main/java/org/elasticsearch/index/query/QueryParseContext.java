@@ -22,25 +22,17 @@ package org.elasticsearch.index.query;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.queryparser.classic.MapperQueryParser;
 import org.apache.lucene.queryparser.classic.QueryParserSettings;
-import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.QueryCachingPolicy;
+import org.apache.lucene.search.QueryWrapperFilter;
 import org.apache.lucene.search.join.BitDocIdSetFilter;
 import org.apache.lucene.search.similarities.Similarity;
-import org.apache.lucene.util.Bits;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.lucene.HashedBytesRef;
-import org.elasticsearch.common.lucene.search.NoCacheFilter;
-import org.elasticsearch.common.lucene.search.NoCacheQuery;
-import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.common.lucene.search.ResolvableFilter;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -55,7 +47,6 @@ import org.elasticsearch.index.mapper.MapperBuilders;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
 import org.elasticsearch.index.query.support.NestedScope;
-import org.elasticsearch.index.search.child.CustomQueryWrappingFilter;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.fetch.innerhits.InnerHitsContext;
@@ -74,6 +65,9 @@ import java.util.Map;
  *
  */
 public class QueryParseContext {
+
+    private static final ParseField CACHE = new ParseField("_cache").withAllDeprecated("Elasticsearch makes its own caching decisions");
+    private static final ParseField CACHE_KEY = new ParseField("_cache_key").withAllDeprecated("Filters are always used as cache keys");
 
     private static ThreadLocal<String[]> typesContext = new ThreadLocal<>();
 
@@ -97,10 +91,6 @@ public class QueryParseContext {
 
     private final Index index;
 
-    private boolean propagateNoCache = false;
-
-    private boolean requireCustomQueryWrappingFilter = false;
-
     private final IndexQueryParserService indexQueryParser;
 
     private final Map<String, Filter> namedFilters = Maps.newHashMap();
@@ -111,8 +101,6 @@ public class QueryParseContext {
 
     private EnumSet<ParseField.Flag> parseFlags = ParseField.EMPTY_FLAGS;
 
-    private final boolean disableFilterCaching;
-
     private boolean allowUnmappedFields;
 
     private boolean mapUnmappedFieldAsString;
@@ -120,14 +108,8 @@ public class QueryParseContext {
     private NestedScope nestedScope;
 
     public QueryParseContext(Index index, IndexQueryParserService indexQueryParser) {
-        this(index, indexQueryParser, false);
-    }
-
-    public QueryParseContext(Index index, IndexQueryParserService indexQueryParser, boolean disableFilterCaching) {
         this.index = index;
         this.indexQueryParser = indexQueryParser;
-        this.propagateNoCache = disableFilterCaching;
-        this.disableFilterCaching = disableFilterCaching;
     }
 
     public void parseFlags(EnumSet<ParseField.Flag> parseFlags) {
@@ -144,8 +126,6 @@ public class QueryParseContext {
         this.lookup = null;
         this.parser = jp;
         this.namedFilters.clear();
-        this.requireCustomQueryWrappingFilter = false;
-        this.propagateNoCache = false;
         this.nestedScope = new NestedScope();
     }
 
@@ -190,24 +170,6 @@ public class QueryParseContext {
         return indexQueryParser.defaultField();
     }
 
-    public QueryCachingPolicy autoFilterCachePolicy() {
-        return indexQueryParser.autoFilterCachePolicy();
-    }
-
-    public QueryCachingPolicy parseFilterCachePolicy() throws IOException {
-        final String text = parser.textOrNull();
-        if (text == null || text.equals("auto")) {
-            return autoFilterCachePolicy();
-        } else if (parser.booleanValue()) {
-            // cache without conditions on how many times the filter has been
-            // used or what the produced DocIdSet looks like, but ONLY on large
-            // segments to not pollute the cache
-            return QueryCachingPolicy.CacheOnLargeSegments.DEFAULT;
-        } else {
-            return null;
-        }
-    }
-
     public boolean queryStringLenient() {
         return indexQueryParser.queryStringLenient();
     }
@@ -221,38 +183,6 @@ public class QueryParseContext {
         return indexQueryParser.bitsetFilterCache.getBitDocIdSetFilter(filter);
     }
 
-    public Filter cacheFilter(Filter filter, final @Nullable HashedBytesRef cacheKey, final QueryCachingPolicy cachePolicy) {
-        if (filter == null) {
-            return null;
-        }
-        if (this.disableFilterCaching || this.propagateNoCache || filter instanceof NoCacheFilter) {
-            return filter;
-        }
-        if (filter instanceof ResolvableFilter) {
-            final ResolvableFilter resolvableFilter = (ResolvableFilter) filter;
-            // We need to wrap it another filter, because this method is invoked at query parse time, which
-            // may not be during search execution time. (for example index alias filter and percolator)
-            return new Filter() {
-                @Override
-                public DocIdSet getDocIdSet(LeafReaderContext atomicReaderContext, Bits bits) throws IOException {
-                    Filter filter = resolvableFilter.resolve();
-                    if (filter == null) {
-                        return null;
-                    }
-                    filter = indexQueryParser.indexCache.filter().cache(filter, cacheKey, cachePolicy);
-                    return filter.getDocIdSet(atomicReaderContext, bits);
-                }
-
-                @Override
-                public String toString(String field) {
-                    return "AnonymousResolvableFilter"; // TODO: not sure what is going on here
-                }
-            };
-        } else {
-            return indexQueryParser.indexCache.filter().cache(filter, cacheKey, cachePolicy);
-        }
-    }
-
     public <IFD extends IndexFieldData<?>> IFD getForField(FieldMapper<?> mapper) {
         return indexQueryParser.fieldDataService.getForField(mapper);
     }
@@ -262,7 +192,7 @@ public class QueryParseContext {
     }
 
     public void addNamedQuery(String name, Query query) {
-        namedFilters.put(name, Queries.wrap(query, this));
+        namedFilters.put(name, new QueryWrapperFilter(query));
     }
 
     public ImmutableMap<String, Filter> copyNamedFilters() {
@@ -330,28 +260,7 @@ public class QueryParseContext {
         QueryBuilder builder = parseInnerQueryBuilder();
 
         Query result = builder.toQuery(this);
-        checkCachable(result);
         return result;
-    }
-
-    /**
-     * Checks if the given lucene query should be cached or wrapped, sets flags in this QueryParseContext accordingly
-     * @param query
-     */
-    void checkCachable(Query query) {
-        if (query instanceof NoCacheQuery) {
-            propagateNoCache = true;
-        }
-        if (CustomQueryWrappingFilter.shouldUseCustomQueryWrappingFilter(query)) {
-            requireCustomQueryWrappingFilter = true;
-            // If later on, either directly or indirectly this query gets
-            // wrapped in a query filter it must never
-            // get cached even if a filter higher up the chain is configured to
-            // do this. This will happen, because
-            // the result filter will be instance of NoCacheFilter
-            // (CustomQueryWrappingFilter) which will in
-            // #executeFilterParser() set propagateNoCache to true.
-        }
     }
 
     @Nullable
@@ -383,7 +292,7 @@ public class QueryParseContext {
         if (filterParser == null) {
             throw new QueryParsingException(this, "No filter registered for [" + filterName + "]");
         }
-        Filter result = executeFilterParser(filterParser);
+        Filter result = filterParser.parse(this);
         if (parser.currentToken() == XContentParser.Token.END_OBJECT || parser.currentToken() == XContentParser.Token.END_ARRAY) {
             // if we are at END_OBJECT, move to the next one...
             parser.nextToken();
@@ -396,18 +305,7 @@ public class QueryParseContext {
         if (filterParser == null) {
             throw new QueryParsingException(this, "No filter registered for [" + filterName + "]");
         }
-        return executeFilterParser(filterParser);
-    }
-
-    private Filter executeFilterParser(FilterParser filterParser) throws IOException {
-        final boolean propagateNoCache = this.propagateNoCache; // first safe the state that we need to restore
-        this.propagateNoCache = false; // parse the subfilter with caching, that's fine
-        Filter result = filterParser.parse(this);
-        // now make sure we set propagateNoCache to true if it is true already or if the result is
-        // an instance of NoCacheFilter or if we used to be true! all filters above will
-        // be not cached ie. wrappers of this filter!
-        this.propagateNoCache |= (result instanceof NoCacheFilter) || propagateNoCache;
-        return result;
+        return filterParser.parse(this);
     }
 
     public FieldMapper fieldMapper(String name) {
@@ -501,12 +399,14 @@ public class QueryParseContext {
         return System.currentTimeMillis();
     }
 
-    public boolean requireCustomQueryWrappingFilter() {
-        return requireCustomQueryWrappingFilter;
-    }
-
     public NestedScope nestedScope() {
         return nestedScope;
     }
 
+    /**
+     * Return whether the setting is deprecated.
+     */
+    public boolean isDeprecatedSetting(String setting) {
+        return CACHE.match(setting) || CACHE_KEY.match(setting);
+    }
 }

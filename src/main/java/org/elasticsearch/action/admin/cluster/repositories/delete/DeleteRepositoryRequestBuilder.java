@@ -19,31 +19,26 @@
 
 package org.elasticsearch.action.admin.cluster.repositories.delete;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
-import org.elasticsearch.client.ClusterAdminClient;
+import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  * Builder for unregister repository request
  */
-public class DeleteRepositoryRequestBuilder extends AcknowledgedRequestBuilder<DeleteRepositoryRequest, DeleteRepositoryResponse, DeleteRepositoryRequestBuilder, ClusterAdminClient> {
+public class DeleteRepositoryRequestBuilder extends AcknowledgedRequestBuilder<DeleteRepositoryRequest, DeleteRepositoryResponse, DeleteRepositoryRequestBuilder> {
 
     /**
      * Constructs unregister repository request builder
-     *
-     * @param clusterAdminClient cluster admin client
      */
-    public DeleteRepositoryRequestBuilder(ClusterAdminClient clusterAdminClient) {
-        super(clusterAdminClient, new DeleteRepositoryRequest());
+    public DeleteRepositoryRequestBuilder(ElasticsearchClient client, DeleteRepositoryAction action) {
+        super(client, action, new DeleteRepositoryRequest());
     }
 
     /**
      * Constructs unregister repository request builder with specified repository name
-     *
-     * @param clusterAdminClient cluster adming client
      */
-    public DeleteRepositoryRequestBuilder(ClusterAdminClient clusterAdminClient, String name) {
-        super(clusterAdminClient, new DeleteRepositoryRequest(name));
+    public DeleteRepositoryRequestBuilder(ElasticsearchClient client, DeleteRepositoryAction action, String name) {
+        super(client, action, new DeleteRepositoryRequest(name));
     }
 
     /**
@@ -54,10 +49,5 @@ public class DeleteRepositoryRequestBuilder extends AcknowledgedRequestBuilder<D
     public DeleteRepositoryRequestBuilder setName(String name) {
         request.name(name);
         return this;
-    }
-
-    @Override
-    protected void doExecute(ActionListener<DeleteRepositoryResponse> listener) {
-        client.deleteRepository(request, listener);
     }
 }

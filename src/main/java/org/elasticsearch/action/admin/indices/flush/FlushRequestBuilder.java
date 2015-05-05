@@ -19,27 +19,21 @@
 
 package org.elasticsearch.action.admin.indices.flush;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequestBuilder;
-import org.elasticsearch.client.IndicesAdminClient;
+import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  *
  */
-public class FlushRequestBuilder extends BroadcastOperationRequestBuilder<FlushRequest, FlushResponse, FlushRequestBuilder, IndicesAdminClient> {
+public class FlushRequestBuilder extends BroadcastOperationRequestBuilder<FlushRequest, FlushResponse, FlushRequestBuilder> {
 
-    public FlushRequestBuilder(IndicesAdminClient indicesClient) {
-        super(indicesClient, new FlushRequest());
+    public FlushRequestBuilder(ElasticsearchClient client, FlushAction action) {
+        super(client, action, new FlushRequest());
     }
 
     public FlushRequestBuilder setForce(boolean force) {
         request.force(force);
         return this;
-    }
-
-    @Override
-    protected void doExecute(ActionListener<FlushResponse> listener) {
-        client.flush(request, listener);
     }
 
     public FlushRequestBuilder setWaitIfOngoing(boolean waitIfOngoing) {

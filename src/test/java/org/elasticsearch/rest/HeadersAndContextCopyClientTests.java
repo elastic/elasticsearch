@@ -33,8 +33,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.*;
 import org.elasticsearch.client.support.AbstractClient;
-import org.elasticsearch.client.support.AbstractClusterAdminClient;
-import org.elasticsearch.client.support.AbstractIndicesAdminClient;
+import org.elasticsearch.client.support.Headers;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -110,31 +109,32 @@ public class HeadersAndContextCopyClientTests extends ElasticsearchTestCase {
         expectedContext.putAll(transportContext);
         expectedContext.putAll(restContext);
 
-        Client client = client(new NoOpClient(), new FakeRestRequest(restHeaders, restContext), usefulRestHeaders);
+        try (Client client = client(new NoOpClient(), new FakeRestRequest(restHeaders, restContext), usefulRestHeaders)) {
 
-        SearchRequest searchRequest = Requests.searchRequest();
-        putHeaders(searchRequest, transportHeaders);
-        putContext(searchRequest, transportContext);
-        assertHeaders(searchRequest, transportHeaders);
-        client.search(searchRequest);
-        assertHeaders(searchRequest, expectedHeaders);
-        assertContext(searchRequest, expectedContext);
+            SearchRequest searchRequest = Requests.searchRequest();
+            putHeaders(searchRequest, transportHeaders);
+            putContext(searchRequest, transportContext);
+            assertHeaders(searchRequest, transportHeaders);
+            client.search(searchRequest);
+            assertHeaders(searchRequest, expectedHeaders);
+            assertContext(searchRequest, expectedContext);
 
-        GetRequest getRequest = Requests.getRequest("index");
-        putHeaders(getRequest, transportHeaders);
-        putContext(getRequest, transportContext);
-        assertHeaders(getRequest, transportHeaders);
-        client.get(getRequest);
-        assertHeaders(getRequest, expectedHeaders);
-        assertContext(getRequest, expectedContext);
+            GetRequest getRequest = Requests.getRequest("index");
+            putHeaders(getRequest, transportHeaders);
+            putContext(getRequest, transportContext);
+            assertHeaders(getRequest, transportHeaders);
+            client.get(getRequest);
+            assertHeaders(getRequest, expectedHeaders);
+            assertContext(getRequest, expectedContext);
 
-        IndexRequest indexRequest = Requests.indexRequest();
-        putHeaders(indexRequest, transportHeaders);
-        putContext(indexRequest, transportContext);
-        assertHeaders(indexRequest, transportHeaders);
-        client.index(indexRequest);
-        assertHeaders(indexRequest, expectedHeaders);
-        assertContext(indexRequest, expectedContext);
+            IndexRequest indexRequest = Requests.indexRequest();
+            putHeaders(indexRequest, transportHeaders);
+            putContext(indexRequest, transportContext);
+            assertHeaders(indexRequest, transportHeaders);
+            client.index(indexRequest);
+            assertHeaders(indexRequest, expectedHeaders);
+            assertContext(indexRequest, expectedContext);
+        }
     }
 
     @Test
@@ -155,31 +155,32 @@ public class HeadersAndContextCopyClientTests extends ElasticsearchTestCase {
         expectedContext.putAll(transportContext);
         expectedContext.putAll(restContext);
 
-        Client client = client(new NoOpClient(), new FakeRestRequest(restHeaders, expectedContext), usefulRestHeaders);
+        try (Client client = client(new NoOpClient(), new FakeRestRequest(restHeaders, expectedContext), usefulRestHeaders)) {
 
-        ClusterHealthRequest clusterHealthRequest = Requests.clusterHealthRequest();
-        putHeaders(clusterHealthRequest, transportHeaders);
-        putContext(clusterHealthRequest, transportContext);
-        assertHeaders(clusterHealthRequest, transportHeaders);
-        client.admin().cluster().health(clusterHealthRequest);
-        assertHeaders(clusterHealthRequest, expectedHeaders);
-        assertContext(clusterHealthRequest, expectedContext);
+            ClusterHealthRequest clusterHealthRequest = Requests.clusterHealthRequest();
+            putHeaders(clusterHealthRequest, transportHeaders);
+            putContext(clusterHealthRequest, transportContext);
+            assertHeaders(clusterHealthRequest, transportHeaders);
+            client.admin().cluster().health(clusterHealthRequest);
+            assertHeaders(clusterHealthRequest, expectedHeaders);
+            assertContext(clusterHealthRequest, expectedContext);
 
-        ClusterStateRequest clusterStateRequest = Requests.clusterStateRequest();
-        putHeaders(clusterStateRequest, transportHeaders);
-        putContext(clusterStateRequest, transportContext);
-        assertHeaders(clusterStateRequest, transportHeaders);
-        client.admin().cluster().state(clusterStateRequest);
-        assertHeaders(clusterStateRequest, expectedHeaders);
-        assertContext(clusterStateRequest, expectedContext);
+            ClusterStateRequest clusterStateRequest = Requests.clusterStateRequest();
+            putHeaders(clusterStateRequest, transportHeaders);
+            putContext(clusterStateRequest, transportContext);
+            assertHeaders(clusterStateRequest, transportHeaders);
+            client.admin().cluster().state(clusterStateRequest);
+            assertHeaders(clusterStateRequest, expectedHeaders);
+            assertContext(clusterStateRequest, expectedContext);
 
-        ClusterStatsRequest clusterStatsRequest = Requests.clusterStatsRequest();
-        putHeaders(clusterStatsRequest, transportHeaders);
-        putContext(clusterStatsRequest, transportContext);
-        assertHeaders(clusterStatsRequest, transportHeaders);
-        client.admin().cluster().clusterStats(clusterStatsRequest);
-        assertHeaders(clusterStatsRequest, expectedHeaders);
-        assertContext(clusterStatsRequest, expectedContext);
+            ClusterStatsRequest clusterStatsRequest = Requests.clusterStatsRequest();
+            putHeaders(clusterStatsRequest, transportHeaders);
+            putContext(clusterStatsRequest, transportContext);
+            assertHeaders(clusterStatsRequest, transportHeaders);
+            client.admin().cluster().clusterStats(clusterStatsRequest);
+            assertHeaders(clusterStatsRequest, expectedHeaders);
+            assertContext(clusterStatsRequest, expectedContext);
+        }
     }
 
     @Test
@@ -200,31 +201,32 @@ public class HeadersAndContextCopyClientTests extends ElasticsearchTestCase {
         expectedContext.putAll(transportContext);
         expectedContext.putAll(restContext);
 
-        Client client = client(new NoOpClient(), new FakeRestRequest(restHeaders, restContext), usefulRestHeaders);
+        try (Client client = client(new NoOpClient(), new FakeRestRequest(restHeaders, restContext), usefulRestHeaders)) {
 
-        CreateIndexRequest createIndexRequest = Requests.createIndexRequest("test");
-        putHeaders(createIndexRequest, transportHeaders);
-        putContext(createIndexRequest, transportContext);
-        assertHeaders(createIndexRequest, transportHeaders);
-        client.admin().indices().create(createIndexRequest);
-        assertHeaders(createIndexRequest, expectedHeaders);
-        assertContext(createIndexRequest, expectedContext);
+            CreateIndexRequest createIndexRequest = Requests.createIndexRequest("test");
+            putHeaders(createIndexRequest, transportHeaders);
+            putContext(createIndexRequest, transportContext);
+            assertHeaders(createIndexRequest, transportHeaders);
+            client.admin().indices().create(createIndexRequest);
+            assertHeaders(createIndexRequest, expectedHeaders);
+            assertContext(createIndexRequest, expectedContext);
 
-        CloseIndexRequest closeIndexRequest = Requests.closeIndexRequest("test");
-        putHeaders(closeIndexRequest, transportHeaders);
-        putContext(closeIndexRequest, transportContext);
-        assertHeaders(closeIndexRequest, transportHeaders);
-        client.admin().indices().close(closeIndexRequest);
-        assertHeaders(closeIndexRequest, expectedHeaders);
-        assertContext(closeIndexRequest, expectedContext);
+            CloseIndexRequest closeIndexRequest = Requests.closeIndexRequest("test");
+            putHeaders(closeIndexRequest, transportHeaders);
+            putContext(closeIndexRequest, transportContext);
+            assertHeaders(closeIndexRequest, transportHeaders);
+            client.admin().indices().close(closeIndexRequest);
+            assertHeaders(closeIndexRequest, expectedHeaders);
+            assertContext(closeIndexRequest, expectedContext);
 
-        FlushRequest flushRequest = Requests.flushRequest();
-        putHeaders(flushRequest, transportHeaders);
-        putContext(flushRequest, transportContext);
-        assertHeaders(flushRequest, transportHeaders);
-        client.admin().indices().flush(flushRequest);
-        assertHeaders(flushRequest, expectedHeaders);
-        assertContext(flushRequest, expectedContext);
+            FlushRequest flushRequest = Requests.flushRequest();
+            putHeaders(flushRequest, transportHeaders);
+            putContext(flushRequest, transportContext);
+            assertHeaders(flushRequest, transportHeaders);
+            client.admin().indices().flush(flushRequest);
+            assertHeaders(flushRequest, expectedHeaders);
+            assertContext(flushRequest, expectedContext);
+        }
     }
 
     @Test
@@ -245,25 +247,26 @@ public class HeadersAndContextCopyClientTests extends ElasticsearchTestCase {
         expectedContext.putAll(transportContext);
         expectedContext.putAll(restContext);
 
-        Client client = client(new NoOpClient(), new FakeRestRequest(restHeaders, restContext), usefulRestHeaders);
+        try (Client client = client(new NoOpClient(), new FakeRestRequest(restHeaders, restContext), usefulRestHeaders)) {
 
-        ActionRequestBuilder requestBuilders [] = new ActionRequestBuilder[] {
-                client.prepareIndex("index", "type"),
-                client.prepareGet("index", "type", "id"),
-                client.prepareBulk(),
-                client.prepareDelete(),
-                client.prepareIndex(),
-                client.prepareClearScroll(),
-                client.prepareMultiGet(),
-        };
+            ActionRequestBuilder requestBuilders[] = new ActionRequestBuilder[]{
+                    client.prepareIndex("index", "type"),
+                    client.prepareGet("index", "type", "id"),
+                    client.prepareBulk(),
+                    client.prepareDelete(),
+                    client.prepareIndex(),
+                    client.prepareClearScroll(),
+                    client.prepareMultiGet(),
+            };
 
-        for (ActionRequestBuilder requestBuilder : requestBuilders) {
-            putHeaders(requestBuilder.request(), transportHeaders);
-            putContext(requestBuilder.request(), transportContext);
-            assertHeaders(requestBuilder.request(), transportHeaders);
-            requestBuilder.get();
-            assertHeaders(requestBuilder.request(), expectedHeaders);
-            assertContext(requestBuilder.request(), expectedContext);
+            for (ActionRequestBuilder requestBuilder : requestBuilders) {
+                putHeaders(requestBuilder.request(), transportHeaders);
+                putContext(requestBuilder.request(), transportContext);
+                assertHeaders(requestBuilder.request(), transportHeaders);
+                requestBuilder.get();
+                assertHeaders(requestBuilder.request(), expectedHeaders);
+                assertContext(requestBuilder.request(), expectedContext);
+            }
         }
     }
 
@@ -285,24 +288,25 @@ public class HeadersAndContextCopyClientTests extends ElasticsearchTestCase {
         expectedContext.putAll(transportContext);
         expectedContext.putAll(restContext);
 
-        Client client = client(new NoOpClient(), new FakeRestRequest(restHeaders, restContext), usefulRestHeaders);
+        try (Client client = client(new NoOpClient(), new FakeRestRequest(restHeaders, restContext), usefulRestHeaders)) {
 
-        ActionRequestBuilder requestBuilders [] = new ActionRequestBuilder[] {
-                client.admin().cluster().prepareNodesInfo(),
-                client.admin().cluster().prepareClusterStats(),
-                client.admin().cluster().prepareState(),
-                client.admin().cluster().prepareCreateSnapshot("repo", "name"),
-                client.admin().cluster().prepareHealth(),
-                client.admin().cluster().prepareReroute()
-        };
+            ActionRequestBuilder requestBuilders[] = new ActionRequestBuilder[]{
+                    client.admin().cluster().prepareNodesInfo(),
+                    client.admin().cluster().prepareClusterStats(),
+                    client.admin().cluster().prepareState(),
+                    client.admin().cluster().prepareCreateSnapshot("repo", "name"),
+                    client.admin().cluster().prepareHealth(),
+                    client.admin().cluster().prepareReroute()
+            };
 
-        for (ActionRequestBuilder requestBuilder : requestBuilders) {
-            putHeaders(requestBuilder.request(), transportHeaders);
-            putContext(requestBuilder.request(), transportContext);
-            assertHeaders(requestBuilder.request(), transportHeaders);
-            requestBuilder.get();
-            assertHeaders(requestBuilder.request(), expectedHeaders);
-            assertContext(requestBuilder.request(), expectedContext);
+            for (ActionRequestBuilder requestBuilder : requestBuilders) {
+                putHeaders(requestBuilder.request(), transportHeaders);
+                putContext(requestBuilder.request(), transportContext);
+                assertHeaders(requestBuilder.request(), transportHeaders);
+                requestBuilder.get();
+                assertHeaders(requestBuilder.request(), expectedHeaders);
+                assertContext(requestBuilder.request(), expectedContext);
+            }
         }
     }
 
@@ -324,25 +328,26 @@ public class HeadersAndContextCopyClientTests extends ElasticsearchTestCase {
         expectedContext.putAll(transportContext);
         expectedContext.putAll(restContext);
 
-        Client client = client(new NoOpClient(), new FakeRestRequest(restHeaders, restContext), usefulRestHeaders);
+        try (Client client = client(new NoOpClient(), new FakeRestRequest(restHeaders, restContext), usefulRestHeaders)) {
 
-        ActionRequestBuilder requestBuilders [] = new ActionRequestBuilder[] {
-                client.admin().indices().prepareValidateQuery(),
-                client.admin().indices().prepareCreate("test"),
-                client.admin().indices().prepareAliases(),
-                client.admin().indices().prepareAnalyze("text"),
-                client.admin().indices().prepareDeleteWarmer(),
-                client.admin().indices().prepareTypesExists("type"),
-                client.admin().indices().prepareClose()
-        };
+            ActionRequestBuilder requestBuilders[] = new ActionRequestBuilder[]{
+                    client.admin().indices().prepareValidateQuery(),
+                    client.admin().indices().prepareCreate("test"),
+                    client.admin().indices().prepareAliases(),
+                    client.admin().indices().prepareAnalyze("text"),
+                    client.admin().indices().prepareDeleteWarmer(),
+                    client.admin().indices().prepareTypesExists("type"),
+                    client.admin().indices().prepareClose()
+            };
 
-        for (ActionRequestBuilder requestBuilder : requestBuilders) {
-            putHeaders(requestBuilder.request(), transportHeaders);
-            putContext(requestBuilder.request(), transportContext);
-            assertHeaders(requestBuilder.request(), transportHeaders);
-            requestBuilder.get();
-            assertHeaders(requestBuilder.request(), expectedHeaders);
-            assertContext(requestBuilder.request(), expectedContext);
+            for (ActionRequestBuilder requestBuilder : requestBuilders) {
+                putHeaders(requestBuilder.request(), transportHeaders);
+                putContext(requestBuilder.request(), transportContext);
+                assertHeaders(requestBuilder.request(), transportHeaders);
+                requestBuilder.get();
+                assertHeaders(requestBuilder.request(), expectedHeaders);
+                assertContext(requestBuilder.request(), expectedContext);
+            }
         }
     }
 
@@ -417,76 +422,24 @@ public class HeadersAndContextCopyClientTests extends ElasticsearchTestCase {
         }
     }
 
-    private static class NoOpClient extends AbstractClient implements AdminClient {
+    private class NoOpClient extends AbstractClient {
 
-        @Override
-        public AdminClient admin() {
-            return this;
+        public NoOpClient() {
+            super(ImmutableSettings.EMPTY, new ThreadPool(getTestName()), Headers.EMPTY);
         }
 
         @Override
-        public Settings settings() {
-            return null;
-        }
-
-        @Override
-        public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder, Client>> ActionFuture<Response> execute(Action<Request, Response, RequestBuilder, Client> action, Request request) {
-            return null;
-        }
-
-        @Override
-        public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder, Client>> void execute(Action<Request, Response, RequestBuilder, Client> action, Request request, ActionListener<Response> listener) {
+        protected <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> void doExecute(Action<Request, Response, RequestBuilder> action, Request request, ActionListener<Response> listener) {
             listener.onResponse(null);
         }
 
         @Override
-        public ThreadPool threadPool() {
-            return null;
-        }
-
-        @Override
         public void close() {
-
-        }
-
-        @Override
-        public ClusterAdminClient cluster() {
-            return new AbstractClusterAdminClient() {
-                @Override
-                public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder, ClusterAdminClient>> ActionFuture<Response> execute(Action<Request, Response, RequestBuilder, ClusterAdminClient> action, Request request) {
-                    return null;
-                }
-
-                @Override
-                public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder, ClusterAdminClient>> void execute(Action<Request, Response, RequestBuilder, ClusterAdminClient> action, Request request, ActionListener<Response> listener) {
-                    listener.onResponse(null);
-                }
-
-                @Override
-                public ThreadPool threadPool() {
-                    return null;
-                }
-            };
-        }
-
-        @Override
-        public IndicesAdminClient indices() {
-            return new AbstractIndicesAdminClient() {
-                @Override
-                public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder, IndicesAdminClient>> ActionFuture<Response> execute(Action<Request, Response, RequestBuilder, IndicesAdminClient> action, Request request) {
-                    return null;
-                }
-
-                @Override
-                public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder, IndicesAdminClient>> void execute(Action<Request, Response, RequestBuilder, IndicesAdminClient> action, Request request, ActionListener<Response> listener) {
-                    listener.onResponse(null);
-                }
-
-                @Override
-                public ThreadPool threadPool() {
-                    return null;
-                }
-            };
+            try {
+                terminate(threadPool());
+            } catch (Throwable t) {
+                throw new ElasticsearchException(t.getMessage(), t);
+            }
         }
     }
 }

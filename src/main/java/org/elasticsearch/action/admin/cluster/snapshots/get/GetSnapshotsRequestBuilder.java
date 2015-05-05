@@ -20,32 +20,26 @@
 package org.elasticsearch.action.admin.cluster.snapshots.get;
 
 import com.google.common.collect.ObjectArrays;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
-import org.elasticsearch.client.ClusterAdminClient;
+import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  * Get snapshots request builder
  */
-public class GetSnapshotsRequestBuilder extends MasterNodeOperationRequestBuilder<GetSnapshotsRequest, GetSnapshotsResponse, GetSnapshotsRequestBuilder, ClusterAdminClient> {
+public class GetSnapshotsRequestBuilder extends MasterNodeOperationRequestBuilder<GetSnapshotsRequest, GetSnapshotsResponse, GetSnapshotsRequestBuilder> {
 
     /**
      * Constructs the new get snapshot request
-     *
-     * @param clusterAdminClient cluster admin client
      */
-    public GetSnapshotsRequestBuilder(ClusterAdminClient clusterAdminClient) {
-        super(clusterAdminClient, new GetSnapshotsRequest());
+    public GetSnapshotsRequestBuilder(ElasticsearchClient client, GetSnapshotsAction action) {
+        super(client, action, new GetSnapshotsRequest());
     }
 
     /**
      * Constructs the new get snapshot request with specified repository
-     *
-     * @param clusterAdminClient cluster admin client
-     * @param repository         repository name
      */
-    public GetSnapshotsRequestBuilder(ClusterAdminClient clusterAdminClient, String repository) {
-        super(clusterAdminClient, new GetSnapshotsRequest(repository));
+    public GetSnapshotsRequestBuilder(ElasticsearchClient client, GetSnapshotsAction action, String repository) {
+        super(client, action, new GetSnapshotsRequest(repository));
     }
 
     /**
@@ -76,7 +70,7 @@ public class GetSnapshotsRequestBuilder extends MasterNodeOperationRequestBuilde
      * @return this builder
      */
     public GetSnapshotsRequestBuilder setCurrentSnapshot() {
-        request.snapshots(new String[] {GetSnapshotsRequest.CURRENT_SNAPSHOT});
+        request.snapshots(new String[]{GetSnapshotsRequest.CURRENT_SNAPSHOT});
         return this;
     }
 
@@ -89,10 +83,5 @@ public class GetSnapshotsRequestBuilder extends MasterNodeOperationRequestBuilde
     public GetSnapshotsRequestBuilder addSnapshots(String... snapshots) {
         request.snapshots(ObjectArrays.concat(request.snapshots(), snapshots, String.class));
         return this;
-    }
-
-    @Override
-    protected void doExecute(ActionListener<GetSnapshotsResponse> listener) {
-        client.getSnapshots(request, listener);
     }
 }

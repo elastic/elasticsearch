@@ -22,10 +22,10 @@ improvements throughout this page to provide the full context.
 
 If you’re interested in more on how we approach ensuring resiliency in
 Elasticsearch, you may be interested in Igor Motov’s recent talk
-http://www.elasticsearch.org/videos/improving-elasticsearch-resiliency/[Improving Elasticsearch Resiliency].
+http://www.elastic.co/videos/improving-elasticsearch-resiliency[Improving Elasticsearch Resiliency].
 
 You may also be interested in our blog post
-http://www.elasticsearch.org/blog/resiliency-elasticsearch/[Resiliency in Elasticsearch],
+http://www.elastic.co/blog/resiliency-elasticsearch[Resiliency in Elasticsearch],
 which details our thought processes when addressing resiliency in both
 Elasticsearch and the work our developers do upstream in Apache Lucene.
 
@@ -217,7 +217,7 @@ starts.  See {GIT}9899[#9899] (STATUS; DONE, fixed in v1.5.0)
 
 Setting `zen.discovery.minimum_master_nodes` to a value higher than the current node count
 effectively leaves the cluster without a master and unable to process requests.  The only
-way to fix this is to add more master-eligibile nodes.  {GIT}8321[#8321] adds a mechanism
+way to fix this is to add more master-eligible nodes.  {GIT}8321[#8321] adds a mechanism
 to validate settings before applying them, and {GIT}9051[#9051] extends this validation
 support to settings applied during a cluster restore. (STATUS: DONE, Fixed in v1.5.0)
 
@@ -416,7 +416,7 @@ The Snapshot/Restore API supports a number of different repository types for sto
 [float]
 === Circuit Breaker: Fielddata (STATUS: DONE, v1.0.0)
 
-Currently, the http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/index-modules-fielddata.html[circuit breaker] protects against loading too much field data by estimating how much memory the field data will take to load, then aborting the request if the memory requirements are too high. This feature was added in Elasticsearch version 1.0.0.
+Currently, the https://www.elastic.co/guide/en/elasticsearch/reference/current/index-modules-fielddata.html[circuit breaker] protects against loading too much field data by estimating how much memory the field data will take to load, then aborting the request if the memory requirements are too high. This feature was added in Elasticsearch version 1.0.0.
 
 [float]
 === Use of Paginated Data Structures to Ease Garbage Collection (STATUS: DONE, v1.0.0 & v1.2.0)

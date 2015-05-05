@@ -19,13 +19,13 @@
 
 package org.elasticsearch.action.indexedscripts.put;
 
-import org.elasticsearch.action.ClientAction;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.action.Action;
+import org.elasticsearch.client.ElasticsearchClient;
 
 
 /**
  */
-public class PutIndexedScriptAction extends ClientAction<PutIndexedScriptRequest, PutIndexedScriptResponse, PutIndexedScriptRequestBuilder> {
+public class PutIndexedScriptAction extends Action<PutIndexedScriptRequest, PutIndexedScriptResponse, PutIndexedScriptRequestBuilder> {
 
     public static final PutIndexedScriptAction INSTANCE = new PutIndexedScriptAction();
     public static final String NAME = "indices:data/write/script/put";
@@ -42,7 +42,7 @@ public class PutIndexedScriptAction extends ClientAction<PutIndexedScriptRequest
     }
 
     @Override
-    public PutIndexedScriptRequestBuilder newRequestBuilder(Client client) {
-        return new PutIndexedScriptRequestBuilder(client);
+    public PutIndexedScriptRequestBuilder newRequestBuilder(ElasticsearchClient client) {
+        return new PutIndexedScriptRequestBuilder(client, this);
     }
 }

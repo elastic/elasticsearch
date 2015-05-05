@@ -20,6 +20,7 @@
 package org.elasticsearch.index.query;
 
 import com.google.common.collect.Lists;
+
 import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -37,9 +38,6 @@ public class GeoPolygonFilterBuilder extends BaseFilterBuilder {
     private final String name;
 
     private final List<GeoPoint> shell = Lists.newArrayList();
-
-    private Boolean cache;
-    private String cacheKey;
 
     private String filterName;
 
@@ -75,19 +73,6 @@ public class GeoPolygonFilterBuilder extends BaseFilterBuilder {
         return this;
     }
 
-    /**
-     * Should the filter be cached or not. Defaults to <tt>false</tt>.
-     */
-    public GeoPolygonFilterBuilder cache(boolean cache) {
-        this.cache = cache;
-        return this;
-    }
-
-    public GeoPolygonFilterBuilder cacheKey(String cacheKey) {
-        this.cacheKey = cacheKey;
-        return this;
-    }
-
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(GeoPolygonFilterParser.NAME);
@@ -102,12 +87,6 @@ public class GeoPolygonFilterBuilder extends BaseFilterBuilder {
 
         if (filterName != null) {
             builder.field("_name", filterName);
-        }
-        if (cache != null) {
-            builder.field("_cache", cache);
-        }
-        if (cacheKey != null) {
-            builder.field("_cache_key", cacheKey);
         }
 
         builder.endObject();

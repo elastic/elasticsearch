@@ -19,7 +19,6 @@
 
 package org.elasticsearch.script.expression;
 
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -53,7 +52,7 @@ public class ExpressionScriptTests extends ElasticsearchIntegrationTest {
             paramsMap.put(params[i].toString(), params[i + 1]);
         }
 
-        SearchRequestBuilder req = new SearchRequestBuilder(client()).setIndices("test");
+        SearchRequestBuilder req = client().prepareSearch().setIndices("test");
         req.setQuery(QueryBuilders.matchAllQuery())
            .addSort(SortBuilders.fieldSort("_uid")
                                 .order(SortOrder.ASC)).addScriptField("foo", "expression", script, paramsMap);
@@ -61,6 +60,15 @@ public class ExpressionScriptTests extends ElasticsearchIntegrationTest {
     }
 
     public void testBasic() throws Exception {
+        createIndex("test");
+        ensureGreen("test");
+        client().prepareIndex("test", "doc", "1").setSource("foo", 4).setRefresh(true).get();
+        SearchResponse rsp = buildRequest("doc['foo'] + 1").get();
+        assertEquals(1, rsp.getHits().getTotalHits());
+        assertEquals(5.0, rsp.getHits().getAt(0).field("foo").getValue());
+    }
+
+    public void testBasicUsingDotValue() throws Exception {
         createIndex("test");
         ensureGreen("test");
         client().prepareIndex("test", "doc", "1").setSource("foo", 4).setRefresh(true).get();
@@ -77,7 +85,7 @@ public class ExpressionScriptTests extends ElasticsearchIntegrationTest {
             client().prepareIndex("test", "doc", "2").setSource("text", "hello hello hello goodbye"),
             client().prepareIndex("test", "doc", "3").setSource("text", "hello hello goodebye"));
         ScoreFunctionBuilder score = ScoreFunctionBuilders.scriptFunction("1 / _score", "expression");
-        SearchRequestBuilder req = new SearchRequestBuilder(client()).setIndices("test");
+        SearchRequestBuilder req = client().prepareSearch().setIndices("test");
         req.setQuery(QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("text", "hello"), score).boostMode("replace"));
         req.setSearchType(SearchType.DFS_QUERY_THEN_FETCH); // make sure DF is consistent
         SearchResponse rsp = req.get();
@@ -89,13 +97,56 @@ public class ExpressionScriptTests extends ElasticsearchIntegrationTest {
         assertEquals("2", hits.getAt(2).getId());
     }
 
+    public void testDateMethods() throws Exception {
+        ElasticsearchAssertions.assertAcked(prepareCreate("test").addMapping("doc", "date0", "type=date", "date1", "type=date"));
+        ensureGreen("test");
+        indexRandom(true,
+                client().prepareIndex("test", "doc", "1").setSource("date0", "2015-04-28T04:02:07Z", "date1", "1985-09-01T23:11:01Z"),
+                client().prepareIndex("test", "doc", "2").setSource("date0", "2013-12-25T11:56:45Z", "date1", "1983-10-13T23:15:00Z"));
+        SearchResponse rsp = buildRequest("doc['date0'].getSeconds() - doc['date0'].getMinutes()").get();
+        assertEquals(2, rsp.getHits().getTotalHits());
+        SearchHits hits = rsp.getHits();
+        assertEquals(5.0, hits.getAt(0).field("foo").getValue());
+        assertEquals(-11.0, hits.getAt(1).field("foo").getValue());
+        rsp = buildRequest("doc['date0'].getHourOfDay() + doc['date1'].getDayOfMonth()").get();
+        assertEquals(2, rsp.getHits().getTotalHits());
+        hits = rsp.getHits();
+        assertEquals(5.0, hits.getAt(0).field("foo").getValue());
+        assertEquals(24.0, hits.getAt(1).field("foo").getValue());
+        rsp = buildRequest("doc['date1'].getMonth() + 1").get();
+        assertEquals(2, rsp.getHits().getTotalHits());
+        hits = rsp.getHits();
+        assertEquals(9.0, hits.getAt(0).field("foo").getValue());
+        assertEquals(10.0, hits.getAt(1).field("foo").getValue());
+        rsp = buildRequest("doc['date1'].getYear()").get();
+        assertEquals(2, rsp.getHits().getTotalHits());
+        hits = rsp.getHits();
+        assertEquals(1985.0, hits.getAt(0).field("foo").getValue());
+        assertEquals(1983.0, hits.getAt(1).field("foo").getValue());
+    }
+
+    public void testInvalidDateMethodCall() throws Exception {
+        ElasticsearchAssertions.assertAcked(prepareCreate("test").addMapping("doc", "double", "type=double"));
+        ensureGreen("test");
+        indexRandom(true, client().prepareIndex("test", "doc", "1").setSource("double", "178000000.0"));
+        try {
+            buildRequest("doc['double'].getYear()").get();
+            fail();
+        } catch (SearchPhaseExecutionException e) {
+            assertThat(e.toString() + "should have contained IllegalArgumentException",
+                    e.toString().contains("IllegalArgumentException"), equalTo(true));
+            assertThat(e.toString() + "should have contained can only be used with a date field type",
+                    e.toString().contains("can only be used with a date field type"), equalTo(true));
+        }
+    }
+
     public void testSparseField() throws Exception {
         ElasticsearchAssertions.assertAcked(prepareCreate("test").addMapping("doc", "x", "type=long", "y", "type=long"));
         ensureGreen("test");
         indexRandom(true,
                 client().prepareIndex("test", "doc", "1").setSource("x", 4),
                 client().prepareIndex("test", "doc", "2").setSource("y", 2));
-        SearchResponse rsp = buildRequest("doc['x'].value + 1").get();
+        SearchResponse rsp = buildRequest("doc['x'] + 1").get();
         ElasticsearchAssertions.assertSearchResponse(rsp);
         SearchHits hits = rsp.getHits();
         assertEquals(2, rsp.getHits().getTotalHits());
@@ -108,7 +159,7 @@ public class ExpressionScriptTests extends ElasticsearchIntegrationTest {
         ensureGreen("test");
         client().prepareIndex("test", "doc", "1").setSource("x", 4).setRefresh(true).get();
         try {
-            buildRequest("doc['bogus'].value").get();
+            buildRequest("doc['bogus']").get();
             fail("Expected missing field to cause failure");
         } catch (SearchPhaseExecutionException e) {
             assertThat(e.toString() + "should have contained ExpressionScriptCompilationException",
@@ -126,7 +177,7 @@ public class ExpressionScriptTests extends ElasticsearchIntegrationTest {
                     client().prepareIndex("test", "doc", "2").setSource("x", 3),
                     client().prepareIndex("test", "doc", "3").setSource("x", 5));
         // a = int, b = double, c = long
-        String script = "doc['x'].value * a + b + ((c + doc['x'].value) > 5000000009 ? 1 : 0)";
+        String script = "doc['x'] * a + b + ((c + doc['x']) > 5000000009 ? 1 : 0)";
         SearchResponse rsp = buildRequest(script, "a", 2, "b", 3.5, "c", 5000000000L).get();
         SearchHits hits = rsp.getHits();
         assertEquals(3, hits.getTotalHits());
@@ -164,7 +215,7 @@ public class ExpressionScriptTests extends ElasticsearchIntegrationTest {
     public void testNonNumericField() {
         client().prepareIndex("test", "doc", "1").setSource("text", "this is not a number").setRefresh(true).get();
         try {
-            buildRequest("doc['text'].value").get();
+            buildRequest("doc['text']").get();
             fail("Expected text field to cause execution failure");
         } catch (SearchPhaseExecutionException e) {
             assertThat(e.toString() + "should have contained ExpressionScriptCompilationException",
@@ -208,8 +259,8 @@ public class ExpressionScriptTests extends ElasticsearchIntegrationTest {
         } catch (SearchPhaseExecutionException e) {
             assertThat(e.toString() + "should have contained ExpressionScriptCompilationException",
                     e.toString().contains("ExpressionScriptCompilationException"), equalTo(true));
-            assertThat(e.toString() + "should have contained field member error",
-                    e.toString().contains("Invalid member for field"), equalTo(true));
+            assertThat(e.toString() + "should have contained member variable [value] or member methods may be accessed",
+                    e.toString().contains("member variable [value] or member methods may be accessed"), equalTo(true));
         }
     }
 
@@ -222,7 +273,7 @@ public class ExpressionScriptTests extends ElasticsearchIntegrationTest {
             client().prepareIndex("test", "doc", "2").setSource("x", 10, "y", 1.4),
             client().prepareIndex("test", "doc", "3").setSource("x", 13, "y", 1.8));
 
-        SearchRequestBuilder req = new SearchRequestBuilder(client()).setIndices("test");
+        SearchRequestBuilder req = client().prepareSearch().setIndices("test");
         req.setQuery(QueryBuilders.matchAllQuery())
            .addAggregation(AggregationBuilders.stats("int_agg").field("x").script("_value * 3").lang(ExpressionScriptEngineService.NAME))
            .addAggregation(AggregationBuilders.stats("double_agg").field("y").script("_value - 1.1").lang(ExpressionScriptEngineService.NAME));
@@ -248,7 +299,7 @@ public class ExpressionScriptTests extends ElasticsearchIntegrationTest {
                 client().prepareIndex("test", "doc", "2").setSource("text", "goodbye"),
                 client().prepareIndex("test", "doc", "3").setSource("text", "hello"));
 
-        SearchRequestBuilder req = new SearchRequestBuilder(client()).setIndices("test");
+        SearchRequestBuilder req = client().prepareSearch().setIndices("test");
         req.setQuery(QueryBuilders.matchAllQuery())
            .addAggregation(AggregationBuilders.terms("term_agg").field("text").script("_value").lang(ExpressionScriptEngineService.NAME));
 

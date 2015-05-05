@@ -19,17 +19,18 @@
 
 package org.elasticsearch.action.support.nodes;
 
+import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.client.ClusterAdminClient;
+import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.unit.TimeValue;
 
 /**
  */
 public abstract class NodesOperationRequestBuilder<Request extends NodesOperationRequest<Request>, Response extends NodesOperationResponse, RequestBuilder extends NodesOperationRequestBuilder<Request, Response, RequestBuilder>>
-        extends ActionRequestBuilder<Request, Response, RequestBuilder, ClusterAdminClient> {
+        extends ActionRequestBuilder<Request, Response, RequestBuilder> {
 
-    protected NodesOperationRequestBuilder(ClusterAdminClient client, Request request) {
-        super(client, request);
+    protected NodesOperationRequestBuilder(ElasticsearchClient client, Action<Request, Response, RequestBuilder> action, Request request) {
+        super(client, action, request);
     }
 
     @SuppressWarnings("unchecked")

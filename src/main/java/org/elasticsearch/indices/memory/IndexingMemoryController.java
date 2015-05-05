@@ -20,7 +20,6 @@
 package org.elasticsearch.indices.memory;
 
 import com.google.common.collect.Lists;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -191,9 +190,20 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
                         continue;
                     }
 
+                    if (indexShard.canIndex() == false) {
+                        // not relevant for memory related issues.
+                        continue;
+                    }
+                    final Translog translog;
+                    try {
+                        translog = indexShard.engine().getTranslog();
+                    } catch (EngineClosedException e) {
+                        // not ready yet to be checked for in activity
+                        continue;
+                    }
+
                     final long time = threadPool.estimatedTimeInMillis();
 
-                    Translog translog = indexShard.translog();
                     ShardIndexingStatus status = shardsIndicesStatus.get(indexShard.shardId());
                     if (status == null) {
                         status = new ShardIndexingStatus();
@@ -201,7 +211,7 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
                         changes.add(ShardStatusChangeType.ADDED);
                     }
                     // check if it is deemed to be inactive (sam translogId and numberOfOperations over a long period of time)
-                    if (status.translogId == translog.currentId() && translog.estimatedNumberOfOperations() == 0) {
+                    if (status.translogId == translog.currentId() && translog.totalOperations() == 0) {
                         if (status.time == -1) { // first time
                             status.time = time;
                         }
@@ -225,7 +235,7 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
                         status.time = -1;
                     }
                     status.translogId = translog.currentId();
-                    status.translogNumberOfOperations = translog.estimatedNumberOfOperations();
+                    status.translogNumberOfOperations = translog.totalOperations();
 
                     if (status.activeIndexing) {
                         activeShards++;

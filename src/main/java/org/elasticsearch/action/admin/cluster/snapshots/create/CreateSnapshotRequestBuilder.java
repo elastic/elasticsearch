@@ -22,7 +22,7 @@ package org.elasticsearch.action.admin.cluster.snapshots.create;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
-import org.elasticsearch.client.ClusterAdminClient;
+import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.settings.Settings;
 
 import java.util.Map;
@@ -30,26 +30,20 @@ import java.util.Map;
 /**
  * Create snapshot request builder
  */
-public class CreateSnapshotRequestBuilder extends MasterNodeOperationRequestBuilder<CreateSnapshotRequest, CreateSnapshotResponse, CreateSnapshotRequestBuilder, ClusterAdminClient> {
+public class CreateSnapshotRequestBuilder extends MasterNodeOperationRequestBuilder<CreateSnapshotRequest, CreateSnapshotResponse, CreateSnapshotRequestBuilder> {
 
     /**
      * Constructs a new create snapshot request builder
-     *
-     * @param clusterAdminClient cluster admin client
      */
-    public CreateSnapshotRequestBuilder(ClusterAdminClient clusterAdminClient) {
-        super(clusterAdminClient, new CreateSnapshotRequest());
+    public CreateSnapshotRequestBuilder(ElasticsearchClient client, CreateSnapshotAction action) {
+        super(client, action, new CreateSnapshotRequest());
     }
 
     /**
      * Constructs a new create snapshot request builder with specified repository and snapshot names
-     *
-     * @param clusterAdminClient cluster admin client
-     * @param repository         repository name
-     * @param snapshot           snapshot name
      */
-    public CreateSnapshotRequestBuilder(ClusterAdminClient clusterAdminClient, String repository, String snapshot) {
-        super(clusterAdminClient, new CreateSnapshotRequest(repository, snapshot));
+    public CreateSnapshotRequestBuilder(ElasticsearchClient client, CreateSnapshotAction action, String repository, String snapshot) {
+        super(client, action, new CreateSnapshotRequest(repository, snapshot));
     }
 
     /**
@@ -183,10 +177,5 @@ public class CreateSnapshotRequestBuilder extends MasterNodeOperationRequestBuil
     public CreateSnapshotRequestBuilder setIncludeGlobalState(boolean includeGlobalState) {
         request.includeGlobalState(includeGlobalState);
         return this;
-    }
-
-    @Override
-    protected void doExecute(ActionListener<CreateSnapshotResponse> listener) {
-        client.createSnapshot(request, listener);
     }
 }

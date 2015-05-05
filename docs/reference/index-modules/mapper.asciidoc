@@ -32,7 +32,7 @@ mapping specified in the  <<indices-create-index,`create-index`>> or
 `_default_` mapping.
 
 The default mapping definition is a plain mapping definition that is
-embedded within ElasticSearch:
+embedded within Elasticsearch:
 
 [source,js]
 --------------------------------------------------
@@ -46,11 +46,8 @@ Pretty short, isn't it? Basically, everything is `_default_`ed, including the
 dynamic nature of the root object mapping which allows new fields to be added
 automatically.
 
-The built-in default mapping definition can be overridden in several ways. A
-`_default_` mapping can be specified when creating a new index, or the global
-`_default_` mapping (for all indices) can be configured by creating a file
-called `config/default-mapping.json`. (This location can be changed with
-the `index.mapper.default_mapping_location` setting.)
+The default mapping can be overridden by specifying the `_default_` type when
+creating a new index.
 
 Dynamic creation of mappings for unmapped types can be completely
 disabled by setting `index.mapper.dynamic` to `false`.

@@ -19,12 +19,12 @@
 
 package org.elasticsearch.action.admin.indices.optimize;
 
-import org.elasticsearch.action.admin.indices.IndicesAction;
-import org.elasticsearch.client.IndicesAdminClient;
+import org.elasticsearch.action.Action;
+import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  */
-public class OptimizeAction extends IndicesAction<OptimizeRequest, OptimizeResponse, OptimizeRequestBuilder> {
+public class OptimizeAction extends Action<OptimizeRequest, OptimizeResponse, OptimizeRequestBuilder> {
 
     public static final OptimizeAction INSTANCE = new OptimizeAction();
     public static final String NAME = "indices:admin/optimize";
@@ -39,7 +39,7 @@ public class OptimizeAction extends IndicesAction<OptimizeRequest, OptimizeRespo
     }
 
     @Override
-    public OptimizeRequestBuilder newRequestBuilder(IndicesAdminClient client) {
-        return new OptimizeRequestBuilder(client);
+    public OptimizeRequestBuilder newRequestBuilder(ElasticsearchClient client) {
+        return new OptimizeRequestBuilder(client, this);
     }
 }

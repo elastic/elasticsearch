@@ -19,16 +19,14 @@
 
 package org.elasticsearch.bootstrap;
 
-import com.google.common.io.ByteStreams;
-import org.apache.lucene.util.IOUtils;
-import org.apache.lucene.util.StringHelper;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.env.Environment;
 
 import java.io.*;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
-import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
+import java.security.Permissions;
+import java.security.Policy;
 
 /** 
  * Initializes securitymanager with necessary permissions.
@@ -36,79 +34,61 @@ import java.nio.file.Path;
  * We use a template file (the one we test with), and add additional 
  * permissions based on the environment (data paths, etc)
  */
-class Security {
-    
-    /** template policy file, the one used in tests */
-    static final String POLICY_RESOURCE = "security.policy";
-    
+public class Security {
+       
     /** 
      * Initializes securitymanager for the environment
      * Can only happen once!
      */
-    static void configure(Environment environment) throws IOException {
-        // init lucene random seed. it will use /dev/urandom where available.
-        StringHelper.randomId();
-        InputStream config = Security.class.getResourceAsStream(POLICY_RESOURCE);
-        if (config == null) {
-            throw new NoSuchFileException(POLICY_RESOURCE);
-        }
-        Path newConfig = processTemplate(config, environment);
-        System.setProperty("java.security.policy", newConfig.toString());
+    static void configure(Environment environment) throws Exception {
+        // enable security policy: union of template and environment-based paths.
+        Policy.setPolicy(new ESPolicy(createPermissions(environment)));
+
+        // enable security manager
         System.setSecurityManager(new SecurityManager());
-        IOUtils.deleteFilesIgnoringExceptions(newConfig); // TODO: maybe log something if it fails?
+
+        // do some basic tests
+        selfTest();
     }
-   
-    // package-private for testing
-    static Path processTemplate(InputStream template, Environment environment) throws IOException {
-        Path processed = Files.createTempFile(null, null);
-        try (OutputStream output = new BufferedOutputStream(Files.newOutputStream(processed))) {
-            // copy the template as-is.
-            try (InputStream in = new BufferedInputStream(template)) {
-                ByteStreams.copy(in, output);
-            }
 
-            //  all policy files are UTF-8:
-            //  https://docs.oracle.com/javase/7/docs/technotes/guides/security/PolicyFiles.html
-            try (Writer writer = new OutputStreamWriter(output, StandardCharsets.UTF_8)) {
-                writer.write(System.lineSeparator());
-                writer.write("grant {");
-                writer.write(System.lineSeparator());
-
-                // add permissions for all configured paths.
-                // TODO: improve test infra so we can reduce permissions where read/write
-                // is not really needed...
-                addPath(writer, environment.homeFile(), "read,readlink,write,delete");
-                addPath(writer, environment.configFile(), "read,readlink,write,delete");
-                addPath(writer, environment.logsFile(), "read,readlink,write,delete");
-                addPath(writer, environment.pluginsFile(), "read,readlink,write,delete");
-                for (Path path : environment.dataFiles()) {
-                    addPath(writer, path, "read,readlink,write,delete");
-                }
-                for (Path path : environment.dataWithClusterFiles()) {
-                    addPath(writer, path, "read,readlink,write,delete");
-                }
-
-                writer.write("};");
-                writer.write(System.lineSeparator());
-            }
+    /** returns dynamic Permissions to configured paths */
+    static Permissions createPermissions(Environment environment) throws IOException {
+        // TODO: improve test infra so we can reduce permissions where read/write
+        // is not really needed...
+        Permissions policy = new Permissions();
+        addPath(policy, PathUtils.get(System.getProperty("java.io.tmpdir")), "read,readlink,write,delete");
+        addPath(policy, environment.homeFile(), "read,readlink,write,delete");
+        addPath(policy, environment.configFile(), "read,readlink,write,delete");
+        addPath(policy, environment.logsFile(), "read,readlink,write,delete");
+        addPath(policy, environment.pluginsFile(), "read,readlink,write,delete");
+        for (Path path : environment.dataFiles()) {
+            addPath(policy, path, "read,readlink,write,delete");
         }
-        return processed;
+        for (Path path : environment.dataWithClusterFiles()) {
+            addPath(policy, path, "read,readlink,write,delete");
+        }
+
+        return policy;
     }
     
-    static void addPath(Writer writer, Path path, String permissions) throws IOException {
+    /** Add access to path (and all files underneath it */
+    public static void addPath(Permissions policy, Path path, String permissions) throws IOException {
         // paths may not exist yet
         Files.createDirectories(path);
         // add each path twice: once for itself, again for files underneath it
-        writer.write("permission java.io.FilePermission \"" + encode(path) + "\", \"" + permissions + "\";");
-        writer.write(System.lineSeparator());
-        writer.write("permission java.io.FilePermission \"" + encode(path) + "${/}-\", \"" + permissions + "\";");
-        writer.write(System.lineSeparator());
+        policy.add(new FilePermission(path.toString(), permissions));
+        policy.add(new FilePermission(path.toString() + path.getFileSystem().getSeparator() + "-", permissions));
     }
-    
-    // Any backslashes in paths must be escaped, because it is the escape character when parsing.
-    // See "Note Regarding File Path Specifications on Windows Systems".
-    // https://docs.oracle.com/javase/7/docs/technotes/guides/security/PolicyFiles.html
-    static String encode(Path path) {
-        return path.toString().replace("\\", "\\\\");
+
+    /** Simple checks that everything is ok */
+    public static void selfTest() {
+        // check we can manipulate temporary files
+        try {
+            Files.delete(Files.createTempFile(null, null));
+        } catch (IOException ignored) {
+            // potentially virus scanner
+        } catch (SecurityException problem) {
+            throw new SecurityException("Security misconfiguration: cannot access java.io.tmpdir", problem);
+        }
     }
 }

@@ -36,8 +36,6 @@ public class TermsLookupFilterBuilder extends BaseFilterBuilder {
     private String lookupPath;
     private Boolean lookupCache;
 
-    private Boolean cache;
-    private String cacheKey;
     private String filterName;
 
     public TermsLookupFilterBuilder(String name) {
@@ -94,16 +92,6 @@ public class TermsLookupFilterBuilder extends BaseFilterBuilder {
         return this;
     }
 
-    public TermsLookupFilterBuilder cache(boolean cache) {
-        this.cache = cache;
-        return this;
-    }
-
-    public TermsLookupFilterBuilder cacheKey(String cacheKey) {
-        this.cacheKey = cacheKey;
-        return this;
-    }
-
     @Override
     public void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(TermsFilterParser.NAME);
@@ -125,12 +113,6 @@ public class TermsLookupFilterBuilder extends BaseFilterBuilder {
 
         if (filterName != null) {
             builder.field("_name", filterName);
-        }
-        if (cache != null) {
-            builder.field("_cache", cache);
-        }
-        if (cacheKey != null) {
-            builder.field("_cache_key", cacheKey);
         }
 
         builder.endObject();

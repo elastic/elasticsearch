@@ -32,8 +32,6 @@ public class QueryFilterBuilder extends BaseFilterBuilder {
 
     private final QueryBuilder queryBuilder;
 
-    private Boolean cache;
-
     private String filterName;
 
     /**
@@ -53,17 +51,9 @@ public class QueryFilterBuilder extends BaseFilterBuilder {
         return this;
     }
 
-    /**
-     * Should the filter be cached or not. Defaults to <tt>false</tt>.
-     */
-    public QueryFilterBuilder cache(boolean cache) {
-        this.cache = cache;
-        return this;
-    }
-
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
-        if (filterName == null && cache == null) {
+        if (filterName == null) {
             builder.field(QueryFilterParser.NAME);
             queryBuilder.toXContent(builder, params);
         } else {
@@ -72,9 +62,6 @@ public class QueryFilterBuilder extends BaseFilterBuilder {
             queryBuilder.toXContent(builder, params);
             if (filterName != null) {
                 builder.field("_name", filterName);
-            }
-            if (cache != null) {
-                builder.field("_cache", cache);
             }
             builder.endObject();
         }

@@ -19,12 +19,12 @@
 
 package org.elasticsearch.action.admin.indices.close;
 
-import org.elasticsearch.action.admin.indices.IndicesAction;
-import org.elasticsearch.client.IndicesAdminClient;
+import org.elasticsearch.action.Action;
+import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  */
-public class CloseIndexAction extends IndicesAction<CloseIndexRequest, CloseIndexResponse, CloseIndexRequestBuilder> {
+public class CloseIndexAction extends Action<CloseIndexRequest, CloseIndexResponse, CloseIndexRequestBuilder> {
 
     public static final CloseIndexAction INSTANCE = new CloseIndexAction();
     public static final String NAME = "indices:admin/close";
@@ -39,7 +39,7 @@ public class CloseIndexAction extends IndicesAction<CloseIndexRequest, CloseInde
     }
 
     @Override
-    public CloseIndexRequestBuilder newRequestBuilder(IndicesAdminClient client) {
-        return new CloseIndexRequestBuilder(client);
+    public CloseIndexRequestBuilder newRequestBuilder(ElasticsearchClient client) {
+        return new CloseIndexRequestBuilder(client, this);
     }
 }

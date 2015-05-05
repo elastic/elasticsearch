@@ -22,6 +22,8 @@ package org.elasticsearch.indices.recovery;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import org.apache.lucene.index.CorruptIndexException;
+import org.apache.lucene.index.IndexFormatTooNewException;
+import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.RateLimiter;
@@ -40,6 +42,7 @@ import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.compress.CompressorFactory;
+import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
@@ -50,6 +53,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.RecoveryEngineException;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexShard;
@@ -76,7 +80,7 @@ import java.util.concurrent.atomic.AtomicReference;
  * everything relating to copying the segment files as well as sending translog
  * operations across the wire once the segments have been copied.
  */
-public class RecoverySourceHandler implements Engine.RecoveryHandler {
+public class RecoverySourceHandler {
 
     protected final ESLogger logger;
     // Shard that is going to be recovered (the "source")
@@ -91,7 +95,7 @@ public class RecoverySourceHandler implements Engine.RecoveryHandler {
     private final IndexService indexService;
     private final MappingUpdatedAction mappingUpdatedAction;
 
-    private final RecoveryResponse response;
+    protected final RecoveryResponse response;
     private final CancellableThreads cancellableThreads = new CancellableThreads() {
         @Override
         protected void onCancel(String reason, @Nullable Throwable suppressedException) {
@@ -126,27 +130,50 @@ public class RecoverySourceHandler implements Engine.RecoveryHandler {
         this.response = new RecoveryResponse();
     }
 
-    /**
-     * @return the {@link RecoveryResponse} after the recovery has completed all three phases
-     */
-    public RecoveryResponse getResponse() {
-        return this.response;
+    /** performs the recovery from the local engine to the target */
+    public RecoveryResponse recoverToTarget() {
+        final Engine engine = shard.engine();
+        assert engine.getTranslog() != null : "translog must not be null";
+        try (Translog.View translogView = engine.getTranslog().newView()) {
+            logger.trace("captured translog id [{}] for recovery", translogView.minTranslogId());
+            final SnapshotIndexCommit phase1Snapshot;
+            try {
+                phase1Snapshot = shard.snapshotIndex(false);
+            } catch (Throwable e) {
+                Releasables.closeWhileHandlingException(translogView);
+                throw new RecoveryEngineException(shard.shardId(), 1, "Snapshot failed", e);
+            }
+
+            try {
+                phase1(phase1Snapshot, translogView);
+            } catch (Throwable e) {
+                throw new RecoveryEngineException(shard.shardId(), 1, "phase1 failed", e);
+            } finally {
+                Releasables.closeWhileHandlingException(phase1Snapshot);
+            }
+
+            logger.trace("snapshot translog for recovery. current size is [{}]", translogView.totalOperations());
+            try (Translog.Snapshot phase2Snapshot = translogView.snapshot()) {
+                phase2(phase2Snapshot);
+            } catch (Throwable e) {
+                throw new RecoveryEngineException(shard.shardId(), 2, "phase2 failed", e);
+            }
+
+            finalizeRecovery();
+        }
+        return response;
     }
 
     /**
      * Perform phase1 of the recovery operations. Once this {@link SnapshotIndexCommit}
      * snapshot has been performed no commit operations (files being fsync'd)
      * are effectively allowed on this index until all recovery phases are done
-     *
+     * <p/>
      * Phase1 examines the segment files on the target node and copies over the
      * segments that are missing. Only segments that have the same size and
      * checksum can be reused
-     *
-     * {@code InternalEngine#recover} is responsible for snapshotting the index
-     * and releasing the snapshot once all 3 phases of recovery are complete
      */
-    @Override
-    public void phase1(final SnapshotIndexCommit snapshot) {
+    public void phase1(final SnapshotIndexCommit snapshot, final Translog.View translogView) {
         cancellableThreads.checkForCancel();
         // Total size of segment files that are recovered
         long totalSize = 0;
@@ -156,7 +183,13 @@ public class RecoverySourceHandler implements Engine.RecoveryHandler {
         store.incRef();
         try {
             StopWatch stopWatch = new StopWatch().start();
-            final Store.MetadataSnapshot recoverySourceMetadata = store.getMetadata(snapshot);
+            final Store.MetadataSnapshot recoverySourceMetadata;
+            try {
+                recoverySourceMetadata = store.getMetadata(snapshot);
+            } catch (CorruptIndexException | IndexFormatTooOldException | IndexFormatTooNewException ex) {
+                shard.engine().failEngine("recovery", ex);
+                throw ex;
+            }
             for (String name : snapshot.getFiles()) {
                 final StoreFileMetaData md = recoverySourceMetadata.get(name);
                 if (md == null) {
@@ -202,7 +235,7 @@ public class RecoverySourceHandler implements Engine.RecoveryHandler {
                 public void run() throws InterruptedException {
                     RecoveryFilesInfoRequest recoveryInfoFilesRequest = new RecoveryFilesInfoRequest(request.recoveryId(), request.shardId(),
                             response.phase1FileNames, response.phase1FileSizes, response.phase1ExistingFileNames, response.phase1ExistingFileSizes,
-                            shard.translog().estimatedNumberOfOperations());
+                            translogView.totalOperations());
                     transportService.submitRequest(request.targetNode(), RecoveryTarget.Actions.FILES_INFO, recoveryInfoFilesRequest,
                             TransportRequestOptions.options().withTimeout(recoverySettings.internalActionTimeout()),
                             EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
@@ -298,7 +331,7 @@ public class RecoverySourceHandler implements Engine.RecoveryHandler {
                                 readCount += toRead;
                                 final boolean lastChunk = readCount == len;
                                 final RecoveryFileChunkRequest fileChunkRequest = new RecoveryFileChunkRequest(request.recoveryId(), request.shardId(), md, position,
-                                        content, lastChunk, shard.translog().estimatedNumberOfOperations(), throttleTimeInNanos);
+                                        content, lastChunk, translogView.totalOperations(), throttleTimeInNanos);
                                 cancellableThreads.execute(new Interruptable() {
                                     @Override
                                     public void run() throws InterruptedException {
@@ -347,6 +380,7 @@ public class RecoverySourceHandler implements Engine.RecoveryHandler {
             });
 
             if (corruptedEngine.get() != null) {
+                shard.engine().failEngine("recovery", corruptedEngine.get());
                 throw corruptedEngine.get();
             } else {
                 ExceptionsHelper.rethrowAndSuppress(exceptions);
@@ -365,7 +399,7 @@ public class RecoverySourceHandler implements Engine.RecoveryHandler {
                     // are deleted
                     try {
                         transportService.submitRequest(request.targetNode(), RecoveryTarget.Actions.CLEAN_FILES,
-                                new RecoveryCleanFilesRequest(request.recoveryId(), shard.shardId(), recoverySourceMetadata, shard.translog().estimatedNumberOfOperations()),
+                                new RecoveryCleanFilesRequest(request.recoveryId(), shard.shardId(), recoverySourceMetadata, translogView.totalOperations()),
                                 TransportRequestOptions.options().withTimeout(recoverySettings.internalActionTimeout()),
                                 EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
                     } catch (RemoteTransportException remoteException) {
@@ -406,7 +440,9 @@ public class RecoverySourceHandler implements Engine.RecoveryHandler {
                     }
                 }
             });
-            stopWatch.stop();
+
+            prepareTargetForTranslog(translogView);
+
             logger.trace("[{}][{}] recovery [phase1] to {}: took [{}]", indexName, shardId, request.targetNode(), stopWatch.totalTime());
             response.phase1Time = stopWatch.totalTime().millis();
         } catch (Throwable e) {
@@ -416,25 +452,10 @@ public class RecoverySourceHandler implements Engine.RecoveryHandler {
         }
     }
 
-    /**
-     * Perform phase2 of the recovery process
-     *
-     * Phase2 takes a snapshot of the current translog *without* acquiring the
-     * write lock (however, the translog snapshot is a point-in-time view of
-     * the translog). It then sends each translog operation to the target node
-     * so it can be replayed into the new shard.
-     *
-     * {@code InternalEngine#recover} is responsible for taking the snapshot
-     * of the translog and releasing it once all 3 phases of recovery are complete
-     */
-    @Override
-    public void phase2(Translog.Snapshot snapshot) {
-        if (shard.state() == IndexShardState.CLOSED) {
-            throw new IndexShardClosedException(request.shardId());
-        }
-        cancellableThreads.checkForCancel();
-        logger.trace("{} recovery [phase2] to {}: start", request.shardId(), request.targetNode());
+    protected void prepareTargetForTranslog(final Translog.View translogView) {
         StopWatch stopWatch = new StopWatch().start();
+        logger.trace("{} recovery [phase1] to {}: prepare remote engine for translog", request.shardId(), request.targetNode());
+        final long startEngineStart = stopWatch.totalTime().millis();
         cancellableThreads.execute(new Interruptable() {
             @Override
             public void run() throws InterruptedException {
@@ -442,23 +463,38 @@ public class RecoverySourceHandler implements Engine.RecoveryHandler {
                 // operations. This ensures the shard engine is started and disables
                 // garbage collection (not the JVM's GC!) of tombstone deletes
                 transportService.submitRequest(request.targetNode(), RecoveryTarget.Actions.PREPARE_TRANSLOG,
-                        new RecoveryPrepareForTranslogOperationsRequest(request.recoveryId(), request.shardId(), shard.translog().estimatedNumberOfOperations()),
+                        new RecoveryPrepareForTranslogOperationsRequest(request.recoveryId(), request.shardId(), translogView.totalOperations()),
                         TransportRequestOptions.options().withTimeout(recoverySettings.internalActionTimeout()), EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
             }
         });
 
         stopWatch.stop();
-        response.startTime = stopWatch.totalTime().millis();
-        logger.trace("{} recovery [phase2] to {}: start took [{}]",
+
+        response.startTime = stopWatch.totalTime().millis() - startEngineStart;
+        logger.trace("{} recovery [phase1] to {}: remote engine start took [{}]",
                 request.shardId(), request.targetNode(), stopWatch.totalTime());
+    }
 
+    /**
+     * Perform phase2 of the recovery process
+     * <p/>
+     * Phase2 takes a snapshot of the current translog *without* acquiring the
+     * write lock (however, the translog snapshot is a point-in-time view of
+     * the translog). It then sends each translog operation to the target node
+     * so it can be replayed into the new shard.
+     */
+    public void phase2(Translog.Snapshot snapshot) {
+        if (shard.state() == IndexShardState.CLOSED) {
+            throw new IndexShardClosedException(request.shardId());
+        }
+        cancellableThreads.checkForCancel();
 
+        StopWatch stopWatch = new StopWatch().start();
         logger.trace("{} recovery [phase2] to {}: updating current mapping to master", request.shardId(), request.targetNode());
         // Ensure that the mappings are synced with the master node
         updateMappingOnMaster();
 
         logger.trace("{} recovery [phase2] to {}: sending transaction log operations", request.shardId(), request.targetNode());
-        stopWatch = new StopWatch().start();
         // Send all the snapshot's translog operations to the target
         int totalOperations = sendSnapshot(snapshot);
         stopWatch.stop();
@@ -468,28 +504,16 @@ public class RecoverySourceHandler implements Engine.RecoveryHandler {
     }
 
     /**
-     * Perform phase 3 of the recovery process
-     *
-     * Phase3 again takes a snapshot of the translog, however this time the
-     * snapshot is acquired under a write lock. The translog operations are
-     * sent to the target node where they are replayed.
-     *
-     * {@code InternalEngine#recover} is responsible for taking the snapshot
-     * of the translog, and after phase 3 completes the snapshots from all
-     * three phases are released.
+     * finalizes the recovery process
      */
-    @Override
-    public void phase3(Translog.Snapshot snapshot) {
+    public void finalizeRecovery() {
         if (shard.state() == IndexShardState.CLOSED) {
             throw new IndexShardClosedException(request.shardId());
         }
         cancellableThreads.checkForCancel();
         StopWatch stopWatch = new StopWatch().start();
-        final int totalOperations;
-        logger.trace("[{}][{}] recovery [phase3] to {}: sending transaction log operations", indexName, shardId, request.targetNode());
+        logger.trace("[{}][{}] finalizing recovery to {}", indexName, shardId, request.targetNode());
 
-        // Send the translog operations to the target node
-        totalOperations = sendSnapshot(snapshot);
 
         cancellableThreads.execute(new Interruptable() {
             @Override
@@ -518,10 +542,8 @@ public class RecoverySourceHandler implements Engine.RecoveryHandler {
             }
         }
         stopWatch.stop();
-        logger.trace("[{}][{}] recovery [phase3] to {}: took [{}]",
+        logger.trace("[{}][{}] finalizing recovery to {}: took [{}]",
                 indexName, shardId, request.targetNode(), stopWatch.totalTime());
-        response.phase3Time = stopWatch.totalTime().millis();
-        response.phase3Operations = totalOperations;
     }
 
     /**
@@ -587,21 +609,21 @@ public class RecoverySourceHandler implements Engine.RecoveryHandler {
 
     /**
      * Send the given snapshot's operations to this handler's target node.
-     *
+     * <p/>
      * Operations are bulked into a single request depending on an operation
      * count limit or size-in-bytes limit
      *
      * @return the total number of translog operations that were sent
      */
-    protected int sendSnapshot(Translog.Snapshot snapshot) {
+    protected int sendSnapshot(final Translog.Snapshot snapshot) {
         int ops = 0;
         long size = 0;
         int totalOperations = 0;
         final List<Translog.Operation> operations = Lists.newArrayList();
         Translog.Operation operation;
         try {
-             operation = snapshot.next(); // this ex should bubble up
-        } catch (IOException ex){
+            operation = snapshot.next(); // this ex should bubble up
+        } catch (IOException ex) {
             throw new ElasticsearchException("failed to get next operation from translog", ex);
         }
 
@@ -641,7 +663,7 @@ public class RecoverySourceHandler implements Engine.RecoveryHandler {
                     @Override
                     public void run() throws InterruptedException {
                         final RecoveryTranslogOperationsRequest translogOperationsRequest = new RecoveryTranslogOperationsRequest(
-                                request.recoveryId(), request.shardId(), operations, shard.translog().estimatedNumberOfOperations());
+                                request.recoveryId(), request.shardId(), operations, snapshot.estimatedTotalOperations());
                         transportService.submitRequest(request.targetNode(), RecoveryTarget.Actions.TRANSLOG_OPS, translogOperationsRequest,
                                 recoveryOptions, EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
                     }
@@ -649,7 +671,7 @@ public class RecoverySourceHandler implements Engine.RecoveryHandler {
                 if (logger.isTraceEnabled()) {
                     logger.trace("[{}][{}] sent batch of [{}][{}] (total: [{}]) translog operations to {}",
                             indexName, shardId, ops, new ByteSizeValue(size),
-                            shard.translog().estimatedNumberOfOperations(),
+                            snapshot.estimatedTotalOperations(),
                             request.targetNode());
                 }
 
@@ -659,16 +681,17 @@ public class RecoverySourceHandler implements Engine.RecoveryHandler {
             }
             try {
                 operation = snapshot.next(); // this ex should bubble up
-            } catch (IOException ex){
+            } catch (IOException ex) {
                 throw new ElasticsearchException("failed to get next operation from translog", ex);
-            }        }
+            }
+        }
         // send the leftover
         if (!operations.isEmpty()) {
             cancellableThreads.execute(new Interruptable() {
                 @Override
                 public void run() throws InterruptedException {
                     RecoveryTranslogOperationsRequest translogOperationsRequest = new RecoveryTranslogOperationsRequest(
-                            request.recoveryId(), request.shardId(), operations, shard.translog().estimatedNumberOfOperations());
+                            request.recoveryId(), request.shardId(), operations, snapshot.estimatedTotalOperations());
                     transportService.submitRequest(request.targetNode(), RecoveryTarget.Actions.TRANSLOG_OPS, translogOperationsRequest,
                             recoveryOptions, EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
                 }
@@ -678,7 +701,7 @@ public class RecoverySourceHandler implements Engine.RecoveryHandler {
         if (logger.isTraceEnabled()) {
             logger.trace("[{}][{}] sent final batch of [{}][{}] (total: [{}]) translog operations to {}",
                     indexName, shardId, ops, new ByteSizeValue(size),
-                    shard.translog().estimatedNumberOfOperations(),
+                    snapshot.estimatedTotalOperations(),
                     request.targetNode());
         }
         return totalOperations;

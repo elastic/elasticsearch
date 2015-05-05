@@ -27,6 +27,7 @@ import org.apache.lucene.index.Terms;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.NumericRangeQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryWrapperFilter;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.NumericUtils;
@@ -39,8 +40,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.joda.DateMathParser;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.Joda;
-import org.elasticsearch.common.lucene.search.NoCacheQuery;
-import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.search.ResolvableFilter;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
@@ -392,7 +391,7 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
         if (fieldData != null) {
             filter = NumericRangeFieldDataFilter.newLongRange(fieldData, lowerVal,upperVal, includeLower, includeUpper);
         } else {
-            filter = Queries.wrap(NumericRangeQuery.newLongRange(
+            filter = new QueryWrapperFilter(NumericRangeQuery.newLongRange(
                     names.indexName(), precisionStep, lowerVal, upperVal, includeLower, includeUpper
             ));
         }
@@ -406,7 +405,7 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
             return null;
         }
         long value = parseStringValue(nullValue);
-        return Queries.wrap(NumericRangeQuery.newLongRange(names.indexName(), precisionStep,
+        return new QueryWrapperFilter(NumericRangeQuery.newLongRange(names.indexName(), precisionStep,
                 value,
                 value,
                 true, true));
@@ -588,7 +587,7 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
         }
     }
 
-    public final class LateParsingQuery extends NoCacheQuery {
+    public final class LateParsingQuery extends Query {
 
         final Object lowerTerm;
         final Object upperTerm;
@@ -613,7 +612,7 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
         }
 
         @Override
-        public String innerToString(String s) {
+        public String toString(String s) {
             final StringBuilder sb = new StringBuilder();
             return sb.append(names.indexName()).append(':')
                     .append(includeLower ? '[' : '{')

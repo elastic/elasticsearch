@@ -83,7 +83,7 @@ import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksResponse;
  *
  * @see AdminClient#cluster()
  */
-public interface ClusterAdminClient extends ElasticsearchClient<ClusterAdminClient> {
+public interface ClusterAdminClient extends ElasticsearchClient {
 
     /**
      * The health of the cluster.

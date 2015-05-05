@@ -82,7 +82,6 @@ public abstract class Engine implements Closeable {
     protected Engine(EngineConfig engineConfig) {
         Preconditions.checkNotNull(engineConfig.getStore(), "Store must be provided to the engine");
         Preconditions.checkNotNull(engineConfig.getDeletionPolicy(), "Snapshot deletion policy must be provided to the engine");
-        Preconditions.checkNotNull(engineConfig.getTranslog(), "Translog must be provided to the engine");
 
         this.engineConfig = engineConfig;
         this.shardId = engineConfig.getShardId();
@@ -278,6 +277,9 @@ public abstract class Engine implements Closeable {
         }
     }
 
+    /** returns the translog for this engine */
+    public abstract Translog getTranslog();
+
     protected void ensureOpen() {
         if (isClosed.get()) {
             throw new EngineClosedException(shardId, failedEngine);
@@ -449,12 +451,12 @@ public abstract class Engine implements Closeable {
     public abstract void forceMerge(boolean flush, int maxNumSegments, boolean onlyExpungeDeletes, boolean upgrade, boolean upgradeOnlyAncientSegments) throws EngineException;
 
     /**
-     * Snapshots the index and returns a handle to it. Will always try and "commit" the
+     * Snapshots the index and returns a handle to it. If needed will try and "commit" the
      * lucene index to make sure we have a "fresh" copy of the files to snapshot.
+     *
+     * @param flushFirst indicates whether the engine should flush before returning the snapshot
      */
-    public abstract SnapshotIndexCommit snapshotIndex() throws EngineException;
-
-    public abstract void recover(RecoveryHandler recoveryHandler) throws EngineException;
+    public abstract SnapshotIndexCommit snapshotIndex(boolean flushFirst) throws EngineException;
 
     /** fail engine due to some error. the engine will also be closed. */
     public void failEngine(String reason, Throwable failure) {
@@ -1043,12 +1045,19 @@ public abstract class Engine implements Closeable {
 
     protected abstract SearcherManager getSearcherManager();
 
+    /**
+     * Method to close the engine while the write lock is held.
+     */
     protected abstract void closeNoLock(String reason);
 
+    /**
+     * Flush the engine (committing segments to disk and truncating the
+     * translog) and close it.
+     */
     public void flushAndClose() throws IOException {
         if (isClosed.get() == false) {
             logger.trace("flushAndClose now acquire writeLock");
-            try (ReleasableLock _ = writeLock.acquire()) {
+            try (ReleasableLock lock = writeLock.acquire()) {
                 logger.trace("flushAndClose now acquired writeLock");
                 try {
                     logger.debug("flushing shard on close - this might take some time to sync files to disk");
@@ -1070,7 +1079,7 @@ public abstract class Engine implements Closeable {
     public void close() throws IOException {
         if (isClosed.get() == false) { // don't acquire the write lock if we are already closed
             logger.debug("close now acquiring writeLock");
-            try (ReleasableLock _ = writeLock.acquire()) {
+            try (ReleasableLock lock = writeLock.acquire()) {
                 logger.debug("close acquired writeLock");
                 closeNoLock("api");
             }

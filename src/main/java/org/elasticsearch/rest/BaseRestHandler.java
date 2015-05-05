@@ -21,9 +21,8 @@ package org.elasticsearch.rest;
 
 import org.elasticsearch.action.*;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.client.ClusterAdminClient;
 import org.elasticsearch.client.FilterClient;
-import org.elasticsearch.client.IndicesAdminClient;
+import org.elasticsearch.client.support.AbstractClient;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 
@@ -31,7 +30,7 @@ import java.util.Set;
 
 /**
  * Base handler for REST requests.
- *
+ * <p/>
  * This handler makes sure that the headers & context of the handled {@link RestRequest requests} are copied over to
  * the transport requests executed by the associated client. While the context is fully copied over, not all the headers
  * are copied, but a selected few. It is possible to control what headers are copied over by registering them using
@@ -58,15 +57,11 @@ public abstract class BaseRestHandler extends AbstractComponent implements RestH
     static final class HeadersAndContextCopyClient extends FilterClient {
 
         private final RestRequest restRequest;
-        private final IndicesAdmin indicesAdmin;
-        private final ClusterAdmin clusterAdmin;
         private final Set<String> headers;
 
         HeadersAndContextCopyClient(Client in, RestRequest restRequest, Set<String> headers) {
             super(in);
             this.restRequest = restRequest;
-            this.indicesAdmin = new IndicesAdmin(in.admin().indices(), restRequest, headers);
-            this.clusterAdmin = new ClusterAdmin(in.admin().cluster(), restRequest, headers);
             this.headers = headers;
         }
 
@@ -81,73 +76,9 @@ public abstract class BaseRestHandler extends AbstractComponent implements RestH
         }
 
         @Override
-        public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder, Client>> ActionFuture<Response> execute(Action<Request, Response, RequestBuilder, Client> action, Request request) {
+        protected <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> void doExecute(Action<Request, Response, RequestBuilder> action, Request request, ActionListener<Response> listener) {
             copyHeadersAndContext(request, restRequest, headers);
-            return super.execute(action, request);
-        }
-
-        @Override
-        public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder, Client>> void execute(Action<Request, Response, RequestBuilder, Client> action, Request request, ActionListener<Response> listener) {
-            copyHeadersAndContext(request, restRequest, headers);
-            super.execute(action, request, listener);
-        }
-
-        @Override
-        public ClusterAdminClient cluster() {
-            return clusterAdmin;
-        }
-
-        @Override
-        public IndicesAdminClient indices() {
-            return indicesAdmin;
-        }
-
-        private static final class ClusterAdmin extends FilterClient.ClusterAdmin {
-
-            private final RestRequest restRequest;
-            private final Set<String> headers;
-
-            private ClusterAdmin(ClusterAdminClient in, RestRequest restRequest, Set<String> headers) {
-                super(in);
-                this.restRequest = restRequest;
-                this.headers = headers;
-            }
-
-            @Override
-            public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder, ClusterAdminClient>> ActionFuture<Response> execute(Action<Request, Response, RequestBuilder, ClusterAdminClient> action, Request request) {
-                copyHeadersAndContext(request, restRequest, headers);
-                return super.execute(action, request);
-            }
-
-            @Override
-            public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder, ClusterAdminClient>> void execute(Action<Request, Response, RequestBuilder, ClusterAdminClient> action, Request request, ActionListener<Response> listener) {
-                copyHeadersAndContext(request, restRequest, headers);
-                super.execute(action, request, listener);
-            }
-        }
-
-        private final class IndicesAdmin extends FilterClient.IndicesAdmin {
-
-            private final RestRequest restRequest;
-            private final Set<String> headers;
-
-            private IndicesAdmin(IndicesAdminClient in, RestRequest restRequest, Set<String> headers) {
-                super(in);
-                this.restRequest = restRequest;
-                this.headers = headers;
-            }
-
-            @Override
-            public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder, IndicesAdminClient>> ActionFuture<Response> execute(Action<Request, Response, RequestBuilder, IndicesAdminClient> action, Request request) {
-                copyHeadersAndContext(request, restRequest, headers);
-                return super.execute(action, request);
-            }
-
-            @Override
-            public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder, IndicesAdminClient>> void execute(Action<Request, Response, RequestBuilder, IndicesAdminClient> action, Request request, ActionListener<Response> listener) {
-                copyHeadersAndContext(request, restRequest, headers);
-                super.execute(action, request, listener);
-            }
+            super.doExecute(action, request, listener);
         }
     }
 }

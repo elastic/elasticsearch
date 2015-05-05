@@ -122,11 +122,10 @@ public class RecoverySource extends AbstractComponent {
         }
         ongoingRecoveries.add(shard, handler);
         try {
-            shard.recover(handler);
+            return handler.recoverToTarget();
         } finally {
             ongoingRecoveries.remove(shard, handler);
         }
-        return handler.getResponse();
     }
 
     class StartRecoveryTransportRequestHandler implements TransportRequestHandler<StartRecoveryRequest> {

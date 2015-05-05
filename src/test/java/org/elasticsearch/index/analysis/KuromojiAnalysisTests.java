@@ -193,6 +193,7 @@ public class KuromojiAnalysisTests extends ElasticsearchTestCase {
 
     public AnalysisService createAnalysisService() {
         Settings settings = ImmutableSettings.settingsBuilder()
+                .put("path.home", createTempDir())
                 .loadFromClasspath("org/elasticsearch/index/analysis/kuromoji_analysis.json")
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .build();

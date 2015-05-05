@@ -2,7 +2,7 @@
 === Date Range Aggregation
 
 A range aggregation that is dedicated for date values. The main difference between this aggregation and the normal <<search-aggregations-bucket-range-aggregation,range>> aggregation is that the `from` and `to` values can be expressed in <<date-math,Date Math>> expressions, and it is also possible to specify a date format by which the `from` and `to` response fields will be returned.
-Note that this aggregration includes the `from` value and excludes the `to` value for each range.
+Note that this aggregation includes the `from` value and excludes the `to` value for each range.
 
 Example:
 

@@ -119,7 +119,7 @@ size::          Optional. The maximum number of geohash buckets to return
                 prioritised based on the volumes of documents they contain.
                 A value of `0` will return all buckets that
                 contain a hit, use with caution as this could use a lot of CPU
-                and network bandwith if there are many buckets.
+                and network bandwidth if there are many buckets.
 
 shard_size::    Optional. To allow for more accurate counting of the top cells
                 returned in the final result the aggregation defaults to

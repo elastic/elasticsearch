@@ -67,6 +67,7 @@ import java.util.concurrent.TimeUnit;
  */
 public class LocalIndexShardGateway extends AbstractIndexShardComponent implements IndexShardGateway {
 
+    public static final String SYNC_INTERVAL = "index.gateway.local.sync";
     private static final int RECOVERY_TRANSLOG_RENAME_RETRIES = 3;
 
     private final ThreadPool threadPool;
@@ -90,7 +91,7 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
         this.indexShard = indexShard;
 
         this.waitForMappingUpdatePostRecovery = componentSettings.getAsTime("wait_for_mapping_update_post_recovery", TimeValue.timeValueSeconds(30));
-        syncInterval = componentSettings.getAsTime("sync", TimeValue.timeValueSeconds(5));
+        syncInterval = indexSettings.getAsTime(SYNC_INTERVAL, TimeValue.timeValueSeconds(5));
         if (syncInterval.millis() > 0) {
             this.indexShard.translog().syncOnEachOperation(false);
             flushScheduler = threadPool.schedule(syncInterval, ThreadPool.Names.SAME, new Sync());

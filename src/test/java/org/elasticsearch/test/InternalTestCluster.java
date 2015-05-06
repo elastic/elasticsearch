@@ -73,10 +73,13 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.cache.filter.FilterCacheModule;
 import org.elasticsearch.index.cache.filter.none.NoneFilterCache;
 import org.elasticsearch.index.cache.filter.weighted.WeightedFilterCache;
+import org.elasticsearch.index.gateway.local.LocalIndexShardGateway;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardModule;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.translog.fs.FsTranslog;
+import org.elasticsearch.index.translog.fs.FsTranslogFile;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
@@ -430,6 +433,15 @@ public final class InternalTestCluster extends TestCluster {
         if (random.nextInt(10) == 0) {
             builder.put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_TYPE_SETTING, "noop");
             builder.put(HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_TYPE_SETTING, "noop");
+        }
+
+        if (random.nextBoolean()) {
+            builder.put(FsTranslog.INDEX_TRANSLOG_FS_TYPE, RandomPicks.randomFrom(random, FsTranslogFile.Type.values()));
+            if (random.nextBoolean()) {
+                builder.put(LocalIndexShardGateway.SYNC_INTERVAL, 0); // 0 has special meaning to sync each op
+            } else {
+                builder.put(LocalIndexShardGateway.SYNC_INTERVAL, RandomInts.randomIntBetween(random, 100, 5000));
+            }
         }
 
         return builder.build();

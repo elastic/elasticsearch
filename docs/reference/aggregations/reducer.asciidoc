@@ -155,6 +155,7 @@ _insert_zeros_::
 
 
 include::reducer/avg-bucket-aggregation.asciidoc[]
+include::reducer/count-bucket-aggregation.asciidoc[]
 include::reducer/derivative-aggregation.asciidoc[]
 include::reducer/max-bucket-aggregation.asciidoc[]
 include::reducer/min-bucket-aggregation.asciidoc[]

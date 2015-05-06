@@ -1,0 +1,108 @@
+[[search-aggregations-reducer-count-bucket-aggregation]]
+=== Count Bucket Aggregation
+
+A sibling reducer aggregation which calculates count of values for a specified metric in a sibling aggregation. 
+The specified metric must be numeric and the sibling aggregation must be a multi-bucket aggregation.
+
+==== Syntax
+
+A `count_bucket` aggregation looks like this in isolation:
+
+[source,js]
+--------------------------------------------------
+{
+    "count_bucket": {
+        "buckets_path": "the_sum"
+    }
+}
+--------------------------------------------------
+
+.`count_bucket` Parameters
+|===
+|Parameter Name |Description |Required |Default Value
+|`buckets_path` |The path to the buckets we wish to find the count of (see <<bucket-path-syntax>> for more
+ details) |Required |
+ |`gap_policy` |The policy to apply when gaps are found in the data (see <<gap-policy>> for more
+ details)|Optional, defaults to `skip` ||
+ |`format` |format to apply to the output value of this aggregation |Optional, defaults to `null` |
+|===
+
+The following snippet calculates the number of the total monthly `sales` recorded:
+
+[source,js]
+--------------------------------------------------
+{
+    "aggs" : {
+        "sales_per_month" : {
+            "date_histogram" : {
+                "field" : "date",
+                "interval" : "month"
+            },
+            "aggs": {
+                "sales": {
+                    "sum": {
+                        "field": "price"
+                    }
+                }
+            }
+        },
+        "count_monthly_sales": {
+            "count_bucket": {
+                "buckets_paths": "sales_per_month>sales" <1>
+            }
+        }
+    }
+}
+--------------------------------------------------
+<1> `bucket_paths` instructs this count_bucket aggregation that we want the count of values for the `sales` aggregation in the 
+`sales_per_month` date histogram.
+
+And the following may be the response:
+
+[source,js]
+--------------------------------------------------
+{
+   "aggregations": {
+      "sales_per_month": {
+         "buckets": [
+            {
+               "key_as_string": "2015/01/01 00:00:00",
+               "key": 1420070400000,
+               "doc_count": 3,
+               "sales": {
+                  "value": 550
+               }
+            },
+            {
+               "key_as_string": "2015/02/01 00:00:00",
+               "key": 1422748800000,
+               "doc_count": 2,
+               "sales": {
+                  "value": 60
+               }
+            },
+            {
+               "key_as_string": "2015/03/01 00:00:00",
+               "key": 1425168000000,
+               "doc_count": 2,
+               "sales": {
+                  "value": 375
+               }
+            },
+            {
+               "key_as_string": "2015/04/01 00:00:00",
+               "key": 1427846400000,
+               "doc_count": 2,
+               "sales": {
+                  "value": 60
+               }
+            }
+         ]
+      },
+      "count_monthly_sales": {
+          "value": 4
+      }
+   }
+}
+--------------------------------------------------
+

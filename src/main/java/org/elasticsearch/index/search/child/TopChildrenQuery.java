@@ -54,6 +54,7 @@ import java.util.Set;
  * This query is most of the times faster than the {@link ChildrenQuery}. Usually enough parent documents can be returned
  * in the first child document query round.
  */
+@Deprecated
 public class TopChildrenQuery extends IndexCacheableQuery {
 
     private static final ParentDocComparator PARENT_DOC_COMP = new ParentDocComparator();

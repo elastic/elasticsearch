@@ -31,23 +31,24 @@ import java.util.List;
  */
 public class MovAvgModelModule extends AbstractModule {
 
-    private List<Class<? extends MovAvgModelParser>> parsers = Lists.newArrayList();
+    private List<Class<? extends MovAvgModel.AbstractModelParser>> parsers = Lists.newArrayList();
 
     public MovAvgModelModule() {
         registerParser(SimpleModel.SimpleModelParser.class);
         registerParser(LinearModel.LinearModelParser.class);
         registerParser(EwmaModel.SingleExpModelParser.class);
         registerParser(HoltLinearModel.DoubleExpModelParser.class);
+        registerParser(HoltWintersModel.HoltWintersModelParser.class);
     }
 
-    public void registerParser(Class<? extends MovAvgModelParser> parser) {
+    public void registerParser(Class<? extends MovAvgModel.AbstractModelParser> parser) {
         parsers.add(parser);
     }
 
     @Override
     protected void configure() {
-        Multibinder<MovAvgModelParser> parserMapBinder = Multibinder.newSetBinder(binder(), MovAvgModelParser.class);
-        for (Class<? extends MovAvgModelParser> clazz : parsers) {
+        Multibinder<MovAvgModel.AbstractModelParser> parserMapBinder = Multibinder.newSetBinder(binder(), MovAvgModel.AbstractModelParser.class);
+        for (Class<? extends MovAvgModel.AbstractModelParser> clazz : parsers) {
             parserMapBinder.addBinding().to(clazz);
         }
         bind(MovAvgModelParserMapper.class);

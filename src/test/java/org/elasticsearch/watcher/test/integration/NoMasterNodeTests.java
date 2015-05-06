@@ -155,6 +155,8 @@ public class NoMasterNodeTests extends AbstractWatcherIntegrationTests {
 
         // We still have 2 master node, we should recover from this failure:
         internalTestCluster().stopCurrentMasterNode();
+        ensureWatcherStarted(false);
+        ensureWatcherOnlyRunningOnce();
         assertWatchWithMinimumPerformedActionsCount("_watch_id", 2, false);
 
         // Stop the elected master, no new master will be elected b/c of m_m_n is set to 2

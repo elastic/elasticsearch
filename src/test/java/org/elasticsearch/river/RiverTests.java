@@ -43,6 +43,10 @@ import static org.hamcrest.Matchers.equalTo;
 @AwaitsFix(bugUrl="occasionally fails apparently due to synchronous mappings updates")
 public class RiverTests extends ElasticsearchIntegrationTest {
 
+    @Override
+    protected void beforeIndexDeletion() {
+    }
+
     @Test
     public void testRiverStart() throws Exception {
         startAndCheckRiverIsStarted("dummy-river-test");

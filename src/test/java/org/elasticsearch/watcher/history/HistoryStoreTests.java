@@ -83,7 +83,7 @@ public class HistoryStoreTests extends ElasticsearchTestCase {
         long version = randomLong();
         when(indexResponse.getVersion()).thenReturn(version);
 
-        when(clientProxy.index(indexRequest(".watch_history_1970-01-01", HistoryStore.DOC_TYPE, wid.value(), IndexRequest.OpType.CREATE))).thenReturn(indexResponse);
+        when(clientProxy.index(indexRequest(".watch_history-1970.01.01", HistoryStore.DOC_TYPE, wid.value(), IndexRequest.OpType.CREATE))).thenReturn(indexResponse);
         historyStore.put(watchRecord);
         assertThat(watchRecord.version(), equalTo(version));
     }
@@ -104,7 +104,7 @@ public class HistoryStoreTests extends ElasticsearchTestCase {
         long version = randomLong();
         when(indexResponse.getVersion()).thenReturn(version);
 
-        when(clientProxy.index(indexRequest(".watch_history_1970-01-01", HistoryStore.DOC_TYPE, wid.value(), 4L, null))).thenReturn(indexResponse);
+        when(clientProxy.index(indexRequest(".watch_history-1970.01.01", HistoryStore.DOC_TYPE, wid.value(), 4L, null))).thenReturn(indexResponse);
         historyStore.update(watchRecord);
         assertThat(watchRecord.version(), equalTo(version));
     }
@@ -201,7 +201,7 @@ public class HistoryStoreTests extends ElasticsearchTestCase {
             historyStore.loadRecords(cs, WatchRecord.State.AWAITS_EXECUTION);
             fail("exception expected, because not all primary shards are started");
         } catch (HistoryException e) {
-            assertThat(e.getMessage(), containsString("not all primary shards of the [.watch_history_"));
+            assertThat(e.getMessage(), containsString("not all primary shards of the [.watch_history-"));
         }
 
         verifyZeroInteractions(templateUtils);
@@ -389,10 +389,10 @@ public class HistoryStoreTests extends ElasticsearchTestCase {
 
     @Test
     public void testIndexNameGeneration() {
-        assertThat(HistoryStore.getHistoryIndexNameForTime(new DateTime(0, UTC)), equalTo(".watch_history_1970-01-01"));
-        assertThat(HistoryStore.getHistoryIndexNameForTime(new DateTime(100000000000L, UTC)), equalTo(".watch_history_1973-03-03"));
-        assertThat(HistoryStore.getHistoryIndexNameForTime(new DateTime(1416582852000L, UTC)), equalTo(".watch_history_2014-11-21"));
-        assertThat(HistoryStore.getHistoryIndexNameForTime(new DateTime(2833165811000L, UTC)), equalTo(".watch_history_2059-10-12"));
+        assertThat(HistoryStore.getHistoryIndexNameForTime(new DateTime(0, UTC)), equalTo(".watch_history-1970.01.01"));
+        assertThat(HistoryStore.getHistoryIndexNameForTime(new DateTime(100000000000L, UTC)), equalTo(".watch_history-1973.03.03"));
+        assertThat(HistoryStore.getHistoryIndexNameForTime(new DateTime(1416582852000L, UTC)), equalTo(".watch_history-2014.11.21"));
+        assertThat(HistoryStore.getHistoryIndexNameForTime(new DateTime(2833165811000L, UTC)), equalTo(".watch_history-2059.10.12"));
     }
 
     private RefreshResponse mockRefreshResponse(int total, int successful) {

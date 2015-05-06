@@ -48,11 +48,11 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
  */
 public class HistoryStore extends AbstractComponent {
 
-    public static final String INDEX_PREFIX = ".watch_history_";
+    public static final String INDEX_PREFIX = ".watch_history-";
     public static final String DOC_TYPE = "watch_record";
     public static final String INDEX_TEMPLATE_NAME = "watch_history";
 
-    static final DateTimeFormatter indexTimeFormat = DateTimeFormat.forPattern("YYYY-MM-dd");
+    static final DateTimeFormatter indexTimeFormat = DateTimeFormat.forPattern("YYYY.MM.dd");
 
     private final ClientProxy client;
     private final TemplateUtils templateUtils;

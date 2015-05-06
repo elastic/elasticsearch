@@ -19,6 +19,7 @@
 package org.elasticsearch.search.lookup;
 
 import com.google.common.collect.Maps;
+
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
@@ -26,6 +27,8 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.apache.lucene.index.LeafReaderContext;
 
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Map;
@@ -73,11 +76,18 @@ public class LeafDocLookup implements Map {
         String fieldName = key.toString();
         ScriptDocValues scriptValues = localCacheFieldData.get(fieldName);
         if (scriptValues == null) {
-            FieldMapper mapper = mapperService.smartNameFieldMapper(fieldName, types);
+            final FieldMapper mapper = mapperService.smartNameFieldMapper(fieldName, types);
             if (mapper == null) {
                 throw new IllegalArgumentException("No field found for [" + fieldName + "] in mapping with types " + Arrays.toString(types) + "");
             }
-            scriptValues = fieldDataService.getForField(mapper).load(reader).getScriptValues();
+            // load fielddata on behalf of the script: otherwise it would need additional permissions
+            // to deal with pagedbytes/ramusagestimator/etc
+            scriptValues = AccessController.doPrivileged(new PrivilegedAction<ScriptDocValues>() {
+                @Override
+                public ScriptDocValues run() {
+                    return fieldDataService.getForField(mapper).load(reader).getScriptValues();
+                }
+            });
             localCacheFieldData.put(fieldName, scriptValues);
         }
         scriptValues.setNextDocId(docId);

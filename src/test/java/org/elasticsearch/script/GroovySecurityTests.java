@@ -54,10 +54,14 @@ public class GroovySecurityTests extends ElasticsearchIntegrationTest {
         internalCluster().startNodesAsync(nodes, nodeSettings).get();
         client().admin().cluster().prepareHealth().setWaitForNodes(nodes + "").get();
 
-        client().prepareIndex("test", "doc", "1").setSource("foo", 5).setRefresh(true).get();
+        client().prepareIndex("test", "doc", "1").setSource("foo", 5, "bar", "baz").setRefresh(true).get();
 
         // Plain test
         assertSuccess("");
+        // numeric field access
+        assertSuccess("def foo = doc['foo'].value; if (foo == null) { return 5; }");
+        // string field access
+        assertSuccess("def bar = doc['bar'].value; if (foo == null) { return 5; }");
         // List
         assertSuccess("def list = [doc['foo'].value, 3, 4]; def v = list.get(1); list.add(10)");
         // Ranges

@@ -220,17 +220,14 @@ public class NoMasterNodeTests extends AbstractWatcherIntegrationTests {
     private void stopElectedMasterNodeAndWait() throws Exception {
         internalTestCluster().stopCurrentMasterNode();
         // Can't use ensureWatcherStopped, b/c that relies on the watcher stats api which requires an elected master node
-        assertThat(awaitBusy(new Predicate<Object>() {
-            public boolean apply(Object obj) {
+        assertBusy(new Runnable() {
+            public void run () {
                 for (Client client : clients()) {
                     ClusterState state = client.admin().cluster().prepareState().setLocal(true).get().getState();
-                    if (!state.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID)) {
-                        return false;
-                    }
+                    assertThat("Node [" + state.nodes().localNode() + "] should have a NO_MASTER_BLOCK", state.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID), is(true));
                 }
-                return true;
             }
-        }, 30, TimeUnit.SECONDS), equalTo(true));
+        }, 30, TimeUnit.SECONDS);
         // Ensure that the watch manager doesn't run elsewhere
         for (WatcherService watcherService : internalTestCluster().getInstances(WatcherService.class)) {
             assertThat(watcherService.state(), is(WatcherState.STOPPED));

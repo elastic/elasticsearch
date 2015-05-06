@@ -174,7 +174,7 @@ public class IntervalSchedule implements Schedule {
 
             Interval interval = (Interval) o;
 
-            if (unit.millis(duration) != interval.unit.millis(duration)) return false;
+            if (unit.millis(duration) != interval.unit.millis(interval.duration)) return false;
 
             return true;
         }

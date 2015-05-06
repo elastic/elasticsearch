@@ -5,10 +5,12 @@
  */
 package org.elasticsearch.watcher.test.integration;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.joda.time.DateTime;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.script.ScriptService;
@@ -246,6 +248,42 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTests {
         }
 
         assertThat(count, equalTo(findNumberOfPerformedActions("_name")));
+    }
+
+    @Test
+    @LuceneTestCase.Slow
+    public void testModifyWatchWithSameUnit() throws Exception {
+        if (timeWarped()) {
+            logger.info("Skipping testModifyWatches_ because timewarp is enabled");
+            return;
+        }
+
+        WatchSourceBuilder source = watchBuilder()
+                .trigger(schedule(interval("1s")))
+                .input(simpleInput("key", "value"))
+                .throttlePeriod(TimeValue.timeValueSeconds(0))
+                .addAction("_id", loggingAction("hello {{ctx.watcher_id}}!"));
+        watcherClient().preparePutWatch("_name")
+                .setSource(source)
+                .get();
+
+        Thread.sleep(5000);
+        assertWatchWithMinimumPerformedActionsCount("_name", 5, false);
+
+        source = watchBuilder()
+                .trigger(schedule(interval("100s")))
+                .throttlePeriod(TimeValue.timeValueSeconds(0))
+                .input(simpleInput("key", "value"))
+                .addAction("_id", loggingAction("hello {{ctx.watcher_id}}!"));
+        watcherClient().preparePutWatch("_name")
+                .setSource(source)
+                .get();
+
+        // Wait one second to be sure that the scheduler engine has executed any previous job instance of the watch
+        Thread.sleep(1000);
+        long before = historyRecordsCount("_name");
+        Thread.sleep(5000);
+        assertThat("Watch has been updated to 100s interval, so no new records should have been added.", historyRecordsCount("_name"), equalTo(before));
     }
 
     @Test

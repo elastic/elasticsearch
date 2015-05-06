@@ -591,6 +591,7 @@ public abstract class QueryBuilders {
      * @param type  The child type.
      * @param query The query.
      */
+    @Deprecated
     public static TopChildrenQueryBuilder topChildrenQuery(String type, QueryBuilder query) {
         return new TopChildrenQueryBuilder(type, query);
     }

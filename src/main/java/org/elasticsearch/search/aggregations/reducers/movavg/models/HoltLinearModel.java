@@ -32,9 +32,9 @@ import java.util.*;
 /**
  * Calculate a doubly exponential weighted moving average
  */
-public class DoubleExpModel extends MovAvgModel {
+public class HoltLinearModel extends MovAvgModel {
 
-    protected static final ParseField NAME_FIELD = new ParseField("double_exp");
+    protected static final ParseField NAME_FIELD = new ParseField("holt");
 
     /**
      * Controls smoothing of data. Alpha = 1 retains no memory of past values
@@ -48,15 +48,15 @@ public class DoubleExpModel extends MovAvgModel {
      */
     private double beta;
 
-    public DoubleExpModel(double alpha, double beta) {
+    public HoltLinearModel(double alpha, double beta) {
         this.alpha = alpha;
         this.beta = beta;
     }
 
     /**
      * Predicts the next `n` values in the series, using the smoothing model to generate new values.
-     * Unlike the other moving averages, double-exp has forecasting/prediction built into the algorithm.
-     * Prediction is more than simply adding the next prediction to the window and repeating.  Double-exp
+     * Unlike the other moving averages, Holt-Linear has forecasting/prediction built into the algorithm.
+     * Prediction is more than simply adding the next prediction to the window and repeating.  Holt-Linear
      * will extrapolate into the future by applying the trend information to the smoothed data.
      *
      * @param values            Collection of numerics to movingAvg, usually windowed
@@ -75,7 +75,7 @@ public class DoubleExpModel extends MovAvgModel {
     }
 
     /**
-     * Calculate a doubly exponential weighted moving average
+     * Calculate a Holt-Linear (doubly exponential weighted) moving average
      *
      * @param values Collection of values to calculate avg for
      * @param numForecasts number of forecasts into the future to return
@@ -98,8 +98,6 @@ public class DoubleExpModel extends MovAvgModel {
         double last_b = 0;
 
         int counter = 0;
-
-        //TODO bail if too few values
 
         T last;
         for (T v : values) {
@@ -128,7 +126,7 @@ public class DoubleExpModel extends MovAvgModel {
     public static final MovAvgModelStreams.Stream STREAM = new MovAvgModelStreams.Stream() {
         @Override
         public MovAvgModel readResult(StreamInput in) throws IOException {
-            return new DoubleExpModel(in.readDouble(), in.readDouble());
+            return new HoltLinearModel(in.readDouble(), in.readDouble());
         }
 
         @Override
@@ -165,11 +163,11 @@ public class DoubleExpModel extends MovAvgModel {
                 beta = 0.5;
             }
 
-            return new DoubleExpModel(alpha, beta);
+            return new HoltLinearModel(alpha, beta);
         }
     }
 
-    public static class DoubleExpModelBuilder implements MovAvgModelBuilder {
+    public static class HoltLinearModelBuilder implements MovAvgModelBuilder {
 
         private double alpha = 0.5;
         private double beta = 0.5;
@@ -183,7 +181,7 @@ public class DoubleExpModel extends MovAvgModel {
          *
          * @return The builder to continue chaining
          */
-        public DoubleExpModelBuilder alpha(double alpha) {
+        public HoltLinearModelBuilder alpha(double alpha) {
             this.alpha = alpha;
             return this;
         }
@@ -195,7 +193,7 @@ public class DoubleExpModel extends MovAvgModel {
          *
          * @return The builder to continue chaining
          */
-        public DoubleExpModelBuilder beta(double beta) {
+        public HoltLinearModelBuilder beta(double beta) {
             this.beta = beta;
             return this;
         }

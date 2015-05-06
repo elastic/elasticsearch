@@ -61,6 +61,19 @@ public class Natives {
             }
         }
     }
+    
+    /** Returns true if user is root, false if not, or if we don't know */
+    public static boolean definitelyRunningAsRoot() {
+        if (Constants.WINDOWS) {
+            return false; // don't know
+        }
+        try {
+            return CLibrary.geteuid() == 0;
+        } catch (Throwable error) {
+            logger.warn("unable to determine euid", error);
+            return false; // don't know
+        }
+    }
 
     public static void addConsoleCtrlHandler(ConsoleCtrlHandler handler) {
         // The console Ctrl handler is necessary on Windows platforms only.

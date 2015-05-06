@@ -52,6 +52,10 @@ public class TTLPercolatorTests extends ElasticsearchIntegrationTest {
     private static final long PURGE_INTERVAL = 200;
 
     @Override
+    protected void beforeIndexDeletion() {
+    }
+
+    @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return settingsBuilder()
                 .put(super.nodeSettings(nodeOrdinal))

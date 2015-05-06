@@ -971,6 +971,11 @@ public final class InternalTestCluster extends TestCluster {
 
     @Override
     public void beforeIndexDeletion() {
+        // Check that the operations counter on index shard has reached 1.
+        // The assumption here is that after a test there are no ongoing write operations.
+        // test that have ongoing write operations after the test (for example because ttl is used
+        // and not all docs have been purged after the test) and inherit from
+        // ElasticsearchIntegrationTest must override beforeIndexDeletion() to avoid failures.
         assertShardIndexCounter();
     }
 

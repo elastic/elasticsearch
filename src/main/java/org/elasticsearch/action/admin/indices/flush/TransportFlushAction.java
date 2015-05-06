@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.indices.flush;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ShardOperationFailedException;
+import org.elasticsearch.action.admin.indices.syncedflush.SyncedFlushResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
@@ -35,6 +36,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.SyncedFlushService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -49,12 +51,14 @@ import static com.google.common.collect.Lists.newArrayList;
 public class TransportFlushAction extends TransportBroadcastOperationAction<FlushRequest, FlushResponse, ShardFlushRequest, ShardFlushResponse> {
 
     private final IndicesService indicesService;
+    private final SyncedFlushService syncedFlushService;
 
     @Inject
-    public TransportFlushAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService, IndicesService indicesService, ActionFilters actionFilters) {
+    public TransportFlushAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService, IndicesService indicesService, ActionFilters actionFilters, SyncedFlushService syncedFlushService) {
         super(settings, FlushAction.NAME, threadPool, clusterService, transportService, actionFilters,
                 FlushRequest.class, ShardFlushRequest.class, ThreadPool.Names.FLUSH);
         this.indicesService = indicesService;
+        this.syncedFlushService = syncedFlushService;
     }
 
     @Override
@@ -91,9 +95,13 @@ public class TransportFlushAction extends TransportBroadcastOperationAction<Flus
 
     @Override
     protected ShardFlushResponse shardOperation(ShardFlushRequest request) {
-        IndexShard indexShard = indicesService.indexServiceSafe(request.shardId().getIndex()).shardSafe(request.shardId().id());
-        indexShard.flush(request.getRequest());
-        return new ShardFlushResponse(request.shardId());
+        if (request.getRequest().syncFlush()) {
+            return syncedFlushService.attemptSyncedFlush(request.shardId());
+        } else {
+            IndexShard indexShard = indicesService.indexServiceSafe(request.shardId().getIndex()).shardSafe(request.shardId().id());
+            indexShard.flush(request.getRequest());
+            return new ShardFlushResponse(request.shardId());
+        }
     }
 
     /**
@@ -101,7 +109,11 @@ public class TransportFlushAction extends TransportBroadcastOperationAction<Flus
      */
     @Override
     protected GroupShardsIterator shards(ClusterState clusterState, FlushRequest request, String[] concreteIndices) {
-        return clusterState.routingTable().allActiveShardsGrouped(concreteIndices, true, true);
+        if (request.syncFlush()) {
+            return clusterState.getRoutingTable().activePrimaryShardsGrouped(concreteIndices, true);
+        } else {
+            return clusterState.routingTable().allActiveShardsGrouped(concreteIndices, true, true);
+        }
     }
 
     @Override

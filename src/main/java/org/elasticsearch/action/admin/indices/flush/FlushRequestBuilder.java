@@ -40,4 +40,9 @@ public class FlushRequestBuilder extends BroadcastOperationRequestBuilder<FlushR
         request.waitIfOngoing(waitIfOngoing);
         return this;
     }
+
+    public FlushRequestBuilder setSyncFlush(boolean syncFlush) {
+        request.syncFlush(syncFlush);
+        return this;
+    }
 }

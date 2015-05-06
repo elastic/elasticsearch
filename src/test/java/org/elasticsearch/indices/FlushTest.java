@@ -19,6 +19,8 @@
 package org.elasticsearch.indices;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.node.hotthreads.NodeHotThreads;
+import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsResponse;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
@@ -27,6 +29,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.HppcMaps;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.settings.IndexSettings;
@@ -40,7 +44,9 @@ import java.util.Arrays;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 
+import static java.lang.Thread.sleep;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -154,5 +160,34 @@ public class FlushTest extends ElasticsearchIntegrationTest {
         for (ShardStats shardStats : indexStats.getShards()) {
             assertNotNull(shardStats.getCommitStats().getUserData().get(Engine.SYNC_COMMIT_ID));
         }
+    }
+
+    @TestLogging("indices:TRACE")
+    public void testFlushWithApi() throws Exception {
+
+        createIndex("test");
+        ensureGreen();
+        IndexStats indexStats = client().admin().indices().prepareStats("test").get().getIndex("test");
+        for (ShardStats shardStats : indexStats.getShards()) {
+            assertNull(shardStats.getCommitStats().getUserData().get(Engine.SYNC_COMMIT_ID));
+        }
+        logger.info("--> trying sync flush");
+        Future<FlushResponse> syncedFlushResponse = client().admin().indices().prepareFlush("test").setSyncFlush(true).execute();
+
+        NodesHotThreadsResponse response = client().admin().cluster().prepareNodesHotThreads("*").get();
+        StringBuilder sb = new StringBuilder();
+        for (NodeHotThreads node : response) {
+            sb.append("::: ").append(node.getNode().toString()).append("\n");
+            Strings.spaceify(3, node.getHotThreads(), sb);
+            sb.append('\n');
+        }
+        logger.info("hot threads {}", sb.toString());
+        logger.info("thread pools {}", client().admin().cluster().prepareNodesStats("*").clear().setThreadPool(true).get());
+        logger.info("thread pools {}", client().admin().cluster().prepareNodesInfo("*").clear().setThreadPool(true).get());
+
+        logger.info("--> try get result");
+        assertThat(syncedFlushResponse.get().getFailedShards(), equalTo(0));
+        indexStats = client().admin().indices().prepareStats("test").get().getIndex("test");
+
     }
 }

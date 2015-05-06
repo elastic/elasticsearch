@@ -42,6 +42,7 @@ public class FlushRequest extends BroadcastOperationRequest<FlushRequest> {
 
     private boolean force = false;
     private boolean waitIfOngoing = false;
+    private boolean syncFlush = false;
 
     FlushRequest() {
     }
@@ -99,6 +100,7 @@ public class FlushRequest extends BroadcastOperationRequest<FlushRequest> {
         super.writeTo(out);
         out.writeBoolean(force);
         out.writeBoolean(waitIfOngoing);
+        out.writeBoolean(syncFlush);
     }
 
     @Override
@@ -106,12 +108,23 @@ public class FlushRequest extends BroadcastOperationRequest<FlushRequest> {
         super.readFrom(in);
         force = in.readBoolean();
         waitIfOngoing = in.readBoolean();
+        syncFlush = in.readBoolean();
+    }
+
+    public void syncFlush(boolean syncFlush) {
+        this.syncFlush= syncFlush;
     }
 
     @Override
     public String toString() {
         return "FlushRequest{" +
-                "waitIfOngoing=" + waitIfOngoing +
-                ", force=" + force + "}";
+                "force=" + force +
+                ", waitIfOngoing=" + waitIfOngoing +
+                ", syncFlush=" + syncFlush +
+                '}';
+    }
+
+    public boolean syncFlush() {
+        return syncFlush;
     }
 }

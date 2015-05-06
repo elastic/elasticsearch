@@ -25,13 +25,13 @@ import org.elasticsearch.index.shard.ShardId;
 /**
  *
  */
-class ShardFlushResponse extends BroadcastShardOperationResponse {
+public class ShardFlushResponse extends BroadcastShardOperationResponse {
 
     ShardFlushResponse() {
 
     }
 
-    ShardFlushResponse(ShardId shardId) {
+    public ShardFlushResponse(ShardId shardId) {
         super(shardId);
     }
 }

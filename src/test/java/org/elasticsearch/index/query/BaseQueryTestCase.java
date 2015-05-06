@@ -63,6 +63,8 @@ import static org.hamcrest.Matchers.*;
 @Ignore
 public abstract class BaseQueryTestCase<QB extends BaseQueryBuilder & Streamable> extends ElasticsearchTestCase {
 
+    private static int RANDOM_REPS = 20;
+
     private static Injector injector;
     private static IndexQueryParserService queryParserService;
     private static Index index;
@@ -137,15 +139,18 @@ public abstract class BaseQueryTestCase<QB extends BaseQueryBuilder & Streamable
      */
     @Test
     public void testFromXContent() throws IOException {
-        QueryParseContext context = createContext();
-        String contentString = testQuery.toString();
-        XContentParser parser = XContentFactory.xContent(contentString).createParser(contentString);
-        context.reset(parser);
-        assertQueryHeader(parser, testQuery.parserName());
+        for (int i = 0; i < RANDOM_REPS; i++) {
+            testQuery = createTestQueryBuilder();
+            QueryParseContext context = createContext();
+            String contentString = testQuery.toString();
+            XContentParser parser = XContentFactory.xContent(contentString).createParser(contentString);
+            context.reset(parser);
+            assertQueryHeader(parser);
 
-        QueryBuilder newQuery = queryParserService.queryParser(testQuery.parserName()).fromXContent(context);
-        assertNotSame(newQuery, testQuery);
-        assertEquals(newQuery, testQuery);
+            QueryBuilder newQuery = queryParserService.queryParser(testQuery.parserName()).fromXContent(context);
+            assertNotSame(newQuery, testQuery);
+            assertEquals(newQuery, testQuery);
+        }
     }
 
     /**
@@ -154,9 +159,12 @@ public abstract class BaseQueryTestCase<QB extends BaseQueryBuilder & Streamable
      */
     @Test
     public void testToQuery() throws IOException {
-        QueryParseContext context = createContext();
-        context.setMapUnmappedFieldAsString(true);
-        assertLuceneQuery(testQuery, testQuery.toQuery(context), context);
+        for (int i = 0; i < RANDOM_REPS; i++) {
+            testQuery = createTestQueryBuilder();
+            QueryParseContext context = createContext();
+            context.setMapUnmappedFieldAsString(true);
+            assertLuceneQuery(testQuery, testQuery.toQuery(context), context);
+        }
     }
 
     /**
@@ -164,15 +172,18 @@ public abstract class BaseQueryTestCase<QB extends BaseQueryBuilder & Streamable
      */
     @Test
     public void testSerialization() throws IOException {
-        BytesStreamOutput output = new BytesStreamOutput();
-        testQuery.writeTo(output);
+        for (int i = 0; i < RANDOM_REPS; i++) {
+            testQuery = createTestQueryBuilder();
+            BytesStreamOutput output = new BytesStreamOutput();
+            testQuery.writeTo(output);
 
-        BytesStreamInput in = new BytesStreamInput(output.bytes());
-        QB deserializedQuery = createEmptyQueryBuilder();
-        deserializedQuery.readFrom(in);
+            BytesStreamInput in = new BytesStreamInput(output.bytes());
+            QB deserializedQuery = createEmptyQueryBuilder();
+            deserializedQuery.readFrom(in);
 
-        assertEquals(deserializedQuery, testQuery);
-        assertNotSame(deserializedQuery, testQuery);
+            assertEquals(deserializedQuery, testQuery);
+            assertNotSame(deserializedQuery, testQuery);
+        }
     }
 
     /**
@@ -182,10 +193,10 @@ public abstract class BaseQueryTestCase<QB extends BaseQueryBuilder & Streamable
         return new QueryParseContext(index, queryParserService);
     }
 
-    private static void assertQueryHeader(XContentParser parser, String expectedParserName) throws IOException {
+    private void assertQueryHeader(XContentParser parser) throws IOException {
         assertThat(parser.nextToken(), is(XContentParser.Token.START_OBJECT));
         assertThat(parser.nextToken(), is(XContentParser.Token.FIELD_NAME));
-        assertThat(parser.currentName(), is(expectedParserName));
+        assertThat(parser.currentName(), is(testQuery.parserName()));
         assertThat(parser.nextToken(), is(XContentParser.Token.START_OBJECT));
     }
 }

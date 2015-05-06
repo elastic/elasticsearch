@@ -28,13 +28,13 @@ import org.elasticsearch.search.aggregations.metrics.percentiles.Percentiles;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.threadpool.ThreadPoolStats;
 import org.elasticsearch.watcher.WatcherPlugin;
+import org.elasticsearch.watcher.WatcherState;
 import org.elasticsearch.watcher.actions.ActionBuilders;
 import org.elasticsearch.watcher.actions.logging.LoggingLevel;
 import org.elasticsearch.watcher.client.WatchSourceBuilder;
 import org.elasticsearch.watcher.client.WatcherClient;
 import org.elasticsearch.watcher.history.HistoryStore;
 import org.elasticsearch.watcher.support.clock.Clock;
-import org.elasticsearch.watcher.WatcherService;
 import org.elasticsearch.watcher.watch.WatchStore;
 
 import java.io.IOException;
@@ -143,7 +143,7 @@ public class WatcherScheduleEngineBenchmark {
 
                     Clock clock = node.injector().getInstance(Clock.class);
                     WatcherClient watcherClient = node.injector().getInstance(WatcherClient.class);
-                    while (watcherClient.prepareWatcherStats().get().getWatchServiceState() != WatcherService.State.STARTED) {
+                    while (watcherClient.prepareWatcherStats().get().getWatchServiceState() != WatcherState.STARTED) {
                         Thread.sleep(100);
                     }
                     long actualLoadedWatches = watcherClient.prepareWatcherStats().get().getWatchesCount();

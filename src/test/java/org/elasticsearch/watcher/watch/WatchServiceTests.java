@@ -14,6 +14,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.watcher.WatcherException;
 import org.elasticsearch.watcher.WatcherService;
+import org.elasticsearch.watcher.WatcherState;
 import org.elasticsearch.watcher.execution.ExecutionService;
 import org.elasticsearch.watcher.trigger.Trigger;
 import org.elasticsearch.watcher.trigger.TriggerEngine;
@@ -50,8 +51,8 @@ public class WatchServiceTests extends ElasticsearchTestCase {
         watcherService = new WatcherService(ImmutableSettings.EMPTY, triggerService, watchStore, watchParser, executionService, watchLockService);
         Field field = WatcherService.class.getDeclaredField("state");
         field.setAccessible(true);
-        AtomicReference<WatcherService.State> state = (AtomicReference<WatcherService.State>) field.get(watcherService);
-        state.set(WatcherService.State.STARTED);
+        AtomicReference<WatcherState> state = (AtomicReference<WatcherState>) field.get(watcherService);
+        state.set(WatcherState.STARTED);
     }
 
     @Test

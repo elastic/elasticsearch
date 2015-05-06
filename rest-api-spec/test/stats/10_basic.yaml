@@ -2,4 +2,4 @@
 "Test watcher stats output":
 
   - do: {watcher.stats: {}}
-  - match: { "watch_service_state": "started" }
+  - match: { "watcher_state": "started" }

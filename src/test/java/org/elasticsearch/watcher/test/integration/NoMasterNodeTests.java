@@ -21,6 +21,7 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.test.discovery.ClusterDiscoveryConfiguration;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.watcher.WatcherService;
+import org.elasticsearch.watcher.WatcherState;
 import org.elasticsearch.watcher.client.WatchSourceBuilder;
 import org.elasticsearch.watcher.client.WatchSourceBuilders;
 import org.elasticsearch.watcher.condition.ConditionBuilders;
@@ -232,7 +233,7 @@ public class NoMasterNodeTests extends AbstractWatcherIntegrationTests {
         }, 30, TimeUnit.SECONDS), equalTo(true));
         // Ensure that the watch manager doesn't run elsewhere
         for (WatcherService watcherService : internalTestCluster().getInstances(WatcherService.class)) {
-            assertThat(watcherService.state(), is(WatcherService.State.STOPPED));
+            assertThat(watcherService.state(), is(WatcherState.STOPPED));
         }
         for (ExecutionService executionService : internalTestCluster().getInstances(ExecutionService.class)) {
             assertThat(executionService.queueSize(), equalTo(0l));

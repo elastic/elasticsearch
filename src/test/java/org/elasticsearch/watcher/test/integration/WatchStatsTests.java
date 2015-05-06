@@ -9,7 +9,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.watcher.WatcherBuild;
-import org.elasticsearch.watcher.WatcherService;
+import org.elasticsearch.watcher.WatcherState;
 import org.elasticsearch.watcher.WatcherVersion;
 import org.elasticsearch.watcher.client.WatcherClient;
 import org.elasticsearch.watcher.condition.ConditionBuilders;
@@ -43,7 +43,7 @@ public class WatchStatsTests extends AbstractWatcherIntegrationTests {
         WatcherStatsRequest watcherStatsRequest = watcherClient().prepareWatcherStats().request();
         WatcherStatsResponse response = watcherClient().watcherStats(watcherStatsRequest).actionGet();
 
-        assertThat(response.getWatchServiceState(), is(WatcherService.State.STARTED));
+        assertThat(response.getWatchServiceState(), is(WatcherState.STARTED));
         assertThat(response.getExecutionQueueSize(), is(0L));
         assertThat(response.getWatchesCount(), is(0L));
         assertThat(response.getWatchExecutionQueueMaxSize(), is(timeWarped() ? 1L : 0L));
@@ -58,7 +58,7 @@ public class WatchStatsTests extends AbstractWatcherIntegrationTests {
         WatcherStatsRequest watcherStatsRequest = watcherClient.prepareWatcherStats().request();
         WatcherStatsResponse response = watcherClient.watcherStats(watcherStatsRequest).actionGet();
 
-        assertThat(response.getWatchServiceState(), equalTo(WatcherService.State.STARTED));
+        assertThat(response.getWatchServiceState(), equalTo(WatcherState.STARTED));
 
         SearchRequest searchRequest = WatcherTestUtils.newInputSearchRequest("idx").source(searchSource().query(termQuery("field", "value")));
         watcherClient().preparePutWatch("_name")
@@ -78,7 +78,7 @@ public class WatchStatsTests extends AbstractWatcherIntegrationTests {
 
         response = watcherClient().watcherStats(watcherStatsRequest).actionGet();
 
-        assertThat(response.getWatchServiceState(), is(WatcherService.State.STARTED));
+        assertThat(response.getWatchServiceState(), is(WatcherState.STARTED));
         assertThat(response.getWatchesCount(), is(1L));
         assertThat(response.getWatchExecutionQueueMaxSize(), greaterThan(0L));
     }

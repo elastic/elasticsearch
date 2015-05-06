@@ -7,7 +7,7 @@ package org.elasticsearch.watcher.transport.actions.stats;
 
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.watcher.WatcherBuild;
-import org.elasticsearch.watcher.WatcherService;
+import org.elasticsearch.watcher.WatcherState;
 import org.elasticsearch.watcher.WatcherVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -19,7 +19,7 @@ public class WatcherStatsResponse extends ActionResponse {
     private WatcherVersion version;
     private WatcherBuild build;
     private long watchesCount;
-    private WatcherService.State watchServiceState;
+    private WatcherState watchServiceState;
     private long watchExecutionQueueSize;
     private long watchExecutionQueueMaxSize;
 
@@ -62,11 +62,11 @@ public class WatcherStatsResponse extends ActionResponse {
     /**
      * @return The state of the watch service.
      */
-    public WatcherService.State getWatchServiceState() {
+    public WatcherState getWatchServiceState() {
         return watchServiceState;
     }
 
-    void setWatchServiceState(WatcherService.State watcherServiceState) {
+    void setWatchServiceState(WatcherState watcherServiceState) {
         this.watchServiceState = watcherServiceState;
     }
 
@@ -98,7 +98,7 @@ public class WatcherStatsResponse extends ActionResponse {
         watchesCount = in.readLong();
         watchExecutionQueueSize = in.readLong();
         watchExecutionQueueMaxSize = in.readLong();
-        watchServiceState = WatcherService.State.fromId(in.readByte());
+        watchServiceState = WatcherState.fromId(in.readByte());
         version = WatcherVersion.readVersion(in);
         build = WatcherBuild.readBuild(in);
     }

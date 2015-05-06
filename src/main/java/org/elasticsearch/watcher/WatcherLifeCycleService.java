@@ -88,7 +88,7 @@ public class WatcherLifeCycleService extends AbstractComponent implements Cluste
                 return;
             }
 
-            if (watcherService.state() == WatcherService.State.STOPPED && !manuallyStopped) {
+            if (watcherService.state() == WatcherState.STOPPED && !manuallyStopped) {
                 threadPool.executor(ThreadPool.Names.GENERIC).execute(new Runnable() {
                     @Override
                     public void run() {

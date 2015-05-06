@@ -31,7 +31,7 @@ public class WatcherService extends AbstractComponent {
     private final WatchStore watchStore;
     private final WatchLockService watchLockService;
     private final ExecutionService executionService;
-    private final AtomicReference<State> state = new AtomicReference<>(State.STOPPED);
+    private final AtomicReference<WatcherState> state = new AtomicReference<>(WatcherState.STOPPED);
 
     @Inject
     public WatcherService(Settings settings, TriggerService triggerService, WatchStore watchStore, Watch.Parser watchParser,
@@ -45,7 +45,7 @@ public class WatcherService extends AbstractComponent {
     }
 
     public void start(ClusterState clusterState) {
-        if (state.compareAndSet(State.STOPPED, State.STARTING)) {
+        if (state.compareAndSet(WatcherState.STOPPED, WatcherState.STARTING)) {
             logger.info("starting watch service...");
             watchLockService.start();
 
@@ -53,7 +53,7 @@ public class WatcherService extends AbstractComponent {
             watchStore.start(clusterState);
             executionService.start(clusterState);
             triggerService.start(watchStore.watches().values());
-            state.set(State.STARTED);
+            state.set(WatcherState.STARTED);
             logger.info("watch service has started");
         }
     }
@@ -63,7 +63,7 @@ public class WatcherService extends AbstractComponent {
     }
 
     public void stop() {
-        if (state.compareAndSet(State.STARTED, State.STOPPING)) {
+        if (state.compareAndSet(WatcherState.STARTED, WatcherState.STOPPING)) {
             logger.info("stopping watch service...");
             triggerService.stop();
             executionService.stop();
@@ -73,7 +73,7 @@ public class WatcherService extends AbstractComponent {
                 logger.warn("error stopping WatchLockService", we);
             }
             watchStore.stop();
-            state.set(State.STOPPED);
+            state.set(WatcherState.STOPPED);
             logger.info("watch service has stopped");
         }
     }
@@ -123,7 +123,7 @@ public class WatcherService extends AbstractComponent {
         return watchStore.get(name);
     }
 
-    public State state() {
+    public WatcherState state() {
         return state.get();
     }
 
@@ -160,59 +160,8 @@ public class WatcherService extends AbstractComponent {
     }
 
     private void ensureStarted() {
-        if (state.get() != State.STARTED) {
+        if (state.get() != WatcherState.STARTED) {
             throw new ElasticsearchIllegalStateException("not started");
-        }
-    }
-
-    /**
-     * Encapsulates the state of the watcher plugin.
-     */
-    public enum State {
-
-        /**
-         * The watcher plugin is not running and not functional.
-         */
-        STOPPED(0),
-
-        /**
-         * The watcher plugin is performing the necessary operations to get into a started state.
-         */
-        STARTING(1),
-
-        /**
-         * The watcher plugin is running and completely functional.
-         */
-        STARTED(2),
-
-        /**
-         * The watcher plugin is shutting down and not functional.
-         */
-        STOPPING(3);
-
-        private final byte id;
-
-        State(int id) {
-            this.id = (byte) id;
-        }
-
-        public byte getId() {
-            return id;
-        }
-
-        public static State fromId(byte id) {
-            switch (id) {
-                case 0:
-                    return STOPPED;
-                case 1:
-                    return STARTING;
-                case 2:
-                    return STARTED;
-                case 3:
-                    return STOPPING;
-                default:
-                    throw new WatcherException("unknown watch service state id [" + id + "]");
-            }
         }
     }
 

@@ -17,23 +17,14 @@
  * under the License.
  */
 
-package org.elasticsearch.search.aggregations.reducers.bucketmetrics.max;
+package org.elasticsearch.search.aggregations.reducers.bucketmetrics.avg;
 
-import org.elasticsearch.search.aggregations.reducers.BucketHelpers.GapPolicy;
-import org.elasticsearch.search.aggregations.reducers.ReducerFactory;
-import org.elasticsearch.search.aggregations.reducers.bucketmetrics.BucketMetricsParser;
-import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
+import org.elasticsearch.search.aggregations.reducers.bucketmetrics.BucketMetricsBuilder;
 
-public class MaxBucketParser extends BucketMetricsParser {
+public class AvgBucketBuilder extends BucketMetricsBuilder<AvgBucketBuilder> {
 
-    @Override
-    public String type() {
-        return MaxBucketReducer.TYPE.name();
-    }
-
-    @Override
-    protected ReducerFactory buildFactory(String reducerName, String[] bucketsPaths, GapPolicy gapPolicy, ValueFormatter formatter) {
-        return new MaxBucketReducer.Factory(reducerName, bucketsPaths, gapPolicy, formatter);
+    public AvgBucketBuilder(String name) {
+        super(name, AvgBucketReducer.TYPE.name());
     }
 
 }

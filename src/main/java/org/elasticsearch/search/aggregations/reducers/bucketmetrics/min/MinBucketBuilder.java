@@ -19,41 +19,13 @@
 
 package org.elasticsearch.search.aggregations.reducers.bucketmetrics.min;
 
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.search.aggregations.reducers.BucketHelpers.GapPolicy;
-import org.elasticsearch.search.aggregations.reducers.ReducerBuilder;
-import org.elasticsearch.search.aggregations.reducers.derivative.DerivativeParser;
+import org.elasticsearch.search.aggregations.reducers.bucketmetrics.BucketMetricsBuilder;
 
-import java.io.IOException;
 
-public class MinBucketBuilder extends ReducerBuilder<MinBucketBuilder> {
-
-    private String format;
-    private GapPolicy gapPolicy;
+public class MinBucketBuilder extends BucketMetricsBuilder<MinBucketBuilder> {
 
     public MinBucketBuilder(String name) {
         super(name, MinBucketReducer.TYPE.name());
-    }
-
-    public MinBucketBuilder format(String format) {
-        this.format = format;
-        return this;
-    }
-
-    public MinBucketBuilder gapPolicy(GapPolicy gapPolicy) {
-        this.gapPolicy = gapPolicy;
-        return this;
-    }
-
-    @Override
-    protected XContentBuilder internalXContent(XContentBuilder builder, Params params) throws IOException {
-        if (format != null) {
-            builder.field(MinBucketParser.FORMAT.getPreferredName(), format);
-        }
-        if (gapPolicy != null) {
-            builder.field(DerivativeParser.GAP_POLICY.getPreferredName(), gapPolicy.getName());
-        }
-        return builder;
     }
 
 }

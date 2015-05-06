@@ -19,25 +19,26 @@
 
 package org.elasticsearch.search.compress;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.compress.lzf.LZFCompressor;
+import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.junit.Test;
 
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.equalTo;
 
-/**
- *
- */
-public class SearchSourceCompressTests  extends ElasticsearchIntegrationTest {
+public class SearchSourceCompressTests  extends ElasticsearchSingleNodeTest {
     
     @Test
     public void testSourceCompressionLZF() throws IOException {
@@ -53,7 +54,8 @@ public class SearchSourceCompressTests  extends ElasticsearchIntegrationTest {
         } catch (Exception e) {
             // ignore
         }
-        createIndex("test");
+        Settings settings = ImmutableSettings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build();
+        createIndex("test", settings);
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")

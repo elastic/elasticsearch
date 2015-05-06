@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.translog.fs;
+package org.elasticsearch.index.translog;
 
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.util.BigArrays;
@@ -32,9 +32,9 @@ import java.io.IOException;
 public class FsSimpleTranslogTests extends AbstractTranslogTests {
 
     @Override
-    protected FsTranslog create() throws IOException {
-        return new FsTranslog(shardId,
-                ImmutableSettings.settingsBuilder().put("index.translog.fs.type", FsTranslogFile.Type.SIMPLE.name()).build(),
+    protected Translog create() throws IOException {
+        return new Translog(shardId,
+                ImmutableSettings.settingsBuilder().put("index.translog.fs.type", TranslogFile.Type.SIMPLE.name()).build(),
                 BigArrays.NON_RECYCLING_INSTANCE, translogDir);
     }
 }

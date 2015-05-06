@@ -17,26 +17,24 @@
  * under the License.
  */
 
-package org.elasticsearch.index.translog.fs;
+package org.elasticsearch.index.translog;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.translog.Translog;
-import org.elasticsearch.index.translog.TranslogException;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
-public final class SimpleFsTranslogFile extends FsTranslogFile {
+public final class SimpleTranslogFile extends TranslogFile {
 
     private volatile int operationCounter = 0;
     private volatile long lastPosition = 0;
     private volatile long lastWrittenPosition = 0;
     private volatile long lastSyncPosition = 0;
 
-    public SimpleFsTranslogFile(ShardId shardId, long id, ChannelReference channelReference) throws IOException {
+    public SimpleTranslogFile(ShardId shardId, long id, ChannelReference channelReference) throws IOException {
         super(shardId, id, channelReference);
         int headerSize = this.channelReference.stream().writeHeader(channelReference.channel());
         this.lastPosition += headerSize;
@@ -82,10 +80,10 @@ public final class SimpleFsTranslogFile extends FsTranslogFile {
         }
     }
 
-    public FsChannelImmutableReader immutableReader() throws TranslogException {
+    public ChannelImmutableReader immutableReader() throws TranslogException {
         if (channelReference.tryIncRef()) {
             try (ReleasableLock lock = writeLock.acquire()) {
-                FsChannelImmutableReader reader = new FsChannelImmutableReader(this.id, channelReference, lastWrittenPosition, operationCounter);
+                ChannelImmutableReader reader = new ChannelImmutableReader(this.id, channelReference, lastWrittenPosition, operationCounter);
                 channelReference.incRef(); // for the new object
                 return reader;
             } finally {
@@ -115,7 +113,7 @@ public final class SimpleFsTranslogFile extends FsTranslogFile {
     }
 
     @Override
-    public void reuse(FsTranslogFile other) {
+    public void reuse(TranslogFile other) {
         // nothing to do there
     }
 

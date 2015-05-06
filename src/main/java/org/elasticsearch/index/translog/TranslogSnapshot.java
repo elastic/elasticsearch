@@ -17,23 +17,21 @@
  * under the License.
  */
 
-package org.elasticsearch.index.translog.fs;
+package org.elasticsearch.index.translog;
 
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.index.translog.Translog;
-import org.elasticsearch.index.translog.TruncatedTranslogException;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-public class FsTranslogSnapshot implements Translog.Snapshot {
+public class TranslogSnapshot implements Translog.Snapshot {
 
-    private final List<FsChannelSnapshot> orderedTranslogs;
+    private final List<ChannelSnapshot> orderedTranslogs;
     private final ESLogger logger;
     private final ByteBuffer cacheBuffer;
     private AtomicBoolean closed = new AtomicBoolean(false);
@@ -44,15 +42,15 @@ public class FsTranslogSnapshot implements Translog.Snapshot {
      * Create a snapshot of translog file channel. The length parameter should be consistent with totalOperations and point
      * at the end of the last operation in this snapshot.
      */
-    public FsTranslogSnapshot(List<FsChannelSnapshot> orderedTranslogs, ESLogger logger) {
+    public TranslogSnapshot(List<ChannelSnapshot> orderedTranslogs, ESLogger logger) {
         this.orderedTranslogs = orderedTranslogs;
         this.logger = logger;
         int ops = 0;
-        for (FsChannelSnapshot translog : orderedTranslogs) {
+        for (ChannelSnapshot translog : orderedTranslogs) {
 
             final int tops = translog.estimatedTotalOperations();
             if (tops < 0) {
-                ops = FsChannelReader.UNKNOWN_OP_COUNT;
+                ops = ChannelReader.UNKNOWN_OP_COUNT;
                 break;
             }
             ops += tops;
@@ -72,7 +70,7 @@ public class FsTranslogSnapshot implements Translog.Snapshot {
     public Translog.Operation next() throws IOException {
         ensureOpen();
         for (; currentTranslog < orderedTranslogs.size(); currentTranslog++) {
-            final FsChannelSnapshot current = orderedTranslogs.get(currentTranslog);
+            final ChannelSnapshot current = orderedTranslogs.get(currentTranslog);
             Translog.Operation op = null;
             try {
                 op = current.next(cacheBuffer);

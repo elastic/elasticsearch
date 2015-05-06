@@ -16,11 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.index.translog.fs;
+package org.elasticsearch.index.translog;
 
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.index.translog.Translog;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -29,17 +28,17 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * an implementation of {@link org.elasticsearch.index.translog.Translog.Snapshot}, wrapping
- * a {@link FsChannelReader}. This class is NOT thread-safe.
+ * a {@link ChannelReader}. This class is NOT thread-safe.
  */
-public class FsChannelSnapshot implements Closeable {
+public class ChannelSnapshot implements Closeable {
 
-    protected final FsChannelReader reader;
+    protected final ChannelReader reader;
     protected final AtomicBoolean closed = new AtomicBoolean(false);
 
     // we use an atomic long to allow passing it by reference :(
     protected long position;
 
-    public FsChannelSnapshot(FsChannelReader reader) {
+    public ChannelSnapshot(ChannelReader reader) {
         this.reader = reader;
         this.position = reader.firstPosition();
     }

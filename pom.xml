@@ -62,14 +62,6 @@
         <deb.sign.method>dpkg-sig</deb.sign.method>
     </properties>
 
-    <repositories>
-        <repository>
-            <id>codehaus-snapshots</id>
-            <name>Codehaus Snapshots</name>
-            <url>http://repository.codehaus.org/</url>
-        </repository>
-    </repositories>
-
     <dependencies>
         <dependency>
             <groupId>org.hamcrest</groupId>

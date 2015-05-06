@@ -61,7 +61,7 @@ public class GroovySecurityTests extends ElasticsearchIntegrationTest {
         // numeric field access
         assertSuccess("def foo = doc['foo'].value; if (foo == null) { return 5; }");
         // string field access
-        assertSuccess("def bar = doc['bar'].value; if (foo == null) { return 5; }");
+        assertSuccess("def bar = doc['bar'].value; if (bar == null) { return 5; }");
         // List
         assertSuccess("def list = [doc['foo'].value, 3, 4]; def v = list.get(1); list.add(10)");
         // Ranges

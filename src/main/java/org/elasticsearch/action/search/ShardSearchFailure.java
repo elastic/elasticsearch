@@ -124,7 +124,7 @@ public class ShardSearchFailure implements ShardOperationFailedException, ToXCon
 
     @Override
     public String toString() {
-        return "shard [" + (shardTarget == null ? "_na" : shardTarget) + "], reason [" + reason + "]";
+        return "shard [" + (shardTarget == null ? "_na" : shardTarget) + "], reason [" + reason + "], cause [" + (cause == null ? "_na" : ExceptionsHelper.stackTrace(cause)) + "]";
     }
 
     public static ShardSearchFailure readShardSearchFailure(StreamInput in) throws IOException {

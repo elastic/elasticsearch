@@ -20,6 +20,9 @@ import org.elasticsearch.watcher.transport.actions.execute.ExecuteWatchResponse;
 import org.elasticsearch.watcher.transport.actions.get.GetWatchRequest;
 import org.elasticsearch.watcher.transport.actions.put.PutWatchRequest;
 import org.elasticsearch.watcher.transport.actions.put.PutWatchResponse;
+import org.elasticsearch.watcher.trigger.TriggerEvent;
+import org.elasticsearch.watcher.trigger.manual.ManualTriggerEvent;
+import org.elasticsearch.watcher.trigger.schedule.ScheduleTriggerEvent;
 import org.elasticsearch.watcher.watch.Payload;
 import org.elasticsearch.watcher.watch.Watch;
 import org.junit.Test;
@@ -28,6 +31,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.common.joda.time.DateTimeZone.UTC;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.watcher.actions.ActionBuilders.loggingAction;
 import static org.elasticsearch.watcher.client.WatchSourceBuilders.watchBuilder;
@@ -61,15 +65,16 @@ public class ManualExecutionTests extends AbstractWatcherIntegrationTests {
 
         ManualExecutionContext.Builder ctxBuilder;
         Watch parsedWatch = null;
+        ManualTriggerEvent triggerEvent = new ManualTriggerEvent("_id", new ScheduleTriggerEvent(new DateTime(UTC), new DateTime(UTC)));
         if (recordExecution) {
             PutWatchResponse putWatchResponse = watcherClient().putWatch(new PutWatchRequest("_id", watchBuilder)).actionGet();
             assertThat(putWatchResponse.getVersion(), greaterThan(0L));
             refresh();
             assertThat(watcherClient().getWatch(new GetWatchRequest("_id")).actionGet().isFound(), equalTo(true));
-            ctxBuilder = ManualExecutionContext.builder(watchService().getWatch("_id")); //If we are persisting the state we need to use the exact watch that is in memory
+            ctxBuilder = ManualExecutionContext.builder(watchService().getWatch("_id"), triggerEvent); //If we are persisting the state we need to use the exact watch that is in memory
         } else {
             parsedWatch = watchParser().parse("_id", false, watchBuilder.buildAsBytes(XContentType.JSON));
-            ctxBuilder = ManualExecutionContext.builder(parsedWatch);
+            ctxBuilder = ManualExecutionContext.builder(parsedWatch, triggerEvent);
         }
 
         if (ignoreCondition) {
@@ -146,14 +151,16 @@ public class ManualExecutionTests extends AbstractWatcherIntegrationTests {
         Map<String, Object> map2 = new HashMap<>();
         map2.put("foo", map1);
 
-        ManualExecutionContext.Builder ctxBuilder1 = ManualExecutionContext.builder(watchService().getWatch("_id"));
+        ManualTriggerEvent triggerEvent = new ManualTriggerEvent("_id", new ScheduleTriggerEvent(new DateTime(UTC), new DateTime(UTC)));
+
+        ManualExecutionContext.Builder ctxBuilder1 = ManualExecutionContext.builder(watchService().getWatch("_id"), triggerEvent);
         ctxBuilder1.simulateActions("_all");
         ctxBuilder1.withInput(new SimpleInput.Result(new Payload.Simple(map1)));
         ctxBuilder1.recordExecution(true);
 
         WatchRecord watchRecord1 = executionService().execute(ctxBuilder1.build());
 
-        ManualExecutionContext.Builder ctxBuilder2 = ManualExecutionContext.builder(watchService().getWatch("_id"));
+        ManualExecutionContext.Builder ctxBuilder2 = ManualExecutionContext.builder(watchService().getWatch("_id"), triggerEvent);
         ctxBuilder2.simulateActions("_all");
         ctxBuilder2.withInput(new SimpleInput.Result(new Payload.Simple(map2)));
         ctxBuilder2.recordExecution(true);
@@ -177,8 +184,16 @@ public class ManualExecutionTests extends AbstractWatcherIntegrationTests {
                 .addAction("log", loggingAction("foobar"));
         watcherClient().putWatch(new PutWatchRequest("_id", watchBuilder)).actionGet();
 
+        TriggerEvent triggerEvent = new ScheduleTriggerEvent(new DateTime(UTC), new DateTime(UTC));
+
         Wid wid = new Wid("_watchId",1,new DateTime());
-        ExecuteWatchResponse executeWatchResponse = watcherClient().prepareExecuteWatch().setId("_id").get();
+
+
+        ExecuteWatchResponse executeWatchResponse = watcherClient().prepareExecuteWatch()
+                .setId("_id")
+                .setTriggerEvent(triggerEvent)
+                .get();
+
         WatchRecord watchRecord = watchRecordParser.parse(wid.value(), 1, executeWatchResponse.getSource().getBytes());
 
         assertThat(watchRecord.state(), equalTo(WatchRecord.State.EXECUTION_NOT_NEEDED));
@@ -192,16 +207,19 @@ public class ManualExecutionTests extends AbstractWatcherIntegrationTests {
                 .addAction("log", loggingAction("foobar"));
         watcherClient().putWatch(new PutWatchRequest("_id", watchBuilder)).actionGet();
 
-        executeWatchResponse = watcherClient().prepareExecuteWatch().setId("_id").setRecordExecution(true).get();
+
+        executeWatchResponse = watcherClient().prepareExecuteWatch().setId("_id").setTriggerEvent(triggerEvent).setRecordExecution(true).get();
         watchRecord = watchRecordParser.parse(wid.value(), 1, executeWatchResponse.getSource().getBytes());
+
 
         assertThat(watchRecord.state(), equalTo(WatchRecord.State.EXECUTED));
         assertThat(watchRecord.execution().inputResult().payload().data().get("foo").toString(), equalTo("bar"));
         assertThat(watchRecord.execution().actionsResults().get("log"), not(instanceOf(LoggingAction.Result.Simulated.class)));
 
-        executeWatchResponse = watcherClient().prepareExecuteWatch().setId("_id").get();
-        watchRecord = watchRecordParser.parse(wid.value(), 1, executeWatchResponse.getSource().getBytes());
 
+        executeWatchResponse = watcherClient().prepareExecuteWatch().setId("_id").setTriggerEvent(triggerEvent).get();
+
+        watchRecord = watchRecordParser.parse(wid.value(), 1, executeWatchResponse.getSource().getBytes());
         assertThat(watchRecord.state(), equalTo(WatchRecord.State.THROTTLED));
     }
 }

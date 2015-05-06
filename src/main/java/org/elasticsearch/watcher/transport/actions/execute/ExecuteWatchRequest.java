@@ -8,8 +8,13 @@ package org.elasticsearch.watcher.transport.actions.execute;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.watcher.trigger.TriggerEvent;
 
 import java.io.IOException;
 import java.util.HashSet;
@@ -26,7 +31,8 @@ public class ExecuteWatchRequest extends MasterNodeOperationRequest<ExecuteWatch
     private boolean ignoreThrottle = false;
     private boolean recordExecution = false;
     private Map<String, Object> alternativeInput = null;
-    private Map<String, Object> triggerData = null;
+    private BytesReference triggerSource = null;
+    private String triggerType = null;
     private Set<String> simulatedActionIds = new HashSet<>();
 
     ExecuteWatchRequest() {
@@ -110,18 +116,36 @@ public class ExecuteWatchRequest extends MasterNodeOperationRequest<ExecuteWatch
     }
 
     /**
-     * @return the alternative input to use
+     * @return the trigger to use
      */
-    public Map<String, Object> getTriggerData() {
-        return triggerData;
+    public BytesReference getTriggerSource() {
+        return triggerSource;
     }
 
     /**
-     * @param triggerData the trigger data to use
+     * @param triggerType the type of trigger to use
+     * @param triggerSource the trigger source to use
      */
-    public void setTriggerData(Map<String, Object> triggerData) {
-        this.triggerData = triggerData;
+    public void setTriggerEvent(String triggerType, BytesReference triggerSource) {
+        this.triggerType = triggerType;
+        this.triggerSource = triggerSource;
     }
+
+    /**
+     * @param triggerEvent the trigger event to use
+     * @throws IOException
+     */
+    public void setTriggerEvent(TriggerEvent triggerEvent) throws IOException {
+        XContentBuilder jsonBuilder = XContentFactory.jsonBuilder();
+        triggerEvent.toXContent(jsonBuilder, ToXContent.EMPTY_PARAMS);
+        setTriggerEvent(triggerEvent.type(), jsonBuilder.bytes());
+    }
+
+    /**
+     * @return the type of trigger to use
+     */
+    public String getTriggerType() { return triggerType; }
+
 
     /**
      * @return the trigger data to use
@@ -152,6 +176,9 @@ public class ExecuteWatchRequest extends MasterNodeOperationRequest<ExecuteWatch
         if (id == null){
             validationException = ValidateActions.addValidationError("watch id is missing", validationException);
         }
+        if (triggerSource == null || triggerType == null) {
+            validationException = ValidateActions.addValidationError("trigger event is missing", validationException);
+        }
         return validationException;
     }
 
@@ -165,9 +192,8 @@ public class ExecuteWatchRequest extends MasterNodeOperationRequest<ExecuteWatch
         if (in.readBoolean()){
             alternativeInput = in.readMap();
         }
-        if (in.readBoolean()) {
-            triggerData = in.readMap();
-        }
+        triggerSource = in.readBytesReference();
+        triggerType = in.readString();
         long simulatedIdCount = in.readLong();
         for(long i = 0; i < simulatedIdCount; ++i) {
             simulatedActionIds.add(in.readString());
@@ -186,10 +212,8 @@ public class ExecuteWatchRequest extends MasterNodeOperationRequest<ExecuteWatch
         if (alternativeInput != null) {
             out.writeMap(alternativeInput);
         }
-        out.writeBoolean(triggerData != null);
-        if (triggerData != null){
-            out.writeMap(triggerData);
-        }
+        out.writeBytesReference(triggerSource);
+        out.writeString(triggerType);
         out.writeLong(simulatedActionIds.size());
         for (String simulatedId : simulatedActionIds) {
             out.writeString(simulatedId);

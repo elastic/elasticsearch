@@ -8,8 +8,11 @@ package org.elasticsearch.watcher.transport.actions.execute;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.watcher.client.WatcherClient;
+import org.elasticsearch.watcher.trigger.TriggerEvent;
 
+import java.io.IOException;
 import java.util.Map;
 
 /**
@@ -65,10 +68,19 @@ public class ExecuteWatchRequestBuilder extends MasterNodeOperationRequestBuilde
     }
 
     /**
-     * @param triggerData the trigger data to use
+     * @param triggerType the trigger type to use
+     * @param triggerSource the trigger source to use
      */
-    public ExecuteWatchRequestBuilder setTriggerData(Map<String, Object> triggerData) {
-        request.setTriggerData(triggerData);
+    public ExecuteWatchRequestBuilder setTriggerEvent(String triggerType, BytesReference triggerSource) {
+        request.setTriggerEvent(triggerType, triggerSource);
+        return this;
+    }
+
+    /**
+     * @param triggerEvent the trigger event to use
+     */
+    public ExecuteWatchRequestBuilder setTriggerEvent(TriggerEvent triggerEvent) throws IOException {
+        request.setTriggerEvent(triggerEvent);
         return this;
     }
 

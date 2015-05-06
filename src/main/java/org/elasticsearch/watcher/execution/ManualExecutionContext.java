@@ -15,7 +15,6 @@ import org.elasticsearch.watcher.throttle.Throttler;
 import org.elasticsearch.watcher.trigger.manual.ManualTriggerEvent;
 import org.elasticsearch.watcher.watch.Watch;
 
-import java.util.HashMap;
 import java.util.Set;
 
 import static org.elasticsearch.common.joda.time.DateTimeZone.UTC;
@@ -55,24 +54,26 @@ public class ManualExecutionContext extends WatchExecutionContext {
         return recordExecution;
     }
 
-    public static Builder builder(Watch watch) {
-        return new Builder(watch);
+    public static Builder builder(Watch watch, ManualTriggerEvent event) {
+        return new Builder(watch, event);
     }
 
 
     public static class Builder {
 
         private final Watch watch;
+        private final ManualTriggerEvent triggerEvent;
         protected DateTime executionTime;
         private boolean recordExecution = false;
         private Predicate<String> simulateActionPredicate = Predicates.alwaysFalse();
         private Input.Result inputResult;
         private Condition.Result conditionResult;
         private Throttler.Result throttlerResult;
-        private ManualTriggerEvent triggerEvent;
 
-        private Builder(Watch watch) {
+        private Builder(Watch watch, ManualTriggerEvent triggerEvent) {
             this.watch = watch;
+            assert triggerEvent != null;
+            this.triggerEvent = triggerEvent;
         }
 
         public Builder executionTime(DateTime executionTime) {
@@ -110,18 +111,9 @@ public class ManualExecutionContext extends WatchExecutionContext {
             return this;
         }
 
-        public Builder triggerEvent(ManualTriggerEvent triggerEvent) {
-            this.triggerEvent = triggerEvent;
-            return this;
-        }
-
-
         public ManualExecutionContext build() {
             if (executionTime == null) {
                 executionTime = DateTime.now(UTC);
-            }
-            if (triggerEvent == null) {
-                triggerEvent = new ManualTriggerEvent(watch.id(), executionTime, new HashMap<String, Object>());
             }
             return new ManualExecutionContext(watch, executionTime, triggerEvent, inputResult, conditionResult, throttlerResult, simulateActionPredicate, recordExecution);
         }

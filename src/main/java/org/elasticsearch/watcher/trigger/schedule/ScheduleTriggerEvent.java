@@ -51,7 +51,7 @@ public class ScheduleTriggerEvent extends TriggerEvent {
         return builder.endObject();
     }
 
-    public static ScheduleTriggerEvent parse(String context, XContentParser parser) throws IOException {
+    public static ScheduleTriggerEvent parse(String watchId, String context, XContentParser parser) throws IOException {
         DateTime triggeredTime = null;
         DateTime scheduledTime = null;
 
@@ -64,16 +64,16 @@ public class ScheduleTriggerEvent extends TriggerEvent {
                 try {
                     triggeredTime = WatcherDateUtils.parseDate(currentFieldName, parser, UTC);
                 } catch (WatcherDateUtils.ParseException pe) {
-                    throw new ParseException("could not parse [{}] trigger event for [{}]. failed to parse date field [{}]", pe, ScheduleTriggerEngine.TYPE, context, currentFieldName);
+                    throw new ParseException("could not parse [{}] trigger event for [{}] for watch [{}]. failed to parse date field [{}]", pe, ScheduleTriggerEngine.TYPE, context, watchId, currentFieldName);
                 }
             }  else if (Field.SCHEDULED_TIME.match(currentFieldName)) {
                 try {
                     scheduledTime = WatcherDateUtils.parseDate(currentFieldName, parser, UTC);
                 } catch (WatcherDateUtils.ParseException pe) {
-                    throw new ParseException("could not parse [{}] trigger event for [{}]. failed to parse date field [{}]", pe, ScheduleTriggerEngine.TYPE, context, currentFieldName);
+                    throw new ParseException("could not parse [{}] trigger event for [{}] for watch [{}]. failed to parse date field [{}]", pe, ScheduleTriggerEngine.TYPE, context, watchId, currentFieldName);
                 }
             }else {
-                throw new ParseException("could not parse trigger event for [{}]. unexpected token [{}]", context, token);
+                throw new ParseException("could not parse trigger event for [{}] for watch [{}]. unexpected token [{}]", context, watchId, token);
             }
         }
 

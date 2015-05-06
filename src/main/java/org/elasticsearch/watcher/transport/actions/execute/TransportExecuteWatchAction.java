@@ -15,7 +15,6 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -31,6 +30,8 @@ import org.elasticsearch.watcher.support.clock.Clock;
 import org.elasticsearch.watcher.support.xcontent.WatcherParams;
 import org.elasticsearch.watcher.throttle.Throttler;
 import org.elasticsearch.watcher.transport.actions.WatcherTransportAction;
+import org.elasticsearch.watcher.trigger.TriggerEvent;
+import org.elasticsearch.watcher.trigger.TriggerService;
 import org.elasticsearch.watcher.trigger.manual.ManualTriggerEvent;
 import org.elasticsearch.watcher.watch.Payload;
 import org.elasticsearch.watcher.watch.Watch;
@@ -45,15 +46,17 @@ public class TransportExecuteWatchAction extends WatcherTransportAction<ExecuteW
     private final ExecutionService executionService;
     private final WatchStore watchStore;
     private final Clock clock;
+    private final TriggerService triggerService;
 
     @Inject
     public TransportExecuteWatchAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                        ThreadPool threadPool, ActionFilters actionFilters, ExecutionService executionService,
-                                       Clock clock, LicenseService licenseService, WatchStore watchStore) {
+                                       Clock clock, LicenseService licenseService, WatchStore watchStore, TriggerService triggerService) {
         super(settings, ExecuteWatchAction.NAME, transportService, clusterService, threadPool, actionFilters, licenseService);
         this.executionService = executionService;
         this.watchStore = watchStore;
         this.clock = clock;
+        this.triggerService = triggerService;
     }
 
     @Override
@@ -79,16 +82,15 @@ public class TransportExecuteWatchAction extends WatcherTransportAction<ExecuteW
                 throw new WatcherException("watch [" + request.getId() + "] does not exist");
             }
 
-            ManualExecutionContext.Builder ctxBuilder = ManualExecutionContext.builder(watch);
+            TriggerEvent triggerEvent = triggerService.parseTriggerEvent(watch.id(), watch.id() + "_manual_execution", request.getTriggerType(), request.getTriggerSource());
+            ManualExecutionContext.Builder ctxBuilder = ManualExecutionContext.builder(watch, new ManualTriggerEvent(triggerEvent.jobName(), triggerEvent));
+
             DateTime executionTime = clock.now(UTC);
             ctxBuilder.executionTime(executionTime);
             if (request.isSimulateAllActions()) {
                 ctxBuilder.simulateAllActions();
             } else {
                 ctxBuilder.simulateActions(request.getSimulatedActionIds().toArray(new String[request.getSimulatedActionIds().size()]));
-            }
-            if (request.getTriggerData() != null) {
-                ctxBuilder.triggerEvent(new ManualTriggerEvent(watch.id(), executionTime, request.getTriggerData()));
             }
             if (request.getAlternativeInput() != null) {
                 ctxBuilder.withInput(new SimpleInput.Result(new Payload.Simple(request.getAlternativeInput())));

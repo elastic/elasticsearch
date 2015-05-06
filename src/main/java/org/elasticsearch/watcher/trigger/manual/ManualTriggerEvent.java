@@ -5,33 +5,25 @@
  */
 package org.elasticsearch.watcher.trigger.manual;
 
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.watcher.WatcherException;
-import org.elasticsearch.watcher.support.WatcherDateUtils;
 import org.elasticsearch.watcher.trigger.TriggerEvent;
+import org.elasticsearch.watcher.trigger.TriggerService;
 
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
 
-import static org.elasticsearch.common.joda.time.DateTimeZone.UTC;
 /**
  */
 public class ManualTriggerEvent extends TriggerEvent {
 
-    private final Map<String, Object> triggerData;
+    private final TriggerEvent triggerEvent;
 
-    public ManualTriggerEvent(DateTime triggeredTime, Map<String, Object> triggerData) {
-        this(null, triggeredTime, triggerData);
-    }
 
-    public ManualTriggerEvent(String jobName, DateTime triggeredTime, Map<String, Object> triggerData) {
-        super(jobName, triggeredTime);
-        data.putAll(triggerData);
-        this.triggerData = triggerData;
+    public ManualTriggerEvent(String jobName, TriggerEvent triggerEvent) {
+        super(jobName, triggerEvent.triggeredTime());
+        this.triggerEvent = triggerEvent;
+        data.putAll(triggerEvent.data());
     }
 
     @Override
@@ -42,39 +34,13 @@ public class ManualTriggerEvent extends TriggerEvent {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        WatcherDateUtils.writeDate(Field.TRIGGERED_TIME.getPreferredName(), builder, triggeredTime);
-        builder.field(Field.TRIGGER_DATA.getPreferredName(), triggerData);
+        builder.field(triggerEvent.type(), triggerEvent, params);
         return builder.endObject();
     }
 
-    public static ManualTriggerEvent parse(String context, XContentParser parser) throws IOException {
-        DateTime triggeredTime = null;
-        Map<String, Object> triggerData = new HashMap<>();
-        String currentFieldName = null;
-        XContentParser.Token token;
-        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            if (token == XContentParser.Token.FIELD_NAME) {
-                currentFieldName = parser.currentName();
-            } else if (Field.TRIGGERED_TIME.match(currentFieldName)) {
-                try {
-                    triggeredTime = WatcherDateUtils.parseDate(currentFieldName, parser, UTC);
-                } catch (WatcherDateUtils.ParseException pe) {
-                    throw new ParseException("could not parse [{}] trigger event for [{}]. failed to parse date field [{}]", pe, ManualTriggerEngine.TYPE, context, currentFieldName);
-                }
-            } else if (token == XContentParser.Token.START_OBJECT) {
-                if (Field.TRIGGER_DATA.match(currentFieldName)) {
-                    triggerData = parser.map();
-                } else {
-                    throw new ParseException("could not parse trigger event for [{}]. unexpected object value field [{}]", context, currentFieldName);
-                }
-            } else {
-                throw new ParseException("could not parse trigger event for [{}]. unexpected token [{}]", context, token);
-            }
-        }
-
-        // should never be, it's fully controlled internally (not coming from the user)
-        assert triggeredTime != null;
-        return new ManualTriggerEvent(triggeredTime, triggerData);
+    public static ManualTriggerEvent parse(TriggerService triggerService, String watchId, String context, XContentParser parser) throws IOException {
+        TriggerEvent parsedTriggerEvent = triggerService.parseTriggerEvent(watchId, context, parser);
+        return new ManualTriggerEvent(context, parsedTriggerEvent);
     }
 
     public static class ParseException extends WatcherException {
@@ -86,10 +52,6 @@ public class ManualTriggerEvent extends TriggerEvent {
         public ParseException(String msg, Throwable cause, Object... args) {
             super(msg, cause, args);
         }
-    }
-
-    interface Field extends TriggerEvent.Field {
-        ParseField TRIGGER_DATA = new ParseField("trigger_data");
     }
 
 }

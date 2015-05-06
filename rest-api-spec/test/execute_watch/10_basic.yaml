@@ -65,15 +65,18 @@
             "alternative_input" : {
               "foo" : "bar"
             },
-            "trigger_data" : {
-              "scheduled_time" : "now"
+            "trigger_event" : {
+              "schedule" : {
+                "scheduled_time" : "2015-05-05T20:58:02.443Z",
+                "triggered_time" : "2015-05-05T20:58:02.443Z"
+              }
             },
             "record_execution" : true
           }
   - match: { "watch_id": "my_exe_watch" }
   - match: { "watch_execution.condition_result.always": {} }
   - match: { "state": "executed" }
-  - match: { "trigger_event.manual.trigger_data.scheduled_time": "now" } 
+  - match: { "trigger_event.manual.schedule.scheduled_time": "2015-05-05T20:58:02.443Z" }
   - match: { "watch_execution.input_result.simple.payload.foo": "bar" }
   - match: { "watch_execution.actions_results.EmailAdmin.email.success" : true }
   - match: { "watch_execution.actions_results.EmailAdmin.email.simulated_email.subject" : "404 recently encountered" }

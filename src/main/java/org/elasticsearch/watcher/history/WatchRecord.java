@@ -262,7 +262,7 @@ public class WatchRecord implements ToXContent {
                     } else if (WATCH_EXECUTION_FIELD.match(currentFieldName)) {
                         record.execution = WatchExecutionResult.Parser.parse(record.id, parser, conditionRegistry, actionRegistry, inputRegistry, transformRegistry);
                     } else if (TRIGGER_EVENT_FIELD.match(currentFieldName)) {
-                        record.triggerEvent = triggerService.parseTriggerEvent(id, parser);
+                        record.triggerEvent = triggerService.parseTriggerEvent(record.watchId, id, parser);
                     } else {
                         throw new WatcherException("could not parse watch record [{}]. unexpected field [{}]", id, currentFieldName);
                     }

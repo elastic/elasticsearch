@@ -6,6 +6,7 @@
 package org.elasticsearch.watcher.test.integration;
 
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -18,6 +19,8 @@ import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
 import org.elasticsearch.watcher.transport.actions.execute.ExecuteWatchResponse;
 import org.elasticsearch.watcher.transport.actions.get.GetWatchResponse;
 import org.elasticsearch.watcher.support.xcontent.XContentSource;
+import org.elasticsearch.watcher.trigger.TriggerEvent;
+import org.elasticsearch.watcher.trigger.schedule.ScheduleTriggerEvent;
 import org.elasticsearch.watcher.watch.WatchStore;
 import org.junit.After;
 import org.junit.Test;
@@ -27,6 +30,7 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.common.joda.time.DateTimeZone.UTC;
 import static org.elasticsearch.watcher.actions.ActionBuilders.emailAction;
 import static org.elasticsearch.watcher.client.WatchSourceBuilders.watchBuilder;
 import static org.elasticsearch.watcher.condition.ConditionBuilders.alwaysCondition;
@@ -131,9 +135,11 @@ public class EmailSecretsIntegrationTests extends AbstractWatcherIntegrationTest
             }
         });
 
+        TriggerEvent triggerEvent = new ScheduleTriggerEvent(new DateTime(UTC), new DateTime(UTC));
         ExecuteWatchResponse executeResponse = watcherClient.prepareExecuteWatch("_id")
                 .setRecordExecution(false)
                 .setIgnoreThrottle(true)
+                .setTriggerEvent(triggerEvent)
                 .get();
         assertThat(executeResponse, notNullValue());
         contentSource = executeResponse.getSource();

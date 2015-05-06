@@ -6,6 +6,7 @@
 package org.elasticsearch.watcher.test.integration;
 
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.watcher.actions.logging.LoggingAction;
 import org.elasticsearch.watcher.actions.logging.LoggingLevel;
 import org.elasticsearch.watcher.condition.always.AlwaysCondition;
@@ -15,6 +16,8 @@ import org.elasticsearch.watcher.support.template.Template;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
 import org.elasticsearch.watcher.test.WatcherTestUtils;
 import org.elasticsearch.watcher.transport.actions.execute.ExecuteWatchResponse;
+import org.elasticsearch.watcher.trigger.TriggerEvent;
+import org.elasticsearch.watcher.trigger.schedule.ScheduleTriggerEvent;
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -22,6 +25,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.common.joda.time.DateTimeZone.UTC;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
@@ -30,9 +34,7 @@ import static org.elasticsearch.watcher.condition.ConditionBuilders.scriptCondit
 import static org.elasticsearch.watcher.input.InputBuilders.searchInput;
 import static org.elasticsearch.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.watcher.trigger.schedule.Schedules.cron;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.*;
 
 /**
  *
@@ -90,7 +92,8 @@ public class WatchMetadataTests extends AbstractWatcherIntegrationTests {
                 .get();
 
         WatchRecord.Parser parser = getInstanceFromMaster(WatchRecord.Parser.class);
-        ExecuteWatchResponse executeWatchResponse = watcherClient().prepareExecuteWatch("_name").addSimulatedActions("_all").get();
+        TriggerEvent triggerEvent = new ScheduleTriggerEvent(new DateTime(UTC), new DateTime(UTC));
+        ExecuteWatchResponse executeWatchResponse = watcherClient().prepareExecuteWatch("_name").setTriggerEvent(triggerEvent).addSimulatedActions("_all").get();
 
         WatchRecord record = parser.parse("test_run", 1, executeWatchResponse.getSource().getBytes());
         assertThat(record.metadata().get("foo").toString(), equalTo("bar"));

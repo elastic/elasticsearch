@@ -8,6 +8,7 @@ package org.elasticsearch.watcher.trigger.schedule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.watcher.trigger.AbstractTriggerEngine;
+import org.elasticsearch.watcher.trigger.TriggerService;
 
 import java.io.IOException;
 
@@ -37,7 +38,7 @@ public abstract class ScheduleTriggerEngine extends AbstractTriggerEngine<Schedu
     }
 
     @Override
-    public ScheduleTriggerEvent parseTriggerEvent(String context, XContentParser parser) throws IOException {
-        return ScheduleTriggerEvent.parse(context, parser);
+    public ScheduleTriggerEvent parseTriggerEvent(TriggerService service, String watchId, String context, XContentParser parser) throws IOException {
+        return ScheduleTriggerEvent.parse(watchId, context, parser);
     }
 }

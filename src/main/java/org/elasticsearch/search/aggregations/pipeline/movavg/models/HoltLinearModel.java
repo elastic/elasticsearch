@@ -25,6 +25,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.pipeline.movavg.MovAvgParser;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.*;
@@ -142,7 +143,7 @@ public class HoltLinearModel extends MovAvgModel {
         out.writeDouble(beta);
     }
 
-    public static class DoubleExpModelParser implements MovAvgModelParser {
+    public static class DoubleExpModelParser extends AbstractModelParser {
 
         @Override
         public String getName() {
@@ -150,19 +151,10 @@ public class HoltLinearModel extends MovAvgModel {
         }
 
         @Override
-        public MovAvgModel parse(@Nullable Map<String, Object> settings) {
+        public MovAvgModel parse(@Nullable Map<String, Object> settings, String pipelineName, SearchContext context, int windowSize) {
 
-            Double alpha;
-            Double beta;
-
-            if (settings == null || (alpha = (Double)settings.get("alpha")) == null) {
-                alpha = 0.5;
-            }
-
-            if (settings == null || (beta = (Double)settings.get("beta")) == null) {
-                beta = 0.5;
-            }
-
+            double alpha = parseDoubleParam(context, settings, "alpha", 0.5);
+            double beta = parseDoubleParam(context, settings, "beta", 0.5);
             return new HoltLinearModel(alpha, beta);
         }
     }

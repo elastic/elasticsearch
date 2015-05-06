@@ -40,7 +40,10 @@ public class Security {
      * Initializes securitymanager for the environment
      * Can only happen once!
      */
-    static void configure(Environment environment) throws Exception {
+    static void configure(Environment environment) throws Exception {      
+        // add protected packages
+        addProtectedPackages();
+
         // enable security policy: union of template and environment-based paths.
         Policy.setPolicy(new ESPolicy(createPermissions(environment)));
 
@@ -70,9 +73,34 @@ public class Security {
         if (environment.pidFile() != null) {
             addPath(policy, environment.pidFile().getParent(), "read,readlink,write,delete");
         }
+        policy.setReadOnly();
         return policy;
     }
-    
+
+    private static final String PACKAGE_ACCESS_KEY = "package.access";
+    private static final String PACKAGE_DEFINITION_KEY = "package.definition";
+    private static final String PROTECTED_PACKAGES = "org.apache.lucene.,org.elasticsearch.";
+
+    /** Initializes additional protected packages */
+    public static void addProtectedPackages() {
+       java.security.Security.setProperty(PACKAGE_ACCESS_KEY,
+                                          computePackageProperty(PACKAGE_ACCESS_KEY, PROTECTED_PACKAGES));
+       java.security.Security.setProperty(PACKAGE_DEFINITION_KEY,
+                                          computePackageProperty(PACKAGE_DEFINITION_KEY, PROTECTED_PACKAGES));
+
+    }
+
+    /** Retrieves security {@code prop} and adds additions */
+    static String computePackageProperty(String prop, String additions) {
+        String current = java.security.Security.getProperty(prop);
+        if (current == null || current.trim().isEmpty()) {
+            current = "";
+        } else {
+            current = current + ",";
+        }
+        return current + additions;
+    }
+
     /** Add access to path (and all files underneath it */
     public static void addPath(Permissions policy, Path path, String permissions) throws IOException {
         // paths may not exist yet

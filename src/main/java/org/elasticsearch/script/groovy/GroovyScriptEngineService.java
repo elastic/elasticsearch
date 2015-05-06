@@ -21,7 +21,9 @@ package org.elasticsearch.script.groovy;
 
 import groovy.lang.Binding;
 import groovy.lang.GroovyClassLoader;
+import groovy.lang.GroovyCodeSource;
 import groovy.lang.Script;
+
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Scorer;
 import org.codehaus.groovy.ast.ClassCodeExpressionTransformer;
@@ -36,6 +38,7 @@ import org.codehaus.groovy.control.SourceUnit;
 import org.codehaus.groovy.control.customizers.CompilationCustomizer;
 import org.codehaus.groovy.control.customizers.ImportCustomizer;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.bootstrap.ESPolicy;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -111,7 +114,9 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
     @Override
     public Object compile(String script) {
         try {
-            return loader.parseClass(script, generateScriptName());
+            GroovyCodeSource source = new GroovyCodeSource(script, generateScriptName(), ESPolicy.UNTRUSTED_CODESOURCE);
+            source.setCachable(false);
+            return loader.parseClass(source);
         } catch (Throwable e) {
             if (logger.isTraceEnabled()) {
                 logger.trace("exception compiling Groovy script:", e);

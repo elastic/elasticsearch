@@ -22,6 +22,7 @@ package org.elasticsearch.bootstrap;
 import org.elasticsearch.common.SuppressForbidden;
 
 import java.net.URI;
+import java.security.CodeSource;
 import java.security.Permission;
 import java.security.PermissionCollection;
 import java.security.Policy;
@@ -31,24 +32,35 @@ import java.security.URIParameter;
 /** custom policy for union of static and dynamic permissions */
 public class ESPolicy extends Policy {
     
+    /** assign untrusted code protection domain with this URL for limited privs */
+    public static final String UNTRUSTED_CODESOURCE = "/_untrusted";
     /** template policy file, the one used in tests */
     static final String POLICY_RESOURCE = "security.policy";
+    /** policy file for untrusted code */
+    static final String UNTRUSTED_RESOURCE = "untrusted.policy";
     
-    final Policy template;
+    final Policy ordinary;
+    final Policy untrusted;
     final PermissionCollection dynamic;
 
     public ESPolicy(PermissionCollection dynamic) throws Exception {
-        URI uri = getClass().getResource(POLICY_RESOURCE).toURI();
-        this.template = Policy.getInstance("JavaPolicy", new URIParameter(uri));
+        if (!dynamic.isReadOnly()) {
+            throw new IllegalArgumentException("requires a read-only set of permissions");
+        }
+        URI ordinaryUri = getClass().getResource(POLICY_RESOURCE).toURI();
+        this.ordinary = Policy.getInstance("JavaPolicy", new URIParameter(ordinaryUri));
+        URI untrustedUri = getClass().getResource(UNTRUSTED_RESOURCE).toURI();
+        this.untrusted = Policy.getInstance("JavaPolicy", new URIParameter(untrustedUri));
         this.dynamic = dynamic;
     }
 
     @Override @SuppressForbidden(reason = "fast equals check is desired")
     public boolean implies(ProtectionDomain domain, Permission permission) {
-        // run groovy scripts with no permissions
-        if ("/groovy/script".equals(domain.getCodeSource().getLocation().getFile())) {
-            return false;
+        CodeSource codeSource = domain.getCodeSource();
+        // run scripts with no permissions
+        if (codeSource != null && codeSource.getLocation() != null && UNTRUSTED_CODESOURCE.equals(codeSource.getLocation().getFile())) {
+            return untrusted.implies(domain, permission);
         }
-        return template.implies(domain, permission) || dynamic.implies(permission);
+        return ordinary.implies(domain, permission) || dynamic.implies(permission);
     }
 }

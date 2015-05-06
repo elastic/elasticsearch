@@ -399,34 +399,42 @@ public class GeoDistanceTests extends ElasticsearchIntegrationTest {
         refresh();
 
         SearchResponse searchResponse1 = client().prepareSearch().addField("_source").addScriptField("distance", "doc['location'].arcDistance(" + target_lat + "," + target_long + ")").execute().actionGet();
+        assertNoFailures(searchResponse1);
         Double resultDistance1 = searchResponse1.getHits().getHits()[0].getFields().get("distance").getValue();
         assertThat(resultDistance1, closeTo(GeoDistance.ARC.calculate(source_lat, source_long, target_lat, target_long, DistanceUnit.DEFAULT), 0.0001d));
 
         SearchResponse searchResponse2 = client().prepareSearch().addField("_source").addScriptField("distance", "doc['location'].distance(" + target_lat + "," + target_long + ")").execute().actionGet();
+        assertNoFailures(searchResponse2);
         Double resultDistance2 = searchResponse2.getHits().getHits()[0].getFields().get("distance").getValue();
         assertThat(resultDistance2, closeTo(GeoDistance.PLANE.calculate(source_lat, source_long, target_lat, target_long, DistanceUnit.DEFAULT), 0.0001d));
 
         SearchResponse searchResponse3 = client().prepareSearch().addField("_source").addScriptField("distance", "doc['location'].arcDistanceInKm(" + target_lat + "," + target_long + ")").execute().actionGet();
+        assertNoFailures(searchResponse3);
         Double resultArcDistance3 = searchResponse3.getHits().getHits()[0].getFields().get("distance").getValue();
         assertThat(resultArcDistance3, closeTo(GeoDistance.ARC.calculate(source_lat, source_long, target_lat, target_long, DistanceUnit.KILOMETERS), 0.0001d));
 
         SearchResponse searchResponse4 = client().prepareSearch().addField("_source").addScriptField("distance", "doc['location'].distanceInKm(" + target_lat + "," + target_long + ")").execute().actionGet();
+        assertNoFailures(searchResponse4);
         Double resultDistance4 = searchResponse4.getHits().getHits()[0].getFields().get("distance").getValue();
         assertThat(resultDistance4, closeTo(GeoDistance.PLANE.calculate(source_lat, source_long, target_lat, target_long, DistanceUnit.KILOMETERS), 0.0001d));
 
         SearchResponse searchResponse5 = client().prepareSearch().addField("_source").addScriptField("distance", "doc['location'].arcDistanceInKm(" + (target_lat) + "," + (target_long + 360) + ")").execute().actionGet();
+        assertNoFailures(searchResponse5);
         Double resultArcDistance5 = searchResponse5.getHits().getHits()[0].getFields().get("distance").getValue();
         assertThat(resultArcDistance5, closeTo(GeoDistance.ARC.calculate(source_lat, source_long, target_lat, target_long, DistanceUnit.KILOMETERS), 0.0001d));
 
         SearchResponse searchResponse6 = client().prepareSearch().addField("_source").addScriptField("distance", "doc['location'].arcDistanceInKm(" + (target_lat + 360) + "," + (target_long) + ")").execute().actionGet();
+        assertNoFailures(searchResponse6);
         Double resultArcDistance6 = searchResponse6.getHits().getHits()[0].getFields().get("distance").getValue();
         assertThat(resultArcDistance6, closeTo(GeoDistance.ARC.calculate(source_lat, source_long, target_lat, target_long, DistanceUnit.KILOMETERS), 0.0001d));
 
         SearchResponse searchResponse7 = client().prepareSearch().addField("_source").addScriptField("distance", "doc['location'].arcDistanceInMiles(" + target_lat + "," + target_long + ")").execute().actionGet();
+        assertNoFailures(searchResponse7);
         Double resultDistance7 = searchResponse7.getHits().getHits()[0].getFields().get("distance").getValue();
         assertThat(resultDistance7, closeTo(GeoDistance.ARC.calculate(source_lat, source_long, target_lat, target_long, DistanceUnit.MILES), 0.0001d));
 
         SearchResponse searchResponse8 = client().prepareSearch().addField("_source").addScriptField("distance", "doc['location'].distanceInMiles(" + target_lat + "," + target_long + ")").execute().actionGet();
+        assertNoFailures(searchResponse8);
         Double resultDistance8 = searchResponse8.getHits().getHits()[0].getFields().get("distance").getValue();
         assertThat(resultDistance8, closeTo(GeoDistance.PLANE.calculate(source_lat, source_long, target_lat, target_long, DistanceUnit.MILES), 0.0001d));
     }

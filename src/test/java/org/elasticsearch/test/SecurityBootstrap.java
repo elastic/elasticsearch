@@ -49,8 +49,10 @@ class SecurityBootstrap {
         if (systemPropertyAsBoolean("tests.security.manager", false)) {
             try {
                 // initialize tmpdir the same exact way as bootstrap.
+                Security.addProtectedPackages();
                 Permissions perms = new Permissions();
                 Security.addPath(perms, PathUtils.get(System.getProperty("java.io.tmpdir")), "read,readlink,write,delete");
+                perms.setReadOnly();
                 Policy.setPolicy(new ESPolicy(perms));
                 System.setSecurityManager(new TestSecurityManager());
                 Security.selfTest();

@@ -45,7 +45,8 @@ grant {
   permission java.io.FilePermission "${m2.repository}${/}-", "read";
 
   permission java.nio.file.LinkPermission "symbolic";
-  permission groovy.security.GroovyCodeSourcePermission "/groovy/script";
+  // ability to create untrusted groovy codesource
+  permission groovy.security.GroovyCodeSourcePermission "/_untrusted";
 
   // Allow connecting to the internet anywhere
   permission java.net.SocketPermission "*", "accept,listen,connect,resolve";
@@ -85,6 +86,17 @@ grant {
   permission java.lang.RuntimePermission "accessClassInPackage.sun.nio.ch";
   // needed by groovy engine
   permission java.lang.RuntimePermission "accessClassInPackage.sun.reflect";
+  
+  // full access to lucene/elasticsearch by our own code (we protect these packages)
+  permission java.lang.RuntimePermission "accessClassInPackage.org.apache.lucene";
+  permission java.lang.RuntimePermission "accessClassInPackage.org.apache.lucene.*";
+  permission java.lang.RuntimePermission "accessClassInPackage.org.elasticsearch";
+  permission java.lang.RuntimePermission "accessClassInPackage.org.elasticsearch.*";
+  // TODO: can we reduce/remove this (no tests fail), but beef up plugin loading tests first.
+  permission java.lang.RuntimePermission "defineClassInPackage.org.apache.lucene";
+  permission java.lang.RuntimePermission "defineClassInPackage.org.apache.lucene.*";
+  permission java.lang.RuntimePermission "defineClassInPackage.org.elasticsearch";
+  permission java.lang.RuntimePermission "defineClassInPackage.org.elasticsearch.*";
 
   permission java.lang.RuntimePermission "accessDeclaredMembers";
   permission java.lang.RuntimePermission "getStackTrace";

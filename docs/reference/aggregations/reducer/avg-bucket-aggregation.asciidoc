@@ -1,34 +1,33 @@
-[[search-aggregations-reducer-max-bucket-aggregation]]
-=== Max Bucket Aggregation
+[[search-aggregations-reducer-avg-bucket-aggregation]]
+=== Avg Bucket Aggregation
 
-A sibling reducer aggregation which identifies the bucket(s) with the maximum value of a specified metric in a sibling aggregation
-and outputs both the value and the key(s) of the bucket(s). The specified metric must be numeric and the sibling aggregation must 
-be a multi-bucket aggregation.
+A sibling reducer aggregation which calculates the (mean) average value of a specified metric in a sibling aggregation. 
+The specified metric must be numeric and the sibling aggregation must be a multi-bucket aggregation.
 
 ==== Syntax
 
-A `max_bucket` aggregation looks like this in isolation:
+An `avg_bucket` aggregation looks like this in isolation:
 
 [source,js]
 --------------------------------------------------
 {
-    "max_bucket": {
+    "avg_bucket": {
         "buckets_path": "the_sum"
     }
 }
 --------------------------------------------------
 
-.`max_bucket` Parameters
+.`avg_bucket` Parameters
 |===
 |Parameter Name |Description |Required |Default Value
-|`buckets_path` |The path to the buckets we wish to find the maximum for (see <<bucket-path-syntax>> for more
+|`buckets_path` |The path to the buckets we wish to find the average for (see <<bucket-path-syntax>> for more
  details) |Required |
  |`gap_policy` |The policy to apply when gaps are found in the data (see <<gap-policy>> for more
- details)|Optional, defaults to `skip` |
+ details)|Optional, defaults to `skip` ||
  |`format` |format to apply to the output value of this aggregation |Optional, defaults to `null` |
 |===
 
-The following snippet calculates the maximum of the total monthly `sales`:
+The following snippet calculates the average of the total monthly `sales`:
 
 [source,js]
 --------------------------------------------------
@@ -47,15 +46,15 @@ The following snippet calculates the maximum of the total monthly `sales`:
                 }
             }
         },
-        "max_monthly_sales": {
-            "max_bucket": {
+        "avg_monthly_sales": {
+            "avg_bucket": {
                 "buckets_paths": "sales_per_month>sales" <1>
             }
         }
     }
 }
 --------------------------------------------------
-<1> `bucket_paths` instructs this max_bucket aggregation that we want the maximum value of the `sales` aggregation in the 
+<1> `bucket_paths` instructs this avg_bucket aggregation that we want the (mean) average value of the `sales` aggregation in the 
 `sales_per_month` date histogram.
 
 And the following may be the response:
@@ -92,13 +91,10 @@ And the following may be the response:
             }
          ]
       },
-      "max_monthly_sales": {
-          "keys": ["2015/01/01 00:00:00"], <1>
-          "value": 550
+      "avg_monthly_sales": {
+          "value": 328.33333333333333
       }
    }
 }
 --------------------------------------------------
-
-<1> `keys` is an array of strings since the maximum value may be present in multiple buckets
 

@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.search.aggregations.reducers.bucketmetrics.max;
+package org.elasticsearch.search.aggregations.reducers.bucketmetrics.avg;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -25,27 +25,25 @@ import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.reducers.BucketHelpers.GapPolicy;
+import org.elasticsearch.search.aggregations.reducers.InternalSimpleValue;
 import org.elasticsearch.search.aggregations.reducers.Reducer;
 import org.elasticsearch.search.aggregations.reducers.ReducerFactory;
 import org.elasticsearch.search.aggregations.reducers.ReducerStreams;
 import org.elasticsearch.search.aggregations.reducers.bucketmetrics.BucketMetricsReducer;
-import org.elasticsearch.search.aggregations.reducers.bucketmetrics.InternalBucketMetricValue;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-public class MaxBucketReducer extends BucketMetricsReducer {
+public class AvgBucketReducer extends BucketMetricsReducer {
 
-    public final static Type TYPE = new Type("max_bucket");
+    public final static Type TYPE = new Type("avg_bucket");
 
     public final static ReducerStreams.Stream STREAM = new ReducerStreams.Stream() {
         @Override
-        public MaxBucketReducer readResult(StreamInput in) throws IOException {
-            MaxBucketReducer result = new MaxBucketReducer();
+        public AvgBucketReducer readResult(StreamInput in) throws IOException {
+            AvgBucketReducer result = new AvgBucketReducer();
             result.readFrom(in);
             return result;
         }
@@ -55,13 +53,13 @@ public class MaxBucketReducer extends BucketMetricsReducer {
         ReducerStreams.registerStream(STREAM, TYPE.stream());
     }
 
-    private List<String> maxBucketKeys;
-    private double maxValue;
+    private int count = 0;
+    private double sum = 0;
 
-    private MaxBucketReducer() {
+    private AvgBucketReducer() {
     }
 
-    protected MaxBucketReducer(String name, String[] bucketsPaths, GapPolicy gapPolicy, @Nullable ValueFormatter formatter,
+    protected AvgBucketReducer(String name, String[] bucketsPaths, GapPolicy gapPolicy, @Nullable ValueFormatter formatter,
             Map<String, Object> metaData) {
         super(name, bucketsPaths, gapPolicy, formatter, metaData);
     }
@@ -73,25 +71,20 @@ public class MaxBucketReducer extends BucketMetricsReducer {
 
     @Override
     protected void preCollection() {
-        maxBucketKeys = new ArrayList<>();
-        maxValue = Double.NEGATIVE_INFINITY;
+        count = 0;
+        sum = 0;
     }
 
     @Override
     protected void collectBucketValue(String bucketKey, Double bucketValue) {
-        if (bucketValue > maxValue) {
-            maxBucketKeys.clear();
-            maxBucketKeys.add(bucketKey);
-            maxValue = bucketValue;
-        } else if (bucketValue.equals(maxValue)) {
-            maxBucketKeys.add(bucketKey);
-        }
+        count++;
+        sum += bucketValue;
     }
 
     @Override
     protected InternalAggregation buildAggregation(List<Reducer> reducers, Map<String, Object> metadata) {
-        String[] keys = maxBucketKeys.toArray(new String[maxBucketKeys.size()]);
-        return new InternalBucketMetricValue(name(), keys, maxValue, formatter, Collections.EMPTY_LIST, metaData());
+        double avgValue = count == 0 ? Double.NaN : (sum / count);
+        return new InternalSimpleValue(name(), avgValue, formatter, reducers, metadata);
     }
 
     public static class Factory extends ReducerFactory {
@@ -107,7 +100,7 @@ public class MaxBucketReducer extends BucketMetricsReducer {
 
         @Override
         protected Reducer createInternal(Map<String, Object> metaData) throws IOException {
-            return new MaxBucketReducer(name, bucketsPaths, gapPolicy, formatter, metaData);
+            return new AvgBucketReducer(name, bucketsPaths, gapPolicy, formatter, metaData);
         }
 
         @Override

@@ -171,7 +171,7 @@ public class ClientSSLServiceTests extends ElasticsearchTestCase {
             // Execute a GET on a site known to have a valid certificate signed by a trusted public CA
             // This will result in a SSLHandshakeException if the SSLContext does not trust the CA, but the default
             // truststore trusts all common public CAs so the handshake will succeed
-            client.execute(new HttpGet("https://www.elasticsearch.com/"));
+            client.execute(new HttpGet("https://www.elastic.co/"));
         }
     }
 
@@ -187,7 +187,7 @@ public class ClientSSLServiceTests extends ElasticsearchTestCase {
             // Execute a GET on a site known to have a valid certificate signed by a trusted public CA
             // This will result in a SSLHandshakeException because the truststore is the testnodestore, which doesn't
             // trust any public CAs
-            client.execute(new HttpGet("https://www.elasticsearch.com/"));
+            client.execute(new HttpGet("https://www.elastic.co/"));
             fail("A SSLHandshakeException should have been thrown here");
         } catch (Exception e) {
             assertThat(e, instanceOf(SSLHandshakeException.class));

@@ -35,7 +35,7 @@ public class RestWatcherStatsAction extends WatcherRestHandler {
             @Override
             public RestResponse buildResponse(WatcherStatsResponse watcherStatsResponse, XContentBuilder builder) throws Exception {
                 builder.startObject();
-                builder.field("watcher_state", watcherStatsResponse.getWatchServiceState().toString().toLowerCase(Locale.ROOT))
+                builder.field("watcher_state", watcherStatsResponse.getWatcherState().toString().toLowerCase(Locale.ROOT))
                         .field("watch_count", watcherStatsResponse.getWatchesCount());
 
                 builder.startObject("execution_queue")

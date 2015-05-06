@@ -58,7 +58,7 @@ public class TransportWatcherStatsAction extends WatcherTransportAction<WatcherS
     @Override
     protected void masterOperation(WatcherStatsRequest request, ClusterState state, ActionListener<WatcherStatsResponse> listener) throws ElasticsearchException {
         WatcherStatsResponse statsResponse = new WatcherStatsResponse();
-        statsResponse.setWatchServiceState(watcherService.state());
+        statsResponse.setWatcherState(watcherService.state());
         statsResponse.setWatchExecutionQueueSize(executionService.queueSize());
         statsResponse.setWatchesCount(watcherService.watchesCount());
         statsResponse.setWatchExecutionQueueMaxSize(executionService.largestQueueSize());

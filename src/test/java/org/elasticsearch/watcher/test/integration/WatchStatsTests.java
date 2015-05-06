@@ -43,7 +43,7 @@ public class WatchStatsTests extends AbstractWatcherIntegrationTests {
         WatcherStatsRequest watcherStatsRequest = watcherClient().prepareWatcherStats().request();
         WatcherStatsResponse response = watcherClient().watcherStats(watcherStatsRequest).actionGet();
 
-        assertThat(response.getWatchServiceState(), is(WatcherState.STARTED));
+        assertThat(response.getWatcherState(), is(WatcherState.STARTED));
         assertThat(response.getExecutionQueueSize(), is(0L));
         assertThat(response.getWatchesCount(), is(0L));
         assertThat(response.getWatchExecutionQueueMaxSize(), is(timeWarped() ? 1L : 0L));
@@ -58,7 +58,7 @@ public class WatchStatsTests extends AbstractWatcherIntegrationTests {
         WatcherStatsRequest watcherStatsRequest = watcherClient.prepareWatcherStats().request();
         WatcherStatsResponse response = watcherClient.watcherStats(watcherStatsRequest).actionGet();
 
-        assertThat(response.getWatchServiceState(), equalTo(WatcherState.STARTED));
+        assertThat(response.getWatcherState(), equalTo(WatcherState.STARTED));
 
         SearchRequest searchRequest = WatcherTestUtils.newInputSearchRequest("idx").source(searchSource().query(termQuery("field", "value")));
         watcherClient().preparePutWatch("_name")
@@ -78,7 +78,7 @@ public class WatchStatsTests extends AbstractWatcherIntegrationTests {
 
         response = watcherClient().watcherStats(watcherStatsRequest).actionGet();
 
-        assertThat(response.getWatchServiceState(), is(WatcherState.STARTED));
+        assertThat(response.getWatcherState(), is(WatcherState.STARTED));
         assertThat(response.getWatchesCount(), is(1L));
         assertThat(response.getWatchExecutionQueueMaxSize(), greaterThan(0L));
     }

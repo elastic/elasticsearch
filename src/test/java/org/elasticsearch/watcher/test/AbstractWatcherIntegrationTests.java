@@ -185,14 +185,14 @@ public abstract class AbstractWatcherIntegrationTests extends ElasticsearchInteg
     private void startWatcherIfNodesExist() throws Exception {
         if (internalTestCluster().size() > 0) {
             WatcherStatsResponse response = watcherClient().prepareWatcherStats().get();
-            if (response.getWatchServiceState() == WatcherState.STOPPED) {
+            if (response.getWatcherState() == WatcherState.STOPPED) {
                 logger.info("[{}#{}]: starting watcher", getTestClass().getSimpleName(), getTestName());
                 startWatcher();
-            } else if (response.getWatchServiceState() == WatcherState.STARTING) {
+            } else if (response.getWatcherState() == WatcherState.STARTING) {
                 logger.info("[{}#{}]: watcher is starting, waiting for it to get in a started state", getTestClass().getSimpleName(), getTestName());
                 ensureWatcherStarted(false);
             } else {
-                logger.info("[{}#{}]: not starting watcher, because watcher is in state [{}]", getTestClass().getSimpleName(), getTestName(), response.getWatchServiceState());
+                logger.info("[{}#{}]: not starting watcher, because watcher is in state [{}]", getTestClass().getSimpleName(), getTestName(), response.getWatcherState());
             }
         } else {
             logger.info("[{}#{}]: not starting watcher, because test cluster has no nodes", getTestClass().getSimpleName(), getTestName());
@@ -403,7 +403,7 @@ public abstract class AbstractWatcherIntegrationTests extends ElasticsearchInteg
             @Override
             public void run() {
                 if (useClient) {
-                    assertThat(watcherClient().prepareWatcherStats().get().getWatchServiceState(), is(WatcherState.STARTED));
+                    assertThat(watcherClient().prepareWatcherStats().get().getWatcherState(), is(WatcherState.STARTED));
                 } else {
                     assertThat(getInstanceFromMaster(WatcherService.class).state(), is(WatcherState.STARTED));
                 }
@@ -431,7 +431,7 @@ public abstract class AbstractWatcherIntegrationTests extends ElasticsearchInteg
             @Override
             public void run() {
                 if (useClient) {
-                    assertThat(watcherClient().prepareWatcherStats().get().getWatchServiceState(), is(WatcherState.STOPPED));
+                    assertThat(watcherClient().prepareWatcherStats().get().getWatcherState(), is(WatcherState.STOPPED));
                 } else {
                     assertThat(getInstanceFromMaster(WatcherService.class).state(), is(WatcherState.STOPPED));
                 }

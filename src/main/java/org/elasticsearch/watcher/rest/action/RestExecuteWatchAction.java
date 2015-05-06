@@ -130,7 +130,7 @@ public class RestExecuteWatchAction extends WatcherRestHandler {
         if (triggerEvent == null) {
             throw new WatcherException("[{}] is a required field.",TRIGGER_EVENT_FIELD.getPreferredName());
         }
-
+        executeWatchRequestBuilder.setTriggerEvent(triggerEvent);
         return executeWatchRequestBuilder.request();
     }
 

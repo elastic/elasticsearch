@@ -629,6 +629,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                     }
                     ensureClusterSizeConsistency();
                     cluster().beforeIndexDeletion();
+                    beforeIndexDeletion();
                     cluster().wipe(); // wipe after to make sure we fail in the test that didn't ack the delete
                     if (afterClass || currentClusterScope == Scope.TEST) {
                         cluster().close();
@@ -691,8 +692,10 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
     /**
      * Allows to execute some additional task after a test is failed, right after we cleared the clusters
      */
-    protected void afterTestFailed() {
+    protected void afterTestFailed() {}
 
+    protected void beforeIndexDeletion() {
+        cluster().beforeIndexDeletion();
     }
 
     public static TestCluster cluster() {

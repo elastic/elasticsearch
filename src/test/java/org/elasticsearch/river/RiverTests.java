@@ -40,6 +40,10 @@ import static org.hamcrest.Matchers.equalTo;
 @ClusterScope(scope = ElasticsearchIntegrationTest.Scope.SUITE)
 public class RiverTests extends ElasticsearchIntegrationTest {
 
+    @Override
+    protected void beforeIndexDeletion() {
+    }
+
     @Test
     public void testRiverStart() throws Exception {
         startAndCheckRiverIsStarted("dummy-river-test");

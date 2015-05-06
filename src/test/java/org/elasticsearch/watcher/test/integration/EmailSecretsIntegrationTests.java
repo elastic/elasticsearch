@@ -17,9 +17,9 @@ import org.elasticsearch.watcher.support.secret.SecretService;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
 import org.elasticsearch.watcher.transport.actions.execute.ExecuteWatchResponse;
 import org.elasticsearch.watcher.transport.actions.get.GetWatchResponse;
+import org.elasticsearch.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.watcher.watch.WatchStore;
 import org.junit.After;
-import org.junit.Before;
 import org.junit.Test;
 
 import javax.mail.internet.MimeMessage;
@@ -112,8 +112,8 @@ public class EmailSecretsIntegrationTests extends AbstractWatcherIntegrationTest
         GetWatchResponse watchResponse = watcherClient.prepareGetWatch("_id").get();
         assertThat(watchResponse, notNullValue());
         assertThat(watchResponse.getId(), is("_id"));
-        source = watchResponse.getSourceAsMap();
-        value = XContentMapValues.extractValue("actions._email.email.password", source);
+        XContentSource contentSource = watchResponse.getSource();
+        value = contentSource.getValue("actions._email.email.password");
         assertThat(value, nullValue());
 
         // now we restart, to make sure the watches and their secrets are reloaded from the index properly
@@ -136,8 +136,8 @@ public class EmailSecretsIntegrationTests extends AbstractWatcherIntegrationTest
                 .setIgnoreThrottle(true)
                 .get();
         assertThat(executeResponse, notNullValue());
-        source = executeResponse.getWatchRecordAsMap();
-        value = XContentMapValues.extractValue("watch_execution.actions_results._email.email.success", source);
+        contentSource = executeResponse.getSource();
+        value = contentSource.getValue("watch_execution.actions_results._email.email.success");
         assertThat(value, notNullValue());
         assertThat(value, is((Object) Boolean.TRUE));
 

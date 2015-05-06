@@ -11,7 +11,6 @@ import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.license.core.License;
 import org.elasticsearch.license.plugin.core.LicenseExpiredException;
 import org.elasticsearch.license.plugin.core.LicensesClientService;
@@ -25,12 +24,12 @@ import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
 import org.elasticsearch.watcher.transport.actions.put.PutWatchResponse;
 import org.elasticsearch.watcher.transport.actions.service.WatcherServiceResponse;
 import org.elasticsearch.watcher.watch.Watch;
+import org.elasticsearch.watcher.support.xcontent.XContentSource;
 import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-import java.util.Map;
 
 import static org.elasticsearch.index.query.FilterBuilders.termFilter;
 import static org.elasticsearch.index.query.QueryBuilders.*;
@@ -247,8 +246,8 @@ public class LicenseIntegrationTests extends AbstractWatcherIntegrationTests {
         assertBusy(new Runnable() {
             @Override
             public void run() {
-                Map<String, Object> source = watcherClient().prepareGetWatch(watchName).get().getSourceAsMap();
-                assertThat(XContentMapValues.extractValue("status.ack.state", source), is((Object) "ackable"));
+                XContentSource source = watcherClient().prepareGetWatch(watchName).get().getSource();
+                assertThat(source.getValue("status.ack.state"), is((Object) "ackable"));
             }
         });
 

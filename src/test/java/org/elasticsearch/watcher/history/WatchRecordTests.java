@@ -26,7 +26,7 @@ import org.elasticsearch.watcher.throttle.Throttler;
 import org.elasticsearch.watcher.trigger.schedule.ScheduleTriggerEvent;
 import org.elasticsearch.watcher.watch.Payload;
 import org.elasticsearch.watcher.watch.Watch;
-import org.elasticsearch.watcher.watch.WatchExecutionResult;
+import org.elasticsearch.watcher.execution.WatchExecutionResult;
 import org.junit.Test;
 
 import static org.elasticsearch.common.joda.time.DateTimeZone.UTC;

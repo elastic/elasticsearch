@@ -8,6 +8,7 @@ package org.elasticsearch.watcher.rest.action;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
@@ -38,7 +39,7 @@ public class RestGetWatchAction extends WatcherRestHandler {
                         .field("found", response.isFound())
                         .field("_id", response.getId())
                         .field("_version", response.getVersion())
-                        .field("watch", response.getSourceAsMap())
+                        .field("watch", response.getSource(), ToXContent.EMPTY_PARAMS)
                         .endObject();
 
                 RestStatus status = response.isFound() ? OK : NOT_FOUND;

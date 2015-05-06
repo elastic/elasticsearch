@@ -116,7 +116,7 @@ public class ManualExecutionTests extends AbstractWatcherIntegrationTests {
         Watch testWatch = watchService().getWatch("_id");
         if (recordExecution) {
             refresh();
-            Watch persistedWatch = watchParser().parse("_id", true, watcherClient().getWatch(new GetWatchRequest("_id")).actionGet().getSource());
+            Watch persistedWatch = watchParser().parse("_id", true, watcherClient().getWatch(new GetWatchRequest("_id")).actionGet().getSource().getBytes());
             if (ignoreCondition || conditionAlwaysTrue) {
                 assertThat(testWatch.status().ackStatus().state(), equalTo(Watch.Status.AckStatus.State.ACKABLE));
                 assertThat(persistedWatch.status().ackStatus().state(), equalTo(Watch.Status.AckStatus.State.ACKABLE));
@@ -126,7 +126,6 @@ public class ManualExecutionTests extends AbstractWatcherIntegrationTests {
         } else {
             assertThat(parsedWatch.status().ackStatus().state(), equalTo(Watch.Status.AckStatus.State.AWAITS_EXECUTION));
         }
-
     }
 
     @Test
@@ -180,7 +179,7 @@ public class ManualExecutionTests extends AbstractWatcherIntegrationTests {
 
         Wid wid = new Wid("_watchId",1,new DateTime());
         ExecuteWatchResponse executeWatchResponse = watcherClient().prepareExecuteWatch().setId("_id").get();
-        WatchRecord watchRecord = watchRecordParser.parse(wid.value(), 1, executeWatchResponse.getWatchRecordSource());
+        WatchRecord watchRecord = watchRecordParser.parse(wid.value(), 1, executeWatchResponse.getSource().getBytes());
 
         assertThat(watchRecord.state(), equalTo(WatchRecord.State.EXECUTION_NOT_NEEDED));
         assertThat(watchRecord.execution().inputResult().payload().data().get("foo").toString(), equalTo("bar"));
@@ -194,14 +193,14 @@ public class ManualExecutionTests extends AbstractWatcherIntegrationTests {
         watcherClient().putWatch(new PutWatchRequest("_id", watchBuilder)).actionGet();
 
         executeWatchResponse = watcherClient().prepareExecuteWatch().setId("_id").setRecordExecution(true).get();
-        watchRecord = watchRecordParser.parse(wid.value(), 1, executeWatchResponse.getWatchRecordSource());
+        watchRecord = watchRecordParser.parse(wid.value(), 1, executeWatchResponse.getSource().getBytes());
 
         assertThat(watchRecord.state(), equalTo(WatchRecord.State.EXECUTED));
         assertThat(watchRecord.execution().inputResult().payload().data().get("foo").toString(), equalTo("bar"));
         assertThat(watchRecord.execution().actionsResults().get("log"), not(instanceOf(LoggingAction.Result.Simulated.class)));
 
         executeWatchResponse = watcherClient().prepareExecuteWatch().setId("_id").get();
-        watchRecord = watchRecordParser.parse(wid.value(), 1, executeWatchResponse.getWatchRecordSource());
+        watchRecord = watchRecordParser.parse(wid.value(), 1, executeWatchResponse.getSource().getBytes());
 
         assertThat(watchRecord.state(), equalTo(WatchRecord.State.THROTTLED));
     }

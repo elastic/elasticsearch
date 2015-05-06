@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.watcher.watch;
+package org.elasticsearch.watcher.execution;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
@@ -17,8 +17,6 @@ import org.elasticsearch.watcher.actions.ActionWrapper;
 import org.elasticsearch.watcher.actions.ExecutableActions;
 import org.elasticsearch.watcher.condition.Condition;
 import org.elasticsearch.watcher.condition.ConditionRegistry;
-import org.elasticsearch.watcher.execution.WatchExecutionContext;
-import org.elasticsearch.watcher.execution.Wid;
 import org.elasticsearch.watcher.input.Input;
 import org.elasticsearch.watcher.input.InputRegistry;
 import org.elasticsearch.watcher.support.WatcherDateUtils;

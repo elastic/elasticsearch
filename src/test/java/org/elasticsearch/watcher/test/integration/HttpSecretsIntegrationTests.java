@@ -22,6 +22,7 @@ import org.elasticsearch.watcher.support.secret.SecretService;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
 import org.elasticsearch.watcher.transport.actions.execute.ExecuteWatchResponse;
 import org.elasticsearch.watcher.transport.actions.get.GetWatchResponse;
+import org.elasticsearch.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.watcher.watch.WatchStore;
 import org.junit.After;
 import org.junit.Before;
@@ -125,10 +126,10 @@ public class HttpSecretsIntegrationTests extends AbstractWatcherIntegrationTests
         GetWatchResponse watchResponse = watcherClient.prepareGetWatch("_id").get();
         assertThat(watchResponse, notNullValue());
         assertThat(watchResponse.getId(), is("_id"));
-        source = watchResponse.getSourceAsMap();
-        value = XContentMapValues.extractValue("input.http.request.auth.basic", source);
+        XContentSource contentSource = watchResponse.getSource();
+        value = contentSource.getValue("input.http.request.auth.basic");
         assertThat(value, notNullValue()); // making sure we have the basic auth
-        value = XContentMapValues.extractValue("input.http.request.auth.basic.password", source);
+        value = contentSource.getValue("input.http.request.auth.basic.password");
         assertThat(value, nullValue()); // and yet we don't have the password
 
         // now we restart, to make sure the watches and their secrets are reloaded from the index properly
@@ -144,8 +145,8 @@ public class HttpSecretsIntegrationTests extends AbstractWatcherIntegrationTests
                 .setIgnoreThrottle(true)
                 .get();
         assertThat(executeResponse, notNullValue());
-        source = executeResponse.getWatchRecordAsMap();
-        value = XContentMapValues.extractValue("watch_execution.input_result.http.http_status", source);
+        contentSource = executeResponse.getSource();
+        value = contentSource.getValue("watch_execution.input_result.http.http_status");
         assertThat(value, notNullValue());
         assertThat(value, is((Object) 200));
 
@@ -195,10 +196,10 @@ public class HttpSecretsIntegrationTests extends AbstractWatcherIntegrationTests
         GetWatchResponse watchResponse = watcherClient.prepareGetWatch("_id").get();
         assertThat(watchResponse, notNullValue());
         assertThat(watchResponse.getId(), is("_id"));
-        source = watchResponse.getSourceAsMap();
-        value = XContentMapValues.extractValue("actions._webhook.webhook.auth.basic", source);
+        XContentSource contentSource = watchResponse.getSource();
+        value = contentSource.getValue("actions._webhook.webhook.auth.basic");
         assertThat(value, notNullValue()); // making sure we have the basic auth
-        value = XContentMapValues.extractValue("actions._webhook.webhook.auth.basic.password", source);
+        value = contentSource.getValue("actions._webhook.webhook.auth.basic.password");
         assertThat(value, nullValue()); // and yet we don't have the password
 
         // now we restart, to make sure the watches and their secrets are reloaded from the index properly
@@ -214,13 +215,13 @@ public class HttpSecretsIntegrationTests extends AbstractWatcherIntegrationTests
                 .setIgnoreThrottle(true)
                 .get();
         assertThat(executeResponse, notNullValue());
-        source = executeResponse.getWatchRecordAsMap();
-        value = XContentMapValues.extractValue("watch_execution.actions_results._webhook.webhook.response.status", source);
+        contentSource = executeResponse.getSource();
+        value = contentSource.getValue("watch_execution.actions_results._webhook.webhook.response.status");
         assertThat(value, notNullValue());
         assertThat(value, is((Object) 200));
-        value = XContentMapValues.extractValue("watch_execution.actions_results._webhook.webhook.request.auth.username", source);
+        value = contentSource.getValue("watch_execution.actions_results._webhook.webhook.request.auth.username");
         assertThat(value, notNullValue()); // the auth username exists
-        value = XContentMapValues.extractValue("watch_execution.actions_results._webhook.webhook.request.auth.password", source);
+        value = contentSource.getValue("watch_execution.actions_results._webhook.webhook.request.auth.password");
         assertThat(value, nullValue()); // but the auth password was filtered out
 
         RecordedRequest request = webServer.takeRequest();

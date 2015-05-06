@@ -26,7 +26,6 @@ import org.elasticsearch.watcher.transform.ExecutableTransform;
 import org.elasticsearch.watcher.transform.Transform;
 import org.elasticsearch.watcher.trigger.TriggerEvent;
 import org.elasticsearch.watcher.watch.Watch;
-import org.elasticsearch.watcher.watch.WatchExecutionResult;
 import org.elasticsearch.watcher.watch.WatchLockService;
 import org.elasticsearch.watcher.watch.WatchStore;
 

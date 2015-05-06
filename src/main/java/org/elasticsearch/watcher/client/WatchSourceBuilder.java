@@ -19,6 +19,7 @@ import org.elasticsearch.watcher.condition.Condition;
 import org.elasticsearch.watcher.condition.always.AlwaysCondition;
 import org.elasticsearch.watcher.input.Input;
 import org.elasticsearch.watcher.input.none.NoneInput;
+import org.elasticsearch.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.watcher.transform.Transform;
 import org.elasticsearch.watcher.trigger.Trigger;
 import org.elasticsearch.watcher.watch.Watch;
@@ -26,6 +27,8 @@ import org.elasticsearch.watcher.watch.Watch;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
 /**
  *
@@ -108,6 +111,10 @@ public class WatchSourceBuilder implements ToXContent {
     public WatchSourceBuilder metadata(Map<String, Object> metadata) {
         this.metadata = metadata;
         return this;
+    }
+
+    public XContentSource build() throws IOException {
+        return new XContentSource(toXContent(jsonBuilder(), ToXContent.EMPTY_PARAMS).bytes());
     }
 
     @Override

@@ -48,7 +48,7 @@ public class RestExecuteWatchAction extends WatcherRestHandler {
         client.executeWatch(executeWatchRequest, new RestBuilderListener<ExecuteWatchResponse>(channel) {
             @Override
             public RestResponse buildResponse(ExecuteWatchResponse response, XContentBuilder builder) throws Exception {
-                builder.value(response.getWatchRecordAsMap());
+                builder.value(response.getSource());
                 return new BytesRestResponse(RestStatus.OK, builder);
             }
         });

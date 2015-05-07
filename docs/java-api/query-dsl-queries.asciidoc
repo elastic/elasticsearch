@@ -397,28 +397,6 @@ QueryBuilder qb = termsQuery("tags",    <1>
 <2> values
 <3> how many terms must match at least
 
-[[top-children]]
-=== Top Children Query
-
-See {ref}/query-dsl-top-children-query.html[Top Children Query]
-
-[source,java]
---------------------------------------------------
-QueryBuilder qb = topChildrenQuery(
-        "blog_tag",                   <1>
-        termQuery("tag", "something") <2>
-    )
-    .score("max")                     <3>
-    .factor(5)                        <4>
-    .incrementalFactor(2);            <5>
---------------------------------------------------
-<1> field
-<2> query
-<3> `max`, `sum` or `avg`
-<4> how many hits are asked for in the first child query run (defaults to 5)
-<5> if not enough parents are found, and there are still more child docs to query, then the child search hits are
-    expanded by multiplying by the incremental_factor (defaults to 2).
-
 [[wildcard]]
 === Wildcard Query
 

@@ -19,11 +19,6 @@ an example:
 }
 --------------------------------------------------
 
-An important difference with the `top_children` query is that this query
-is always executed in two iterations whereas the `top_children` query
-can be executed in one or more iteration. When using the `has_child`
-query the `total_hits` is always correct.
-
 [float]
 === Scoring capabilities
 

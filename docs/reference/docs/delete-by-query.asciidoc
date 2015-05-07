@@ -144,4 +144,4 @@ is the same).
 [[limitations]]
 === Limitations
 
-The delete by query does not support the following queries and filters: `has_child`, `has_parent` and `top_children`.
+The delete by query does not support the following queries and filters: `has_child` and `has_parent`.

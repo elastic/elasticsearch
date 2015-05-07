@@ -82,8 +82,6 @@ include::term-query.asciidoc[]
 
 include::terms-query.asciidoc[]
 
-include::top-children-query.asciidoc[]
-
 include::wildcard-query.asciidoc[]
 
 include::minimum-should-match.asciidoc[]

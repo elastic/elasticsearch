@@ -424,18 +424,6 @@ public abstract class QueryBuilders {
     }
 
     /**
-     * Constructs a new scoring child query, with the child type and the query to run on the child documents. The
-     * results of this query are the parent docs that those child docs matched.
-     *
-     * @param type  The child type.
-     * @param query The query.
-     */
-    @Deprecated
-    public static TopChildrenQueryBuilder topChildrenQuery(String type, QueryBuilder query) {
-        return new TopChildrenQueryBuilder(type, query);
-    }
-
-    /**
      * Constructs a new NON scoring child query, with the child type and the query to run on the child documents. The
      * results of this query are the parent docs that those child docs matched.
      *

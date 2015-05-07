@@ -79,6 +79,8 @@ import org.elasticsearch.index.shard.IndexShardModule;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.IndexStoreModule;
+import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.index.translog.TranslogFile;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
@@ -435,6 +437,15 @@ public final class InternalTestCluster extends TestCluster {
 
         if (random.nextBoolean()) {
             builder.put(FilterCacheSettings.FILTER_CACHE_EVERYTHING, random.nextBoolean());
+        }
+
+        if (random.nextBoolean()) {
+            builder.put(Translog.INDEX_TRANSLOG_FS_TYPE, RandomPicks.randomFrom(random, TranslogFile.Type.values()));
+            if (random.nextBoolean()) {
+                builder.put(Translog.INDEX_TRANSLOG_SYNC_INTERVAL, 0); // 0 has special meaning to sync each op
+            } else {
+                builder.put(Translog.INDEX_TRANSLOG_SYNC_INTERVAL, RandomInts.randomIntBetween(random, 100, 5000));
+            }
         }
 
         return builder.build();
@@ -960,6 +971,11 @@ public final class InternalTestCluster extends TestCluster {
 
     @Override
     public void beforeIndexDeletion() {
+        // Check that the operations counter on index shard has reached 1.
+        // The assumption here is that after a test there are no ongoing write operations.
+        // test that have ongoing write operations after the test (for example because ttl is used
+        // and not all docs have been purged after the test) and inherit from
+        // ElasticsearchIntegrationTest must override beforeIndexDeletion() to avoid failures.
         assertShardIndexCounter();
     }
 

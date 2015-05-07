@@ -24,10 +24,10 @@ The following deprecated methods have been removed:
 
 Partial fields were deprecated since 1.0.0beta1 in favor of <<search-request-source-filtering,source filtering>>.
 
-=== More Like This Field
+=== More Like This
 
-The More Like This Field query has been removed in favor of the <<query-dsl-mlt-query, More Like This Query>>
-restrained set to a specific `field`.
+The More Like This API and the More Like This Field query have been removed in
+favor of the <<query-dsl-mlt-query, More Like This Query>>.
 
 === Routing
 
@@ -271,6 +271,15 @@ to provide special features.  They now have limited configuration options.
 * `_boost` has been removed.
 * `_field_names` configuration is limited to disabling the field.
 * `_size` configuration is limited to enabling the field.
+
+==== Source field limitations
+The `_source` field could previously be disabled dynamically. Since this field
+is a critical piece of many features like the Update API, it is no longer
+possible to disable.
+
+The options for `compress` and `compress_threshold` have also been removed.
+The source field is already compressed. To minimize the storage cost,
+set `index.codec: best_compression` in index settings.
 
 ==== Boolean fields
 

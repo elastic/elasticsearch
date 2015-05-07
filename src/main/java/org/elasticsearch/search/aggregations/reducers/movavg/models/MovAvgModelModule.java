@@ -36,8 +36,8 @@ public class MovAvgModelModule extends AbstractModule {
     public MovAvgModelModule() {
         registerParser(SimpleModel.SimpleModelParser.class);
         registerParser(LinearModel.LinearModelParser.class);
-        registerParser(SingleExpModel.SingleExpModelParser.class);
-        registerParser(DoubleExpModel.DoubleExpModelParser.class);
+        registerParser(EwmaModel.SingleExpModelParser.class);
+        registerParser(HoltLinearModel.DoubleExpModelParser.class);
     }
 
     public void registerParser(Class<? extends MovAvgModelParser> parser) {

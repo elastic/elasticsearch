@@ -70,6 +70,7 @@ public class SecurityTests extends ElasticsearchTestCase {
         settingsBuilder.put("path.plugins", path.resolve("plugins").toString());
         settingsBuilder.putArray("path.data", path.resolve("data1").toString(), path.resolve("data2").toString());
         settingsBuilder.put("path.logs", path.resolve("logs").toString());
+        settingsBuilder.put("pidfile", path.resolve("test.pid").toString());
         Settings settings = settingsBuilder.build();
 
         Environment environment = new Environment(settings);
@@ -105,5 +106,7 @@ public class SecurityTests extends ElasticsearchTestCase {
         assertTrue(permissions.implies(new FilePermission(fakeTmpDir.toString(), "read,readlink,write,delete")));
         // double check we overwrote java.io.tmpdir correctly for the test
         assertFalse(permissions.implies(new FilePermission(realTmpDir.toString(), "read")));
+        // PID file: r/w
+        assertTrue(permissions.implies(new FilePermission(environment.pidFile().toString(), "read,readlink,write,delete")));
     }
 }

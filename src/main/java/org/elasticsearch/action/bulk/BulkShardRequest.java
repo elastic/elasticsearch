@@ -81,14 +81,8 @@ public class BulkShardRequest extends ShardReplicationOperationRequest<BulkShard
         out.writeVInt(items.length);
         for (BulkItemRequest item : items) {
             if (item != null) {
-                // if we are serializing to a node that is pre 1.3.3, make sure to pass null to maintain
-                // the old behavior of putting null in the request to be ignored on the replicas
-                if (item.isIgnoreOnReplica() && out.getVersion().before(Version.V_1_3_3)) {
-                    out.writeBoolean(false);
-                } else {
-                    out.writeBoolean(true);
-                    item.writeTo(out);
-                }
+                out.writeBoolean(true);
+                item.writeTo(out);
             } else {
                 out.writeBoolean(false);
             }

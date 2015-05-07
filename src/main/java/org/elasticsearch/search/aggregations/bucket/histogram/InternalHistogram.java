@@ -310,6 +310,10 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
         return factory;
     }
 
+    public Rounding getRounding() {
+        return emptyBucketInfo.rounding;
+    }
+
     @Override
     public InternalHistogram<B> create(List<B> buckets) {
         return getFactory().create(buckets, this);

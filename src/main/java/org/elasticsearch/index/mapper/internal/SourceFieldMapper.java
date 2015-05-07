@@ -145,15 +145,15 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
                 Map.Entry<String, Object> entry = iterator.next();
                 String fieldName = Strings.toUnderscoreCase(entry.getKey());
                 Object fieldNode = entry.getValue();
-                if (fieldName.equals("enabled")) {
+                if (fieldName.equals("enabled") && parserContext.indexVersionCreated().before(Version.V_2_0_0)) {
                     builder.enabled(nodeBooleanValue(fieldNode));
                     iterator.remove();
-                } else if (fieldName.equals("compress")) {
+                } else if (fieldName.equals("compress") && parserContext.indexVersionCreated().before(Version.V_2_0_0)) {
                     if (fieldNode != null) {
                         builder.compress(nodeBooleanValue(fieldNode));
                     }
                     iterator.remove();
-                } else if (fieldName.equals("compress_threshold")) {
+                } else if (fieldName.equals("compress_threshold") && parserContext.indexVersionCreated().before(Version.V_2_0_0)) {
                     if (fieldNode != null) {
                         if (fieldNode instanceof Number) {
                             builder.compressThreshold(((Number) fieldNode).longValue());

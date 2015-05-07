@@ -203,7 +203,7 @@ public class LuceneTest extends ElasticsearchTestCase {
         assertEquals(s.search(new TermQuery(new Term("id", "4")), 1).totalHits, 0);
 
         for (String file : dir.listAll()) {
-            assertFalse("unexpected file: " + file, file.equals("segments_3") || file.startsWith("_2") || file.startsWith("extra"));
+            assertFalse("unexpected file: " + file, file.equals("segments_3") || file.startsWith("_2"));
         }
         open.close();
         dir.close();

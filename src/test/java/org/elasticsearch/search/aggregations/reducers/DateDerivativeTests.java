@@ -27,6 +27,7 @@ import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram.Bucket;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
 import org.elasticsearch.search.aggregations.metrics.sum.Sum;
+import org.elasticsearch.search.aggregations.reducers.derivative.Derivative;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.joda.time.DateTime;
@@ -45,6 +46,7 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.dateHist
 import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
 import static org.elasticsearch.search.aggregations.reducers.ReducerBuilders.derivative;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.core.IsNull.notNullValue;
@@ -144,6 +146,52 @@ public class DateDerivativeTests extends ElasticsearchIntegrationTest {
         docCountDeriv = bucket.getAggregations().get("deriv");
         assertThat(docCountDeriv, notNullValue());
         assertThat(docCountDeriv.value(), equalTo(1d));
+    }
+
+    @Test
+    public void singleValuedField_normalised() throws Exception {
+        SearchResponse response = client()
+                .prepareSearch("idx")
+                .addAggregation(
+                        dateHistogram("histo").field("date").interval(DateHistogramInterval.MONTH).minDocCount(0)
+                                .subAggregation(derivative("deriv").setBucketsPaths("_count").unit(DateHistogramInterval.DAY))).execute()
+                .actionGet();
+
+        assertSearchResponse(response);
+
+        InternalHistogram deriv = response.getAggregations().get("histo");
+        assertThat(deriv, notNullValue());
+        assertThat(deriv.getName(), equalTo("histo"));
+        List<? extends Bucket> buckets = deriv.getBuckets();
+        assertThat(buckets.size(), equalTo(3));
+
+        DateTime key = new DateTime(2012, 1, 1, 0, 0, DateTimeZone.UTC);
+        Histogram.Bucket bucket = buckets.get(0);
+        assertThat(bucket, notNullValue());
+        assertThat((DateTime) bucket.getKey(), equalTo(key));
+        assertThat(bucket.getDocCount(), equalTo(1l));
+        Derivative docCountDeriv = bucket.getAggregations().get("deriv");
+        assertThat(docCountDeriv, nullValue());
+
+        key = new DateTime(2012, 2, 1, 0, 0, DateTimeZone.UTC);
+        bucket = buckets.get(1);
+        assertThat(bucket, notNullValue());
+        assertThat((DateTime) bucket.getKey(), equalTo(key));
+        assertThat(bucket.getDocCount(), equalTo(2l));
+        docCountDeriv = bucket.getAggregations().get("deriv");
+        assertThat(docCountDeriv, notNullValue());
+        assertThat(docCountDeriv.value(), closeTo(1d, 0.00001));
+        assertThat(docCountDeriv.normalizedValue(), closeTo(1d / 31d, 0.00001));
+
+        key = new DateTime(2012, 3, 1, 0, 0, DateTimeZone.UTC);
+        bucket = buckets.get(2);
+        assertThat(bucket, notNullValue());
+        assertThat((DateTime) bucket.getKey(), equalTo(key));
+        assertThat(bucket.getDocCount(), equalTo(3l));
+        docCountDeriv = bucket.getAggregations().get("deriv");
+        assertThat(docCountDeriv, notNullValue());
+        assertThat(docCountDeriv.value(), closeTo(1d, 0.00001));
+        assertThat(docCountDeriv.normalizedValue(), closeTo(1d / 29d, 0.00001));
     }
 
     @Test

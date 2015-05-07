@@ -32,29 +32,29 @@ public class EmailTemplateTests extends ElasticsearchTestCase {
 
     @Test @Repeat(iterations = 100)
     public void testEmailTemplate_Parser_SelfGenerated() throws Exception {
-        Template from = randomFrom(new Template("from@from.com"), null);
+        Template from = randomFrom(Template.inline("from@from.com").build(), null);
         List<Template> addresses = new ArrayList<>();
         for( int i = 0; i < randomIntBetween(1, 5); ++i){
-            addresses.add(new Template("address" + i + "@test.com"));
+            addresses.add(Template.inline("address" + i + "@test.com").build());
         }
         Template[] possibleList = addresses.toArray(new Template[addresses.size()]);
         Template[] replyTo = randomFrom(possibleList, null);
         Template[] to = randomFrom(possibleList, null);
         Template[] cc = randomFrom(possibleList, null);
         Template[] bcc = randomFrom(possibleList, null);
-        Template priority = new Template(randomFrom(Email.Priority.values()).name());
+        Template priority = Template.inline(randomFrom(Email.Priority.values()).name()).build();
         boolean sanitizeHtml = randomBoolean();
 
-        Template templatedSubject = new Template("Templated Subject {{foo}}");
+        Template templatedSubject = Template.inline("Templated Subject {{foo}}").build();
         String renderedTemplatedSubject = "Templated Subject bar";
 
-        Template templatedBody = new Template("Templated Body {{foo}}");
+        Template templatedBody = Template.inline("Templated Body {{foo}}").build();
         String renderedTemplatedBody = "Templated Body bar";
 
-        Template templatedHtmlBodyGood = new Template("Templated Html Body <hr />");
+        Template templatedHtmlBodyGood = Template.inline("Templated Html Body <hr />").build();
         String renderedTemplatedHtmlBodyGood = "Templated Html Body <hr /> bar";
 
-        Template templatedHtmlBodyBad = new Template("Templated Html Body <script>nefarious scripting</script>");
+        Template templatedHtmlBodyBad = Template.inline("Templated Html Body <script>nefarious scripting</script>").build();
         String renderedTemplatedHtmlBodyBad = "Templated Html Body<script>nefarious scripting</script>";
         String renderedSanitizedHtmlBodyBad = "Templated Html Body";
 

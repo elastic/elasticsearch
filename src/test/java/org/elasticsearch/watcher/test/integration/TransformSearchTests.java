@@ -9,7 +9,6 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.watcher.support.Script;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
 import org.elasticsearch.watcher.test.WatcherTestUtils;
@@ -53,14 +52,14 @@ public class TransformSearchTests extends AbstractWatcherIntegrationTests {
         final Script script;
         if (randomBoolean()) {
             logger.info("testing script transform with an inline script");
-            script = new Script("return [key3 : ctx.payload.key1 + ctx.payload.key2]", ScriptService.ScriptType.INLINE, "groovy");
+            script = Script.inline("return [key3 : ctx.payload.key1 + ctx.payload.key2]").lang("groovy").build();
         } else if (randomBoolean()) {
             logger.info("testing script transform with an indexed script");
             client().preparePutIndexedScript("groovy", "_id", "{\"script\" : \"return [key3 : ctx.payload.key1 + ctx.payload.key2]\"}").get();
-            script = new Script("_id", ScriptService.ScriptType.INDEXED, "groovy");
+            script = Script.indexed("_id").lang("groovy").build();
         } else {
             logger.info("testing script transform with a file script");
-            script = new Script("my-script", ScriptService.ScriptType.FILE, "groovy");
+            script = Script.file("my-script").lang("groovy").build();
         }
 
         // put a watch that has watch level transform:
@@ -156,8 +155,8 @@ public class TransformSearchTests extends AbstractWatcherIntegrationTests {
 
     @Test
     public void testChainTransform() throws Exception {
-        final Script script1 = new Script("return [key3 : ctx.payload.key1 + ctx.payload.key2]", ScriptService.ScriptType.INLINE, "groovy");
-        final Script script2 = new Script("return [key4 : ctx.payload.key3 + 10]", ScriptService.ScriptType.INLINE, "groovy");
+        final Script script1 = Script.inline("return [key3 : ctx.payload.key1 + ctx.payload.key2]").lang("groovy").build();
+        final Script script2 = Script.inline("return [key4 : ctx.payload.key3 + 10]").lang("groovy").build();
         // put a watch that has watch level transform:
         PutWatchResponse putWatchResponse = watcherClient().preparePutWatch("_id1")
                 .setSource(watchBuilder()

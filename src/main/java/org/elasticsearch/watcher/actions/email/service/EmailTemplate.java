@@ -232,7 +232,11 @@ public class EmailTemplate implements ToXContent {
         }
 
         public Builder from(String from) {
-            return from(new Template(from));
+            return from(Template.inline(from));
+        }
+
+        public Builder from(Template.Builder from) {
+            return from(from.build());
         }
 
         public Builder from(Template from) {
@@ -243,7 +247,15 @@ public class EmailTemplate implements ToXContent {
         public Builder replyTo(String... replyTo) {
             Template[] templates = new Template[replyTo.length];
             for (int i = 0; i < templates.length; i++) {
-                templates[i] = new Template(replyTo[i]);
+                templates[i] = Template.inline(replyTo[i]).build();
+            }
+            return replyTo(templates);
+        }
+
+        public Builder replyTo(Template.Builder... replyTo) {
+            Template[] templates = new Template[replyTo.length];
+            for (int i = 0; i < templates.length; i++) {
+                templates[i] = replyTo[i].build();
             }
             return replyTo(templates);
         }
@@ -254,7 +266,11 @@ public class EmailTemplate implements ToXContent {
         }
 
         public Builder priority(Email.Priority priority) {
-            return priority(new Template(priority.name()));
+            return priority(Template.inline(priority.name()));
+        }
+
+        public Builder priority(Template.Builder priority) {
+            return priority(priority.build());
         }
 
         public Builder priority(Template priority) {
@@ -265,7 +281,15 @@ public class EmailTemplate implements ToXContent {
         public Builder to(String... to) {
             Template[] templates = new Template[to.length];
             for (int i = 0; i < templates.length; i++) {
-                templates[i] = new Template(to[i]);
+                templates[i] = Template.inline(to[i]).build();
+            }
+            return to(templates);
+        }
+
+        public Builder to(Template.Builder... to) {
+            Template[] templates = new Template[to.length];
+            for (int i = 0; i < templates.length; i++) {
+                templates[i] = to[i].build();
             }
             return to(templates);
         }
@@ -278,7 +302,15 @@ public class EmailTemplate implements ToXContent {
         public Builder cc(String... cc) {
             Template[] templates = new Template[cc.length];
             for (int i = 0; i < templates.length; i++) {
-                templates[i] = new Template(cc[i]);
+                templates[i] = Template.inline(cc[i]).build();
+            }
+            return cc(templates);
+        }
+
+        public Builder cc(Template.Builder... cc) {
+            Template[] templates = new Template[cc.length];
+            for (int i = 0; i < templates.length; i++) {
+                templates[i] = cc[i].build();
             }
             return cc(templates);
         }
@@ -291,7 +323,15 @@ public class EmailTemplate implements ToXContent {
         public Builder bcc(String... bcc) {
             Template[] templates = new Template[bcc.length];
             for (int i = 0; i < templates.length; i++) {
-                templates[i] = new Template(bcc[i]);
+                templates[i] = Template.inline(bcc[i]).build();
+            }
+            return bcc(templates);
+        }
+
+        public Builder bcc(Template.Builder... bcc) {
+            Template[] templates = new Template[bcc.length];
+            for (int i = 0; i < templates.length; i++) {
+                templates[i] = bcc[i].build();
             }
             return bcc(templates);
         }
@@ -302,7 +342,11 @@ public class EmailTemplate implements ToXContent {
         }
 
         public Builder subject(String subject) {
-            return subject(new Template(subject));
+            return subject(Template.inline(subject));
+        }
+
+        public Builder subject(Template.Builder subject) {
+            return subject(subject.build());
         }
 
         public Builder subject(Template subject) {
@@ -311,7 +355,11 @@ public class EmailTemplate implements ToXContent {
         }
 
         public Builder textBody(String text) {
-            return textBody(new Template(text));
+            return textBody(Template.inline(text));
+        }
+
+        public Builder textBody(Template.Builder text) {
+            return textBody(text.build());
         }
 
         public Builder textBody(Template text) {
@@ -320,7 +368,11 @@ public class EmailTemplate implements ToXContent {
         }
 
         public Builder htmlBody(String html, boolean sanitizeHtmlBody) {
-            return htmlBody(new Template(html), sanitizeHtmlBody);
+            return htmlBody(Template.inline(html), sanitizeHtmlBody);
+        }
+
+        public Builder htmlBody(Template.Builder html, boolean sanitizeHtmlBody) {
+            return htmlBody(html.build(), sanitizeHtmlBody);
         }
 
         public Builder htmlBody(Template html, boolean sanitizeHtmlBody) {
@@ -332,7 +384,6 @@ public class EmailTemplate implements ToXContent {
         public EmailTemplate build() {
             return new EmailTemplate(from, replyTo, priority, to, cc, bcc, subject, textBody, htmlBody, sanitizeHtmlBody);
         }
-
     }
 
     public static class Parser {

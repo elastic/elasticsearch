@@ -75,7 +75,7 @@ public class LoggingActionTests extends ElasticsearchTestCase {
                 .build();
 
         String text = randomAsciiOfLength(10);
-        Template template = new Template(text);
+        Template template = Template.inline(text).build();
         LoggingAction action = new LoggingAction(template, level, "_category");
         ExecutableLoggingAction executable = new ExecutableLoggingAction(action, logger, actionLogger, engine);
         when(engine.render(template, expectedModel)).thenReturn(text);
@@ -99,7 +99,7 @@ public class LoggingActionTests extends ElasticsearchTestCase {
         LoggingActionFactory parser = new LoggingActionFactory(settings, engine);
 
         String text = randomAsciiOfLength(10);
-        Template template = new Template(text);
+        Template template = Template.inline(text).build();
 
         XContentBuilder builder = jsonBuilder().startObject();
         builder.field("text", template);
@@ -134,7 +134,7 @@ public class LoggingActionTests extends ElasticsearchTestCase {
         LoggingActionFactory parser = new LoggingActionFactory(settings, engine);
 
         String text = randomAsciiOfLength(10);
-        Template template = new Template(text);
+        Template template = Template.inline(text).build();
         String category = randomAsciiOfLength(10);
         LoggingAction action = new LoggingAction(template, level, category);
         ExecutableLoggingAction executable = new ExecutableLoggingAction(action, logger, settings, engine);
@@ -155,7 +155,7 @@ public class LoggingActionTests extends ElasticsearchTestCase {
         LoggingActionFactory parser = new LoggingActionFactory(settings, engine);
 
         String text = randomAsciiOfLength(10);
-        Template template = new Template(text);
+        Template template = Template.inline(text).build();
         LoggingAction.Builder actionBuilder = loggingAction(template);
         String category = null;
         if (randomBoolean()) {

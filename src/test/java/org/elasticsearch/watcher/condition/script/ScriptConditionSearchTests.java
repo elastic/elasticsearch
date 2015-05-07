@@ -82,7 +82,7 @@ public class ScriptConditionSearchTests extends AbstractWatcherIntegrationTests 
                 .addAggregation(AggregationBuilders.dateHistogram("rate").field("_timestamp").interval(DateHistogram.Interval.HOUR).order(Histogram.Order.COUNT_DESC))
                 .get();
 
-        ExecutableScriptCondition condition = new ExecutableScriptCondition(new ScriptCondition(new Script("ctx.payload.aggregations.rate.buckets[0]?.doc_count >= 5")), logger, scriptService);
+        ExecutableScriptCondition condition = new ExecutableScriptCondition(new ScriptCondition(Script.inline("ctx.payload.aggregations.rate.buckets[0]?.doc_count >= 5").build()), logger, scriptService);
 
         WatchExecutionContext ctx = mockExecutionContext("_name", new Payload.XContent(response));
         assertFalse(condition.execute(ctx).met());
@@ -100,7 +100,7 @@ public class ScriptConditionSearchTests extends AbstractWatcherIntegrationTests 
 
     @Test
     public void testExecute_accessHits() throws Exception {
-        ExecutableScriptCondition condition = new ExecutableScriptCondition(new ScriptCondition(new Script("ctx.payload.hits?.hits[0]?._score == 1.0")), logger, scriptService);
+        ExecutableScriptCondition condition = new ExecutableScriptCondition(new ScriptCondition(Script.inline("ctx.payload.hits?.hits[0]?._score == 1.0").build()), logger, scriptService);
         InternalSearchHit hit = new InternalSearchHit(0, "1", new StringText("type"), null);
         hit.score(1f);
         hit.shard(new SearchShardTarget("a", "a", 0));

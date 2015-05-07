@@ -26,9 +26,7 @@ import org.junit.Test;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasEntry;
-import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.*;
 
 /**
  *
@@ -36,7 +34,7 @@ import static org.hamcrest.Matchers.is;
 public class HttpRequestTemplateTests extends ElasticsearchTestCase {
 
     @Test @Repeat(iterations = 5)
-    public void testXBody() throws Exception {
+    public void testBody_WithXContent() throws Exception {
         XContentType type = randomFrom(XContentType.JSON, XContentType.YAML);
         HttpRequestTemplate template = HttpRequestTemplate.builder("_host", 1234)
                 .body(XContentBuilder.builder(type.xContent()).startObject().endObject())
@@ -52,23 +50,6 @@ public class HttpRequestTemplateTests extends ElasticsearchTestCase {
                 .build();
         HttpRequest request = template.render(new MockTemplateEngine(), ImmutableMap.<String, Object>of());
         assertThat(request.headers.size(), is(0));
-    }
-
-    @Test(expected = HttpRequestTemplate.ParseException.class)
-    public void testParse_BothBodyAndXBody() throws Exception {
-        XContentBuilder builder = jsonBuilder()
-                .startObject()
-                .field("body", "_body")
-                .field("xbody", "{}")
-                .endObject();
-
-        XContentParser xContentParser = JsonXContent.jsonXContent.createParser(builder.bytes());
-
-        HttpAuthRegistry registry = new HttpAuthRegistry(ImmutableMap.<String, HttpAuthFactory>of(BasicAuth.TYPE, new BasicAuthFactory(new SecretService.PlainText())));
-        HttpRequestTemplate.Parser parser = new HttpRequestTemplate.Parser(registry);
-
-        xContentParser.nextToken();
-        HttpRequestTemplate parsed = parser.parse(xContentParser);
     }
 
     @Test @Repeat(iterations = 20)
@@ -93,10 +74,10 @@ public class HttpRequestTemplateTests extends ElasticsearchTestCase {
             builder.auth(new BasicAuth("_username", "_password".toCharArray()));
         }
         if (randomBoolean()) {
-            builder.putParam("_key", new Template("_value"));
+            builder.putParam("_key", Template.inline("_value"));
         }
         if (randomBoolean()) {
-            builder.putHeader("_key", new Template("_value"));
+            builder.putHeader("_key", Template.inline("_value"));
         }
 
         HttpRequestTemplate template = builder.build();

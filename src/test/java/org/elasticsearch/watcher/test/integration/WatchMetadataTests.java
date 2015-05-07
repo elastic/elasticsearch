@@ -80,7 +80,7 @@ public class WatchMetadataTests extends AbstractWatcherIntegrationTests {
         metadata.put("foo", "bar");
         metadata.put("logtext", "This is a test");
 
-        LoggingAction loggingAction = new LoggingAction(new Template("{{ctx.metadata.logtext}}"), LoggingLevel.DEBUG, "test");
+        LoggingAction loggingAction = new LoggingAction(Template.inline("{{ctx.metadata.logtext}}").build(), LoggingLevel.DEBUG, "test");
 
         watcherClient().preparePutWatch("_name")
                 .setSource(watchBuilder()

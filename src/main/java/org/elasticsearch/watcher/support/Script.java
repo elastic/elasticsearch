@@ -12,11 +12,10 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.watcher.WatcherException;
 
 import java.io.IOException;
-import java.util.Collections;
-import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -24,28 +23,19 @@ import java.util.Map;
  */
 public class Script implements ToXContent {
 
-    public static final ScriptService.ScriptType DEFAULT_TYPE = ScriptService.ScriptType.INLINE;
+    public static final ScriptType DEFAULT_TYPE = ScriptType.INLINE;
     public static final String DEFAULT_LANG = ScriptService.DEFAULT_LANG;
 
-    public static final ParseField SCRIPT_FIELD = new ParseField("script");
-    public static final ParseField TYPE_FIELD = new ParseField("type");
-    public static final ParseField LANG_FIELD = new ParseField("lang");
-    public static final ParseField PARAMS_FIELD = new ParseField("params");
-
     private final String script;
-    private final @Nullable ScriptService.ScriptType type;
+    private final @Nullable ScriptType type;
     private final @Nullable String lang;
     private final @Nullable Map<String, Object> params;
 
-    public Script(String script) {
+    Script(String script) {
         this(script, null, null, null);
     }
 
-    public Script(String script, ScriptService.ScriptType type, String lang) {
-        this(script, type, lang, null);
-    }
-
-    public Script(String script, ScriptService.ScriptType type, String lang, Map<String, Object> params) {
+    Script(String script, @Nullable ScriptType type, @Nullable String lang, @Nullable Map<String, Object> params) {
         this.script = script;
         this.type = type;
         this.lang = lang;
@@ -56,8 +46,8 @@ public class Script implements ToXContent {
         return script;
     }
 
-    public ScriptService.ScriptType type() {
-        return type != null ? type : ScriptService.ScriptType.INLINE;
+    public ScriptType type() {
+        return type != null ? type : ScriptType.INLINE;
     }
 
     public String lang() {
@@ -92,19 +82,28 @@ public class Script implements ToXContent {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        if (type == null && lang == null && params == null) {
+        if (type == null) {
             return builder.value(script);
         }
         builder.startObject();
-        builder.field(SCRIPT_FIELD.getPreferredName(), script);
-        if (type != null) {
-            builder.field(TYPE_FIELD.getPreferredName(), type.name().toLowerCase(Locale.ROOT));
+        switch (type) {
+            case INLINE:
+                builder.field(Field.INLINE.getPreferredName(), script);
+                break;
+            case FILE:
+                builder.field(Field.FILE.getPreferredName(), script);
+                break;
+            case INDEXED:
+                builder.field(Field.ID.getPreferredName(), script);
+                break;
+            default:
+                throw new WatcherException("unsupported script type [{}]", type());
         }
         if (lang != null) {
-            builder.field(LANG_FIELD.getPreferredName(), lang);
+            builder.field(Field.LANG.getPreferredName(), lang);
         }
         if (this.params != null) {
-            builder.field(PARAMS_FIELD.getPreferredName(), this.params);
+            builder.field(Field.PARAMS.getPreferredName(), this.params);
         }
         return builder.endObject();
     }
@@ -119,7 +118,7 @@ public class Script implements ToXContent {
         }
 
         String script = null;
-        ScriptService.ScriptType type = null;
+        ScriptType type = null;
         String lang = null;
         Map<String, Object> params = null;
 
@@ -127,28 +126,34 @@ public class Script implements ToXContent {
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
-            } else if (SCRIPT_FIELD.match(currentFieldName)) {
+            } else if (Field.INLINE.match(currentFieldName)) {
+                type = ScriptType.INLINE;
                 if (token == XContentParser.Token.VALUE_STRING) {
                     script = parser.text();
                 } else {
                     throw new ParseException("expected a string value for field [{}], but found [{}]", currentFieldName, token);
                 }
-            } else if (TYPE_FIELD.match(currentFieldName)) {
+            } else if (Field.FILE.match(currentFieldName)) {
+                type = ScriptType.FILE;
                 if (token == XContentParser.Token.VALUE_STRING) {
-                    String value = parser.text();
-                    try {
-                        type = ScriptService.ScriptType.valueOf(value.toUpperCase(Locale.ROOT));
-                    } catch (IllegalArgumentException iae) {
-                        throw new ParseException("unknown script type [{}]", value);
-                    }
+                    script = parser.text();
+                } else {
+                    throw new ParseException("expected a string value for field [{}], but found [{}]", currentFieldName, token);
                 }
-            } else if (LANG_FIELD.match(currentFieldName)) {
+            } else if (Field.ID.match(currentFieldName)) {
+                type = ScriptType.INDEXED;
+                if (token == XContentParser.Token.VALUE_STRING) {
+                    script = parser.text();
+                } else {
+                    throw new ParseException("expected a string value for field [{}], but found [{}]", currentFieldName, token);
+                }
+            } else if (Field.LANG.match(currentFieldName)) {
                 if (token == XContentParser.Token.VALUE_STRING) {
                     lang = parser.text();
                 } else {
                     throw new ParseException("expected a string value for field [{}], but found [{}]", currentFieldName, token);
                 }
-            } else if (PARAMS_FIELD.match(currentFieldName)) {
+            } else if (Field.PARAMS.match(currentFieldName)) {
                 if (token == XContentParser.Token.START_OBJECT) {
                     params = parser.map();
                 } else {
@@ -159,9 +164,99 @@ public class Script implements ToXContent {
             }
         }
         if (script == null) {
-            throw new ParseException("missing required string field [{}]", SCRIPT_FIELD.getPreferredName());
+            throw new ParseException("expected one of [{}], [{}] or [{}] fields, but found none", Field.INLINE.getPreferredName(), Field.FILE.getPreferredName(), Field.ID.getPreferredName());
         }
+        assert type != null : "if script is not null, type should definitely not be null";
         return new Script(script, type, lang, params);
+    }
+
+    public static Builder.Inline inline(String script) {
+        return new Builder.Inline(script);
+    }
+
+    public static Builder.File file(String file) {
+        return new Builder.File(file);
+    }
+
+    public static Builder.Indexed indexed(String id) {
+        return new Builder.Indexed(id);
+    }
+
+    public static Builder.DefaultType defaultType(String text) {
+        return new Builder.DefaultType(text);
+    }
+
+    public static abstract class Builder<B extends Builder> {
+
+        protected final ScriptType type;
+        protected final String script;
+        protected String lang;
+        protected Map<String, Object> params;
+
+        protected Builder(String script, ScriptType type) {
+            this.script = script;
+            this.type = type;
+        }
+
+        public B lang(String lang) {
+            this.lang = lang;
+            return (B) this;
+        }
+
+        public B params(Map<String, Object> params) {
+            this.params = params;
+            return (B) this;
+        }
+
+        public abstract Script build();
+
+        public static class Inline extends Builder<Inline> {
+
+            public Inline(String script) {
+                super(script, ScriptType.INLINE);
+            }
+
+            @Override
+            public Script build() {
+                return new Script(script, type, lang, params);
+            }
+        }
+
+        public static class File extends Builder<File> {
+
+            public File(String file) {
+                super(file, ScriptType.FILE);
+            }
+
+            @Override
+            public Script build() {
+                return new Script(script, type, lang, params);
+            }
+        }
+
+        public static class Indexed extends Builder<Indexed> {
+
+            public Indexed(String id) {
+                super(id, ScriptType.INDEXED);
+            }
+
+            @Override
+            public Script build() {
+                return new Script(script, type, lang, params);
+            }
+        }
+
+        public static class DefaultType extends Builder<DefaultType> {
+
+            public DefaultType(String text) {
+                super(text, null);
+            }
+
+            @Override
+            public Script build() {
+                return new Script(script, type, lang, params);
+            }
+        }
     }
 
     public static class ParseException extends WatcherException {
@@ -174,4 +269,14 @@ public class Script implements ToXContent {
             super(msg, cause, args);
         }
     }
+
+    interface Field {
+        ParseField INLINE = new ParseField("inline");
+        ParseField FILE = new ParseField("file");
+        ParseField ID = new ParseField("id");
+        ParseField LANG = new ParseField("lang");
+        ParseField PARAMS = new ParseField("params");
+    }
+
+
 }

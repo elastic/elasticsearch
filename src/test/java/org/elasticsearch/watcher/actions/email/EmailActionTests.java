@@ -61,17 +61,17 @@ public class EmailActionTests extends ElasticsearchTestCase {
         EmailTemplate.Builder emailBuilder = EmailTemplate.builder();
         Template subject = null;
         if (randomBoolean()) {
-            subject = new Template("_subject");
+            subject = Template.inline("_subject").build();
             emailBuilder.subject(subject);
         }
         Template textBody = null;
         if (randomBoolean()) {
-            textBody = new Template("_text_body");
+            textBody = Template.inline("_text_body").build();
             emailBuilder.textBody(textBody);
         }
         Template htmlBody = null;
         if (randomBoolean()) {
-            htmlBody = new Template("_html_body");
+            htmlBody = Template.inline("_html_body").build();
             emailBuilder.htmlBody(htmlBody, true);
         }
         EmailTemplate email = emailBuilder.build();
@@ -148,9 +148,9 @@ public class EmailActionTests extends ElasticsearchTestCase {
         Email.Address[] cc = rarely() ? null : Email.AddressList.parse(randomBoolean() ? "cc@domain" : "cc1@domain,cc2@domain").toArray();
         Email.Address[] bcc = rarely() ? null : Email.AddressList.parse(randomBoolean() ? "bcc@domain" : "bcc1@domain,bcc2@domain").toArray();
         Email.Address[] replyTo = rarely() ? null : Email.AddressList.parse(randomBoolean() ? "reply@domain" : "reply1@domain,reply2@domain").toArray();
-        Template subject = randomBoolean() ? new Template("_subject") : null;
-        Template textBody = randomBoolean() ? new Template("_text_body") : null;
-        Template htmlBody = randomBoolean() ? new Template("_text_html") : null;
+        Template subject = randomBoolean() ? Template.inline("_subject").build() : null;
+        Template textBody = randomBoolean() ? Template.inline("_text_body").build() : null;
+        Template htmlBody = randomBoolean() ? Template.inline("_text_html").build() : null;
         boolean attachData = randomBoolean();
         XContentBuilder builder = jsonBuilder().startObject()
                 .field("account", "_account")
@@ -223,7 +223,7 @@ public class EmailActionTests extends ElasticsearchTestCase {
         assertThat(executable.action().getAuth(), notNullValue());
         assertThat(executable.action().getAuth().user(), is("_user"));
         assertThat(executable.action().getAuth().password(), is(new Secret("_passwd".toCharArray())));
-        assertThat(executable.action().getEmail().priority(), is(new Template(priority.name())));
+        assertThat(executable.action().getEmail().priority(), is(Template.defaultType(priority.name()).build()));
         if (to != null) {
             assertThat(executable.action().getEmail().to(), arrayContainingInAnyOrder(addressesToTemplates(to)));
         } else {
@@ -249,7 +249,7 @@ public class EmailActionTests extends ElasticsearchTestCase {
     private static Template[] addressesToTemplates(Email.Address[] addresses) {
         Template[] templates = new Template[addresses.length];
         for (int i = 0; i < templates.length; i++) {
-            templates[i] = new Template(addresses[i].toString());
+            templates[i] = Template.defaultType(addresses[i].toString()).build();
         }
         return templates;
     }

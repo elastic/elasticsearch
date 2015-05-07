@@ -29,7 +29,11 @@ public final class TransformBuilders {
     }
 
     public static ScriptTransform.Builder scriptTransform(String script) {
-        return scriptTransform(new Script(script));
+        return scriptTransform(Script.inline(script));
+    }
+
+    public static ScriptTransform.Builder scriptTransform(Script.Builder script) {
+        return scriptTransform(script.build());
     }
 
     public static ScriptTransform.Builder scriptTransform(Script script) {

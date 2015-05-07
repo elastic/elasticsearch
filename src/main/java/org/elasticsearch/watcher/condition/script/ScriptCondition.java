@@ -5,15 +5,12 @@
  */
 package org.elasticsearch.watcher.condition.script;
 
-import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.watcher.condition.Condition;
 import org.elasticsearch.watcher.support.Script;
 
 import java.io.IOException;
-import java.util.Map;
 
 /**
  *
@@ -66,7 +63,7 @@ public class ScriptCondition implements Condition {
         }
     }
 
-    public static Builder builder(String script) {
+    public static Builder builder(Script script) {
         return new Builder(script);
     }
 
@@ -115,38 +112,15 @@ public class ScriptCondition implements Condition {
 
     public static class Builder implements Condition.Builder<ScriptCondition> {
 
-        private final String script;
-        private ScriptService.ScriptType type = Script.DEFAULT_TYPE;
-        private String lang = Script.DEFAULT_LANG;
-        private ImmutableMap.Builder<String, Object> vars = ImmutableMap.builder();
+        private final Script script;
 
-        private Builder(String script) {
+        private Builder(Script script) {
             this.script = script;
-        }
-
-        public Builder setType(ScriptService.ScriptType type) {
-            this.type = type;
-            return this;
-        }
-
-        public Builder setLang(String lang) {
-            this.lang = lang;
-            return this;
-        }
-
-        public Builder addVars(Map<String, Object> vars) {
-            this.vars.putAll(vars);
-            return this;
-        }
-
-        public Builder setVar(String name, Object value) {
-            this.vars.put(name, value);
-            return this;
         }
 
         @Override
         public ScriptCondition build() {
-            return new ScriptCondition(new Script(this.script, type, lang, vars.build()));
+            return new ScriptCondition(script);
         }
     }
 }

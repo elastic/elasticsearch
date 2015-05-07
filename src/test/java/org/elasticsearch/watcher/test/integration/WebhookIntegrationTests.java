@@ -12,7 +12,6 @@ import com.squareup.okhttp.mockwebserver.QueueDispatcher;
 import com.squareup.okhttp.mockwebserver.RecordedRequest;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.watcher.actions.ActionBuilders;
 import org.elasticsearch.watcher.history.HistoryStore;
@@ -20,6 +19,7 @@ import org.elasticsearch.watcher.history.WatchRecord;
 import org.elasticsearch.watcher.support.http.HttpRequestTemplate;
 import org.elasticsearch.watcher.support.http.auth.basic.BasicAuth;
 import org.elasticsearch.watcher.support.template.Template;
+import org.elasticsearch.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
 import org.junit.After;
 import org.junit.Before;
@@ -69,10 +69,10 @@ public class WebhookIntegrationTests extends AbstractWatcherIntegrationTests {
     public void testWebhook() throws Exception {
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody("body"));
         HttpRequestTemplate.Builder builder = HttpRequestTemplate.builder("localhost", webPort)
-                .path(Template.builder("/test/{{ctx.watch_id}}").build())
-                .putParam("param1", Template.builder("value1").build())
-                .putParam("watch_id", Template.builder("{{ctx.watch_id}}").build())
-                .body(Template.builder("{{ctx.payload}}").build());
+                .path(Template.inline("/test/{{ctx.watch_id}}"))
+                .putParam("param1", Template.inline("value1"))
+                .putParam("watch_id", Template.inline("{{ctx.watch_id}}"))
+                .body(Template.inline("{{ctx.payload}}"));
 
         watcherClient().preparePutWatch("_id")
                 .setSource(watchBuilder()
@@ -95,9 +95,11 @@ public class WebhookIntegrationTests extends AbstractWatcherIntegrationTests {
         SearchResponse response = client().prepareSearch(HistoryStore.INDEX_PREFIX + "*")
                 .setQuery(QueryBuilders.termQuery(WatchRecord.Parser.STATE_FIELD.getPreferredName(), "executed"))
                 .get();
+
         assertNoFailures(response);
-        assertThat(XContentMapValues.extractValue("watch_execution.actions_results._id.webhook.response.body", response.getHits().getAt(0).sourceAsMap()).toString(), equalTo("body"));
-        assertThat(XContentMapValues.extractValue("watch_execution.actions_results._id.webhook.response.status", response.getHits().getAt(0).sourceAsMap()).toString(), equalTo("200"));
+        XContentSource source = new XContentSource(response.getHits().getAt(0).getSourceRef());
+        assertThat(source.getValue("watch_execution.actions_results._id.webhook.response.body"), equalTo((Object) "body"));
+        assertThat(source.getValue("watch_execution.actions_results._id.webhook.response.status"), equalTo((Object) 200));
     }
 
     @Test
@@ -105,10 +107,10 @@ public class WebhookIntegrationTests extends AbstractWatcherIntegrationTests {
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody("body"));
         HttpRequestTemplate.Builder builder = HttpRequestTemplate.builder("localhost", webPort)
                 .auth(new BasicAuth("_username", "_password".toCharArray()))
-                .path(Template.builder("/test/{{ctx.watch_id}}").build())
-                .putParam("param1", Template.builder("value1").build())
-                .putParam("watch_id", Template.builder("{{ctx.watch_id}}").build())
-                .body(Template.builder("{{ctx.payload}}").build());
+                .path(Template.inline("/test/{{ctx.watch_id}}").build())
+                .putParam("param1", Template.inline("value1").build())
+                .putParam("watch_id", Template.inline("{{ctx.watch_id}}").build())
+                .body(Template.inline("{{ctx.payload}}").build());
 
         watcherClient().preparePutWatch("_id")
                 .setSource(watchBuilder()

@@ -40,7 +40,7 @@
             },
             "condition" : {
               "script" : {
-                "script" : "ctx.payload.hits.total > 1"
+                "inline" : "ctx.payload.hits.total > 1"
               }
             },
             "actions" : {

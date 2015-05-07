@@ -6,7 +6,7 @@
 package org.elasticsearch.watcher.test.rest;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
-import org.apache.lucene.util.AbstractRandomizedTest;
+import org.apache.lucene.util.AbstractRandomizedTest.Rest;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.base.Charsets;
 import org.elasticsearch.common.io.FileSystemUtils;
@@ -17,7 +17,7 @@ import org.elasticsearch.license.plugin.LicensePlugin;
 import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.shield.ShieldPlugin;
 import org.elasticsearch.shield.authc.esusers.ESUsersRealm;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.rest.ElasticsearchRestTests;
 import org.elasticsearch.test.rest.RestTestCandidate;
@@ -27,9 +27,11 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
 
+import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope.SUITE;
 
-@AbstractRandomizedTest.Rest
-@ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.SUITE, numClientNodes = 1, transportClientRatio = 0, numDataNodes = 1, randomDynamicTemplates = false)
+
+@Rest
+@ClusterScope(scope = SUITE, numClientNodes = 1, transportClientRatio = 0, numDataNodes = 1, randomDynamicTemplates = false)
 @TestLogging("_root:DEBUG")
 public class WatcherRestTests extends ElasticsearchRestTests {
 
@@ -99,7 +101,6 @@ public class WatcherRestTests extends ElasticsearchRestTests {
                         + "," + LicensePlugin.class.getName())
                 .build();
     }
-
 
 
     /** Shield related settings */
@@ -181,6 +182,5 @@ public class WatcherRestTests extends ElasticsearchRestTests {
             return file.toFile().getAbsolutePath();
         }
     }
-
 
 }

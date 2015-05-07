@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.watcher.support.template;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
+import com.carrotsearch.randomizedtesting.annotations.Seed;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -12,8 +14,9 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.script.ExecutableScript;
-import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.watcher.WatcherException;
 import org.elasticsearch.watcher.support.init.proxy.ScriptServiceProxy;
 import org.elasticsearch.watcher.support.template.xmustache.XMustacheTemplateEngine;
 import org.junit.Before;
@@ -49,12 +52,12 @@ public class TemplateTests extends ElasticsearchTestCase {
         Map<String, Object> params = ImmutableMap.<String, Object>of("param_key", "param_val");
         Map<String, Object> model = ImmutableMap.<String, Object>of("model_key", "model_val");
         Map<String, Object> merged = ImmutableMap.<String, Object>builder().putAll(params).putAll(model).build();
-        ScriptService.ScriptType scriptType = ScriptService.ScriptType.values()[randomIntBetween(0, ScriptService.ScriptType.values().length - 1)];
+        ScriptType type = randomFrom(ScriptType.values());
 
-        when(proxy.executable(lang, templateText, scriptType, merged)).thenReturn(script);
+        when(proxy.executable(lang, templateText, type, merged)).thenReturn(script);
         when(script.run()).thenReturn("rendered_text");
 
-        Template template = new Template(templateText, scriptType, params);
+        Template template = templateBuilder(type, templateText).params(params).build();
         assertThat(engine.render(template, model), is("rendered_text"));
     }
 
@@ -63,13 +66,12 @@ public class TemplateTests extends ElasticsearchTestCase {
         String templateText = "_template";
         Map<String, Object> params = ImmutableMap.<String, Object>of("key", "param_val");
         Map<String, Object> model = ImmutableMap.<String, Object>of("key", "model_val");
-        ScriptService.ScriptType scriptType = randomScriptType();
-
+        ScriptType scriptType = randomFrom(ScriptType.values());
 
         when(proxy.executable(lang, templateText, scriptType, model)).thenReturn(script);
         when(script.run()).thenReturn("rendered_text");
 
-        Template template = new Template(templateText, scriptType, params);
+        Template template = templateBuilder(scriptType, templateText).params(params).build();
         assertThat(engine.render(template, model), is("rendered_text"));
     }
 
@@ -78,22 +80,30 @@ public class TemplateTests extends ElasticsearchTestCase {
         String templateText = "_template";
         Map<String, Object> model = ImmutableMap.<String, Object>of("key", "model_val");
 
-        when(proxy.executable(lang, templateText, ScriptService.ScriptType.INLINE, model)).thenReturn(script);
+        when(proxy.executable(lang, templateText, ScriptType.INLINE, model)).thenReturn(script);
         when(script.run()).thenReturn("rendered_text");
 
         Template template = new Template(templateText);
         assertThat(engine.render(template, model), is("rendered_text"));
     }
 
-    @Test
+    @Test @Repeat(iterations = 5)
     public void testParser() throws Exception {
-        Template template = new Template("_template", randomScriptType(), ImmutableMap.<String, Object>of("param_key", "param_val"));
-
-        XContentBuilder builder = jsonBuilder().startObject()
-                .field(randomFrom("template"), template.getTemplate())
-                .field(randomFrom("type"), template.getType().name())
-                .field(randomFrom("params"), template.getParams())
-                .endObject();
+        ScriptType type = randomScriptType();
+        Template template = templateBuilder(type, "_template").params(ImmutableMap.<String, Object>of("param_key", "param_val")).build();
+        XContentBuilder builder = jsonBuilder().startObject();
+        switch (type) {
+            case INLINE:
+                builder.field("inline", template.getTemplate());
+                break;
+            case FILE:
+                builder.field("file", template.getTemplate());
+                break;
+            case INDEXED:
+                builder.field("id", template.getTemplate());
+        }
+        builder.field("params", template.getParams());
+        builder.endObject();
         BytesReference bytes = builder.bytes();
         XContentParser parser = JsonXContent.jsonXContent.createParser(bytes);
         parser.nextToken();
@@ -104,7 +114,7 @@ public class TemplateTests extends ElasticsearchTestCase {
 
     @Test
     public void testParser_ParserSelfGenerated() throws Exception {
-        Template template = new Template("_template", randomScriptType(), ImmutableMap.<String, Object>of("param_key", "param_val"));
+        Template template = templateBuilder(randomScriptType(), "_template").params(ImmutableMap.<String, Object>of("param_key", "param_val")).build();
 
         XContentBuilder builder = jsonBuilder().value(template);
         BytesReference bytes = builder.bytes();
@@ -144,7 +154,7 @@ public class TemplateTests extends ElasticsearchTestCase {
     @Test(expected = Template.ParseException.class)
     public void testParser_Invalid_MissingText() throws Exception {
         XContentBuilder builder = jsonBuilder().startObject()
-                .field("type", ScriptService.ScriptType.INDEXED)
+                .field("type", ScriptType.INDEXED)
                 .startObject("params").endObject()
                 .endObject();
         BytesReference bytes = builder.bytes();
@@ -154,7 +164,17 @@ public class TemplateTests extends ElasticsearchTestCase {
         fail("expected parse exception when template text is missing");
     }
 
-    private static ScriptService.ScriptType randomScriptType() {
-        return randomFrom(ScriptService.ScriptType.values());
+    private Template.Builder templateBuilder(ScriptType type, String text) {
+        switch (type) {
+            case INLINE:    return Template.inline(text);
+            case FILE:      return Template.file(text);
+            case INDEXED:   return Template.indexed(text);
+            default:
+                throw new WatcherException("unsupported script type [{}]", type);
+        }
+    }
+
+    private static ScriptType randomScriptType() {
+        return randomFrom(ScriptType.values());
     }
 }

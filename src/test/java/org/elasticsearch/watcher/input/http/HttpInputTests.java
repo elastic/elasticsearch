@@ -85,7 +85,7 @@ public class HttpInputTests extends ElasticsearchTestCase {
         HttpResponse response = new HttpResponse(123, "{\"key\" : \"value\"}".getBytes(UTF8));
         when(httpClient.execute(any(HttpRequest.class))).thenReturn(response);
 
-        when(templateEngine.render(eq(new Template("_body")), any(Map.class))).thenReturn("_body");
+        when(templateEngine.render(eq(Template.inline("_body").build()), any(Map.class))).thenReturn("_body");
 
         Watch watch = new Watch("test-watch",
                 new ClockMock(),
@@ -113,16 +113,16 @@ public class HttpInputTests extends ElasticsearchTestCase {
         String host = randomAsciiOfLength(3);
         int port = randomIntBetween(8000, 9000);
         String path = randomAsciiOfLength(3);
-        Template pathTemplate = new Template(path);
+        Template pathTemplate = Template.inline(path).build();
         String body = randomBoolean() ? randomAsciiOfLength(3) : null;
-        Map<String, Template> params = randomBoolean() ? new MapBuilder<String, Template>().put("a", new Template("b")).map() : null;
-        Map<String, Template> headers = randomBoolean() ? new MapBuilder<String, Template>().put("c", new Template("d")).map() : null;
+        Map<String, Template> params = randomBoolean() ? new MapBuilder<String, Template>().put("a", Template.inline("b").build()).map() : null;
+        Map<String, Template> headers = randomBoolean() ? new MapBuilder<String, Template>().put("c", Template.inline("d").build()).map() : null;
         HttpAuth auth = randomBoolean() ? new BasicAuth("username", "password".toCharArray()) : null;
         HttpRequestTemplate.Builder requestBuilder = HttpRequestTemplate.builder(host, port)
                 .scheme(scheme)
                 .method(httpMethod)
                 .path(pathTemplate)
-                .body(body != null ? new Template(body) : null)
+                .body(body != null ? Template.inline(body).build() : null)
                 .auth(auth);
 
         if (params != null) {
@@ -142,16 +142,16 @@ public class HttpInputTests extends ElasticsearchTestCase {
         assertThat(result.getRequest().method(), equalTo(httpMethod != null ? httpMethod : HttpMethod.GET)); // get is the default
         assertThat(result.getRequest().host(), equalTo(host));
         assertThat(result.getRequest().port(), equalTo(port));
-        assertThat(result.getRequest().path(), is(new Template(path)));
+        assertThat(result.getRequest().path(), is(Template.inline(path).build()));
         if (params != null) {
-            assertThat(result.getRequest().params(), hasEntry(is("a"), is(new Template("b"))));
+            assertThat(result.getRequest().params(), hasEntry(is("a"), is(Template.inline("b").build())));
         }
         if (headers != null) {
-            assertThat(result.getRequest().headers(), hasEntry(is("c"), is(new Template("d"))));
+            assertThat(result.getRequest().headers(), hasEntry(is("c"), is(Template.inline("d").build())));
         }
         assertThat(result.getRequest().auth(), equalTo(auth));
         if (body != null) {
-            assertThat(result.getRequest().body(), is(new Template(body)));
+            assertThat(result.getRequest().body(), is(Template.inline(body).build()));
         } else {
             assertThat(result.getRequest().body(), nullValue());
         }
@@ -174,7 +174,7 @@ public class HttpInputTests extends ElasticsearchTestCase {
     public void testParseResult() throws Exception {
         HttpMethod httpMethod = HttpMethod.GET;
         String body = "_body";
-        Map<String, Template> headers = new MapBuilder<String, Template>().put("a", new Template("b")).map();
+        Map<String, Template> headers = new MapBuilder<String, Template>().put("a", Template.inline("b").build()).map();
         HttpRequest request = HttpRequest.builder("_host", 123)
                 .method(httpMethod)
                 .body(body)

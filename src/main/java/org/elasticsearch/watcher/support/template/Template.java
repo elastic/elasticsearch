@@ -7,16 +7,13 @@ package org.elasticsearch.watcher.support.template;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.collect.ImmutableMap;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.watcher.WatcherException;
 
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -25,21 +22,27 @@ import java.util.Map;
 public class Template implements ToXContent {
 
     private final String template;
+    private final @Nullable XContentType contentType;
     private final @Nullable ScriptType type;
     private final @Nullable Map<String, Object> params;
 
-    public Template(String template) {
-        this(template, null, null);
+    Template(String template) {
+        this(template, null, null, null);
     }
 
-    public Template(String template, @Nullable ScriptType type, @Nullable Map<String, Object> params) {
+    Template(String template, @Nullable XContentType contentType, @Nullable ScriptType type, @Nullable Map<String, Object> params) {
         this.template = template;
+        this.contentType = contentType;
         this.type = type;
         this.params = params;
     }
 
     public String getTemplate() {
         return template;
+    }
+
+    public XContentType getContentType() {
+        return contentType;
     }
 
     public ScriptType getType() {
@@ -58,13 +61,16 @@ public class Template implements ToXContent {
         Template template1 = (Template) o;
 
         if (!template.equals(template1.template)) return false;
+        if (contentType != template1.contentType) return false;
         if (type != template1.type) return false;
         return !(params != null ? !params.equals(template1.params) : template1.params != null);
+
     }
 
     @Override
     public int hashCode() {
         int result = template.hashCode();
+        result = 31 * result + (contentType != null ? contentType.hashCode() : 0);
         result = 31 * result + (type != null ? type.hashCode() : 0);
         result = 31 * result + (params != null ? params.hashCode() : 0);
         return result;
@@ -72,13 +78,26 @@ public class Template implements ToXContent {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        if (type == null && this.params == null) {
+        if (type == null) {
             return builder.value(template);
         }
         builder.startObject();
-        builder.field(Field.TEMPLATE.getPreferredName(), template);
-        if (type != null) {
-            builder.field(Field.TYPE.getPreferredName(), type.name().toLowerCase(Locale.ROOT));
+        switch (type) {
+            case INLINE:
+                if (contentType != null && builder.contentType() == contentType) {
+                    builder.rawField(Field.INLINE.getPreferredName(), new BytesArray(template));
+                } else {
+                    builder.field(Field.INLINE.getPreferredName(), template);
+                }
+                break;
+            case FILE:
+                builder.field(Field.FILE.getPreferredName(), template);
+                break;
+            case INDEXED:
+                builder.field(Field.ID.getPreferredName(), template);
+                break;
+            default:
+                throw new WatcherException("unsupported script type [{}]", type);
         }
         if (this.params != null) {
             builder.field(Field.PARAMS.getPreferredName(), this.params);
@@ -92,31 +111,40 @@ public class Template implements ToXContent {
             return new Template(String.valueOf(parser.objectText()));
         }
         if (token != XContentParser.Token.START_OBJECT) {
-            throw new ParseException("expected a string value or an object, but found [{}]instead", token);
+            throw new ParseException("expected a string value or an object, but found [{}] instead", token);
         }
 
         String template = null;
-        ScriptType type = ScriptType.INLINE;
-        Map<String, Object> params = ImmutableMap.of();
+        XContentType contentType = null;
+        ScriptType type = null;
+        Map<String, Object> params = null;
 
         String currentFieldName = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
-            } else if (Field.TEMPLATE.match(currentFieldName)) {
+            } else if (Field.INLINE.match(currentFieldName)) {
+                type = ScriptType.INLINE;
+                if (token.isValue()) {
+                    template = String.valueOf(parser.objectText());
+                } else {
+                    contentType = parser.contentType();
+                    XContentBuilder builder = XContentFactory.contentBuilder(contentType);
+                    template = builder.copyCurrentStructure(parser).bytes().toUtf8();
+                }
+            } else if (Field.FILE.match(currentFieldName)) {
+                type = ScriptType.FILE;
                 if (token == XContentParser.Token.VALUE_STRING) {
                     template = parser.text();
                 } else {
-                    throw new ParseException("expected a string field [{}], but found [{}]", currentFieldName, token);
+                    throw new ParseException("expected a string value for field [{}], but found [{}]", currentFieldName, token);
                 }
-            } else if (Field.TYPE.match(currentFieldName)) {
+            } else if (Field.ID.match(currentFieldName)) {
+                type = ScriptType.INDEXED;
                 if (token == XContentParser.Token.VALUE_STRING) {
-                    String value = parser.text();
-                    try {
-                        type = ScriptType.valueOf(value.toUpperCase(Locale.ROOT));
-                    } catch (IllegalArgumentException iae) {
-                        throw new ParseException("unknown template type [{}]", value);
-                    }
+                    template = parser.text();
+                } else {
+                    throw new ParseException("expected a string value for field [{}], but found [{}]", currentFieldName, token);
                 }
             } else if (Field.PARAMS.match(currentFieldName)) {
                 if (token == XContentParser.Token.START_OBJECT) {
@@ -129,48 +157,103 @@ public class Template implements ToXContent {
             }
         }
         if (template == null) {
-            throw new ParseException("missing required string field [{}]", Field.TEMPLATE.getPreferredName());
+            throw new ParseException("expected one of [{}], [{}] or [{}] fields, but found none", Field.INLINE.getPreferredName(), Field.FILE.getPreferredName(), Field.ID.getPreferredName());
         }
-        return new Template(template, type, params);
+        assert type != null : "if template is not null, type should definitely not be null";
+        return new Template(template, contentType, type, params);
     }
 
-    public static Builder builder(String text) {
-        return new Builder(text);
+    public static Builder inline(XContentBuilder template) {
+        return new Builder.Inline(template.bytes().toUtf8()).contentType(template.contentType());
     }
 
-    public static class Builder {
+    public static Builder inline(String text) {
+        return new Builder.Inline(text);
+    }
 
-        private final String template;
-        private ScriptType type;
-        private HashMap<String, Object> params;
+    public static Builder file(String file) {
+        return new Builder.File(file);
+    }
 
-        private Builder(String template) {
+    public static Builder indexed(String id) {
+        return new Builder.Indexed(id);
+    }
+
+    public static Builder.DefaultType defaultType(String text) {
+        return new Builder.DefaultType(text);
+    }
+
+    public static abstract class Builder<B extends Builder> {
+
+        protected final ScriptType type;
+        protected final String template;
+        protected Map<String, Object> params;
+
+        protected Builder(String template, ScriptType type) {
             this.template = template;
-        }
-
-        public Builder setType(ScriptType type) {
             this.type = type;
-            return null;
         }
 
-        public Builder putParams(Map<String, Object> params) {
-            if (params == null) {
-                params = new HashMap<>();
+        public B params(Map<String, Object> params) {
+            this.params = params;
+            return (B) this;
+        }
+
+        public abstract Template build();
+
+        public static class Inline extends Builder<Inline> {
+
+            private XContentType contentType;
+
+            public Inline(String script) {
+                super(script, ScriptType.INLINE);
             }
-            this.params.putAll(params);
-            return this;
-        }
 
-        public Builder putParam(String key, Object value) {
-            if (params == null) {
-                params = new HashMap<>();
+            public Inline contentType(XContentType contentType) {
+                this.contentType = contentType;
+                return this;
             }
-            params.put(key, value);
-            return this;
+
+            @Override
+            public Template build() {
+                return new Template(template, contentType, type, params);
+            }
         }
 
-        public Template build() {
-            return new Template(template, type, params);
+        public static class File extends Builder<File> {
+
+            public File(String file) {
+                super(file, ScriptType.FILE);
+            }
+
+            @Override
+            public Template build() {
+                return new Template(template, null, type, params);
+            }
+        }
+
+        public static class Indexed extends Builder<Indexed> {
+
+            public Indexed(String id) {
+                super(id, ScriptType.INDEXED);
+            }
+
+            @Override
+            public Template build() {
+                return new Template(template, null, type, params);
+            }
+        }
+
+        public static class DefaultType extends Builder<DefaultType> {
+
+            public DefaultType(String text) {
+                super(text, null);
+            }
+
+            @Override
+            public Template build() {
+                return new Template(template, null, type, params);
+            }
         }
     }
 
@@ -186,8 +269,9 @@ public class Template implements ToXContent {
     }
 
     public interface Field {
-        ParseField TEMPLATE = new ParseField("template");
-        ParseField TYPE = new ParseField("type");
+        ParseField INLINE = new ParseField("inline");
+        ParseField FILE = new ParseField("file");
+        ParseField ID = new ParseField("id");
         ParseField PARAMS = new ParseField("params");
     }
 }

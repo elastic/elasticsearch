@@ -150,9 +150,9 @@ public final class WatcherTestUtils {
         HttpRequestTemplate.Builder httpRequest = HttpRequestTemplate.builder("localhost", 80);
         httpRequest.method(HttpMethod.POST);
 
-        Template path = new Template("/foobarbaz/{{ctx.watch_id}}");
+        Template path = Template.inline("/foobarbaz/{{ctx.watch_id}}").build();
         httpRequest.path(path);
-        Template body = new Template("{{ctx.watch_id}} executed with {{ctx.payload.response.hits.total_hits}} hits");
+        Template body = Template.inline("{{ctx.watch_id}} executed with {{ctx.payload.response.hits.total_hits}} hits").build();
         httpRequest.body(body);
 
         TemplateEngine engine = new XMustacheTemplateEngine(ImmutableSettings.EMPTY, scriptService);
@@ -191,7 +191,7 @@ public final class WatcherTestUtils {
                 licenseService,
                 new ScheduleTrigger(new CronSchedule("0/5 * * * * ? *")),
                 new ExecutableSimpleInput(new SimpleInput(new Payload.Simple(inputData)), logger),
-                new ExecutableScriptCondition(new ScriptCondition(new Script("return true")), logger, scriptService),
+                new ExecutableScriptCondition(new ScriptCondition(Script.inline("return true").build()), logger, scriptService),
                 new ExecutableSearchTransform(new SearchTransform(transformRequest), logger, scriptService, client),
                 new ExecutableActions(actions),
                 metadata,

@@ -285,7 +285,7 @@ public class WatchTests extends ElasticsearchTestCase {
         String type = randomFrom(ScriptCondition.TYPE, AlwaysCondition.TYPE);
         switch (type) {
             case ScriptCondition.TYPE:
-                return new ExecutableScriptCondition(new ScriptCondition(new Script("_script")), logger, scriptService);
+                return new ExecutableScriptCondition(new ScriptCondition(Script.inline("_script").build()), logger, scriptService);
             default:
                 return new ExecutableAlwaysCondition(logger);
         }
@@ -307,16 +307,16 @@ public class WatchTests extends ElasticsearchTestCase {
         String type = randomFrom(ScriptTransform.TYPE, SearchTransform.TYPE, ChainTransform.TYPE);
         switch (type) {
             case ScriptTransform.TYPE:
-                return new ExecutableScriptTransform(new ScriptTransform(new Script("_script")), logger, scriptService);
+                return new ExecutableScriptTransform(new ScriptTransform(Script.inline("_script").build()), logger, scriptService);
             case SearchTransform.TYPE:
                 return new ExecutableSearchTransform(new SearchTransform(matchAllRequest(WatcherUtils.DEFAULT_INDICES_OPTIONS)), logger, scriptService, client);
             default: // chain
                 ChainTransform chainTransform = new ChainTransform(ImmutableList.of(
                         new SearchTransform(matchAllRequest(WatcherUtils.DEFAULT_INDICES_OPTIONS)),
-                        new ScriptTransform(new Script("_script"))));
+                        new ScriptTransform(Script.inline("_script").build())));
                 return new ExecutableChainTransform(chainTransform, logger, ImmutableList.<ExecutableTransform>of(
                         new ExecutableSearchTransform(new SearchTransform(matchAllRequest(WatcherUtils.DEFAULT_INDICES_OPTIONS)), logger, scriptService, client),
-                        new ExecutableScriptTransform(new ScriptTransform(new Script("_script")), logger, scriptService)));
+                        new ExecutableScriptTransform(new ScriptTransform(Script.inline("_script").build()), logger, scriptService)));
         }
     }
 
@@ -345,7 +345,7 @@ public class WatchTests extends ElasticsearchTestCase {
         if (randomBoolean()) {
             HttpRequestTemplate httpRequest = HttpRequestTemplate.builder("test.host", randomIntBetween(8000, 9000))
                     .method(randomFrom(HttpMethod.GET, HttpMethod.POST, HttpMethod.PUT))
-                    .path(new Template("_url"))
+                    .path(Template.inline("_url").build())
                     .build();
             WebhookAction action = new WebhookAction(httpRequest);
             list.add(new ActionWrapper("_webhook_" + randomAsciiOfLength(8), randomTransform(), new ExecutableWebhookAction(action, logger, httpClient, templateEngine)));

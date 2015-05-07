@@ -16,18 +16,15 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
-import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.watcher.WatcherException;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.watcher.support.Script;
 import org.elasticsearch.watcher.support.Variables;
 import org.elasticsearch.watcher.support.init.proxy.ScriptServiceProxy;
 import org.elasticsearch.watcher.transform.Transform;
-import org.elasticsearch.watcher.transform.script.ExecutableScriptTransform;
-import org.elasticsearch.watcher.transform.script.ScriptTransform;
-import org.elasticsearch.watcher.transform.script.ScriptTransformFactory;
-import org.elasticsearch.watcher.transform.script.ScriptTransformValidationException;
 import org.elasticsearch.watcher.watch.Payload;
 import org.junit.After;
 import org.junit.Before;
@@ -63,9 +60,9 @@ public class ScriptTransformTests extends ElasticsearchTestCase {
     @Test
     public void testApply_MapValue() throws Exception {
         ScriptServiceProxy service = mock(ScriptServiceProxy.class);
-        ScriptService.ScriptType type = randomFrom(ScriptService.ScriptType.values());
+        ScriptType type = randomFrom(ScriptType.values());
         Map<String, Object> params = Collections.emptyMap();
-        Script script = new Script("_script", type, "_lang", params);
+        Script script = scriptBuilder(type, "_script").lang("_lang").params(params).build();
         CompiledScript compiledScript = mock(CompiledScript.class);
         when(service.compile(script)).thenReturn(compiledScript);
         ExecutableScriptTransform transform = new ExecutableScriptTransform(new ScriptTransform(script), logger, service);
@@ -94,9 +91,9 @@ public class ScriptTransformTests extends ElasticsearchTestCase {
     public void testApply_NonMapValue() throws Exception {
         ScriptServiceProxy service = mock(ScriptServiceProxy.class);
 
-        ScriptService.ScriptType type = randomFrom(ScriptService.ScriptType.values());
+        ScriptType type = randomFrom(ScriptType.values());
         Map<String, Object> params = Collections.emptyMap();
-        Script script = new Script("_script", type, "_lang", params);
+        Script script = scriptBuilder(type, "_script").lang("_lang").params(params).build();
         CompiledScript compiledScript = mock(CompiledScript.class);
         when(service.compile(script)).thenReturn(compiledScript);
         ExecutableScriptTransform transform = new ExecutableScriptTransform(new ScriptTransform(script), logger, service);
@@ -108,7 +105,7 @@ public class ScriptTransformTests extends ElasticsearchTestCase {
         Map<String, Object> model = Variables.createCtxModel(ctx, payload);
 
         ExecutableScript executable = mock(ExecutableScript.class);
-        Object value = randomFrom("value", 1, new String[]{"value"}, ImmutableList.of("value"), ImmutableSet.of("value"));
+        Object value = randomFrom("value", 1, new String[] { "value" }, ImmutableList.of("value"), ImmutableSet.of("value"));
         when(executable.run()).thenReturn(value);
         when(service.executable(compiledScript, model)).thenReturn(executable);
 
@@ -122,18 +119,18 @@ public class ScriptTransformTests extends ElasticsearchTestCase {
     @Test
     public void testParser() throws Exception {
         ScriptServiceProxy service = mock(ScriptServiceProxy.class);
-        ScriptService.ScriptType type = randomFrom(ScriptService.ScriptType.values());
-        XContentBuilder builder = jsonBuilder().startObject()
-                .field("script", "_script")
-                .field("lang", "_lang")
-                .field("type", type.name())
-                .startObject("params").field("key", "value").endObject()
-                .endObject();
+        ScriptType type = randomFrom(ScriptType.values());
+        XContentBuilder builder = jsonBuilder().startObject();
+        builder.field(scriptTypeField(type), "_script");
+        builder.field("lang", "_lang");
+        builder.startObject("params").field("key", "value").endObject();
+        builder.endObject();
 
         XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes());
         parser.nextToken();
         ExecutableScriptTransform transform = new ScriptTransformFactory(ImmutableSettings.EMPTY, service).parseExecutable("_id", parser);
-        assertThat(transform.transform().getScript(), equalTo(new Script("_script", type, "_lang", ImmutableMap.<String, Object>builder().put("key", "value").build())));
+        Script script = scriptBuilder(type, "_script").lang("_lang").params(ImmutableMap.<String, Object>builder().put("key", "value").build()).build();
+        assertThat(transform.transform().getScript(), equalTo(script));
     }
 
     @Test
@@ -144,7 +141,7 @@ public class ScriptTransformTests extends ElasticsearchTestCase {
         XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes());
         parser.nextToken();
         ExecutableScriptTransform transform = new ScriptTransformFactory(ImmutableSettings.EMPTY, service).parseExecutable("_id", parser);
-        assertThat(transform.transform().getScript(), equalTo(new Script("_script")));
+        assertThat(transform.transform().getScript(), equalTo(Script.defaultType("_script").build()));
     }
 
 
@@ -152,7 +149,7 @@ public class ScriptTransformTests extends ElasticsearchTestCase {
     @Repeat(iterations = 3)
     public void testScriptConditionParser_badScript() throws Exception {
         ScriptTransformFactory transformFactory = new ScriptTransformFactory(ImmutableSettings.settingsBuilder().build(), getScriptServiceProxy(tp));
-        ScriptService.ScriptType scriptType = randomFrom(ScriptService.ScriptType.values());
+        ScriptType scriptType = randomFrom(ScriptType.values());
         String script;
         switch (scriptType) {
             case INDEXED:
@@ -165,9 +162,8 @@ public class ScriptTransformTests extends ElasticsearchTestCase {
         }
 
         XContentBuilder builder = jsonBuilder().startObject()
-                .field("script", script)
+                .field(scriptTypeField(scriptType), script)
                 .field("lang", "groovy")
-                .field("type", scriptType.name())
                 .startObject("params").field("key", "value").endObject()
                 .endObject();
 
@@ -181,12 +177,11 @@ public class ScriptTransformTests extends ElasticsearchTestCase {
     @Test(expected = ScriptTransformValidationException.class)
     public void testScriptConditionParser_badLang() throws Exception {
         ScriptTransformFactory transformFactory = new ScriptTransformFactory(ImmutableSettings.settingsBuilder().build(), getScriptServiceProxy(tp));
-        ScriptService.ScriptType scriptType = ScriptService.ScriptType.INLINE;
+        ScriptType scriptType = randomFrom(ScriptType.values());
         String script = "return true";
         XContentBuilder builder = jsonBuilder().startObject()
-                .field("script", script)
+                .field(scriptTypeField(scriptType), script)
                 .field("lang", "not_a_valid_lang")
-                .field("type", scriptType.name())
                 .startObject("params").field("key", "value").endObject()
                 .endObject();
 
@@ -198,4 +193,23 @@ public class ScriptTransformTests extends ElasticsearchTestCase {
         fail("expected a transform validation exception trying to create an executable with an invalid language");
     }
 
+    static Script.Builder scriptBuilder(ScriptType type, String script) {
+        switch (type) {
+            case INLINE:    return Script.inline(script);
+            case FILE:      return Script.file(script);
+            case INDEXED:   return Script.indexed(script);
+            default:
+                throw new WatcherException("unsupported script type [{}]", type);
+        }
+    }
+
+    static String scriptTypeField(ScriptType type) {
+        switch (type) {
+            case INLINE: return "inline";
+            case FILE: return "file";
+            case INDEXED: return "id";
+            default:
+                throw new WatcherException("unsupported script type [{}]", type);
+        }
+    }
 }

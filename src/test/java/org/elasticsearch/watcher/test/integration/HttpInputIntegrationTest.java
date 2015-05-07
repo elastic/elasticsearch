@@ -15,7 +15,6 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.watcher.client.WatcherClient;
 import org.elasticsearch.watcher.history.HistoryStore;
 import org.elasticsearch.watcher.support.http.HttpRequestTemplate;
-import org.elasticsearch.watcher.support.http.auth.basic.ApplicableBasicAuth;
 import org.elasticsearch.watcher.support.http.auth.basic.BasicAuth;
 import org.elasticsearch.watcher.support.template.Template;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
@@ -107,7 +106,7 @@ public class HttpInputIntegrationTest extends AbstractWatcherIntegrationTests {
                     .field("query").value(termQuery("field", "value"))
                 .endObject();
         HttpRequestTemplate.Builder requestBuilder = HttpRequestTemplate.builder(address.getHostName(), address.getPort())
-                .path(new Template("/idx/_search"))
+                .path(Template.inline("/idx/_search"))
                 .body(body);
         if (shieldEnabled()) {
             requestBuilder.auth(new BasicAuth("test", "changeme".toCharArray()));

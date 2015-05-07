@@ -7,10 +7,8 @@ package org.elasticsearch.watcher.condition;
 
 import org.elasticsearch.watcher.condition.always.AlwaysCondition;
 import org.elasticsearch.watcher.condition.never.NeverCondition;
-import org.elasticsearch.watcher.condition.script.ExecutableScriptCondition;
-import org.elasticsearch.watcher.condition.never.ExecutableNeverCondition;
-import org.elasticsearch.watcher.condition.always.ExecutableAlwaysCondition;
 import org.elasticsearch.watcher.condition.script.ScriptCondition;
+import org.elasticsearch.watcher.support.Script;
 
 /**
  *
@@ -29,6 +27,14 @@ public final class ConditionBuilders {
     }
 
     public static ScriptCondition.Builder scriptCondition(String script) {
+        return scriptCondition(Script.inline(script));
+    }
+
+    public static ScriptCondition.Builder scriptCondition(Script.Builder script) {
+        return scriptCondition(script.build());
+    }
+
+    public static ScriptCondition.Builder scriptCondition(Script script) {
         return ScriptCondition.builder(script);
     }
 }

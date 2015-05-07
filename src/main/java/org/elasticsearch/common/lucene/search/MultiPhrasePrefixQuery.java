@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.lucene.search;
 
-import com.carrotsearch.hppc.ObjectOpenHashSet;
+import com.carrotsearch.hppc.ObjectHashSet;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
@@ -149,7 +149,7 @@ public class MultiPhrasePrefixQuery extends Query {
         }
         Term[] suffixTerms = termArrays.get(sizeMinus1);
         int position = positions.get(sizeMinus1);
-        ObjectOpenHashSet<Term> terms = new ObjectOpenHashSet<>();
+        ObjectHashSet<Term> terms = new ObjectHashSet<>();
         for (Term term : suffixTerms) {
             getPrefixTerms(terms, term, reader);
             if (terms.size() > maxExpansions) {
@@ -163,7 +163,7 @@ public class MultiPhrasePrefixQuery extends Query {
         return query.rewrite(reader);
     }
 
-    private void getPrefixTerms(ObjectOpenHashSet<Term> terms, final Term prefix, final IndexReader reader) throws IOException {
+    private void getPrefixTerms(ObjectHashSet<Term> terms, final Term prefix, final IndexReader reader) throws IOException {
         // SlowCompositeReaderWrapper could be used... but this would merge all terms from each segment into one terms
         // instance, which is very expensive. Therefore I think it is better to iterate over each leaf individually.
         List<LeafReaderContext> leaves = reader.leaves();

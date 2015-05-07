@@ -18,8 +18,8 @@
  */
 package org.elasticsearch.benchmark.search.aggregations;
 
-import com.carrotsearch.hppc.IntIntOpenHashMap;
-import com.carrotsearch.hppc.ObjectOpenHashSet;
+import com.carrotsearch.hppc.IntIntHashMap;
+import com.carrotsearch.hppc.ObjectHashSet;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
@@ -111,7 +111,7 @@ public class GlobalOrdinalsBenchmark {
                             .endArray()
                     .endObject().endObject())
                     .get();
-            ObjectOpenHashSet<String> uniqueTerms = ObjectOpenHashSet.newInstance();
+            ObjectHashSet<String> uniqueTerms = new ObjectHashSet<>();
             for (int i = 0; i < FIELD_LIMIT; i++) {
                 boolean added;
                 do {
@@ -122,16 +122,11 @@ public class GlobalOrdinalsBenchmark {
             uniqueTerms = null;
 
             BulkRequestBuilder builder = client.prepareBulk();
-            IntIntOpenHashMap tracker = new IntIntOpenHashMap();
+            IntIntHashMap tracker = new IntIntHashMap();
             for (int i = 0; i < COUNT; i++) {
                 Map<String, Object> fieldValues = new HashMap<>();
                 for (int fieldSuffix = 1; fieldSuffix <= FIELD_LIMIT; fieldSuffix <<= 1) {
-                    int index;
-                    if (tracker.containsKey(fieldSuffix)) {
-                        index = tracker.lget();
-                    } else {
-                        tracker.put(fieldSuffix, index = 0);
-                    }
+                    int index = tracker.putOrAdd(fieldSuffix, 0, 0);
                     if (index >= fieldSuffix) {
                         index = random.nextInt(fieldSuffix);
                         fieldValues.put("field_" + fieldSuffix, sValues[index]);

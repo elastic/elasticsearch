@@ -19,7 +19,7 @@
 
 package org.elasticsearch.cluster.node;
 
-import com.carrotsearch.hppc.ObjectOpenHashSet;
+import com.carrotsearch.hppc.ObjectHashSet;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.google.common.collect.ImmutableList;
@@ -334,7 +334,7 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
             }
             return nodesIds;
         } else {
-            ObjectOpenHashSet<String> resolvedNodesIds = new ObjectOpenHashSet<>(nodesIds.length);
+            ObjectHashSet<String> resolvedNodesIds = new ObjectHashSet<>(nodesIds.length);
             for (String nodeId : nodesIds) {
                 if (nodeId.equals("_local")) {
                     String localNodeId = localNodeId();

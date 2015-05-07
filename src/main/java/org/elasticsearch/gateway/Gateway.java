@@ -19,8 +19,8 @@
 
 package org.elasticsearch.gateway;
 
-import com.carrotsearch.hppc.ObjectFloatOpenHashMap;
-import com.carrotsearch.hppc.ObjectOpenHashSet;
+import com.carrotsearch.hppc.ObjectFloatHashMap;
+import com.carrotsearch.hppc.ObjectHashSet;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.action.FailedNodeException;
@@ -68,7 +68,7 @@ public class Gateway extends AbstractComponent implements ClusterStateListener {
     }
 
     public void performStateRecovery(final GatewayStateRecoveredListener listener) throws GatewayException {
-        ObjectOpenHashSet<String> nodesIds = ObjectOpenHashSet.from(clusterService.state().nodes().masterNodes().keys());
+        ObjectHashSet<String> nodesIds = new ObjectHashSet<>(clusterService.state().nodes().masterNodes().keys());
         logger.trace("performing state recovery from {}", nodesIds);
         TransportNodesListGatewayMetaState.NodesGatewayMetaState nodesState = listGatewayMetaState.list(nodesIds.toArray(String.class), null).actionGet();
 
@@ -104,7 +104,7 @@ public class Gateway extends AbstractComponent implements ClusterStateListener {
             }
         }
 
-        ObjectFloatOpenHashMap<String> indices = new ObjectFloatOpenHashMap<>();
+        ObjectFloatHashMap<String> indices = new ObjectFloatHashMap<>();
         MetaData electedGlobalState = null;
         int found = 0;
         for (TransportNodesListGatewayMetaState.NodeGatewayMetaState nodeState : nodesState) {
@@ -127,10 +127,11 @@ public class Gateway extends AbstractComponent implements ClusterStateListener {
         }
         // update the global state, and clean the indices, we elect them in the next phase
         MetaData.Builder metaDataBuilder = MetaData.builder(electedGlobalState).removeAllIndices();
-        final boolean[] states = indices.allocated;
+
+        assert !indices.containsKey(null);
         final Object[] keys = indices.keys;
-        for (int i = 0; i < states.length; i++) {
-            if (states[i]) {
+        for (int i = 0; i < keys.length; i++) {
+            if (keys[i] != null) {
                 String index = (String) keys[i];
                 IndexMetaData electedIndexMetaData = null;
                 int indexMetaDataCount = 0;

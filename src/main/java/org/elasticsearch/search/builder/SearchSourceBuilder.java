@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.builder;
 
-import com.carrotsearch.hppc.ObjectFloatOpenHashMap;
+import com.carrotsearch.hppc.ObjectFloatHashMap;
 import com.google.common.base.Charsets;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
@@ -117,7 +117,7 @@ public class SearchSourceBuilder implements ToXContent {
     private List<RescoreBuilder> rescoreBuilders;
     private Integer defaultRescoreWindowSize;
 
-    private ObjectFloatOpenHashMap<String> indexBoost = null;
+    private ObjectFloatHashMap<String> indexBoost = null;
 
     private String[] stats;
 
@@ -653,7 +653,7 @@ public class SearchSourceBuilder implements ToXContent {
      */
     public SearchSourceBuilder indexBoost(String index, float indexBoost) {
         if (this.indexBoost == null) {
-            this.indexBoost = new ObjectFloatOpenHashMap<>();
+            this.indexBoost = new ObjectFloatHashMap<>();
         }
         this.indexBoost.put(index, indexBoost);
         return this;
@@ -809,11 +809,11 @@ public class SearchSourceBuilder implements ToXContent {
 
         if (indexBoost != null) {
             builder.startObject("indices_boost");
-            final boolean[] states = indexBoost.allocated;
+            assert !indexBoost.containsKey(null);
             final Object[] keys = indexBoost.keys;
             final float[] values = indexBoost.values;
-            for (int i = 0; i < states.length; i++) {
-                if (states[i]) {
+            for (int i = 0; i < keys.length; i++) {
+                if (keys[i] != null) {
                     builder.field((String) keys[i], values[i]);
                 }
             }

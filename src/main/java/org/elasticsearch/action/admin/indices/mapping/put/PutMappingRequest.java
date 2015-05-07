@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.mapping.put;
 
-import com.carrotsearch.hppc.ObjectOpenHashSet;
+import com.carrotsearch.hppc.ObjectHashSet;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
@@ -51,7 +51,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  */
 public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> implements IndicesRequest.Replaceable {
 
-    private static ObjectOpenHashSet<String> RESERVED_FIELDS = ObjectOpenHashSet.from(
+    private static ObjectHashSet<String> RESERVED_FIELDS = ObjectHashSet.from(
             "_uid", "_id", "_type", "_source",  "_all", "_analyzer", "_parent", "_routing", "_index",
             "_size", "_timestamp", "_ttl"
     );

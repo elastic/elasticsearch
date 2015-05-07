@@ -19,7 +19,7 @@
 
 package org.elasticsearch.indices.cluster;
 
-import com.carrotsearch.hppc.IntOpenHashSet;
+import com.carrotsearch.hppc.IntHashSet;
 import com.carrotsearch.hppc.ObjectContainer;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.google.common.base.Predicate;
@@ -262,7 +262,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
         if (routingNode == null) {
             return;
         }
-        IntOpenHashSet newShardIds = new IntOpenHashSet();
+        IntHashSet newShardIds = new IntHashSet();
         for (IndexService indexService : indicesService) {
             String index = indexService.index().name();
             IndexMetaData indexMetaData = event.state().metaData().index(index);

@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.common.hppc;
 
-import com.carrotsearch.hppc.ObjectOpenHashSet;
+import com.carrotsearch.hppc.ObjectHashSet;
 import org.elasticsearch.common.collect.HppcMaps;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
@@ -35,48 +35,48 @@ public class HppcMapsTests extends ElasticsearchTestCase {
         boolean enabled = false;
         assert enabled = true;
         assumeTrue("assertions enabled", enabled);
-        ObjectOpenHashSet<String> set1 = ObjectOpenHashSet.from("1", "2", "3");
-        ObjectOpenHashSet<String> set2 = ObjectOpenHashSet.from("1", "2", "3");
+        ObjectHashSet<String> set1 = ObjectHashSet.from("1", "2", "3");
+        ObjectHashSet<String> set2 = ObjectHashSet.from("1", "2", "3");
         List<String> values = toList(HppcMaps.intersection(set1, set2));
         assertThat(values.size(), equalTo(3));
         assertThat(values.contains("1"), equalTo(true));
         assertThat(values.contains("2"), equalTo(true));
         assertThat(values.contains("3"), equalTo(true));
 
-        set1 = ObjectOpenHashSet.from("1", "2", "3");
-        set2 = ObjectOpenHashSet.from("3", "4", "5");
+        set1 = ObjectHashSet.from("1", "2", "3");
+        set2 = ObjectHashSet.from("3", "4", "5");
         values = toList(HppcMaps.intersection(set1, set2));
         assertThat(values.size(), equalTo(1));
         assertThat(values.get(0), equalTo("3"));
 
-        set1 = ObjectOpenHashSet.from("1", "2", "3");
-        set2 = ObjectOpenHashSet.from("4", "5", "6");
+        set1 = ObjectHashSet.from("1", "2", "3");
+        set2 = ObjectHashSet.from("4", "5", "6");
         values = toList(HppcMaps.intersection(set1, set2));
         assertThat(values.size(), equalTo(0));
 
-        set1 = ObjectOpenHashSet.from();
-        set2 = ObjectOpenHashSet.from("3", "4", "5");
+        set1 = ObjectHashSet.from();
+        set2 = ObjectHashSet.from("3", "4", "5");
         values = toList(HppcMaps.intersection(set1, set2));
         assertThat(values.size(), equalTo(0));
 
-        set1 = ObjectOpenHashSet.from("1", "2", "3");
-        set2 = ObjectOpenHashSet.from();
+        set1 = ObjectHashSet.from("1", "2", "3");
+        set2 = ObjectHashSet.from();
         values = toList(HppcMaps.intersection(set1, set2));
         assertThat(values.size(), equalTo(0));
 
-        set1 = ObjectOpenHashSet.from();
-        set2 = ObjectOpenHashSet.from();
+        set1 = ObjectHashSet.from();
+        set2 = ObjectHashSet.from();
         values = toList(HppcMaps.intersection(set1, set2));
         assertThat(values.size(), equalTo(0));
 
         set1 = null;
-        set2 = ObjectOpenHashSet.from();
+        set2 = ObjectHashSet.from();
         try {
             toList(HppcMaps.intersection(set1, set2));
             fail();
         } catch (AssertionError e) {}
 
-        set1 = ObjectOpenHashSet.from();
+        set1 = ObjectHashSet.from();
         set2 = null;
         try {
             toList(HppcMaps.intersection(set1, set2));

@@ -19,8 +19,8 @@
 package org.elasticsearch.index.search.child;
 
 import com.carrotsearch.hppc.FloatArrayList;
-import com.carrotsearch.hppc.IntIntOpenHashMap;
-import com.carrotsearch.hppc.ObjectObjectOpenHashMap;
+import com.carrotsearch.hppc.IntIntHashMap;
+import com.carrotsearch.hppc.ObjectObjectHashMap;
 
 import org.apache.lucene.analysis.MockAnalyzer;
 import org.apache.lucene.document.Document;
@@ -116,8 +116,8 @@ public class ParentQueryTests extends AbstractChildTests {
 
         int childDocId = 0;
         int numParentDocs = scaledRandomIntBetween(1, numUniqueParentValues);
-        ObjectObjectOpenHashMap<String, NavigableMap<String, Float>> parentValueToChildIds = new ObjectObjectOpenHashMap<>();
-        IntIntOpenHashMap childIdToParentId = new IntIntOpenHashMap();
+        ObjectObjectHashMap<String, NavigableMap<String, Float>> parentValueToChildIds = new ObjectObjectHashMap<>();
+        IntIntHashMap childIdToParentId = new IntIntHashMap();
         for (int parentDocId = 0; parentDocId < numParentDocs; parentDocId++) {
             boolean markParentAsDeleted = rarely();
             String parentValue = parentValues[random().nextInt(parentValues.length)];
@@ -153,10 +153,8 @@ public class ParentQueryTests extends AbstractChildTests {
                 indexWriter.addDocument(document);
 
                 if (!markParentAsDeleted) {
-                    NavigableMap<String, Float> childIdToScore;
-                    if (parentValueToChildIds.containsKey(parentValue)) {
-                        childIdToScore = parentValueToChildIds.lget();
-                    } else {
+                    NavigableMap<String, Float> childIdToScore = parentValueToChildIds.getOrDefault(parentValue, null);
+                    if (childIdToScore == null) {
                         parentValueToChildIds.put(parentValue, childIdToScore = new TreeMap<>());
                     }
                     if (!markChildAsDeleted && !filterMe) {
@@ -226,7 +224,7 @@ public class ParentQueryTests extends AbstractChildTests {
                 final FloatArrayList[] scores = new FloatArrayList[slowLeafReader.maxDoc()];
                 Terms terms = slowLeafReader.terms(UidFieldMapper.NAME);
                 if (terms != null) {
-                    NavigableMap<String, Float> childIdsAndScore = parentValueToChildIds.lget();
+                    NavigableMap<String, Float> childIdsAndScore = parentValueToChildIds.get(parentValue);
                     TermsEnum termsEnum = terms.iterator();
                     PostingsEnum docsEnum = null;
                     for (Map.Entry<String, Float> entry : childIdsAndScore.entrySet()) {

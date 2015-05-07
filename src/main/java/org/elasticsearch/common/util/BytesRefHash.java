@@ -19,7 +19,8 @@
 
 package org.elasticsearch.common.util;
 
-import com.carrotsearch.hppc.hash.MurmurHash3;
+import com.carrotsearch.hppc.BitMixer;
+
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
@@ -56,7 +57,7 @@ public final class BytesRefHash extends AbstractHash {
     // BytesRef has a weak hashCode function so we try to improve it by rehashing using Murmur3
     // Feel free to remove rehashing if BytesRef gets a better hash function
     private static int rehash(int hash) {
-        return MurmurHash3.hash(hash);
+        return BitMixer.mix32(hash);
     }
 
     /**

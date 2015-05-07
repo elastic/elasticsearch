@@ -10,11 +10,12 @@ package org.elasticsearch.watcher;
  */
 public class WatcherSettingsException extends WatcherException {
 
-    public WatcherSettingsException(String msg, Throwable cause) {
-        super(msg, cause);
+    public WatcherSettingsException(String msg, Object... args) {
+        super(msg, args);
     }
 
-    public WatcherSettingsException(String msg) {
-        super(msg);
+    public WatcherSettingsException(String msg, Throwable cause, Object... args) {
+        super(msg, cause, args);
     }
+
 }

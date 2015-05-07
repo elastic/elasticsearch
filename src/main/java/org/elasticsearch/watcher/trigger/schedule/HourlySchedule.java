@@ -99,6 +99,8 @@ public class HourlySchedule extends CronnableSchedule {
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
+                } else if (currentFieldName == null) {
+                    throw new WatcherSettingsException("could not parse [{}] schedule. unexpected token [{}]", TYPE, token);
                 } else if (MINUTE_FIELD.match(currentFieldName)) {
                     if (token.isValue()) {
                         try {

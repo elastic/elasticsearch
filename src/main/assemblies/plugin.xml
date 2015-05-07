@@ -20,7 +20,6 @@
             <useTransitiveFiltering>true</useTransitiveFiltering>
             <includes>
                 <include>org.apache.lucene:lucene-analyzers-phonetic</include>
-                <include>commons-codec:commons-codec</include>
             </includes>
         </dependencySet>
     </dependencySets>

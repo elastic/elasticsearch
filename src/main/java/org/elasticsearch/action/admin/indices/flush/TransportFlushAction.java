@@ -96,6 +96,8 @@ public class TransportFlushAction extends TransportBroadcastOperationAction<Flus
     @Override
     protected ShardFlushResponse shardOperation(ShardFlushRequest request) {
         if (request.getRequest().syncFlush()) {
+            // TODO: This blocks until all shard copies have executed a flush and a synced flush
+            // Is that really ok?
             return syncedFlushService.attemptSyncedFlush(request.shardId());
         } else {
             IndexShard indexShard = indicesService.indexServiceSafe(request.shardId().getIndex()).shardSafe(request.shardId().id());

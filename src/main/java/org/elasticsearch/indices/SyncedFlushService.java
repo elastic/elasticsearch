@@ -80,8 +80,13 @@ public class SyncedFlushService extends AbstractComponent {
         this.clusterService = clusterService;
         this.transportService = transportService;
 
-        transportService.registerRequestHandler(PRE_SYNCED_FLUSH_ACTION_NAME, PreSyncedFlushRequest.class, ThreadPool.Names.FLUSH, new PreSyncedFlushTransportHandler());
-        transportService.registerRequestHandler(SYNCED_FLUSH_ACTION_NAME, SyncedFlushRequest.class, ThreadPool.Names.FLUSH, new SyncedFlushTransportHandler());
+        /** we run the pre sync flush and the synced flush in the generic thread pool and not in the flush thread pool.
+         the reason is that currently attemptSyncedFlush() can be triggered by the flush API. In this case we would run
+         into deadlocks if the FLUSH threadpool does not have enough slots for flush api and pre sync and sync flushes.
+         TODO: Is it actually a good idea to make synced flush api a parameter of the flush api?
+         **/
+        transportService.registerRequestHandler(PRE_SYNCED_FLUSH_ACTION_NAME, PreSyncedFlushRequest.class, ThreadPool.Names.GENERIC, new PreSyncedFlushTransportHandler());
+        transportService.registerRequestHandler(SYNCED_FLUSH_ACTION_NAME, SyncedFlushRequest.class, ThreadPool.Names.GENERIC, new SyncedFlushTransportHandler());
         transportService.registerRequestHandler(IN_FLIGHT_OPS_ACTION_NAME, InFlightOpsRequest.class, ThreadPool.Names.SAME, new InFlightOpCountTransportHandler());
         preSyncTimeout = settings.getAsTime(SETTING_PRE_SYNC_TIMEOUT, TimeValue.timeValueMinutes(5));
         syncTimeout = settings.getAsTime(SETTING_SYNC_TIMEOUT, TimeValue.timeValueMinutes(5));

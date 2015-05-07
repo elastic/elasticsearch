@@ -29,17 +29,24 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SyncedFlushService;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
 import static com.google.common.collect.Lists.newArrayList;
@@ -64,22 +71,42 @@ public class TransportFlushAction extends TransportBroadcastOperationAction<Flus
     protected FlushResponse newResponse(FlushRequest request, AtomicReferenceArray shardsResponses, ClusterState clusterState) {
         int successfulShards = 0;
         int failedShards = 0;
+        int numResponses = 0;
         List<ShardOperationFailedException> shardFailures = null;
-        for (int i = 0; i < shardsResponses.length(); i++) {
-            Object shardResponse = shardsResponses.get(i);
-            if (shardResponse == null) {
-                // a non active shard, ignore
-            } else if (shardResponse instanceof BroadcastShardOperationFailedException) {
-                failedShards++;
-                if (shardFailures == null) {
-                    shardFailures = newArrayList();
+        if (request.syncFlush() == false) {
+            for (int i = 0; i < shardsResponses.length(); i++) {
+                Object shardResponse = shardsResponses.get(i);
+                if (shardResponse == null) {
+                    // a non active shard, ignore
+                } else if (shardResponse instanceof BroadcastShardOperationFailedException) {
+                    failedShards++;
+                    if (shardFailures == null) {
+                        shardFailures = newArrayList();
+                    }
+                    shardFailures.add(new DefaultShardOperationFailedException((BroadcastShardOperationFailedException) shardResponse));
+                } else {
+                    successfulShards++;
                 }
-                shardFailures.add(new DefaultShardOperationFailedException((BroadcastShardOperationFailedException) shardResponse));
-            } else {
-                successfulShards++;
+            }
+            numResponses = shardsResponses.length();
+        } else {
+            // a shard response from a synced flush contains all responses from primary and copies so we must count differently here
+            for (int i = 0; i < shardsResponses.length(); i++) {
+                SyncedFlushService.SyncedFlushResult shardResponse = (SyncedFlushService.SyncedFlushResult) shardsResponses.get(i);
+                if (shardResponse.success()) {
+                    successfulShards += shardResponse.successfulShards();
+                    failedShards += shardResponse.shardResponses().size();
+                    for (Map.Entry<ShardRouting, SyncedFlushService.SyncedFlushResponse> entry : shardResponse.shardResponses().entrySet()) {
+                        if (entry.getValue().success() == false) {
+                            shardFailures.add(new SyncedFlushService.SyncFlushFailedException(entry.getKey().index(), entry.getKey().getId(), entry.getValue().failureReason()));
+                            failedShards++;
+                        }
+                        numResponses++;
+                    }
+                }
             }
         }
-        return new FlushResponse(shardsResponses.length(), successfulShards, failedShards, shardFailures);
+        return new FlushResponse(numResponses, successfulShards, failedShards, shardFailures);
     }
 
     @Override

@@ -38,11 +38,13 @@
           wait_for_status: green
 
   - do:
-    watcher.ack_watch:
-      id: "my_watch"
+      watcher.ack_watch:
+        id: "my_watch"
+
   - match: { "status.ack.state" : "awaits_execution" }
 
   - do:
-    watcher.delete_watch:
-      id: "my_watch"
+      watcher.delete_watch:
+        id: "my_watch"
+
   - match: { found: true }

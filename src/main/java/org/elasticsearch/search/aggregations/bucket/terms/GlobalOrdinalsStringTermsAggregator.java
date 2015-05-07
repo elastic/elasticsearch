@@ -58,7 +58,7 @@ import java.util.Map;
  */
 public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggregator {
 
-    protected final ValuesSource.Bytes.WithOrdinals.FieldData valuesSource;
+    protected final ValuesSource.Bytes.WithOrdinals valuesSource;
     protected final IncludeExclude.OrdinalsFilter includeExclude;
 
     // TODO: cache the acceptedglobalValues per aggregation definition.
@@ -71,7 +71,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
 
     protected RandomAccessOrds globalOrds;
 
-    public GlobalOrdinalsStringTermsAggregator(String name, AggregatorFactories factories, ValuesSource.Bytes.WithOrdinals.FieldData valuesSource,
+    public GlobalOrdinalsStringTermsAggregator(String name, AggregatorFactories factories, ValuesSource.Bytes.WithOrdinals valuesSource,
                                                Terms.Order order, BucketCountThresholds bucketCountThresholds,
                                                IncludeExclude.OrdinalsFilter includeExclude, AggregationContext aggregationContext, Aggregator parent, SubAggCollectionMode collectionMode, boolean showTermDocCountError, List<Reducer> reducers, Map<String, Object> metaData) throws IOException {
         super(name, factories, aggregationContext, parent, order, bucketCountThresholds, collectionMode, showTermDocCountError, reducers,
@@ -334,7 +334,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
 
         private RandomAccessOrds segmentOrds;
 
-        public LowCardinality(String name, AggregatorFactories factories, ValuesSource.Bytes.WithOrdinals.FieldData valuesSource,
+        public LowCardinality(String name, AggregatorFactories factories, ValuesSource.Bytes.WithOrdinals valuesSource,
                               Terms.Order order, BucketCountThresholds bucketCountThresholds, AggregationContext aggregationContext, Aggregator parent, SubAggCollectionMode collectionMode, boolean showTermDocCountError, List<Reducer> reducers, Map<String, Object> metaData) throws IOException {
             super(name, factories, valuesSource, order, bucketCountThresholds, null, aggregationContext, parent, collectionMode, showTermDocCountError, reducers, metaData);
             assert factories == null || factories.count() == 0;

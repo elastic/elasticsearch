@@ -145,7 +145,7 @@ public abstract class BaseQueryTestCase<QB extends BaseQueryBuilder & Streamable
             String contentString = testQuery.toString();
             XContentParser parser = XContentFactory.xContent(contentString).createParser(contentString);
             context.reset(parser);
-            assertQueryHeader(parser);
+            assertQueryHeader(parser, testQuery.parserName());
 
             QueryBuilder newQuery = queryParserService.queryParser(testQuery.parserName()).fromXContent(context);
             assertNotSame(newQuery, testQuery);
@@ -193,10 +193,10 @@ public abstract class BaseQueryTestCase<QB extends BaseQueryBuilder & Streamable
         return new QueryParseContext(index, queryParserService);
     }
 
-    private void assertQueryHeader(XContentParser parser) throws IOException {
+    private static void assertQueryHeader(XContentParser parser, String expectedParserName) throws IOException {
         assertThat(parser.nextToken(), is(XContentParser.Token.START_OBJECT));
         assertThat(parser.nextToken(), is(XContentParser.Token.FIELD_NAME));
-        assertThat(parser.currentName(), is(testQuery.parserName()));
+        assertThat(parser.currentName(), is(expectedParserName));
         assertThat(parser.nextToken(), is(XContentParser.Token.START_OBJECT));
     }
 }

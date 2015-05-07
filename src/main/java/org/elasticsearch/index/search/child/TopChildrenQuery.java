@@ -181,9 +181,14 @@ public class TopChildrenQuery extends IndexCacheableQuery {
                     // we found a match, add it and break
                     IntObjectHashMap<ParentDoc> readerParentDocs = parentDocsPerReader.get(indexReader.getCoreCacheKey());
                     if (readerParentDocs == null) {
-                        //The number of docs in the reader and in the query both upper bound the size of parentDocsPerReader
-                        int mapSize =  Math.min(indexReader.maxDoc(), context.from() + context.size());
-                        readerParentDocs = new IntObjectHashMap<>(mapSize);
+                        // TODO: this is the previous comment and code:
+                        // 
+                        // The number of docs in the reader and in the query both upper bound the size of parentDocsPerReader
+                        // Math.min(indexReader.maxDoc(), context.from() + context.size())
+                        //
+                        // but it turns out that context.from() + context.size() can be < 0, which leads to a negative
+                        // array bound? Leaving without any bound.
+                        readerParentDocs = new IntObjectHashMap<>();
                         parentDocsPerReader.put(indexReader.getCoreCacheKey(), readerParentDocs);
                     }
                     ParentDoc parentDoc = readerParentDocs.get(parentDocId);

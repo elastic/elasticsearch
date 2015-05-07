@@ -123,7 +123,7 @@ public class IdsQueryBuilder extends BaseQueryBuilder implements Streamable, Boo
         builder.startObject(IdsQueryParser.NAME);
         if (types != null) {
             if (types.size() == 1) {
-                builder.field("type", types.iterator().next());
+                builder.field("type", types.get(0));
             } else {
                 builder.startArray("types");
                 for (String type : types) {
@@ -177,19 +177,18 @@ public class IdsQueryBuilder extends BaseQueryBuilder implements Streamable, Boo
         return null;
     }
 
-    @SuppressWarnings("unchecked")
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        this.types = (List<String>) in.readGenericValue();
-        this.ids = (List<String>) in.readGenericValue();
+        this.types = in.readStringList();
+        this.ids = in.readStringList();
         queryName = in.readOptionalString();
         boost = in.readFloat();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeGenericValue(this.types);
-        out.writeGenericValue(this.ids);
+        out.writeStringList(this.types);
+        out.writeStringList(this.ids);
         out.writeOptionalString(queryName);
         out.writeFloat(boost);
     }

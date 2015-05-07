@@ -79,7 +79,12 @@ public class Security {
 
     private static final String PACKAGE_ACCESS_KEY = "package.access";
     private static final String PACKAGE_DEFINITION_KEY = "package.definition";
-    private static final String PROTECTED_PACKAGES = "org.apache.lucene.,org.elasticsearch.";
+    // protect packages we ship with: we are careful to not conflict with JDK packaging or protection rules
+    private static final String PROTECTED_PACKAGES = "org.," +
+                                                     "groovy.," +
+                                                     "com.sun.jna.," +
+                                                     "com.vividsolutions.," +
+                                                     "com.spatial4j.";
 
     /** Initializes additional protected packages */
     public static void addProtectedPackages() {

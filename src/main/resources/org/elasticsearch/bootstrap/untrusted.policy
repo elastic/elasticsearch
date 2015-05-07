@@ -20,6 +20,17 @@
 // security policy file for untrusted code like scripts.
 
 grant {
+  // groovy's own packages
+  permission java.lang.RuntimePermission "accessClassInPackage.groovy";
+  permission java.lang.RuntimePermission "accessClassInPackage.groovy.*";
+  permission java.lang.RuntimePermission "accessClassInPackage.org.codehaus.groovy";
+  permission java.lang.RuntimePermission "accessClassInPackage.org.codehaus.groovy.*";
+  permission java.lang.RuntimePermission "accessClassInPackage.org.w3c.dom";
+
+  // joda-time and shaded variant
+  permission java.lang.RuntimePermission "accessClassInPackage.org.joda.*";
+  permission java.lang.RuntimePermission "accessClassInPackage.org.elasticsearch.common.joda.*";
+
   // TODO: make single package with just minimal API for scripts!
 
   // TODO: try to minimize this package
@@ -33,4 +44,8 @@ grant {
   permission java.lang.RuntimePermission "accessClassInPackage.org.elasticsearch.common.geo";
   permission java.lang.RuntimePermission "accessClassInPackage.org.elasticsearch.common.unit";
   permission java.lang.RuntimePermission "accessClassInPackage.org.apache.lucene.util";
+
+  // WTF and shaded variant
+  permission java.lang.RuntimePermission "accessClassInPackage.org.jboss.netty.buffer";
+  permission java.lang.RuntimePermission "accessClassInPackage.org.elasticsearch.common.netty.buffer";
 };

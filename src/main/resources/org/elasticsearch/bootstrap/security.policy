@@ -87,16 +87,31 @@ grant {
   // needed by groovy engine
   permission java.lang.RuntimePermission "accessClassInPackage.sun.reflect";
   
-  // full access to lucene/elasticsearch by our own code (we protect these packages)
-  permission java.lang.RuntimePermission "accessClassInPackage.org.apache.lucene";
-  permission java.lang.RuntimePermission "accessClassInPackage.org.apache.lucene.*";
-  permission java.lang.RuntimePermission "accessClassInPackage.org.elasticsearch";
-  permission java.lang.RuntimePermission "accessClassInPackage.org.elasticsearch.*";
-  // TODO: can we reduce/remove this (no tests fail), but beef up plugin loading tests first.
-  permission java.lang.RuntimePermission "defineClassInPackage.org.apache.lucene";
-  permission java.lang.RuntimePermission "defineClassInPackage.org.apache.lucene.*";
-  permission java.lang.RuntimePermission "defineClassInPackage.org.elasticsearch";
-  permission java.lang.RuntimePermission "defineClassInPackage.org.elasticsearch.*";
+  // full access to classpath by our own code (we protect all packages we ship with)
+  permission java.lang.RuntimePermission "accessClassInPackage.org";
+  permission java.lang.RuntimePermission "defineClassInPackage.org";
+  permission java.lang.RuntimePermission "accessClassInPackage.org.*";
+  permission java.lang.RuntimePermission "defineClassInPackage.org.*";
+
+  permission java.lang.RuntimePermission "accessClassInPackage.groovy";
+  permission java.lang.RuntimePermission "defineClassInPackage.groovy";
+  permission java.lang.RuntimePermission "accessClassInPackage.groovy.*";
+  permission java.lang.RuntimePermission "defineClassInPackage.groovy.*";
+
+  permission java.lang.RuntimePermission "accessClassInPackage.com.sun.jna";
+  permission java.lang.RuntimePermission "defineClassInPackage.com.sun.jna";
+  permission java.lang.RuntimePermission "accessClassInPackage.com.sun.jna.*";
+  permission java.lang.RuntimePermission "defineClassInPackage.com.sun.jna.*";
+
+  permission java.lang.RuntimePermission "accessClassInPackage.com.vividsolutions";
+  permission java.lang.RuntimePermission "defineClassInPackage.com.vividsolutions";
+  permission java.lang.RuntimePermission "accessClassInPackage.com.vividsolutions.*";
+  permission java.lang.RuntimePermission "defineClassInPackage.com.vividsolutions.*";
+
+  permission java.lang.RuntimePermission "accessClassInPackage.com.spatial4j";
+  permission java.lang.RuntimePermission "defineClassInPackage.com.spatial4j";
+  permission java.lang.RuntimePermission "accessClassInPackage.com.spatial4j.*";
+  permission java.lang.RuntimePermission "defineClassInPackage.com.spatial4j.*";
 
   permission java.lang.RuntimePermission "accessDeclaredMembers";
   permission java.lang.RuntimePermission "getStackTrace";

@@ -22,11 +22,9 @@ package org.elasticsearch.index.mapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 
-/**
- *
- */
 public abstract class ObjectMapperListener {
 
     public static class Aggregator extends ObjectMapperListener {
@@ -40,7 +38,7 @@ public abstract class ObjectMapperListener {
 
     public abstract void objectMapper(ObjectMapper objectMapper);
 
-    public void objectMappers(ObjectMapper... objectMappers) {
+    public void objectMappers(Collection<ObjectMapper> objectMappers) {
         for (ObjectMapper objectMapper : objectMappers) {
             objectMapper(objectMapper);
         }

@@ -89,17 +89,9 @@ public class BooleanFieldMapperTests extends ElasticsearchSingleNodeTest {
                 .endObject().endObject().string();
 
         DocumentMapper defaultMapper = parser.parse(mapping);
-        final FieldMapper<?>[] mapper = new BooleanFieldMapper[1];
-        defaultMapper.root().traverse(new FieldMapperListener() {
-            @Override
-            public void fieldMapper(FieldMapper<?> fieldMapper) {
-                if (fieldMapper.name().equals("field")) {
-                    mapper[0] = fieldMapper;
-                }
-            }
-        });
+        FieldMapper<?> mapper = defaultMapper.mappers().getMapper("field");
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
-        mapper[0].toXContent(builder, ToXContent.EMPTY_PARAMS);
+        mapper.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
         assertEquals("{\"field\":{\"type\":\"boolean\"}}", builder.string());
 
@@ -113,16 +105,9 @@ public class BooleanFieldMapperTests extends ElasticsearchSingleNodeTest {
                 .endObject().endObject().string();
 
         defaultMapper = parser.parse(mapping);
-        defaultMapper.root().traverse(new FieldMapperListener() {
-            @Override
-            public void fieldMapper(FieldMapper<?> fieldMapper) {
-                if (fieldMapper.name().equals("field")) {
-                    mapper[0] = fieldMapper;
-                }
-            }
-        });
+        mapper = defaultMapper.mappers().getMapper("field");
         builder = XContentFactory.jsonBuilder().startObject();
-        mapper[0].toXContent(builder, ToXContent.EMPTY_PARAMS);
+        mapper.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
         assertEquals("{\"field\":{\"type\":\"boolean\",\"doc_values\":false,\"null_value\":true}}", builder.string());
     }

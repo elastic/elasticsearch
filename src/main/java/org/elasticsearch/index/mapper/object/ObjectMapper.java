@@ -36,10 +36,12 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldMapperListener;
 import org.elasticsearch.index.mapper.InternalMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.MapperUtils;
 import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.ObjectMapperListener;
@@ -468,18 +470,8 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll, Clonea
     }
 
     @Override
-    public void traverse(FieldMapperListener fieldMapperListener) {
-        for (Mapper mapper : mappers.values()) {
-            mapper.traverse(fieldMapperListener);
-        }
-    }
-
-    @Override
-    public void traverse(ObjectMapperListener objectMapperListener) {
-        objectMapperListener.objectMapper(this);
-        for (Mapper mapper : mappers.values()) {
-            mapper.traverse(objectMapperListener);
-        }
+    public Iterator<Mapper> iterator() {
+        return mappers.values().iterator();
     }
 
     public String fullPath() {
@@ -523,27 +515,26 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll, Clonea
         doMerge(mergeWithObject, mergeResult);
 
         List<Mapper> mappersToPut = new ArrayList<>();
-        FieldMapperListener.Aggregator newFieldMappers = new FieldMapperListener.Aggregator();
-        ObjectMapperListener.Aggregator newObjectMappers = new ObjectMapperListener.Aggregator();
-        for (Mapper mapper : mergeWithObject.mappers.values()) {
+        List<ObjectMapper> newObjectMappers = new ArrayList<>();
+        List<FieldMapper<?>> newFieldMappers = new ArrayList<>();
+        for (Mapper mapper : mergeWithObject) {
             Mapper mergeWithMapper = mapper;
             Mapper mergeIntoMapper = mappers.get(mergeWithMapper.name());
             if (mergeIntoMapper == null) {
                 // no mapping, simply add it if not simulating
                 if (!mergeResult.simulate()) {
                     mappersToPut.add(mergeWithMapper);
-                    mergeWithMapper.traverse(newFieldMappers);
-                    mergeWithMapper.traverse(newObjectMappers);
+                    MapperUtils.collect(mergeWithMapper, newObjectMappers, newFieldMappers);
                 }
             } else {
                 mergeIntoMapper.merge(mergeWithMapper, mergeResult);
             }
         }
-        if (!newFieldMappers.mappers.isEmpty()) {
-            mergeResult.addFieldMappers(newFieldMappers.mappers);
+        if (!newFieldMappers.isEmpty()) {
+            mergeResult.addFieldMappers(newFieldMappers);
         }
-        if (!newObjectMappers.mappers.isEmpty()) {
-            mergeResult.addObjectMappers(newObjectMappers.mappers);
+        if (!newObjectMappers.isEmpty()) {
+            mergeResult.addObjectMappers(newObjectMappers);
         }
         // add the mappers only after the administration have been done, so it will not be visible to parser (which first try to read with no lock)
         for (Mapper mapper : mappersToPut) {

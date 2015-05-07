@@ -61,6 +61,7 @@ import org.elasticsearch.percolator.PercolatorService;
 import org.elasticsearch.script.ScriptService;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -265,14 +266,17 @@ public class MapperService extends AbstractIndexComponent  {
                 fieldDataService.onMappingUpdate();
                 return oldMapper;
             } else {
-                FieldMapperListener.Aggregator fieldMappersAgg = new FieldMapperListener.Aggregator();
-                mapper.traverse(fieldMappersAgg);
-                addFieldMappers(fieldMappersAgg.mappers);
+                List<ObjectMapper> newObjectMappers = new ArrayList<>();
+                List<FieldMapper<?>> newFieldMappers = new ArrayList<>();
+                for (RootMapper rootMapper : mapper.mapping().rootMappers) {
+                    if (!rootMapper.includeInObject() && rootMapper instanceof FieldMapper) {
+                        newFieldMappers.add((FieldMapper<?>) rootMapper);
+                    }
+                }
+                MapperUtils.collect(mapper.mapping().root, newObjectMappers, newFieldMappers);
+                addFieldMappers(newFieldMappers);
                 mapper.addFieldMapperListener(fieldMapperListener);
-
-                ObjectMapperListener.Aggregator objectMappersAgg = new ObjectMapperListener.Aggregator();
-                mapper.traverse(objectMappersAgg);
-                addObjectMappers(objectMappersAgg.mappers.toArray(new ObjectMapper[objectMappersAgg.mappers.size()]));
+                addObjectMappers(newObjectMappers);
                 mapper.addObjectMapperListener(objectMapperListener);
 
                 for (DocumentTypeListener typeListener : typeListeners) {
@@ -284,7 +288,7 @@ public class MapperService extends AbstractIndexComponent  {
         }
     }
 
-    private void addObjectMappers(ObjectMapper[] objectMappers) {
+    private void addObjectMappers(Collection<ObjectMapper> objectMappers) {
         synchronized (mappersMutex) {
             ImmutableOpenMap.Builder<String, ObjectMappers> fullPathObjectMappers = ImmutableOpenMap.builder(this.fullPathObjectMappers);
             for (ObjectMapper objectMapper : objectMappers) {
@@ -860,11 +864,11 @@ public class MapperService extends AbstractIndexComponent  {
     class InternalObjectMapperListener extends ObjectMapperListener {
         @Override
         public void objectMapper(ObjectMapper objectMapper) {
-            addObjectMappers(new ObjectMapper[]{objectMapper});
+            addObjectMappers(Collections.singletonList(objectMapper));
         }
 
         @Override
-        public void objectMappers(ObjectMapper... objectMappers) {
+        public void objectMappers(Collection<ObjectMapper> objectMappers) {
             addObjectMappers(objectMappers);
         }
     }

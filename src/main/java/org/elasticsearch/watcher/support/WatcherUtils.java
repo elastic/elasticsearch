@@ -189,7 +189,7 @@ public final class WatcherUtils {
                                 throw new SearchRequestParseException("could not read search request. unexpected template field [" + currentFieldName + "]");
                             }
                         } else if (token == XContentParser.Token.START_OBJECT) {
-                            if (TEMPLATE_TYPE_FIELD.getPreferredName().equals(currentFieldName)) {
+                            if (TEMPLATE_PARAMS_FIELD.getPreferredName().equals(currentFieldName)) {
                                 searchRequest.templateParams(flattenModel(parser.map()));
                             }
                         } else {

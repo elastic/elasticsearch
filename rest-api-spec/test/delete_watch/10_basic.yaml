@@ -33,11 +33,11 @@
                   "doc_type": "test2"
                 }
               }
-            } 
+            }
           }
   - match: { _id: "my_watch" }
 
   - do:
-    watcher.delete_watch:
-      id: "my_watch"
+      watcher.delete_watch:
+        id: "my_watch"
   - match: { found: true }

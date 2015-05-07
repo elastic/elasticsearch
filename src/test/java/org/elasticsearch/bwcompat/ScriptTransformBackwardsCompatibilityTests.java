@@ -20,6 +20,7 @@
 package org.elasticsearch.bwcompat;
 
 import com.google.common.collect.ImmutableMap;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -40,6 +41,8 @@ public class ScriptTransformBackwardsCompatibilityTests extends ElasticsearchBac
 
     @Test
     public void testTransformWithNoLangSpecified() throws Exception {
+        // Source transforms were added in 1.3.0 so only run the test if the compatibility version is on or after v1.3.0
+        if (compatibilityVersion().onOrAfter(Version.V_1_3_0)) {
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
         builder.field("transform");
         if (getRandom().nextBoolean()) {
@@ -66,9 +69,9 @@ public class ScriptTransformBackwardsCompatibilityTests extends ElasticsearchBac
         }
         assertAcked(client().admin().indices().prepareCreate("test").addMapping("test", builder));
 
-        indexRandom(getRandom().nextBoolean(), client().prepareIndex("test", "test", "notitle").setSource("content", "findme"), client()
-                .prepareIndex("test", "test", "badtitle").setSource("content", "findme", "title", "cat"),
-                client().prepareIndex("test", "test", "righttitle").setSource("content", "findme", "title", "table"));
+            indexRandom(getRandom().nextBoolean(), client().prepareIndex("test", "test", "notitle").setSource("content", "findme"),
+                    client().prepareIndex("test", "test", "badtitle").setSource("content", "findme", "title", "cat"), client()
+                            .prepareIndex("test", "test", "righttitle").setSource("content", "findme", "title", "table"));
         GetResponse response = client().prepareGet("test", "test", "righttitle").get();
         assertExists(response);
         assertThat(response.getSource(), both(hasEntry("content", (Object) "findme")).and(not(hasKey("destination"))));
@@ -76,6 +79,10 @@ public class ScriptTransformBackwardsCompatibilityTests extends ElasticsearchBac
         response = client().prepareGet("test", "test", "righttitle").setTransformSource(true).get();
         assertExists(response);
         assertThat(response.getSource(), both(hasEntry("destination", (Object) "findme")).and(not(hasKey("content"))));
+        } else {
+            logger.debug("Skipping test since source transform was added in " + Version.V_1_3_0.toString()
+                    + "and compatibility version is " + compatibilityVersion().toString());
+        }
     }
 
     private void buildTransformScript(XContentBuilder builder) throws IOException {

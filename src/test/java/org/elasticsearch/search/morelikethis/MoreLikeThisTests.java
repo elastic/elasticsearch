@@ -299,16 +299,16 @@ public class MoreLikeThisTests extends ElasticsearchIntegrationTest {
 
         logger.info("Running More Like This with include true");
         SearchResponse response = client().prepareSearch().setQuery(
-                new MoreLikeThisQueryBuilder().addItem(new Item("test", "type1", "1")).minTermFreq(1).minDocFreq(1).include(true).percentTermsToMatch(0)).get();
+                new MoreLikeThisQueryBuilder().addItem(new Item("test", "type1", "1")).minTermFreq(1).minDocFreq(1).include(true).minimumShouldMatch("0%")).get();
         assertOrderedSearchHits(response, "1", "2");
 
         response = client().prepareSearch().setQuery(
-                new MoreLikeThisQueryBuilder().addItem(new Item("test", "type1", "2")).minTermFreq(1).minDocFreq(1).include(true).percentTermsToMatch(0)).get();
+                new MoreLikeThisQueryBuilder().addItem(new Item("test", "type1", "2")).minTermFreq(1).minDocFreq(1).include(true).minimumShouldMatch("0%")).get();
         assertOrderedSearchHits(response, "2", "1");
 
         logger.info("Running More Like This with include false");
         response = client().prepareSearch().setQuery(
-                new MoreLikeThisQueryBuilder().addItem(new Item("test", "type1", "1")).minTermFreq(1).minDocFreq(1).percentTermsToMatch(0)).get();
+                new MoreLikeThisQueryBuilder().addItem(new Item("test", "type1", "1")).minTermFreq(1).minDocFreq(1).minimumShouldMatch("0%")).get();
         assertSearchHits(response, "2");
     }
 
@@ -394,7 +394,7 @@ public class MoreLikeThisTests extends ElasticsearchIntegrationTest {
             int max_query_terms = randomIntBetween(1, values.length);
             logger.info("Running More Like This with max_query_terms = %s", max_query_terms);
             MoreLikeThisQueryBuilder mltQuery = moreLikeThisQuery("text").ids("0").minTermFreq(1).minDocFreq(1)
-                    .maxQueryTerms(max_query_terms).percentTermsToMatch(0);
+                    .maxQueryTerms(max_query_terms).minimumShouldMatch("0%");
             SearchResponse response = client().prepareSearch("test").setTypes("type1")
                     .setQuery(mltQuery).execute().actionGet();
             assertSearchResponse(response);
@@ -493,7 +493,7 @@ public class MoreLikeThisTests extends ElasticsearchIntegrationTest {
                 .docs((Item) new Item().doc(malformedFieldDoc).index("test").type("type1"))
                 .minTermFreq(0)
                 .minDocFreq(0)
-                .percentTermsToMatch(0);
+                .minimumShouldMatch("0%");
         SearchResponse response = client().prepareSearch("test").setTypes("type1")
                 .setQuery(mltQuery).get();
         assertSearchResponse(response);
@@ -505,7 +505,7 @@ public class MoreLikeThisTests extends ElasticsearchIntegrationTest {
                 .docs((Item) new Item().doc(emptyDoc).index("test").type("type1"))
                 .minTermFreq(0)
                 .minDocFreq(0)
-                .percentTermsToMatch(0);
+                .minimumShouldMatch("0%");
         response = client().prepareSearch("test").setTypes("type1")
                 .setQuery(mltQuery).get();
         assertSearchResponse(response);
@@ -517,7 +517,7 @@ public class MoreLikeThisTests extends ElasticsearchIntegrationTest {
                 .docs((Item) new Item().doc(malformedDoc).index("test").type("type1"))
                 .minTermFreq(0)
                 .minDocFreq(0)
-                .percentTermsToMatch(0);
+                .minimumShouldMatch("0%");
         response = client().prepareSearch("test").setTypes("type1")
                 .setQuery(mltQuery).get();
         assertSearchResponse(response);
@@ -533,7 +533,7 @@ public class MoreLikeThisTests extends ElasticsearchIntegrationTest {
                 .docs((Item) new Item().doc(normalDoc).index("test").type("type1"))
                 .minTermFreq(0)
                 .minDocFreq(0)
-                .percentTermsToMatch(1);  // strict all terms must match but date is ignored
+                .minimumShouldMatch("100%");  // strict all terms must match but date is ignored
         response = client().prepareSearch("test").setTypes("type1")
                 .setQuery(mltQuery).get();
         assertSearchResponse(response);

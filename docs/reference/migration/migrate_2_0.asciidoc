@@ -29,6 +29,9 @@ Partial fields were deprecated since 1.0.0beta1 in favor of <<search-request-sou
 The More Like This API and the More Like This Field query have been removed in
 favor of the <<query-dsl-mlt-query, More Like This Query>>.
 
+The parameter `percent_terms_to_match` has been removed in favor of
+`minimum_should_match`.
+
 === Routing
 
 The default hash function that is used for routing has been changed from djb2 to

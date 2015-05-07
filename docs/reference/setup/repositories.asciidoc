@@ -91,6 +91,9 @@ yum install elasticsearch
 Configure Elasticsearch to automatically start during bootup. If your
 distribution is using SysV init, then you will need to run:
 
+WARNING: The repositories do not work with older rpm based distributions
+         that still use RPM v3, like CentOS5.
+
 [source,sh]
 --------------------------------------------------
 chkconfig --add elasticsearch

@@ -57,11 +57,13 @@ public class IdsQueryParser extends BaseQueryParser {
 
         String currentFieldName = null;
         XContentParser.Token token;
+        boolean idsProvided = false;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if ("values".equals(currentFieldName)) {
+                    idsProvided = true;
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         if ((token == XContentParser.Token.VALUE_STRING) ||
                                 (token == XContentParser.Token.VALUE_NUMBER)) {
@@ -98,9 +100,10 @@ public class IdsQueryParser extends BaseQueryParser {
                 }
             }
         }
-        if (ids.isEmpty()) {
+        if (!idsProvided) {
             throw new QueryParsingException(parseContext, "[ids] query, no ids values provided");
         }
+
         IdsQueryBuilder query = new IdsQueryBuilder(types.toArray(new String[types.size()]));
         query.addIds(ids.toArray(new String[ids.size()]));
         query.boost(boost).queryName(queryName);

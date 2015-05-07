@@ -193,7 +193,7 @@ public abstract class BaseQueryTestCase<QB extends BaseQueryBuilder & Streamable
         return new QueryParseContext(index, queryParserService);
     }
 
-    private static void assertQueryHeader(XContentParser parser, String expectedParserName) throws IOException {
+    protected static void assertQueryHeader(XContentParser parser, String expectedParserName) throws IOException {
         assertThat(parser.nextToken(), is(XContentParser.Token.START_OBJECT));
         assertThat(parser.nextToken(), is(XContentParser.Token.FIELD_NAME));
         assertThat(parser.currentName(), is(expectedParserName));

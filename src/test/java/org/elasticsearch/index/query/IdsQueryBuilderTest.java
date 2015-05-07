@@ -23,7 +23,10 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.queries.TermsQuery;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
+import org.junit.Test;
 
 import java.io.IOException;
 
@@ -31,6 +34,20 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 public class IdsQueryBuilderTest extends BaseQueryTestCase<IdsQueryBuilder> {
+
+    /**
+     * check that parser throws exception on missing values field
+     * @throws IOException
+     */
+    @Test(expected=QueryParsingException.class)
+    public void idsNotProvided() throws IOException {
+        String noIdsFieldQuery = "{\"ids\" : { \"type\" : \"my_type\"  }";
+        XContentParser parser = XContentFactory.xContent(noIdsFieldQuery).createParser(noIdsFieldQuery);
+        QueryParseContext context = createContext();
+        context.reset(parser);
+        assertQueryHeader(parser, "ids");
+        context.indexQueryParserService().queryParser("ids").fromXContent(context);
+    }
 
     @Override
     protected IdsQueryBuilder createEmptyQueryBuilder() {

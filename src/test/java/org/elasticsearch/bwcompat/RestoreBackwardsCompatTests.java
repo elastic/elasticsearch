@@ -26,11 +26,11 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
-import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.AbstractSnapshotTests;
 import org.elasticsearch.snapshots.RestoreInfo;
+import org.elasticsearch.snapshots.SnapshotRestoreException;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import org.junit.Test;
@@ -41,7 +41,6 @@ import java.net.URI;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.List;
 import java.util.Locale;
 import java.util.SortedSet;
@@ -55,7 +54,6 @@ import static org.hamcrest.Matchers.*;
 @ClusterScope(scope = Scope.TEST)
 public class RestoreBackwardsCompatTests extends AbstractSnapshotTests {
 
-
     @Test
     public void restoreOldSnapshots() throws Exception {
         String repo = "test_repo";
@@ -63,7 +61,7 @@ public class RestoreBackwardsCompatTests extends AbstractSnapshotTests {
         List<String> repoVersions = repoVersions();
         assertThat(repoVersions.size(), greaterThan(0));
         for (String version : repoVersions) {
-            createRepo(version, repo);
+            createRepo("repo", version, repo);
             testOldSnapshot(version, repo, snapshot);
         }
 
@@ -93,13 +91,33 @@ public class RestoreBackwardsCompatTests extends AbstractSnapshotTests {
         }
     }
 
+    @Test
+    public void testRestoreUnsupportedSnapshots() throws Exception {
+        String repo = "test_repo";
+        String snapshot = "test_1";
+        List<String> repoVersions = unsupportedRepoVersions();
+        assertThat(repoVersions.size(), greaterThan(0));
+        for (String version : repoVersions) {
+            createRepo("unsupportedrepo", version, repo);
+            assertUnsupportedIndexFailsToRestore(repo, snapshot);
+        }
+    }
+
     private List<String> repoVersions() throws Exception {
+        return listRepoVersions("repo");
+    }
+
+    private List<String> unsupportedRepoVersions() throws Exception {
+        return listRepoVersions("unsupportedrepo");
+    }
+
+    private List<String> listRepoVersions(String prefix) throws Exception {
         List<String> repoVersions = newArrayList();
         Path repoFiles = getDataPath(".");
-        try (DirectoryStream<Path> stream = Files.newDirectoryStream(repoFiles, "repo-*.zip")) {
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(repoFiles, prefix + "-*.zip")) {
             for (Path entry : stream) {
                 String fileName = entry.getFileName().toString();
-                String version = fileName.substring("repo-".length());
+                String version = fileName.substring(prefix.length() + 1);
                 version = version.substring(0, version.length() - ".zip".length());
                 repoVersions.add(version);
             }
@@ -107,8 +125,8 @@ public class RestoreBackwardsCompatTests extends AbstractSnapshotTests {
         return repoVersions;
     }
 
-    private void createRepo(String version, String repo) throws Exception {
-        String repoFile = "repo-" + version + ".zip";
+    private void createRepo(String prefix, String version, String repo) throws Exception {
+        String repoFile = prefix + "-" + version + ".zip";
         URI repoFileUri = getClass().getResource(repoFile).toURI();
         URI repoJarUri = new URI("jar:" + repoFileUri.toString() + "!/repo/");
         logger.info("-->  creating repository [{}] for version [{}]", repo, version);
@@ -155,6 +173,17 @@ public class RestoreBackwardsCompatTests extends AbstractSnapshotTests {
         cluster().wipeIndices(restoreInfo.indices().toArray(new String[restoreInfo.indices().size()]));
         cluster().wipeTemplates();
 
+    }
+
+    private void assertUnsupportedIndexFailsToRestore(String repo, String snapshot) throws IOException {
+        logger.info("--> restoring unsupported snapshot");
+        try {
+            client().admin().cluster().prepareRestoreSnapshot(repo, snapshot).setRestoreGlobalState(true).setWaitForCompletion(true).get();
+            fail("should have failed to restore");
+        } catch (SnapshotRestoreException ex) {
+            assertThat(ex.getMessage(), containsString("cannot restore index"));
+            assertThat(ex.getMessage(), containsString("because it cannot be upgraded"));
+        }
     }
 }
 

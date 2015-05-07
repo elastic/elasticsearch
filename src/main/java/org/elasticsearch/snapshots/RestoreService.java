@@ -116,11 +116,14 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
 
     private final DynamicSettings dynamicSettings;
 
+    private final MetaDataIndexUpgradeService metaDataIndexUpgradeService;
+
     private final CopyOnWriteArrayList<ActionListener<RestoreCompletionResponse>> listeners = new CopyOnWriteArrayList<>();
 
     @Inject
     public RestoreService(Settings settings, ClusterService clusterService, RepositoriesService repositoriesService, TransportService transportService,
-                          AllocationService allocationService, MetaDataCreateIndexService createIndexService, @ClusterDynamicSettings DynamicSettings dynamicSettings) {
+                          AllocationService allocationService, MetaDataCreateIndexService createIndexService, @ClusterDynamicSettings DynamicSettings dynamicSettings,
+                          MetaDataIndexUpgradeService metaDataIndexUpgradeService) {
         super(settings);
         this.clusterService = clusterService;
         this.repositoriesService = repositoriesService;
@@ -128,6 +131,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
         this.allocationService = allocationService;
         this.createIndexService = createIndexService;
         this.dynamicSettings = dynamicSettings;
+        this.metaDataIndexUpgradeService = metaDataIndexUpgradeService;
         transportService.registerRequestHandler(UPDATE_RESTORE_ACTION_NAME, UpdateIndexShardRestoreStatusRequest.class, ThreadPool.Names.SAME, new UpdateRestoreStateRequestHandler());
         clusterService.add(this);
     }
@@ -183,6 +187,11 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
                             String renamedIndex = indexEntry.getKey();
                             IndexMetaData snapshotIndexMetaData = metaData.index(index);
                             snapshotIndexMetaData = updateIndexSettings(snapshotIndexMetaData, request.indexSettings, request.ignoreIndexSettings);
+                            try {
+                                snapshotIndexMetaData = metaDataIndexUpgradeService.upgradeIndexMetaData(snapshotIndexMetaData);
+                            } catch (Exception ex) {
+                                throw new SnapshotRestoreException(snapshotId, "cannot restore index [" + index + "] because it cannot be upgraded", ex);
+                            }
                             // Check that the index is closed or doesn't exist
                             IndexMetaData currentIndexMetaData = currentState.metaData().index(renamedIndex);
                             IntSet ignoreShards = new IntHashSet();

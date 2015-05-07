@@ -21,6 +21,7 @@ package org.elasticsearch.indices;
 
 import com.google.common.collect.ImmutableList;
 import org.elasticsearch.action.update.UpdateHelper;
+import org.elasticsearch.cluster.metadata.MetaDataIndexUpgradeService;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.inject.SpawnModules;
@@ -76,6 +77,7 @@ public class IndicesModule extends AbstractModule implements SpawnModules {
         bind(IndicesTTLService.class).asEagerSingleton();
         bind(IndicesWarmer.class).asEagerSingleton();
         bind(UpdateHelper.class).asEagerSingleton();
+        bind(MetaDataIndexUpgradeService.class).asEagerSingleton();
 
         bind(IndicesFieldDataCacheListener.class).asEagerSingleton();
     }

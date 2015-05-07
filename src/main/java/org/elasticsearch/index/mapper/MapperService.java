@@ -104,9 +104,6 @@ public class MapperService extends AbstractIndexComponent  {
 
     private final DocumentMapperParser documentParser;
 
-    private final InternalFieldMapperListener fieldMapperListener = new InternalFieldMapperListener();
-    private final InternalObjectMapperListener objectMapperListener = new InternalObjectMapperListener();
-
     private final SmartIndexNameSearchAnalyzer searchAnalyzer;
     private final SmartIndexNameSearchQuoteAnalyzer searchQuoteAnalyzer;
 
@@ -122,7 +119,7 @@ public class MapperService extends AbstractIndexComponent  {
         this.analysisService = analysisService;
         this.fieldDataService = fieldDataService;
         this.fieldMappers = new FieldMappersLookup();
-        this.documentParser = new DocumentMapperParser(index, indexSettings, analysisService, similarityLookupService, scriptService);
+        this.documentParser = new DocumentMapperParser(index, indexSettings, this, analysisService, similarityLookupService, scriptService);
         this.searchAnalyzer = new SmartIndexNameSearchAnalyzer(analysisService.defaultSearchAnalyzer());
         this.searchQuoteAnalyzer = new SmartIndexNameSearchQuoteAnalyzer(analysisService.defaultSearchQuoteAnalyzer());
 
@@ -275,9 +272,7 @@ public class MapperService extends AbstractIndexComponent  {
                 }
                 MapperUtils.collect(mapper.mapping().root, newObjectMappers, newFieldMappers);
                 addFieldMappers(newFieldMappers);
-                mapper.addFieldMapperListener(fieldMapperListener);
                 addObjectMappers(newObjectMappers);
-                mapper.addObjectMapperListener(objectMapperListener);
 
                 for (DocumentTypeListener typeListener : typeListeners) {
                     typeListener.beforeCreate(mapper);
@@ -288,7 +283,7 @@ public class MapperService extends AbstractIndexComponent  {
         }
     }
 
-    private void addObjectMappers(Collection<ObjectMapper> objectMappers) {
+    protected void addObjectMappers(Collection<ObjectMapper> objectMappers) {
         synchronized (mappersMutex) {
             ImmutableOpenMap.Builder<String, ObjectMappers> fullPathObjectMappers = ImmutableOpenMap.builder(this.fullPathObjectMappers);
             for (ObjectMapper objectMapper : objectMappers) {
@@ -308,7 +303,7 @@ public class MapperService extends AbstractIndexComponent  {
         }
     }
 
-    private void addFieldMappers(Collection<FieldMapper<?>> fieldMappers) {
+    protected void addFieldMappers(Collection<FieldMapper<?>> fieldMappers) {
         synchronized (mappersMutex) {
             this.fieldMappers = this.fieldMappers.copyAndAddAll(fieldMappers);
         }
@@ -846,30 +841,6 @@ public class MapperService extends AbstractIndexComponent  {
                 return mappers.mapper().searchQuoteAnalyzer();
             }
             return defaultAnalyzer;
-        }
-    }
-
-    class InternalFieldMapperListener extends FieldMapperListener {
-        @Override
-        public void fieldMapper(FieldMapper<?> fieldMapper) {
-            addFieldMappers(Collections.<FieldMapper<?>>singletonList(fieldMapper));
-        }
-
-        @Override
-        public void fieldMappers(Collection<FieldMapper<?>> fieldMappers) {
-            addFieldMappers(fieldMappers);
-        }
-    }
-
-    class InternalObjectMapperListener extends ObjectMapperListener {
-        @Override
-        public void objectMapper(ObjectMapper objectMapper) {
-            addObjectMappers(Collections.singletonList(objectMapper));
-        }
-
-        @Override
-        public void objectMappers(Collection<ObjectMapper> objectMappers) {
-            addObjectMappers(objectMappers);
         }
     }
 }

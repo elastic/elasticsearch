@@ -158,11 +158,13 @@ public class DocumentMapper implements ToXContent {
             return this;
         }
 
-        public DocumentMapper build(DocumentMapperParser docMapperParser) {
+        public DocumentMapper build(MapperService mapperService, DocumentMapperParser docMapperParser) {
             Preconditions.checkNotNull(rootObjectMapper, "Mapper builder must have the root object mapper set");
-            return new DocumentMapper(index, indexSettings, docMapperParser, rootObjectMapper, meta, rootMappers, sourceTransforms);
+            return new DocumentMapper(mapperService, index, indexSettings, docMapperParser, rootObjectMapper, meta, rootMappers, sourceTransforms);
         }
     }
+
+    private final MapperService mapperService;
 
     private final String type;
     private final StringAndBytesText typeText;
@@ -177,20 +179,17 @@ public class DocumentMapper implements ToXContent {
 
     private volatile ImmutableMap<String, ObjectMapper> objectMappers = ImmutableMap.of();
 
-    private final List<FieldMapperListener> fieldMapperListeners = new CopyOnWriteArrayList<>();
-
-    private final List<ObjectMapperListener> objectMapperListeners = new CopyOnWriteArrayList<>();
-
     private boolean hasNestedObjects = false;
 
     private final Filter typeFilter;
 
     private final Object mappersMutex = new Object();
 
-    public DocumentMapper(String index, @Nullable Settings indexSettings, DocumentMapperParser docMapperParser,
+    public DocumentMapper(MapperService mapperService, String index, @Nullable Settings indexSettings, DocumentMapperParser docMapperParser,
                           RootObjectMapper rootObjectMapper,
                           ImmutableMap<String, Object> meta,
                           Map<Class<? extends RootMapper>, RootMapper> rootMappers, List<SourceTransform> sourceTransforms) {
+        this.mapperService = mapperService;
         this.type = rootObjectMapper.name();
         this.typeText = new StringAndBytesText(this.type);
         this.mapping = new Mapping(
@@ -414,13 +413,7 @@ public class DocumentMapper implements ToXContent {
         synchronized (mappersMutex) {
             this.fieldMappers = this.fieldMappers.copyAndAllAll(fieldMappers);
         }
-        for (FieldMapperListener listener : fieldMapperListeners) {
-            listener.fieldMappers(fieldMappers);
-        }
-    }
-
-    public void addFieldMapperListener(FieldMapperListener fieldMapperListener) {
-        fieldMapperListeners.add(fieldMapperListener);
+        mapperService.addFieldMappers(fieldMappers);
     }
 
     private void addObjectMappers(Collection<ObjectMapper> objectMappers) {
@@ -434,30 +427,36 @@ public class DocumentMapper implements ToXContent {
             }
             this.objectMappers = builder.immutableMap();
         }
-        for (ObjectMapperListener objectMapperListener : objectMapperListeners) {
-            objectMapperListener.objectMappers(objectMappers);
-        }
-    }
-
-    public void addObjectMapperListener(ObjectMapperListener objectMapperListener) {
-        objectMapperListeners.add(objectMapperListener);
+        mapperService.addObjectMappers(objectMappers);
     }
 
     private MergeResult newMergeContext(boolean simulate) {
         return new MergeResult(simulate) {
 
-            List<String> conflicts = new ArrayList<>();
+            final List<String> conflicts = new ArrayList<>();
+            final List<FieldMapper<?>> newFieldMappers = new ArrayList<>();
+            final List<ObjectMapper> newObjectMappers = new ArrayList<>();
 
             @Override
             public void addFieldMappers(Collection<FieldMapper<?>> fieldMappers) {
                 assert simulate() == false;
-                DocumentMapper.this.addFieldMappers(fieldMappers);
+                newFieldMappers.addAll(fieldMappers);
             }
 
             @Override
             public void addObjectMappers(Collection<ObjectMapper> objectMappers) {
                 assert simulate() == false;
-                DocumentMapper.this.addObjectMappers(objectMappers);
+                newObjectMappers.addAll(objectMappers);
+            }
+
+            @Override
+            public Collection<FieldMapper<?>> getNewFieldMappers() {
+                return newFieldMappers;
+            }
+
+            @Override
+            public Collection<ObjectMapper> getNewObjectMappers() {
+                return newObjectMappers;
             }
 
             @Override
@@ -482,6 +481,8 @@ public class DocumentMapper implements ToXContent {
         final MergeResult mergeResult = newMergeContext(simulate);
         this.mapping.merge(mapping, mergeResult);
         if (simulate == false) {
+            addFieldMappers(mergeResult.getNewFieldMappers());
+            addObjectMappers(mergeResult.getNewObjectMappers());
             refreshSource();
         }
         return mergeResult;

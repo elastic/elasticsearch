@@ -29,7 +29,7 @@ import java.util.Collection;
 public enum MapperUtils {
     ;
 
-    private static MergeResult newStrictMergeContext() {
+    private static MergeResult newStrictMergeResult() {
         return new MergeResult(false) {
 
             @Override
@@ -43,13 +43,23 @@ public enum MapperUtils {
             }
 
             @Override
+            public void addFieldMappers(Collection<FieldMapper<?>> fieldMappers) {
+                // no-op
+            }
+
+            @Override
             public void addObjectMappers(Collection<ObjectMapper> objectMappers) {
                 // no-op
             }
 
             @Override
-            public void addFieldMappers(Collection<FieldMapper<?>> fieldMappers) {
-                // no-op
+            public Collection<FieldMapper<?>> getNewFieldMappers() {
+                throw new UnsupportedOperationException("Strict merge result does not support new field mappers");
+            }
+
+            @Override
+            public Collection<ObjectMapper> getNewObjectMappers() {
+                throw new UnsupportedOperationException("Strict merge result does not support new object mappers");
             }
 
             @Override
@@ -64,7 +74,7 @@ public enum MapperUtils {
      * merges mappings, not lookup structures. Conflicts are returned as exceptions.
      */
     public static void merge(Mapper mergeInto, Mapper mergeWith) {
-        mergeInto.merge(mergeWith, newStrictMergeContext());
+        mergeInto.merge(mergeWith, newStrictMergeResult());
     }
 
     /**
@@ -72,7 +82,7 @@ public enum MapperUtils {
      * merges mappings, not lookup structures. Conflicts are returned as exceptions.
      */
     public static void merge(Mapping mergeInto, Mapping mergeWith) {
-        mergeInto.merge(mergeWith, newStrictMergeContext());
+        mergeInto.merge(mergeWith, newStrictMergeResult());
     }
 
     /** Split mapper and its descendants into object and field mappers. */

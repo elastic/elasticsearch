@@ -51,27 +51,4 @@ public class ExecutableSearchTransform extends ExecutableTransform<SearchTransfo
         return new SearchTransform.Result(req, new Payload.XContent(resp));
     }
 
-    SearchRequest createRequest(SearchRequest requestPrototype, WatchExecutionContext ctx, Payload payload) throws IOException {
-        SearchRequest request = new SearchRequest(requestPrototype)
-                .indicesOptions(requestPrototype.indicesOptions())
-                .indices(requestPrototype.indices())
-                .searchType(requestPrototype.searchType());
-
-
-        if (Strings.hasLength(requestPrototype.source())) {
-            String requestSource = XContentHelper.convertToJson(requestPrototype.source(), false);
-            ExecutableScript script = scriptService.executable("mustache", requestSource, ScriptService.ScriptType.INLINE, createCtxModel(ctx, payload));
-            request.source((BytesReference) script.unwrap(script.run()), false);
-        } else if (requestPrototype.templateName() != null) {
-            MapBuilder<String, Object> templateParams = MapBuilder.newMapBuilder(requestPrototype.templateParams())
-                    .putAll(flattenModel(createCtxModel(ctx, payload)));
-            request.templateParams(templateParams.map());
-            request.templateName(requestPrototype.templateName());
-            request.templateType(requestPrototype.templateType());
-        } else {
-            throw new TransformException("search requests needs either source or template name");
-        }
-        return request;
-    }
-
 }

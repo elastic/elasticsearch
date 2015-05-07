@@ -39,10 +39,15 @@
       bulk:
           index: ".watches"
           type: "watch"
-          body: []
+          body:
+            -  { "index": {}}
+            -  {}
+
 
   - do:
       catch: /not supported/
       bulk:
           index: ".watches"
-          body: []
+          body:
+            -  { "index": {}}
+            -  {}

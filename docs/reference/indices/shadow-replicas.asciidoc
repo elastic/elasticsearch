@@ -16,6 +16,25 @@ settings, you need to enable using it in elasticsearch.yml:
 node.enable_custom_paths: true
 --------------------------------------------------
 
+You will also need to disable the default security manager that Elasticsearch
+runs with. You can do this by either passing
+`-Des.security.manager.enabled=false` with the parameters while starting
+Elasticsearch, or you can disable it in elasticsearch.yml:
+
+[source,yaml]
+--------------------------------------------------
+security.manager.enabled: false
+--------------------------------------------------
+
+[WARNING]
+========================
+Disabling the security manager means that the Elasticsearch process is not
+limited to the directories and files that it can read and write. However,
+because the `index.data_path` setting is set when creating the index, the
+security manager would prevent writing or reading from the index's location, so
+it must be disabled.
+========================
+
 You can then create an index with a custom data path, where each node will use
 this path for the data:
 
@@ -87,6 +106,12 @@ settings API:
 `index.shared_filesystem`::
     Boolean value indicating this index uses a shared filesystem. Defaults to
     the `true` if `index.shadow_replicas` is set to true, `false` otherwise.
+
+`index.shared_filesystem.recover_on_any_node`::
+    Boolean value indicating whether the primary shards for the index should be
+    allowed to recover on any node in the cluster, regardless of the number of
+    replicas or whether the node has previously had the shard allocated to it
+    before. Defaults to `false`.
 
 === Node level settings related to shadow replicas
 

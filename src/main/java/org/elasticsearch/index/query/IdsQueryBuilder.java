@@ -163,12 +163,6 @@ public class IdsQueryBuilder extends BaseQueryBuilder implements Streamable, Boo
             typesForQuery = parseContext.mapperService().types();
         }
 
-        List<BytesRef> ids = new ArrayList<>(this.ids.size());
-        for (String value : this.ids) {
-            BytesRef ref = new BytesRef(value);
-            ids.add(ref);
-        }
-
         TermsQuery query = new TermsQuery(UidFieldMapper.NAME, Uid.createTypeUids(typesForQuery, ids));
         query.setBoost(boost);
         if (queryName != null) {

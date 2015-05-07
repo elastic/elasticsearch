@@ -17,7 +17,17 @@
  * under the License.
  */
 
-/**
- * More Like This action.
- */
-package org.elasticsearch.action.mlt;
+package org.elasticsearch.search.aggregations.reducers.derivative;
+
+import org.elasticsearch.search.aggregations.reducers.SimpleValue;
+
+public interface Derivative extends SimpleValue {
+
+    /**
+     * Returns the normalized value. If no normalised factor has been specified
+     * this method will return {@link #value()}
+     * 
+     * @return the normalized value
+     */
+    double normalizedValue();
+}

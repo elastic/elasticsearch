@@ -17,30 +17,22 @@
  * under the License.
  */
 
-package org.elasticsearch.action.mlt;
+package org.elasticsearch.search.aggregations.reducers.bucketmetrics.sum;
 
-import org.elasticsearch.action.Action;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.common.Nullable;
+import org.elasticsearch.search.aggregations.reducers.BucketHelpers.GapPolicy;
+import org.elasticsearch.search.aggregations.reducers.bucketmetrics.BucketMetricsParser;
+import org.elasticsearch.search.aggregations.reducers.ReducerFactory;
+import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
-/**
- */
-public class MoreLikeThisAction extends Action<MoreLikeThisRequest, SearchResponse, MoreLikeThisRequestBuilder> {
-
-    public static final MoreLikeThisAction INSTANCE = new MoreLikeThisAction();
-    public static final String NAME = "indices:data/read/mlt";
-
-    private MoreLikeThisAction() {
-        super(NAME);
+public class SumBucketParser extends BucketMetricsParser {
+    @Override
+    public String type() {
+        return SumBucketReducer.TYPE.name();
     }
 
     @Override
-    public SearchResponse newResponse() {
-        return new SearchResponse();
-    }
-
-    @Override
-    public MoreLikeThisRequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new MoreLikeThisRequestBuilder(client, this);
+    protected ReducerFactory buildFactory(String reducerName, String[] bucketsPaths, GapPolicy gapPolicy, @Nullable ValueFormatter formatter) {
+        return new SumBucketReducer.Factory(reducerName, bucketsPaths, gapPolicy, formatter);
     }
 }

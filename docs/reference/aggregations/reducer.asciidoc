@@ -130,7 +130,7 @@ count of each bucket, instead of a specific metric:
 --------------------------------------------------
 <1> By using `_count` instead of a metric name, we can calculate the moving average of document counts in the histogram
 
-
+[[gap-policy]]
 [float]
 === Dealing with gaps in the data
 
@@ -144,7 +144,7 @@ Where there is no data available in a bucket for a given metric it presents a pr
 the current bucket and the next bucket. In the derivative reducer aggregation has a `gap policy` parameter to define what the behavior
 should be when a gap in the data is found. There are currently two options for controlling the gap policy:
 
-_ignore_::
+_skip_::
                 This option will not produce a derivative value for any buckets where the value in the current or previous bucket is
                 missing
 
@@ -154,7 +154,9 @@ _insert_zeros_::
 
 
 
+include::reducer/avg-bucket-aggregation.asciidoc[]
 include::reducer/derivative-aggregation.asciidoc[]
 include::reducer/max-bucket-aggregation.asciidoc[]
 include::reducer/min-bucket-aggregation.asciidoc[]
+include::reducer/sum-bucket-aggregation.asciidoc[]
 include::reducer/movavg-aggregation.asciidoc[]

@@ -101,7 +101,4 @@ include::search/explain.asciidoc[]
 
 include::search/percolate.asciidoc[]
 
-include::search/more-like-this.asciidoc[]
-
 include::search/field-stats.asciidoc[]
-

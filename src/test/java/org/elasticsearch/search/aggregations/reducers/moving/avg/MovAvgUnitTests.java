@@ -140,9 +140,9 @@ public class MovAvgUnitTests extends ElasticsearchTestCase {
     }
 
     @Test
-    public void testSingleExpMovAvgModel() {
+    public void testEWMAMovAvgModel() {
         double alpha = randomDouble();
-        MovAvgModel model = new SingleExpModel(alpha);
+        MovAvgModel model = new EwmaModel(alpha);
 
         int numValues = randomIntBetween(1, 100);
         int windowSize = randomIntBetween(1, 50);
@@ -170,9 +170,9 @@ public class MovAvgUnitTests extends ElasticsearchTestCase {
     }
 
     @Test
-    public void testSinglePredictionModel() {
+    public void testEWMAPredictionModel() {
         double alpha = randomDouble();
-        MovAvgModel model = new SingleExpModel(alpha);
+        MovAvgModel model = new EwmaModel(alpha);
 
         int windowSize = randomIntBetween(1, 50);
         int numPredictions = randomIntBetween(1,50);
@@ -206,10 +206,10 @@ public class MovAvgUnitTests extends ElasticsearchTestCase {
     }
 
     @Test
-    public void testDoubleExpMovAvgModel() {
+    public void testHoltLinearMovAvgModel() {
         double alpha = randomDouble();
         double beta = randomDouble();
-        MovAvgModel model = new DoubleExpModel(alpha, beta);
+        MovAvgModel model = new HoltLinearModel(alpha, beta);
 
         int numValues = randomIntBetween(1, 100);
         int windowSize = randomIntBetween(1, 50);
@@ -250,10 +250,10 @@ public class MovAvgUnitTests extends ElasticsearchTestCase {
     }
 
     @Test
-    public void testDoublePredictionModel() {
+    public void testHoltLinearPredictionModel() {
         double alpha = randomDouble();
         double beta = randomDouble();
-        MovAvgModel model = new DoubleExpModel(alpha, beta);
+        MovAvgModel model = new HoltLinearModel(alpha, beta);
 
         int windowSize = randomIntBetween(1, 50);
         int numPredictions = randomIntBetween(1,50);

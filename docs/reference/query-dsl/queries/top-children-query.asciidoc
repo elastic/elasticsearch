@@ -1,6 +1,8 @@
 [[query-dsl-top-children-query]]
 === Top Children Query
 
+deprecated[1.6.0, Use the `has_child` query instead]
+
 The `top_children` query runs the child query with an estimated hits
 size, and out of the hit docs, aggregates it into parent docs. If there
 aren't enough parent docs matching the requested from/size search

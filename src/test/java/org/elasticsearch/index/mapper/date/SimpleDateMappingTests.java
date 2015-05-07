@@ -434,5 +434,13 @@ public class SimpleDateMappingTests extends ElasticsearchSingleNodeTest {
                 .endObject()
                 .bytes());
         assertThat(getDateAsMillis(doc.rootDoc(), "date_field"), equalTo(43000L));
+
+        // but formatted dates still parse as milliseconds
+        doc = defaultMapper.parse("type", "2", XContentFactory.jsonBuilder()
+                .startObject()
+                .field("date_field", "1970-01-01T00:00:44.000Z")
+                .endObject()
+                .bytes());
+        assertThat(getDateAsMillis(doc.rootDoc(), "date_field"), equalTo(44000L));
     }
 }

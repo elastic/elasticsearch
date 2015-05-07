@@ -21,25 +21,16 @@ package org.elasticsearch.search.aggregations.reducers.bucketmetrics.max;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.search.aggregations.Aggregation;
-import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation.Type;
-import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
-import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
-import org.elasticsearch.search.aggregations.reducers.BucketHelpers;
 import org.elasticsearch.search.aggregations.reducers.BucketHelpers.GapPolicy;
-import org.elasticsearch.search.aggregations.reducers.bucketmetrics.InternalBucketMetricValue;
 import org.elasticsearch.search.aggregations.reducers.Reducer;
 import org.elasticsearch.search.aggregations.reducers.ReducerFactory;
 import org.elasticsearch.search.aggregations.reducers.ReducerStreams;
-import org.elasticsearch.search.aggregations.reducers.SiblingReducer;
-import org.elasticsearch.search.aggregations.support.AggregationPath;
+import org.elasticsearch.search.aggregations.reducers.bucketmetrics.BucketMetricsReducer;
+import org.elasticsearch.search.aggregations.reducers.bucketmetrics.InternalBucketMetricValue;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
-import org.elasticsearch.search.aggregations.support.format.ValueFormatterStreams;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -47,7 +38,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-public class MaxBucketReducer extends SiblingReducer {
+public class MaxBucketReducer extends BucketMetricsReducer {
 
     public final static Type TYPE = new Type("max_bucket");
 
@@ -60,21 +51,19 @@ public class MaxBucketReducer extends SiblingReducer {
         }
     };
 
-    private ValueFormatter formatter;
-    private GapPolicy gapPolicy;
-
     public static void registerStreams() {
         ReducerStreams.registerStream(STREAM, TYPE.stream());
     }
+
+    private List<String> maxBucketKeys;
+    private double maxValue;
 
     private MaxBucketReducer() {
     }
 
     protected MaxBucketReducer(String name, String[] bucketsPaths, GapPolicy gapPolicy, @Nullable ValueFormatter formatter,
             Map<String, Object> metaData) {
-        super(name, bucketsPaths, metaData);
-        this.gapPolicy = gapPolicy;
-        this.formatter = formatter;
+        super(name, bucketsPaths, gapPolicy, formatter, metaData);
     }
 
     @Override
@@ -82,44 +71,27 @@ public class MaxBucketReducer extends SiblingReducer {
         return TYPE;
     }
 
-    public InternalAggregation doReduce(Aggregations aggregations, ReduceContext context) {
-        List<String> maxBucketKeys = new ArrayList<>();
-        double maxValue = Double.NEGATIVE_INFINITY;
-        List<String> bucketsPath = AggregationPath.parse(bucketsPaths()[0]).getPathElementsAsStringList();
-        for (Aggregation aggregation : aggregations) {
-            if (aggregation.getName().equals(bucketsPath.get(0))) {
-                bucketsPath = bucketsPath.subList(1, bucketsPath.size());
-                InternalMultiBucketAggregation multiBucketsAgg = (InternalMultiBucketAggregation) aggregation;
-                List<? extends Bucket> buckets = multiBucketsAgg.getBuckets();
-                for (int i = 0; i < buckets.size(); i++) {
-                    Bucket bucket = buckets.get(i);
-                    Double bucketValue = BucketHelpers.resolveBucketValue(multiBucketsAgg, bucket, bucketsPath, gapPolicy);
-                    if (bucketValue != null) {
-                        if (bucketValue > maxValue) {
-                            maxBucketKeys.clear();
-                            maxBucketKeys.add(bucket.getKeyAsString());
-                            maxValue = bucketValue;
-                        } else if (bucketValue.equals(maxValue)) {
-                            maxBucketKeys.add(bucket.getKeyAsString());
-                        }
-                    }
-                }
-            }
+    @Override
+    protected void preCollection() {
+        maxBucketKeys = new ArrayList<>();
+        maxValue = Double.NEGATIVE_INFINITY;
+    }
+
+    @Override
+    protected void collectBucketValue(String bucketKey, Double bucketValue) {
+        if (bucketValue > maxValue) {
+            maxBucketKeys.clear();
+            maxBucketKeys.add(bucketKey);
+            maxValue = bucketValue;
+        } else if (bucketValue.equals(maxValue)) {
+            maxBucketKeys.add(bucketKey);
         }
+    }
+
+    @Override
+    protected InternalAggregation buildAggregation(List<Reducer> reducers, Map<String, Object> metadata) {
         String[] keys = maxBucketKeys.toArray(new String[maxBucketKeys.size()]);
         return new InternalBucketMetricValue(name(), keys, maxValue, formatter, Collections.EMPTY_LIST, metaData());
-    }
-
-    @Override
-    public void doReadFrom(StreamInput in) throws IOException {
-        formatter = ValueFormatterStreams.readOptional(in);
-        gapPolicy = GapPolicy.readFrom(in);
-    }
-
-    @Override
-    public void doWriteTo(StreamOutput out) throws IOException {
-        ValueFormatterStreams.writeOptional(formatter, out);
-        gapPolicy.writeTo(out);
     }
 
     public static class Factory extends ReducerFactory {

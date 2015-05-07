@@ -38,6 +38,7 @@ import java.io.IOException;
 /**
  *
  */
+@Deprecated
 public class TopChildrenQueryParser extends BaseQueryParserTemp {
 
     public static final String NAME = "top_children";

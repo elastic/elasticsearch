@@ -249,9 +249,6 @@ import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptAction;
 import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptRequest;
 import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptRequestBuilder;
 import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptResponse;
-import org.elasticsearch.action.mlt.MoreLikeThisAction;
-import org.elasticsearch.action.mlt.MoreLikeThisRequest;
-import org.elasticsearch.action.mlt.MoreLikeThisRequestBuilder;
 import org.elasticsearch.action.percolate.*;
 import org.elasticsearch.action.search.*;
 import org.elasticsearch.action.suggest.SuggestAction;
@@ -634,21 +631,6 @@ public abstract class AbstractClient extends AbstractComponent implements Client
     @Override
     public SuggestRequestBuilder prepareSuggest(String... indices) {
         return new SuggestRequestBuilder(this, SuggestAction.INSTANCE).setIndices(indices);
-    }
-
-    @Override
-    public ActionFuture<SearchResponse> moreLikeThis(final MoreLikeThisRequest request) {
-        return execute(MoreLikeThisAction.INSTANCE, request);
-    }
-
-    @Override
-    public void moreLikeThis(final MoreLikeThisRequest request, final ActionListener<SearchResponse> listener) {
-        execute(MoreLikeThisAction.INSTANCE, request, listener);
-    }
-
-    @Override
-    public MoreLikeThisRequestBuilder prepareMoreLikeThis(String index, String type, String id) {
-        return new MoreLikeThisRequestBuilder(this, MoreLikeThisAction.INSTANCE, index, type, id);
     }
 
     @Override

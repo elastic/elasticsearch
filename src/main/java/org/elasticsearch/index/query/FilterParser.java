@@ -40,7 +40,6 @@ public interface FilterParser {
      * it exists within a must clause or a must_not bool clause (that is why returning MATCH_ALL will
      * not be good, since it will not match anything when returned within a must_not clause).
      */
-    //norelease can be removed in favour of fromXContent once search requests can be parsed on the coordinating node
     @Nullable
     Filter parse(QueryParseContext parseContext) throws IOException, QueryParsingException;
 }

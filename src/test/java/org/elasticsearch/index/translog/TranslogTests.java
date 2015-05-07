@@ -809,7 +809,7 @@ public class TranslogTests extends ElasticsearchTestCase {
         int count = 0;
         for (int op = 0; op < translogOperations; op++) {
             locations.add(translog.add(new Translog.Create("test", "" + op, Integer.toString(++count).getBytes(Charset.forName("UTF-8")))));
-            if (rarely()) {
+            if (rarely() && translogOperations > op+1) {
                 translog.newTranslog();
             }
         }

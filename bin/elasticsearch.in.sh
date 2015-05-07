@@ -1,6 +1,10 @@
 #!/bin/sh
 
-ES_CLASSPATH="$ES_CLASSPATH:$ES_HOME/lib/${project.build.finalName}.jar:$ES_HOME/lib/*:$ES_HOME/lib/sigar/*"
+if  [[ $OSTYPE = *win* || $OSTYPE = msys ]]; then
+	ES_CLASSPATH="$ES_HOME\\${project.build.finalName}.jar;$ES_HOME\\lib\\${project.build.finalName}.jar;$ES_HOME\\lib\\*;$ES_HOME\\lib\\sigar\\*"
+else
+	ES_CLASSPATH="$ES_CLASSPATH:$ES_HOME/${project.build.finalName}.jar:$ES_HOME/lib/${project.build.finalName}.jar:$ES_HOME/lib/*:$ES_HOME/lib/sigar/*"
+fi
 
 if [ "x$ES_MIN_MEM" = "x" ]; then
     ES_MIN_MEM=${packaging.elasticsearch.heap.min}
@@ -68,3 +72,8 @@ JAVA_OPTS="$JAVA_OPTS -XX:+DisableExplicitGC"
 
 # Ensure UTF-8 encoding by default (e.g. filenames)
 JAVA_OPTS="$JAVA_OPTS -Dfile.encoding=UTF-8"
+
+# For windows we must set ES_PARAMS same as in elasticsearch.in.bat
+if  [[ $OSTYPE = *win* || $OSTYPE = msys ]]; then
+	ES_PARAMS=" -Delasticsearch -Des-foreground=yes -Des.path.home=$ES_HOME "
+fi

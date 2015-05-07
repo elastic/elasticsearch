@@ -54,6 +54,18 @@
 # environment variables.
 
 
+# We have to allow launch ES in Windows with bash (msys for ex) here it's adaptation of elasticsearch.bat
+if [[ $OSTYPE = *win* || $OSTYPE = msys ]]; then
+	echo "NOTICE: Launch simplifyed developer config for Windows"
+	# determine elasticsearch home
+	ES_HOME=`dirname "$0"`/..
+	# make ELASTICSEARCH_HOME absolute and windows-style
+	ES_HOME=$(cd "$ES_HOME"; pwd | sed -e 's/^\///' -e 's/\//\\/g' -e 's/^./\0:/')
+	. $ES_HOME/bin/elasticsearch.in.sh
+	"$JAVA_HOME/bin/java.exe" $JAVA_OPTS $ES_JAVA_OPTS $ES_PARAMS -cp "$ES_CLASSPATH" "org.elasticsearch.bootstrap.Elasticsearch"
+	exit $?;
+fi
+
 # Maven will replace the project.name with elasticsearch below. If that
 # hasn't been done, we assume that this is not a packaged version and the
 # user has forgotten to run Maven to create a package.

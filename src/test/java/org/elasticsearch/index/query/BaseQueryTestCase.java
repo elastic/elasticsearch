@@ -160,7 +160,7 @@ public abstract class BaseQueryTestCase<QB extends QueryBuilder & Streamable> ex
     public void testToQuery() throws IOException {
         testQuery = createTestQueryBuilder();
         QueryParseContext context = createContext();
-        context.setMapUnmappedFieldAsString(true);
+        context.setAllowUnmappedFields(true);
         assertLuceneQuery(testQuery, testQuery.toQuery(context), context);
     }
 

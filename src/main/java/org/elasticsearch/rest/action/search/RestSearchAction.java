@@ -101,7 +101,7 @@ public class RestSearchAction extends BaseRestHandler {
         String searchType = request.param("search_type");
         if (SearchType.fromString(searchType).equals(SearchType.QUERY_AND_FETCH) ||
                 SearchType.fromString(searchType).equals(SearchType.DFS_QUERY_AND_FETCH)) {
-            throw new ElasticsearchIllegalArgumentException("Unsupported search type [" + searchType + "]");
+            throw new IllegalArgumentException("Unsupported search type [" + searchType + "]");
         } else {
             searchRequest.searchType(searchType);
         }

@@ -1,5 +1,5 @@
 ---
-"Test Hijack api":
+"Test Hijack and Block Direct Access to Internal Indices":
   - do:
       cluster.health:
           wait_for_status: green

@@ -19,7 +19,6 @@
 package org.elasticsearch.indices;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.admin.cluster.node.liveness.LivenessRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
@@ -44,7 +43,6 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardException;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 
@@ -506,7 +504,7 @@ public class SyncedFlushService extends AbstractComponent {
         }
     }
 
-    public static final class SyncedFlushResponse extends TransportResponse {
+    static final class SyncedFlushResponse extends TransportResponse {
 
         /**
          * a non null value indicates a failure to sync flush. null means success
@@ -646,53 +644,6 @@ public class SyncedFlushService extends AbstractComponent {
         @Override
         public void messageReceived(InFlightOpsRequest request, TransportChannel channel) throws Exception {
             channel.sendResponse(performInFlightOps(request));
-        }
-    }
-
-    public static class SyncFlushFailedException implements ShardOperationFailedException {
-
-        String index;
-        String reason;
-        int shardId;
-
-        public SyncFlushFailedException(String index, int shard, String reason) {
-            this.index = index;
-            this.shardId = shard;
-            this.reason = reason;
-        }
-
-        @Override
-        public String index() {
-            return index;
-        }
-
-        @Override
-        public int shardId() {
-            return shardId;
-        }
-
-        @Override
-        public String reason() {
-            return reason;
-        }
-
-        @Override
-        public RestStatus status() {
-            return RestStatus.EXPECTATION_FAILED;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            this.reason = in.readString();
-            this.shardId = in.readVInt();
-            this.index = in.readString();
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(reason);
-            out.writeVInt(shardId);
-            out.writeString(index);
         }
     }
 

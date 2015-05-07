@@ -24,7 +24,6 @@ import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsRes
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
-import org.elasticsearch.action.admin.indices.syncedflush.SyncedFlushResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -143,28 +142,7 @@ public class FlushTest extends ElasticsearchIntegrationTest {
     }
 
     @TestLogging("indices:TRACE")
-    public void testSyncedFlushWithApi() throws ExecutionException, InterruptedException, IOException {
-
-        createIndex("test");
-        ensureGreen();
-
-        IndexStats indexStats = client().admin().indices().prepareStats("test").get().getIndex("test");
-        for (ShardStats shardStats : indexStats.getShards()) {
-            assertNull(shardStats.getCommitStats().getUserData().get(Engine.SYNC_COMMIT_ID));
-        }
-        logger.info("--> trying sync flush");
-        SyncedFlushResponse syncedFlushResponse = client().admin().indices().prepareSyncedFlush("test").get();
-        logger.info("--> sync flush done");
-        assertThat(syncedFlushResponse.getFailedShards(), equalTo(0));
-        indexStats = client().admin().indices().prepareStats("test").get().getIndex("test");
-        for (ShardStats shardStats : indexStats.getShards()) {
-            assertNotNull(shardStats.getCommitStats().getUserData().get(Engine.SYNC_COMMIT_ID));
-        }
-    }
-
-    @TestLogging("indices:TRACE")
     public void testFlushWithApi() throws Exception {
-
         createIndex("test");
         ensureGreen();
         IndexStats indexStats = client().admin().indices().prepareStats("test").get().getIndex("test");

@@ -23,7 +23,6 @@ import com.google.common.collect.Lists;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.multibindings.Multibinder;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.action.admin.indices.syncedflush.RestSyncedFlushAction;
 import org.elasticsearch.rest.action.admin.indices.upgrade.RestUpgradeAction;
 import org.elasticsearch.rest.action.admin.cluster.repositories.verify.RestVerifyRepositoryAction;
 import org.elasticsearch.rest.action.admin.cluster.health.RestClusterHealthAction;
@@ -184,7 +183,6 @@ public class RestActionModule extends AbstractModule {
 
         bind(RestRefreshAction.class).asEagerSingleton();
         bind(RestFlushAction.class).asEagerSingleton();
-        bind(RestSyncedFlushAction.class).asEagerSingleton();
         bind(RestOptimizeAction.class).asEagerSingleton();
         bind(RestUpgradeAction.class).asEagerSingleton();
         bind(RestClearIndicesCacheAction.class).asEagerSingleton();

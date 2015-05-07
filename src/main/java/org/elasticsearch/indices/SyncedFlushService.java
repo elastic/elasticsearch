@@ -504,7 +504,7 @@ public class SyncedFlushService extends AbstractComponent {
         }
     }
 
-    public static final class SyncedFlushResponse extends TransportResponse {
+    static final class SyncedFlushResponse extends TransportResponse {
 
         /**
          * a non null value indicates a failure to sync flush. null means success

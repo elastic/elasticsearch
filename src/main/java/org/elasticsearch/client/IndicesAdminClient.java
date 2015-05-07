@@ -84,9 +84,6 @@ import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRespons
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequestBuilder;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
-import org.elasticsearch.action.admin.indices.syncedflush.SyncedFlushRequest;
-import org.elasticsearch.action.admin.indices.syncedflush.SyncedFlushRequestBuilder;
-import org.elasticsearch.action.admin.indices.syncedflush.SyncedFlushResponse;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateRequestBuilder;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateResponse;
@@ -361,27 +358,6 @@ public interface IndicesAdminClient extends ElasticsearchClient {
      * Explicitly flush one or more indices (releasing memory from the node).
      */
     FlushRequestBuilder prepareFlush(String... indices);
-
-    /**
-     * Explicitly sync flush one or more indices
-     *
-     * @param request The sync flush request
-     * @return A result future
-     */
-    ActionFuture<SyncedFlushResponse> syncedFlush(SyncedFlushRequest request);
-
-    /**
-     * Explicitly sync flush one or more indices
-     *
-     * @param request The sync flush request
-     * @param listener A listener to be notified with a result
-     */
-    void syncedFlush(SyncedFlushRequest request, ActionListener <SyncedFlushResponse> listener);
-
-    /**
-     * Explicitly sync flush one or more indices
-     */
-    SyncedFlushRequestBuilder prepareSyncedFlush(String... indices);
 
     /**
      * Explicitly optimize one or more indices into a the number of segments.
@@ -747,5 +723,4 @@ public interface IndicesAdminClient extends ElasticsearchClient {
      * @see #getSettings(org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest)
      */
     GetSettingsRequestBuilder prepareGetSettings(String... indices);
-
 }

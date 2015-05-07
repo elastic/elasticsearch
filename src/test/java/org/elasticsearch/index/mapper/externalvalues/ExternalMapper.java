@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.mapper.externalvalues;
 
+import com.google.common.collect.Iterators;
+import com.google.common.collect.Lists;
 import com.spatial4j.core.shape.Point;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
@@ -221,16 +223,8 @@ public class ExternalMapper extends AbstractFieldMapper<Object> {
     }
 
     @Override
-    public void traverse(FieldMapperListener fieldMapperListener) {
-        binMapper.traverse(fieldMapperListener);
-        boolMapper.traverse(fieldMapperListener);
-        pointMapper.traverse(fieldMapperListener);
-        shapeMapper.traverse(fieldMapperListener);
-        stringMapper.traverse(fieldMapperListener);
-    }
-
-    @Override
-    public void traverse(ObjectMapperListener objectMapperListener) {
+    public Iterator<Mapper> iterator() {
+        return Iterators.concat(super.iterator(), Lists.newArrayList(binMapper, boolMapper, pointMapper, shapeMapper, stringMapper).iterator());
     }
 
     @Override

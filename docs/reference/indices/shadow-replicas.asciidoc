@@ -37,7 +37,7 @@ curl -XPUT 'localhost:9200/my_index' -d '
         "number_of_replicas" : 4,
         "data_path": "/var/data/my_index",
         "shadow_replicas": true
-    } 
+    }
 }'
 --------------------------------------------------
 
@@ -87,6 +87,12 @@ settings API:
 `index.shared_filesystem`::
     Boolean value indicating this index uses a shared filesystem. Defaults to
     the `true` if `index.shadow_replicas` is set to true, `false` otherwise.
+
+`index.shared_filesystem.recover_on_any_node`::
+    Boolean value indicating whether the primary shards for the index should be
+    allowed to recover on any node in the cluster, regardless of the number of
+    replicas or whether the node has previously had the shard allocated to it
+    before. Defaults to `false`.
 
 === Node level settings related to shadow replicas
 

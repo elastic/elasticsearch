@@ -20,13 +20,12 @@
 package org.elasticsearch.bwcompat;
 
 import com.google.common.collect.ImmutableMap;
-import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.script.groovy.GroovyScriptEngineService;
 import org.elasticsearch.test.ElasticsearchBackwardsCompatIntegrationTest;
-import org.junit.Ignore;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -41,45 +40,49 @@ import static org.hamcrest.Matchers.not;
 public class ScriptTransformBackwardsCompatibilityTests extends ElasticsearchBackwardsCompatIntegrationTest {
 
     @Test
-    @Ignore
-    @AwaitsFix(bugUrl = "fails on  all seeds, apparently not applying the transform script")
     public void testTransformWithNoLangSpecified() throws Exception {
-        XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
-        builder.field("transform");
-        if (getRandom().nextBoolean()) {
-            // Single transform
-            builder.startObject();
-            buildTransformScript(builder);
-            builder.endObject();
-        } else {
-            // Multiple transforms
-            int total = between(1, 10);
-            int actual = between(0, total - 1);
-            builder.startArray();
-            for (int s = 0; s < total; s++) {
+        // Source transforms were added in 1.3.0 so only run the test if the compatibility version is on or after v1.3.0
+        if (compatibilityVersion().onOrAfter(Version.V_1_3_0)) {
+            XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
+            builder.field("transform");
+            if (getRandom().nextBoolean()) {
+                // Single transform
                 builder.startObject();
-                if (s == actual) {
-                    buildTransformScript(builder);
-                } else {
-                    builder.field("script", "true");
-                }
-                builder.field("lang", randomFrom(null, GroovyScriptEngineService.NAME));
+                buildTransformScript(builder);
                 builder.endObject();
+            } else {
+                // Multiple transforms
+                int total = between(1, 10);
+                int actual = between(0, total - 1);
+                builder.startArray();
+                for (int s = 0; s < total; s++) {
+                    builder.startObject();
+                    if (s == actual) {
+                        buildTransformScript(builder);
+                    } else {
+                        builder.field("script", "true");
+                    }
+                    builder.field("lang", randomFrom(null, GroovyScriptEngineService.NAME));
+                    builder.endObject();
+                }
+                builder.endArray();
             }
-            builder.endArray();
+            assertAcked(client().admin().indices().prepareCreate("test").addMapping("test", builder));
+
+            indexRandom(getRandom().nextBoolean(), client().prepareIndex("test", "test", "notitle").setSource("content", "findme"),
+                    client().prepareIndex("test", "test", "badtitle").setSource("content", "findme", "title", "cat"), client()
+                            .prepareIndex("test", "test", "righttitle").setSource("content", "findme", "title", "table"));
+            GetResponse response = client().prepareGet("test", "test", "righttitle").get();
+            assertExists(response);
+            assertThat(response.getSource(), both(hasEntry("content", (Object) "findme")).and(not(hasKey("destination"))));
+
+            response = client().prepareGet("test", "test", "righttitle").setTransformSource(true).get();
+            assertExists(response);
+            assertThat(response.getSource(), both(hasEntry("destination", (Object) "findme")).and(not(hasKey("content"))));
+        } else {
+            logger.debug("Skipping test since source transform was added in " + Version.V_1_3_0.toString()
+                    + "and compatibility version is " + compatibilityVersion().toString());
         }
-        assertAcked(client().admin().indices().prepareCreate("test").addMapping("test", builder));
-
-        indexRandom(getRandom().nextBoolean(), client().prepareIndex("test", "test", "notitle").setSource("content", "findme"), client()
-                .prepareIndex("test", "test", "badtitle").setSource("content", "findme", "title", "cat"),
-                client().prepareIndex("test", "test", "righttitle").setSource("content", "findme", "title", "table"));
-        GetResponse response = client().prepareGet("test", "test", "righttitle").get();
-        assertExists(response);
-        assertThat(response.getSource(), both(hasEntry("content", (Object) "findme")).and(not(hasKey("destination"))));
-
-        response = client().prepareGet("test", "test", "righttitle").setTransformSource(true).get();
-        assertExists(response);
-        assertThat(response.getSource(), both(hasEntry("destination", (Object) "findme")).and(not(hasKey("content"))));
     }
 
     private void buildTransformScript(XContentBuilder builder) throws IOException {

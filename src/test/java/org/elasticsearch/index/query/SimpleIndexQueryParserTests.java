@@ -1751,7 +1751,7 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
     }
 
     @Test
-    public void testMLTPercentTermsToMatch() throws Exception {
+    public void testMLTMinimumShouldMatch() throws Exception {
         // setup for mocking fetching items
         MoreLikeThisQueryParser parser = (MoreLikeThisQueryParser) queryParser.queryParser("more_like_this");
         parser.setFetchService(new MockMoreLikeThisFetchService());

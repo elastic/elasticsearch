@@ -30,6 +30,9 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
 
+import static org.elasticsearch.shield.audit.AuditUtil.restRequestContent;
+import static org.elasticsearch.shield.audit.AuditUtil.indices;
+
 /**
  *
  */
@@ -213,24 +216,6 @@ public class LoggingAuditTrail implements AuditTrail {
     @Override
     public void connectionDenied(InetAddress inetAddress, String profile, ShieldIpFilterRule rule) {
         logger.error("{}[ip_filter] [connection_denied]\torigin_address=[{}], transport_profile=[{}], rule=[{}]", prefix, inetAddress.getHostAddress(), profile, rule);
-    }
-
-    private static String indices(TransportMessage message) {
-        if (message instanceof IndicesRequest) {
-            return Strings.arrayToCommaDelimitedString(((IndicesRequest) message).indices());
-        }
-        return null;
-    }
-
-    private static String restRequestContent(RestRequest request) {
-        if (request.hasContent()) {
-            try {
-                return XContentHelper.convertToJson(request.content(), false, false);
-            } catch (IOException ioe) {
-                return "Invalid Format: " + request.content().toUtf8();
-            }
-        }
-        return "";
     }
 
     private static String hostAttributes(RestRequest request) {

@@ -21,7 +21,7 @@ public class ShieldClient {
     }
 
     /**
-     * @return  The Shield authenticatin client.
+     * @return  The Shield authentication client.
      */
     public ShieldAuthcClient authc() {
         return authcClient;

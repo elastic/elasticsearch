@@ -213,7 +213,7 @@ public abstract class Privilege<P extends Privilege<P>> {
         public static void addCustom(String name, String... actionPatterns) {
             for (String pattern : actionPatterns) {
                 if (!Index.ACTION_MATCHER.apply(pattern)) {
-                    throw new ShieldException("cannot register custom index privilege [" + name + "]. index aciton must follow the 'indices:*' format");
+                    throw new ShieldException("cannot register custom index privilege [" + name + "]. index action must follow the 'indices:*' format");
                 }
             }
             Index custom = new Index(name, actionPatterns);

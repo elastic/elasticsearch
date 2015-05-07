@@ -233,7 +233,6 @@ public class QueryParseContext {
         token = parser.nextToken();
         if (token == XContentParser.Token.END_OBJECT) {
             // empty query
-            parser.nextToken();
             return null;
         }
         if (token != XContentParser.Token.FIELD_NAME) {

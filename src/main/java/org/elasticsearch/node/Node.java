@@ -20,7 +20,6 @@
 package org.elasticsearch.node;
 
 import org.elasticsearch.Build;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
@@ -142,8 +141,9 @@ public class Node implements Releasable {
 
         if (logger.isDebugEnabled()) {
             Environment env = tuple.v2();
-            logger.debug("using home [{}], config [{}], data [{}], logs [{}], plugins [{}]",
-                    env.homeFile(), env.configFile(), Arrays.toString(env.dataFiles()), env.logsFile(), env.pluginsFile());
+            logger.debug("using home [{}], config [{}], data [{}], shared_data [{}], logs [{}], plugins [{}]",
+                    env.homeFile(), env.configFile(), Arrays.toString(env.dataFiles()),
+                    env.sharedDataFile(), env.logsFile(), env.pluginsFile());
         }
 
         this.pluginsService = new PluginsService(tuple.v1(), tuple.v2());

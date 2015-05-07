@@ -67,6 +67,7 @@ public class Security {
         for (Path path : environment.dataWithClusterFiles()) {
             addPath(policy, path, "read,readlink,write,delete");
         }
+        addPath(policy, environment.sharedDataFile(), "read,readlink,write,delete");
         if (environment.pidFile() != null) {
             addPath(policy, environment.pidFile().getParent(), "read,readlink,write,delete");
         }

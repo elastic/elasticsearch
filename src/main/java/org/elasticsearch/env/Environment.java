@@ -44,6 +44,8 @@ public class Environment {
 
     private final Path[] dataFiles;
 
+    private final Path sharedDataFile;
+
     private final Path[] dataWithClusterFiles;
 
     private final Path configFile;
@@ -104,6 +106,12 @@ public class Environment {
             dataWithClusterFiles = new Path[]{homeFile.resolve("data").resolve(ClusterName.clusterNameFromSettings(settings).value())};
         }
 
+        if (settings.get("path.shared_data") != null) {
+            sharedDataFile = PathUtils.get(cleanPath(settings.get("path.shared_data")));
+        } else {
+            sharedDataFile = homeFile.resolve("data");
+        }
+
         if (settings.get("path.logs") != null) {
             logsFile = PathUtils.get(cleanPath(settings.get("path.logs")));
         } else {
@@ -143,6 +151,13 @@ public class Environment {
      */
     public Path[] dataWithClusterFiles() {
         return dataWithClusterFiles;
+    }
+
+    /**
+     * The shared data location
+     */
+    public Path sharedDataFile() {
+        return sharedDataFile;
     }
 
     /**

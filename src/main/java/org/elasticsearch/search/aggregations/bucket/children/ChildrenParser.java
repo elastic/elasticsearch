@@ -19,6 +19,7 @@
 package org.elasticsearch.search.aggregations.bucket.children;
 
 import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.QueryWrapperFilter;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -84,8 +85,9 @@ public class ChildrenParser implements Aggregator.Parser {
             parentType = parentFieldMapper.type();
             DocumentMapper parentDocMapper = context.mapperService().documentMapper(parentType);
             if (parentDocMapper != null) {
-                parentFilter = parentDocMapper.typeFilter();
-                childFilter = childDocMapper.typeFilter();
+                // TODO: use the query API
+                parentFilter = new QueryWrapperFilter(parentDocMapper.typeFilter());
+                childFilter = new QueryWrapperFilter(childDocMapper.typeFilter());
                 ParentChildIndexFieldData parentChildIndexFieldData = context.fieldData().getForField(parentFieldMapper);
                 config.fieldContext(new FieldContext(parentFieldMapper.names().indexName(), parentChildIndexFieldData, parentFieldMapper));
             } else {

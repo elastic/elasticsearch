@@ -25,7 +25,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
-import static org.elasticsearch.index.query.FilterBuilders.scriptFilter;
+import static org.elasticsearch.index.query.QueryBuilders.scriptQuery;
 import static org.elasticsearch.index.query.QueryBuilders.filteredQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.hamcrest.Matchers.equalTo;
@@ -46,7 +46,7 @@ public class SearchTimeoutTests extends ElasticsearchIntegrationTest {
 
         SearchResponse searchResponse = client().prepareSearch("test")
                 .setTimeout("10ms")
-                .setQuery(filteredQuery(matchAllQuery(), scriptFilter("Thread.sleep(500); return true;")))
+                .setQuery(filteredQuery(matchAllQuery(), scriptQuery("Thread.sleep(500); return true;")))
                 .execute().actionGet();
         assertThat(searchResponse.isTimedOut(), equalTo(true));
     }

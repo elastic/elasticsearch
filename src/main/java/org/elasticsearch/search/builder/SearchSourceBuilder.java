@@ -36,10 +36,8 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.query.FilterBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
-import org.elasticsearch.search.aggregations.reducers.ReducerBuilder;
 import org.elasticsearch.search.fetch.innerhits.InnerHitsBuilder;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
 import org.elasticsearch.search.highlight.HighlightBuilder;
@@ -83,7 +81,7 @@ public class SearchSourceBuilder implements ToXContent {
 
     private BytesReference queryBinary;
 
-    private FilterBuilder postFilterBuilder;
+    private QueryBuilder postQueryBuilder;
 
     private BytesReference filterBinary;
 
@@ -195,8 +193,8 @@ public class SearchSourceBuilder implements ToXContent {
      * only has affect on the search hits (not aggregations). This filter is
      * always executed as last filtering mechanism.
      */
-    public SearchSourceBuilder postFilter(FilterBuilder postFilter) {
-        this.postFilterBuilder = postFilter;
+    public SearchSourceBuilder postFilter(QueryBuilder postFilter) {
+        this.postQueryBuilder = postFilter;
         return this;
     }
 
@@ -719,9 +717,9 @@ public class SearchSourceBuilder implements ToXContent {
             }
         }
 
-        if (postFilterBuilder != null) {
+        if (postQueryBuilder != null) {
             builder.field("post_filter");
-            postFilterBuilder.toXContent(builder, params);
+            postQueryBuilder.toXContent(builder, params);
         }
 
         if (filterBinary != null) {

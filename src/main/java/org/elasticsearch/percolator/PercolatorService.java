@@ -28,16 +28,12 @@ import org.apache.lucene.index.memory.MemoryIndex;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.FilteredQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.QueryWrapperFilter;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CloseableThreadLocal;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.percolate.PercolateResponse;
 import org.elasticsearch.action.percolate.PercolateShardRequest;
@@ -185,7 +181,7 @@ public class PercolatorService extends AbstractComponent {
                 indexShard.shardId().index().name(),
                 request.indices()
         );
-        Filter aliasFilter = percolateIndexService.aliasesService().aliasFilter(filteringAliases);
+        Query aliasFilter = percolateIndexService.aliasesService().aliasFilter(filteringAliases);
 
         SearchShardTarget searchShardTarget = new SearchShardTarget(clusterService.localNode().id(), request.shardId().getIndex(), request.shardId().id());
         final PercolateContext context = new PercolateContext(
@@ -311,7 +307,7 @@ public class PercolatorService extends AbstractComponent {
                         if (context.percolateQuery() != null) {
                             throw new ElasticsearchParseException("Either specify query or filter, not both");
                         }
-                        Filter filter = documentIndexService.queryParserService().parseInnerFilter(parser).filter();
+                        Query filter = documentIndexService.queryParserService().parseInnerFilter(parser).query();
                         context.percolateQuery(new ConstantScoreQuery(filter));
                     } else if ("sort".equals(currentFieldName)) {
                         parseSort(parser, context);
@@ -794,19 +790,19 @@ public class PercolatorService extends AbstractComponent {
     };
 
     private void queryBasedPercolating(Engine.Searcher percolatorSearcher, PercolateContext context, QueryCollector percolateCollector) throws IOException {
-        Filter percolatorTypeFilter = context.indexService().mapperService().documentMapper(TYPE_NAME).typeFilter();
+        Query percolatorTypeFilter = context.indexService().mapperService().documentMapper(TYPE_NAME).typeFilter();
 
-        final Filter filter;
+        final Query filter;
         if (context.aliasFilter() != null) {
             BooleanQuery booleanFilter = new BooleanQuery();
             booleanFilter.add(context.aliasFilter(), BooleanClause.Occur.MUST);
             booleanFilter.add(percolatorTypeFilter, BooleanClause.Occur.MUST);
-            filter = new QueryWrapperFilter(booleanFilter);
+            filter = booleanFilter;
         } else {
             filter = percolatorTypeFilter;
         }
 
-        FilteredQuery query = new FilteredQuery(context.percolateQuery(), filter);
+        Query query = Queries.filtered(context.percolateQuery(), filter);
         percolatorSearcher.searcher().search(query, percolateCollector);
         percolateCollector.aggregatorCollector.postCollection();
         if (context.aggregations() != null) {

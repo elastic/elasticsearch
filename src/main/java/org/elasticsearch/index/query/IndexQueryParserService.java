@@ -24,7 +24,6 @@ import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.CloseableThreadLocal;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
@@ -95,8 +94,6 @@ public class IndexQueryParserService extends AbstractIndexComponent {
 
     private final Map<String, QueryParser> queryParsers;
 
-    private final Map<String, FilterParser> filterParsers;
-
     private String defaultField;
     private boolean queryStringLenient;
     private final boolean strict;
@@ -109,8 +106,7 @@ public class IndexQueryParserService extends AbstractIndexComponent {
                                    MapperService mapperService, IndexCache indexCache, IndexFieldDataService fieldDataService,
                                    BitsetFilterCache bitsetFilterCache,
                                    @Nullable SimilarityService similarityService,
-                                   @Nullable Map<String, QueryParserFactory> namedQueryParsers,
-                                   @Nullable Map<String, FilterParserFactory> namedFilterParsers) {
+                                   @Nullable Map<String, QueryParserFactory> namedQueryParsers) {
         super(index, indexSettings);
         this.scriptService = scriptService;
         this.analysisService = analysisService;
@@ -147,29 +143,6 @@ public class IndexQueryParserService extends AbstractIndexComponent {
             }
         }
         this.queryParsers = ImmutableMap.copyOf(queryParsersMap);
-
-        List<FilterParser> filterParsers = newArrayList();
-        if (namedFilterParsers != null) {
-            Map<String, Settings> filterParserGroups = indexSettings.getGroups(IndexQueryParserService.Defaults.FILTER_PREFIX);
-            for (Map.Entry<String, FilterParserFactory> entry : namedFilterParsers.entrySet()) {
-                String filterParserName = entry.getKey();
-                FilterParserFactory filterParserFactory = entry.getValue();
-                Settings filterParserSettings = filterParserGroups.get(filterParserName);
-                if (filterParserSettings == null) {
-                    filterParserSettings = EMPTY_SETTINGS;
-                }
-                filterParsers.add(filterParserFactory.create(filterParserName, filterParserSettings));
-            }
-        }
-
-        Map<String, FilterParser> filterParsersMap = newHashMap();
-        filterParsersMap.putAll(indicesQueriesRegistry.filterParsers());
-        if (filterParsers != null) {
-            for (FilterParser filterParser : filterParsers) {
-                add(filterParsersMap, filterParser);
-            }
-        }
-        this.filterParsers = ImmutableMap.copyOf(filterParsersMap);
     }
 
     public void close() {
@@ -186,10 +159,6 @@ public class IndexQueryParserService extends AbstractIndexComponent {
 
     public QueryParser queryParser(String name) {
         return queryParsers.get(name);
-    }
-
-    public FilterParser filterParser(String name) {
-        return filterParsers.get(name);
     }
 
     public ParsedQuery parse(QueryBuilder queryBuilder) {
@@ -281,15 +250,15 @@ public class IndexQueryParserService extends AbstractIndexComponent {
      * Parses an inner filter, returning null if the filter should be ignored.
      */
     @Nullable
-    public ParsedFilter parseInnerFilter(XContentParser parser) throws IOException {
+    public ParsedQuery parseInnerFilter(XContentParser parser) throws IOException {
         QueryParseContext context = cache.get();
         context.reset(parser);
         try {
-            Filter filter = context.parseInnerFilter();
+            Query filter = context.parseInnerFilter();
             if (filter == null) {
                 return null;
             }
-            return new ParsedFilter(filter, context.copyNamedFilters());
+            return new ParsedQuery(filter, context.copyNamedFilters());
         } finally {
             context.reset(null);
         }
@@ -379,12 +348,6 @@ public class IndexQueryParserService extends AbstractIndexComponent {
             return new ParsedQuery(query, parseContext.copyNamedFilters());
         } finally {
             parseContext.reset(null);
-        }
-    }
-
-    private void add(Map<String, FilterParser> map, FilterParser filterParser) {
-        for (String name : filterParser.names()) {
-            map.put(name.intern(), filterParser);
         }
     }
 

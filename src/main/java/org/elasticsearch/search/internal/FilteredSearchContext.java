@@ -34,7 +34,7 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldMappers;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.IndexQueryParserService;
-import org.elasticsearch.index.query.ParsedFilter;
+import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.similarity.SimilarityService;
@@ -348,12 +348,12 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    public SearchContext parsedPostFilter(ParsedFilter postFilter) {
+    public SearchContext parsedPostFilter(ParsedQuery postFilter) {
         return in.parsedPostFilter(postFilter);
     }
 
     @Override
-    public ParsedFilter parsedPostFilter() {
+    public ParsedQuery parsedPostFilter() {
         return in.parsedPostFilter();
     }
 

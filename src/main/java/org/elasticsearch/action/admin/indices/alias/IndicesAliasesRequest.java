@@ -22,6 +22,7 @@ package org.elasticsearch.action.admin.indices.alias;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
+
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.AliasesRequest;
 import org.elasticsearch.action.CompositeIndicesRequest;
@@ -37,7 +38,7 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.index.query.FilterBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -113,7 +114,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
             return this;
         }
         
-        public AliasActions filter(FilterBuilder filter) {
+        public AliasActions filter(QueryBuilder filter) {
             aliasAction.filter(filter);
             return this;
         }
@@ -245,7 +246,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
      * @param filterBuilder The filter
      * @param indices         The indices
      */
-    public IndicesAliasesRequest addAlias(String alias, FilterBuilder filterBuilder, String... indices) {
+    public IndicesAliasesRequest addAlias(String alias, QueryBuilder filterBuilder, String... indices) {
         addAliasAction(new AliasActions(AliasAction.Type.ADD, indices, alias).filter(filterBuilder));
         return this;
     }

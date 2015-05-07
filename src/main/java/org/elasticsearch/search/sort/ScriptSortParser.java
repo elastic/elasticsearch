@@ -22,6 +22,7 @@ package org.elasticsearch.search.sort;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.QueryWrapperFilter;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.join.BitDocIdSetFilter;
@@ -139,7 +140,8 @@ public class ScriptSortParser implements SortParser {
             BitDocIdSetFilter rootDocumentsFilter = context.bitsetFilterCache().getBitDocIdSetFilter(Queries.newNonNestedFilter());
             Filter innerDocumentsFilter;
             if (nestedHelper.filterFound()) {
-                innerDocumentsFilter = nestedHelper.getInnerFilter();
+                // TODO: use queries instead
+                innerDocumentsFilter = new QueryWrapperFilter(nestedHelper.getInnerFilter());
             } else {
                 innerDocumentsFilter = nestedHelper.getNestedObjectMapper().nestedTypeFilter();
             }

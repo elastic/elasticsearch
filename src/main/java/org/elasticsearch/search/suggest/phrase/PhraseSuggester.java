@@ -34,7 +34,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.common.text.Text;
-import org.elasticsearch.index.query.FilterBuilders;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
@@ -168,7 +168,7 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
             if (isFilter) {
                 req = client.prepareSearch()
                         .setPreference(suggestions.getPreference())
-                        .setQuery(QueryBuilders.constantScoreQuery(FilterBuilders.bytesFilter(querySource)))
+                        .setQuery(QueryBuilders.constantScoreQuery(QueryBuilders.bytesQuery(querySource)))
                         .setSize(0)
                         .setTerminateAfter(1);
             } else {

@@ -20,7 +20,7 @@
 package org.elasticsearch.search.aggregations.bucket.filter;
 
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.query.FilterBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilderException;
 
@@ -31,7 +31,7 @@ import java.io.IOException;
  */
 public class FilterAggregationBuilder extends AggregationBuilder<FilterAggregationBuilder> {
 
-    private FilterBuilder filter;
+    private QueryBuilder filter;
 
     /**
      * Sole constructor.
@@ -44,7 +44,7 @@ public class FilterAggregationBuilder extends AggregationBuilder<FilterAggregati
      * Set the filter to use, only documents that match this filter will fall
      * into the bucket defined by this {@link Filter} aggregation.
      */
-    public FilterAggregationBuilder filter(FilterBuilder filter) {
+    public FilterAggregationBuilder filter(QueryBuilder filter) {
         this.filter = filter;
         return this;
     }

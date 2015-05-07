@@ -20,7 +20,7 @@ two ways to make sure that a field mapping exist:
 [float]
 === Aliases
 
-<<indices-aliases,Aliases>> can include <<query-dsl-filters,filters>> which
+<<indices-aliases,Aliases>> can include <<query-dsl,filters>> which
 are automatically applied to any search performed via the alias.
 <<filtered,Filtered aliases>> created with version `1.4.0` or later can only
 refer to field names which exist in the mappings of the index (or indices)

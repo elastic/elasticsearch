@@ -21,7 +21,6 @@ package org.elasticsearch.search.aggregations.bucket;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.geo.GeoHashUtils;
-import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
@@ -110,7 +109,7 @@ public class ShardReduceTests extends ElasticsearchIntegrationTest {
 
         SearchResponse response = client().prepareSearch("idx")
                 .setQuery(QueryBuilders.matchAllQuery())
-                .addAggregation(filter("filter").filter(FilterBuilders.matchAllFilter())
+                .addAggregation(filter("filter").filter(QueryBuilders.matchAllQuery())
                         .subAggregation(dateHistogram("histo").field("date").interval(DateHistogramInterval.DAY).minDocCount(0)))
                 .execute().actionGet();
 
@@ -143,7 +142,7 @@ public class ShardReduceTests extends ElasticsearchIntegrationTest {
         SearchResponse response = client().prepareSearch("idx")
                 .setQuery(QueryBuilders.matchAllQuery())
                 .addAggregation(global("global")
-                        .subAggregation(filter("filter").filter(FilterBuilders.matchAllFilter())
+                        .subAggregation(filter("filter").filter(QueryBuilders.matchAllQuery())
                                 .subAggregation(missing("missing").field("foobar")
                                         .subAggregation(dateHistogram("histo").field("date").interval(DateHistogramInterval.DAY).minDocCount(0)))))
                 .execute().actionGet();

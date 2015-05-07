@@ -57,7 +57,7 @@ Response:
 
 ==== High-precision requests
 
-When requesting detailed buckets (typically for displaying a "zoomed in" map) a filter like <<query-dsl-geo-bounding-box-filter,geo_bounding_box>> should be applied to narrow the subject area otherwise potentially millions of buckets will be created and returned.
+When requesting detailed buckets (typically for displaying a "zoomed in" map) a filter like <<query-dsl-geo-bounding-box-query,geo_bounding_box>> should be applied to narrow the subject area otherwise potentially millions of buckets will be created and returned.
 
 [source,js]
 --------------------------------------------------

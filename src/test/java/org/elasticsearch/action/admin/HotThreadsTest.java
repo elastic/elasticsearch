@@ -32,10 +32,9 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.elasticsearch.index.query.FilterBuilders.andFilter;
-import static org.elasticsearch.index.query.FilterBuilders.notFilter;
-import static org.elasticsearch.index.query.FilterBuilders.queryFilter;
+import static org.elasticsearch.index.query.QueryBuilders.andQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.index.query.QueryBuilders.notQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -125,10 +124,10 @@ public class HotThreadsTest extends ElasticsearchIntegrationTest {
                         client().prepareSearch()
                                 .setQuery(matchAllQuery())
                                 .setPostFilter(
-                                        andFilter(
-                                                queryFilter(matchAllQuery()),
-                                                notFilter(andFilter(queryFilter(termQuery("field1", "value1")),
-                                                        queryFilter(termQuery("field1", "value2")))))).get(),
+                                        andQuery(
+                                                matchAllQuery(),
+                                                notQuery(andQuery(termQuery("field1", "value1"),
+                                                        termQuery("field1", "value2"))))).get(),
                         3l);
             }
             latch.await();

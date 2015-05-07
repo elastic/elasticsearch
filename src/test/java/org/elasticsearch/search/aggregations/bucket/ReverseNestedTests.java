@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.search.aggregations.bucket;
 
-import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -40,8 +39,8 @@ import java.util.List;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.FilterBuilders.termFilter;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.count;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.filter;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.nested;
@@ -565,7 +564,7 @@ public class ReverseNestedTests extends ElasticsearchIntegrationTest {
                                 terms("group_by_category").field("category.name").subAggregation(
                                         reverseNested("to_root").subAggregation(
                                                 nested("nested_1").path("sku").subAggregation(
-                                                        filter("filter_by_sku").filter(termFilter("sku.sku_type", "bar1")).subAggregation(
+                                                        filter("filter_by_sku").filter(termQuery("sku.sku_type", "bar1")).subAggregation(
                                                                 count("sku_count").field("sku.sku_type")
                                                         )
                                                 )
@@ -600,9 +599,9 @@ public class ReverseNestedTests extends ElasticsearchIntegrationTest {
                                 terms("group_by_category").field("category.name").subAggregation(
                                         reverseNested("to_root").subAggregation(
                                                 nested("nested_1").path("sku").subAggregation(
-                                                        filter("filter_by_sku").filter(termFilter("sku.sku_type", "bar1")).subAggregation(
+                                                        filter("filter_by_sku").filter(termQuery("sku.sku_type", "bar1")).subAggregation(
                                                                 nested("nested_2").path("sku.colors").subAggregation(
-                                                                        filter("filter_sku_color").filter(termFilter("sku.colors.name", "red")).subAggregation(
+                                                                        filter("filter_sku_color").filter(termQuery("sku.colors.name", "red")).subAggregation(
                                                                                 reverseNested("reverse_to_sku").path("sku").subAggregation(
                                                                                         count("sku_count").field("sku.sku_type")
                                                                                 )

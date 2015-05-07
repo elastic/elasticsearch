@@ -20,9 +20,26 @@
 package org.elasticsearch.index.engine;
 
 import com.google.common.collect.Lists;
-import org.apache.lucene.index.*;
+
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriter.IndexReaderWarmer;
-import org.apache.lucene.search.*;
+import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.LiveIndexWriterConfig;
+import org.apache.lucene.index.MergePolicy;
+import org.apache.lucene.index.MultiReader;
+import org.apache.lucene.index.SegmentCommitInfo;
+import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.BooleanClause.Occur;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.SearcherFactory;
+import org.apache.lucene.search.SearcherManager;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.util.BytesRef;
@@ -55,7 +72,11 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.util.*;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.Lock;
@@ -595,15 +616,15 @@ public class InternalEngine extends Engine {
 
     private void innerDelete(DeleteByQuery delete) throws EngineException {
         try {
-            Query query;
-            if (delete.nested() && delete.aliasFilter() != null) {
-                query = new IncludeNestedDocsQuery(new FilteredQuery(delete.query(), delete.aliasFilter()), delete.parentFilter());
-            } else if (delete.nested()) {
-                query = new IncludeNestedDocsQuery(delete.query(), delete.parentFilter());
-            } else if (delete.aliasFilter() != null) {
-                query = new FilteredQuery(delete.query(), delete.aliasFilter());
-            } else {
-                query = delete.query();
+            Query query = delete.query();
+            if (delete.aliasFilter() != null) {
+                BooleanQuery boolQuery = new BooleanQuery();
+                boolQuery.add(query, Occur.MUST);
+                boolQuery.add(delete.aliasFilter(), Occur.FILTER);
+                query = boolQuery;
+            }
+            if (delete.nested()) {
+                query = new IncludeNestedDocsQuery(query, delete.parentFilter());
             }
 
             indexWriter.deleteDocuments(query);

@@ -43,7 +43,7 @@ import static org.elasticsearch.client.Requests.*;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.FilterBuilders.termFilter;
+import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.index.query.QueryBuilders.moreLikeThisQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.equalTo;
@@ -107,8 +107,8 @@ public class MoreLikeThisTests extends ElasticsearchIntegrationTest {
                     .startObject("text").field("type", "string").endObject()
                     .endObject().endObject().endObject()));
         logger.info("Creating aliases alias release");
-        client().admin().indices().aliases(indexAliasesRequest().addAlias("release", termFilter("text", "release"), "test")).actionGet();
-        client().admin().indices().aliases(indexAliasesRequest().addAlias("beta", termFilter("text", "beta"), "test")).actionGet();
+        client().admin().indices().aliases(indexAliasesRequest().addAlias("release", termQuery("text", "release"), "test")).actionGet();
+        client().admin().indices().aliases(indexAliasesRequest().addAlias("beta", termQuery("text", "beta"), "test")).actionGet();
 
         logger.info("Running Cluster Health");
         assertThat(ensureGreen(), equalTo(ClusterHealthStatus.GREEN));

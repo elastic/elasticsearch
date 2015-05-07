@@ -34,7 +34,7 @@ import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.client.Requests.searchRequest;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.FilterBuilders.termFilter;
+import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.index.query.QueryBuilders.functionScoreQuery;
 import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.*;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
@@ -111,10 +111,10 @@ public class FunctionScoreBackwardCompatibilityTests extends ElasticsearchBackwa
         SearchResponse response = client().search(
                 searchRequest().source(
                         searchSource().query(
-                                functionScoreQuery(termFilter("text", "value"))
+                                functionScoreQuery(termQuery("text", "value"))
                                         .add(gaussDecayFunction("loc", new GeoPoint(10, 20), "1000km"))
                                         .add(scriptFunction("_index['text']['value'].tf()"))
-                                        .add(termFilter("text", "boosted"), factorFunction(5))
+                                        .add(termQuery("text", "boosted"), factorFunction(5))
                         ))).actionGet();
         assertSearchResponse(response);
         assertOrderedSearchHits(response, ids);

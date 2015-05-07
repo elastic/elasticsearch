@@ -37,10 +37,10 @@ import java.util.*;
 public class FiltersFunctionScoreQuery extends Query {
 
     public static class FilterFunction {
-        public final Filter filter;
+        public final Query filter;
         public final ScoreFunction function;
 
-        public FilterFunction(Filter filter, ScoreFunction function) {
+        public FilterFunction(Query filter, ScoreFunction function) {
             this.filter = filter;
             this.function = function;
         }

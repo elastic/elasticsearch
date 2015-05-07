@@ -20,8 +20,8 @@ package org.elasticsearch.search.aggregations.bucket.significant;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.PostingsEnum;
-import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.ParseField;
@@ -131,7 +131,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
     private FieldMapper mapper;
     private FilterableTermsEnum termsEnum;
     private int numberOfAggregatorsCreated = 0;
-    private Filter filter;
+    private final Query filter;
     private final TermsAggregator.BucketCountThresholds bucketCountThresholds;
     private final SignificanceHeuristic significanceHeuristic;
 
@@ -140,7 +140,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
     }
 
     public SignificantTermsAggregatorFactory(String name, ValuesSourceConfig valueSourceConfig, TermsAggregator.BucketCountThresholds bucketCountThresholds, IncludeExclude includeExclude,
-                                             String executionHint, Filter filter, SignificanceHeuristic significanceHeuristic) {
+                                             String executionHint, Query filter, SignificanceHeuristic significanceHeuristic) {
 
         super(name, SignificantStringTerms.TYPE.name(), valueSourceConfig);
         this.bucketCountThresholds = bucketCountThresholds;

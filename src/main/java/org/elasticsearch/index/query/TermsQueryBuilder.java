@@ -16,32 +16,28 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.elasticsearch.index.query;
 
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Collection;
 
 /**
- *
+ * A filer for a field based on several terms matching on any of them.
  */
-public class TermsQueryBuilder extends BaseQueryBuilder implements BoostableQueryBuilder<TermsQueryBuilder> {
+public class TermsQueryBuilder extends BaseQueryBuilder {
 
     private final String name;
 
-    private final Object[] values;
-
-    private String minimumShouldMatch;
-
-    private Boolean disableCoord;
-
-    private float boost = -1;
+    private final Object values;
 
     private String queryName;
 
+    private String execution;
+
     /**
-     * A query for a field based on several terms matching on any of them.
+     * A filer for a field based on several terms matching on any of them.
      *
      * @param name   The field name
      * @param values The terms
@@ -51,63 +47,51 @@ public class TermsQueryBuilder extends BaseQueryBuilder implements BoostableQuer
     }
 
     /**
-     * A query for a field based on several terms matching on any of them.
+     * A filer for a field based on several terms matching on any of them.
      *
      * @param name   The field name
      * @param values The terms
      */
     public TermsQueryBuilder(String name, int... values) {
         this.name = name;
-        this.values = new Integer[values.length];
-        for (int i = 0; i < values.length; i++) {
-            this.values[i] = values[i];
-        }
+        this.values = values;
     }
 
     /**
-     * A query for a field based on several terms matching on any of them.
+     * A filer for a field based on several terms matching on any of them.
      *
      * @param name   The field name
      * @param values The terms
      */
     public TermsQueryBuilder(String name, long... values) {
         this.name = name;
-        this.values = new Long[values.length];
-        for (int i = 0; i < values.length; i++) {
-            this.values[i] = values[i];
-        }
+        this.values = values;
     }
 
     /**
-     * A query for a field based on several terms matching on any of them.
+     * A filer for a field based on several terms matching on any of them.
      *
      * @param name   The field name
      * @param values The terms
      */
     public TermsQueryBuilder(String name, float... values) {
         this.name = name;
-        this.values = new Float[values.length];
-        for (int i = 0; i < values.length; i++) {
-            this.values[i] = values[i];
-        }
+        this.values = values;
     }
 
     /**
-     * A query for a field based on several terms matching on any of them.
+     * A filer for a field based on several terms matching on any of them.
      *
      * @param name   The field name
      * @param values The terms
      */
     public TermsQueryBuilder(String name, double... values) {
         this.name = name;
-        this.values = new Double[values.length];
-        for (int i = 0; i < values.length; i++) {
-            this.values[i] = values[i];
-        }
+        this.values = values;
     }
 
     /**
-     * A query for a field based on several terms matching on any of them.
+     * A filer for a field based on several terms matching on any of them.
      *
      * @param name   The field name
      * @param values The terms
@@ -117,49 +101,30 @@ public class TermsQueryBuilder extends BaseQueryBuilder implements BoostableQuer
         this.values = values;
     }
 
-  /**
-   * A query for a field based on several terms matching on any of them.
-   *
-   * @param name    The field name
-   * @param values  The terms
-   */
-    public TermsQueryBuilder(String name, Collection values) {
-        this(name, values.toArray());
-    }
-
     /**
-     * Sets the minimum number of matches across the provided terms. Defaults to <tt>1</tt>.
+     * A filer for a field based on several terms matching on any of them.
+     *
+     * @param name   The field name
+     * @param values The terms
      */
-    public TermsQueryBuilder minimumMatch(int minimumMatch) {
-        this.minimumShouldMatch = Integer.toString(minimumMatch);
-        return this;
-    }
-
-    public TermsQueryBuilder minimumShouldMatch(String minimumShouldMatch) {
-        this.minimumShouldMatch = minimumShouldMatch;
-        return this;
+    public TermsQueryBuilder(String name, Iterable values) {
+        this.name = name;
+        this.values = values;
     }
 
     /**
-     * Sets the boost for this query.  Documents matching this query will (in addition to the normal
-     * weightings) have their score multiplied by the boost provided.
+     * Sets the execution mode for the terms filter. Cane be either "plain", "bool"
+     * "and". Defaults to "plain".
+     * @deprecated elasticsearch now makes better decisions on its own
      */
-    @Override
-    public TermsQueryBuilder boost(float boost) {
-        this.boost = boost;
+    @Deprecated
+    public TermsQueryBuilder execution(String execution) {
+        this.execution = execution;
         return this;
     }
 
     /**
-     * Disables <tt>Similarity#coord(int,int)</tt> in scoring. Defualts to <tt>false</tt>.
-     */
-    public TermsQueryBuilder disableCoord(boolean disableCoord) {
-        this.disableCoord = disableCoord;
-        return this;
-    }
-
-    /**
-     * Sets the query name for the filter that can be used when searching for matched_filters per hit.
+     * Sets the filter name for the filter that can be used when searching for matched_filters per hit.
      */
     public TermsQueryBuilder queryName(String queryName) {
         this.queryName = queryName;
@@ -167,23 +132,14 @@ public class TermsQueryBuilder extends BaseQueryBuilder implements BoostableQuer
     }
 
     @Override
-    protected void doXContent(XContentBuilder builder, Params params) throws IOException {
+    public void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(TermsQueryParser.NAME);
-        builder.startArray(name);
-        for (Object value : values) {
-            builder.value(value);
-        }
-        builder.endArray();
+        builder.field(name, values);
 
-        if (minimumShouldMatch != null) {
-            builder.field("minimum_should_match", minimumShouldMatch);
+        if (execution != null) {
+            builder.field("execution", execution);
         }
-        if (disableCoord != null) {
-            builder.field("disable_coord", disableCoord);
-        }
-        if (boost != -1) {
-            builder.field("boost", boost);
-        }
+
         if (queryName != null) {
             builder.field("_name", queryName);
         }

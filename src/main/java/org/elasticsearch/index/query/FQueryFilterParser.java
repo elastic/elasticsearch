@@ -19,9 +19,8 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.QueryWrapperFilter;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 
@@ -31,7 +30,8 @@ import java.io.IOException;
  * The "fquery" filter is the same as the {@link QueryFilterParser} except that it allows also to
  * associate a name with the query filter.
  */
-public class FQueryFilterParser implements FilterParser {
+@Deprecated
+public class FQueryFilterParser implements QueryParser {
 
     public static final String NAME = "fquery";
 
@@ -45,13 +45,13 @@ public class FQueryFilterParser implements FilterParser {
     }
 
     @Override
-    public Filter parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
         Query query = null;
         boolean queryFound = false;
 
-        String filterName = null;
+        String queryName = null;
         String currentFieldName = null;
         XContentParser.Token token;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -64,13 +64,13 @@ public class FQueryFilterParser implements FilterParser {
                     queryFound = true;
                     query = parseContext.parseInnerQuery();
                 } else {
-                    throw new QueryParsingException(parseContext, "[fquery] filter does not support [" + currentFieldName + "]");
+                    throw new QueryParsingException(parseContext, "[fquery] query does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
                 if ("_name".equals(currentFieldName)) {
-                    filterName = parser.text();
+                    queryName = parser.text();
                 } else {
-                    throw new QueryParsingException(parseContext, "[fquery] filter does not support [" + currentFieldName + "]");
+                    throw new QueryParsingException(parseContext, "[fquery] query does not support [" + currentFieldName + "]");
                 }
             }
         }
@@ -80,10 +80,10 @@ public class FQueryFilterParser implements FilterParser {
         if (query == null) {
             return null;
         }
-        Filter filter = new QueryWrapperFilter(query);
-        if (filterName != null) {
-            parseContext.addNamedFilter(filterName, filter);
+        query = new ConstantScoreQuery(query);
+        if (queryName != null) {
+            parseContext.addNamedQuery(queryName, query);
         }
-        return filter;
+        return query;
     }
 }

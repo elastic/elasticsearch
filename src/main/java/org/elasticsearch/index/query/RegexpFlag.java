@@ -36,7 +36,7 @@ import org.elasticsearch.common.Strings;
  * </ul>
  *
  * @see RegexpQueryBuilder#flags(RegexpFlag...)
- * @see RegexpFilterBuilder#flags(RegexpFlag...)
+ * @see RegexpQueryBuilder#flags(RegexpFlag...)
  */
 public enum RegexpFlag {
 

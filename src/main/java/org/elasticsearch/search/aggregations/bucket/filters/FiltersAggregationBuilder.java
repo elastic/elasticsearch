@@ -20,7 +20,7 @@
 package org.elasticsearch.search.aggregations.bucket.filters;
 
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.query.FilterBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilderException;
 
@@ -35,8 +35,8 @@ import java.util.Map;
  */
 public class FiltersAggregationBuilder extends AggregationBuilder<FiltersAggregationBuilder> {
     
-    private Map<String, FilterBuilder> keyedFilters = null;
-    private List<FilterBuilder> nonKeyedFilters = null;
+    private Map<String, QueryBuilder> keyedFilters = null;
+    private List<QueryBuilder> nonKeyedFilters = null;
 
     /**
      * Sole constructor.
@@ -50,7 +50,7 @@ public class FiltersAggregationBuilder extends AggregationBuilder<FiltersAggrega
      * NOTE: if a filter was already defined for this key, then this filter will replace it.
      * NOTE: the same {@link FiltersBuilder} cannot have both keyed and non-keyed filters
      */
-    public FiltersAggregationBuilder filter(String key, FilterBuilder filter) {
+    public FiltersAggregationBuilder filter(String key, QueryBuilder filter) {
         if (keyedFilters == null) {
             keyedFilters = new LinkedHashMap<>();
         }
@@ -62,7 +62,7 @@ public class FiltersAggregationBuilder extends AggregationBuilder<FiltersAggrega
      * Add a new filter with no key.
      * NOTE: the same {@link FiltersBuilder} cannot have both keyed and non-keyed filters.
      */
-    public FiltersAggregationBuilder filter(FilterBuilder filter) {
+    public FiltersAggregationBuilder filter(QueryBuilder filter) {
         if (nonKeyedFilters == null) {
             nonKeyedFilters = new ArrayList<>();
         }
@@ -83,7 +83,7 @@ public class FiltersAggregationBuilder extends AggregationBuilder<FiltersAggrega
         
         if (keyedFilters != null) {
             builder.startObject("filters");
-            for (Map.Entry<String, FilterBuilder> entry : keyedFilters.entrySet()) {
+            for (Map.Entry<String, QueryBuilder> entry : keyedFilters.entrySet()) {
                 builder.field(entry.getKey());
                 entry.getValue().toXContent(builder, params);
             }
@@ -91,7 +91,7 @@ public class FiltersAggregationBuilder extends AggregationBuilder<FiltersAggrega
         }
         if (nonKeyedFilters != null) {
             builder.startArray("filters");
-            for (FilterBuilder filterBuilder : nonKeyedFilters) {
+            for (QueryBuilder filterBuilder : nonKeyedFilters) {
                 filterBuilder.toXContent(builder, params);
             }
             builder.endArray();

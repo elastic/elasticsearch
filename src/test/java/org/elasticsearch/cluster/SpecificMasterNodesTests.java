@@ -22,7 +22,7 @@ package org.elasticsearch.cluster;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
-import org.elasticsearch.index.query.FilterBuilders;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.junit.Test;
@@ -136,6 +136,6 @@ public class SpecificMasterNodesTests extends ElasticsearchIntegrationTest {
         internalCluster().startNode(settingsBuilder().put("node.data", true).put("node.master", false));
 
         assertAcked(prepareCreate("test").addMapping("type1", "{\"type1\" : {\"properties\" : {\"table_a\" : { \"type\" : \"nested\", \"properties\" : {\"field_a\" : { \"type\" : \"string\" },\"field_b\" :{ \"type\" : \"string\" }}}}}}"));
-        client().admin().indices().prepareAliases().addAlias("test", "a_test", FilterBuilders.nestedFilter("table_a", FilterBuilders.termFilter("table_a.field_b", "y"))).get();
+        client().admin().indices().prepareAliases().addAlias("test", "a_test", QueryBuilders.nestedQuery("table_a", QueryBuilders.termQuery("table_a.field_b", "y"))).get();
     }
 }

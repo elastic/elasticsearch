@@ -23,6 +23,7 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.regex.Regex;
@@ -38,6 +39,8 @@ import java.util.Collection;
 public class IndicesQueryParser implements QueryParser {
 
     public static final String NAME = "indices";
+    private static final ParseField QUERY_FIELD = new ParseField("query", "filter");
+    private static final ParseField NO_MATCH_QUERY = new ParseField("no_match_query", "no_match_filter");
 
     @Nullable
     private final ClusterService clusterService;
@@ -70,10 +73,10 @@ public class IndicesQueryParser implements QueryParser {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_OBJECT) {
-                if ("query".equals(currentFieldName)) {
+                if (QUERY_FIELD.match(currentFieldName)) {
                     innerQuery = new XContentStructure.InnerQuery(parseContext, null);
                     queryFound = true;
-                } else if ("no_match_query".equals(currentFieldName)) {
+                } else if (NO_MATCH_QUERY.match(currentFieldName)) {
                     innerNoMatchQuery = new XContentStructure.InnerQuery(parseContext, null);
                 } else {
                     throw new QueryParsingException(parseContext, "[indices] query does not support [" + currentFieldName + "]");
@@ -103,7 +106,7 @@ public class IndicesQueryParser implements QueryParser {
                     }
                     indicesFound = true;
                     currentIndexMatchesIndices = matchesIndices(parseContext.index().name(), parser.text());
-                } else if ("no_match_query".equals(currentFieldName)) {
+                } else if (NO_MATCH_QUERY.match(currentFieldName)) {
                     String type = parser.text();
                     if ("all".equals(type)) {
                         noMatchQuery = Queries.newMatchAllQuery();

@@ -25,7 +25,6 @@ import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
@@ -66,25 +65,25 @@ public class ExternalValuesMapperIntegrationTests extends ElasticsearchIntegrati
         SearchResponse response;
 
         response = client().prepareSearch("test-idx")
-                .setPostFilter(FilterBuilders.termFilter("field.bool", "T"))
+                .setPostFilter(QueryBuilders.termQuery("field.bool", "T"))
                 .execute().actionGet();
 
         assertThat(response.getHits().totalHits(), equalTo((long) 1));
 
         response = client().prepareSearch("test-idx")
-                .setPostFilter(FilterBuilders.geoDistanceRangeFilter("field.point").point(42.0, 51.0).to("1km"))
+                .setPostFilter(QueryBuilders.geoDistanceRangeQuery("field.point").point(42.0, 51.0).to("1km"))
                 .execute().actionGet();
 
         assertThat(response.getHits().totalHits(), equalTo((long) 1));
 
         response = client().prepareSearch("test-idx")
-                .setPostFilter(FilterBuilders.geoShapeFilter("field.shape", ShapeBuilder.newPoint(-100, 45), ShapeRelation.WITHIN))
+                .setPostFilter(QueryBuilders.geoShapeQuery("field.shape", ShapeBuilder.newPoint(-100, 45), ShapeRelation.WITHIN))
                         .execute().actionGet();
 
         assertThat(response.getHits().totalHits(), equalTo((long) 1));
 
         response = client().prepareSearch("test-idx")
-                .setPostFilter(FilterBuilders.termFilter("field.field", "foo"))
+                .setPostFilter(QueryBuilders.termQuery("field.field", "foo"))
                 .execute().actionGet();
 
         assertThat(response.getHits().totalHits(), equalTo((long) 1));

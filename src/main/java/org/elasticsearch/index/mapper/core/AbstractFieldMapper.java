@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.mapper.core;
 
-import com.carrotsearch.hppc.ObjectOpenHashSet;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.google.common.base.Function;
@@ -38,7 +37,6 @@ import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.QueryWrapperFilter;
 import org.apache.lucene.search.RegexpQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
@@ -65,7 +63,6 @@ import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.internal.AllFieldMapper;
 import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.index.search.FieldDataTermsFilter;
 import org.elasticsearch.index.similarity.SimilarityLookupService;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 
@@ -483,44 +480,24 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
     }
 
     @Override
-    public Filter termFilter(Object value, @Nullable QueryParseContext context) {
-        return new QueryWrapperFilter(new TermQuery(names().createIndexNameTerm(indexedValueForSearch(value))));
-    }
-
-    @Override
-    public Filter termsFilter(List values, @Nullable QueryParseContext context) {
+    public Query termsQuery(List values, @Nullable QueryParseContext context) {
         switch (values.size()) {
         case 0:
-            return Queries.newMatchNoDocsFilter();
+            return Queries.newMatchNoDocsQuery();
         case 1:
             // When there is a single term, it's important to return a term filter so that
             // it can return a DocIdSet that is directly backed by a postings list, instead
             // of loading everything into a bit set and returning an iterator based on the
             // bit set
-            return termFilter(values.get(0), context);
+            return termQuery(values.get(0), context);
         default:
             BytesRef[] bytesRefs = new BytesRef[values.size()];
             for (int i = 0; i < bytesRefs.length; i++) {
                 bytesRefs[i] = indexedValueForSearch(values.get(i));
             }
-            return new QueryWrapperFilter(new TermsQuery(names.indexName(), bytesRefs));
+            return new TermsQuery(names.indexName(), bytesRefs);
             
         }
-    }
-
-    /**
-     * A terms filter based on the field data cache
-     */
-    @Override
-    public Filter fieldDataTermsFilter(List values, @Nullable QueryParseContext context) {
-        // create with initial size large enough to avoid rehashing
-        ObjectOpenHashSet<BytesRef> terms =
-                new ObjectOpenHashSet<>((int) (values.size() * (1 + ObjectOpenHashSet.DEFAULT_LOAD_FACTOR)));
-        for (int i = 0, len = values.size(); i < len; i++) {
-            terms.add(indexedValueForSearch(values.get(i)));
-        }
-
-        return FieldDataTermsFilter.newBytes(context.getForField(this), terms);
     }
 
     @Override
@@ -529,14 +506,6 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
                 lowerTerm == null ? null : indexedValueForSearch(lowerTerm),
                 upperTerm == null ? null : indexedValueForSearch(upperTerm),
                 includeLower, includeUpper);
-    }
-
-    @Override
-    public Filter rangeFilter(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
-        return new QueryWrapperFilter(new TermRangeQuery(names.indexName(),
-                lowerTerm == null ? null : indexedValueForSearch(lowerTerm),
-                upperTerm == null ? null : indexedValueForSearch(upperTerm),
-                includeLower, includeUpper));
     }
 
     @Override
@@ -554,11 +523,6 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
     }
 
     @Override
-    public Filter prefixFilter(Object value, @Nullable QueryParseContext context) {
-        return new QueryWrapperFilter(new PrefixQuery(names().createIndexNameTerm(indexedValueForSearch(value))));
-    }
-
-    @Override
     public Query regexpQuery(Object value, int flags, int maxDeterminizedStates, @Nullable MultiTermQuery.RewriteMethod method, @Nullable QueryParseContext context) {
         RegexpQuery query = new RegexpQuery(names().createIndexNameTerm(indexedValueForSearch(value)), flags, maxDeterminizedStates);
         if (method != null) {
@@ -568,12 +532,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
     }
 
     @Override
-    public Filter regexpFilter(Object value, int flags, int maxDeterminizedStates, @Nullable QueryParseContext parseContext) {
-        return new QueryWrapperFilter(new RegexpQuery(names().createIndexNameTerm(indexedValueForSearch(value)), flags, maxDeterminizedStates));
-    }
-
-    @Override
-    public Filter nullValueFilter() {
+    public Query nullValueFilter() {
         return null;
     }
 

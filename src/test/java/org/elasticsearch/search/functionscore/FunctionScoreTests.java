@@ -30,7 +30,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.weight.WeightBuilder;
-import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
@@ -42,7 +41,7 @@ import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.client.Requests.searchRequest;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.FilterBuilders.termFilter;
+import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
 import static org.elasticsearch.index.query.QueryBuilders.functionScoreQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.exponentialDecayFunction;
@@ -172,19 +171,19 @@ public class FunctionScoreTests extends ElasticsearchIntegrationTest {
         SearchResponse responseWithWeights = client().search(
                 searchRequest().source(
                         searchSource().query(
-                                functionScoreQuery(termFilter(TEXT_FIELD, "value"))
+                                functionScoreQuery(constantScoreQuery(termQuery(TEXT_FIELD, "value")))
                                         .add(gaussDecayFunction(GEO_POINT_FIELD, new GeoPoint(10, 20), "1000km"))
                                         .add(fieldValueFactorFunction(DOUBLE_FIELD).modifier(FieldValueFactorFunction.Modifier.LN).setWeight(2))
                                         .add(scriptFunction("_index['" + TEXT_FIELD + "']['value'].tf()").setWeight(3))
                         ).explain(true))).actionGet();
 
         assertThat(responseWithWeights.getHits().getAt(0).getExplanation().toString(),
-                equalTo("6.0 = function score, product of:\n  1.0 = ConstantScore(text_field:value), product of:\n    1.0 = boost\n    1.0 = queryNorm\n  6.0 = min of:\n    6.0 = function score, score mode [multiply]\n      1.0 = function score, product of:\n        1.0 = match filter: QueryWrapperFilter(*:*)\n        1.0 = Function for field geo_point_field:\n          1.0 = exp(-0.5*pow(MIN of: [Math.max(arcDistance([10.0, 20.0](=doc value),[10.0, 20.0](=origin)) - 0.0(=offset), 0)],2.0)/7.213475204444817E11)\n      2.0 = function score, product of:\n        1.0 = match filter: QueryWrapperFilter(*:*)\n        2.0 = product of:\n          1.0 = field value function: ln(doc['double_field'].value * factor=1.0)\n          2.0 = weight\n      3.0 = function score, product of:\n        1.0 = match filter: QueryWrapperFilter(*:*)\n        3.0 = product of:\n          1.0 = script score function, computed with script:\"_index['text_field']['value'].tf()\n            1.0 = _score: \n              1.0 = ConstantScore(text_field:value), product of:\n                1.0 = boost\n                1.0 = queryNorm\n          3.0 = weight\n    3.4028235E38 = maxBoost\n  1.0 = queryBoost\n")
+                equalTo("6.0 = function score, product of:\n  1.0 = ConstantScore(text_field:value), product of:\n    1.0 = boost\n    1.0 = queryNorm\n  6.0 = min of:\n    6.0 = function score, score mode [multiply]\n      1.0 = function score, product of:\n        1.0 = match filter: *:*\n        1.0 = Function for field geo_point_field:\n          1.0 = exp(-0.5*pow(MIN of: [Math.max(arcDistance([10.0, 20.0](=doc value),[10.0, 20.0](=origin)) - 0.0(=offset), 0)],2.0)/7.213475204444817E11)\n      2.0 = function score, product of:\n        1.0 = match filter: *:*\n        2.0 = product of:\n          1.0 = field value function: ln(doc['double_field'].value * factor=1.0)\n          2.0 = weight\n      3.0 = function score, product of:\n        1.0 = match filter: *:*\n        3.0 = product of:\n          1.0 = script score function, computed with script:\"_index['text_field']['value'].tf()\n            1.0 = _score: \n              1.0 = ConstantScore(text_field:value), product of:\n                1.0 = boost\n                1.0 = queryNorm\n          3.0 = weight\n    3.4028235E38 = maxBoost\n  1.0 = queryBoost\n")
         );
         responseWithWeights = client().search(
                 searchRequest().source(
                         searchSource().query(
-                                functionScoreQuery(termFilter(TEXT_FIELD, "value"))
+                                functionScoreQuery(constantScoreQuery(termQuery(TEXT_FIELD, "value")))
                                         .add(weightFactorFunction(4.0f))
                         ).explain(true))).actionGet();
         assertThat(responseWithWeights.getHits().getAt(0).getExplanation().toString(),
@@ -205,7 +204,7 @@ public class FunctionScoreTests extends ElasticsearchIntegrationTest {
         SearchResponse response = client().search(
                 searchRequest().source(
                         searchSource().query(
-                                functionScoreQuery(termFilter(TEXT_FIELD, "value"))
+                                functionScoreQuery(constantScoreQuery(termQuery(TEXT_FIELD, "value")))
                                         .add(gaussDecayFunction(GEO_POINT_FIELD, new GeoPoint(10, 20), "1000km"))
                                         .add(fieldValueFactorFunction(DOUBLE_FIELD).modifier(FieldValueFactorFunction.Modifier.LN))
                                         .add(scriptFunction("_index['" + TEXT_FIELD + "']['value'].tf()"))
@@ -213,7 +212,7 @@ public class FunctionScoreTests extends ElasticsearchIntegrationTest {
         SearchResponse responseWithWeights = client().search(
                 searchRequest().source(
                         searchSource().query(
-                                functionScoreQuery(termFilter(TEXT_FIELD, "value"))
+                                functionScoreQuery(constantScoreQuery(termQuery(TEXT_FIELD, "value")))
                                         .add(gaussDecayFunction(GEO_POINT_FIELD, new GeoPoint(10, 20), "1000km").setWeight(2))
                                         .add(fieldValueFactorFunction(DOUBLE_FIELD).modifier(FieldValueFactorFunction.Modifier.LN).setWeight(2))
                                         .add(scriptFunction("_index['" + TEXT_FIELD + "']['value'].tf()").setWeight(2))
@@ -239,7 +238,7 @@ public class FunctionScoreTests extends ElasticsearchIntegrationTest {
         float[] scores = getScores(scoreFunctionBuilders);
 
         String scoreMode = getRandomScoreMode();
-        FunctionScoreQueryBuilder withWeights = functionScoreQuery(termFilter(TEXT_FIELD, "value")).scoreMode(scoreMode);
+        FunctionScoreQueryBuilder withWeights = functionScoreQuery(constantScoreQuery(termQuery(TEXT_FIELD, "value"))).scoreMode(scoreMode);
         int weightscounter = 0;
         for (ScoreFunctionBuilder builder : scoreFunctionBuilders) {
             withWeights.add(builder.setWeight(weights[weightscounter]));
@@ -311,7 +310,7 @@ public class FunctionScoreTests extends ElasticsearchIntegrationTest {
         ScoreFunctionBuilder scoreFunctionBuilder = scoreFunctionBuilders[randomInt(3)];
         float[] weights = createRandomWeights(1);
         float[] scores = getScores(scoreFunctionBuilder);
-        FunctionScoreQueryBuilder withWeights = functionScoreQuery(termFilter(TEXT_FIELD, "value"));
+        FunctionScoreQueryBuilder withWeights = functionScoreQuery(constantScoreQuery(termQuery(TEXT_FIELD, "value")));
         withWeights.add(scoreFunctionBuilder.setWeight(weights[0]));
 
         SearchResponse responseWithWeights = client().search(
@@ -334,7 +333,7 @@ public class FunctionScoreTests extends ElasticsearchIntegrationTest {
             SearchResponse response = client().search(
                     searchRequest().source(
                             searchSource().query(
-                                    functionScoreQuery(termFilter(TEXT_FIELD, "value"))
+                                    functionScoreQuery(constantScoreQuery(termQuery(TEXT_FIELD, "value")))
                                             .add(builder)
                             ))).actionGet();
             scores[scorecounter] = response.getHits().getAt(0).getScore();
@@ -522,41 +521,6 @@ public class FunctionScoreTests extends ElasticsearchIntegrationTest {
         for (int hitId = numDocs - 1; (numDocs - hitId) < searchResponse.getHits().totalHits(); hitId--) {
             assertThat(searchResponse.getHits().getAt(pos).getId(), equalTo(Integer.toString(hitId)));
             pos++;
-        }
-    }
-
-    @Test
-    public void testFilterAndQueryGiven() throws IOException, ExecutionException, InterruptedException {
-        assertAcked(prepareCreate("test").addMapping(
-                "type",
-                jsonBuilder().startObject().startObject("type").startObject("properties")
-                        .startObject("filter_field").field("type", "string").endObject()
-                        .startObject("query_field").field("type", "string").endObject()
-                        .startObject("num").field("type", "float").endObject().endObject().endObject().endObject()));
-        ensureYellow();
-
-        List<IndexRequestBuilder> indexRequests = new ArrayList<>();
-        for (int i = 0; i < 20; i++) {
-            indexRequests.add(
-                    client().prepareIndex()
-                            .setType("type")
-                            .setId(Integer.toString(i))
-                            .setIndex("test")
-                            .setSource(
-                                    jsonBuilder().startObject().field("query_field", Integer.toString(i % 3)).field("filter_field", Integer.toString(i % 2)).field("num", i).endObject()));
-        }
-
-        indexRandom(true, true, indexRequests);
-
-        SearchResponse response = client().search(
-                searchRequest().source(
-                        searchSource().query(
-                                functionScoreQuery(termQuery("query_field", "0"), termFilter("filter_field", "0"), scriptFunction("doc['num'].value")).boostMode("replace")))).get();
-
-        assertSearchResponse(response);
-        assertThat(response.getHits().totalHits(), equalTo(4l));
-        for (SearchHit hit : response.getHits().getHits()) {
-            assertThat(Float.parseFloat(hit.getId()), equalTo(hit.getScore()));
         }
     }
 

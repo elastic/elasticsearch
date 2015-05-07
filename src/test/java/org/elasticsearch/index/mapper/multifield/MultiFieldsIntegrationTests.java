@@ -33,7 +33,7 @@ import org.junit.Test;
 import java.io.IOException;
 import java.util.Map;
 
-import static org.elasticsearch.index.query.FilterBuilders.geoDistanceFilter;
+import static org.elasticsearch.index.query.QueryBuilders.geoDistanceQuery;
 import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -125,7 +125,7 @@ public class MultiFieldsIntegrationTests extends ElasticsearchIntegrationTest {
 
         client().prepareIndex("my-index", "my-type", "1").setSource("a", "51,19").setRefresh(true).get();
         CountResponse countResponse = client().prepareCount("my-index")
-                .setQuery(constantScoreQuery(geoDistanceFilter("a").point(51, 19).distance(50, DistanceUnit.KILOMETERS)))
+                .setQuery(constantScoreQuery(geoDistanceQuery("a").point(51, 19).distance(50, DistanceUnit.KILOMETERS)))
                 .get();
         assertThat(countResponse.getCount(), equalTo(1l));
         countResponse = client().prepareCount("my-index").setQuery(matchQuery("a.b", "51,19")).get();

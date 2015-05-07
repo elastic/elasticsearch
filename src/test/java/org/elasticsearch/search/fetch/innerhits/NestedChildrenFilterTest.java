@@ -86,7 +86,7 @@ public class NestedChildrenFilterTest extends ElasticsearchTestCase {
             DocIdSetIterator parents = parentFilter.getDocIdSet(leaf).iterator();
             for (int parentDoc = parents.nextDoc(); parentDoc != DocIdSetIterator.NO_MORE_DOCS ; parentDoc = parents.nextDoc()) {
                 int expectedChildDocs = leaf.reader().document(parentDoc).getField("num_child_docs").numericValue().intValue();
-                hitContext.reset(null, leaf, parentDoc, reader);
+                hitContext.reset(null, leaf, parentDoc, searcher);
                 NestedChildrenFilter nestedChildrenFilter = new NestedChildrenFilter(parentFilter, childFilter, hitContext);
                 TotalHitCountCollector totalHitCountCollector = new TotalHitCountCollector();
                 searcher.search(new ConstantScoreQuery(nestedChildrenFilter), totalHitCountCollector);

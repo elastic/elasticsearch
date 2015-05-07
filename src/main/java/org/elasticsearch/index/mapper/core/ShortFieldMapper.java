@@ -44,14 +44,12 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.NumericIntegerAnalyzer;
 import org.elasticsearch.index.fielddata.FieldDataType;
-import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.MergeMappingException;
+import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.index.search.NumericRangeFieldDataFilter;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 
 import java.io.IOException;
@@ -208,22 +206,6 @@ public class ShortFieldMapper extends NumberFieldMapper<Short> {
                 lowerTerm == null ? null : parseValueAsInt(lowerTerm),
                 upperTerm == null ? null : parseValueAsInt(upperTerm),
                 includeLower, includeUpper);
-    }
-
-    @Override
-    public Filter rangeFilter(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
-        return new QueryWrapperFilter(NumericRangeQuery.newIntRange(names.indexName(), precisionStep,
-                lowerTerm == null ? null : parseValueAsInt(lowerTerm),
-                upperTerm == null ? null : parseValueAsInt(upperTerm),
-                includeLower, includeUpper));
-    }
-
-    @Override
-    public Filter rangeFilter(QueryParseContext parseContext, Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
-        return new QueryWrapperFilter(NumericRangeFieldDataFilter.newShortRange((IndexNumericFieldData) parseContext.getForField(this),
-                lowerTerm == null ? null : parseValue(lowerTerm),
-                upperTerm == null ? null : parseValue(upperTerm),
-                includeLower, includeUpper));
     }
 
     @Override

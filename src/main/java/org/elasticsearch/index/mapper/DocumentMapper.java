@@ -28,6 +28,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -181,7 +182,7 @@ public class DocumentMapper implements ToXContent {
 
     private boolean hasNestedObjects = false;
 
-    private final Filter typeFilter;
+    private final Query typeFilter;
 
     private final Object mappersMutex = new Object();
 
@@ -199,7 +200,7 @@ public class DocumentMapper implements ToXContent {
                 meta);
         this.documentParser = new DocumentParser(index, indexSettings, docMapperParser, this);
 
-        this.typeFilter = typeMapper().termFilter(type, null);
+        this.typeFilter = typeMapper().termQuery(type, null);
 
         if (rootMapper(ParentFieldMapper.class).active()) {
             // mark the routing field mapper as required
@@ -313,7 +314,7 @@ public class DocumentMapper implements ToXContent {
         return rootMapper(SizeFieldMapper.class);
     }
 
-    public Filter typeFilter() {
+    public Query typeFilter() {
         return this.typeFilter;
     }
 

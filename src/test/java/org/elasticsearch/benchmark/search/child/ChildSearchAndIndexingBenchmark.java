@@ -36,8 +36,10 @@ import static org.elasticsearch.client.Requests.createIndexRequest;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
-import static org.elasticsearch.index.query.FilterBuilders.hasChildFilter;
-import static org.elasticsearch.index.query.QueryBuilders.*;
+import static org.elasticsearch.index.query.QueryBuilders.filteredQuery;
+import static org.elasticsearch.index.query.QueryBuilders.hasChildQuery;
+import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.node.NodeBuilder.nodeBuilder;
 
 /**
@@ -167,7 +169,7 @@ public class ChildSearchAndIndexingBenchmark {
                                 .setQuery(
                                         filteredQuery(
                                                 matchAllQuery(),
-                                                hasChildFilter("child", termQuery("field2", "value" + random.nextInt(numValues)))
+                                                hasChildQuery("child", termQuery("field2", "value" + random.nextInt(numValues)))
                                         )
                                 )
                                 .execute().actionGet();
@@ -184,7 +186,7 @@ public class ChildSearchAndIndexingBenchmark {
                                 .setQuery(
                                         filteredQuery(
                                                 matchAllQuery(),
-                                                hasChildFilter("child", matchAllQuery())
+                                                hasChildQuery("child", matchAllQuery())
                                         )
                                 )
                                 .execute().actionGet();

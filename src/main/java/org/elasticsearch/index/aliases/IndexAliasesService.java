@@ -22,6 +22,7 @@ package org.elasticsearch.index.aliases;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryWrapperFilter;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.compress.CompressedString;
@@ -33,7 +34,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.IndexQueryParserService;
-import org.elasticsearch.index.query.ParsedFilter;
+import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.indices.AliasFilterParsingException;
 import org.elasticsearch.indices.InvalidAliasNameException;
@@ -82,7 +83,7 @@ public class IndexAliasesService extends AbstractIndexComponent implements Itera
      * <p>The list of filtering aliases should be obtained by calling MetaData.filteringAliases.
      * Returns <tt>null</tt> if no filtering is required.</p>
      */
-    public Filter aliasFilter(String... aliases) {
+    public Query aliasFilter(String... aliases) {
         if (aliases == null || aliases.length == 0) {
             return null;
         }
@@ -109,7 +110,7 @@ public class IndexAliasesService extends AbstractIndexComponent implements Itera
                     return null;
                 }
             }
-            return new QueryWrapperFilter(combined);
+            return combined;
         }
     }
 
@@ -121,15 +122,15 @@ public class IndexAliasesService extends AbstractIndexComponent implements Itera
         aliases.remove(alias);
     }
 
-    private Filter parse(String alias, CompressedString filter) {
+    private Query parse(String alias, CompressedString filter) {
         if (filter == null) {
             return null;
         }
         try {
             byte[] filterSource = filter.uncompressed();
             try (XContentParser parser = XContentFactory.xContent(filterSource).createParser(filterSource)) {
-                ParsedFilter parsedFilter = indexQueryParser.parseInnerFilter(parser);
-                return parsedFilter == null ? null : parsedFilter.filter();
+                ParsedQuery parsedFilter = indexQueryParser.parseInnerFilter(parser);
+                return parsedFilter == null ? null : parsedFilter.query();
             }
         } catch (IOException ex) {
             throw new AliasFilterParsingException(index, alias, "Invalid alias filter", ex);

@@ -19,9 +19,7 @@
 
 package org.elasticsearch.index.mapper.core;
 
-import com.carrotsearch.hppc.DoubleOpenHashSet;
 import com.carrotsearch.hppc.LongArrayList;
-import com.carrotsearch.hppc.LongOpenHashSet;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.NumericTokenStream;
@@ -34,7 +32,6 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.ByteArrayDataOutput;
@@ -48,15 +45,13 @@ import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.MergeMappingException;
+import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.internal.AllFieldMapper;
 import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.index.search.FieldDataTermsFilter;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 
 import java.io.IOException;
@@ -278,53 +273,10 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
     }
 
     @Override
-    public final Filter termFilter(Object value, @Nullable QueryParseContext context) {
-        // Made this method final because previously many subclasses duplicated
-        // the same code, returning a NumericRangeFilter, which should be less
-        // efficient than super's default impl of a single TermFilter.
-        return super.termFilter(value, context);
-    }
-
-    @Override
     public abstract Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context);
 
     @Override
-    public abstract Filter rangeFilter(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context);
-
-    @Override
     public abstract Query fuzzyQuery(String value, Fuzziness fuzziness, int prefixLength, int maxExpansions, boolean transpositions);
-
-    /**
-     * A range filter based on the field data cache.
-     */
-    public abstract Filter rangeFilter(QueryParseContext parseContext, Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context);
-
-    /**
-     * A terms filter based on the field data cache for numeric fields.
-     */
-    @Override
-    public Filter fieldDataTermsFilter(List values, @Nullable QueryParseContext context) {
-        IndexNumericFieldData fieldData = context.getForField(this);
-        if (fieldData.getNumericType().isFloatingPoint()) {
-            // create with initial size large enough to avoid rehashing
-            DoubleOpenHashSet terms =
-                    new DoubleOpenHashSet((int) (values.size() * (1 + DoubleOpenHashSet.DEFAULT_LOAD_FACTOR)));
-            for (int i = 0, len = values.size(); i < len; i++) {
-                terms.add(parseDoubleValue(values.get(i)));
-            }
-
-            return FieldDataTermsFilter.newDoubles(fieldData, terms);
-        } else {
-            // create with initial size large enough to avoid rehashing
-            LongOpenHashSet terms =
-                    new LongOpenHashSet((int) (values.size() * (1 + LongOpenHashSet.DEFAULT_LOAD_FACTOR)));
-            for (int i = 0, len = values.size(); i < len; i++) {
-                terms.add(parseLongValue(values.get(i)));
-            }
-
-            return FieldDataTermsFilter.newLongs(fieldData, terms);
-        }
-    }
 
     /**
      * Converts an object value into a double

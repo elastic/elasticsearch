@@ -23,11 +23,11 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.support.QueryInnerHitBuilder;
 
 import java.io.IOException;
+import java.util.Objects;
 
 public class NestedQueryBuilder extends BaseQueryBuilder implements BoostableQueryBuilder<NestedQueryBuilder> {
 
     private final QueryBuilder queryBuilder;
-    private final FilterBuilder filterBuilder;
 
     private final String path;
 
@@ -41,16 +41,8 @@ public class NestedQueryBuilder extends BaseQueryBuilder implements BoostableQue
 
     public NestedQueryBuilder(String path, QueryBuilder queryBuilder) {
         this.path = path;
-        this.queryBuilder = queryBuilder;
-        this.filterBuilder = null;
+        this.queryBuilder = Objects.requireNonNull(queryBuilder);
     }
-
-    public NestedQueryBuilder(String path, FilterBuilder filterBuilder) {
-        this.path = path;
-        this.queryBuilder = null;
-        this.filterBuilder = filterBuilder;
-    }
-
     /**
      * The score mode.
      */
@@ -88,13 +80,8 @@ public class NestedQueryBuilder extends BaseQueryBuilder implements BoostableQue
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NestedQueryParser.NAME);
-        if (queryBuilder != null) {
-            builder.field("query");
-            queryBuilder.toXContent(builder, params);
-        } else {
-            builder.field("filter");
-            filterBuilder.toXContent(builder, params);
-        }
+        builder.field("query");
+        queryBuilder.toXContent(builder, params);
         builder.field("path", path);
         if (scoreMode != null) {
             builder.field("score_mode", scoreMode);

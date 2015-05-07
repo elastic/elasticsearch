@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.SpatialStrategy;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -26,17 +27,17 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
 
 /**
- * {@link QueryBuilder} that builds a GeoShape Query
+ * {@link QueryBuilder} that builds a GeoShape Filter
  */
-public class GeoShapeQueryBuilder extends BaseQueryBuilder implements BoostableQueryBuilder<GeoShapeQueryBuilder> {
+public class GeoShapeQueryBuilder extends BaseQueryBuilder {
 
     private final String name;
 
-    private SpatialStrategy strategy = null;
-
     private final ShapeBuilder shape;
 
-    private float boost = -1;
+    private SpatialStrategy strategy = null;
+
+    private String queryName;
 
     private final String indexedShapeId;
     private final String indexedShapeType;
@@ -44,52 +45,67 @@ public class GeoShapeQueryBuilder extends BaseQueryBuilder implements BoostableQ
     private String indexedShapeIndex;
     private String indexedShapePath;
 
-    private String queryName;
-
+    private ShapeRelation relation = null;
+    
     /**
-     * Creates a new GeoShapeQueryBuilder whose Query will be against the
+     * Creates a new GeoShapeQueryBuilder whose Filter will be against the
      * given field name using the given Shape
      *
-     * @param name  Name of the field that will be queried
-     * @param shape Shape used in the query
+     * @param name  Name of the field that will be filtered
+     * @param shape Shape used in the filter
      */
     public GeoShapeQueryBuilder(String name, ShapeBuilder shape) {
-        this(name, shape, null, null);
+        this(name, shape, null, null, null);
     }
 
     /**
-     * Creates a new GeoShapeQueryBuilder whose Query will be against the given field name
-     * and will use the Shape found with the given ID in the given type
+     * Creates a new GeoShapeQueryBuilder whose Filter will be against the
+     * given field name using the given Shape
      *
-     * @param name             Name of the field that will be queried
-     * @param indexedShapeId   ID of the indexed Shape that will be used in the Query
-     * @param indexedShapeType Index type of the indexed Shapes
+     * @param name  Name of the field that will be filtered
+     * @param relation {@link ShapeRelation} of query and indexed shape
+     * @param shape Shape used in the filter
      */
-    public GeoShapeQueryBuilder(String name, String indexedShapeId, String indexedShapeType) {
-        this(name, null, indexedShapeId, indexedShapeType);
+    public GeoShapeQueryBuilder(String name, ShapeBuilder shape, ShapeRelation relation) {
+        this(name, shape, null, null, relation);
     }
 
-    private GeoShapeQueryBuilder(String name, ShapeBuilder shape, String indexedShapeId, String indexedShapeType) {
+    /**
+     * Creates a new GeoShapeQueryBuilder whose Filter will be against the given field name
+     * and will use the Shape found with the given ID in the given type
+     *
+     * @param name             Name of the field that will be filtered
+     * @param indexedShapeId   ID of the indexed Shape that will be used in the Filter
+     * @param indexedShapeType Index type of the indexed Shapes
+     */
+    public GeoShapeQueryBuilder(String name, String indexedShapeId, String indexedShapeType, ShapeRelation relation) {
+        this(name, null, indexedShapeId, indexedShapeType, relation);
+    }
+
+    private GeoShapeQueryBuilder(String name, ShapeBuilder shape, String indexedShapeId, String indexedShapeType, ShapeRelation relation) {
         this.name = name;
         this.shape = shape;
         this.indexedShapeId = indexedShapeId;
+        this.relation = relation;
         this.indexedShapeType = indexedShapeType;
     }
 
     /**
-     * {@inheritDoc}
+     * Sets the name of the filter
+     *
+     * @param queryName Name of the filter
+     * @return this
      */
-    @Override
-    public GeoShapeQueryBuilder boost(float boost) {
-        this.boost = boost;
+    public GeoShapeQueryBuilder queryName(String queryName) {
+        this.queryName = queryName;
         return this;
     }
 
     /**
-     * Defines which spatial strategy will be used for building the geo shape query. When not set, the strategy that
+     * Defines which spatial strategy will be used for building the geo shape filter. When not set, the strategy that
      * will be used will be the one that is associated with the geo shape field in the mappings.
      *
-     * @param strategy The spatial strategy to use for building the geo shape query
+     * @param strategy The spatial strategy to use for building the geo shape filter
      * @return this
      */
     public GeoShapeQueryBuilder strategy(SpatialStrategy strategy) {
@@ -111,7 +127,7 @@ public class GeoShapeQueryBuilder extends BaseQueryBuilder implements BoostableQ
     /**
      * Sets the path of the field in the indexed Shape document that has the Shape itself
      *
-     * @param indexedShapePath path of the field where the Shape itself is defined
+     * @param indexedShapePath Path of the field where the Shape itself is defined
      * @return this
      */
     public GeoShapeQueryBuilder indexedShapePath(String indexedShapePath) {
@@ -120,10 +136,13 @@ public class GeoShapeQueryBuilder extends BaseQueryBuilder implements BoostableQ
     }
 
     /**
-     * Sets the query name for the filter that can be used when searching for matched_filters per hit.
+     * Sets the relation of query shape and indexed shape.
+     *
+     * @param relation relation of the shapes
+     * @return this
      */
-    public GeoShapeQueryBuilder queryName(String queryName) {
-        this.queryName = queryName;
+    public GeoShapeQueryBuilder relation(ShapeRelation relation) {
+        this.relation = relation;
         return this;
     }
 
@@ -152,16 +171,16 @@ public class GeoShapeQueryBuilder extends BaseQueryBuilder implements BoostableQ
             builder.endObject();
         }
 
-        if (boost != -1) {
-            builder.field("boost", boost);
+        if(relation != null) {
+            builder.field("relation", relation.getRelationName());
         }
-        if (queryName != null) {
+
+        builder.endObject();
+
+        if (name != null) {
             builder.field("_name", queryName);
         }
 
         builder.endObject();
-
-        builder.endObject();
     }
-
 }

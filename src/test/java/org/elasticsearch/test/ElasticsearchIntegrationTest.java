@@ -628,7 +628,6 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                                 .transientSettings().getAsMap().size(), equalTo(0));
                     }
                     ensureClusterSizeConsistency();
-                    cluster().beforeIndexDeletion();
                     beforeIndexDeletion();
                     cluster().wipe(); // wipe after to make sure we fail in the test that didn't ack the delete
                     if (afterClass || currentClusterScope == Scope.TEST) {

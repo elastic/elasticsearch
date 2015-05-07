@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.shard;
 
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
@@ -30,15 +31,15 @@ import org.elasticsearch.index.settings.IndexSettings;
 public abstract class AbstractIndexShardComponent implements IndexShardComponent {
 
     protected final ESLogger logger;
-
+    protected final DeprecationLogger deprecationLogger;
     protected final ShardId shardId;
-
     protected final Settings indexSettings;
 
     protected AbstractIndexShardComponent(ShardId shardId, @IndexSettings Settings indexSettings) {
         this.shardId = shardId;
         this.indexSettings = indexSettings;
         this.logger = Loggers.getLogger(getClass(), indexSettings, shardId);
+        this.deprecationLogger = new DeprecationLogger(logger);
     }
 
     @Override

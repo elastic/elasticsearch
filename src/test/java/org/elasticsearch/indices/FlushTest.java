@@ -104,7 +104,7 @@ public class FlushTest extends ElasticsearchIntegrationTest {
     }
 
     @TestLogging("indices:TRACE")
-    public void testFlushWithApi() throws Exception {
+    public void testSyncedFlushWithFlushApi() throws Exception {
         createIndex("test");
         ensureGreen();
         IndexStats indexStats = client().admin().indices().prepareStats("test").get().getIndex("test");

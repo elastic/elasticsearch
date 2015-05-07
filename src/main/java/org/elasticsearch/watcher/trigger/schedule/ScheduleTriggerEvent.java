@@ -11,6 +11,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.watcher.WatcherException;
 import org.elasticsearch.watcher.support.WatcherDateUtils;
+import org.elasticsearch.watcher.support.clock.Clock;
 import org.elasticsearch.watcher.trigger.TriggerEvent;
 
 import java.io.IOException;
@@ -51,7 +52,7 @@ public class ScheduleTriggerEvent extends TriggerEvent {
         return builder.endObject();
     }
 
-    public static ScheduleTriggerEvent parse(String watchId, String context, XContentParser parser) throws IOException {
+    public static ScheduleTriggerEvent parse(XContentParser parser, String watchId, String context, Clock clock) throws IOException {
         DateTime triggeredTime = null;
         DateTime scheduledTime = null;
 
@@ -62,13 +63,14 @@ public class ScheduleTriggerEvent extends TriggerEvent {
                 currentFieldName = parser.currentName();
             } else if (Field.TRIGGERED_TIME.match(currentFieldName)) {
                 try {
-                    triggeredTime = WatcherDateUtils.parseDate(currentFieldName, parser, UTC);
+                    triggeredTime = WatcherDateUtils.parseDateMath(currentFieldName, parser, UTC, clock);
                 } catch (WatcherDateUtils.ParseException pe) {
+                    //Failed to parse as a date try datemath parsing
                     throw new ParseException("could not parse [{}] trigger event for [{}] for watch [{}]. failed to parse date field [{}]", pe, ScheduleTriggerEngine.TYPE, context, watchId, currentFieldName);
                 }
             }  else if (Field.SCHEDULED_TIME.match(currentFieldName)) {
                 try {
-                    scheduledTime = WatcherDateUtils.parseDate(currentFieldName, parser, UTC);
+                    scheduledTime = WatcherDateUtils.parseDateMath(currentFieldName, parser, UTC, clock);
                 } catch (WatcherDateUtils.ParseException pe) {
                     throw new ParseException("could not parse [{}] trigger event for [{}] for watch [{}]. failed to parse date field [{}]", pe, ScheduleTriggerEngine.TYPE, context, watchId, currentFieldName);
                 }

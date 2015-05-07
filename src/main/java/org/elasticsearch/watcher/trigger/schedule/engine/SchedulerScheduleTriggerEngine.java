@@ -29,14 +29,12 @@ import static org.elasticsearch.common.joda.time.DateTimeZone.UTC;
  */
 public class SchedulerScheduleTriggerEngine extends ScheduleTriggerEngine {
 
-    private final Clock clock;
     private volatile Schedules schedules;
     private ScheduledExecutorService scheduler;
 
     @Inject
     public SchedulerScheduleTriggerEngine(Settings settings, ScheduleRegistry scheduleRegistry, Clock clock) {
-        super(settings, scheduleRegistry);
-        this.clock = clock;
+        super(settings, scheduleRegistry, clock);
     }
 
     @Override

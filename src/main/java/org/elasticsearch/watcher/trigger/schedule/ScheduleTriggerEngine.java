@@ -7,6 +7,7 @@ package org.elasticsearch.watcher.trigger.schedule;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.watcher.support.clock.Clock;
 import org.elasticsearch.watcher.trigger.AbstractTriggerEngine;
 import org.elasticsearch.watcher.trigger.TriggerService;
 
@@ -20,10 +21,12 @@ public abstract class ScheduleTriggerEngine extends AbstractTriggerEngine<Schedu
     public static final String TYPE = ScheduleTrigger.TYPE;
 
     protected final ScheduleRegistry scheduleRegistry;
+    protected final Clock clock;
 
-    public ScheduleTriggerEngine(Settings settings, ScheduleRegistry scheduleRegistry) {
+    public ScheduleTriggerEngine(Settings settings, ScheduleRegistry scheduleRegistry, Clock clock) {
         super(settings);
         this.scheduleRegistry = scheduleRegistry;
+        this.clock = clock;
     }
 
     @Override
@@ -39,6 +42,6 @@ public abstract class ScheduleTriggerEngine extends AbstractTriggerEngine<Schedu
 
     @Override
     public ScheduleTriggerEvent parseTriggerEvent(TriggerService service, String watchId, String context, XContentParser parser) throws IOException {
-        return ScheduleTriggerEvent.parse(watchId, context, parser);
+        return ScheduleTriggerEvent.parse(parser, watchId, context, clock);
     }
 }

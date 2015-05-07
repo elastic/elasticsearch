@@ -27,18 +27,15 @@ import static org.elasticsearch.common.joda.time.DateTimeZone.UTC;
  */
 public class TickerScheduleTriggerEngine extends ScheduleTriggerEngine {
 
-    private final Clock clock;
-
     private final TimeValue tickInterval;
     private volatile Map<String, ActiveSchedule> schedules;
     private Ticker ticker;
 
     @Inject
     public TickerScheduleTriggerEngine(Settings settings, ScheduleRegistry scheduleRegistry, Clock clock) {
-        super(settings, scheduleRegistry);
+        super(settings, scheduleRegistry, clock);
         this.tickInterval = settings.getAsTime("watcher.trigger.schedule.ticker.tick_interval", TimeValue.timeValueMillis(500));
         this.schedules = new ConcurrentHashMap<>();
-        this.clock = clock;
     }
 
     @Override

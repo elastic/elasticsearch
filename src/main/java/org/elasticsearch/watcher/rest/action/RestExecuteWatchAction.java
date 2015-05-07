@@ -66,9 +66,6 @@ public class RestExecuteWatchAction extends WatcherRestHandler {
         ExecuteWatchRequestBuilder executeWatchRequestBuilder = client.prepareExecuteWatch(watchId);
         TriggerEvent triggerEvent = null;
 
-
-
-
         if (request.content() != null && request.content().length() != 0) {
             XContentParser parser = XContentHelper.createParser(request.content());
             parser.nextToken();

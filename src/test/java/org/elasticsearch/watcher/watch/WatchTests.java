@@ -57,6 +57,7 @@ import org.elasticsearch.watcher.input.simple.SimpleInputFactory;
 import org.elasticsearch.watcher.license.LicenseService;
 import org.elasticsearch.watcher.support.Script;
 import org.elasticsearch.watcher.support.WatcherUtils;
+import org.elasticsearch.watcher.support.clock.Clock;
 import org.elasticsearch.watcher.support.clock.SystemClock;
 import org.elasticsearch.watcher.support.http.HttpClient;
 import org.elasticsearch.watcher.support.http.HttpMethod;
@@ -132,7 +133,7 @@ public class WatchTests extends ElasticsearchTestCase {
         Schedule schedule = randomSchedule();
         Trigger trigger = new ScheduleTrigger(schedule);
         ScheduleRegistry scheduleRegistry = registry(schedule);
-        TriggerEngine triggerEngine = new ParseOnlyScheduleTriggerEngine(ImmutableSettings.EMPTY, scheduleRegistry);
+        TriggerEngine triggerEngine = new ParseOnlyScheduleTriggerEngine(ImmutableSettings.EMPTY, scheduleRegistry, SystemClock.INSTANCE);
         TriggerService triggerService = new TriggerService(ImmutableSettings.EMPTY, ImmutableSet.of(triggerEngine));
         SecretService secretService = new SecretService.PlainText();
 
@@ -178,7 +179,7 @@ public class WatchTests extends ElasticsearchTestCase {
     @Test
     public void testParser_BadActions() throws Exception {
         ScheduleRegistry scheduleRegistry = registry(randomSchedule());
-        TriggerEngine triggerEngine = new ParseOnlyScheduleTriggerEngine(ImmutableSettings.EMPTY, scheduleRegistry);
+        TriggerEngine triggerEngine = new ParseOnlyScheduleTriggerEngine(ImmutableSettings.EMPTY, scheduleRegistry, SystemClock.INSTANCE);
         TriggerService triggerService = new TriggerService(ImmutableSettings.EMPTY, ImmutableSet.of(triggerEngine));
         SecretService secretService = new SecretService.PlainText();
         ExecutableCondition condition = randomCondition();
@@ -374,8 +375,8 @@ public class WatchTests extends ElasticsearchTestCase {
 
     static class ParseOnlyScheduleTriggerEngine extends ScheduleTriggerEngine {
 
-        public ParseOnlyScheduleTriggerEngine(Settings settings, ScheduleRegistry registry) {
-            super(settings, registry);
+        public ParseOnlyScheduleTriggerEngine(Settings settings, ScheduleRegistry registry, Clock clock) {
+            super(settings, registry, clock);
         }
 
         @Override

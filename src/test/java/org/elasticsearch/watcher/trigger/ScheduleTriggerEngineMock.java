@@ -34,13 +34,12 @@ public class ScheduleTriggerEngineMock extends ScheduleTriggerEngine {
 
     private final ESLogger logger;
     private final ConcurrentMap<String, Job> jobs = new ConcurrentHashMap<>();
-    private final Clock clock;
 
     @Inject
     public ScheduleTriggerEngineMock(Settings settings, ScheduleRegistry scheduleRegistry, Clock clock) {
-        super(settings, scheduleRegistry);
+        super(settings, scheduleRegistry, clock);
         this.logger = Loggers.getLogger(ScheduleTriggerEngineMock.class, settings);
-        this.clock = clock;
+
     }
 
     @Override
@@ -50,7 +49,7 @@ public class ScheduleTriggerEngineMock extends ScheduleTriggerEngine {
 
     @Override
     public ScheduleTriggerEvent parseTriggerEvent(TriggerService service, String watchId, String context, XContentParser parser) throws IOException {
-        return ScheduleTriggerEvent.parse(watchId, context, parser);
+        return ScheduleTriggerEvent.parse(parser, watchId, context, clock);
     }
 
     @Override

@@ -112,7 +112,7 @@ public class SyncedFlushService extends AbstractComponent {
         if (shardRoutingTable == null) {
             throw new IndexShardMissingException(shardId);
         }
-        logger.info("attempting sync flush on node {} for shard {}", state.nodes().localNode().name(), shardId);
+        logger.trace("attempting sync flush on node {} for shard {}", state.nodes().localNode().name(), shardId);
         final List<ShardRouting> activeShards = shardRoutingTable.activeShards();
         Map<String, byte[]> commitIds = sendPreSyncRequests(activeShards, state, shardId);
 
@@ -626,7 +626,6 @@ public class SyncedFlushService extends AbstractComponent {
 
         @Override
         public void messageReceived(PreSyncedFlushRequest request, TransportChannel channel) throws Exception {
-            logger.info("received pre sync request for shard {} ", request.shardId());
             channel.sendResponse(performPreSyncedFlush(request));
         }
     }

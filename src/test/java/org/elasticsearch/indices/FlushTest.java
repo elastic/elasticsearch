@@ -151,18 +151,6 @@ public class FlushTest extends ElasticsearchIntegrationTest {
         }
         logger.info("--> trying sync flush");
         Future<FlushResponse> syncedFlushResponse = client().admin().indices().prepareFlush("test").setSyncFlush(true).execute();
-
-      /*  NodesHotThreadsResponse response = client().admin().cluster().prepareNodesHotThreads("*").get();
-        StringBuilder sb = new StringBuilder();
-        for (NodeHotThreads node : response) {
-            sb.append("::: ").append(node.getNode().toString()).append("\n");
-            Strings.spaceify(3, node.getHotThreads(), sb);
-            sb.append('\n');
-        }
-        logger.info("hot threads {}", sb.toString());
-       logger.info("thread pools {}", client().admin().cluster().prepareNodesStats("*").clear().setThreadPool(true).get());
-        logger.info("thread pools {}", client().admin().cluster().prepareNodesInfo("*").clear().setThreadPool(true).get());*/
-
         logger.info("--> try get result");
         assertThat(syncedFlushResponse.get().getFailedShards(), equalTo(0));
 

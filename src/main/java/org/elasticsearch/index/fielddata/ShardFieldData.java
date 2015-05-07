@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.fielddata;
 
-import com.carrotsearch.hppc.ObjectLongOpenHashMap;
+import com.carrotsearch.hppc.ObjectLongHashMap;
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.metrics.CounterMetric;
@@ -50,9 +50,9 @@ public class ShardFieldData extends AbstractIndexShardComponent implements Index
     }
 
     public FieldDataStats stats(String... fields) {
-        ObjectLongOpenHashMap<String> fieldTotals = null;
+        ObjectLongHashMap<String> fieldTotals = null;
         if (fields != null && fields.length > 0) {
-            fieldTotals = new ObjectLongOpenHashMap<>();
+            fieldTotals = new ObjectLongHashMap<>();
             for (Map.Entry<String, CounterMetric> entry : perFieldTotals.entrySet()) {
                 if (Regex.simpleMatch(fields, entry.getKey())) {
                     fieldTotals.put(entry.getKey(), entry.getValue().count());

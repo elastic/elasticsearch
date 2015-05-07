@@ -19,7 +19,9 @@
 
 package org.elasticsearch.rest.action.cat;
 
-import com.carrotsearch.hppc.ObjectIntOpenHashMap;
+import com.carrotsearch.hppc.ObjectIntHashMap;
+import com.carrotsearch.hppc.ObjectIntScatterMap;
+
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
@@ -98,7 +100,7 @@ public class RestAllocationAction extends AbstractCatAction {
     }
 
     private Table buildTable(RestRequest request, final ClusterStateResponse state, final NodesStatsResponse stats) {
-        final ObjectIntOpenHashMap<String> allocs = new ObjectIntOpenHashMap<>();
+        final ObjectIntScatterMap<String> allocs = new ObjectIntScatterMap<>();
 
         for (ShardRouting shard : state.getState().routingTable().allShards()) {
             String nodeId = "UNASSIGNED";
@@ -115,10 +117,7 @@ public class RestAllocationAction extends AbstractCatAction {
         for (NodeStats nodeStats : stats.getNodes()) {
             DiscoveryNode node = nodeStats.getNode();
 
-            int shardCount = 0;
-            if (allocs.containsKey(node.id())) {
-                shardCount = allocs.lget();
-            }
+            int shardCount = allocs.getOrDefault(node.id(), 0);
 
             ByteSizeValue total = nodeStats.getFs().getTotal().getTotal();
             ByteSizeValue avail = nodeStats.getFs().getTotal().getAvailable();
@@ -144,16 +143,17 @@ public class RestAllocationAction extends AbstractCatAction {
             table.endRow();
         }
 
-        if (allocs.containsKey("UNASSIGNED")) {
+        final String UNASSIGNED = "UNASSIGNED";
+        if (allocs.containsKey(UNASSIGNED)) {
             table.startRow();
-            table.addCell(allocs.lget());
+            table.addCell(allocs.get(UNASSIGNED));
             table.addCell(null);
             table.addCell(null);
             table.addCell(null);
             table.addCell(null);
             table.addCell(null);
             table.addCell(null);
-            table.addCell("UNASSIGNED");
+            table.addCell(UNASSIGNED);
             table.endRow();
         }
 

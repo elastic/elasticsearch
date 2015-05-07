@@ -19,7 +19,6 @@
 
 package org.elasticsearch.transport;
 
-import com.carrotsearch.hppc.ObjectObjectOpenHashMap;
 import org.elasticsearch.common.ContextHolder;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;

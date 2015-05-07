@@ -19,8 +19,8 @@
 
 package org.elasticsearch.search.aggregations.metrics.cardinality;
 
-import com.carrotsearch.hppc.IntOpenHashSet;
-import com.carrotsearch.hppc.hash.MurmurHash3;
+import com.carrotsearch.hppc.BitMixer;
+import com.carrotsearch.hppc.IntHashSet;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
@@ -62,12 +62,12 @@ public class HyperLogLogPlusPlusTests extends ElasticsearchTestCase {
         final int numValues = randomIntBetween(1, 100000);
         final int maxValue = randomIntBetween(1, randomBoolean() ? 1000: 100000);
         final int p = randomIntBetween(14, MAX_PRECISION);
-        IntOpenHashSet set = new IntOpenHashSet();
+        IntHashSet set = new IntHashSet();
         HyperLogLogPlusPlus e = new HyperLogLogPlusPlus(p, BigArrays.NON_RECYCLING_INSTANCE, 1);
         for (int i = 0; i < numValues; ++i) {
             final int n = randomInt(maxValue);
             set.add(n);
-            final long hash = MurmurHash3.hash((long) n);
+            final long hash = BitMixer.mix64(n);
             e.collect(bucket, hash);
             if (randomInt(100) == 0) {
                 //System.out.println(e.cardinality(bucket) + " <> " + set.size());
@@ -91,7 +91,7 @@ public class HyperLogLogPlusPlusTests extends ElasticsearchTestCase {
         final int maxValue = randomIntBetween(1, randomBoolean() ? 1000: 1000000);
         for (int i = 0; i < numValues; ++i) {
             final int n = randomInt(maxValue);
-            final long hash = MurmurHash3.hash((long) n);
+            final long hash = BitMixer.mix64(n);
             single.collect(0, hash);
             // use a gaussian so that all instances don't collect as many hashes
             final int index = (int) (Math.pow(randomDouble(), 2));

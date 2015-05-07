@@ -19,8 +19,8 @@
 
 package org.elasticsearch.common.util;
 
+import com.carrotsearch.hppc.LongLongHashMap;
 import com.carrotsearch.hppc.LongLongMap;
-import com.carrotsearch.hppc.LongLongOpenHashMap;
 import com.carrotsearch.hppc.cursors.LongLongCursor;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.junit.Test;
@@ -52,7 +52,7 @@ public class LongHashTests extends ElasticsearchSingleNodeTest {
         for (int i = 0; i < values.length; ++i) {
             values[i] = randomLong();
         }
-        final LongLongMap valueToId = new LongLongOpenHashMap();
+        final LongLongMap valueToId = new LongLongHashMap();
         final long[] idToValue = new long[values.length];
         final int iters = randomInt(1000000);
         for (int i = 0; i < iters; ++i) {

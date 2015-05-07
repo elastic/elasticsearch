@@ -23,6 +23,7 @@ import com.carrotsearch.hppc.*;
 import com.carrotsearch.hppc.cursors.IntCursor;
 import com.carrotsearch.hppc.cursors.IntObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+import com.carrotsearch.hppc.predicates.IntObjectPredicate;
 import com.carrotsearch.hppc.predicates.IntPredicate;
 import com.carrotsearch.hppc.procedures.IntObjectProcedure;
 import com.google.common.collect.UnmodifiableIterator;
@@ -38,9 +39,9 @@ import java.util.Map;
  */
 public final class ImmutableOpenIntMap<VType> implements Iterable<IntObjectCursor<VType>> {
 
-    private final IntObjectOpenHashMap<VType> map;
+    private final IntObjectHashMap<VType> map;
 
-    private ImmutableOpenIntMap(IntObjectOpenHashMap<VType> map) {
+    private ImmutableOpenIntMap(IntObjectHashMap<VType> map) {
         this.map = map;
     }
 
@@ -175,7 +176,7 @@ public final class ImmutableOpenIntMap<VType> implements Iterable<IntObjectCurso
     }
 
     @SuppressWarnings("unchecked")
-    private static final ImmutableOpenIntMap EMPTY = new ImmutableOpenIntMap(new IntObjectOpenHashMap());
+    private static final ImmutableOpenIntMap EMPTY = new ImmutableOpenIntMap(new IntObjectHashMap());
 
     @SuppressWarnings("unchecked")
     public static <VType> ImmutableOpenIntMap<VType> of() {
@@ -196,7 +197,7 @@ public final class ImmutableOpenIntMap<VType> implements Iterable<IntObjectCurso
 
     public static class Builder<VType> implements IntObjectMap<VType> {
 
-        private IntObjectOpenHashMap<VType> map;
+        private IntObjectHashMap<VType> map;
 
         public Builder() {
             //noinspection unchecked
@@ -204,7 +205,7 @@ public final class ImmutableOpenIntMap<VType> implements Iterable<IntObjectCurso
         }
 
         public Builder(int size) {
-            this.map = new IntObjectOpenHashMap<>(size);
+            this.map = new IntObjectHashMap<>(size);
         }
 
         public Builder(ImmutableOpenIntMap<VType> map) {
@@ -215,7 +216,7 @@ public final class ImmutableOpenIntMap<VType> implements Iterable<IntObjectCurso
          * Builds a new instance of the
          */
         public ImmutableOpenIntMap<VType> build() {
-            IntObjectOpenHashMap<VType> map = this.map;
+            IntObjectHashMap<VType> map = this.map;
             this.map = null; // nullify the map, so any operation post build will fail! (hackish, but safest)
             return new ImmutableOpenIntMap<>(map);
         }
@@ -324,6 +325,51 @@ public final class ImmutableOpenIntMap<VType> implements Iterable<IntObjectCurso
         @Override
         public ObjectContainer<VType> values() {
             return map.values();
+        }
+
+        @Override
+        public int removeAll(IntObjectPredicate<? super VType> predicate) {
+            return map.removeAll(predicate);
+        }
+
+        @Override
+        public <T extends IntObjectPredicate<? super VType>> T forEach(T predicate) {
+            return map.forEach(predicate);
+        }
+
+        @Override
+        public int indexOf(int key) {
+            return map.indexOf(key);
+        }
+
+        @Override
+        public boolean indexExists(int index) {
+            return map.indexExists(index);
+        }
+
+        @Override
+        public VType indexGet(int index) {
+            return map.indexGet(index);
+        }
+
+        @Override
+        public VType indexReplace(int index, VType newValue) {
+            return map.indexReplace(index, newValue);
+        }
+
+        @Override
+        public void indexInsert(int index, int key, VType value) {
+            map.indexInsert(index, key, value);
+        }
+
+        @Override
+        public void release() {
+            map.release();
+        }
+
+        @Override
+        public String visualizeKeyDistribution(int characters) {
+            return map.visualizeKeyDistribution(characters);
         }
     }
 }

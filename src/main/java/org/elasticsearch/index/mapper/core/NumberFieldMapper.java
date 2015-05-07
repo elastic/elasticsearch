@@ -19,9 +19,9 @@
 
 package org.elasticsearch.index.mapper.core;
 
-import com.carrotsearch.hppc.DoubleOpenHashSet;
+import com.carrotsearch.hppc.DoubleHashSet;
 import com.carrotsearch.hppc.LongArrayList;
-import com.carrotsearch.hppc.LongOpenHashSet;
+import com.carrotsearch.hppc.LongHashSet;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.NumericTokenStream;
@@ -306,18 +306,14 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
     public Filter fieldDataTermsFilter(List values, @Nullable QueryParseContext context) {
         IndexNumericFieldData fieldData = context.getForField(this);
         if (fieldData.getNumericType().isFloatingPoint()) {
-            // create with initial size large enough to avoid rehashing
-            DoubleOpenHashSet terms =
-                    new DoubleOpenHashSet((int) (values.size() * (1 + DoubleOpenHashSet.DEFAULT_LOAD_FACTOR)));
+            DoubleHashSet terms = new DoubleHashSet(values.size());
             for (int i = 0, len = values.size(); i < len; i++) {
                 terms.add(parseDoubleValue(values.get(i)));
             }
 
             return FieldDataTermsFilter.newDoubles(fieldData, terms);
         } else {
-            // create with initial size large enough to avoid rehashing
-            LongOpenHashSet terms =
-                    new LongOpenHashSet((int) (values.size() * (1 + LongOpenHashSet.DEFAULT_LOAD_FACTOR)));
+            LongHashSet terms = new LongHashSet(values.size());
             for (int i = 0, len = values.size(); i < len; i++) {
                 terms.add(parseLongValue(values.get(i)));
             }

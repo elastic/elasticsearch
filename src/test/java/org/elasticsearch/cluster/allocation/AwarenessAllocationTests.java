@@ -19,9 +19,8 @@
 
 package org.elasticsearch.cluster.allocation;
 
-import com.carrotsearch.hppc.ObjectIntOpenHashMap;
+import com.carrotsearch.hppc.ObjectIntHashMap;
 import com.google.common.base.Predicate;
-import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -32,7 +31,6 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
@@ -95,7 +93,7 @@ public class AwarenessAllocationTests extends ElasticsearchIntegrationTest {
                 logger.info("--> checking current state");
                 ClusterState clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();
                 // verify that we have all the primaries on node3
-                ObjectIntOpenHashMap<String> counts = new ObjectIntOpenHashMap<>();
+                ObjectIntHashMap<String> counts = new ObjectIntHashMap<>();
                 for (IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
                     for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
                         for (ShardRouting shardRouting : indexShardRoutingTable) {
@@ -133,7 +131,7 @@ public class AwarenessAllocationTests extends ElasticsearchIntegrationTest {
         ClusterHealthResponse health = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForNodes("4").setWaitForRelocatingShards(0).execute().actionGet();
         assertThat(health.isTimedOut(), equalTo(false));
         ClusterState clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();
-        ObjectIntOpenHashMap<String> counts = new ObjectIntOpenHashMap<>();
+        ObjectIntHashMap<String> counts = new ObjectIntHashMap<>();
 
         for (IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
             for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
@@ -169,7 +167,7 @@ public class AwarenessAllocationTests extends ElasticsearchIntegrationTest {
         ClusterHealthResponse health = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForNodes("2").setWaitForRelocatingShards(0).execute().actionGet();
         assertThat(health.isTimedOut(), equalTo(false));
         ClusterState clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();
-        ObjectIntOpenHashMap<String> counts = new ObjectIntOpenHashMap<>();
+        ObjectIntHashMap<String> counts = new ObjectIntHashMap<>();
 
         for (IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
             for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
@@ -191,7 +189,7 @@ public class AwarenessAllocationTests extends ElasticsearchIntegrationTest {
         assertThat(health.isTimedOut(), equalTo(false));
         clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();
 
-        counts = new ObjectIntOpenHashMap<>();
+        counts = new ObjectIntHashMap<>();
 
         for (IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
             for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
@@ -213,7 +211,7 @@ public class AwarenessAllocationTests extends ElasticsearchIntegrationTest {
         assertThat(health.isTimedOut(), equalTo(false));
         clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();
 
-        counts = new ObjectIntOpenHashMap<>();
+        counts = new ObjectIntHashMap<>();
 
         for (IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
             for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
@@ -234,7 +232,7 @@ public class AwarenessAllocationTests extends ElasticsearchIntegrationTest {
         assertThat(health.isTimedOut(), equalTo(false));
         clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();
 
-        counts = new ObjectIntOpenHashMap<>();
+        counts = new ObjectIntHashMap<>();
 
         for (IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
             for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {

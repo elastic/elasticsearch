@@ -18,13 +18,13 @@
  */
 package org.elasticsearch.index.search.child;
 
-import com.carrotsearch.hppc.IntObjectOpenHashMap;
-import com.carrotsearch.hppc.ObjectObjectOpenHashMap;
+import com.carrotsearch.hppc.IntObjectHashMap;
+import com.carrotsearch.hppc.ObjectObjectHashMap;
+import com.carrotsearch.hppc.ObjectObjectScatterMap;
 
 import org.apache.lucene.index.*;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.*;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lucene.IndexCacheableQuery;
 import org.elasticsearch.common.lucene.search.EmptyScorer;
@@ -93,7 +93,7 @@ public class TopChildrenQuery extends IndexCacheableQuery {
 
     @Override
     public Weight doCreateWeight(IndexSearcher searcher, boolean needsScores) throws IOException {
-        ObjectObjectOpenHashMap<Object, ParentDoc[]> parentDocs = new ObjectObjectOpenHashMap<>();
+        ObjectObjectHashMap<Object, ParentDoc[]> parentDocs = new ObjectObjectHashMap<>();
         SearchContext searchContext = SearchContext.current();
 
         int parentHitsResolved;
@@ -135,9 +135,12 @@ public class TopChildrenQuery extends IndexCacheableQuery {
         return parentWeight;
     }
 
-    int resolveParentDocuments(TopDocs topDocs, SearchContext context, ObjectObjectOpenHashMap<Object, ParentDoc[]> parentDocs) throws Exception {
+    int resolveParentDocuments(TopDocs topDocs, SearchContext context, ObjectObjectHashMap<Object, ParentDoc[]> parentDocs) throws Exception {
         int parentHitsResolved = 0;
-        ObjectObjectOpenHashMap<Object, IntObjectOpenHashMap<ParentDoc>> parentDocsPerReader = new ObjectObjectOpenHashMap<>(context.searcher().getIndexReader().leaves().size());
+
+        // Can be a scatter map since we just use it for lookup/ accounting.
+        ObjectObjectScatterMap<Object, IntObjectHashMap<ParentDoc>> parentDocsPerReader = 
+                new ObjectObjectScatterMap<>(context.searcher().getIndexReader().leaves().size());
         child_hits: for (ScoreDoc scoreDoc : topDocs.scoreDocs) {
             int readerIndex = ReaderUtil.subIndex(scoreDoc.doc, context.searcher().getIndexReader().leaves());
             LeafReaderContext subContext = context.searcher().getIndexReader().leaves().get(readerIndex);
@@ -176,11 +179,11 @@ public class TopChildrenQuery extends IndexCacheableQuery {
                 }
                 if (parentDocId != DocIdSetIterator.NO_MORE_DOCS) {
                     // we found a match, add it and break
-                    IntObjectOpenHashMap<ParentDoc> readerParentDocs = parentDocsPerReader.get(indexReader.getCoreCacheKey());
+                    IntObjectHashMap<ParentDoc> readerParentDocs = parentDocsPerReader.get(indexReader.getCoreCacheKey());
                     if (readerParentDocs == null) {
                         //The number of docs in the reader and in the query both upper bound the size of parentDocsPerReader
                         int mapSize =  Math.min(indexReader.maxDoc(), context.from() + context.size());
-                        readerParentDocs = new IntObjectOpenHashMap<>(mapSize);
+                        readerParentDocs = new IntObjectHashMap<>(mapSize);
                         parentDocsPerReader.put(indexReader.getCoreCacheKey(), readerParentDocs);
                     }
                     ParentDoc parentDoc = readerParentDocs.get(parentDocId);
@@ -207,17 +210,21 @@ public class TopChildrenQuery extends IndexCacheableQuery {
                 }
             }
         }
-        boolean[] states = parentDocsPerReader.allocated;
+
+        // Ultra-optimized loop directly over the contents of the map.
+        assert !parentDocsPerReader.containsKey(null); // There should never be a null key.
         Object[] keys = parentDocsPerReader.keys;
         Object[] values = parentDocsPerReader.values;
-        for (int i = 0; i < states.length; i++) {
-            if (states[i]) {
-                IntObjectOpenHashMap<ParentDoc> value = (IntObjectOpenHashMap<ParentDoc>) values[i];
+        for (int i = 0; i < keys.length; i++) {
+            Object key = keys[i];
+            if (key != null) {
+                IntObjectHashMap<ParentDoc> value = (IntObjectHashMap<ParentDoc>) values[i];
                 ParentDoc[] _parentDocs = value.values().toArray(ParentDoc.class);
                 Arrays.sort(_parentDocs, PARENT_DOC_COMP);
-                parentDocs.put(keys[i], _parentDocs);
+                parentDocs.put(key, _parentDocs);
             }
         }
+
         return parentHitsResolved;
     }
 
@@ -263,9 +270,9 @@ public class TopChildrenQuery extends IndexCacheableQuery {
     private class ParentWeight extends Weight implements Releasable {
 
         private final Weight queryWeight;
-        private final ObjectObjectOpenHashMap<Object, ParentDoc[]> parentDocs;
+        private final ObjectObjectHashMap<Object, ParentDoc[]> parentDocs;
 
-        public ParentWeight(Query query, Weight queryWeight, ObjectObjectOpenHashMap<Object, ParentDoc[]> parentDocs) throws IOException {
+        public ParentWeight(Query query, Weight queryWeight, ObjectObjectHashMap<Object, ParentDoc[]> parentDocs) throws IOException {
             super(query);
             this.queryWeight = queryWeight;
             this.parentDocs = parentDocs;

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.suggest.context;
 
-import com.carrotsearch.hppc.IntOpenHashSet;
+import com.carrotsearch.hppc.IntHashSet;
 import com.google.common.collect.Lists;
 import org.apache.lucene.analysis.PrefixAnalyzer.PrefixTokenFilter;
 import org.apache.lucene.analysis.TokenStream;
@@ -368,7 +368,7 @@ public class GeolocationContextMapping extends ContextMapping {
                     }
                 } else if (FIELD_PRECISION.equals(fieldName)) {
                     if(parser.nextToken() == Token.START_ARRAY) {
-                        IntOpenHashSet precisions = new IntOpenHashSet();
+                        IntHashSet precisions = new IntHashSet();
                         while(parser.nextToken() != Token.END_ARRAY) {
                             precisions.add(parsePrecision(parser));
                         }
@@ -448,7 +448,7 @@ public class GeolocationContextMapping extends ContextMapping {
 
     public static class Builder extends ContextBuilder<GeolocationContextMapping> {
 
-        private IntOpenHashSet precisions = new IntOpenHashSet();
+        private IntHashSet precisions = new IntHashSet();
         private boolean neighbors; // take neighbor cell on the lowest level into account
         private HashSet<String> defaultLocations = new HashSet<>();
         private String fieldName = null;

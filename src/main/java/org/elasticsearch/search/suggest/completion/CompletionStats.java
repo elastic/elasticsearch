@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.search.suggest.completion;
 
-import com.carrotsearch.hppc.ObjectLongOpenHashMap;
+import com.carrotsearch.hppc.ObjectLongHashMap;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -38,12 +38,12 @@ public class CompletionStats implements Streamable, ToXContent {
     private long sizeInBytes;
 
     @Nullable
-    private ObjectLongOpenHashMap<String> fields;
+    private ObjectLongHashMap<String> fields;
 
     public CompletionStats() {
     }
 
-    public CompletionStats(long size, @Nullable ObjectLongOpenHashMap<String> fields) {
+    public CompletionStats(long size, @Nullable ObjectLongHashMap<String> fields) {
         this.sizeInBytes = size;
         this.fields = fields;
     }
@@ -56,7 +56,7 @@ public class CompletionStats implements Streamable, ToXContent {
         return new ByteSizeValue(sizeInBytes);
     }
 
-    public ObjectLongOpenHashMap<String> getFields() {
+    public ObjectLongHashMap<String> getFields() {
         return fields;
     }
 
@@ -65,7 +65,7 @@ public class CompletionStats implements Streamable, ToXContent {
         sizeInBytes = in.readVLong();
         if (in.readBoolean()) {
             int size = in.readVInt();
-            fields = new ObjectLongOpenHashMap<>(size);
+            fields = new ObjectLongHashMap<>(size);
             for (int i = 0; i < size; i++) {
                 fields.put(in.readString(), in.readVLong());
             }
@@ -80,11 +80,12 @@ public class CompletionStats implements Streamable, ToXContent {
         } else {
             out.writeBoolean(true);
             out.writeVInt(fields.size());
-            final boolean[] states = fields.allocated;
+            
+            assert !fields.containsKey(null);
             final Object[] keys = fields.keys;
             final long[] values = fields.values;
-            for (int i = 0; i < states.length; i++) {
-                if (states[i]) {
+            for (int i = 0; i < keys.length; i++) {
+                if (keys[i] != null) {
                     out.writeString((String) keys[i]);
                     out.writeVLong(values[i]);
                 }
@@ -98,11 +99,12 @@ public class CompletionStats implements Streamable, ToXContent {
         builder.byteSizeField(Fields.SIZE_IN_BYTES, Fields.SIZE, sizeInBytes);
         if (fields != null) {
             builder.startObject(Fields.FIELDS);
-            final boolean[] states = fields.allocated;
+
+            assert !fields.containsKey(null);
             final Object[] keys = fields.keys;
             final long[] values = fields.values;
-            for (int i = 0; i < states.length; i++) {
-                if (states[i]) {
+            for (int i = 0; i < keys.length; i++) {
+                if (keys[i] != null) {
                     builder.startObject((String) keys[i], XContentBuilder.FieldCaseConversion.NONE);
                     builder.byteSizeField(Fields.SIZE_IN_BYTES, Fields.SIZE, values[i]);
                     builder.endObject();
@@ -135,14 +137,16 @@ public class CompletionStats implements Streamable, ToXContent {
         sizeInBytes += completion.getSizeInBytes();
 
         if (completion.fields != null) {
-            if (fields == null) fields = new ObjectLongOpenHashMap<>();
-
-            final boolean[] states = completion.fields.allocated;
-            final Object[] keys = completion.fields.keys;
-            final long[] values = completion.fields.values;
-            for (int i = 0; i < states.length; i++) {
-                if (states[i]) {
-                    fields.addTo((String) keys[i], values[i]);
+            if (fields == null) { 
+                fields = completion.fields.clone();
+            } else {
+                assert !completion.fields.containsKey(null);
+                final Object[] keys = completion.fields.keys;
+                final long[] values = completion.fields.values;
+                for (int i = 0; i < keys.length; i++) {
+                    if (keys[i] != null) {
+                        fields.addTo((String) keys[i], values[i]);
+                    }
                 }
             }
         }

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.admin.cluster.stats;
 
-import com.carrotsearch.hppc.ObjectObjectOpenHashMap;
+import com.carrotsearch.hppc.ObjectObjectHashMap;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
@@ -57,7 +57,7 @@ public class ClusterStatsIndices implements ToXContent, Streamable {
     }
 
     public ClusterStatsIndices(ClusterStatsNodeResponse[] nodeResponses) {
-        ObjectObjectOpenHashMap<String, ShardStats> countsPerIndex = new ObjectObjectOpenHashMap<>();
+        ObjectObjectHashMap<String, ShardStats> countsPerIndex = new ObjectObjectHashMap<>();
 
         this.docs = new DocsStats();
         this.store = new StoreStats();

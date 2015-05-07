@@ -18,7 +18,7 @@
  */
 package org.apache.lucene.search.suggest.analyzing;
 
-import com.carrotsearch.hppc.ObjectIntOpenHashMap;
+import com.carrotsearch.hppc.ObjectIntHashMap;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
@@ -1008,7 +1008,7 @@ public long ramBytesUsed() {
         private BytesRefBuilder analyzed = new BytesRefBuilder();
         private final SurfaceFormAndPayload[] surfaceFormsAndPayload;
         private int count;
-        private ObjectIntOpenHashMap<BytesRef> seenSurfaceForms = HppcMaps.Object.Integer.ensureNoNullKeys(256, 0.75f);
+        private ObjectIntHashMap<BytesRef> seenSurfaceForms = HppcMaps.Object.Integer.ensureNoNullKeys(256, 0.75f);
         private int payloadSep;
 
         public XBuilder(int maxSurfaceFormsPerAnalyzedForm, boolean hasPayloads, int payloadSep) {
@@ -1061,9 +1061,11 @@ public long ramBytesUsed() {
                 // dups: skip the rest:
                 return;
             }
+
             BytesRef surfaceCopy;
-            if (count > 0 && seenSurfaceForms.containsKey(surface)) {
-                surfaceIndex = seenSurfaceForms.lget();
+            final int keySlot;
+            if (count > 0 && (keySlot = seenSurfaceForms.indexOf(surface)) >= 0) {
+                surfaceIndex = seenSurfaceForms.indexGet(keySlot);
                 SurfaceFormAndPayload surfaceFormAndPayload = surfaceFormsAndPayload[surfaceIndex];
                 if (encodedWeight >= surfaceFormAndPayload.weight) {
                     return;

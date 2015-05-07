@@ -20,7 +20,7 @@
 package org.elasticsearch.cluster.metadata;
 
 import com.carrotsearch.hppc.ObjectArrayList;
-import com.carrotsearch.hppc.ObjectOpenHashSet;
+import com.carrotsearch.hppc.ObjectHashSet;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.google.common.base.Predicate;
@@ -295,7 +295,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData> {
 
         boolean matchAllAliases = matchAllAliases(aliases);
         ImmutableOpenMap.Builder<String, ImmutableList<AliasMetaData>> mapBuilder = ImmutableOpenMap.builder();
-        Iterable<String> intersection = HppcMaps.intersection(ObjectOpenHashSet.from(concreteIndices), indices.keys());
+        Iterable<String> intersection = HppcMaps.intersection(ObjectHashSet.from(concreteIndices), indices.keys());
         for (String index : intersection) {
             IndexMetaData indexMetaData = indices.get(index);
             List<AliasMetaData> filteredValues = Lists.newArrayList();
@@ -337,7 +337,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData> {
             return false;
         }
 
-        Iterable<String> intersection = HppcMaps.intersection(ObjectOpenHashSet.from(concreteIndices), indices.keys());
+        Iterable<String> intersection = HppcMaps.intersection(ObjectHashSet.from(concreteIndices), indices.keys());
         for (String index : intersection) {
             IndexMetaData indexMetaData = indices.get(index);
             List<AliasMetaData> filteredValues = Lists.newArrayList();
@@ -368,7 +368,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData> {
         }
 
         ImmutableOpenMap.Builder<String, ImmutableOpenMap<String, MappingMetaData>> indexMapBuilder = ImmutableOpenMap.builder();
-        Iterable<String> intersection = HppcMaps.intersection(ObjectOpenHashSet.from(concreteIndices), indices.keys());
+        Iterable<String> intersection = HppcMaps.intersection(ObjectHashSet.from(concreteIndices), indices.keys());
         for (String index : intersection) {
             IndexMetaData indexMetaData = indices.get(index);
             ImmutableOpenMap.Builder<String, MappingMetaData> filteredMappings;
@@ -400,7 +400,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData> {
         final String[] warmers = Strings.isAllOrWildcard(uncheckedWarmers) ? Strings.EMPTY_ARRAY : uncheckedWarmers;
 
         ImmutableOpenMap.Builder<String, ImmutableList<IndexWarmersMetaData.Entry>> mapBuilder = ImmutableOpenMap.builder();
-        Iterable<String> intersection = HppcMaps.intersection(ObjectOpenHashSet.from(concreteIndices), indices.keys());
+        Iterable<String> intersection = HppcMaps.intersection(ObjectHashSet.from(concreteIndices), indices.keys());
         for (String index : intersection) {
             IndexMetaData indexMetaData = indices.get(index);
             IndexWarmersMetaData indexWarmersMetaData = indexMetaData.custom(IndexWarmersMetaData.TYPE);

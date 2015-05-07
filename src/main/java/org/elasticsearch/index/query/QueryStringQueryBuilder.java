@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.query;
 
-import com.carrotsearch.hppc.ObjectFloatOpenHashMap;
+import com.carrotsearch.hppc.ObjectFloatHashMap;
 
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -80,7 +80,7 @@ public class QueryStringQueryBuilder extends BaseQueryBuilder implements Boostab
 
     private List<String> fields;
 
-    private ObjectFloatOpenHashMap<String> fieldsBoosts;
+    private ObjectFloatHashMap<String> fieldsBoosts;
 
     private Boolean useDisMax;
 
@@ -132,7 +132,7 @@ public class QueryStringQueryBuilder extends BaseQueryBuilder implements Boostab
         }
         fields.add(field);
         if (fieldsBoosts == null) {
-            fieldsBoosts = new ObjectFloatOpenHashMap<>();
+            fieldsBoosts = new ObjectFloatHashMap<>();
         }
         fieldsBoosts.put(field, boost);
         return this;

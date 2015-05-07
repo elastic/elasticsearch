@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.benchmark.search.aggregations;
 
-import com.carrotsearch.hppc.ObjectOpenHashSet;
+import com.carrotsearch.hppc.ObjectScatterSet;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import com.google.common.collect.Lists;
 
@@ -28,7 +28,6 @@ import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.StopWatch;
@@ -161,7 +160,7 @@ public class TermsAggregationSearchBenchmark {
                 .endObject()
               .endObject())).actionGet();
 
-            ObjectOpenHashSet<String> uniqueTerms = ObjectOpenHashSet.newInstance();
+            ObjectScatterSet<String> uniqueTerms = new ObjectScatterSet<>();
             for (int i = 0; i < NUMBER_OF_TERMS; i++) {
                 boolean added;
                 do {

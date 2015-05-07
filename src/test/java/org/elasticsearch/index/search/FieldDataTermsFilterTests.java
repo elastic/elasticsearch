@@ -19,9 +19,9 @@
 
 package org.elasticsearch.index.search;
 
-import com.carrotsearch.hppc.DoubleOpenHashSet;
-import com.carrotsearch.hppc.LongOpenHashSet;
-import com.carrotsearch.hppc.ObjectOpenHashSet;
+import com.carrotsearch.hppc.DoubleHashSet;
+import com.carrotsearch.hppc.LongHashSet;
+import com.carrotsearch.hppc.ObjectHashSet;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.*;
 import org.apache.lucene.index.*;
@@ -124,7 +124,7 @@ public class FieldDataTermsFilterTests extends ElasticsearchSingleNodeTest {
     public void testBytes() throws Exception {
         List<Integer> docs = Arrays.asList(1, 5, 7);
 
-        ObjectOpenHashSet<BytesRef> hTerms = new ObjectOpenHashSet<>();
+        ObjectHashSet<BytesRef> hTerms = new ObjectHashSet<>();
         List<BytesRef> cTerms = new ArrayList<>(docs.size());
         for (int i = 0; i < docs.size(); i++) {
             BytesRef term = new BytesRef("str" + docs.get(i));
@@ -175,7 +175,7 @@ public class FieldDataTermsFilterTests extends ElasticsearchSingleNodeTest {
     public void testLongs() throws Exception {
         List<Integer> docs = Arrays.asList(1, 5, 7);
 
-        LongOpenHashSet hTerms = new LongOpenHashSet();
+        LongHashSet hTerms = new LongHashSet();
         List<Long> cTerms = new ArrayList<>(docs.size());
         for (int i = 0; i < docs.size(); i++) {
             long term = docs.get(i).longValue();
@@ -214,7 +214,7 @@ public class FieldDataTermsFilterTests extends ElasticsearchSingleNodeTest {
     public void testDoubles() throws Exception {
         List<Integer> docs = Arrays.asList(1, 5, 7);
 
-        DoubleOpenHashSet hTerms = new DoubleOpenHashSet();
+        DoubleHashSet hTerms = new DoubleHashSet();
         List<Double> cTerms = new ArrayList<>(docs.size());
         for (int i = 0; i < docs.size(); i++) {
             double term = Double.valueOf(docs.get(i));
@@ -251,9 +251,9 @@ public class FieldDataTermsFilterTests extends ElasticsearchSingleNodeTest {
 
     @Test
     public void testNoTerms() throws Exception {
-        FieldDataTermsFilter hFilterBytes = FieldDataTermsFilter.newBytes(getFieldData(strMapper), new ObjectOpenHashSet<BytesRef>());
-        FieldDataTermsFilter hFilterLongs = FieldDataTermsFilter.newLongs(getFieldData(lngMapper), new LongOpenHashSet());
-        FieldDataTermsFilter hFilterDoubles = FieldDataTermsFilter.newDoubles(getFieldData(dblMapper), new DoubleOpenHashSet());
+        FieldDataTermsFilter hFilterBytes = FieldDataTermsFilter.newBytes(getFieldData(strMapper), new ObjectHashSet<BytesRef>());
+        FieldDataTermsFilter hFilterLongs = FieldDataTermsFilter.newLongs(getFieldData(lngMapper), new LongHashSet());
+        FieldDataTermsFilter hFilterDoubles = FieldDataTermsFilter.newDoubles(getFieldData(dblMapper), new DoubleHashSet());
         assertNull(hFilterBytes.getDocIdSet(reader.getContext(), reader.getLiveDocs()));
         assertNull(hFilterLongs.getDocIdSet(reader.getContext(), reader.getLiveDocs()));
         assertNull(hFilterDoubles.getDocIdSet(reader.getContext(), reader.getLiveDocs()));

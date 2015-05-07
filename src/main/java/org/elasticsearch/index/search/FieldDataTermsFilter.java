@@ -21,9 +21,9 @@ package org.elasticsearch.index.search;
 import java.io.IOException;
 import java.util.Objects;
 
-import com.carrotsearch.hppc.DoubleOpenHashSet;
-import com.carrotsearch.hppc.LongOpenHashSet;
-import com.carrotsearch.hppc.ObjectOpenHashSet;
+import com.carrotsearch.hppc.DoubleHashSet;
+import com.carrotsearch.hppc.LongHashSet;
+import com.carrotsearch.hppc.ObjectHashSet;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
@@ -49,26 +49,26 @@ public abstract class FieldDataTermsFilter extends Filter {
     }
 
     /**
-     * Get a {@link FieldDataTermsFilter} that filters on non-numeric terms found in a hppc {@link ObjectOpenHashSet} of
+     * Get a {@link FieldDataTermsFilter} that filters on non-numeric terms found in a hppc {@link ObjectHashSet} of
      * {@link BytesRef}.
      *
      * @param fieldData The fielddata for the field.
-     * @param terms     An {@link ObjectOpenHashSet} of terms.
+     * @param terms     An {@link ObjectHashSet} of terms.
      * @return the filter.
      */
-    public static FieldDataTermsFilter newBytes(IndexFieldData fieldData, ObjectOpenHashSet<BytesRef> terms) {
+    public static FieldDataTermsFilter newBytes(IndexFieldData fieldData, ObjectHashSet<BytesRef> terms) {
         return new BytesFieldDataFilter(fieldData, terms);
     }
 
     /**
      * Get a {@link FieldDataTermsFilter} that filters on non-floating point numeric terms found in a hppc
-     * {@link LongOpenHashSet}.
+     * {@link LongHashSet}.
      *
      * @param fieldData The fielddata for the field.
-     * @param terms     A {@link LongOpenHashSet} of terms.
+     * @param terms     A {@link LongHashSet} of terms.
      * @return the filter.
      */
-    public static FieldDataTermsFilter newLongs(IndexNumericFieldData fieldData, LongOpenHashSet terms) {
+    public static FieldDataTermsFilter newLongs(IndexNumericFieldData fieldData, LongHashSet terms) {
         return new LongsFieldDataFilter(fieldData, terms);
     }
 
@@ -80,7 +80,7 @@ public abstract class FieldDataTermsFilter extends Filter {
      * @param terms     A {@link DoubleOpenHashSet} of terms.
      * @return the filter.
      */
-    public static FieldDataTermsFilter newDoubles(IndexNumericFieldData fieldData, DoubleOpenHashSet terms) {
+    public static FieldDataTermsFilter newDoubles(IndexNumericFieldData fieldData, DoubleHashSet terms) {
         return new DoublesFieldDataFilter(fieldData, terms);
     }
 
@@ -106,9 +106,9 @@ public abstract class FieldDataTermsFilter extends Filter {
      */
     protected static class BytesFieldDataFilter extends FieldDataTermsFilter {
 
-        final ObjectOpenHashSet<BytesRef> terms;
+        final ObjectHashSet<BytesRef> terms;
 
-        protected BytesFieldDataFilter(IndexFieldData fieldData, ObjectOpenHashSet<BytesRef> terms) {
+        protected BytesFieldDataFilter(IndexFieldData fieldData, ObjectHashSet<BytesRef> terms) {
             super(fieldData);
             this.terms = terms;
         }
@@ -169,9 +169,9 @@ public abstract class FieldDataTermsFilter extends Filter {
      */
     protected static class LongsFieldDataFilter extends FieldDataTermsFilter {
 
-        final LongOpenHashSet terms;
+        final LongHashSet terms;
 
-        protected LongsFieldDataFilter(IndexNumericFieldData fieldData, LongOpenHashSet terms) {
+        protected LongsFieldDataFilter(IndexNumericFieldData fieldData, LongHashSet terms) {
             super(fieldData);
             this.terms = terms;
         }
@@ -234,9 +234,9 @@ public abstract class FieldDataTermsFilter extends Filter {
      */
     protected static class DoublesFieldDataFilter extends FieldDataTermsFilter {
 
-        final DoubleOpenHashSet terms;
+        final DoubleHashSet terms;
 
-        protected DoublesFieldDataFilter(IndexNumericFieldData fieldData, DoubleOpenHashSet terms) {
+        protected DoublesFieldDataFilter(IndexNumericFieldData fieldData, DoubleHashSet terms) {
             super(fieldData);
             this.terms = terms;
         }

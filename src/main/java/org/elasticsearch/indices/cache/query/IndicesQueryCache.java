@@ -19,7 +19,7 @@
 
 package org.elasticsearch.indices.cache.query;
 
-import com.carrotsearch.hppc.ObjectOpenHashSet;
+import com.carrotsearch.hppc.ObjectHashSet;
 import com.carrotsearch.hppc.ObjectSet;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
@@ -386,8 +386,8 @@ public class IndicesQueryCache extends AbstractComponent implements RemovalListe
 
     private class Reaper implements Runnable {
 
-        private final ObjectSet<CleanupKey> currentKeysToClean = ObjectOpenHashSet.newInstance();
-        private final ObjectSet<IndexShard> currentFullClean = ObjectOpenHashSet.newInstance();
+        private final ObjectSet<CleanupKey> currentKeysToClean = new ObjectHashSet<>();
+        private final ObjectSet<IndexShard> currentFullClean = new ObjectHashSet<>();
 
         private volatile boolean closed;
 

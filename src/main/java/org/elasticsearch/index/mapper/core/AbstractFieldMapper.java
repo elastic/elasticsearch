@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.mapper.core;
 
-import com.carrotsearch.hppc.ObjectOpenHashSet;
+import com.carrotsearch.hppc.ObjectHashSet;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.google.common.base.Objects;
@@ -512,8 +512,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
     @Override
     public Filter fieldDataTermsFilter(List values, @Nullable QueryParseContext context) {
         // create with initial size large enough to avoid rehashing
-        ObjectOpenHashSet<BytesRef> terms =
-                new ObjectOpenHashSet<>((int) (values.size() * (1 + ObjectOpenHashSet.DEFAULT_LOAD_FACTOR)));
+        ObjectHashSet<BytesRef> terms = new ObjectHashSet<>(values.size());
         for (int i = 0, len = values.size(); i < len; i++) {
             terms.add(indexedValueForSearch(values.get(i)));
         }

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.aggregations;
 
-import com.carrotsearch.hppc.IntOpenHashSet;
+import com.carrotsearch.hppc.IntHashSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 
@@ -174,7 +174,7 @@ public class EquivalenceTests extends ElasticsearchIntegrationTest {
         final int numDocs = scaledRandomIntBetween(1000, 2000);
         final int maxNumTerms = randomIntBetween(10, 5000);
 
-        final IntOpenHashSet valuesSet = new IntOpenHashSet();
+        final IntHashSet valuesSet = new IntHashSet();
         cluster().wipeIndices("idx");
         prepareCreate("idx")
                 .addMapping("type", jsonBuilder().startObject()

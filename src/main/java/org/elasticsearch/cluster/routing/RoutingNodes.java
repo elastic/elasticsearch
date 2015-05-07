@@ -19,7 +19,7 @@
 
 package org.elasticsearch.cluster.routing;
 
-import com.carrotsearch.hppc.ObjectIntOpenHashMap;
+import com.carrotsearch.hppc.ObjectIntHashMap;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.google.common.base.Predicate;
 import com.google.common.collect.*;
@@ -64,7 +64,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
 
     private Set<ShardId> clearPostAllocationFlag;
 
-    private final Map<String, ObjectIntOpenHashMap<String>> nodesPerAttributeNames = new HashMap<>();
+    private final Map<String, ObjectIntHashMap<String>> nodesPerAttributeNames = new HashMap<>();
 
     public RoutingNodes(ClusterState clusterState) {
         this.metaData = clusterState.metaData();
@@ -208,12 +208,12 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         return nodesToShards.get(nodeId);
     }
 
-    public ObjectIntOpenHashMap<String> nodesPerAttributesCounts(String attributeName) {
-        ObjectIntOpenHashMap<String> nodesPerAttributesCounts = nodesPerAttributeNames.get(attributeName);
+    public ObjectIntHashMap<String> nodesPerAttributesCounts(String attributeName) {
+        ObjectIntHashMap<String> nodesPerAttributesCounts = nodesPerAttributeNames.get(attributeName);
         if (nodesPerAttributesCounts != null) {
             return nodesPerAttributesCounts;
         }
-        nodesPerAttributesCounts = new ObjectIntOpenHashMap<>();
+        nodesPerAttributesCounts = new ObjectIntHashMap<>();
         for (RoutingNode routingNode : this) {
             String attrValue = routingNode.node().attributes().get(attributeName);
             nodesPerAttributesCounts.addTo(attrValue, 1);

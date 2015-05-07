@@ -63,6 +63,8 @@ import static org.hamcrest.Matchers.*;
 @Ignore
 public abstract class BaseQueryTestCase<QB extends BaseQueryBuilder & Streamable> extends ElasticsearchTestCase {
 
+    private static int RANDOM_REPS = 20;
+
     private static Injector injector;
     private static IndexQueryParserService queryParserService;
     private static Index index;
@@ -137,15 +139,18 @@ public abstract class BaseQueryTestCase<QB extends BaseQueryBuilder & Streamable
      */
     @Test
     public void testFromXContent() throws IOException {
-        QueryParseContext context = createContext();
-        String contentString = testQuery.toString();
-        XContentParser parser = XContentFactory.xContent(contentString).createParser(contentString);
-        context.reset(parser);
-        assertQueryHeader(parser, testQuery.parserName());
+        for (int i = 0; i < RANDOM_REPS; i++) {
+            testQuery = createTestQueryBuilder();
+            QueryParseContext context = createContext();
+            String contentString = testQuery.toString();
+            XContentParser parser = XContentFactory.xContent(contentString).createParser(contentString);
+            context.reset(parser);
+            assertQueryHeader(parser, testQuery.parserName());
 
-        QueryBuilder newQuery = queryParserService.queryParser(testQuery.parserName()).fromXContent(context);
-        assertNotSame(newQuery, testQuery);
-        assertEquals(newQuery, testQuery);
+            QueryBuilder newQuery = queryParserService.queryParser(testQuery.parserName()).fromXContent(context);
+            assertNotSame(newQuery, testQuery);
+            assertEquals(newQuery, testQuery);
+        }
     }
 
     /**
@@ -154,9 +159,12 @@ public abstract class BaseQueryTestCase<QB extends BaseQueryBuilder & Streamable
      */
     @Test
     public void testToQuery() throws IOException {
-        QueryParseContext context = createContext();
-        context.setMapUnmappedFieldAsString(true);
-        assertLuceneQuery(testQuery, testQuery.toQuery(context), context);
+        for (int i = 0; i < RANDOM_REPS; i++) {
+            testQuery = createTestQueryBuilder();
+            QueryParseContext context = createContext();
+            context.setMapUnmappedFieldAsString(true);
+            assertLuceneQuery(testQuery, testQuery.toQuery(context), context);
+        }
     }
 
     /**
@@ -164,15 +172,18 @@ public abstract class BaseQueryTestCase<QB extends BaseQueryBuilder & Streamable
      */
     @Test
     public void testSerialization() throws IOException {
-        BytesStreamOutput output = new BytesStreamOutput();
-        testQuery.writeTo(output);
+        for (int i = 0; i < RANDOM_REPS; i++) {
+            testQuery = createTestQueryBuilder();
+            BytesStreamOutput output = new BytesStreamOutput();
+            testQuery.writeTo(output);
 
-        BytesStreamInput in = new BytesStreamInput(output.bytes());
-        QB deserializedQuery = createEmptyQueryBuilder();
-        deserializedQuery.readFrom(in);
+            BytesStreamInput in = new BytesStreamInput(output.bytes());
+            QB deserializedQuery = createEmptyQueryBuilder();
+            deserializedQuery.readFrom(in);
 
-        assertEquals(deserializedQuery, testQuery);
-        assertNotSame(deserializedQuery, testQuery);
+            assertEquals(deserializedQuery, testQuery);
+            assertNotSame(deserializedQuery, testQuery);
+        }
     }
 
     /**

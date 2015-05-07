@@ -409,16 +409,21 @@ public class GeoUtils {
             return point.reset(lat, lon);
         } else if(parser.currentToken() == Token.VALUE_STRING) {
             String data = parser.text();
-            int comma = data.indexOf(',');
-            if(comma > 0) {
-                lat = Double.parseDouble(data.substring(0, comma).trim());
-                lon = Double.parseDouble(data.substring(comma + 1).trim());
-                return point.reset(lat, lon);
-            } else {
-                return point.resetFromGeoHash(data);
-            }
+            return parseGeoPoint(data, point);
         } else {
             throw new ElasticsearchParseException("geo_point expected");
+        }
+    }
+
+    /** parse a {@link GeoPoint} from a String */
+    public static GeoPoint parseGeoPoint(String data, GeoPoint point) {
+        int comma = data.indexOf(',');
+        if(comma > 0) {
+            double lat = Double.parseDouble(data.substring(0, comma).trim());
+            double lon = Double.parseDouble(data.substring(comma + 1).trim());
+            return point.reset(lat, lon);
+        } else {
+            return point.resetFromGeoHash(data);
         }
     }
 

@@ -68,6 +68,25 @@ public abstract class ValuesSource {
 
     public static abstract class Bytes extends ValuesSource {
 
+        public static final WithOrdinals EMPTY = new WithOrdinals() {
+
+            @Override
+            public RandomAccessOrds ordinalsValues(LeafReaderContext context) {
+                return DocValues.emptySortedSet();
+            }
+
+            @Override
+            public RandomAccessOrds globalOrdinalsValues(LeafReaderContext context) {
+                return DocValues.emptySortedSet();
+            }
+
+            @Override
+            public SortedBinaryDocValues bytesValues(LeafReaderContext context) throws IOException {
+                return org.elasticsearch.index.fielddata.FieldData.emptySortedBinary(context.reader().maxDoc());
+            }
+
+        };
+
         @Override
         public Bits docsWithValue(LeafReaderContext context) throws IOException {
             final SortedBinaryDocValues bytes = bytesValues(context);
@@ -94,7 +113,16 @@ public abstract class ValuesSource {
 
             public abstract RandomAccessOrds globalOrdinalsValues(LeafReaderContext context);
 
-            public abstract long globalMaxOrd(IndexSearcher indexSearcher);
+            public long globalMaxOrd(IndexSearcher indexSearcher) {
+                IndexReader indexReader = indexSearcher.getIndexReader();
+                if (indexReader.leaves().isEmpty()) {
+                    return 0;
+                } else {
+                    LeafReaderContext atomicReaderContext = indexReader.leaves().get(0);
+                    RandomAccessOrds values = globalOrdinalsValues(atomicReaderContext);
+                    return values.getValueCount();
+                }
+            }
 
             public static class FieldData extends WithOrdinals {
 
@@ -121,20 +149,6 @@ public abstract class ValuesSource {
                     final IndexOrdinalsFieldData global = indexFieldData.loadGlobal(context.parent.reader());
                     final AtomicOrdinalsFieldData atomicFieldData = global.load(context);
                     return atomicFieldData.getOrdinalsValues();
-                }
-
-                @Override
-                public long globalMaxOrd(IndexSearcher indexSearcher) {
-                    IndexReader indexReader = indexSearcher.getIndexReader();
-                    if (indexReader.leaves().isEmpty()) {
-                        return 0;
-                    } else {
-                        LeafReaderContext atomicReaderContext = indexReader.leaves().get(0);
-                        IndexOrdinalsFieldData globalFieldData = indexFieldData.loadGlobal(indexReader);
-                        AtomicOrdinalsFieldData afd = globalFieldData.load(atomicReaderContext);
-                        RandomAccessOrds values = afd.getOrdinalsValues();
-                        return values.getValueCount();
-                    }
                 }
             }
         }
@@ -211,6 +225,30 @@ public abstract class ValuesSource {
     }
 
     public static abstract class Numeric extends ValuesSource {
+
+        public static final Numeric EMPTY = new Numeric() {
+
+            @Override
+            public boolean isFloatingPoint() {
+                return false;
+            }
+
+            @Override
+            public SortedNumericDocValues longValues(LeafReaderContext context) {
+                return DocValues.emptySortedNumeric(context.reader().maxDoc());
+            }
+
+            @Override
+            public SortedNumericDoubleValues doubleValues(LeafReaderContext context) throws IOException {
+                return org.elasticsearch.index.fielddata.FieldData.emptySortedNumericDoubles(context.reader().maxDoc());
+            }
+
+            @Override
+            public SortedBinaryDocValues bytesValues(LeafReaderContext context) throws IOException {
+                return org.elasticsearch.index.fielddata.FieldData.emptySortedBinary(context.reader().maxDoc());
+            }
+
+        };
 
         /** Whether the underlying data is floating-point or not. */
         public abstract boolean isFloatingPoint();
@@ -452,13 +490,21 @@ public abstract class ValuesSource {
         }
     }
 
-    public static class GeoPoint extends ValuesSource {
+    public static abstract class GeoPoint extends ValuesSource {
 
-        protected final IndexGeoPointFieldData indexFieldData;
+        public static final GeoPoint EMPTY = new GeoPoint() {
 
-        public GeoPoint(IndexGeoPointFieldData indexFieldData) {
-            this.indexFieldData = indexFieldData;
-        }
+            @Override
+            public MultiGeoPointValues geoPointValues(LeafReaderContext context) {
+                return org.elasticsearch.index.fielddata.FieldData.emptyMultiGeoPoints(context.reader().maxDoc());
+            }
+
+            @Override
+            public SortedBinaryDocValues bytesValues(LeafReaderContext context) throws IOException {
+                return org.elasticsearch.index.fielddata.FieldData.emptySortedBinary(context.reader().maxDoc());
+            }
+
+        };
 
         @Override
         public Bits docsWithValue(LeafReaderContext context) {
@@ -470,13 +516,24 @@ public abstract class ValuesSource {
             }
         }
 
-        @Override
-        public SortedBinaryDocValues bytesValues(LeafReaderContext context) {
-            return indexFieldData.load(context).getBytesValues();
-        }
+        public abstract MultiGeoPointValues geoPointValues(LeafReaderContext context);
 
-        public org.elasticsearch.index.fielddata.MultiGeoPointValues geoPointValues(LeafReaderContext context) {
-            return indexFieldData.load(context).getGeoPointValues();
+        public static class Fielddata extends GeoPoint {
+
+            protected final IndexGeoPointFieldData indexFieldData;
+
+            public Fielddata(IndexGeoPointFieldData indexFieldData) {
+                this.indexFieldData = indexFieldData;
+            }
+
+            @Override
+            public SortedBinaryDocValues bytesValues(LeafReaderContext context) {
+                return indexFieldData.load(context).getBytesValues();
+            }
+
+            public org.elasticsearch.index.fielddata.MultiGeoPointValues geoPointValues(LeafReaderContext context) {
+                return indexFieldData.load(context).getGeoPointValues();
+            }
         }
     }
 

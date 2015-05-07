@@ -508,3 +508,8 @@ Settings settings = ImmutableSettings.settingsBuilder()
         .put("cluster.name", "myClusterName").build();
 Client client = TransportClient.builder().settings(settings).build();
 --------------------------------------------------
+
+=== Logging
+
+Log messages are now truncated at 10,000 characters. This can be changed in the
+`logging.yml` configuration file.

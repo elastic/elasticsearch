@@ -21,6 +21,7 @@ package org.elasticsearch.rest.action.search;
 
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
@@ -94,8 +95,18 @@ public class RestSearchAction extends BaseRestHandler {
             }
         }
 
+        // do not allow 'query_and_fetch' or 'dfs_query_and_fetch' search types
+        // from the REST layer. these modes are an internal optimization and should
+        // not be specified explicitly by the user.
+        String searchType = request.param("search_type");
+        if (SearchType.fromString(searchType).equals(SearchType.QUERY_AND_FETCH) ||
+                SearchType.fromString(searchType).equals(SearchType.DFS_QUERY_AND_FETCH)) {
+            throw new ElasticsearchIllegalArgumentException("Unsupported search type [" + searchType + "]");
+        } else {
+            searchRequest.searchType(searchType);
+        }
+
         searchRequest.extraSource(parseSearchSource(request));
-        searchRequest.searchType(request.param("search_type"));
         searchRequest.queryCache(request.paramAsBoolean("query_cache", null));
 
         String scroll = request.param("scroll");

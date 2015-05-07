@@ -26,6 +26,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Sets;
 import com.google.common.collect.UnmodifiableIterator;
 
+import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -549,7 +550,7 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
             ordered.add(indexShard);
         }
 
-        Collections.sort(ordered, new Comparator<IndexShardRoutingTable>() {
+        CollectionUtil.timSort(ordered, new Comparator<IndexShardRoutingTable>() {
             @Override
             public int compare(IndexShardRoutingTable o1, IndexShardRoutingTable o2) {
                 int v = o1.shardId().index().name().compareTo(

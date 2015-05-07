@@ -24,7 +24,6 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.InternalEngine;
-import org.elasticsearch.index.translog.fs.FsTranslog;
 
 import java.io.IOException;
 

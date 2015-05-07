@@ -48,7 +48,7 @@ public class CLibrary {
 
     public static native int mlockall(int flags);
 
-    public static native int munlockall();
+    public static native int geteuid();
 
     private CLibrary() {
     }

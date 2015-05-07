@@ -625,6 +625,7 @@ public abstract class Engine implements Closeable {
         private final VersionType versionType;
         private final Origin origin;
         private final boolean canHaveDuplicates;
+        private Translog.Location location;
 
         private final long startTime;
         private long endTime;
@@ -688,6 +689,14 @@ public abstract class Engine implements Closeable {
         public void updateVersion(long version) {
             this.version = version;
             this.doc.version().setLongValue(version);
+        }
+
+        public void setTranslogLocation(Translog.Location location) {
+            this.location = location;
+        }
+
+        public Translog.Location getTranslogLocation() {
+            return this.location;
         }
 
         public VersionType versionType() {
@@ -805,6 +814,7 @@ public abstract class Engine implements Closeable {
 
         private final long startTime;
         private long endTime;
+        private Translog.Location location;
 
         public Delete(String type, String id, Term uid, long version, VersionType versionType, Origin origin, long startTime, boolean found) {
             this.type = type;
@@ -883,6 +893,14 @@ public abstract class Engine implements Closeable {
          */
         public long endTime() {
             return this.endTime;
+        }
+
+        public void setTranslogLocation(Translog.Location location) {
+            this.location = location;
+        }
+
+        public Translog.Location getTranslogLocation() {
+            return this.location;
         }
     }
 

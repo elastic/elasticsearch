@@ -52,6 +52,9 @@ public class Environment {
 
     private final Path logsFile;
 
+    /** Path to the PID file (can be null if no PID file is configured) **/
+    private final Path pidFile;
+
     /** List of filestores on the system */
     private static final FileStore[] fileStores;
 
@@ -106,6 +109,12 @@ public class Environment {
         } else {
             logsFile = homeFile.resolve("logs");
         }
+
+        if (settings.get("pidfile") != null) {
+            pidFile = PathUtils.get(cleanPath(settings.get("pidfile")));
+        } else {
+            pidFile = null;
+        }
     }
 
     /**
@@ -149,6 +158,13 @@ public class Environment {
 
     public Path logsFile() {
         return logsFile;
+    }
+
+    /**
+     * The PID file location (can be null if no PID file is configured)
+     */
+    public Path pidFile() {
+        return pidFile;
     }
 
     /**

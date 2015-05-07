@@ -105,6 +105,7 @@ public class IndexCacheableQueryTests extends ElasticsearchTestCase {
 
         IndexReader reader = writer.getReader();
         IndexSearcher searcher = newSearcher(reader);
+        reader = searcher.getIndexReader(); // reader might be wrapped
         searcher.setQueryCache(cache);
         searcher.setQueryCachingPolicy(policy);
 
@@ -118,8 +119,9 @@ public class IndexCacheableQueryTests extends ElasticsearchTestCase {
 
         writer.addDocument(new Document());
 
-        DirectoryReader reader2 = writer.getReader();
+        IndexReader reader2 = writer.getReader();
         searcher = newSearcher(reader2);
+        reader2 = searcher.getIndexReader(); // reader might be wrapped
         searcher.setQueryCache(cache);
         searcher.setQueryCachingPolicy(policy);
 

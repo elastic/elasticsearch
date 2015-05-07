@@ -99,7 +99,6 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldMapper.Loading;
 import org.elasticsearch.index.mapper.internal.SizeFieldMapper;
-import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
 import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
 import org.elasticsearch.index.merge.policy.AbstractMergePolicyProvider;
 import org.elasticsearch.index.merge.policy.LogByteSizeMergePolicyProvider;
@@ -109,10 +108,9 @@ import org.elasticsearch.index.merge.policy.MergePolicyProvider;
 import org.elasticsearch.index.merge.policy.TieredMergePolicyProvider;
 import org.elasticsearch.index.merge.scheduler.ConcurrentMergeSchedulerProvider;
 import org.elasticsearch.index.merge.scheduler.MergeSchedulerModule;
-import org.elasticsearch.index.store.StoreModule;
 import org.elasticsearch.index.translog.TranslogService;
-import org.elasticsearch.index.translog.fs.FsTranslog;
-import org.elasticsearch.index.translog.fs.FsTranslogFile;
+import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.index.translog.TranslogFile;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.cache.query.IndicesQueryCache;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
@@ -394,11 +392,6 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                             .field("enabled", randomBoolean())
                             .endObject();
                 }
-                if (randomBoolean()) {
-                    mappings.startObject(SourceFieldMapper.NAME)
-                            .field("compress", randomBoolean())
-                            .endObject();
-                }
                 mappings.startArray("dynamic_templates")
                         .startObject()
                     .startObject("template-strings")
@@ -505,7 +498,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         }
 
         if (random.nextBoolean()) {
-             builder.put(FsTranslog.INDEX_TRANSLOG_FS_TYPE, RandomPicks.randomFrom(random, FsTranslogFile.Type.values()).name());
+             builder.put(Translog.INDEX_TRANSLOG_FS_TYPE, RandomPicks.randomFrom(random, TranslogFile.Type.values()).name());
         }
 
         if (random.nextBoolean()) {
@@ -592,6 +585,9 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         if (random.nextBoolean()) {
             builder.put(TranslogService.INDEX_TRANSLOG_DISABLE_FLUSH, random.nextBoolean());
         }
+        if (random.nextBoolean()) {
+            builder.put(Translog.INDEX_TRANSLOG_DURABILITY, RandomPicks.randomFrom(random, Translog.Durabilty.values()));
+        }
         return builder;
     }
 
@@ -648,7 +644,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                     }
                     ensureClusterSizeConsistency();
                     ensureClusterStateConsistency();
-                    cluster().beforeIndexDeletion();
+                    beforeIndexDeletion();
                     cluster().wipe(); // wipe after to make sure we fail in the test that didn't ack the delete
                     if (afterClass || currentClusterScope == Scope.TEST) {
                         cluster().close();
@@ -669,6 +665,10 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                 // afterTestRule.forceFailure();
             }
         }
+    }
+
+    protected void beforeIndexDeletion() {
+        cluster().beforeIndexDeletion();
     }
 
     public static TestCluster cluster() {
@@ -1732,15 +1732,12 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         }
 
         final String nodePrefix;
-        final LifecycleScope nodeDirScope;
         switch (scope) {
             case TEST:
                 nodePrefix = TEST_CLUSTER_NODE_PREFIX;
-                nodeDirScope = LifecycleScope.TEST;
                 break;
             case SUITE:
                 nodePrefix = SUITE_CLUSTER_NODE_PREFIX;
-                nodeDirScope = LifecycleScope.SUITE;
                 break;
             default:
                 throw new ElasticsearchException("Scope not supported: " + scope);

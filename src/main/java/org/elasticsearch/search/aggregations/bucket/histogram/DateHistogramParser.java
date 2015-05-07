@@ -49,10 +49,10 @@ public class DateHistogramParser implements Aggregator.Parser {
     static final ParseField OFFSET = new ParseField("offset");
     static final ParseField INTERVAL = new ParseField("interval");
 
-    private final ImmutableMap<String, DateTimeUnit> dateFieldUnits;
+    public static final ImmutableMap<String, DateTimeUnit> DATE_FIELD_UNITS;
 
-    public DateHistogramParser() {
-        dateFieldUnits = MapBuilder.<String, DateTimeUnit>newMapBuilder()
+    static {
+        DATE_FIELD_UNITS = MapBuilder.<String, DateTimeUnit>newMapBuilder()
                 .put("year", DateTimeUnit.YEAR_OF_CENTURY)
                 .put("1y", DateTimeUnit.YEAR_OF_CENTURY)
                 .put("quarter", DateTimeUnit.QUARTER)
@@ -184,7 +184,7 @@ public class DateHistogramParser implements Aggregator.Parser {
         }
 
         TimeZoneRounding.Builder tzRoundingBuilder;
-        DateTimeUnit dateTimeUnit = dateFieldUnits.get(interval);
+        DateTimeUnit dateTimeUnit = DATE_FIELD_UNITS.get(interval);
         if (dateTimeUnit != null) {
             tzRoundingBuilder = TimeZoneRounding.builder(dateTimeUnit);
         } else {

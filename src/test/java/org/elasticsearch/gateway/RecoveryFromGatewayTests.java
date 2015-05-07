@@ -314,7 +314,7 @@ public class RecoveryFromGatewayTests extends ElasticsearchIntegrationTest {
 
                     logger.info("--> add some metadata, additional type and template");
                     client.admin().indices().preparePutMapping("test").setType("type2")
-                            .setSource(jsonBuilder().startObject().startObject("type2").startObject("_source").field("enabled", false).endObject().endObject().endObject())
+                            .setSource(jsonBuilder().startObject().startObject("type2").endObject().endObject())
                             .execute().actionGet();
                     client.admin().indices().preparePutTemplate("template_1")
                             .setTemplate("te*")

@@ -25,12 +25,17 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionWriteResponse;
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.WriteConsistencyLevel;
+import org.elasticsearch.action.bulk.BulkShardRequest;
+import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.index.IndexRequest.OpType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
+import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -39,6 +44,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.*;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.settings.Settings;
@@ -48,13 +54,19 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.RefCounted;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.DocumentAlreadyExistsException;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.Mapping;
+import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardException;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.river.RiverIndexName;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 
@@ -76,6 +88,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
     protected final ShardStateAction shardStateAction;
     protected final WriteConsistencyLevel defaultWriteConsistencyLevel;
     protected final TransportRequestOptions transportOptions;
+    protected final MappingUpdatedAction mappingUpdatedAction;
 
     final String transportReplicaAction;
     final String executor;
@@ -83,13 +96,15 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
 
     protected TransportShardReplicationOperationAction(Settings settings, String actionName, TransportService transportService,
                                                        ClusterService clusterService, IndicesService indicesService,
-                                                       ThreadPool threadPool, ShardStateAction shardStateAction, ActionFilters actionFilters,
+                                                       ThreadPool threadPool, ShardStateAction shardStateAction,
+                                                       MappingUpdatedAction mappingUpdatedAction, ActionFilters actionFilters,
                                                        Class<Request> request, Class<ReplicaRequest> replicaRequest, String executor) {
         super(settings, actionName, threadPool, actionFilters);
         this.transportService = transportService;
         this.clusterService = clusterService;
         this.indicesService = indicesService;
         this.shardStateAction = shardStateAction;
+        this.mappingUpdatedAction = mappingUpdatedAction;
 
         this.transportReplicaAction = actionName + "[r]";
         this.executor = executor;
@@ -145,7 +160,8 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
     }
 
     protected boolean retryPrimaryException(Throwable e) {
-        return TransportActions.isShardNotAvailableException(e);
+        return e.getClass() == RetryOnPrimaryException.class
+                || TransportActions.isShardNotAvailableException(e);
     }
 
     /**
@@ -174,6 +190,26 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
             return true;
         }
         return false;
+    }
+
+    protected static class WriteResult<T extends ActionWriteResponse> {
+
+        public final T response;
+        public final Translog.Location location;
+
+        public WriteResult(T response, Translog.Location location) {
+            this.response = response;
+            this.location = location;
+        }
+
+        @SuppressWarnings("unchecked")
+        public <T extends ActionWriteResponse> T response() {
+            // this sets total, pending and failed to 0 and this is ok, because we will embed this into the replica
+            // request and not use it
+            response.setShardInfo(new ActionWriteResponse.ShardInfo());
+            return (T) response;
+        }
+
     }
 
     class OperationTransportHandler implements TransportRequestHandler<Request> {
@@ -278,9 +314,6 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
         protected void doRun() throws Exception {
             try (Releasable shardReference = getIndexShardOperationsCounter(request.internalShardId)) {
                 shardOperationOnReplica(request.internalShardId, request);
-            } catch (Throwable t) {
-                failReplicaIfNeeded(request.internalShardId.index().name(), request.internalShardId.id(), t);
-                throw t;
             }
             channel.sendResponse(TransportResponse.Empty.INSTANCE);
         }
@@ -293,6 +326,17 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
         public PrimaryOperationRequest(int shardId, String index, Request request) {
             this.shardId = new ShardId(index, shardId);
             this.request = request;
+        }
+    }
+
+    protected static class RetryOnPrimaryException extends IndexShardException {
+
+        public RetryOnPrimaryException(ShardId shardId, String msg) {
+            super(shardId, msg);
+        }
+
+        public RetryOnPrimaryException(ShardId shardId, String msg, Throwable cause) {
+            super(shardId, msg, cause);
         }
     }
 
@@ -1003,5 +1047,67 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                 counter.decrementOperationCounter();
             }
         }
+    }
+
+    /** Utility method to create either an index or a create operation depending
+     *  on the {@link OpType} of the request. */
+    private final Engine.IndexingOperation prepareIndexOperationOnPrimary(BulkShardRequest shardRequest, IndexRequest request, IndexShard indexShard) {
+        SourceToParse sourceToParse = SourceToParse.source(SourceToParse.Origin.PRIMARY, request.source()).type(request.type()).id(request.id())
+                .routing(request.routing()).parent(request.parent()).timestamp(request.timestamp()).ttl(request.ttl());
+        boolean canHaveDuplicates = request.canHaveDuplicates();
+        if (shardRequest != null) {
+            canHaveDuplicates |= shardRequest.canHaveDuplicates();
+        }
+        if (request.opType() == IndexRequest.OpType.INDEX) {
+            return indexShard.prepareIndex(sourceToParse, request.version(), request.versionType(), Engine.Operation.Origin.PRIMARY, canHaveDuplicates);
+        } else {
+            assert request.opType() == IndexRequest.OpType.CREATE : request.opType();
+            return indexShard.prepareCreate(sourceToParse,
+                    request.version(), request.versionType(), Engine.Operation.Origin.PRIMARY, canHaveDuplicates, canHaveDuplicates);
+        }
+    }
+
+    /** Execute the given {@link IndexRequest} on a primary shard, throwing a
+     *  {@link RetryOnPrimaryException} if the operation needs to be re-tried. */
+    protected final WriteResult<IndexResponse> executeIndexRequestOnPrimary(BulkShardRequest shardRequest, IndexRequest request, IndexShard indexShard) throws Throwable {
+        Engine.IndexingOperation operation = prepareIndexOperationOnPrimary(shardRequest, request, indexShard);
+        Mapping update = operation.parsedDoc().dynamicMappingsUpdate();
+        final boolean created;
+        final ShardId shardId = indexShard.shardId();
+        if (update != null) {
+            final String indexName = shardId.getIndex();
+            if (indexName.equals(RiverIndexName.Conf.indexName(settings))) {
+                // With rivers, we have a chicken and egg problem if indexing
+                // the _meta document triggers a mapping update. Because we would
+                // like to validate the mapping update first, but on the other
+                // hand putting the mapping would start the river, which expects
+                // to find a _meta document
+                // So we have no choice but to index first and send mappings afterwards
+                MapperService mapperService = indexShard.indexService().mapperService();
+                mapperService.merge(request.type(), new CompressedString(update.toBytes()), true);
+                created = operation.execute(indexShard);
+                mappingUpdatedAction.updateMappingOnMasterAsynchronously(indexName, request.type(), update);
+            } else {
+                mappingUpdatedAction.updateMappingOnMasterSynchronously(indexName, request.type(), update);
+                operation = prepareIndexOperationOnPrimary(shardRequest, request, indexShard);
+                update = operation.parsedDoc().dynamicMappingsUpdate();
+                if (update != null) {
+                    throw new RetryOnPrimaryException(shardId,
+                            "Dynamics mappings are not available on the node that holds the primary yet");
+                }
+                created = operation.execute(indexShard);
+            }
+        } else {
+            created = operation.execute(indexShard);
+        }
+
+        // update the version on request so it will happen on the replicas
+        final long version = operation.version();
+        request.version(version);
+        request.versionType(request.versionType().versionTypeForReplicationAndRecovery());
+
+        assert request.versionType().validateVersionForWrites(request.version());
+
+        return new WriteResult(new IndexResponse(shardId.getIndex(), request.type(), request.id(), request.version(), created), operation.getTranslogLocation());
     }
 }

@@ -126,14 +126,14 @@ public class UpdateMappingIntegrationTests extends ElasticsearchIntegrationTest 
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
         PutMappingResponse putMappingResponse = client().admin().indices().preparePutMapping("test").setType("doc")
-                .setSource("{\"_source\":{\"enabled\":false},\"properties\":{\"date\":{\"type\":\"integer\"}}}")
+                .setSource("{\"properties\":{\"date\":{\"type\":\"integer\"}}}")
                 .execute().actionGet();
 
         assertThat(putMappingResponse.isAcknowledged(), equalTo(true));
 
         GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings("test").execute().actionGet();
         assertThat(getMappingsResponse.mappings().get("test").get("doc").source().toString(),
-                equalTo("{\"doc\":{\"_source\":{\"enabled\":false},\"properties\":{\"date\":{\"type\":\"integer\"}}}}"));
+                equalTo("{\"doc\":{\"properties\":{\"date\":{\"type\":\"integer\"}}}}"));
     }
 
     @Test(expected = MergeMappingException.class)

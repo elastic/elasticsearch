@@ -29,7 +29,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.BigArray;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.codec.CodecService;
@@ -41,11 +40,9 @@ import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.TranslogRecoveryPerformer;
 import org.elasticsearch.index.store.Store;
-import org.elasticsearch.index.translog.fs.FsTranslog;
 import org.elasticsearch.indices.IndicesWarmer;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.io.IOException;
 import java.nio.file.Path;
 import java.util.concurrent.TimeUnit;
 

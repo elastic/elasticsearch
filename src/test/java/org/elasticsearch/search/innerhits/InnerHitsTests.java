@@ -697,8 +697,9 @@ public class InnerHitsTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    public void testNestedInnerHitsWithStoredFieldsAndNoSource() throws Exception {
+    public void testNestedInnerHitsWithStoredFieldsAndNoSourceBackcompat() throws Exception {
         assertAcked(prepareCreate("articles")
+                .setSettings(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id)
                 .addMapping("article", jsonBuilder().startObject()
                                 .startObject("_source").field("enabled", false).endObject()
                                 .startObject("properties")
@@ -735,8 +736,9 @@ public class InnerHitsTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    public void testNestedInnerHitsWithHighlightOnStoredField() throws Exception {
+    public void testNestedInnerHitsWithHighlightOnStoredFieldBackcompat() throws Exception {
         assertAcked(prepareCreate("articles")
+                .setSettings(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id)
                         .addMapping("article", jsonBuilder().startObject()
                                         .startObject("_source").field("enabled", false).endObject()
                                             .startObject("properties")
@@ -773,7 +775,7 @@ public class InnerHitsTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    public void testNestedInnerHitsWithExcludeSource() throws Exception {
+    public void testNestedInnerHitsWithExcludeSourceBackcompat() throws Exception {
         assertAcked(prepareCreate("articles").setSettings(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id)
                         .addMapping("article", jsonBuilder().startObject()
                                         .startObject("_source").field("excludes", new String[]{"comments"}).endObject()
@@ -811,7 +813,7 @@ public class InnerHitsTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    public void testNestedInnerHitsHiglightWithExcludeSource() throws Exception {
+    public void testNestedInnerHitsHiglightWithExcludeSourceBackcompat() throws Exception {
         assertAcked(prepareCreate("articles").setSettings(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id)
                         .addMapping("article", jsonBuilder().startObject()
                                         .startObject("_source").field("excludes", new String[]{"comments"}).endObject()

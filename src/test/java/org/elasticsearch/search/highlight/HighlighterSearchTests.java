@@ -23,10 +23,11 @@ import com.google.common.base.Joiner;
 import com.google.common.collect.Iterables;
 
 import org.apache.lucene.util.LuceneTestCase.Slow;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.ImmutableSettings.Builder;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -90,9 +91,6 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
-/**
- *
- */
 @Slow
 public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
 
@@ -564,9 +562,10 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    public void testForceSourceWithSourceDisabled() throws Exception {
+    public void testForceSourceWithSourceDisabledBackcompat() throws Exception {
 
         assertAcked(prepareCreate("test")
+                .setSettings(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id)
                 .addMapping("type1", jsonBuilder().startObject().startObject("type1")
                         .startObject("_source").field("enabled", false).endObject()
                         .startObject("properties")
@@ -2180,8 +2179,6 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
     public void testPostingsHighlighterMultiMapperWithStore() throws Exception {
         assertAcked(prepareCreate("test")
                 .addMapping("type1", jsonBuilder().startObject().startObject("type1")
-                        //just to make sure that we hit the stored fields rather than the _source
-                        .startObject("_source").field("enabled", false).endObject()
                         .startObject("properties")
                         .startObject("title").field("type", "multi_field").startObject("fields")
                         .startObject("title").field("type", "string").field("store", "yes").field("index_options", "offsets").field("analyzer", "classic").endObject()
@@ -2199,7 +2196,6 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
 
         assertHitCount(searchResponse, 1l);
         SearchHit hit = searchResponse.getHits().getAt(0);
-        assertThat(hit.source(), nullValue());
         //stopwords are not highlighted since not indexed
         assertHighlight(hit, "title", 0, 1, equalTo("this is a <em>test</em> ."));
 

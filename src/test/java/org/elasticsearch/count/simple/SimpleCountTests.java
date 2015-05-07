@@ -19,6 +19,7 @@
 
 package org.elasticsearch.count.simple;
 
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -30,6 +31,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 
+import static com.carrotsearch.randomizedtesting.RandomizedTest.systemPropertyAsBoolean;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -142,6 +144,7 @@ public class SimpleCountTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void localDependentDateTests() throws Exception {
+        assumeFalse("Locals are buggy on JDK9EA", Constants.JRE_IS_MINIMUM_JAVA9 && systemPropertyAsBoolean("tests.security.manager", false));
         assertAcked(prepareCreate("test")
                 .addMapping("type1",
                         jsonBuilder().startObject()

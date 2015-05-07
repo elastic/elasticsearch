@@ -68,9 +68,6 @@ grant {
   // needed by ImmutableSettings
   permission java.lang.RuntimePermission "getenv.*";
 
-  // needed by PluginManager
-  permission java.lang.RuntimePermission "setFactory";
-
   // needed by LuceneTestCase/TestRuleLimitSysouts
   permission java.lang.RuntimePermission "setIO";
 

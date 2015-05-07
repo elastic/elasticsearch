@@ -26,8 +26,13 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.script.ScriptService.ScriptType;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Set;
 
 public class ScriptParameterParser {
 
@@ -102,12 +107,12 @@ public class ScriptParameterParser {
             String parameterName = entry.getKey();
             Object parameterValue = entry.getValue();
             if (ScriptService.SCRIPT_LANG.match(parameterName)) {
-               if (parameterValue instanceof String) {
+                if (parameterValue instanceof String || parameterValue == null) {
                    lang = (String) parameterValue;
                    if (removeMatchedEntries) {
                        itr.remove();
                    }
-               } else {
+                } else {
                    throw new ScriptParameterParseException("Value must be of type String: [" + parameterName + "]");
                }
             } else {

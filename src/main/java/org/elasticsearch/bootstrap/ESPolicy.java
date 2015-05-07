@@ -19,6 +19,8 @@
 
 package org.elasticsearch.bootstrap;
 
+import org.elasticsearch.common.SuppressForbidden;
+
 import java.net.URI;
 import java.security.Permission;
 import java.security.PermissionCollection;
@@ -41,8 +43,12 @@ public class ESPolicy extends Policy {
         this.dynamic = dynamic;
     }
 
-    @Override
+    @Override @SuppressForbidden(reason = "fast equals check is desired")
     public boolean implies(ProtectionDomain domain, Permission permission) {
+        // run groovy scripts with no permissions
+        if ("/groovy/script".equals(domain.getCodeSource().getLocation().getFile())) {
+            return false;
+        }
         return template.implies(domain, permission) || dynamic.implies(permission);
     }
 }

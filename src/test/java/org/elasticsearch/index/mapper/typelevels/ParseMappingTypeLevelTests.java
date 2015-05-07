@@ -27,24 +27,22 @@ import org.junit.Test;
 
 import static org.hamcrest.Matchers.equalTo;
 
-/**
- *
- */
+// TODO: move this test...it doesn't need to be by itself
 public class ParseMappingTypeLevelTests extends ElasticsearchSingleNodeTest {
 
     @Test
     public void testTypeLevel() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("_source").field("enabled", false).endObject()
+                .startObject("_index").field("enabled", true).endObject()
                 .endObject().endObject().string();
 
         DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
         DocumentMapper mapper = parser.parse("type", mapping);
         assertThat(mapper.type(), equalTo("type"));
-        assertThat(mapper.sourceMapper().enabled(), equalTo(false));
+        assertThat(mapper.indexMapper().enabled(), equalTo(true));
 
         mapper = parser.parse(mapping);
         assertThat(mapper.type(), equalTo("type"));
-        assertThat(mapper.sourceMapper().enabled(), equalTo(false));
+        assertThat(mapper.indexMapper().enabled(), equalTo(true));
     }
 }

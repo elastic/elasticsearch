@@ -26,6 +26,7 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.NumericRangeQuery;
 import org.apache.lucene.search.QueryWrapperFilter;
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.LocaleUtils;
@@ -58,6 +59,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+import static com.carrotsearch.randomizedtesting.RandomizedTest.systemPropertyAsBoolean;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.index.mapper.string.SimpleStringMappingTests.docValuesType;
 import static org.hamcrest.Matchers.equalTo;
@@ -117,6 +119,7 @@ public class SimpleDateMappingTests extends ElasticsearchSingleNodeTest {
     }
     
     public void testLocale() throws IOException {
+        assumeFalse("Locals are buggy on JDK9EA", Constants.JRE_IS_MINIMUM_JAVA9 && systemPropertyAsBoolean("tests.security.manager", false));
         String mapping = XContentFactory.jsonBuilder()
                     .startObject()
                         .startObject("type")
@@ -431,5 +434,13 @@ public class SimpleDateMappingTests extends ElasticsearchSingleNodeTest {
                 .endObject()
                 .bytes());
         assertThat(getDateAsMillis(doc.rootDoc(), "date_field"), equalTo(43000L));
+
+        // but formatted dates still parse as milliseconds
+        doc = defaultMapper.parse("type", "2", XContentFactory.jsonBuilder()
+                .startObject()
+                .field("date_field", "1970-01-01T00:00:44.000Z")
+                .endObject()
+                .bytes());
+        assertThat(getDateAsMillis(doc.rootDoc(), "date_field"), equalTo(44000L));
     }
 }

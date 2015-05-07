@@ -19,8 +19,12 @@
 
 package org.elasticsearch.search.aggregations.reducers.derivative;
 
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.rounding.DateTimeUnit;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchParseException;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramParser;
 import org.elasticsearch.search.aggregations.reducers.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.reducers.Reducer;
 import org.elasticsearch.search.aggregations.reducers.ReducerFactory;
@@ -34,6 +38,10 @@ import java.util.List;
 
 public class DerivativeParser implements Reducer.Parser {
 
+    public static final ParseField FORMAT = new ParseField("format");
+    public static final ParseField GAP_POLICY = new ParseField("gap_policy");
+    public static final ParseField UNIT = new ParseField("unit");
+
     @Override
     public String type() {
         return DerivativeReducer.TYPE.name();
@@ -45,6 +53,7 @@ public class DerivativeParser implements Reducer.Parser {
         String currentFieldName = null;
         String[] bucketsPaths = null;
         String format = null;
+        String units = null;
         GapPolicy gapPolicy = GapPolicy.SKIP;
 
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -57,6 +66,8 @@ public class DerivativeParser implements Reducer.Parser {
                     bucketsPaths = new String[] { parser.text() };
                 } else if (GAP_POLICY.match(currentFieldName)) {
                     gapPolicy = GapPolicy.parse(context, parser.text(), parser.getTokenLocation());
+                } else if (UNIT.match(currentFieldName)) {
+                    units = parser.text();
                 } else {
                     throw new SearchParseException(context, "Unknown key for a " + token + " in [" + reducerName + "]: ["
                             + currentFieldName + "].", parser.getTokenLocation());
@@ -89,7 +100,20 @@ public class DerivativeParser implements Reducer.Parser {
             formatter = ValueFormat.Patternable.Number.format(format).formatter();
         }
 
-        return new DerivativeReducer.Factory(reducerName, bucketsPaths, formatter, gapPolicy);
+        Long xAxisUnits = null;
+        if (units != null) {
+            DateTimeUnit dateTimeUnit = DateHistogramParser.DATE_FIELD_UNITS.get(units);
+            if (dateTimeUnit != null) {
+                xAxisUnits = dateTimeUnit.field().getDurationField().getUnitMillis();
+            } else {
+                TimeValue timeValue = TimeValue.parseTimeValue(units, null);
+                if (timeValue != null) {
+                    xAxisUnits = timeValue.getMillis();
+                }
+            }
+        }
+
+        return new DerivativeReducer.Factory(reducerName, bucketsPaths, formatter, gapPolicy, xAxisUnits);
     }
 
 }

@@ -621,8 +621,16 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
         if (settings == null) {
             throw new IllegalArgumentException("settings must not be null");
         }
-        PendingDelete pendingDelete = new PendingDelete(shardId, settings, false);
+        PendingDelete pendingDelete = new PendingDelete(shardId, settings);
         addPendingDelete(shardId.index(), pendingDelete);
+    }
+
+    /**
+     * Adds a pending delete for the given index.
+     */
+    public void addPendingDelete(Index index, @IndexSettings Settings settings) {
+        PendingDelete pendingDelete = new PendingDelete(index, settings);
+        addPendingDelete(index, pendingDelete);
     }
 
     private void addPendingDelete(Index index, PendingDelete pendingDelete) {
@@ -636,36 +644,45 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
         }
     }
 
-    /**
-     * Adds a pending delete for the given index shard.
-     */
-    public void addPendingDelete(Index index, @IndexSettings Settings settings) {
-        PendingDelete pendingDelete = new PendingDelete(null, settings, true);
-        addPendingDelete(index, pendingDelete);
-    }
-
     private static final class PendingDelete implements Comparable<PendingDelete> {
-        final ShardId shardId;
+        final String index;
+        final int shardId;
         final Settings settings;
         final boolean deleteIndex;
 
-        public PendingDelete(ShardId shardId, Settings settings, boolean deleteIndex) {
-            this.shardId = shardId;
+        /**
+         * Creates a new pending delete of an index
+         */
+        public PendingDelete(ShardId shardId, Settings settings) {
+            this.index = shardId.getIndex();
+            this.shardId = shardId.getId();
             this.settings = settings;
-            this.deleteIndex = deleteIndex;
-            assert deleteIndex || shardId != null;
+            this.deleteIndex = false;
+        }
+
+        /**
+         * Creates a new pending delete of a shard
+         */
+        public PendingDelete(Index index, Settings settings) {
+            this.index = index.getName();
+            this.shardId = -1;
+            this.settings = settings;
+            this.deleteIndex = true;
         }
 
         @Override
         public String toString() {
-            return shardId.toString();
+            StringBuilder sb = new StringBuilder();
+            sb.append("[").append(index).append("]");
+            if (shardId != -1) {
+                sb.append("[").append(shardId).append("]");
+            }
+            return sb.toString();
         }
 
         @Override
         public int compareTo(PendingDelete o) {
-            int left = deleteIndex ? -1 : shardId.id();
-            int right = o.deleteIndex ? -1 : o.shardId.id();
-            return Integer.compare(left, right);
+            return Integer.compare(shardId, o.shardId);
         }
     }
 
@@ -704,6 +721,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
                         PendingDelete delete = iterator.next();
 
                         if (delete.deleteIndex) {
+                            assert delete.shardId == -1;
                             logger.debug("{} deleting index store reason [{}]", index, "pending delete");
                             try {
                                 nodeEnv.deleteIndexDirectoryUnderLock(index, indexSettings);
@@ -712,7 +730,8 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
                                 logger.debug("{} retry pending delete", ex, index);
                             }
                         } else {
-                            ShardLock shardLock = locks.get(delete.shardId);
+                            assert delete.shardId != -1;
+                            ShardLock shardLock = locks.get(new ShardId(delete.index, delete.shardId));
                             if (shardLock != null) {
                                 try {
                                     deleteShardStore("pending delete", shardLock, delete.settings);

@@ -19,7 +19,8 @@
 
 package org.elasticsearch.client;
 
-import org.elasticsearch.action.*;
+import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -51,8 +52,6 @@ import org.elasticsearch.action.indexedscripts.get.GetIndexedScriptResponse;
 import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptRequest;
 import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptRequestBuilder;
 import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptResponse;
-import org.elasticsearch.action.mlt.MoreLikeThisRequest;
-import org.elasticsearch.action.mlt.MoreLikeThisRequestBuilder;
 import org.elasticsearch.action.percolate.*;
 import org.elasticsearch.action.search.*;
 import org.elasticsearch.action.suggest.SuggestRequest;
@@ -467,32 +466,7 @@ public interface Client extends ElasticsearchClient, Releasable {
      * Performs multiple search requests.
      */
     MultiSearchRequestBuilder prepareMultiSearch();
-
-    /**
-     * A more like this action to search for documents that are "like" a specific document.
-     *
-     * @param request The more like this request
-     * @return The response future
-     */
-    ActionFuture<SearchResponse> moreLikeThis(MoreLikeThisRequest request);
-
-    /**
-     * A more like this action to search for documents that are "like" a specific document.
-     *
-     * @param request  The more like this request
-     * @param listener A listener to be notified of the result
-     */
-    void moreLikeThis(MoreLikeThisRequest request, ActionListener<SearchResponse> listener);
-
-    /**
-     * A more like this action to search for documents that are "like" a specific document.
-     *
-     * @param index The index to load the document from
-     * @param type  The type of the document
-     * @param id    The id of the document
-     */
-    MoreLikeThisRequestBuilder prepareMoreLikeThis(String index, String type, String id);
-
+    
     /**
      * An action that returns the term vectors for a specific document.
      *

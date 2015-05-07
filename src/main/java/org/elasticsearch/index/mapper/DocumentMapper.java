@@ -585,7 +585,9 @@ public class DocumentMapper implements ToXContent {
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field("script", script);
-            builder.field("lang", language);
+            if (language != null) {
+                builder.field("lang", language);
+            }
             if (parameters != null) {
                 builder.field("params", parameters);
             }

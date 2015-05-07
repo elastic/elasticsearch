@@ -38,9 +38,11 @@ public class RestGetWatchAction extends WatcherRestHandler {
                 builder.startObject()
                         .field("found", response.isFound())
                         .field("_id", response.getId())
-                        .field("_version", response.getVersion())
-                        .field("watch", response.getSource(), ToXContent.EMPTY_PARAMS)
-                        .endObject();
+                        .field("_version", response.getVersion());
+                        if (response.isFound()) {
+                            builder.field("watch", response.getSource(), ToXContent.EMPTY_PARAMS);
+                        }
+                        builder.endObject();
 
                 RestStatus status = response.isFound() ? OK : NOT_FOUND;
                 return new BytesRestResponse(status, builder);

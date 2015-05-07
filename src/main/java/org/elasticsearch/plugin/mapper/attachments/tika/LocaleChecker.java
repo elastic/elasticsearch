@@ -21,7 +21,6 @@ package org.elasticsearch.plugin.mapper.attachments.tika;
 
 import org.apache.lucene.util.Constants;
 
-import java.util.Locale;
 import java.util.StringTokenizer;
 
 import static java.lang.Integer.parseInt;
@@ -46,24 +45,9 @@ public class LocaleChecker {
     }
 
     /**
-     * We can have issues with some JVMs and Locale
-     * See https://github.com/elasticsearch/elasticsearch-mapper-attachments/issues/105
+     * Tika 1.8 fixed currently known Locale issues with some JVMs
      */
     public static boolean isLocaleCompatible() {
-        String language = Locale.getDefault().getLanguage();
-        boolean acceptedLocale = true;
-
-        if (
-            // We can have issues with JDK7 Patch < 80
-                (JVM_MAJOR_VERSION == 1 && JVM_MINOR_VERSION == 7 && JVM_PATCH_MAJOR_VERSION == 0 && JVM_PATCH_MINOR_VERSION < 80) ||
-                        // We can have issues with JDK8 Patch < 40
-                        (JVM_MAJOR_VERSION == 1 && JVM_MINOR_VERSION == 8 && JVM_PATCH_MAJOR_VERSION == 0 && JVM_PATCH_MINOR_VERSION < 40)
-                ) {
-            if (language.equalsIgnoreCase("tr") || language.equalsIgnoreCase("az")) {
-                acceptedLocale = false;
-            }
-        }
-
-        return acceptedLocale;
+        return true;
     }
 }

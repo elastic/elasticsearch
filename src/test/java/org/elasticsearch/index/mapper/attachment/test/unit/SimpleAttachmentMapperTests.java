@@ -31,8 +31,7 @@ import org.junit.Test;
 import static org.elasticsearch.common.io.Streams.copyToBytesFromClasspath;
 import static org.elasticsearch.common.io.Streams.copyToStringFromClasspath;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.*;
 
 /**
  *
@@ -57,7 +56,7 @@ public class SimpleAttachmentMapperTests extends AttachmentUnitTestCase {
 
         ParseContext.Document doc = docMapper.parse(json).rootDoc();
 
-        assertThat(doc.get(docMapper.mappers().getMapper("file.content_type").names().indexName()), equalTo("application/xhtml+xml"));
+        assertThat(doc.get(docMapper.mappers().getMapper("file.content_type").names().indexName()), startsWith("application/xhtml+xml"));
         assertThat(doc.get(docMapper.mappers().getMapper("file.title").names().indexName()), equalTo("XHTML test document"));
         assertThat(doc.get(docMapper.mappers().getMapper("file").names().indexName()), containsString("This document tests the ability of Apache Tika to extract content"));
 
@@ -69,7 +68,7 @@ public class SimpleAttachmentMapperTests extends AttachmentUnitTestCase {
 
         doc = docMapper.parse(json).rootDoc();
 
-        assertThat(doc.get(docMapper.mappers().getMapper("file.content_type").names().indexName()), equalTo("application/xhtml+xml"));
+        assertThat(doc.get(docMapper.mappers().getMapper("file.content_type").names().indexName()), startsWith("application/xhtml+xml"));
         assertThat(doc.get(docMapper.mappers().getMapper("file.title").names().indexName()), equalTo("XHTML test document"));
         assertThat(doc.get(docMapper.mappers().getMapper("file").names().indexName()), containsString("This document tests the ability of Apache Tika to extract content"));
     }

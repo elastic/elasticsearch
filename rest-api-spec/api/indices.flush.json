@@ -33,6 +33,10 @@
             "options" : ["open","closed","none","all"],
             "default" : "open",
             "description" : "Whether to expand wildcard expression to concrete indices that are open, closed or both."
+        },
+	"synced": {
+            "type" : "boolean",
+            "description" : "If set to true then a synced flush will be performed."
         }
       }
     },

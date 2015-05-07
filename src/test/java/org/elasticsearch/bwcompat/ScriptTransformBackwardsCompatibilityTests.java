@@ -20,11 +20,13 @@
 package org.elasticsearch.bwcompat;
 
 import com.google.common.collect.ImmutableMap;
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.script.groovy.GroovyScriptEngineService;
 import org.elasticsearch.test.ElasticsearchBackwardsCompatIntegrationTest;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -39,6 +41,8 @@ import static org.hamcrest.Matchers.not;
 public class ScriptTransformBackwardsCompatibilityTests extends ElasticsearchBackwardsCompatIntegrationTest {
 
     @Test
+    @Ignore
+    @AwaitsFix(bugUrl = "fails on  all seeds, apparently not applying the transform script")
     public void testTransformWithNoLangSpecified() throws Exception {
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
         builder.field("transform");

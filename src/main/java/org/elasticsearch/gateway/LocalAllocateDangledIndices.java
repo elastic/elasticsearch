@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.ProcessedClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.MetaDataIndexUpgradeService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
@@ -54,12 +55,16 @@ public class LocalAllocateDangledIndices extends AbstractComponent {
 
     private final AllocationService allocationService;
 
+    private final MetaDataIndexUpgradeService metaDataIndexUpgradeService;
+
     @Inject
-    public LocalAllocateDangledIndices(Settings settings, TransportService transportService, ClusterService clusterService, AllocationService allocationService) {
+    public LocalAllocateDangledIndices(Settings settings, TransportService transportService, ClusterService clusterService,
+                                       AllocationService allocationService, MetaDataIndexUpgradeService metaDataIndexUpgradeService) {
         super(settings);
         this.transportService = transportService;
         this.clusterService = clusterService;
         this.allocationService = allocationService;
+        this.metaDataIndexUpgradeService = metaDataIndexUpgradeService;
         transportService.registerRequestHandler(ACTION_NAME, AllocateDangledRequest.class, ThreadPool.Names.SAME, new AllocateDangledRequestHandler());
     }
 
@@ -129,10 +134,24 @@ public class LocalAllocateDangledIndices extends AbstractComponent {
                             continue;
                         }
                         importNeeded = true;
-                        metaData.put(indexMetaData, false);
-                        blocks.addBlocks(indexMetaData);
-                        routingTableBuilder.addAsRecovery(indexMetaData);
-                        sb.append("[").append(indexMetaData.index()).append("/").append(indexMetaData.state()).append("]");
+
+                        IndexMetaData upgradedIndexMetaData;
+                        try {
+                            // The dangled index might be from an older version, we need to make sure it's compatible
+                            // with the current version and upgrade it if needed.
+                            upgradedIndexMetaData = metaDataIndexUpgradeService.upgradeIndexMetaData(indexMetaData);
+                        } catch (Exception ex) {
+                            // upgrade failed - adding index as closed
+                            logger.warn("found dangled index [{}] on node [{}]. This index cannot be upgraded to the latest version, adding as closed", ex,
+                                    indexMetaData.index(), request.fromNode);
+                            upgradedIndexMetaData = IndexMetaData.builder(indexMetaData).state(IndexMetaData.State.CLOSE).version(indexMetaData.version() + 1).build();
+                        }
+                        metaData.put(upgradedIndexMetaData, false);
+                        blocks.addBlocks(upgradedIndexMetaData);
+                        if (upgradedIndexMetaData.getState() == IndexMetaData.State.OPEN) {
+                            routingTableBuilder.addAsRecovery(upgradedIndexMetaData);
+                        }
+                        sb.append("[").append(upgradedIndexMetaData.index()).append("/").append(upgradedIndexMetaData.state()).append("]");
                     }
                     if (!importNeeded) {
                         return currentState;

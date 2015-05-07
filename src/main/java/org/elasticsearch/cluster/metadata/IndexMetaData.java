@@ -160,6 +160,7 @@ public class IndexMetaData implements Diffable<IndexMetaData> {
     public static final String SETTING_BLOCKS_WRITE = "index.blocks.write";
     public static final String SETTING_BLOCKS_METADATA = "index.blocks.metadata";
     public static final String SETTING_VERSION_CREATED = "index.version.created";
+    public static final String SETTING_VERSION_MINIMUM_COMPATIBLE = "index.version.minimum_compatible";
     public static final String SETTING_CREATION_DATE = "index.creation_date";
     public static final String SETTING_UUID = "index.uuid";
     public static final String SETTING_LEGACY_ROUTING_HASH_FUNCTION = "index.legacy.routing.hash.type";
@@ -192,6 +193,7 @@ public class IndexMetaData implements Diffable<IndexMetaData> {
     private final DiscoveryNodeFilters excludeFilters;
 
     private final Version indexCreatedVersion;
+    private final Version indexMinimumCompatibleVersion;
     private final HashFunction routingHashFunction;
     private final boolean useTypeForRouting;
 
@@ -226,6 +228,7 @@ public class IndexMetaData implements Diffable<IndexMetaData> {
             excludeFilters = DiscoveryNodeFilters.buildFromKeyValue(OR, excludeMap);
         }
         indexCreatedVersion = Version.indexCreated(settings);
+        indexMinimumCompatibleVersion = settings.getAsVersion(SETTING_VERSION_MINIMUM_COMPATIBLE, indexCreatedVersion);
         final Class<? extends HashFunction> hashFunctionClass = settings.getAsClass(SETTING_LEGACY_ROUTING_HASH_FUNCTION, null);
         if (hashFunctionClass == null) {
             routingHashFunction = MURMUR3_HASH_FUNCTION;
@@ -278,6 +281,8 @@ public class IndexMetaData implements Diffable<IndexMetaData> {
     /**
      * Return the {@link Version} on which this index has been created. This
      * information is typically useful for backward compatibility.
+     *
+     * Returns null if the index was created before 0.19.0.RC1.
      */
     public Version creationVersion() {
         return indexCreatedVersion;
@@ -285,6 +290,20 @@ public class IndexMetaData implements Diffable<IndexMetaData> {
 
     public Version getCreationVersion() {
         return creationVersion();
+    }
+
+    /**
+     * Return the {@link Version} of that created the oldest segment in the index.
+     *
+     * If the index was created before v1.6 and didn't go through upgrade API the creation verion is returned.
+     * Returns null if the index was created before 0.19.0.RC1.
+     */
+    public Version minimumCompatibleVersion() {
+        return indexMinimumCompatibleVersion;
+    }
+
+    public Version getMinimumCompatibleVersion() {
+        return minimumCompatibleVersion();
     }
 
     /**

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.bwcompat;
 
+import com.google.common.base.Predicate;
 import com.google.common.util.concurrent.ListenableFuture;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.util.LuceneTestCase;
@@ -28,6 +29,8 @@ import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -36,9 +39,9 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.MultiDataPathUpgrader;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.index.IndexException;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.merge.policy.MergePolicyModule;
-import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.node.Node;
@@ -56,6 +59,7 @@ import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
 import org.hamcrest.Matchers;
 import org.junit.AfterClass;
 import org.junit.Before;
+import org.junit.Test;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -65,6 +69,7 @@ import java.util.*;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.junit.matchers.JUnitMatchers.containsString;
 
 // needs at least 2 nodes since it bumps replicas to 1
 @ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.TEST, numDataNodes = 0)
@@ -75,19 +80,26 @@ public class OldIndexBackwardsCompatibilityTests extends ElasticsearchIntegratio
     // We have a 0.20.6.zip etc for this.
 
     List<String> indexes;
+    List<String> unsupportedIndexes;
     static Path singleDataPath;
     static Path[] multiDataPath;
 
     @Before
     public void initIndexesList() throws Exception {
-        indexes = new ArrayList<>();
+        indexes = loadIndexesList("index");
+        unsupportedIndexes = loadIndexesList("unsupported");
+    }
+
+    private List<String> loadIndexesList(String prefix) throws IOException {
+        List<String> indexes = new ArrayList<>();
         Path dir = getDataPath(".");
-        try (DirectoryStream<Path> stream = Files.newDirectoryStream(dir, "index-*.zip")) {
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(dir, prefix + "-*.zip")) {
             for (Path path : stream) {
                 indexes.add(path.getFileName().toString());
             }
         }
         Collections.sort(indexes);
+        return indexes;
     }
 
     @AfterClass
@@ -146,7 +158,7 @@ public class OldIndexBackwardsCompatibilityTests extends ElasticsearchIntegratio
     String loadIndex(String indexFile) throws Exception {
         Path unzipDir = createTempDir();
         Path unzipDataDir = unzipDir.resolve("data");
-        String indexName = indexFile.replace(".zip", "").toLowerCase(Locale.ROOT);
+        String indexName = indexFile.replace(".zip", "").toLowerCase(Locale.ROOT).replace("unsupported-", "index-");
 
         // decompress the index
         Path backwardsIndex = getDataPath(indexFile);
@@ -172,6 +184,10 @@ public class OldIndexBackwardsCompatibilityTests extends ElasticsearchIntegratio
             logger.info("--> injecting index [{}] into multi data path", indexName);
             copyIndex(logger, src, indexName, multiDataPath);
         }
+        return indexName;
+    }
+
+    void importIndex(String indexName) throws IOException {
         final Iterable<NodeEnvironment> instances = internalCluster().getInstances(NodeEnvironment.class);
         for (NodeEnvironment nodeEnv : instances) { // upgrade multidata path
             MultiDataPathUpgrader.upgradeMultiDataPath(nodeEnv, logger);
@@ -179,7 +195,6 @@ public class OldIndexBackwardsCompatibilityTests extends ElasticsearchIntegratio
         // force reloading dangling indices with a cluster state republish
         client().admin().cluster().prepareReroute().get();
         ensureGreen(indexName);
-        return indexName;
     }
 
     // randomly distribute the files from src over dests paths
@@ -220,7 +235,7 @@ public class OldIndexBackwardsCompatibilityTests extends ElasticsearchIntegratio
     }
 
     void unloadIndex(String indexName) throws Exception {
-        ElasticsearchAssertions.assertAcked(client().admin().indices().prepareDelete(indexName).get());
+        assertAcked(client().admin().indices().prepareDelete(indexName).get());
     }
 
     public void testAllVersionsTested() throws Exception {
@@ -258,9 +273,52 @@ public class OldIndexBackwardsCompatibilityTests extends ElasticsearchIntegratio
         }
     }
 
+    @Test
+    public void testHandlingOfUnsupportedDanglingIndexes() throws Exception {
+        setupCluster();
+        Collections.shuffle(unsupportedIndexes, getRandom());
+        for (String index : unsupportedIndexes) {
+            assertUnsupportedIndexHandling(index);
+        }
+    }
+
+    /**
+     * Waits for the index to show up in the cluster state in closed state
+     */
+    void ensureClosed(final String index) throws InterruptedException {
+        assertTrue(awaitBusy(new Predicate<Object>() {
+            @Override
+            public boolean apply(Object o) {
+                ClusterState state = client().admin().cluster().prepareState().get().getState();
+                return state.metaData().hasIndex(index) && state.metaData().index(index).getState() == IndexMetaData.State.CLOSE;
+            }
+        }));
+    }
+
+    /**
+     * Checks that the given index cannot be opened due to incompatible version
+     */
+    void assertUnsupportedIndexHandling(String index) throws Exception {
+        long startTime = System.currentTimeMillis();
+        logger.info("--> Testing old index " + index);
+        String indexName = loadIndex(index);
+        // force reloading dangling indices with a cluster state republish
+        client().admin().cluster().prepareReroute().get();
+        ensureClosed(indexName);
+        try {
+            client().admin().indices().prepareOpen(indexName).get();
+            fail("Shouldn't be able to open an old index");
+        } catch (IndexException ex) {
+            assertThat(ex.getMessage(), containsString("cannot open the index due to upgrade failure"));
+        }
+        unloadIndex(indexName);
+        logger.info("--> Done testing " + index + ", took " + ((System.currentTimeMillis() - startTime) / 1000.0) + " seconds");
+    }
+
     void assertOldIndexWorks(String index) throws Exception {
         Version version = extractVersion(index);
         String indexName = loadIndex(index);
+        importIndex(indexName);
         assertIndexSanity(indexName);
         assertBasicSearchWorks(indexName);
         assertBasicAggregationWorks(indexName);

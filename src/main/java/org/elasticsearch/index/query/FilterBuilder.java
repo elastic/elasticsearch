@@ -19,24 +19,18 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.Filter;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentType;
 
-import java.io.IOException;
-
+/**
+ *
+ */
 public interface FilterBuilder extends ToXContent {
 
     BytesReference buildAsBytes();
 
     BytesReference buildAsBytes(XContentType contentType);
 
-    /**
-     * Converts this FilterBuilder to a lucene {@link Filter}
-     * @param parseContext additional information needed to construct the filter
-     * @return the {@link Filter}
-     * @throws IOException
-     */
-    Filter toFilter(QueryParseContext parseContext) throws IOException;
 }

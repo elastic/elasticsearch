@@ -37,7 +37,7 @@ import java.io.IOException;
 /**
  *
  */
-public class GeoBoundingBoxFilterParser extends BaseFilterParserTemp {
+public class GeoBoundingBoxFilterParser implements FilterParser {
 
     public static final String TOP = "top";
     public static final String LEFT = "left";

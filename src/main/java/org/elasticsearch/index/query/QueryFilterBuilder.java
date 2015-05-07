@@ -66,9 +66,4 @@ public class QueryFilterBuilder extends BaseFilterBuilder {
             builder.endObject();
         }
     }
-
-    @Override
-    protected String parserName() {
-        return QueryFilterParser.NAME;
-    }
 }

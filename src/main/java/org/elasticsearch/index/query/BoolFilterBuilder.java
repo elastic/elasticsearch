@@ -139,9 +139,4 @@ public class BoolFilterBuilder extends BaseFilterBuilder {
             builder.endArray();
         }
     }
-
-    @Override
-    protected String parserName() {
-        return BoolFilterParser.NAME;
-    }
 }

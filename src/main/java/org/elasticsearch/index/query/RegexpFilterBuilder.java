@@ -105,9 +105,4 @@ public class RegexpFilterBuilder extends BaseFilterBuilder {
         }
         builder.endObject();
     }
-
-    @Override
-    protected String parserName() {
-        return RegexpFilterParser.NAME;
-    }
 }

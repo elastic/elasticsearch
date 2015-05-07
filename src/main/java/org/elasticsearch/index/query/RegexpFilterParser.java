@@ -34,7 +34,7 @@ import java.io.IOException;
 /**
  *
  */
-public class RegexpFilterParser extends BaseFilterParserTemp {
+public class RegexpFilterParser implements FilterParser {
 
     public static final String NAME = "regexp";
 

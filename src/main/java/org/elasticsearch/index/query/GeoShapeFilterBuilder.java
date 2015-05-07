@@ -183,9 +183,4 @@ public class GeoShapeFilterBuilder extends BaseFilterBuilder {
 
         builder.endObject();
     }
-
-    @Override
-    protected String parserName() {
-        return GeoShapeFilterParser.NAME;
-    }
 }

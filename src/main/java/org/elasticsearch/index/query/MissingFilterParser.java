@@ -39,7 +39,7 @@ import java.util.List;
 /**
  *
  */
-public class MissingFilterParser extends BaseFilterParserTemp {
+public class MissingFilterParser implements FilterParser {
 
     public static final String NAME = "missing";
     public static final boolean DEFAULT_NULL_VALUE = false;

@@ -39,7 +39,7 @@ import java.util.List;
 /**
  *
  */
-public class ExistsFilterParser extends BaseFilterParserTemp {
+public class ExistsFilterParser implements FilterParser {
 
     public static final String NAME = "exists";
 

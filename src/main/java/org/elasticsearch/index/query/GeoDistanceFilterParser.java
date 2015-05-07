@@ -43,7 +43,7 @@ import java.io.IOException;
  * }
  * </pre>
  */
-public class GeoDistanceFilterParser extends BaseFilterParserTemp {
+public class GeoDistanceFilterParser implements FilterParser {
 
     public static final String NAME = "geo_distance";
 

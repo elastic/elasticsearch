@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.Filter;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -28,6 +27,9 @@ import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 
+/**
+ *
+ */
 public abstract class BaseFilterBuilder implements FilterBuilder {
 
     @Override
@@ -67,20 +69,4 @@ public abstract class BaseFilterBuilder implements FilterBuilder {
     }
 
     protected abstract void doXContent(XContentBuilder builder, Params params) throws IOException;
-
-    /**
-     * Temporary default implementation for toFilter that parses the filter using its filter parser
-     */
-    //norelease to be removed once all filter builders override toFilter providing their own specific implementation.
-    @Override
-    public Filter toFilter(QueryParseContext parseContext) throws IOException {
-        return parseContext.indexQueryParserService().filterParser(parserName()).parse(parseContext);
-    }
-
-    /**
-     * Temporary method that allows to retrieve the parser for each filter.
-     * @return the name of the parser class the default {@link #toFilter(QueryParseContext)} method delegates to
-     */
-    //norelease to be removed once all filter builders override toFilter providing their own specific implementation.
-    protected abstract String parserName();
 }

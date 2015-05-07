@@ -56,9 +56,4 @@ public class ExistsFilterBuilder extends BaseFilterBuilder {
         }
         builder.endObject();
     }
-
-    @Override
-    protected String parserName() {
-        return ExistsFilterParser.NAME;
-    }
 }

@@ -24,7 +24,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
 
 /**
- * A filter for a field based on several terms matching on any of them.
+ * A filer for a field based on several terms matching on any of them.
  */
 public class TermsLookupFilterBuilder extends BaseFilterBuilder {
 
@@ -116,10 +116,5 @@ public class TermsLookupFilterBuilder extends BaseFilterBuilder {
         }
 
         builder.endObject();
-    }
-
-    @Override
-    protected String parserName() {
-        return TermsFilterParser.NAME;
     }
 }

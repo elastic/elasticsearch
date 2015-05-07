@@ -38,7 +38,7 @@ import java.io.IOException;
 /**
  *
  */
-public class RangeFilterParser extends BaseFilterParserTemp {
+public class RangeFilterParser implements FilterParser {
 
     public static final String NAME = "range";
 

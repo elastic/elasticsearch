@@ -44,7 +44,7 @@ import java.io.IOException;
 /**
  *
  */
-public class HasChildFilterParser extends BaseFilterParserTemp {
+public class HasChildFilterParser implements FilterParser {
 
     public static final String NAME = "has_child";
 

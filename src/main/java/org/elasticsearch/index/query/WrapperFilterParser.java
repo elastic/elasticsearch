@@ -29,7 +29,7 @@ import java.io.IOException;
 /**
  * Filter parser for embedded filter.
  */
-public class WrapperFilterParser extends BaseFilterParserTemp {
+public class WrapperFilterParser implements FilterParser {
 
     public static final String NAME = "wrapper";
 

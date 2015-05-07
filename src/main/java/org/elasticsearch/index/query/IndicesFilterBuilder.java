@@ -86,9 +86,4 @@ public class IndicesFilterBuilder extends BaseFilterBuilder {
 
         builder.endObject();
     }
-
-    @Override
-    protected String parserName() {
-        return IndicesFilterParser.NAME;
-    }
 }

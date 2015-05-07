@@ -93,9 +93,4 @@ public class IdsFilterBuilder extends BaseFilterBuilder {
 
         builder.endObject();
     }
-
-    @Override
-    protected String parserName() {
-        return IdsFilterParser.NAME;
-    }
 }

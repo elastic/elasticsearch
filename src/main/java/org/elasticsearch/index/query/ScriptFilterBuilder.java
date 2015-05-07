@@ -91,9 +91,4 @@ public class ScriptFilterBuilder extends BaseFilterBuilder {
         }
         builder.endObject();
     }
-
-    @Override
-    protected String parserName() {
-        return ScriptFilterParser.NAME;
-    }
 }

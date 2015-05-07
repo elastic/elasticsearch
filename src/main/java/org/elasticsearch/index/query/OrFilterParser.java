@@ -34,7 +34,7 @@ import static com.google.common.collect.Lists.newArrayList;
 /**
  *
  */
-public class OrFilterParser extends BaseFilterParserTemp {
+public class OrFilterParser implements FilterParser {
 
     public static final String NAME = "or";
 

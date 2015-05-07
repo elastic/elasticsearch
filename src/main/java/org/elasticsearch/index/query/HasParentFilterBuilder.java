@@ -91,10 +91,5 @@ public class HasParentFilterBuilder extends BaseFilterBuilder {
         }
         builder.endObject();
     }
-
-    @Override
-    protected String parserName() {
-        return HasParentFilterParser.NAME;
-    }
 }
 

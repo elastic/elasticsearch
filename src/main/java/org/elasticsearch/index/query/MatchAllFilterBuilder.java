@@ -40,9 +40,4 @@ public class MatchAllFilterBuilder extends BaseFilterBuilder {
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(MatchAllFilterParser.NAME).endObject();
     }
-
-    @Override
-    protected String parserName() {
-        return MatchAllFilterParser.NAME;
-    }
 }

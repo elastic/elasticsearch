@@ -159,9 +159,4 @@ public class GeoDistanceRangeFilterBuilder extends BaseFilterBuilder {
         }
         builder.endObject();
     }
-
-    @Override
-    protected String parserName() {
-        return GeoDistanceRangeFilterParser.NAME;
-    }
 }

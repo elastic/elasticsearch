@@ -59,9 +59,4 @@ public class WrapperFilterBuilder extends BaseFilterBuilder {
         builder.field("filter", source, offset, length);
         builder.endObject();
     }
-
-    @Override
-    protected String parserName() {
-        return WrapperFilterParser.NAME;
-    }
 }

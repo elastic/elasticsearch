@@ -30,7 +30,7 @@ import org.elasticsearch.index.query.support.InnerHitsQueryParserHelper;
 
 import java.io.IOException;
 
-public class NestedFilterParser extends BaseFilterParserTemp {
+public class NestedFilterParser implements FilterParser {
 
     public static final String NAME = "nested";
 

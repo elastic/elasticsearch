@@ -71,9 +71,4 @@ public class AndFilterBuilder extends BaseFilterBuilder {
         }
         builder.endObject();
     }
-
-    @Override
-    protected String parserName() {
-        return AndFilterParser.NAME;
-    }
 }

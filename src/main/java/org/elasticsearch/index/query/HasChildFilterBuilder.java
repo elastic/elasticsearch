@@ -135,10 +135,5 @@ public class HasChildFilterBuilder extends BaseFilterBuilder {
         }
         builder.endObject();
     }
-
-    @Override
-    protected String parserName() {
-        return HasChildFilterParser.NAME;
-    }
 }
 

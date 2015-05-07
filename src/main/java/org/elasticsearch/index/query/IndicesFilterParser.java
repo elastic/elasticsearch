@@ -34,7 +34,7 @@ import java.util.Collection;
 
 /**
  */
-public class IndicesFilterParser extends BaseFilterParserTemp {
+public class IndicesFilterParser implements FilterParser {
 
     public static final String NAME = "indices";
 

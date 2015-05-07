@@ -33,7 +33,7 @@ import java.io.IOException;
 /**
  *
  */
-public class PrefixFilterParser extends BaseFilterParserTemp {
+public class PrefixFilterParser implements FilterParser {
 
     public static final String NAME = "prefix";
 

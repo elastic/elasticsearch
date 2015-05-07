@@ -43,7 +43,7 @@ import java.util.List;
 /**
  *
  */
-public class TermsFilterParser extends BaseFilterParserTemp {
+public class TermsFilterParser implements FilterParser {
 
     public static final String NAME = "terms";
     private Client client;

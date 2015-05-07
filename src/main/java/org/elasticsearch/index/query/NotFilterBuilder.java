@@ -53,9 +53,4 @@ public class NotFilterBuilder extends BaseFilterBuilder {
         }
         builder.endObject();
     }
-
-    @Override
-    protected String parserName() {
-        return NotFilterParser.NAME;
-    }
 }

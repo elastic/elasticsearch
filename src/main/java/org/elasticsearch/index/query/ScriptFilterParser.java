@@ -46,7 +46,7 @@ import static com.google.common.collect.Maps.newHashMap;
 /**
  *
  */
-public class ScriptFilterParser extends BaseFilterParserTemp {
+public class ScriptFilterParser implements FilterParser {
 
     public static final String NAME = "script";
 

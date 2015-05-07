@@ -31,7 +31,7 @@ import java.io.IOException;
 /**
  *
  */
-public class BoolFilterParser extends BaseFilterParserTemp {
+public class BoolFilterParser implements FilterParser {
 
     public static final String NAME = "bool";
 

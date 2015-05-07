@@ -120,9 +120,4 @@ public class GeoDistanceFilterBuilder extends BaseFilterBuilder {
         }
         builder.endObject();
     }
-
-    @Override
-    protected String parserName() {
-        return GeoDistanceFilterParser.NAME;
-    }
 }

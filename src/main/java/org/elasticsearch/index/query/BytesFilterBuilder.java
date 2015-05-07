@@ -46,10 +46,4 @@ public class BytesFilterBuilder extends BaseFilterBuilder {
             builder.copyCurrentStructure(parser);
         }
     }
-
-    @Override
-    protected String parserName() {
-        //TODO this class is going to be removed, will disappear once we get #10919 in
-        throw new UnsupportedOperationException();
-    }
 }

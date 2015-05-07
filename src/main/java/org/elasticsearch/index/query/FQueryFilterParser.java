@@ -31,7 +31,7 @@ import java.io.IOException;
  * The "fquery" filter is the same as the {@link QueryFilterParser} except that it allows also to
  * associate a name with the query filter.
  */
-public class FQueryFilterParser extends BaseFilterParserTemp {
+public class FQueryFilterParser implements FilterParser {
 
     public static final String NAME = "fquery";
 

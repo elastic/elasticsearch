@@ -48,7 +48,7 @@ import java.util.List;
  * }
  * </pre>
  */
-public class GeoPolygonFilterParser extends BaseFilterParserTemp {
+public class GeoPolygonFilterParser implements FilterParser {
 
     public static final String NAME = "geo_polygon";
     public static final String POINTS = "points";

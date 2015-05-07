@@ -91,9 +91,4 @@ public class GeoPolygonFilterBuilder extends BaseFilterBuilder {
 
         builder.endObject();
     }
-
-    @Override
-    protected String parserName() {
-        return GeoPolygonFilterParser.NAME;
-    }
 }

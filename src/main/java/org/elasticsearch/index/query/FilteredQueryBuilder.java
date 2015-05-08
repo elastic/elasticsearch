@@ -29,7 +29,7 @@ import java.io.IOException;
  * @deprecated Use {@link BoolQueryBuilder} instead.
  */
 @Deprecated
-public class FilteredQueryBuilder extends BaseQueryBuilder implements BoostableQueryBuilder<FilteredQueryBuilder> {
+public class FilteredQueryBuilder extends QueryBuilder implements BoostableQueryBuilder<FilteredQueryBuilder> {
 
     private final QueryBuilder queryBuilder;
 

@@ -26,7 +26,7 @@ import java.io.IOException;
 /**
  * Constructs a query that only match on documents that the field has a value in them.
  */
-public class ExistsQueryBuilder extends BaseQueryBuilder {
+public class ExistsQueryBuilder extends QueryBuilder {
 
     private String name;
 

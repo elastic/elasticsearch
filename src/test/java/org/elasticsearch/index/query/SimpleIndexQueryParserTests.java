@@ -188,7 +188,7 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         
     }
 
-    private static class DummyQueryBuilder extends BaseQueryBuilder {
+    private static class DummyQueryBuilder extends QueryBuilder {
         @Override
         protected void doXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject("dummy").endObject();

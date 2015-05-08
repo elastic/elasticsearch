@@ -78,7 +78,7 @@ public class IndexQueryParserPluginTests extends ElasticsearchTestCase {
         Injector injector = new ModulesBuilder().add(
                 new SettingsModule(settings),
                 new CacheRecyclerModule(settings),
-                new ThreadPoolModule(settings),
+                new ThreadPoolModule(new ThreadPool(settings)),
                 new IndicesQueriesModule(),
                 new ScriptModule(settings),
                 new IndexSettingsModule(index, settings),

@@ -70,7 +70,7 @@ public class IndexQueryParserPlugin2Tests extends ElasticsearchTestCase {
                 new CodecModule(settings),
                 new CacheRecyclerModule(settings),
                 new SettingsModule(settings),
-                new ThreadPoolModule(settings),
+                new ThreadPoolModule(new ThreadPool(settings)),
                 new IndicesQueriesModule(),
                 new ScriptModule(settings),
                 new IndexSettingsModule(index, settings),

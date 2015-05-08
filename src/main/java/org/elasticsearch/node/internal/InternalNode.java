@@ -79,6 +79,7 @@ import org.elasticsearch.monitor.MonitorModule;
 import org.elasticsearch.monitor.MonitorService;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.percolator.PercolatorModule;
 import org.elasticsearch.percolator.PercolatorService;
 import org.elasticsearch.plugins.PluginsModule;
@@ -162,6 +163,8 @@ public final class InternalNode implements Node {
             throw new ElasticsearchIllegalStateException("Failed to created node environment", ex);
         }
 
+        final ThreadPool threadPool = new ThreadPool(settings);
+
         boolean success = false;
         try {
             ModulesBuilder modules = new ModulesBuilder();
@@ -178,7 +181,7 @@ public final class InternalNode implements Node {
             modules.add(new EnvironmentModule(environment));
             modules.add(new NodeEnvironmentModule(nodeEnvironment));
             modules.add(new ClusterNameModule(settings));
-            modules.add(new ThreadPoolModule(settings));
+            modules.add(new ThreadPoolModule(threadPool));
             modules.add(new DiscoveryModule(settings));
             modules.add(new ClusterModule(settings));
             modules.add(new RestModule(settings));
@@ -203,10 +206,12 @@ public final class InternalNode implements Node {
             injector = modules.createInjector();
 
             client = injector.getInstance(Client.class);
+            threadPool.setNodeSettingsService(injector.getInstance(NodeSettingsService.class));
             success = true;
         } finally {
             if (!success) {
                 nodeEnvironment.close();
+                ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
             }
         }
 

@@ -53,7 +53,7 @@ public class NativeScriptTests extends ElasticsearchTestCase {
                 .put("name", "testNativeScript")
                 .build();
         Injector injector = new ModulesBuilder().add(
-                new ThreadPoolModule(settings),
+                new ThreadPoolModule(new ThreadPool(settings)),
                 new SettingsModule(settings),
                 new ScriptModule(settings)).createInjector();
 

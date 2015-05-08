@@ -6,9 +6,8 @@
 
 
   - do:
+      catch: missing
       watcher.get_watch:
         id: "missing_watch"
-        ignore: 404
-
   - match: { found : false}
   - match: { _id: "missing_watch" }

@@ -34,19 +34,32 @@ public class InputRegistry {
     public ExecutableInput parse(String watchId, XContentParser parser) throws IOException {
         String type = null;
 
+        if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
+            throw new InputException("could not parse input for watch [{}]. expected an object representing the input, but found [{}] instead", watchId, parser.currentToken());
+        }
+
         XContentParser.Token token;
         ExecutableInput input = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 type = parser.currentName();
-            } else if (token == XContentParser.Token.START_OBJECT && type != null) {
+            } else if (type == null) {
+                throw new InputException("could not parse input for watch [{}]. expected field indicating the input type, but found [{}] instead", watchId, token);
+            } else if (token == XContentParser.Token.START_OBJECT) {
                 InputFactory factory = factories.get(type);
                 if (factory == null) {
                     throw new InputException("could not parse input for watch [{}]. unknown input type [{}]", watchId, type);
                 }
                 input = factory.parseExecutable(watchId, parser);
+            } else {
+                throw new InputException("could not parse input for watch [{}]. expected an object representing input [{}], but found [{}] instead", watchId, type, token);
             }
         }
+
+        if (input == null) {
+            throw new InputException("could not parse input for watch [{}]. expected field indicating the input type, but found an empty object instead", watchId, token);
+        }
+
         return input;
     }
 

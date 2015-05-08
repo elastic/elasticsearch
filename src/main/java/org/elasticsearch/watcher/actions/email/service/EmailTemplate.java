@@ -8,6 +8,7 @@ package org.elasticsearch.watcher.actions.email.service;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.watcher.WatcherException;
 import org.elasticsearch.watcher.support.template.Template;
 import org.elasticsearch.watcher.support.template.TemplateEngine;
 import org.owasp.html.*;
@@ -207,11 +208,15 @@ public class EmailTemplate implements ToXContent {
         if (subject != null) {
             builder.field(Email.Field.SUBJECT.getPreferredName(), subject, params);
         }
-        if (textBody != null) {
-            builder.field(Email.Field.TEXT_BODY.getPreferredName(), textBody, params);
-        }
-        if (htmlBody != null) {
-            builder.field(Email.Field.HTML_BODY.getPreferredName(), htmlBody, params);
+        if (textBody != null || htmlBody != null) {
+            builder.startObject(Email.Field.BODY.getPreferredName());
+            if (textBody != null) {
+                builder.field(Email.Field.BODY_TEXT.getPreferredName(), textBody, params);
+            }
+            if (htmlBody != null) {
+                builder.field(Email.Field.BODY_HTML.getPreferredName(), htmlBody, params);
+            }
+            builder.endObject();
         }
         return builder;
     }
@@ -252,7 +257,7 @@ public class EmailTemplate implements ToXContent {
         public Builder replyTo(String... replyTo) {
             Template[] templates = new Template[replyTo.length];
             for (int i = 0; i < templates.length; i++) {
-                templates[i] = Template.inline(replyTo[i]).build();
+                templates[i] = Template.defaultType(replyTo[i]).build();
             }
             return replyTo(templates);
         }
@@ -286,7 +291,7 @@ public class EmailTemplate implements ToXContent {
         public Builder to(String... to) {
             Template[] templates = new Template[to.length];
             for (int i = 0; i < templates.length; i++) {
-                templates[i] = Template.inline(to[i]).build();
+                templates[i] = Template.defaultType(to[i]).build();
             }
             return to(templates);
         }
@@ -307,7 +312,7 @@ public class EmailTemplate implements ToXContent {
         public Builder cc(String... cc) {
             Template[] templates = new Template[cc.length];
             for (int i = 0; i < templates.length; i++) {
-                templates[i] = Template.inline(cc[i]).build();
+                templates[i] = Template.defaultType(cc[i]).build();
             }
             return cc(templates);
         }
@@ -328,7 +333,7 @@ public class EmailTemplate implements ToXContent {
         public Builder bcc(String... bcc) {
             Template[] templates = new Template[bcc.length];
             for (int i = 0; i < templates.length; i++) {
-                templates[i] = Template.inline(bcc[i]).build();
+                templates[i] = Template.defaultType(bcc[i]).build();
             }
             return bcc(templates);
         }
@@ -347,7 +352,7 @@ public class EmailTemplate implements ToXContent {
         }
 
         public Builder subject(String subject) {
-            return subject(Template.inline(subject));
+            return subject(Template.defaultType(subject));
         }
 
         public Builder subject(Template.Builder subject) {
@@ -360,7 +365,7 @@ public class EmailTemplate implements ToXContent {
         }
 
         public Builder textBody(String text) {
-            return textBody(Template.inline(text));
+            return textBody(Template.defaultType(text));
         }
 
         public Builder textBody(Template.Builder text) {
@@ -373,7 +378,7 @@ public class EmailTemplate implements ToXContent {
         }
 
         public Builder htmlBody(String html, boolean sanitizeHtmlBody) {
-            return htmlBody(Template.inline(html), sanitizeHtmlBody);
+            return htmlBody(Template.defaultType(html), sanitizeHtmlBody);
         }
 
         public Builder htmlBody(Template.Builder html, boolean sanitizeHtmlBody) {
@@ -388,6 +393,54 @@ public class EmailTemplate implements ToXContent {
 
         public EmailTemplate build() {
             return new EmailTemplate(from, replyTo, priority, to, cc, bcc, subject, textBody, htmlBody, sanitizeHtmlBody);
+        }
+    }
+
+    static String sanitizeHtml(String html, final Map<String, Attachment> attachments){
+        ElementPolicy onlyCIDImgPolicy = new AttachementVerifyElementPolicy(attachments);
+        PolicyFactory policy = Sanitizers.FORMATTING
+                .and(new HtmlPolicyBuilder()
+                        .allowElements("img", "table", "tr", "td", "style", "body", "head", "hr")
+                        .allowAttributes("src").onElements("img")
+                        .allowAttributes("class").onElements("style")
+                        .allowUrlProtocols("cid")
+                        .allowCommonInlineFormattingElements()
+                        .allowElements(onlyCIDImgPolicy, "img")
+                        .allowStyling(CssSchema.DEFAULT)
+                        .toFactory())
+                .and(Sanitizers.LINKS)
+                .and(Sanitizers.BLOCKS);
+        return policy.sanitize(html);
+    }
+
+    private static class AttachementVerifyElementPolicy implements ElementPolicy {
+
+        private final Map<String, Attachment> attachments;
+
+        AttachementVerifyElementPolicy(Map<String, Attachment> attachments) {
+            this.attachments = attachments;
+        }
+
+        @Override
+        public String apply(@ParametersAreNonnullByDefault String elementName, @ParametersAreNonnullByDefault List<String> attrs) {
+            if (attrs.size() == 0) {
+                return elementName;
+            }
+            for (int i = 0; i < attrs.size(); ++i) {
+                if(attrs.get(i).equals("src") && i < attrs.size() - 1) {
+                    String srcValue = attrs.get(i+1);
+                    if (!srcValue.startsWith("cid:")) {
+                        return null; //Disallow anything other than content ids
+                    }
+                    String contentId = srcValue.substring(4);
+                    if (attachments.containsKey(contentId)) {
+                        return elementName;
+                    } else {
+                        return null; //This cid wasn't found
+                    }
+                }
+            }
+            return elementName;
         }
     }
 
@@ -447,10 +500,26 @@ public class EmailTemplate implements ToXContent {
                 builder.priority(Template.parse(parser));
             } else if (Email.Field.SUBJECT.match(fieldName)) {
                 builder.subject(Template.parse(parser));
-            } else if (Email.Field.TEXT_BODY.match(fieldName)) {
-                builder.textBody(Template.parse(parser));
-            } else if (Email.Field.HTML_BODY.match(fieldName)) {
-                builder.htmlBody(Template.parse(parser), sanitizeHtmlBody);
+            } else if (Email.Field.BODY.match(fieldName)) {
+                if (parser.currentToken() == XContentParser.Token.VALUE_STRING) {
+                    builder.textBody(Template.parse(parser));
+                } else if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
+                    XContentParser.Token token;
+                    String currentFieldName = null;
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                        if (token == XContentParser.Token.FIELD_NAME) {
+                            currentFieldName = parser.currentName();
+                        } else if (currentFieldName == null) {
+                            throw new ParseException("could not parse email template. empty [{}] field", fieldName);
+                        } else if (Email.Field.BODY_TEXT.match(currentFieldName)) {
+                            builder.textBody(Template.parse(parser));
+                        } else if (Email.Field.BODY_HTML.match(currentFieldName)) {
+                            builder.htmlBody(Template.parse(parser), sanitizeHtmlBody);
+                        } else {
+                            throw new ParseException("could not parse email template. unknown field [{}.{}] field", fieldName, currentFieldName);
+                        }
+                    }
+                }
             } else {
                 return false;
             }
@@ -462,51 +531,14 @@ public class EmailTemplate implements ToXContent {
         }
     }
 
-    static String sanitizeHtml(String html, final Map<String, Attachment> attachments){
-        ElementPolicy onlyCIDImgPolicy = new AttachementVerifyElementPolicy(attachments);
-        PolicyFactory policy = Sanitizers.FORMATTING
-                .and(new HtmlPolicyBuilder()
-                        .allowElements("img", "table", "tr", "td", "style", "body", "head", "hr")
-                        .allowAttributes("src").onElements("img")
-                        .allowAttributes("class").onElements("style")
-                        .allowUrlProtocols("cid")
-                        .allowCommonInlineFormattingElements()
-                        .allowElements(onlyCIDImgPolicy, "img")
-                        .allowStyling(CssSchema.DEFAULT)
-                        .toFactory())
-                .and(Sanitizers.LINKS)
-                .and(Sanitizers.BLOCKS);
-        return policy.sanitize(html);
-    }
+    public static class ParseException extends WatcherException {
 
-    private static class AttachementVerifyElementPolicy implements ElementPolicy {
-
-        private final Map<String, Attachment> attachments;
-
-        AttachementVerifyElementPolicy(Map<String, Attachment> attachments) {
-            this.attachments = attachments;
+        public ParseException(String msg, Object... args) {
+            super(msg, args);
         }
 
-        @Override
-        public String apply(@ParametersAreNonnullByDefault String elementName, @ParametersAreNonnullByDefault List<String> attrs) {
-            if (attrs.size() == 0) {
-                return elementName;
-            }
-            for (int i = 0; i < attrs.size(); ++i) {
-                if(attrs.get(i).equals("src") && i < attrs.size() - 1) {
-                    String srcValue = attrs.get(i+1);
-                    if (!srcValue.startsWith("cid:")) {
-                        return null; //Disallow anything other than content ids
-                    }
-                    String contentId = srcValue.substring(4);
-                    if (attachments.containsKey(contentId)) {
-                        return elementName;
-                    } else {
-                        return null; //This cid wasn't found
-                    }
-                }
-            }
-            return elementName;
+        public ParseException(String msg, Throwable cause, Object... args) {
+            super(msg, cause, args);
         }
     }
 

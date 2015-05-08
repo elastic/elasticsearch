@@ -203,19 +203,37 @@ public class EmailActionTests extends ElasticsearchTestCase {
                 builder.field("subject", subject);
             }
         }
-        if (textBody != null) {
+        if (textBody != null && htmlBody == null) {
             if (randomBoolean()) {
-                builder.field("text_body", textBody.getTemplate());
+                builder.field("body", textBody.getTemplate());
             } else {
-                builder.field("text_body", textBody);
+                builder.startObject("body");
+                if (randomBoolean()) {
+                    builder.field("text", textBody.getTemplate());
+                } else {
+                    builder.field("text", textBody);
+                }
+                builder.endObject();
             }
         }
-        if (htmlBody != null) {
-            if (randomBoolean()) {
-                builder.field("html_body", htmlBody.getTemplate());
-            } else {
-                builder.field("html_body", htmlBody);
+
+        if (textBody != null || htmlBody != null) {
+            builder.startObject("body");
+            if (textBody != null) {
+                if (randomBoolean()) {
+                    builder.field("text", textBody.getTemplate());
+                } else {
+                    builder.field("text", textBody);
+                }
             }
+            if (htmlBody != null) {
+                if (randomBoolean()) {
+                    builder.field("html", htmlBody.getTemplate());
+                } else {
+                    builder.field("html", htmlBody);
+                }
+            }
+            builder.endObject();
         }
         BytesReference bytes = builder.bytes();
         logger.info("email action json [{}]", bytes.toUtf8());
@@ -286,6 +304,15 @@ public class EmailActionTests extends ElasticsearchTestCase {
         if (randomBoolean()) {
             emailTemplate.replyTo(randomBoolean() ? "reply@domain" : "reply1@domain,reply2@domain");
         }
+        if (randomBoolean()) {
+            emailTemplate.subject("_subject");
+        }
+        if (randomBoolean()) {
+            emailTemplate.textBody("_text_body");
+        }
+        if (randomBoolean()) {
+            emailTemplate.htmlBody("_html_body", randomBoolean());
+        }
         EmailTemplate email = emailTemplate.build();
         Authentication auth = randomBoolean() ? null : new Authentication("_user", new Secret("_passwd".toCharArray()));
         Profile profile = randomFrom(Profile.values());
@@ -301,6 +328,7 @@ public class EmailActionTests extends ElasticsearchTestCase {
         XContentBuilder builder = jsonBuilder();
         executable.toXContent(builder, params);
         BytesReference bytes = builder.bytes();
+        logger.info(bytes.toUtf8());
         XContentParser parser = JsonXContent.jsonXContent.createParser(bytes);
         parser.nextToken();
         ExecutableEmailAction parsed = new EmailActionFactory(ImmutableSettings.EMPTY, service, engine)

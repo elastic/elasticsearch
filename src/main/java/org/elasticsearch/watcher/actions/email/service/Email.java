@@ -137,9 +137,15 @@ public class Email implements ToXContent {
             builder.field(Field.BCC.getPreferredName(), bcc, params);
         }
         builder.field(Field.SUBJECT.getPreferredName(), subject);
-        builder.field(Field.TEXT_BODY.getPreferredName(), textBody);
-        if (htmlBody != null) {
-            builder.field(Field.HTML_BODY.getPreferredName(), htmlBody);
+        if (textBody != null || htmlBody != null) {
+            builder.startObject(Field.BODY.getPreferredName());
+            if (textBody != null) {
+                builder.field(Field.BODY_TEXT.getPreferredName(), textBody);
+            }
+            if (htmlBody != null) {
+                builder.field(Field.BODY_HTML.getPreferredName(), htmlBody);
+            }
+            builder.endObject();
         }
         return builder.endObject();
     }
@@ -191,12 +197,27 @@ public class Email implements ToXContent {
                     email.sentDate(new DateTime(parser.text()));
                 } else if (Field.SUBJECT.match(currentFieldName)) {
                     email.subject(parser.text());
-                } else if (Field.TEXT_BODY.match(currentFieldName)) {
-                    email.textBody(parser.text());
-                } else if (Field.HTML_BODY.match(currentFieldName)) {
-                    email.htmlBody(parser.text());
+                } else if (Field.BODY.match(currentFieldName)) {
+                    String bodyField = currentFieldName;
+                    if (parser.currentToken() == XContentParser.Token.VALUE_STRING) {
+                        email.textBody(parser.text());
+                    } else if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
+                        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                            if (token == XContentParser.Token.FIELD_NAME) {
+                                currentFieldName = parser.currentName();
+                            } else if (currentFieldName == null) {
+                                throw new ParseException("could not parse email. empty [{}] field", bodyField);
+                            } else if (Email.Field.BODY_TEXT.match(currentFieldName)) {
+                                email.textBody(parser.text());
+                            } else if (Email.Field.BODY_HTML.match(currentFieldName)) {
+                                email.htmlBody(parser.text());
+                            } else {
+                                throw new ParseException("could not parse email. unexpected field [{}.{}] field", bodyField, currentFieldName);
+                            }
+                        }
+                    }
                 } else {
-                    throw new ParseException("could not parse email. unrecognized field [" + currentFieldName + "]");
+                    throw new ParseException("could not parse email. unexpected field [{}]", currentFieldName);
                 }
             }
         }
@@ -563,12 +584,12 @@ public class Email implements ToXContent {
 
     public static class ParseException extends EmailException {
 
-        public ParseException(String msg) {
-            super(msg);
+        public ParseException(String msg, Object... args) {
+            super(msg, args);
         }
 
-        public ParseException(String msg, Throwable cause) {
-            super(msg, cause);
+        public ParseException(String msg, Throwable cause, Object... args) {
+            super(msg, cause, args);
         }
     }
 
@@ -582,8 +603,9 @@ public class Email implements ToXContent {
         ParseField CC = new ParseField("cc");
         ParseField BCC = new ParseField("bcc");
         ParseField SUBJECT = new ParseField("subject");
-        ParseField TEXT_BODY = new ParseField("text_body");
-        ParseField HTML_BODY = new ParseField("html_body");
+        ParseField BODY = new ParseField("body");
+        ParseField BODY_TEXT = new ParseField("text");
+        ParseField BODY_HTML = new ParseField("html");
     }
 
 }

@@ -5,18 +5,19 @@
  */
 package org.elasticsearch.watcher.actions.email.service;
 
+import org.elasticsearch.watcher.WatcherException;
 import org.elasticsearch.watcher.actions.ActionException;
 
 /**
  *
  */
-public class EmailException extends ActionException {
+public class EmailException extends WatcherException {
 
-    public EmailException(String msg) {
-        super(msg);
+    public EmailException(String msg, Object... args) {
+        super(msg, args);
     }
 
-    public EmailException(String msg, Throwable cause) {
-        super(msg, cause);
+    public EmailException(String msg, Throwable cause, Object... args) {
+        super(msg, cause, args);
     }
 }

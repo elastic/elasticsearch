@@ -267,7 +267,10 @@ public class QueryParseContext {
     @Deprecated
     public Query parseInnerQuery() throws IOException, QueryParsingException {
         QueryBuilder builder = parseInnerQueryBuilder();
-        Query result = builder.toQuery(this);
+        Query result = null;
+        if (builder != null) {
+            result = builder.toQuery(this);
+        }
         return result;
     }
 

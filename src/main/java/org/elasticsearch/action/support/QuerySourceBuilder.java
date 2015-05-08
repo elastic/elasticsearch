@@ -48,6 +48,12 @@ public class QuerySourceBuilder implements ToXContent {
 
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
+        innerToXContent(builder, params);
+        builder.endObject();
+        return builder;
+    }
+
+    public void innerToXContent(XContentBuilder builder, Params params) throws IOException {
         if (queryBuilder != null) {
             builder.field("query");
             queryBuilder.toXContent(builder, params);
@@ -60,9 +66,6 @@ public class QuerySourceBuilder implements ToXContent {
                 builder.field("query_binary", queryBinary);
             }
         }
-
-        builder.endObject();
-        return builder;
     }
 
     public BytesReference buildAsBytes(XContentType contentType) throws SearchSourceBuilderException {

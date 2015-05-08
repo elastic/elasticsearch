@@ -79,9 +79,9 @@ public class EmailActionTests extends ElasticsearchTestCase {
         Authentication auth = new Authentication("user", new Secret("passwd".toCharArray()));
         Profile profile = randomFrom(Profile.values());
 
-        boolean attachPayload = randomBoolean();
+        DataAttachment dataAttachment = randomDataAttachment();
 
-        EmailAction action = new EmailAction(email, account, auth, profile, attachPayload);
+        EmailAction action = new EmailAction(email, account, auth, profile, dataAttachment);
         ExecutableEmailAction executable = new ExecutableEmailAction(action, logger, service, engine);
 
         Map<String, Object> data = new HashMap<>();
@@ -133,7 +133,7 @@ public class EmailActionTests extends ElasticsearchTestCase {
         assertThat(actualEmail.subject(), is(subject == null ? null : subject.getTemplate()));
         assertThat(actualEmail.textBody(), is(textBody == null ? null : textBody.getTemplate()));
         assertThat(actualEmail.htmlBody(), is(htmlBody == null ? null : htmlBody.getTemplate()));
-        if (attachPayload) {
+        if (dataAttachment != null) {
             assertThat(actualEmail.attachments(), hasKey("data"));
         }
     }
@@ -151,15 +151,23 @@ public class EmailActionTests extends ElasticsearchTestCase {
         Template subject = randomBoolean() ? Template.inline("_subject").build() : null;
         Template textBody = randomBoolean() ? Template.inline("_text_body").build() : null;
         Template htmlBody = randomBoolean() ? Template.inline("_text_html").build() : null;
-        boolean attachData = randomBoolean();
+        DataAttachment dataAttachment = randomDataAttachment();
         XContentBuilder builder = jsonBuilder().startObject()
                 .field("account", "_account")
                 .field("profile", profile.name())
                 .field("user", "_user")
                 .field("password", "_passwd")
-                .field("attach_data", attachData)
                 .field("from", "from@domain")
                 .field("priority", priority.name());
+        if (dataAttachment != null) {
+            builder.field("attach_data", dataAttachment);
+        } else if (randomBoolean()) {
+            dataAttachment = DataAttachment.DEFAULT;
+            builder.field("attach_data", true);
+        } else if (randomBoolean()) {
+            builder.field("attach_data", false);
+        }
+
         if (to != null) {
             if (to.length == 1) {
                 builder.field("to", to[0]);
@@ -219,7 +227,11 @@ public class EmailActionTests extends ElasticsearchTestCase {
 
         assertThat(executable, notNullValue());
         assertThat(executable.action().getAccount(), is("_account"));
-        assertThat(executable.action().getAttachData(), is(attachData));
+        if (dataAttachment == null) {
+            assertThat(executable.action().getDataAttachment(), nullValue());
+        } else {
+            assertThat(executable.action().getDataAttachment(), is(dataAttachment));
+        }
         assertThat(executable.action().getAuth(), notNullValue());
         assertThat(executable.action().getAuth().user(), is("_user"));
         assertThat(executable.action().getAuth().password(), is(new Secret("_passwd".toCharArray())));
@@ -278,9 +290,9 @@ public class EmailActionTests extends ElasticsearchTestCase {
         Authentication auth = randomBoolean() ? null : new Authentication("_user", new Secret("_passwd".toCharArray()));
         Profile profile = randomFrom(Profile.values());
         String account = randomAsciiOfLength(6);
-        boolean attachPayload = randomBoolean();
+        DataAttachment dataAttachment = randomDataAttachment();
 
-        EmailAction action = new EmailAction(email, account, auth, profile, attachPayload);
+        EmailAction action = new EmailAction(email, account, auth, profile, dataAttachment);
         ExecutableEmailAction executable = new ExecutableEmailAction(action, logger, service, engine);
 
         boolean hideSecrets = randomBoolean();
@@ -299,14 +311,17 @@ public class EmailActionTests extends ElasticsearchTestCase {
         } else {
             assertThat(parsed.action().getAccount(), is(executable.action().getAccount()));
             assertThat(parsed.action().getEmail(), is(executable.action().getEmail()));
-            assertThat(parsed.action().getAttachData(), is(executable.action().getAttachData()));
+            if (executable.action().getDataAttachment() == null) {
+                assertThat(parsed.action().getDataAttachment(), nullValue());
+            } else {
+                assertThat(parsed.action().getDataAttachment(), is(executable.action().getDataAttachment()));
+            }
             if (auth != null) {
                 assertThat(parsed.action().getAuth().user(), is(executable.action().getAuth().user()));
                 assertThat(parsed.action().getAuth().password(), nullValue());
                 assertThat(executable.action().getAuth().password(), notNullValue());
             }
         }
-
     }
 
     @Test(expected = EmailActionException.class) @Repeat(iterations = 100)
@@ -412,5 +427,9 @@ public class EmailActionTests extends ElasticsearchTestCase {
         parser.nextToken();
         new EmailActionFactory(ImmutableSettings.EMPTY, mock(EmailService.class), mock(TemplateEngine.class))
                 .parseResult(wid, actionId, parser);
+    }
+
+    static DataAttachment randomDataAttachment() {
+        return randomFrom(DataAttachment.JSON, DataAttachment.YAML, null);
     }
 }

@@ -32,14 +32,14 @@ public class EmailAction implements Action {
     private final @Nullable String account;
     private final @Nullable Authentication auth;
     private final @Nullable Profile profile;
-    private final @Nullable Boolean attachData;
+    private final @Nullable DataAttachment dataAttachment;
 
-    public EmailAction(EmailTemplate email, @Nullable String account, @Nullable Authentication auth, @Nullable Profile profile, @Nullable Boolean attachData) {
+    public EmailAction(EmailTemplate email, @Nullable String account, @Nullable Authentication auth, @Nullable Profile profile, @Nullable DataAttachment dataAttachment) {
         this.email = email;
         this.account = account;
         this.auth = auth;
         this.profile = profile;
-        this.attachData = attachData;
+        this.dataAttachment = dataAttachment;
     }
 
     public EmailTemplate getEmail() {
@@ -58,8 +58,8 @@ public class EmailAction implements Action {
         return profile;
     }
 
-    public boolean getAttachData() {
-        return attachData != null && attachData;
+    public DataAttachment getDataAttachment() {
+        return dataAttachment;
     }
 
     @Override
@@ -78,7 +78,7 @@ public class EmailAction implements Action {
         if (account != null ? !account.equals(action.account) : action.account != null) return false;
         if (auth != null ? !auth.equals(action.auth) : action.auth != null) return false;
         if (profile != action.profile) return false;
-        return !(attachData != null ? !attachData.equals(action.attachData) : action.attachData != null);
+        return !(dataAttachment != null ? !dataAttachment.equals(action.dataAttachment) : action.dataAttachment != null);
     }
 
     @Override
@@ -87,7 +87,7 @@ public class EmailAction implements Action {
         result = 31 * result + (account != null ? account.hashCode() : 0);
         result = 31 * result + (auth != null ? auth.hashCode() : 0);
         result = 31 * result + (profile != null ? profile.hashCode() : 0);
-        result = 31 * result + (attachData != null ? attachData.hashCode() : 0);
+        result = 31 * result + (dataAttachment != null ? dataAttachment.hashCode() : 0);
         return result;
     }
 
@@ -106,8 +106,8 @@ public class EmailAction implements Action {
         if (profile != null) {
             builder.field(Field.PROFILE.getPreferredName(), profile.name().toLowerCase(Locale.ROOT));
         }
-        if (attachData != null) {
-            builder.field(Field.ATTACH_DATA.getPreferredName(), attachData);
+        if (dataAttachment != null) {
+            builder.field(Field.ATTACH_DATA.getPreferredName(), dataAttachment, params);
         }
         email.xContentBody(builder, params);
         return builder.endObject();
@@ -119,14 +119,20 @@ public class EmailAction implements Action {
         String user = null;
         Secret password = null;
         Profile profile = Profile.STANDARD;
-        Boolean attachPayload = null;
+        DataAttachment dataAttachment = null;
 
         String currentFieldName = null;
         XContentParser.Token token;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
-            } else if (!emailParser.handle(currentFieldName, parser)) {
+            } else if (Field.ATTACH_DATA.match(currentFieldName)) {
+                try {
+                    dataAttachment = DataAttachment.parse(parser);
+                } catch (DataAttachment.Exception dae) {
+                    throw new EmailActionException("could not parse [{}] action [{}/{}]. failed to parse data attachment field [{}]", dae, TYPE, watchId, actionId, currentFieldName);
+                }
+            }else if (!emailParser.handle(currentFieldName, parser)) {
                 if (token == XContentParser.Token.VALUE_STRING) {
                     if (Field.ACCOUNT.match(currentFieldName)) {
                         account = parser.text();
@@ -139,12 +145,6 @@ public class EmailAction implements Action {
                     } else {
                         throw new EmailActionException("could not parse [{}] action [{}/{}]. unexpected string field [{}]", TYPE, watchId, actionId, currentFieldName);
                     }
-                } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
-                    if (Field.ATTACH_DATA.match(currentFieldName)) {
-                        attachPayload = parser.booleanValue();
-                    } else {
-                        throw new EmailActionException("could not parse [{}] action [{}/{}]. unexpected boolean field [{}]", TYPE, watchId, actionId, currentFieldName);
-                    }
                 } else {
                     throw new EmailActionException("could not parse [{}] action [{}/{}]. unexpected token [{}]", TYPE, watchId, actionId, token);
                 }
@@ -156,7 +156,7 @@ public class EmailAction implements Action {
             auth = new Authentication(user, password);
         }
 
-        return new EmailAction(emailParser.parsedTemplate(), account, auth, profile, attachPayload);
+        return new EmailAction(emailParser.parsedTemplate(), account, auth, profile, dataAttachment);
     }
 
     public static Builder builder(EmailTemplate email) {
@@ -306,7 +306,7 @@ public class EmailAction implements Action {
         @Nullable String account;
         @Nullable Authentication auth;
         @Nullable Profile profile;
-        @Nullable Boolean attachPayload;
+        @Nullable DataAttachment dataAttachment;
 
         private Builder(EmailTemplate email) {
             this.email = email;
@@ -327,13 +327,13 @@ public class EmailAction implements Action {
             return this;
         }
 
-        public Builder setAttachPayload(boolean attachPayload) {
-            this.attachPayload = attachPayload;
+        public Builder setAttachPayload(DataAttachment dataAttachment) {
+            this.dataAttachment = dataAttachment;
             return this;
         }
 
         public EmailAction build() {
-            return new EmailAction(email, account, auth, profile, attachPayload);
+            return new EmailAction(email, account, auth, profile, dataAttachment);
         }
     }
 

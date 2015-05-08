@@ -34,18 +34,15 @@ public class ExecutableEmailAction extends ExecutableAction<EmailAction, EmailAc
     protected EmailAction.Result doExecute(String actionId, WatchExecutionContext ctx, Payload payload) throws Exception {
         Map<String, Object> model = Variables.createCtxModel(ctx, payload);
 
-        Map<String, Attachment> attachmentMap = new HashMap<>();
-        Attachment.Bytes attachment = null;
-        if (action.getAttachData()) {
-            attachment = new Attachment.XContent.Yaml("data", "data.yml", new Payload.Simple(model));
-            attachmentMap.put(attachment.id(), attachment);
+        Map<String, Attachment> attachments = new HashMap<>();
+        DataAttachment dataAttachment = action.getDataAttachment();
+        if (dataAttachment != null) {
+            Attachment attachment = dataAttachment.create(model);
+            attachments.put(attachment.id(), attachment);
         }
 
-        Email.Builder email = action.getEmail().render(templateEngine, model, attachmentMap);
+        Email.Builder email = action.getEmail().render(templateEngine, model, attachments);
         email.id(ctx.id().value());
-        if (attachment != null) {
-            email.attach(attachment);
-        }
 
         if (ctx.simulateAction(actionId)) {
             return new EmailAction.Result.Simulated(email.build());

@@ -7,6 +7,7 @@ package org.elasticsearch.watcher.watch;
 
 import com.carrotsearch.ant.tasks.junit4.dependencies.com.google.common.collect.ImmutableSet;
 import com.carrotsearch.randomizedtesting.annotations.Repeat;
+import com.carrotsearch.randomizedtesting.annotations.Seed;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.collect.ImmutableMap;
@@ -23,6 +24,7 @@ import org.elasticsearch.watcher.actions.ActionFactory;
 import org.elasticsearch.watcher.actions.ActionRegistry;
 import org.elasticsearch.watcher.actions.ActionWrapper;
 import org.elasticsearch.watcher.actions.ExecutableActions;
+import org.elasticsearch.watcher.actions.email.DataAttachment;
 import org.elasticsearch.watcher.actions.email.EmailAction;
 import org.elasticsearch.watcher.actions.email.EmailActionFactory;
 import org.elasticsearch.watcher.actions.email.ExecutableEmailAction;
@@ -159,7 +161,6 @@ public class WatchTests extends ElasticsearchTestCase {
         BytesReference bytes = XContentFactory.jsonBuilder().value(watch).bytes();
         logger.info(bytes.toUtf8());
         Watch.Parser watchParser = new Watch.Parser(settings, mock(LicenseService.class), conditionRegistry, triggerService, transformRegistry, actionRegistry, inputRegistry, SystemClock.INSTANCE, secretService);
-
 
         Watch parsedWatch = watchParser.parse("_name", includeStatus, bytes);
 
@@ -335,7 +336,7 @@ public class WatchTests extends ElasticsearchTestCase {
         ImmutableList.Builder<ActionWrapper> list = ImmutableList.builder();
         if (randomBoolean()) {
             ExecutableTransform transform = randomTransform();
-            EmailAction action = new EmailAction(EmailTemplate.builder().build(), null, null, Profile.STANDARD, randomBoolean());
+            EmailAction action = new EmailAction(EmailTemplate.builder().build(), null, null, Profile.STANDARD, randomFrom(DataAttachment.JSON, DataAttachment.YAML, null));
             list.add(new ActionWrapper("_email_" + randomAsciiOfLength(8), transform, new ExecutableEmailAction(action, logger, emailService, templateEngine)));
         }
         if (randomBoolean()) {

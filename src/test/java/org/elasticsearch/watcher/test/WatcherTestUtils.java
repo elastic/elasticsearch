@@ -171,7 +171,7 @@ public final class WatcherTestUtils {
 
         Authentication auth = new Authentication("testname", new Secret("testpassword".toCharArray()));
 
-        EmailAction action = new EmailAction(email, "testaccount", auth, Profile.STANDARD, false);
+        EmailAction action = new EmailAction(email, "testaccount", auth, Profile.STANDARD, null);
         ExecutableEmailAction executale = new ExecutableEmailAction(action, logger, emailService, templateEngine);
 
         actions.add(new ActionWrapper("_email", executale));

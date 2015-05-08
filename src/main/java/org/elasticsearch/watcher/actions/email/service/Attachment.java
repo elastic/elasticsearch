@@ -153,7 +153,7 @@ public abstract class Attachment extends BodyPartSource {
 
         static byte[] bytes(String name, ToXContent content, XContentType type) {
             try {
-                XContentBuilder builder = XContentBuilder.builder(type.xContent());
+                XContentBuilder builder = XContentBuilder.builder(type.xContent()).prettyPrint();
                 content.toXContent(builder, ToXContent.EMPTY_PARAMS);
                 return builder.bytes().toBytes();
             } catch (IOException ioe) {

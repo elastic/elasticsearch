@@ -26,10 +26,8 @@ import java.io.IOException;
 
 /**
  * A Query that does fuzzy matching for a specific value.
- *
- *
  */
-public class FuzzyQueryBuilder extends BaseQueryBuilder implements MultiTermQueryBuilder, BoostableQueryBuilder<FuzzyQueryBuilder> {
+public class FuzzyQueryBuilder extends MultiTermQueryBuilder implements BoostableQueryBuilder<FuzzyQueryBuilder> {
 
     private final String name;
 

@@ -38,9 +38,9 @@ import static com.google.common.collect.Lists.newArrayList;
  * them either using DisMax or a plain boolean query (see {@link #useDisMax(boolean)}).
  * <p/>
  */
-public class QueryStringQueryBuilder extends BaseQueryBuilder implements BoostableQueryBuilder<QueryStringQueryBuilder> {
+public class QueryStringQueryBuilder extends QueryBuilder implements BoostableQueryBuilder<QueryStringQueryBuilder> {
 
-    public static enum Operator {
+    public enum Operator {
         OR,
         AND
     }

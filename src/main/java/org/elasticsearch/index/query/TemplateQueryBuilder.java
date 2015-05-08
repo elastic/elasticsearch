@@ -27,7 +27,7 @@ import java.util.Map;
 /**
  * Facilitates creating template query requests.
  * */
-public class TemplateQueryBuilder extends BaseQueryBuilder {
+public class TemplateQueryBuilder extends QueryBuilder {
 
     /** Parameters to fill the template with. */
     private Map<String, Object> vars;

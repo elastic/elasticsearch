@@ -28,6 +28,8 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.shield.ShieldPlugin;
 import org.elasticsearch.shield.authc.esusers.ESUsersRealm;
+import org.elasticsearch.shield.authc.support.SecuredString;
+import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
 import org.elasticsearch.shield.crypto.InternalCryptoService;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
@@ -602,6 +604,8 @@ public abstract class AbstractWatcherIntegrationTests extends ElasticsearchInteg
 
         public static final String TEST_USERNAME = "test";
         public static final String TEST_PASSWORD = "changeme";
+        public static final String TEST_BASIC_AUTH_TOKEN = UsernamePasswordToken.basicAuthHeaderValue(TEST_USERNAME, new SecuredString(TEST_PASSWORD.toCharArray()));
+        public static final String ADMIN_BASIC_AUTH_TOKEN = UsernamePasswordToken.basicAuthHeaderValue("admin", new SecuredString("changeme".toCharArray()));
 
         static boolean auditLogsEnabled = SystemPropertyUtil.getBoolean("tests.audit_logs", true);
         static byte[] systemKey = generateKey(); // must be the same for all nodes

@@ -447,7 +447,7 @@ public class InnerHitsTests extends ElasticsearchIntegrationTest {
                     .addInnerHit("comment", new InnerHitsBuilder.InnerHit())
                     .get();
         } catch (Exception e) {
-            assertThat(e.getMessage(), containsString("Failed to build search source"));
+            assertThat(e.getMessage(), containsString("Failed to build"));
         }
 
     }

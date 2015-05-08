@@ -25,10 +25,8 @@ import java.io.IOException;
 
 /**
  * A Query that matches documents containing terms with a specified prefix.
- *
- *
  */
-public class PrefixQueryBuilder extends BaseQueryBuilder implements MultiTermQueryBuilder, BoostableQueryBuilder<PrefixQueryBuilder> {
+public class PrefixQueryBuilder extends MultiTermQueryBuilder implements BoostableQueryBuilder<PrefixQueryBuilder> {
 
     private final String name;
 

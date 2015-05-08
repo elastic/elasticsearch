@@ -24,18 +24,16 @@ import com.google.common.base.Charsets;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import org.elasticsearch.ElasticsearchGenerationException;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.support.QuerySourceBuilder;
+import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.fetch.innerhits.InnerHitsBuilder;
@@ -61,7 +59,7 @@ import java.util.Map;
  *
  * @see org.elasticsearch.action.search.SearchRequest#source(SearchSourceBuilder)
  */
-public class SearchSourceBuilder implements ToXContent {
+public class SearchSourceBuilder extends ToXContentToBytes {
 
     /**
      * A static factory method to construct a new search source.
@@ -665,31 +663,6 @@ public class SearchSourceBuilder implements ToXContent {
     public SearchSourceBuilder stats(String... statsGroups) {
         this.stats = statsGroups;
         return this;
-    }
-
-    @Override
-    public String toString() {
-        try {
-            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON).prettyPrint();
-            toXContent(builder, ToXContent.EMPTY_PARAMS);
-            return builder.string();
-        } catch (Exception e) {
-            return "{ \"error\" : \"" + ExceptionsHelper.detailedMessage(e) + "\"}";
-        }
-    }
-
-    public BytesReference buildAsBytes() throws SearchSourceBuilderException {
-        return buildAsBytes(Requests.CONTENT_TYPE);
-    }
-
-    public BytesReference buildAsBytes(XContentType contentType) throws SearchSourceBuilderException {
-        try {
-            XContentBuilder builder = XContentFactory.contentBuilder(contentType);
-            toXContent(builder, ToXContent.EMPTY_PARAMS);
-            return builder.bytes();
-        } catch (Exception e) {
-            throw new SearchSourceBuilderException("Failed to build search source", e);
-        }
     }
 
     @Override

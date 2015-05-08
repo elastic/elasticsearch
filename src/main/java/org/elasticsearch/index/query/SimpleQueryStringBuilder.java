@@ -30,7 +30,7 @@ import java.util.Map;
  * SimpleQuery is a query parser that acts similar to a query_string
  * query, but won't throw exceptions for any weird string syntax.
  */
-public class SimpleQueryStringBuilder extends BaseQueryBuilder {
+public class SimpleQueryStringBuilder extends QueryBuilder {
     private Map<String, Float> fields = new HashMap<>();
     private String analyzer;
     private Operator operator;

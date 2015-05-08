@@ -30,7 +30,6 @@ import java.io.IOException;
  */
 public class WeightBuilder extends ScoreFunctionBuilder {
 
-
     @Override
     public String getName() {
         return "weight";

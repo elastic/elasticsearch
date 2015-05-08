@@ -36,7 +36,7 @@ import java.util.Locale;
 /**
  * Same as {@link MatchQueryBuilder} but supports multiple fields.
  */
-public class MultiMatchQueryBuilder extends BaseQueryBuilder implements BoostableQueryBuilder<MultiMatchQueryBuilder> {
+public class MultiMatchQueryBuilder extends QueryBuilder implements BoostableQueryBuilder<MultiMatchQueryBuilder> {
 
     private final Object text;
 

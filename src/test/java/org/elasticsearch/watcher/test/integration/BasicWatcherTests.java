@@ -9,6 +9,7 @@ import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -23,6 +24,7 @@ import org.elasticsearch.watcher.client.WatcherClient;
 import org.elasticsearch.watcher.condition.ConditionBuilders;
 import org.elasticsearch.watcher.history.HistoryStore;
 import org.elasticsearch.watcher.support.WatcherUtils;
+import org.elasticsearch.watcher.support.template.Template;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
 import org.elasticsearch.watcher.transport.actions.delete.DeleteWatchResponse;
 import org.elasticsearch.watcher.transport.actions.get.GetWatchResponse;
@@ -313,9 +315,12 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTests {
                 .setSource(jsonBuilder().startObject().field("template").value(searchSourceBuilder).endObject())
                 .get();
         refresh();
+
+        BytesReference templateSource = jsonBuilder()
+                .value(Template.indexed("my-template").build())
+                .bytes();
         SearchRequest searchRequest = newInputSearchRequest("events");
-        searchRequest.templateName("my-template");
-        searchRequest.templateType(ScriptService.ScriptType.INDEXED);
+        searchRequest.templateSource(templateSource, false);
         testConditionSearch(searchRequest);
     }
 

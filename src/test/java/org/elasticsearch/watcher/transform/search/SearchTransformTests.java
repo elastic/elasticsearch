@@ -21,6 +21,7 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.watcher.actions.ActionWrapper;
 import org.elasticsearch.watcher.actions.ExecutableActions;
 import org.elasticsearch.watcher.condition.always.ExecutableAlwaysCondition;
@@ -32,8 +33,10 @@ import org.elasticsearch.watcher.license.LicenseService;
 import org.elasticsearch.watcher.support.WatcherUtils;
 import org.elasticsearch.watcher.support.clock.ClockMock;
 import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
+import org.elasticsearch.watcher.support.template.Template;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
 import org.elasticsearch.watcher.transform.Transform;
+import org.elasticsearch.watcher.transform.TransformBuilders;
 import org.elasticsearch.watcher.trigger.schedule.IntervalSchedule;
 import org.elasticsearch.watcher.trigger.schedule.ScheduleTrigger;
 import org.elasticsearch.watcher.trigger.schedule.ScheduleTriggerEvent;
@@ -50,6 +53,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.FilterBuilders.*;
 import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
+import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope.SUITE;
 import static org.elasticsearch.watcher.support.WatcherDateUtils.parseDate;
 import static org.elasticsearch.watcher.test.WatcherTestUtils.*;
 import static org.hamcrest.Matchers.*;
@@ -58,7 +62,8 @@ import static org.mockito.Mockito.mock;
 /**
  *
  */
-public class SearchTransformTests extends AbstractWatcherIntegrationTests {
+@ElasticsearchIntegrationTest.ClusterScope(scope = SUITE, numClientNodes = 0, transportClientRatio = 0, randomDynamicTemplates = false, numDataNodes = 1)
+public class SearchTransformTests extends ElasticsearchIntegrationTest {
 
     @Override
     public Settings nodeSettings(int nodeOrdinal) {
@@ -79,7 +84,8 @@ public class SearchTransformTests extends AbstractWatcherIntegrationTests {
                 .startObject("match_all").endObject()
                 .endObject()
                 .endObject());
-        ExecutableSearchTransform transform = new ExecutableSearchTransform(new SearchTransform(request), logger, scriptService(), ClientProxy.of(client()));
+        SearchTransform searchTransform = TransformBuilders.searchTransform(request).build();
+        ExecutableSearchTransform transform = new ExecutableSearchTransform(searchTransform, logger, ClientProxy.of(client()));
 
         WatchExecutionContext ctx = mockExecutionContext("_name", EMPTY_PAYLOAD);
 
@@ -136,7 +142,8 @@ public class SearchTransformTests extends AbstractWatcherIntegrationTests {
                 .must(rangeFilter("date").lt("{{ctx.execution_time}}"))
                 .must(termFilter("value", "{{ctx.payload.value}}")))));
 
-        ExecutableSearchTransform transform = new ExecutableSearchTransform(new SearchTransform(request), logger, scriptService(), ClientProxy.of(client()));
+        SearchTransform searchTransform = TransformBuilders.searchTransform(request).build();
+        ExecutableSearchTransform transform = new ExecutableSearchTransform(searchTransform, logger, ClientProxy.of(client()));
 
         ScheduleTriggerEvent event = new ScheduleTriggerEvent("_name", parseDate("2015-01-04T00:00:00", UTC), parseDate("2015-01-01T00:00:00", UTC));
         WatchExecutionContext ctx = mockExecutionContext("_name", parseDate("2015-01-04T00:00:00", UTC), event, EMPTY_PAYLOAD);
@@ -168,7 +175,6 @@ public class SearchTransformTests extends AbstractWatcherIntegrationTests {
         String[] indices = rarely() ? null : randomBoolean() ? new String[] { "idx" } : new String[] { "idx1", "idx2" };
         SearchType searchType = getRandomSupportedSearchType();
         String templateName = randomBoolean() ? null : "template1";
-        ScriptService.ScriptType templateType = templateName != null && randomBoolean() ? randomFrom(ScriptService.ScriptType.values()) : null;
         XContentBuilder builder = jsonBuilder().startObject();
         if (indices != null) {
             builder.array("indices", indices);
@@ -177,12 +183,8 @@ public class SearchTransformTests extends AbstractWatcherIntegrationTests {
             builder.field("search_type", searchType.name());
         }
         if (templateName != null) {
-            builder.startObject("template")
-                    .field("name", templateName);
-            if (templateType != null) {
-                builder.field("type", templateType);
-            }
-            builder.endObject();
+            Template template = Template.file(templateName).build();
+            builder.field("template", template);
         }
 
         XContentBuilder sourceBuilder = jsonBuilder().startObject()
@@ -203,7 +205,7 @@ public class SearchTransformTests extends AbstractWatcherIntegrationTests {
         builder.endObject();
         XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes());
         parser.nextToken();
-        ExecutableSearchTransform executable = new SearchTransformFactory(ImmutableSettings.EMPTY, scriptService(), ClientProxy.of(client())).parseExecutable("_id", parser);
+        ExecutableSearchTransform executable = new SearchTransformFactory(ImmutableSettings.EMPTY, ClientProxy.of(client())).parseExecutable("_id", parser);
         assertThat(executable, notNullValue());
         assertThat(executable.type(), is(SearchTransform.TYPE));
         assertThat(executable.transform().getRequest(), notNullValue());
@@ -214,10 +216,7 @@ public class SearchTransformTests extends AbstractWatcherIntegrationTests {
             assertThat(executable.transform().getRequest().searchType(), is(searchType));
         }
         if (templateName != null) {
-            assertThat(executable.transform().getRequest().templateName(), equalTo(templateName));
-        }
-        if (templateType != null) {
-            assertThat(executable.transform().getRequest().templateType(), equalTo(templateType));
+            assertThat(executable.transform().getRequest().templateSource().toUtf8(), equalTo("{\"file\":\"template1\"}"));
         }
         assertThat(executable.transform().getRequest().source().toBytes(), equalTo(source.toBytes()));
     }
@@ -230,13 +229,12 @@ public class SearchTransformTests extends AbstractWatcherIntegrationTests {
                 .source(searchSource()
                         .query(filteredQuery(matchQuery("event_type", "a"), rangeFilter("_timestamp").from("{{ctx.trigger.scheduled_time}}||-30s").to("{{ctx.trigger.triggered_time}}"))));
 
-        XContentBuilder builder = jsonBuilder().value(new SearchTransform(request));
+        SearchTransform searchTransform = TransformBuilders.searchTransform(request).build();
+        XContentBuilder builder = jsonBuilder().value(searchTransform);
         XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes());
         parser.nextToken();
 
-        SearchTransformFactory factory = new SearchTransformFactory(ImmutableSettings.EMPTY,
-                scriptService(),
-                ClientProxy.of(client()));
+        SearchTransformFactory factory = new SearchTransformFactory(ImmutableSettings.EMPTY, ClientProxy.of(client()));
 
         factory.parseTransform("_id", parser);
         fail("expected a SearchTransformException as search type SCAN should not be supported");
@@ -250,27 +248,27 @@ public class SearchTransformTests extends AbstractWatcherIntegrationTests {
                 "{\"from\":\"{{ctx.trigger.scheduled_time}}||-{{seconds_param}}\",\"to\":\"{{ctx.trigger.scheduled_time}}\"," +
                 "\"include_lower\":true,\"include_upper\":true}}}}}}";
 
-        final String expectedQuery = "{\"query\":{\"filtered\":{\"query\":{\"match\":{\"event_type\":" +
-                "{\"query\":\"a\",\"type\":\"boolean\"}}},\"filter\":{\"range\":{\"_timestamp\":{\"from\":\"1970-01-01T00:01:00.000Z||-30s\"," +
-                "\"to\":\"1970-01-01T00:01:00.000Z\",\"include_lower\":true,\"include_upper\":true}}}}}}";
-
-        ScriptService.ScriptType scriptType = ScriptService.ScriptType.INLINE;
+        final String expectedQuery = "{\"template\":{\"query\":{\"filtered\":{\"query\":{\"match\":{\"event_type\":{\"query\":\"a\"," +
+                "\"type\":\"boolean\"}}},\"filter\":{\"range\":{\"_timestamp\":" +
+                "{\"from\":\"{{ctx.trigger.scheduled_time}}||-{{seconds_param}}\",\"to\":\"{{ctx.trigger.scheduled_time}}\"," +
+                "\"include_lower\":true,\"include_upper\":true}}}}}},\"params\":{\"seconds_param\":\"30s\",\"ctx\":{\"metadata\":null,\"watch_id\":\"test-watch\",\"payload\":{},\"trigger\":{\"triggered_time\":\"1970-01-01T00:01:00.000Z\",\"scheduled_time\":\"1970-01-01T00:01:00.000Z\"},\"execution_time\":\"1970-01-01T00:01:00.000Z\"}}}";
 
         Map<String, Object> params = new HashMap<>();
         params.put("seconds_param", "30s");
 
+        BytesReference templateSource = jsonBuilder()
+                .value(Template.inline(templateQuery).params(params).build())
+                .bytes();
         SearchRequest request = client()
                 .prepareSearch()
                 .setSearchType(ExecutableSearchTransform.DEFAULT_SEARCH_TYPE)
                 .setIndices("test-search-index")
-                .setTemplateSource(templateQuery)
-                .setTemplateParams(params)
-                .setTemplateType(scriptType)
+                .setTemplateSource(templateSource)
                 .request();
 
         SearchTransform.Result executedResult = executeSearchTransform(request);
 
-        assertThat(executedResult.executedRequest().source().toUtf8(), equalTo(expectedQuery));
+        assertThat(executedResult.executedRequest().templateSource().toUtf8(), equalTo(expectedQuery));
     }
 
     @Test
@@ -283,42 +281,42 @@ public class SearchTransformTests extends AbstractWatcherIntegrationTests {
         PutIndexedScriptRequest indexedScriptRequest = client().preparePutIndexedScript("mustache","test-script", templateQuery).request();
         assertThat(client().putIndexedScript(indexedScriptRequest).actionGet().isCreated(), is(true));
 
-        ScriptService.ScriptType scriptType = ScriptService.ScriptType.INDEXED;
-
         Map<String, Object> params = new HashMap<>();
         params.put("seconds_param", "30s");
 
+        BytesReference templateSource = jsonBuilder()
+                .value(Template.indexed("test-script").params(params).build())
+                .bytes();
         SearchRequest request = client()
                 .prepareSearch()
                 .setSearchType(ExecutableSearchTransform.DEFAULT_SEARCH_TYPE)
                 .setIndices("test-search-index")
-                .setTemplateName("test-script")
-                .setTemplateParams(params)
-                .setTemplateType(scriptType)
+                .setTemplateSource(templateSource)
                 .request();
 
         SearchTransform.Result result = executeSearchTransform(request);
         assertNotNull(result.executedRequest());
+        assertThat(result.executedRequest().templateSource().toUtf8(), startsWith("{\"template\":{\"id\":\"test-script\""));
     }
 
     @Test
     public void testSearch_OndiskTemplate() throws Exception {
-        ScriptService.ScriptType scriptType = ScriptService.ScriptType.FILE;
-
         Map<String, Object> params = new HashMap<>();
         params.put("seconds_param", "30s");
 
+        BytesReference templateSource = jsonBuilder()
+                .value(Template.file("test_disk_template").params(params).build())
+                .bytes();
         SearchRequest request = client()
                 .prepareSearch()
                 .setSearchType(ExecutableSearchTransform.DEFAULT_SEARCH_TYPE)
                 .setIndices("test-search-index")
-                .setTemplateName("test_disk_template")
-                .setTemplateParams(params)
-                .setTemplateType(scriptType)
+                .setTemplateSource(templateSource)
                 .request();
 
         SearchTransform.Result result = executeSearchTransform(request);
         assertNotNull(result.executedRequest());
+        assertThat(result.executedRequest().templateSource().toUtf8(), startsWith("{\"template\":{\"file\":\"test_disk_template\""));
     }
 
 
@@ -365,9 +363,7 @@ public class SearchTransformTests extends AbstractWatcherIntegrationTests {
         WatcherUtils.writeSearchRequest(request, jsonBuilder, ToXContent.EMPTY_PARAMS);
         jsonBuilder.endObject();
 
-        SearchTransformFactory factory = new SearchTransformFactory(settingsBuilder().build(),
-                scriptService(),
-                ClientProxy.of(client()));
+        SearchTransformFactory factory = new SearchTransformFactory(settingsBuilder().build(), ClientProxy.of(client()));
 
         XContentParser parser = JsonXContent.jsonXContent.createParser(jsonBuilder.bytes());
         parser.nextToken();
@@ -385,8 +381,8 @@ public class SearchTransformTests extends AbstractWatcherIntegrationTests {
         createIndex("test-search-index");
         ensureGreen("test-search-index");
 
-        SearchTransform searchTransform = new SearchTransform(request);
-        ExecutableSearchTransform executableSearchTransform = new ExecutableSearchTransform(searchTransform, logger, scriptService(), ClientProxy.of(client()));
+        SearchTransform searchTransform = TransformBuilders.searchTransform(request).build();
+        ExecutableSearchTransform executableSearchTransform = new ExecutableSearchTransform(searchTransform, logger, ClientProxy.of(client()));
 
         WatchExecutionContext ctx = new TriggeredExecutionContext(
                 new Watch("test-watch",

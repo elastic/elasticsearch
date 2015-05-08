@@ -263,7 +263,7 @@ public class WatchTests extends ElasticsearchTestCase {
         switch (type) {
             case SearchInput.TYPE:
                 SearchInput searchInput = searchInput(WatcherTestUtils.newInputSearchRequest("idx")).build();
-                return new ExecutableSearchInput(searchInput, logger, scriptService, client);
+                return new ExecutableSearchInput(searchInput, logger, client);
             default:
                 SimpleInput simpleInput = InputBuilders.simpleInput(ImmutableMap.<String, Object>builder().put("_key", "_val")).build();
                 return new ExecutableSimpleInput(simpleInput, logger);
@@ -274,7 +274,7 @@ public class WatchTests extends ElasticsearchTestCase {
         ImmutableMap.Builder<String, InputFactory> parsers = ImmutableMap.builder();
         switch (input.type()) {
             case SearchInput.TYPE:
-                parsers.put(SearchInput.TYPE, new SearchInputFactory(settings, scriptService, client));
+                parsers.put(SearchInput.TYPE, new SearchInputFactory(settings, client));
                 return new InputRegistry(parsers.build());
             default:
                 parsers.put(SimpleInput.TYPE, new SimpleInputFactory(settings));
@@ -310,13 +310,13 @@ public class WatchTests extends ElasticsearchTestCase {
             case ScriptTransform.TYPE:
                 return new ExecutableScriptTransform(new ScriptTransform(Script.inline("_script").build()), logger, scriptService);
             case SearchTransform.TYPE:
-                return new ExecutableSearchTransform(new SearchTransform(matchAllRequest(WatcherUtils.DEFAULT_INDICES_OPTIONS)), logger, scriptService, client);
+                return new ExecutableSearchTransform(new SearchTransform(matchAllRequest(WatcherUtils.DEFAULT_INDICES_OPTIONS)), logger, client);
             default: // chain
                 ChainTransform chainTransform = new ChainTransform(ImmutableList.of(
                         new SearchTransform(matchAllRequest(WatcherUtils.DEFAULT_INDICES_OPTIONS)),
                         new ScriptTransform(Script.inline("_script").build())));
                 return new ExecutableChainTransform(chainTransform, logger, ImmutableList.<ExecutableTransform>of(
-                        new ExecutableSearchTransform(new SearchTransform(matchAllRequest(WatcherUtils.DEFAULT_INDICES_OPTIONS)), logger, scriptService, client),
+                        new ExecutableSearchTransform(new SearchTransform(matchAllRequest(WatcherUtils.DEFAULT_INDICES_OPTIONS)), logger, client),
                         new ExecutableScriptTransform(new ScriptTransform(Script.inline("_script").build()), logger, scriptService)));
         }
     }
@@ -326,7 +326,7 @@ public class WatchTests extends ElasticsearchTestCase {
         ChainTransformFactory parser = new ChainTransformFactory();
         factories.put(ChainTransform.TYPE, parser);
         factories.put(ScriptTransform.TYPE, new ScriptTransformFactory(settings, scriptService));
-        factories.put(SearchTransform.TYPE, new SearchTransformFactory(settings, scriptService, client));
+        factories.put(SearchTransform.TYPE, new SearchTransformFactory(settings, client));
         TransformRegistry registry = new TransformRegistry(factories.build());
         parser.init(registry);
         return registry;

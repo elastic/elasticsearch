@@ -192,7 +192,7 @@ public final class WatcherTestUtils {
                 new ScheduleTrigger(new CronSchedule("0/5 * * * * ? *")),
                 new ExecutableSimpleInput(new SimpleInput(new Payload.Simple(inputData)), logger),
                 new ExecutableScriptCondition(new ScriptCondition(Script.inline("return true").build()), logger, scriptService),
-                new ExecutableSearchTransform(new SearchTransform(transformRequest), logger, scriptService, client),
+                new ExecutableSearchTransform(new SearchTransform(transformRequest), logger, client),
                 new ExecutableActions(actions),
                 metadata,
                 new TimeValue(0),

@@ -8,6 +8,7 @@ package org.elasticsearch.watcher.input.search;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -18,7 +19,6 @@ import org.elasticsearch.watcher.input.ExecutableInput;
 import org.elasticsearch.watcher.support.WatcherUtils;
 import org.elasticsearch.watcher.support.XContentFilterKeysUtils;
 import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
-import org.elasticsearch.watcher.support.init.proxy.ScriptServiceProxy;
 import org.elasticsearch.watcher.watch.Payload;
 
 import java.io.IOException;
@@ -33,21 +33,20 @@ public class ExecutableSearchInput extends ExecutableInput<SearchInput, SearchIn
 
     public static final SearchType DEFAULT_SEARCH_TYPE = SearchType.QUERY_THEN_FETCH;
 
-    private final ScriptServiceProxy scriptService;
     private final ClientProxy client;
 
-    public ExecutableSearchInput(SearchInput input, ESLogger logger, ScriptServiceProxy scriptService, ClientProxy client) {
+    public ExecutableSearchInput(SearchInput input, ESLogger logger, ClientProxy client) {
         super(input, logger);
-        this.scriptService = scriptService;
         this.client = client;
     }
 
     @Override
     public SearchInput.Result execute(WatchExecutionContext ctx) throws IOException {
 
-        SearchRequest request = WatcherUtils.createSearchRequestFromPrototype(input.getSearchRequest(), ctx, scriptService, null);
+        SearchRequest request = WatcherUtils.createSearchRequestFromPrototype(input.getSearchRequest(), ctx, null);
         if (logger.isTraceEnabled()) {
-            logger.trace("[{}] running query for [{}] [{}]", ctx.id(), ctx.watch().id(), XContentHelper.convertToJson(request.source(), false, true));
+            BytesReference source = request.source() != null ? request.source() : request.templateSource();
+            logger.trace("[{}] running query for [{}] [{}]", ctx.id(), ctx.watch().id(), XContentHelper.convertToJson(source, false, true));
         }
 
         // actionGet deals properly with InterruptedException

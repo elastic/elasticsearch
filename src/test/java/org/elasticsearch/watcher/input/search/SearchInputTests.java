@@ -8,6 +8,7 @@ package org.elasticsearch.watcher.input.search;
 import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -31,6 +32,7 @@ import org.elasticsearch.watcher.support.WatcherUtils;
 import org.elasticsearch.watcher.support.clock.ClockMock;
 import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
 import org.elasticsearch.watcher.support.init.proxy.ScriptServiceProxy;
+import org.elasticsearch.watcher.support.template.Template;
 import org.elasticsearch.watcher.trigger.schedule.IntervalSchedule;
 import org.elasticsearch.watcher.trigger.schedule.ScheduleTrigger;
 import org.elasticsearch.watcher.trigger.schedule.ScheduleTriggerEvent;
@@ -48,25 +50,23 @@ import static org.elasticsearch.index.query.FilterBuilders.rangeFilter;
 import static org.elasticsearch.index.query.QueryBuilders.filteredQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
+import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope.SUITE;
 import static org.elasticsearch.watcher.test.WatcherTestUtils.getRandomSupportedSearchType;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.Mockito.mock;
 
 
 /**
  */
+@ElasticsearchIntegrationTest.ClusterScope(scope = SUITE, numClientNodes = 0, transportClientRatio = 0, randomDynamicTemplates = false, numDataNodes = 1)
 public class SearchInputTests extends ElasticsearchIntegrationTest {
 
     private final static String TEMPLATE_QUERY = "{\"query\":{\"filtered\":{\"query\":{\"match\":{\"event_type\":{\"query\":\"a\"," +
             "\"type\":\"boolean\"}}},\"filter\":{\"range\":{\"_timestamp\":" +
             "{\"from\":\"{{ctx.trigger.scheduled_time}}||-{{seconds_param}}\",\"to\":\"{{ctx.trigger.scheduled_time}}\"," +
             "\"include_lower\":true,\"include_upper\":true}}}}}}";
-
-    private final static String EXPECTED_TEMPLATE_QUERY = "{\"query\":{\"filtered\":{\"query\":{\"match\":{\"event_type\":" +
-            "{\"query\":\"a\",\"type\":\"boolean\"}}},\"filter\":{\"range\":{\"_timestamp\":{\"from\":\"1970-01-01T00:01:00.000Z||-30s\"," +
-            "\"to\":\"1970-01-01T00:01:00.000Z\",\"include_lower\":true,\"include_upper\":true}}}}}}";
-
 
     @Override
     public Settings nodeSettings(int nodeOrdinal) {
@@ -85,9 +85,7 @@ public class SearchInputTests extends ElasticsearchIntegrationTest {
                 .request()
                 .source(searchSourceBuilder);
 
-        ExecutableSearchInput searchInput = new ExecutableSearchInput(new SearchInput(request, null), logger,
-                ScriptServiceProxy.of(internalCluster().getInstance(ScriptService.class)),
-                ClientProxy.of(client()));
+        ExecutableSearchInput searchInput = new ExecutableSearchInput(new SearchInput(request, null), logger, ClientProxy.of(client()));
         WatchExecutionContext ctx = new TriggeredExecutionContext(
                 new Watch("test-watch",
                         new ClockMock(),
@@ -113,67 +111,68 @@ public class SearchInputTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testSearch_InlineTemplate() throws Exception {
-
-        ScriptService.ScriptType scriptType = ScriptService.ScriptType.INLINE;
+        final String expectedQuery = "{\"template\":{\"query\":{\"filtered\":{\"query\":{\"match\":{\"event_type\":{\"query\":\"a\"," +
+                "\"type\":\"boolean\"}}},\"filter\":{\"range\":{\"_timestamp\":" +
+                "{\"from\":\"{{ctx.trigger.scheduled_time}}||-{{seconds_param}}\",\"to\":\"{{ctx.trigger.scheduled_time}}\"," +
+                "\"include_lower\":true,\"include_upper\":true}}}}}},\"params\":{\"seconds_param\":\"30s\",\"ctx\":{\"metadata\":null,\"watch_id\":\"test-watch\",\"trigger\":{\"triggered_time\":\"1970-01-01T00:01:00.000Z\",\"scheduled_time\":\"1970-01-01T00:01:00.000Z\"},\"execution_time\":\"1970-01-01T00:01:00.000Z\"}}}";
 
         Map<String, Object> params = new HashMap<>();
         params.put("seconds_param", "30s");
 
+        BytesReference templateSource = jsonBuilder()
+                .value(Template.inline(TEMPLATE_QUERY).params(params).build())
+                .bytes();
         SearchRequest request = client()
                 .prepareSearch()
                 .setSearchType(ExecutableSearchInput.DEFAULT_SEARCH_TYPE)
                 .setIndices("test-search-index")
-                .setTemplateSource(TEMPLATE_QUERY)
-                .setTemplateParams(params)
-                .setTemplateType(scriptType)
+                .setTemplateSource(templateSource)
                 .request();
 
 
         SearchInput.Result executedResult = executeSearchInput(request);
-
-        assertThat(executedResult.executedRequest().source().toUtf8(), equalTo(EXPECTED_TEMPLATE_QUERY));
+        assertThat(executedResult.executedRequest().templateSource().toUtf8(), equalTo(expectedQuery));
     }
 
     @Test
     public void testSearch_IndexedTemplate() throws Exception {
-        PutIndexedScriptRequest indexedScriptRequest = client().preparePutIndexedScript("mustache","test-script", TEMPLATE_QUERY).request();
+        PutIndexedScriptRequest indexedScriptRequest = client().preparePutIndexedScript("mustache","test-template", TEMPLATE_QUERY).request();
         assertThat(client().putIndexedScript(indexedScriptRequest).actionGet().isCreated(), is(true));
-
-        ScriptService.ScriptType scriptType = ScriptService.ScriptType.INDEXED;
 
         Map<String, Object> params = new HashMap<>();
         params.put("seconds_param", "30s");
 
+        BytesReference templateSource = jsonBuilder()
+                .value(Template.indexed("test-template").params(params).build())
+                .bytes();
         SearchRequest request = client()
                 .prepareSearch()
                 .setSearchType(ExecutableSearchInput.DEFAULT_SEARCH_TYPE)
                 .setIndices("test-search-index")
-                .setTemplateName("test-script")
-                .setTemplateParams(params)
-                .setTemplateType(scriptType)
+                .setTemplateSource(templateSource)
                 .request();
 
-        executeSearchInput(request);
-        //This will fail if templating fails
+        SearchInput.Result executedResult = executeSearchInput(request);
+        assertThat(executedResult.executedRequest().templateSource().toUtf8(), startsWith("{\"template\":{\"id\":\"test-template\""));
     }
 
     @Test
     public void testSearch_OndiskTemplate() throws Exception {
-        ScriptService.ScriptType scriptType = ScriptService.ScriptType.FILE;
-
         Map<String, Object> params = new HashMap<>();
         params.put("seconds_param", "30s");
 
+        BytesReference templateSource = jsonBuilder()
+                .value(Template.file("test_disk_template").params(params).build())
+                .bytes();
         SearchRequest request = client()
                 .prepareSearch()
                 .setSearchType(ExecutableSearchInput.DEFAULT_SEARCH_TYPE)
                 .setIndices("test-search-index")
-                .setTemplateName("test_disk_template")
-                .setTemplateParams(params)
-                .setTemplateType(scriptType)
+                .setTemplateSource(templateSource)
                 .request();
 
-        executeSearchInput(request).executedRequest();
+        SearchInput.Result executedResult = executeSearchInput(request);
+        assertThat(executedResult.executedRequest().templateSource().toUtf8(), startsWith("{\"template\":{\"file\":\"test_disk_template\""));
     }
 
     @Test
@@ -189,9 +188,7 @@ public class SearchInputTests extends ElasticsearchIntegrationTest {
                 .request()
                 .source(searchSourceBuilder);
 
-        ExecutableSearchInput searchInput = new ExecutableSearchInput(new SearchInput(request, null), logger,
-                ScriptServiceProxy.of(internalCluster().getInstance(ScriptService.class)),
-                ClientProxy.of(client()));
+        ExecutableSearchInput searchInput = new ExecutableSearchInput(new SearchInput(request, null), logger, ClientProxy.of(client()));
         WatchExecutionContext ctx = new TriggeredExecutionContext(
                 new Watch("test-watch",
                         new ClockMock(),
@@ -227,9 +224,7 @@ public class SearchInputTests extends ElasticsearchIntegrationTest {
         XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes());
         parser.nextToken();
 
-        SearchInputFactory factory = new SearchInputFactory(ImmutableSettings.EMPTY,
-                ScriptServiceProxy.of(internalCluster().getInstance(ScriptService.class)),
-                ClientProxy.of(client()));
+        SearchInputFactory factory = new SearchInputFactory(ImmutableSettings.EMPTY, ClientProxy.of(client()));
 
         SearchInput searchInput = factory.parseInput("_id", parser);
         assertEquals(SearchInput.TYPE, searchInput.type());
@@ -247,9 +242,7 @@ public class SearchInputTests extends ElasticsearchIntegrationTest {
         XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes());
         parser.nextToken();
 
-        SearchInputFactory factory = new SearchInputFactory(ImmutableSettings.EMPTY,
-                ScriptServiceProxy.of(internalCluster().getInstance(ScriptService.class)),
-                ClientProxy.of(client()));
+        SearchInputFactory factory = new SearchInputFactory(ImmutableSettings.EMPTY, ClientProxy.of(client()));
 
         factory.parseInput("_id", parser);
         fail("expected a SearchInputException as search type SCAN should not be supported");
@@ -257,9 +250,7 @@ public class SearchInputTests extends ElasticsearchIntegrationTest {
 
     @Test(expected = SearchInputException.class)
     public void testParser_Invalid() throws Exception {
-        SearchInputFactory factory = new SearchInputFactory(settingsBuilder().build(),
-                ScriptServiceProxy.of(internalCluster().getInstance(ScriptService.class)),
-                ClientProxy.of(client()));
+        SearchInputFactory factory = new SearchInputFactory(settingsBuilder().build(), ClientProxy.of(client()));
 
         Map<String, Object> data = new HashMap<>();
         data.put("foo", "bar");
@@ -297,9 +288,7 @@ public class SearchInputTests extends ElasticsearchIntegrationTest {
         WatcherUtils.writeSearchRequest(request, jsonBuilder, ToXContent.EMPTY_PARAMS);
         jsonBuilder.endObject();
 
-        SearchInputFactory factory = new SearchInputFactory(settingsBuilder().build(),
-                ScriptServiceProxy.of(internalCluster().getInstance(ScriptService.class)),
-                ClientProxy.of(client()));
+        SearchInputFactory factory = new SearchInputFactory(settingsBuilder().build(), ClientProxy.of(client()));
 
         XContentParser parser = JsonXContent.jsonXContent.createParser(jsonBuilder.bytes());
         parser.nextToken();
@@ -319,9 +308,7 @@ public class SearchInputTests extends ElasticsearchIntegrationTest {
 
         SearchInput si = siBuilder.build();
 
-        ExecutableSearchInput searchInput = new ExecutableSearchInput(si, logger,
-                ScriptServiceProxy.of(internalCluster().getInstance(ScriptService.class)),
-                ClientProxy.of(client()));
+        ExecutableSearchInput searchInput = new ExecutableSearchInput(si, logger, ClientProxy.of(client()));
         WatchExecutionContext ctx = new TriggeredExecutionContext(
                 new Watch("test-watch",
                         new ClockMock(),

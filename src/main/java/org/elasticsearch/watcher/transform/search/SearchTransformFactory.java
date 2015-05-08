@@ -20,13 +20,11 @@ import java.io.IOException;
  */
 public class SearchTransformFactory extends TransformFactory<SearchTransform, SearchTransform.Result, ExecutableSearchTransform> {
 
-    protected final ScriptServiceProxy scriptService;
     protected final ClientProxy client;
 
     @Inject
-    public SearchTransformFactory(Settings settings, ScriptServiceProxy scriptService, ClientProxy client) {
+    public SearchTransformFactory(Settings settings, ClientProxy client) {
         super(Loggers.getLogger(ExecutableSearchTransform.class, settings));
-        this.scriptService = scriptService;
         this.client = client;
     }
 
@@ -47,6 +45,6 @@ public class SearchTransformFactory extends TransformFactory<SearchTransform, Se
 
     @Override
     public ExecutableSearchTransform createExecutable(SearchTransform transform) {
-        return new ExecutableSearchTransform(transform, transformLogger, scriptService, client);
+        return new ExecutableSearchTransform(transform, transformLogger, client);
     }
 }

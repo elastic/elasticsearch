@@ -17,10 +17,10 @@ import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.watcher.input.search.ExecutableSearchInput;
+import org.elasticsearch.watcher.support.template.Template;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -106,16 +106,20 @@ public class WatcherUtilsTests extends ElasticsearchTestCase {
         expectedRequest.source(expectedSource);
 
         if (randomBoolean()) {
-            expectedRequest.templateName(randomAsciiOfLengthBetween(1, 5));
-            expectedRequest.templateType(randomFrom(ScriptService.ScriptType.values()));
+            Map<String, Object> params = new HashMap<>();
             if (randomBoolean()) {
-                Map<String, Object> params = new HashMap<>();
                 int maxParams = randomIntBetween(1, 10);
                 for (int i = 0; i < maxParams; i++) {
                     params.put(randomAsciiOfLengthBetween(1, 5), randomAsciiOfLengthBetween(1, 5));
                 }
-                expectedRequest.templateParams(params);
             }
+            String text = randomAsciiOfLengthBetween(1, 5);
+            Template template = randomFrom(
+                    Template.inline(text).params(params).build(),
+                    Template.file(text).params(params).build(),
+                    Template.indexed(text).params(params).build()
+            );
+            expectedRequest.templateSource(jsonBuilder().startObject().field("template", template).endObject().bytes(), false);
         }
 
         XContentBuilder builder = jsonBuilder();
@@ -129,9 +133,7 @@ public class WatcherUtilsTests extends ElasticsearchTestCase {
         assertThat(result.indicesOptions(), equalTo(expectedRequest.indicesOptions()));
         assertThat(result.searchType(), equalTo(expectedRequest.searchType()));
         assertThat(result.source().toUtf8(), equalTo(expectedSource));
-        assertThat(result.templateName(), equalTo(expectedRequest.templateName()));
-        assertThat(result.templateType(), equalTo(expectedRequest.templateType()));
-        assertThat(result.templateParams(), equalTo(expectedRequest.templateParams()));
+        assertThat(result.templateSource(), equalTo(expectedRequest.templateSource()));
     }
 
     @Test @Repeat(iterations = 100)
@@ -187,28 +189,23 @@ public class WatcherUtilsTests extends ElasticsearchTestCase {
             builder.rawField("body", source);
         }
 
-        String templateName = null;
-        ScriptService.ScriptType templateType = null;
-        Map<String, Object> templateParams = Collections.emptyMap();
+        BytesReference templateSource = null;
         if (randomBoolean()) {
-            builder.startObject("template");
+            Map<String, Object> params = new HashMap<>();
             if (randomBoolean()) {
-                templateName = randomAsciiOfLengthBetween(1, 5);
-                builder.field("name", templateName);
-            }
-            if (randomBoolean()) {
-                templateType = randomFrom(ScriptService.ScriptType.values());
-                builder.field("type", randomBoolean() ? templateType.name() : templateType.name().toLowerCase(Locale.ROOT));
-            }
-            if (randomBoolean()) {
-                templateParams = new HashMap<>();
                 int maxParams = randomIntBetween(1, 10);
                 for (int i = 0; i < maxParams; i++) {
-                    templateParams.put(randomAsciiOfLengthBetween(1, 5), randomAsciiOfLengthBetween(1, 5));
+                    params.put(randomAsciiOfLengthBetween(1, 5), randomAsciiOfLengthBetween(1, 5));
                 }
-                builder.field("params", templateParams);
             }
-            builder.endObject();
+            String text = randomAsciiOfLengthBetween(1, 5);
+            Template template = randomFrom(
+                    Template.inline(text).params(params).build(),
+                    Template.file(text).params(params).build(),
+                    Template.indexed(text).params(params).build()
+            );
+            builder.field("template", template);
+            templateSource = jsonBuilder().value(template).bytes();
         }
 
         XContentParser parser = XContentHelper.createParser(builder.bytes());
@@ -220,9 +217,7 @@ public class WatcherUtilsTests extends ElasticsearchTestCase {
         assertThat(result.indicesOptions(), equalTo(indicesOptions));
         assertThat(result.searchType(), equalTo(searchType));
         assertThat(result.source(), equalTo(source));
-        assertThat(result.templateName(), equalTo(templateName));
-        assertThat(result.templateType(), equalTo(templateType));
-        assertThat(result.templateParams(), equalTo(templateParams));
+        assertThat(result.templateSource(), equalTo(templateSource));
     }
 
 }

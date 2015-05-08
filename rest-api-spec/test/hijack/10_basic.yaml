@@ -28,6 +28,11 @@
 
   - do:
       catch: /not supported/
+      indices.delete:
+          index: ".watches"
+
+  - do:
+      catch: /not supported/
       update:
           index: ".watches"
           type: "watch"

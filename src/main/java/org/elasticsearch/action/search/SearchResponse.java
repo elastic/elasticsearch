@@ -25,6 +25,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.facet.Facets;
@@ -165,15 +166,6 @@ public class SearchResponse extends ActionResponse implements StatusToXContent {
 
     static final class Fields {
         static final XContentBuilderString _SCROLL_ID = new XContentBuilderString("_scroll_id");
-        static final XContentBuilderString _SHARDS = new XContentBuilderString("_shards");
-        static final XContentBuilderString TOTAL = new XContentBuilderString("total");
-        static final XContentBuilderString SUCCESSFUL = new XContentBuilderString("successful");
-        static final XContentBuilderString FAILED = new XContentBuilderString("failed");
-        static final XContentBuilderString FAILURES = new XContentBuilderString("failures");
-        static final XContentBuilderString STATUS = new XContentBuilderString("status");
-        static final XContentBuilderString INDEX = new XContentBuilderString("index");
-        static final XContentBuilderString SHARD = new XContentBuilderString("shard");
-        static final XContentBuilderString REASON = new XContentBuilderString("reason");
         static final XContentBuilderString TOOK = new XContentBuilderString("took");
         static final XContentBuilderString TIMED_OUT = new XContentBuilderString("timed_out");
         static final XContentBuilderString TERMINATED_EARLY = new XContentBuilderString("terminated_early");
@@ -189,35 +181,9 @@ public class SearchResponse extends ActionResponse implements StatusToXContent {
         if (isTerminatedEarly() != null) {
             builder.field(Fields.TERMINATED_EARLY, isTerminatedEarly());
         }
-        builder.startObject(Fields._SHARDS);
-        builder.field(Fields.TOTAL, getTotalShards());
-        builder.field(Fields.SUCCESSFUL, getSuccessfulShards());
-        builder.field(Fields.FAILED, getFailedShards());
-
-        if (shardFailures.length > 0) {
-            builder.startArray(Fields.FAILURES);
-            for (ShardSearchFailure shardFailure : shardFailures) {
-                builder.startObject();
-                if (shardFailure.shard() != null) {
-                    builder.field(Fields.INDEX, shardFailure.shard().index());
-                    builder.field(Fields.SHARD, shardFailure.shard().shardId());
-                }
-                builder.field(Fields.STATUS, shardFailure.status().getStatus());
-                builder.field(Fields.REASON, shardFailure.reason());
-                builder.endObject();
-            }
-            builder.endArray();
-        }
-
-        builder.endObject();
+        RestActions.buildBroadcastShardsHeader(builder, getTotalShards(), getSuccessfulShards(), getFailedShards(), getShardFailures());
         internalResponse.toXContent(builder, params);
         return builder;
-    }
-
-    public static SearchResponse readSearchResponse(StreamInput in) throws IOException {
-        SearchResponse response = new SearchResponse();
-        response.readFrom(in);
-        return response;
     }
 
     @Override

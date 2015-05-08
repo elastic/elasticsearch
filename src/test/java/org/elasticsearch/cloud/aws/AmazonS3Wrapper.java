@@ -258,6 +258,26 @@ public class AmazonS3Wrapper implements AmazonS3 {
     }
 
     @Override
+    public void setBucketReplicationConfiguration(String bucketName, BucketReplicationConfiguration configuration) throws AmazonServiceException, AmazonClientException {
+        delegate.setBucketReplicationConfiguration(bucketName, configuration);
+    }
+
+    @Override
+    public void setBucketReplicationConfiguration(SetBucketReplicationConfigurationRequest setBucketReplicationConfigurationRequest) throws AmazonServiceException, AmazonClientException {
+        delegate.setBucketReplicationConfiguration(setBucketReplicationConfigurationRequest);
+    }
+
+    @Override
+    public BucketReplicationConfiguration getBucketReplicationConfiguration(String bucketName) throws AmazonServiceException, AmazonClientException {
+        return delegate.getBucketReplicationConfiguration(bucketName);
+    }
+
+    @Override
+    public void deleteBucketReplicationConfiguration(String bucketName) throws AmazonServiceException, AmazonClientException {
+        delegate.deleteBucketReplicationConfiguration(bucketName);
+    }
+
+    @Override
     public PutObjectResult putObject(PutObjectRequest putObjectRequest) throws AmazonClientException, AmazonServiceException {
         return delegate.putObject(putObjectRequest);
     }

@@ -83,7 +83,7 @@ The following table lists all the attributes that can be used with the
 [cols="<,<",options="header",]
 |=======================================================================
 |Attribute |Description
-|`index_name` |The name of the field that will be stored in the index.
+|`index_name` |deprecated[1.5.0,Use <<copy-to,`copy_to`>> instead] The name of the field that will be stored in the index.
 Defaults to the property/field name.
 
 |`store` |Set to `true` to actually store the field in the index, `false` to not
@@ -203,7 +203,7 @@ PUT my_index/_mapping/my_type
 
 Please however note that norms won't be removed instantly, but will be removed
 as old segments are merged into new segments as you continue indexing new documents.
-Any score computation on a field that has had 
+Any score computation on a field that has had
 norms removed might return inconsistent results since some documents won't have
 norms anymore while other documents might still have norms.
 
@@ -241,7 +241,7 @@ numbered type:
 |`type` |The type of the number. Can be `float`, `double`, `integer`,
 `long`, `short`, `byte`. Required.
 
-|`index_name` |The name of the field that will be stored in the index.
+|`index_name` |deprecated[1.5.0,Use <<copy-to,`copy_to`>> instead] The name of the field that will be stored in the index.
 Defaults to the property/field name.
 
 |`store` |Set to `true` to store actual field in the index, `false` to not
@@ -348,7 +348,7 @@ date type:
 [cols="<,<",options="header",]
 |=======================================================================
 |Attribute |Description
-|`index_name` |The name of the field that will be stored in the index.
+|`index_name` |deprecated[1.5.0,Use <<copy-to,`copy_to`>> instead] The name of the field that will be stored in the index.
 Defaults to the property/field name.
 
 |`format` |The <<mapping-date-format,date
@@ -417,7 +417,7 @@ boolean type:
 [cols="<,<",options="header",]
 |=======================================================================
 |Attribute |Description
-|`index_name` |The name of the field that will be stored in the index.
+|`index_name` |deprecated[1.5.0,Use <<copy-to,`copy_to`>> instead] The name of the field that will be stored in the index.
 Defaults to the property/field name.
 
 |`store` |Set to `true` to store actual field in the index, `false` to not
@@ -464,8 +464,8 @@ binary type:
 
 `index_name`::
 
-    The name of the field that will be stored in the index. Defaults to the
-    property/field name.
+    deprecated[1.5.0,Use <<copy-to,`copy_to`>> instead] The name of the field that will be stored in the index.
+    Defaults to the property/field name.
 
 `store`::
 

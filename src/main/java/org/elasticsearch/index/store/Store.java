@@ -1079,6 +1079,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
 
         synchronized void writeChecksums(Directory directory, Map<String, String> checksums, long lastVersion) throws IOException {
             long nextVersion = System.currentTimeMillis();
+            // TODO: this scary ... what if time slips backwards by 1 hour?  Do we spin here for an hour?
             while (nextVersion <= lastVersion) {
                 nextVersion = System.currentTimeMillis();
             }

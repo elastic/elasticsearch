@@ -1149,7 +1149,7 @@ public class IndexShard extends AbstractIndexShardComponent {
     }
 
     private void doCheckIndex() throws IndexShardException, IOException {
-        long time = System.currentTimeMillis();
+        long timeNS = System.nanoTime();
         if (!Lucene.indexExists(store.directory())) {
             return;
         }
@@ -1208,7 +1208,7 @@ public class IndexShard extends AbstractIndexShardComponent {
             logger.debug("check index [success]\n{}", new String(os.bytes().toBytes(), Charsets.UTF_8));
         }
 
-        recoveryState.getVerifyIndex().checkIndexTime(Math.max(0, System.currentTimeMillis() - time));
+        recoveryState.getVerifyIndex().checkIndexTime(Math.max(0, TimeValue.nsecToMSec(System.nanoTime() - timeNS)));
     }
 
     public Engine engine() {

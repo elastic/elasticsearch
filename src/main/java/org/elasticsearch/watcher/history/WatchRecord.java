@@ -131,8 +131,8 @@ public class WatchRecord implements ToXContent {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(Parser.WATCH_ID_FIELD.getPreferredName(), watchId);
-        builder.startObject(Parser.TRIGGER_EVENT_FIELD.getPreferredName())
+        builder.field(Field.WATCH_ID.getPreferredName(), watchId);
+        builder.startObject(Field.TRIGGER_EVENT.getPreferredName())
                 .field(triggerEvent.type(), triggerEvent, params)
                 .endObject();
         builder.startObject(Watch.Parser.INPUT_FIELD.getPreferredName())
@@ -141,17 +141,17 @@ public class WatchRecord implements ToXContent {
         builder.startObject(Watch.Parser.CONDITION_FIELD.getPreferredName())
                 .field(condition.type(), condition, params)
                 .endObject();
-        builder.field(Parser.STATE_FIELD.getPreferredName(), state.id());
+        builder.field(Field.STATE.getPreferredName(), state.id());
 
         if (message != null) {
-            builder.field(Parser.MESSAGE_FIELD.getPreferredName(), message);
+            builder.field(Field.MESSAGE.getPreferredName(), message);
         }
         if (metadata != null) {
-            builder.field(Parser.METADATA_FIELD.getPreferredName(), metadata);
+            builder.field(Field.METADATA.getPreferredName(), metadata);
         }
 
         if (execution != null) {
-            builder.field(Parser.WATCH_EXECUTION_FIELD.getPreferredName(), execution, params);
+            builder.field(Field.EXECUTION_RESULT.getPreferredName(), execution, params);
         }
 
         builder.endObject();
@@ -209,13 +209,6 @@ public class WatchRecord implements ToXContent {
 
     public static class Parser extends AbstractComponent {
 
-        public static final ParseField WATCH_ID_FIELD = new ParseField("watch_id");
-        public static final ParseField TRIGGER_EVENT_FIELD = new ParseField("trigger_event");
-        public static final ParseField MESSAGE_FIELD = new ParseField("message");
-        public static final ParseField STATE_FIELD = new ParseField("state");
-        public static final ParseField METADATA_FIELD = new ParseField("metadata");
-        public static final ParseField WATCH_EXECUTION_FIELD = new ParseField("watch_execution");
-
         private final ConditionRegistry conditionRegistry;
         private final ActionRegistry actionRegistry;
         private final InputRegistry inputRegistry;
@@ -257,21 +250,21 @@ public class WatchRecord implements ToXContent {
                         record.input = inputRegistry.parse(id, parser);
                     } else if (Watch.Parser.CONDITION_FIELD.match(currentFieldName)) {
                         record.condition = conditionRegistry.parseCondition(id, parser);
-                    } else if (METADATA_FIELD.match(currentFieldName)) {
+                    } else if (Field.METADATA.match(currentFieldName)) {
                         record.metadata = parser.map();
-                    } else if (WATCH_EXECUTION_FIELD.match(currentFieldName)) {
+                    } else if (Field.EXECUTION_RESULT.match(currentFieldName)) {
                         record.execution = WatchExecutionResult.Parser.parse(record.id, parser, conditionRegistry, actionRegistry, inputRegistry, transformRegistry);
-                    } else if (TRIGGER_EVENT_FIELD.match(currentFieldName)) {
+                    } else if (Field.TRIGGER_EVENT.match(currentFieldName)) {
                         record.triggerEvent = triggerService.parseTriggerEvent(record.watchId, id, parser);
                     } else {
                         throw new WatcherException("could not parse watch record [{}]. unexpected field [{}]", id, currentFieldName);
                     }
                 } else if (token.isValue()) {
-                    if (WATCH_ID_FIELD.match(currentFieldName)) {
+                    if (Field.WATCH_ID.match(currentFieldName)) {
                         record.watchId = parser.text();
-                    } else if (MESSAGE_FIELD.match(currentFieldName)) {
+                    } else if (Field.MESSAGE.match(currentFieldName)) {
                         record.message = parser.textOrNull();
-                    } else if (STATE_FIELD.match(currentFieldName)) {
+                    } else if (Field.STATE.match(currentFieldName)) {
                         record.state = State.resolve(parser.text());
                     } else {
                         throw new WatcherException("could not parse watch record [{}]. unexpected field [{}]", id, currentFieldName);
@@ -289,5 +282,14 @@ public class WatchRecord implements ToXContent {
 
             return record;
         }
+    }
+
+    public interface Field {
+        ParseField WATCH_ID = new ParseField("watch_id");
+        ParseField TRIGGER_EVENT = new ParseField("trigger_event");
+        ParseField MESSAGE = new ParseField("message");
+        ParseField STATE = new ParseField("state");
+        ParseField METADATA = new ParseField("metadata");
+        ParseField EXECUTION_RESULT = new ParseField("execution_result");
     }
 }

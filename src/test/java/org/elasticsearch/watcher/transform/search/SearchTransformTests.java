@@ -69,8 +69,21 @@ public class SearchTransformTests extends ElasticsearchIntegrationTest {
     @Override
     public Settings nodeSettings(int nodeOrdinal) {
         //Set path so ScriptService will pick up the test scripts
-        return settingsBuilder().put(super.nodeSettings(nodeOrdinal))
+        return settingsBuilder()
+                .put(super.nodeSettings(nodeOrdinal))
                 .put("path.conf", this.getResource("config").getPath()).build();
+    }
+
+    @Override
+    public Settings indexSettings() {
+        return settingsBuilder()
+                .put(super.indexSettings())
+
+                // we have to test this on an index that has at least 2 shards. Otherwise when searching indices with
+                // a single shard the QUERY_THEN_FETCH search type will change to QUERY_AND_FETCH during execution.
+                .put("index.number_of_shards", randomIntBetween(2, 5))
+
+                .build();
     }
 
     @Test
@@ -127,8 +140,6 @@ public class SearchTransformTests extends ElasticsearchIntegrationTest {
         // - when replaced correctly, the search should return document 3.
         //
         // we then do a search for document 3, and compare the response to the payload returned by the transform
-
-
 
         index("idx", "type", "1", doc("2015-01-01T00:00:00", "val_1"));
         index("idx", "type", "2", doc("2015-01-02T00:00:00", "val_2"));
@@ -323,24 +334,26 @@ public class SearchTransformTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testDifferentSearchType() throws Exception {
-        SearchSourceBuilder searchSourceBuilder = searchSource().query(
-                filteredQuery(matchQuery("event_type", "a"), rangeFilter("_timestamp").from("{{ctx.trigger.scheduled_time}}||-30s").to("{{ctx.trigger.triggered_time}}"))
-        );
-        SearchType searchType = getRandomSupportedSearchType();
+        SearchSourceBuilder searchSourceBuilder = searchSource().query(filteredQuery(
+                matchQuery("event_type", "a"),
+                rangeFilter("_timestamp")
+                        .from("{{ctx.trigger.scheduled_time}}||-30s")
+                        .to("{{ctx.trigger.triggered_time}}")));
+
+        final SearchType searchType = getRandomSupportedSearchType();
         SearchRequest request = client()
-                .prepareSearch()
+                .prepareSearch("test-search-index")
                 .setSearchType(searchType)
-                .setIndices("test-search-index")
                 .request()
                 .source(searchSourceBuilder);
 
         SearchTransform.Result result = executeSearchTransform(request);
 
         assertThat((Integer) XContentMapValues.extractValue("hits.total", result.payload().data()), equalTo(0));
-        assertNotNull(result.executedRequest());
-        assertEquals(result.executedRequest().searchType(), searchType);
-        assertArrayEquals(result.executedRequest().indices(), request.indices());
-        assertEquals(result.executedRequest().indicesOptions(), request.indicesOptions());
+        assertThat(result.executedRequest(), notNullValue());
+        assertThat(result.executedRequest().searchType(), is(searchType));
+        assertThat(result.executedRequest().indices(), arrayContainingInAnyOrder(request.indices()));
+        assertThat(result.executedRequest().indicesOptions(), equalTo(request.indicesOptions()));
     }
 
     @Test

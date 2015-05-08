@@ -6,9 +6,13 @@
 package org.elasticsearch.watcher.actions;
 
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.watcher.execution.Wid;
 import org.elasticsearch.watcher.transform.ExecutableTransform;
@@ -17,6 +21,8 @@ import org.elasticsearch.watcher.transform.TransformRegistry;
 import org.elasticsearch.watcher.watch.Payload;
 
 import java.io.IOException;
+
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
 /**
  *
@@ -174,6 +180,7 @@ public class ActionWrapper implements ToXContent {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
+            builder.field(Field.ID.getPreferredName(), id);
             if (transform != null) {
                 builder.startObject(Transform.Field.TRANSFORM_RESULT.getPreferredName())
                         .field(transform.type(), transform, params)
@@ -183,35 +190,70 @@ public class ActionWrapper implements ToXContent {
             return builder.endObject();
         }
 
-        static Result parse(Wid wid, String actionId, XContentParser parser, ActionRegistry actionRegistry, TransformRegistry transformRegistry) throws IOException {
+        static Result parse(Wid wid, XContentParser parser, ActionRegistry actionRegistry, TransformRegistry transformRegistry) throws IOException {
             assert parser.currentToken() == XContentParser.Token.START_OBJECT;
 
+            String id = null;
             Transform.Result transformResult = null;
-            Action.Result actionResult = null;
+            ActionFactory actionFactory = null;
+            BytesReference actionResultSource = null;
 
             String currentFieldName = null;
             XContentParser.Token token;
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
-                } else {
-                    if (Transform.Field.TRANSFORM.match(currentFieldName)) {
-                        transformResult = transformRegistry.parseResult(wid.watchId(), parser);
+                } else if (Transform.Field.TRANSFORM.match(currentFieldName)) {
+                    transformResult = transformRegistry.parseResult(wid.watchId(), parser);
+                } else if (Field.ID.match(currentFieldName)) {
+                    if (token == XContentParser.Token.VALUE_STRING) {
+                        id = parser.text();
                     } else {
-                        // it's the type of the action
-                        ActionFactory actionFactory = actionRegistry.factory(currentFieldName);
-                        if (actionFactory == null) {
-                            throw new ActionException("could not parse action result [{}/{}]. unknown action type [{}]", wid, actionId, currentFieldName);
-                        }
-                        actionResult = actionFactory.parseResult(wid, actionId, parser);
+                        throw new ActionException("could not parse action result for watch [{}]. expected a string value for [{}] but found [{}] instead", wid, currentFieldName, token);
                     }
+                } else {
+
+                    // it's the type of the action
+
+                    // here we don't directly parse the action type. instead we'll collect
+                    // the bytes of the structure that makes the action result. The reason
+                    // for this is that we want to make sure to pass the action id to the
+                    // action factory when we parse the result (so that error messages will
+                    // point to the action result that failed to parse). It's an overhead,
+                    // but for worth it for usability purposes.
+
+                    actionFactory = actionRegistry.factory(currentFieldName);
+                    if (actionFactory == null) {
+                        throw new ActionException("could not parse action result for watch [{}]. unknown action type [{}]", wid, currentFieldName);
+                    }
+
+                    // it would have been nice if we had access to the underlying byte offset
+                    // of the parser... but for now we'll just need to create a new json
+                    // builder with its own (new) byte array and copy over the content.
+                    XContentBuilder resultBuilder = jsonBuilder();
+                    XContentHelper.copyCurrentStructure(resultBuilder.generator(), parser);
+                    actionResultSource = resultBuilder.bytes();
                 }
             }
-            if (actionResult == null) {
-                throw new ActionException("could not parse watch action result [{}/{}]. missing action result type", wid, actionId);
+
+            if (id == null) {
+                throw new ActionException("could not parse watch action result for watch [{}]. missing required [{}] field", wid, Field.ID.getPreferredName());
             }
-            return new Result(actionId, transformResult, actionResult);
+
+            if (actionFactory == null) {
+                throw new ActionException("could not parse watch action result for watch [{}]. missing action result type", wid);
+            }
+
+            assert actionResultSource != null : "if we parsed the type name we must have collected the type bytes";
+
+            parser = JsonXContent.jsonXContent.createParser(actionResultSource);
+            parser.nextToken();
+            Action.Result actionResult = actionFactory.parseResult(wid, id, parser);
+            return new Result(id, transformResult, actionResult);
         }
     }
 
+    interface Field {
+        ParseField ID = new ParseField("id");
+    }
 }

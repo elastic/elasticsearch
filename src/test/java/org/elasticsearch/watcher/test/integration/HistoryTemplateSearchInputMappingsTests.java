@@ -5,30 +5,23 @@
  */
 package org.elasticsearch.watcher.test.integration;
 
-import com.squareup.okhttp.mockwebserver.MockResponse;
-import com.squareup.okhttp.mockwebserver.MockWebServer;
-import com.squareup.okhttp.mockwebserver.QueueDispatcher;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.watcher.history.HistoryStore;
 import org.elasticsearch.watcher.history.WatchRecord;
-import org.elasticsearch.watcher.support.http.HttpRequestTemplate;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
 import org.elasticsearch.watcher.transport.actions.put.PutWatchResponse;
-import org.junit.After;
-import org.junit.Before;
 import org.junit.Test;
-
-import java.net.BindException;
 
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
-import static org.elasticsearch.watcher.actions.ActionBuilders.webhookAction;
+import static org.elasticsearch.watcher.actions.ActionBuilders.loggingAction;
 import static org.elasticsearch.watcher.client.WatchSourceBuilders.watchBuilder;
 import static org.elasticsearch.watcher.condition.ConditionBuilders.alwaysCondition;
-import static org.elasticsearch.watcher.input.InputBuilders.httpInput;
+import static org.elasticsearch.watcher.input.InputBuilders.searchInput;
 import static org.elasticsearch.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.watcher.trigger.schedule.Schedules.interval;
 import static org.hamcrest.Matchers.is;
@@ -38,32 +31,7 @@ import static org.hamcrest.Matchers.notNullValue;
  * This test makes sure that the http host and path fields in the watch_record action result are
  * not analyzed so they can be used in aggregations
  */
-public class HistoryTemplateHttpMappingsTests extends AbstractWatcherIntegrationTests {
-
-    private int webPort;
-    private MockWebServer webServer;
-
-    @Before
-    public void init() throws Exception {
-        for (webPort = 9200; webPort < 9300; webPort++) {
-            try {
-                webServer = new MockWebServer();
-                QueueDispatcher dispatcher = new QueueDispatcher();
-                dispatcher.setFailFast(true);
-                webServer.setDispatcher(dispatcher);
-                webServer.start(webPort);
-                return;
-            } catch (BindException be) {
-                logger.warn("port [{}] was already in use trying next port", webPort);
-            }
-        }
-        throw new ElasticsearchException("unable to find open port between 9200 and 9300");
-    }
-
-    @After
-    public void cleanup() throws Exception {
-        webServer.shutdown();
-    }
+public class HistoryTemplateSearchInputMappingsTests extends AbstractWatcherIntegrationTests {
 
     @Override
     protected boolean timeWarped() {
@@ -77,17 +45,19 @@ public class HistoryTemplateHttpMappingsTests extends AbstractWatcherIntegration
 
     @Test
     public void testHttpFields() throws Exception {
+        String index = "the-index";
+        String type = "the-type";
+        createIndex(index);
+        index(index, type, "{}");
+        flush();
+        refresh();
+
         PutWatchResponse putWatchResponse = watcherClient().preparePutWatch("_id").setSource(watchBuilder()
                 .trigger(schedule(interval("5s")))
-                .input(httpInput(HttpRequestTemplate.builder("localhost", webPort).path("/input/path")))
+                .input(searchInput(new SearchRequest().indices(index).types(type).searchType(SearchType.QUERY_AND_FETCH)))
                 .condition(alwaysCondition())
-                .addAction("_webhook", webhookAction(HttpRequestTemplate.builder("localhost", webPort)
-                        .path("/webhook/path")
-                        .body("_body"))))
+                .addAction("logger", loggingAction("indexed")))
                 .get();
-
-
-        webServer.enqueue(new MockResponse().setResponseCode(200).setBody("{}"));
 
         assertThat(putWatchResponse.isCreated(), is(true));
         timeWarp().scheduler().trigger("_id");
@@ -98,9 +68,9 @@ public class HistoryTemplateHttpMappingsTests extends AbstractWatcherIntegration
         assertWatchWithMinimumActionsCount("_id", WatchRecord.State.EXECUTED, 1);
 
         SearchResponse response = client().prepareSearch(HistoryStore.INDEX_PREFIX + "*").setSource(searchSource()
-                .aggregation(terms("input_result_path").field("execution_result.input.http.sent_request.path"))
-                .aggregation(terms("input_result_host").field("execution_result.input.http.sent_request.host"))
-                .aggregation(terms("webhook_path").field("execution_result.actions.webhook.request.path"))
+                .aggregation(terms("input_search_type").field("execution_result.input.search.executed_request.search_type"))
+                .aggregation(terms("input_indices").field("execution_result.input.search.executed_request.indices"))
+                .aggregation(terms("input_types").field("execution_result.input.search.executed_request.types"))
                 .buildAsBytes())
                 .get();
 
@@ -109,16 +79,22 @@ public class HistoryTemplateHttpMappingsTests extends AbstractWatcherIntegration
         Aggregations aggs = response.getAggregations();
         assertThat(aggs, notNullValue());
 
-        Terms terms = aggs.get("input_result_path");
+        Terms terms = aggs.get("input_search_type");
         assertThat(terms, notNullValue());
         assertThat(terms.getBuckets().size(), is(1));
-        assertThat(terms.getBucketByKey("/input/path"), notNullValue());
-        assertThat(terms.getBucketByKey("/input/path").getDocCount(), is(1L));
+        assertThat(terms.getBucketByKey("query_and_fetch"), notNullValue());
+        assertThat(terms.getBucketByKey("query_and_fetch").getDocCount(), is(1L));
 
-        terms = aggs.get("webhook_path");
+        terms = aggs.get("input_indices");
         assertThat(terms, notNullValue());
         assertThat(terms.getBuckets().size(), is(1));
-        assertThat(terms.getBucketByKey("/webhook/path"), notNullValue());
-        assertThat(terms.getBucketByKey("/webhook/path").getDocCount(), is(1L));
+        assertThat(terms.getBucketByKey(index), notNullValue());
+        assertThat(terms.getBucketByKey(index).getDocCount(), is(1L));
+
+        terms = aggs.get("input_types");
+        assertThat(terms, notNullValue());
+        assertThat(terms.getBuckets().size(), is(1));
+        assertThat(terms.getBucketByKey(type), notNullValue());
+        assertThat(terms.getBucketByKey(type).getDocCount(), is(1L));
     }
 }

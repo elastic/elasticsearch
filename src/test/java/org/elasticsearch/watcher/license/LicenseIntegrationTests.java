@@ -162,10 +162,9 @@ public class LicenseIntegrationTests extends AbstractWatcherIntegrationTests {
 
         // and last... lets verify that we have throttled watches due to license expiration
         long throttledCount = docCount(HistoryStore.INDEX_PREFIX + "*", HistoryStore.DOC_TYPE, filteredQuery(
-                matchQuery("watch_execution.throttle_reason", "watcher license expired"),
-                termFilter("watch_execution.throttled", true)));
+                matchQuery("execution_result.throttle_reason", "watcher license expired"),
+                termFilter("execution_result.throttled", true)));
         assertThat(throttledCount, is(1L));
-
 
         //=====
         // now... lets verify that all the watcher APIs are blocked when the license is disabled

@@ -81,6 +81,10 @@ public class SearchTransform implements Transform {
             this.executedRequest = executedRequest;
         }
 
+        public SearchRequest executedRequest() {
+            return executedRequest;
+        }
+
         @Override
         protected XContentBuilder xContentBody(XContentBuilder builder, Params params) throws IOException {
             builder.field(Field.EXECUTED_REQUEST.getPreferredName());
@@ -121,10 +125,6 @@ public class SearchTransform implements Transform {
             }
 
             return new SearchTransform.Result(executedRequest, payload);
-        }
-
-        public SearchRequest executedRequest() {
-            return executedRequest;
         }
     }
 

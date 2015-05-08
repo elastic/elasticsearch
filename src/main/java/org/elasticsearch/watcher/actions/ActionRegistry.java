@@ -53,15 +53,14 @@ public class ActionRegistry  {
     public ExecutableActions.Results parseResults(Wid wid, XContentParser parser) throws IOException {
         Map<String, ActionWrapper.Result> results = new HashMap<>();
 
-        String id = null;
+        if (parser.currentToken() != XContentParser.Token.START_ARRAY) {
+            throw new ActionException("could not parse action results for watch [{}]. expected an array of actions, but found [{}]", parser.currentToken());
+        }
+
         XContentParser.Token token;
-        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            if (token == XContentParser.Token.FIELD_NAME) {
-                id = parser.currentName();
-            } else if (token == XContentParser.Token.START_OBJECT && id != null) {
-                ActionWrapper.Result result = ActionWrapper.Result.parse(wid, id, parser, this, transformRegistry);
-                results.put(id, result);
-            }
+        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+            ActionWrapper.Result result = ActionWrapper.Result.parse(wid, parser, this, transformRegistry);
+            results.put(result.id(), result);
         }
         return new ExecutableActions.Results(results);
     }

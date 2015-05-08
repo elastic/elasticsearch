@@ -3,64 +3,56 @@
   "order": 2147483647,
   "settings": {
     "index.number_of_shards": 1,
-    "index.mapper.dynamic" : false
+    "index.mapper.dynamic": false
   },
   "mappings": {
     "watch_record": {
-      "dynamic_templates" : [
+      "dynamic_templates": [
         {
-          "email_not_analyzed_fields": {
-            "path_match": ".*\\.email\\.(from|to|cc|bcc|reply_to|id)",
-            "match_pattern" : "regex",
-            "match_mapping_type": "string",
+          "disabled_fields": {
+            "path_match": "execution_result\\.input\\..+\\.payload",
+            "match_pattern": "regex",
             "mapping": {
-              "type": "string",
-              "index": "not_analyzed"
-            }
-          }
-        },
-        {
-          "time_fields": {
-            "path_match": ".*(execution|triggered|scheduled)_time",
-            "match_pattern" : "regex",
-            "mapping": {
-              "type": "date"
-            }
-          }
-        },
-        {
-          "http_not_analyzed_fields": {
-            "path_match": "watch_execution\\.((actions_results\\..+\\.webhook\\.request)|input_result\\.http\\.sent_request)\\.(path|host)",
-            "match_pattern" : "regex",
-            "mapping": {
-              "type": "string",
-              "index": "not_analyzed"
-            }
-          }
-        },
-        {
-          "disabled_fields" : {
-            "path_match": "watch_execution\\.input_result\\..+\\.payload",
-            "match_pattern" : "regex",
-            "mapping": {
-              "type" : "object",
-              "enabled" : false
+              "type": "object",
+              "enabled": false
             }
           }
         }
       ],
-      "dynamic" : "strict",
-      "_all" : {
-        "enabled" : false
+      "dynamic": "strict",
+      "_all": {
+        "enabled": false
       },
       "properties": {
         "watch_id": {
           "type": "string",
           "index": "not_analyzed"
         },
-        "trigger_event" : {
-          "type" : "object",
-          "dynamic" : true
+        "trigger_event": {
+          "type": "object",
+          "dynamic": true,
+          "properties": {
+            "schedule": {
+              "type": "object",
+              "dynamic": true,
+              "properties": {
+                "triggered_time": {
+                  "type": "date"
+                },
+                "scheduled_time": {
+                  "type": "date"
+                }
+              }
+            }
+          }
+        },
+        "input": {
+          "type": "object",
+          "enabled": false
+        },
+        "condition": {
+          "type": "object",
+          "enabled": false
         },
         "state": {
           "type": "string",
@@ -69,20 +61,154 @@
         "message": {
           "type": "string"
         },
-        "condition" : {
-          "type" : "object",
-          "dynamic" : true
+        "execution_result": {
+          "type": "object",
+          "dynamic": true,
+          "properties": {
+            "execution_time": {
+              "type": "date"
+            },
+            "input": {
+              "type": "object",
+              "dynamic": true,
+              "properties": {
+                "search": {
+                  "type": "object",
+                  "dynamic": true,
+                  "properties": {
+                    "executed_request": {
+                      "type": "object",
+                      "dynamic": true,
+                      "properties": {
+                        "search_type": {
+                          "type": "string",
+                          "index": "not_analyzed"
+                        },
+                        "indices": {
+                          "type": "string",
+                          "index": "not_analyzed"
+                        },
+                        "types": {
+                          "type": "string",
+                          "index": "not_analyzed"
+                        }
+                      }
+                    }
+                  }
+                },
+                "http": {
+                  "type": "object",
+                  "dynamic": true,
+                  "properties": {
+                    "sent_request": {
+                      "type": "object",
+                      "dynamic": true,
+                      "properties": {
+                        "path": {
+                          "type": "string",
+                          "index": "not_analyzed"
+                        },
+                        "host": {
+                          "type": "string",
+                          "index": "not_analyzed"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "actions": {
+              "type": "nested",
+              "include_in_parent": true,
+              "dynamic": true,
+              "properties": {
+                "email": {
+                  "type": "object",
+                  "dynamic": true,
+                  "properties": {
+                    "email": {
+                      "type": "object",
+                      "dynamic": true,
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "index": "not_analyzed"
+                        },
+                        "from": {
+                          "type": "string",
+                          "index": "not_analyzed"
+                        },
+                        "reply_to": {
+                          "type": "string",
+                          "index": "not_analyzed"
+                        },
+                        "to": {
+                          "type": "string",
+                          "index": "not_analyzed"
+                        },
+                        "cc": {
+                          "type": "string",
+                          "index": "not_analyzed"
+                        },
+                        "bcc": {
+                          "type": "string",
+                          "index": "not_analyzed"
+                        }
+                      }
+                    }
+                  }
+                },
+                "webhook": {
+                  "type": "object",
+                  "dynamic": true,
+                  "properties": {
+                    "request": {
+                      "type": "object",
+                      "dynamic": true,
+                      "properties": {
+                        "path": {
+                          "type": "string",
+                          "index": "not_analyzed"
+                        },
+                        "host": {
+                          "type": "string",
+                          "index": "not_analyzed"
+                        }
+                      }
+                    }
+                  }
+                },
+                "index": {
+                  "type": "object",
+                  "dynamic": true,
+                  "properties": {
+                    "response": {
+                      "type": "object",
+                      "dynamic": true,
+                      "properties": {
+                        "_index": {
+                          "type": "string",
+                          "index": "not_analyzed"
+                        },
+                        "_type": {
+                          "type": "string",
+                          "index": "not_analyzed"
+                        },
+                        "_id": {
+                          "type": "string",
+                          "index": "not_analyzed"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
         },
-        "input" : {
-          "type" : "object",
-          "dynamic" : true
-        },
-        "watch_execution" : {
-          "type" : "object",
-          "dynamic" : true
-        },
-        "metadata" : {
-          "type" : "object",
+        "metadata": {
+          "type": "object",
           "dynamic": true
         }
       }

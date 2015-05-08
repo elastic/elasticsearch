@@ -21,7 +21,7 @@
               "script" : "ctx.payload.count == 1"
             },
             "actions" : {
-              "Logging" : {
+              "logging" : {
                 "logging" : {
                   "text" : "foobar"
                 }
@@ -44,7 +44,8 @@
           }
 
   - match: { "watch_id": "my_logging_watch" }
-  - match: { "watch_execution.condition_result.script.met": true }
+  - match: { "execution_result.condition.script.met": true }
   - match: { "state": "executed" }
-  - match: { "watch_execution.actions_results.Logging.logging.success" : true }
-  - match: { "watch_execution.actions_results.Logging.logging.logged_text" : "foobar" }
+  - match: { "execution_result.actions.0.id" : "logging" }
+  - match: { "execution_result.actions.0.logging.success" : true }
+  - match: { "execution_result.actions.0.logging.logged_text" : "foobar" }

@@ -32,6 +32,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.net.BindException;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.joda.time.DateTimeZone.UTC;
@@ -152,7 +153,7 @@ public class HttpSecretsIntegrationTests extends AbstractWatcherIntegrationTests
                 .get();
         assertThat(executeResponse, notNullValue());
         contentSource = executeResponse.getSource();
-        value = contentSource.getValue("watch_execution.input_result.http.http_status");
+        value = contentSource.getValue("execution_result.input.http.http_status");
         assertThat(value, notNullValue());
         assertThat(value, is((Object) 200));
 
@@ -224,13 +225,25 @@ public class HttpSecretsIntegrationTests extends AbstractWatcherIntegrationTests
                 .get();
         assertThat(executeResponse, notNullValue());
         contentSource = executeResponse.getSource();
-        value = contentSource.getValue("watch_execution.actions_results._webhook.webhook.response.status");
+
+        value = contentSource.getValue("execution_result.actions.webhook.response.status");
+        assertThat(value, instanceOf(List.class));
         assertThat(value, notNullValue());
-        assertThat(value, is((Object) 200));
-        value = contentSource.getValue("watch_execution.actions_results._webhook.webhook.request.auth.username");
-        assertThat(value, notNullValue()); // the auth username exists
-        value = contentSource.getValue("watch_execution.actions_results._webhook.webhook.request.auth.password");
-        assertThat(value, nullValue()); // but the auth password was filtered out
+        List<Number> values = (List<Number>) value;
+        assertThat(values, hasSize(1));
+        assertThat(values, hasItem(200));
+
+        value = contentSource.getValue("execution_result.actions.webhook.request.auth.username");
+        assertThat(value, notNullValue());
+        assertThat(value, instanceOf(List.class));
+        values = (List<Number>) value;
+        assertThat(values, hasSize(1)); // the auth username exists
+
+        value = contentSource.getValue("execution_result.actions.webhook.request.auth.password");
+        assertThat(value, notNullValue());
+        assertThat(value, instanceOf(List.class));
+        values = (List<Number>) value;
+        assertThat(values, hasSize(0)); // but the auth password was filtered out
 
         RecordedRequest request = webServer.takeRequest();
         assertThat(request.getHeader("Authorization"), equalTo(ApplicableBasicAuth.headerValue(USERNAME, PASSWORD.toCharArray())));

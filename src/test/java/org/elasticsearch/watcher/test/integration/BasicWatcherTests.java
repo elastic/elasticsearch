@@ -14,7 +14,6 @@ import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.watcher.WatcherException;
@@ -25,6 +24,7 @@ import org.elasticsearch.watcher.condition.ConditionBuilders;
 import org.elasticsearch.watcher.history.HistoryStore;
 import org.elasticsearch.watcher.support.WatcherUtils;
 import org.elasticsearch.watcher.support.template.Template;
+import org.elasticsearch.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
 import org.elasticsearch.watcher.transport.actions.delete.DeleteWatchResponse;
 import org.elasticsearch.watcher.transport.actions.get.GetWatchResponse;
@@ -36,8 +36,6 @@ import org.elasticsearch.watcher.trigger.schedule.support.MonthTimes;
 import org.elasticsearch.watcher.trigger.schedule.support.WeekTimes;
 import org.elasticsearch.watcher.watch.WatchStore;
 import org.junit.Test;
-
-import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.FilterBuilders.rangeFilter;
@@ -365,10 +363,8 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTests {
                 .setSize(1)
                 .get();
         assertHitCount(searchResponse, 1);
-        Map payload = (Map) ((Map)((Map)((Map) searchResponse.getHits().getAt(0).sourceAsMap().get("watch_execution")).get("input_result")).get("search")).get("payload");
-        assertThat(payload.size(), equalTo(1));
-        assertThat(((Map) payload.get("hits")).size(), equalTo(1));
-        assertThat((Integer) ((Map) payload.get("hits")).get("total"), equalTo(1));
+        XContentSource source = new XContentSource(searchResponse.getHits().getAt(0).getSourceRef());
+        assertThat(source.getValue("execution_result.input.search.payload.hits.total"), equalTo((Object) 1));
     }
 
     @Test

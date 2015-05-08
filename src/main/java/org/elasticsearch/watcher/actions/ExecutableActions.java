@@ -97,11 +97,11 @@ public class ExecutableActions implements Iterable<ActionWrapper>, ToXContent {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
+            builder.startArray();
             for (ActionWrapper.Result result : results.values()) {
-                builder.field(result.id(), result, params);
+                result.toXContent(builder, params);
             }
-            return builder.endObject();
+            return builder.endArray();
         }
     }
 }

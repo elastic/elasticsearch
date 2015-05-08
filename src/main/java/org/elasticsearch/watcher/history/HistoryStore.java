@@ -368,7 +368,7 @@ public class HistoryStore extends AbstractComponent implements NodeSettingsServi
 
     private SearchRequest createScanSearchRequest(WatchRecord.State recordState) {
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder()
-                .query(QueryBuilders.termQuery(WatchRecord.Parser.STATE_FIELD.getPreferredName(), recordState.id()))
+                .query(QueryBuilders.termQuery(WatchRecord.Field.STATE.getPreferredName(), recordState.id()))
                 .size(scrollSize)
                 .version(true);
 

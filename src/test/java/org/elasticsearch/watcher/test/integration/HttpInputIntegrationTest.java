@@ -17,12 +17,12 @@ import org.elasticsearch.watcher.history.HistoryStore;
 import org.elasticsearch.watcher.support.http.HttpRequestTemplate;
 import org.elasticsearch.watcher.support.http.auth.basic.BasicAuth;
 import org.elasticsearch.watcher.support.template.Template;
+import org.elasticsearch.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
 import org.elasticsearch.watcher.trigger.schedule.IntervalSchedule;
 import org.junit.Test;
 
 import java.net.InetSocketAddress;
-import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
@@ -146,10 +146,8 @@ public class HttpInputIntegrationTest extends AbstractWatcherIntegrationTests {
                 .setSize(1)
                 .get();
         assertHitCount(searchResponse, 1);
-        Map payload = (Map) ((Map)((Map)((Map) searchResponse.getHits().getAt(0).sourceAsMap().get("watch_execution")).get("input_result")).get("http")).get("payload");
-        assertThat(payload.size(), equalTo(1));
-        assertThat(((Map) payload.get("hits")).size(), equalTo(1));
-        assertThat((Integer) ((Map) payload.get("hits")).get("total"), equalTo(1));
+        XContentSource source = new XContentSource(searchResponse.getHits().getAt(0).getSourceRef());
+        assertThat(source.getValue("execution_result.input.http.payload.hits.total"), equalTo((Object) 1));
     }
 
 }

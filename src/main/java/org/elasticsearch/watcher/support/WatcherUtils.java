@@ -59,7 +59,8 @@ public final class WatcherUtils {
         SearchRequest request = new SearchRequest(requestPrototype)
                 .indicesOptions(requestPrototype.indicesOptions())
                 .searchType(requestPrototype.searchType())
-                .indices(requestPrototype.indices());
+                .indices(requestPrototype.indices())
+                .types(requestPrototype.types());
 
         // TODO: Revise this search template conversion code once search templates in core have been refactored once ES 2.0 is released.
         // Due the inconsistency with templates in ES 1.x, we maintain our own template format.

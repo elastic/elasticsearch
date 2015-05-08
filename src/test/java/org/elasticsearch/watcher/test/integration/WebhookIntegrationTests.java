@@ -26,6 +26,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.net.BindException;
+import java.util.List;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.watcher.client.WatchSourceBuilders.watchBuilder;
@@ -33,8 +34,7 @@ import static org.elasticsearch.watcher.condition.ConditionBuilders.alwaysCondit
 import static org.elasticsearch.watcher.input.InputBuilders.simpleInput;
 import static org.elasticsearch.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.watcher.trigger.schedule.Schedules.interval;
-import static org.hamcrest.Matchers.anyOf;
-import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.*;
 
 /**
  */
@@ -93,13 +93,17 @@ public class WebhookIntegrationTests extends AbstractWatcherIntegrationTests {
         assertThat(recordedRequest.getBody().readUtf8Line(), equalTo("{key=value}"));
 
         SearchResponse response = client().prepareSearch(HistoryStore.INDEX_PREFIX + "*")
-                .setQuery(QueryBuilders.termQuery(WatchRecord.Parser.STATE_FIELD.getPreferredName(), "executed"))
+                .setQuery(QueryBuilders.termQuery(WatchRecord.Field.STATE.getPreferredName(), "executed"))
                 .get();
 
         assertNoFailures(response);
         XContentSource source = new XContentSource(response.getHits().getAt(0).getSourceRef());
-        assertThat(source.getValue("watch_execution.actions_results._id.webhook.response.body"), equalTo((Object) "body"));
-        assertThat(source.getValue("watch_execution.actions_results._id.webhook.response.status"), equalTo((Object) 200));
+        List<String> bodies = source.getValue("execution_result.actions.webhook.response.body");
+        assertThat(bodies, notNullValue());
+        assertThat(bodies, hasItem("body"));
+        List<Number> statuses = source.getValue("execution_result.actions.webhook.response.status");
+        assertThat(statuses, notNullValue());
+        assertThat(statuses, hasItem(200));
     }
 
     @Test

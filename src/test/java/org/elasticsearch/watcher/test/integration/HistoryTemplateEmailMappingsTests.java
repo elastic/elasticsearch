@@ -102,11 +102,11 @@ public class HistoryTemplateEmailMappingsTests extends AbstractWatcherIntegratio
         assertWatchWithMinimumActionsCount("_id", WatchRecord.State.EXECUTED, 1);
 
         SearchResponse response = client().prepareSearch(HistoryStore.INDEX_PREFIX + "*").setSource(searchSource()
-                .aggregation(terms("from").field("watch_execution.actions_results._email.email.email.from"))
-                .aggregation(terms("to").field("watch_execution.actions_results._email.email.email.to"))
-                .aggregation(terms("cc").field("watch_execution.actions_results._email.email.email.cc"))
-                .aggregation(terms("bcc").field("watch_execution.actions_results._email.email.email.bcc"))
-                .aggregation(terms("reply_to").field("watch_execution.actions_results._email.email.email.reply_to"))
+                .aggregation(terms("from").field("execution_result.actions.email.email.from"))
+                .aggregation(terms("to").field("execution_result.actions.email.email.to"))
+                .aggregation(terms("cc").field("execution_result.actions.email.email.cc"))
+                .aggregation(terms("bcc").field("execution_result.actions.email.email.bcc"))
+                .aggregation(terms("reply_to").field("execution_result.actions.email.email.reply_to"))
                 .buildAsBytes())
                 .get();
 

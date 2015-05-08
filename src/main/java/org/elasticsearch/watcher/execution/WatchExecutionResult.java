@@ -13,7 +13,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.watcher.WatcherException;
 import org.elasticsearch.watcher.actions.ActionRegistry;
-import org.elasticsearch.watcher.actions.ActionWrapper;
 import org.elasticsearch.watcher.actions.ExecutableActions;
 import org.elasticsearch.watcher.condition.Condition;
 import org.elasticsearch.watcher.condition.ConditionRegistry;
@@ -80,21 +79,21 @@ public class WatchExecutionResult implements ToXContent {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        WatcherDateUtils.writeDate(Parser.EXECUTION_TIME_FIELD.getPreferredName(), builder, executionTime);
+        WatcherDateUtils.writeDate(Field.EXECUTION_TIME.getPreferredName(), builder, executionTime);
         if (inputResult != null) {
-            builder.startObject(Parser.INPUT_RESULT_FIELD.getPreferredName())
+            builder.startObject(Field.INPUT.getPreferredName())
                     .field(inputResult.type(), inputResult, params)
                     .endObject();
         }
         if (conditionResult != null) {
-            builder.startObject(Parser.CONDITION_RESULT_FIELD.getPreferredName())
+            builder.startObject(Field.CONDITION.getPreferredName())
                     .field(conditionResult.type(), conditionResult, params)
                     .endObject();
         }
         if (throttleResult != null && throttleResult.throttle()) {
-            builder.field(Parser.THROTTLED.getPreferredName(), throttleResult.throttle());
+            builder.field(Field.THROTTLED.getPreferredName(), throttleResult.throttle());
             if (throttleResult.reason() != null) {
-                builder.field(Parser.THROTTLE_REASON.getPreferredName(), throttleResult.reason());
+                builder.field(Field.THROTTLE_REASON.getPreferredName(), throttleResult.reason());
             }
         }
         if (transformResult != null) {
@@ -102,23 +101,12 @@ public class WatchExecutionResult implements ToXContent {
                     .field(transformResult.type(), transformResult, params)
                     .endObject();
         }
-        builder.startObject(Parser.ACTIONS_RESULTS.getPreferredName());
-        for (ActionWrapper.Result actionResult : actionsResults) {
-            builder.field(actionResult.id(), actionResult, params);
-        }
-        builder.endObject();
+        builder.field(Field.ACTIONS.getPreferredName(), actionsResults, params);
         builder.endObject();
         return builder;
     }
 
     public static class Parser {
-
-        public static final ParseField EXECUTION_TIME_FIELD = new ParseField("execution_time");
-        public static final ParseField INPUT_RESULT_FIELD = new ParseField("input_result");
-        public static final ParseField CONDITION_RESULT_FIELD = new ParseField("condition_result");
-        public static final ParseField ACTIONS_RESULTS = new ParseField("actions_results");
-        public static final ParseField THROTTLED = new ParseField("throttled");
-        public static final ParseField THROTTLE_REASON = new ParseField("throttle_reason");
 
         public static WatchExecutionResult parse(Wid wid, XContentParser parser, ConditionRegistry conditionRegistry, ActionRegistry actionRegistry,
                                            InputRegistry inputRegistry, TransformRegistry transformRegistry) throws IOException {
@@ -135,43 +123,56 @@ public class WatchExecutionResult implements ToXContent {
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
-                } else if (EXECUTION_TIME_FIELD.match(currentFieldName)) {
+                } else if (Field.EXECUTION_TIME.match(currentFieldName)) {
                     try {
                         executionTime = WatcherDateUtils.parseDate(currentFieldName, parser, UTC);
                     } catch (WatcherDateUtils.ParseException pe) {
-                        throw new WatcherException("unable to parse watch execution [{}]. failed to parse date field [{}]", pe, wid, currentFieldName);
+                        throw new WatcherException("could not parse watch execution [{}]. failed to parse date field [{}]", pe, wid, currentFieldName);
                     }
                 } else if (token.isValue()) {
-                    if (THROTTLE_REASON.match(currentFieldName)) {
+                    if (Field.THROTTLE_REASON.match(currentFieldName)) {
                         throttleReason = parser.text();
-                    } else if (THROTTLED.match(currentFieldName)) {
+                    } else if (Field.THROTTLED.match(currentFieldName)) {
                         throttled = parser.booleanValue();
                     } else {
-                        throw new WatcherException("unable to parse watch execution [{}]. unexpected field [{}]", wid, currentFieldName);
+                        throw new WatcherException("could not parse watch execution [{}]. unexpected field [{}]", wid, currentFieldName);
+                    }
+                } else if (token == XContentParser.Token.START_ARRAY) {
+                    if (Field.ACTIONS.match(currentFieldName)) {
+                        actionResults = actionRegistry.parseResults(wid, parser);
+                    } else {
+                        throw new WatcherException("could not parse watch execution [{}]. unexpected field [{}]", wid, currentFieldName);
                     }
                 } else if (token == XContentParser.Token.START_OBJECT) {
-                    if (INPUT_RESULT_FIELD.match(currentFieldName)) {
+                    if (Field.INPUT.match(currentFieldName)) {
                         inputResult = inputRegistry.parseResult(wid.watchId(), parser);
-                    } else if (CONDITION_RESULT_FIELD.match(currentFieldName)) {
+                    } else if (Field.CONDITION.match(currentFieldName)) {
                         conditionResult = conditionRegistry.parseResult(wid.watchId(), parser);
                     } else if (Transform.Field.TRANSFORM_RESULT.match(currentFieldName)) {
                         transformResult = transformRegistry.parseResult(wid.watchId(), parser);
-                    } else if (ACTIONS_RESULTS.match(currentFieldName)) {
-                        actionResults = actionRegistry.parseResults(wid, parser);
                     } else {
-                        throw new WatcherException("unable to parse watch execution. unexpected field [" + currentFieldName + "]");
+                        throw new WatcherException("could not parse watch execution [{}]. unexpected field [{}]", wid, currentFieldName);
                     }
                 } else {
-                    throw new WatcherException("unable to parse watch execution. unexpected token [" + token + "]");
+                    throw new WatcherException("could not parse watch execution [{}]. unexpected token [{}]", wid, token);
                 }
             }
 
             if (executionTime == null) {
-                throw new WatcherException("unable to parse watch execution [{}]. missing required date field [{}]", wid, EXECUTION_TIME_FIELD.getPreferredName());
+                throw new WatcherException("could not parse watch execution [{}]. missing required date field [{}]", wid, Field.EXECUTION_TIME.getPreferredName());
             }
+
             Throttler.Result throttleResult = throttled ? Throttler.Result.throttle(throttleReason) : Throttler.Result.NO;
             return new WatchExecutionResult(executionTime, inputResult, conditionResult, throttleResult, transformResult, actionResults);
-
         }
+    }
+    
+    interface Field {
+        ParseField EXECUTION_TIME = new ParseField("execution_time");
+        ParseField INPUT = new ParseField("input");
+        ParseField CONDITION = new ParseField("condition");
+        ParseField ACTIONS = new ParseField("actions");
+        ParseField THROTTLED = new ParseField("throttled");
+        ParseField THROTTLE_REASON = new ParseField("throttle_reason");
     }
 }

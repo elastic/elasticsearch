@@ -144,8 +144,8 @@ public class BootStrapTests extends AbstractWatcherIntegrationTests {
         String index = HistoryStore.getHistoryIndexNameForTime(now);
         client().prepareIndex(index, HistoryStore.DOC_TYPE, wid.value())
                 .setSource(jsonBuilder().startObject()
-                        .field(WatchRecord.Parser.WATCH_ID_FIELD.getPreferredName(), wid.watchId())
-                        .startObject(WatchRecord.Parser.TRIGGER_EVENT_FIELD.getPreferredName())
+                        .field(WatchRecord.Field.WATCH_ID.getPreferredName(), wid.watchId())
+                        .startObject(WatchRecord.Field.TRIGGER_EVENT.getPreferredName())
                             .field(event.type(), event)
                         .endObject()
                         .startObject(Watch.Parser.CONDITION_FIELD.getPreferredName())
@@ -154,7 +154,7 @@ public class BootStrapTests extends AbstractWatcherIntegrationTests {
                         .startObject(Watch.Parser.INPUT_FIELD.getPreferredName())
                             .startObject("none").endObject()
                         .endObject()
-                        .field(WatchRecord.Parser.STATE_FIELD.getPreferredName(), WatchRecord.State.AWAITS_EXECUTION)
+                        .field(WatchRecord.Field.STATE.getPreferredName(), WatchRecord.State.AWAITS_EXECUTION)
                         .endObject())
                 .setConsistencyLevel(WriteConsistencyLevel.ALL)
                 .setRefresh(true)
@@ -164,8 +164,8 @@ public class BootStrapTests extends AbstractWatcherIntegrationTests {
         wid = new Wid("_id", 2, now);
         client().prepareIndex(index, HistoryStore.DOC_TYPE, wid.value())
                 .setSource(jsonBuilder().startObject()
-                        .field(WatchRecord.Parser.WATCH_ID_FIELD.getPreferredName(), wid.watchId())
-                        .startObject(WatchRecord.Parser.TRIGGER_EVENT_FIELD.getPreferredName())
+                        .field(WatchRecord.Field.WATCH_ID.getPreferredName(), wid.watchId())
+                        .startObject(WatchRecord.Field.TRIGGER_EVENT.getPreferredName())
                             .field(event.type(), event)
                         .endObject()
                         .startObject(Watch.Parser.CONDITION_FIELD.getPreferredName())
@@ -174,7 +174,7 @@ public class BootStrapTests extends AbstractWatcherIntegrationTests {
                         .startObject(Watch.Parser.INPUT_FIELD.getPreferredName())
                             .startObject("none").endObject()
                         .endObject()
-                        .field(WatchRecord.Parser.STATE_FIELD.getPreferredName(), WatchRecord.State.AWAITS_EXECUTION)
+                        .field(WatchRecord.Field.STATE.getPreferredName(), WatchRecord.State.AWAITS_EXECUTION)
                         .endObject())
                 .setConsistencyLevel(WriteConsistencyLevel.ALL)
                 .setRefresh(true)
@@ -184,8 +184,8 @@ public class BootStrapTests extends AbstractWatcherIntegrationTests {
         wid = new Wid("_id", 2, now);
         client().prepareIndex(index, HistoryStore.DOC_TYPE, wid.value())
                 .setSource(jsonBuilder().startObject()
-                        .field(WatchRecord.Parser.WATCH_ID_FIELD.getPreferredName(), wid.watchId())
-                        .startObject(WatchRecord.Parser.TRIGGER_EVENT_FIELD.getPreferredName())
+                        .field(WatchRecord.Field.WATCH_ID.getPreferredName(), wid.watchId())
+                        .startObject(WatchRecord.Field.TRIGGER_EVENT.getPreferredName())
                             .startObject("unknown").endObject()
                         .endObject()
                         .startObject(Watch.Parser.CONDITION_FIELD.getPreferredName())
@@ -194,7 +194,7 @@ public class BootStrapTests extends AbstractWatcherIntegrationTests {
                         .startObject(Watch.Parser.INPUT_FIELD.getPreferredName())
                             .startObject("none").endObject()
                         .endObject()
-                        .field(WatchRecord.Parser.STATE_FIELD.getPreferredName(), WatchRecord.State.AWAITS_EXECUTION)
+                        .field(WatchRecord.Field.STATE.getPreferredName(), WatchRecord.State.AWAITS_EXECUTION)
                         .endObject())
                 .setConsistencyLevel(WriteConsistencyLevel.ALL)
                 .setRefresh(true)
@@ -218,8 +218,8 @@ public class BootStrapTests extends AbstractWatcherIntegrationTests {
         String index = HistoryStore.getHistoryIndexNameForTime(now);
         client().prepareIndex(index, HistoryStore.DOC_TYPE, wid.value())
                 .setSource(jsonBuilder().startObject()
-                        .field(WatchRecord.Parser.WATCH_ID_FIELD.getPreferredName(), wid.value())
-                        .startObject(WatchRecord.Parser.TRIGGER_EVENT_FIELD.getPreferredName())
+                        .field(WatchRecord.Field.WATCH_ID.getPreferredName(), wid.value())
+                        .startObject(WatchRecord.Field.TRIGGER_EVENT.getPreferredName())
                             .field(event.type(), event)
                         .endObject()
                         .startObject(Watch.Parser.CONDITION_FIELD.getPreferredName())
@@ -228,7 +228,7 @@ public class BootStrapTests extends AbstractWatcherIntegrationTests {
                         .startObject(Watch.Parser.INPUT_FIELD.getPreferredName())
                             .startObject("none").endObject()
                         .endObject()
-                        .field(WatchRecord.Parser.STATE_FIELD.getPreferredName(), WatchRecord.State.AWAITS_EXECUTION)
+                        .field(WatchRecord.Field.STATE.getPreferredName(), WatchRecord.State.AWAITS_EXECUTION)
                         .endObject())
                 .setConsistencyLevel(WriteConsistencyLevel.ALL)
                 .setRefresh(true)
@@ -240,8 +240,8 @@ public class BootStrapTests extends AbstractWatcherIntegrationTests {
         refresh();
         SearchResponse searchResponse = client().prepareSearch(index).get();
         assertHitCount(searchResponse, 1);
-        assertThat(searchResponse.getHits().getAt(0).sourceAsMap().get(WatchRecord.Parser.WATCH_ID_FIELD.getPreferredName()).toString(), Matchers.equalTo(wid.value()));
-        assertThat(searchResponse.getHits().getAt(0).sourceAsMap().get(WatchRecord.Parser.STATE_FIELD.getPreferredName()).toString(), Matchers.equalTo(WatchRecord.State.DELETED_WHILE_QUEUED.toString()));
+        assertThat(searchResponse.getHits().getAt(0).sourceAsMap().get(WatchRecord.Field.WATCH_ID.getPreferredName()).toString(), Matchers.equalTo(wid.value()));
+        assertThat(searchResponse.getHits().getAt(0).sourceAsMap().get(WatchRecord.Field.STATE.getPreferredName()).toString(), Matchers.equalTo(WatchRecord.State.DELETED_WHILE_QUEUED.toString()));
     }
 
 
@@ -365,7 +365,7 @@ public class BootStrapTests extends AbstractWatcherIntegrationTests {
                 state = randomFrom(WatchRecord.State.AWAITS_EXECUTION, WatchRecord.State.CHECKING, WatchRecord.State.EXECUTION_NOT_NEEDED, WatchRecord.State.EXECUTED);
             }
             client().prepareUpdate(index, HistoryStore.DOC_TYPE, watchRecord.id().value())
-                    .setDoc(WatchRecord.Parser.STATE_FIELD.getPreferredName(), state.id())
+                    .setDoc(WatchRecord.Field.STATE.getPreferredName(), state.id())
                     .get();
             if (state == WatchRecord.State.AWAITS_EXECUTION) {
                 awaitsExecution++;
@@ -448,7 +448,7 @@ public class BootStrapTests extends AbstractWatcherIntegrationTests {
             @Override
             public void run() {
                 long count = docCount(HistoryStore.INDEX_PREFIX + "*", HistoryStore.DOC_TYPE,
-                        termQuery(WatchRecord.Parser.STATE_FIELD.getPreferredName(), WatchRecord.State.EXECUTED.id()));
+                        termQuery(WatchRecord.Field.STATE.getPreferredName(), WatchRecord.State.EXECUTED.id()));
                 assertThat(count, is(totalHistoryEntries));
             }
         }, 30, TimeUnit.SECONDS);

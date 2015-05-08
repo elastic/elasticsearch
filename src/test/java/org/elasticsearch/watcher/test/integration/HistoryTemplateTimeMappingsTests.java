@@ -76,7 +76,7 @@ public class HistoryTemplateTimeMappingsTests extends AbstractWatcherIntegration
                         logger.info("checking index [{}] with metadata:\n[{}]", metadatas.key, metadata.source().toString());
                         assertThat(extractValue("properties.trigger_event.properties.schedule.properties.scheduled_time.type", source), is((Object) "date"));
                         assertThat(extractValue("properties.trigger_event.properties.schedule.properties.triggered_time.type", source), is((Object) "date"));
-                        assertThat(extractValue("properties.watch_execution.properties.execution_time.type", source), is((Object) "date"));
+                        assertThat(extractValue("properties.execution_result.properties.execution_time.type", source), is((Object) "date"));
                     } catch (IOException e) {
                         throw new RuntimeException(e);
                     }

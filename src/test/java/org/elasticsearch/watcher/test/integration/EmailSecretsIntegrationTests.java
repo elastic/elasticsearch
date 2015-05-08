@@ -26,6 +26,7 @@ import org.junit.After;
 import org.junit.Test;
 
 import javax.mail.internet.MimeMessage;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -143,9 +144,11 @@ public class EmailSecretsIntegrationTests extends AbstractWatcherIntegrationTest
                 .get();
         assertThat(executeResponse, notNullValue());
         contentSource = executeResponse.getSource();
-        value = contentSource.getValue("watch_execution.actions_results._email.email.success");
-        assertThat(value, notNullValue());
-        assertThat(value, is((Object) Boolean.TRUE));
+        value = contentSource.getValue("execution_result.actions.email.success");
+        assertThat(value, instanceOf(List.class));
+        List<Boolean> values = (List<Boolean>) value;
+        assertThat(values, hasSize(1));
+        assertThat(values, hasItem(Boolean.TRUE));
 
         if (!latch.await(5, TimeUnit.SECONDS)) {
             fail("waiting too long for the email to be sent");

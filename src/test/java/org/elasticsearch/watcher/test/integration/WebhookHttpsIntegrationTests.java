@@ -13,7 +13,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.watcher.actions.ActionBuilders;
 import org.elasticsearch.watcher.history.HistoryStore;
@@ -24,6 +23,7 @@ import org.elasticsearch.watcher.support.http.HttpRequestTemplate;
 import org.elasticsearch.watcher.support.http.Scheme;
 import org.elasticsearch.watcher.support.http.auth.basic.BasicAuth;
 import org.elasticsearch.watcher.support.template.Template;
+import org.elasticsearch.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
 import org.junit.After;
 import org.junit.Before;
@@ -33,6 +33,7 @@ import java.net.BindException;
 import java.net.URISyntaxException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.List;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.watcher.client.WatchSourceBuilders.watchBuilder;
@@ -40,7 +41,7 @@ import static org.elasticsearch.watcher.condition.ConditionBuilders.alwaysCondit
 import static org.elasticsearch.watcher.input.InputBuilders.simpleInput;
 import static org.elasticsearch.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.watcher.trigger.schedule.Schedules.interval;
-import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.*;
 
 /**
  */
@@ -115,11 +116,19 @@ public class WebhookHttpsIntegrationTests extends AbstractWatcherIntegrationTest
         assertThat(recordedRequest.getBody().readUtf8Line(), equalTo("{key=value}"));
 
         SearchResponse response = client().prepareSearch(HistoryStore.INDEX_PREFIX + "*")
-                .setQuery(QueryBuilders.termQuery(WatchRecord.Parser.STATE_FIELD.getPreferredName(), "executed"))
+                .setQuery(QueryBuilders.termQuery(WatchRecord.Field.STATE.getPreferredName(), "executed"))
                 .get();
         assertNoFailures(response);
-        assertThat(XContentMapValues.extractValue("watch_execution.actions_results._id.webhook.response.body", response.getHits().getAt(0).sourceAsMap()).toString(), equalTo("body"));
-        assertThat(XContentMapValues.extractValue("watch_execution.actions_results._id.webhook.response.status", response.getHits().getAt(0).sourceAsMap()).toString(), equalTo("200"));
+        XContentSource source = new XContentSource(response.getHits().getAt(0).sourceRef());
+        List<String> bodies = source.getValue("execution_result.actions.webhook.response.body");
+        assertThat(bodies, notNullValue());
+        assertThat(bodies, hasSize(1));
+        assertThat(bodies, hasItem("body"));
+
+        List<Number> statuses = source.getValue("execution_result.actions.webhook.response.status");
+        assertThat(statuses, notNullValue());
+        assertThat(statuses, hasSize(1));
+        assertThat(statuses, hasItem(200));
     }
 
     @Test

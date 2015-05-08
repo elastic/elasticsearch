@@ -202,7 +202,6 @@ public final class WatcherTestUtils {
                 new Watch.Status());
     }
 
-
     public static ScriptServiceProxy getScriptServiceProxy(ThreadPool tp) throws IOException {
         Settings settings = ImmutableSettings.settingsBuilder()
                 .put(ScriptService.DISABLE_DYNAMIC_SCRIPTING_SETTING, "none")
@@ -216,12 +215,12 @@ public final class WatcherTestUtils {
         return ScriptServiceProxy.of(new ScriptService(settings, new Environment(), engineServiceSet, new ResourceWatcherService(settings, tp), nodeSettingsService));
     }
 
-
     public static SearchType getRandomSupportedSearchType() {
-        Set<SearchType> searchTypes = new HashSet<>();
-        searchTypes.addAll(Arrays.asList(SearchType.values()));
-        searchTypes.remove(SearchType.SCAN);
-        return randomFrom(searchTypes.toArray(new SearchType[searchTypes.size()]));
+        return randomFrom(
+                SearchType.COUNT,
+                SearchType.DFS_QUERY_AND_FETCH,
+                SearchType.DFS_QUERY_THEN_FETCH,
+                SearchType.DFS_QUERY_AND_FETCH);
     }
 
     public static boolean areJsonEquivalent(String json1, String json2) throws IOException {

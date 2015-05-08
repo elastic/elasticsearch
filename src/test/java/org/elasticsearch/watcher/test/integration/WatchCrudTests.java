@@ -7,13 +7,13 @@ package org.elasticsearch.watcher.test.integration;
 
 import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import org.elasticsearch.watcher.client.WatchSourceBuilder;
+import org.elasticsearch.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
 import org.elasticsearch.watcher.transport.actions.delete.DeleteWatchRequest;
 import org.elasticsearch.watcher.transport.actions.delete.DeleteWatchResponse;
 import org.elasticsearch.watcher.transport.actions.get.GetWatchRequest;
 import org.elasticsearch.watcher.transport.actions.get.GetWatchResponse;
 import org.elasticsearch.watcher.transport.actions.put.PutWatchResponse;
-import org.elasticsearch.watcher.support.xcontent.XContentSource;
 import org.junit.Test;
 
 import java.util.Map;
@@ -134,4 +134,5 @@ public class WatchCrudTests extends AbstractWatcherIntegrationTests {
         assertThat(response.getVersion(), is(1L));
         assertThat(response.isFound(), is(false));
     }
+
 }

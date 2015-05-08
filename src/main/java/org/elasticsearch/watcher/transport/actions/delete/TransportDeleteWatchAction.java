@@ -54,7 +54,7 @@ public class TransportDeleteWatchAction extends WatcherTransportAction<DeleteWat
     @Override
     protected void masterOperation(DeleteWatchRequest request, ClusterState state, ActionListener<DeleteWatchResponse> listener) throws ElasticsearchException {
         try {
-            DeleteResponse deleteResponse = watcherService.deleteWatch(request.getId(), request.masterNodeTimeout()).deleteResponse();
+            DeleteResponse deleteResponse = watcherService.deleteWatch(request.getId(), request.masterNodeTimeout(), request.isForce()).deleteResponse();
             DeleteWatchResponse response = new DeleteWatchResponse(deleteResponse.getId(), deleteResponse.getVersion(), deleteResponse.isFound());
             listener.onResponse(response);
         } catch (Exception e) {

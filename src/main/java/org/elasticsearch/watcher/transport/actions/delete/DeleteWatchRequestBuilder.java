@@ -31,6 +31,14 @@ public class DeleteWatchRequestBuilder extends MasterNodeOperationRequestBuilder
         return this;
     }
 
+    /**
+     * Sets wiether this request is forced (ie ignores locks)
+     */
+    public DeleteWatchRequestBuilder setForce(boolean force) {
+        this.request().setForce(force);
+        return this;
+    }
+
     @Override
     protected void doExecute(final ActionListener<DeleteWatchResponse> listener) {
         new WatcherClient(client).deleteWatch(request, listener);

@@ -15,6 +15,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.joda.time.PeriodType;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.watcher.execution.ExecutionService;
 import org.elasticsearch.watcher.trigger.TriggerService;
 import org.elasticsearch.watcher.watch.Watch;
@@ -78,20 +79,25 @@ public class WatcherService extends AbstractComponent {
         }
     }
 
-    public WatchStore.WatchDelete deleteWatch(String id, TimeValue timeout) {
+    public WatchStore.WatchDelete deleteWatch(String id, TimeValue timeout, final boolean force) {
         ensureStarted();
-        WatchLockService.Lock lock = watchLockService.tryAcquire(id, timeout);
-        if (lock == null) {
-            throw new TimeoutException("could not delete watch [{}] within [{}]... wait and try again. If this error continues to occur there is a high chance that the watch execution is stuck (either due to unresponsive external system such as an email service, or due to a bad script", id, timeout.format(PeriodType.seconds()));
+        WatchLockService.Lock lock = null;
+        if (!force) {
+            lock = watchLockService.tryAcquire(id, timeout);
+            if (lock == null) {
+                throw new TimeoutException("could not delete watch [{}] within [{}]... wait and try again. If this error continues to occur there is a high chance that the watch execution is stuck (either due to unresponsive external system such as an email service, or due to a bad script", id, timeout.format(PeriodType.seconds()));
+            }
         }
         try {
-            WatchStore.WatchDelete delete = watchStore.delete(id);
+            WatchStore.WatchDelete delete = watchStore.delete(id, force);
             if (delete.deleteResponse().isFound()) {
                 triggerService.remove(id);
             }
             return delete;
         } finally {
-            lock.release();
+            if (lock != null) {
+                lock.release();
+            }
         }
     }
 
@@ -145,7 +151,9 @@ public class WatcherService extends AbstractComponent {
                 try {
                     watchStore.updateStatus(watch);
                 } catch (IOException ioe) {
-                    throw new WatcherException("failed to update the watch on ack", ioe);
+                    throw new WatcherException("failed to update the watch [{}] on ack", ioe, watch.id());
+                } catch (VersionConflictEngineException vcee) {
+                    throw new WatcherException("failed to update the watch [{}] on ack, perhaps it was force deleted", vcee, watch.id());
                 }
             }
             // we need to create a safe copy of the status

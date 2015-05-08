@@ -110,14 +110,15 @@ public class WatchServiceTests extends ElasticsearchTestCase {
     public void testDeleteWatch() throws Exception {
         TimeValue timeout = TimeValue.timeValueSeconds(5);
         WatchLockService.Lock lock = mock(WatchLockService.Lock.class);
+        boolean force = randomBoolean();
         when(watchLockService.tryAcquire("_id", timeout)).thenReturn(lock);
 
         WatchStore.WatchDelete expectedWatchDelete = mock(WatchStore.WatchDelete.class);
         DeleteResponse deleteResponse = mock(DeleteResponse.class);
         when(deleteResponse.isFound()).thenReturn(true);
         when(expectedWatchDelete.deleteResponse()).thenReturn(deleteResponse);
-        when(watchStore.delete("_id")).thenReturn(expectedWatchDelete);
-        WatchStore.WatchDelete watchDelete = watcherService.deleteWatch("_id", timeout);
+        when(watchStore.delete("_id", force)).thenReturn(expectedWatchDelete);
+        WatchStore.WatchDelete watchDelete = watcherService.deleteWatch("_id", timeout, force);
 
         assertThat(watchDelete, sameInstance(expectedWatchDelete));
         verify(triggerService, times(1)).remove("_id");
@@ -127,12 +128,31 @@ public class WatchServiceTests extends ElasticsearchTestCase {
     public void testDeleteWatch_Timeout() throws Exception {
         TimeValue timeout = TimeValue.timeValueSeconds(5);
         when(watchLockService.tryAcquire("_id", timeout)).thenReturn(null);
-        watcherService.deleteWatch("_id", timeout);
+        watcherService.deleteWatch("_id", timeout, false);
     }
+
+    @Test
+    public void testDeleteWatch_Force() throws Exception {
+        TimeValue timeout = TimeValue.timeValueSeconds(5);
+        WatchLockService.Lock lock = mock(WatchLockService.Lock.class);
+        when(watchLockService.tryAcquire("_id", timeout)).thenReturn(null);
+
+        WatchStore.WatchDelete expectedWatchDelete = mock(WatchStore.WatchDelete.class);
+        DeleteResponse deleteResponse = mock(DeleteResponse.class);
+        when(deleteResponse.isFound()).thenReturn(true);
+        when(expectedWatchDelete.deleteResponse()).thenReturn(deleteResponse);
+        when(watchStore.delete("_id", true)).thenReturn(expectedWatchDelete);
+        WatchStore.WatchDelete watchDelete = watcherService.deleteWatch("_id", timeout, true);
+
+        assertThat(watchDelete, sameInstance(expectedWatchDelete));
+        verify(triggerService, times(1)).remove("_id");
+    }
+
 
     @Test
     public void testDeleteWatch_NotFound() throws Exception {
         TimeValue timeout = TimeValue.timeValueSeconds(5);
+        boolean force = randomBoolean();
         WatchLockService.Lock lock = mock(WatchLockService.Lock.class);
         when(watchLockService.tryAcquire("_id", timeout)).thenReturn(lock);
 
@@ -140,8 +160,8 @@ public class WatchServiceTests extends ElasticsearchTestCase {
         DeleteResponse deleteResponse = mock(DeleteResponse.class);
         when(deleteResponse.isFound()).thenReturn(false);
         when(expectedWatchDelete.deleteResponse()).thenReturn(deleteResponse);
-        when(watchStore.delete("_id")).thenReturn(expectedWatchDelete);
-        WatchStore.WatchDelete watchDelete = watcherService.deleteWatch("_id", timeout);
+        when(watchStore.delete("_id", force)).thenReturn(expectedWatchDelete);
+        WatchStore.WatchDelete watchDelete = watcherService.deleteWatch("_id", timeout, force);
 
         assertThat(watchDelete, sameInstance(expectedWatchDelete));
         verifyZeroInteractions(triggerService);

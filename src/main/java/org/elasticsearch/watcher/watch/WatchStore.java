@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -114,22 +115,22 @@ public class WatchStore extends AbstractComponent {
     }
 
     /**
-     * Returns the watch with the specified name otherwise <code>null</code> is returned.
+     * Returns the watch with the specified id otherwise <code>null</code> is returned.
      */
-    public Watch get(String name) {
+    public Watch get(String id) {
         ensureStarted();
-        return watches.get(name);
+        return watches.get(id);
     }
 
     /**
-     * Creates an watch with the specified name and source. If an watch with the specified name already exists it will
-     * get overwritten.
+     * Creates an watch if this watch already exists it will be overwritten
      */
     public WatchPut put(Watch watch) {
         ensureStarted();
-        IndexRequest indexRequest = createIndexRequest(watch.id(), watch.getAsBytes());
+        IndexRequest indexRequest = createIndexRequest(watch.id(), watch.getAsBytes(), Versions.MATCH_ANY);
         IndexResponse response = client.index(indexRequest);
         watch.status().version(response.getVersion());
+        watch.version(response.getVersion());
         Watch previous = watches.put(watch.id(), watch);
         return new WatchPut(previous, watch, response);
     }
@@ -151,25 +152,25 @@ public class WatchStore extends AbstractComponent {
      */
     void update(Watch watch) throws IOException {
         ensureStarted();
-        assert watch == watches.get(watch.id()) : "update watch can only be applied to an already loaded watch";
         BytesReference source = JsonXContent.contentBuilder().value(watch).bytes();
-        IndexResponse response = client.index(createIndexRequest(watch.id(), source));
+        IndexResponse response = client.index(createIndexRequest(watch.id(), source, watch.version()));
         watch.status().version(response.getVersion());
+        watch.version(response.getVersion());
         watch.status().dirty(false);
         // Don't need to update the watches, since we are working on an instance from it.
     }
 
     /**
-     * Deletes the watch with the specified name if exists
+     * Deletes the watch with the specified id if exists
      */
-    public WatchDelete delete(String name) {
+    public WatchDelete delete(String id, boolean force) {
         ensureStarted();
-        Watch watch = watches.remove(name);
+        Watch watch = watches.remove(id);
         // even if the watch was not found in the watch map, we should still try to delete it
         // from the index, just to make sure we don't leave traces of it
-        DeleteRequest request = new DeleteRequest(INDEX, DOC_TYPE, name);
-        if (watch != null) {
-            request.version(watch.status().version());
+        DeleteRequest request = new DeleteRequest(INDEX, DOC_TYPE, id);
+        if (watch != null && !force) {
+            request.version(watch.version());
         }
         DeleteResponse response = client.delete(request).actionGet();
         return new WatchDelete(response);
@@ -179,10 +180,11 @@ public class WatchStore extends AbstractComponent {
         return watches;
     }
 
-    IndexRequest createIndexRequest(String name, BytesReference source) {
-        IndexRequest indexRequest = new IndexRequest(INDEX, DOC_TYPE, name);
+    IndexRequest createIndexRequest(String id, BytesReference source, long version) {
+        IndexRequest indexRequest = new IndexRequest(INDEX, DOC_TYPE, id);
         indexRequest.listenerThreaded(false);
         indexRequest.source(source, false);
+        indexRequest.version(version);
         return indexRequest;
     }
 
@@ -216,14 +218,15 @@ public class WatchStore extends AbstractComponent {
                 response = client.searchScroll(response.getScrollId(), scrollTimeout);
                 while (response.getHits().hits().length != 0) {
                     for (SearchHit hit : response.getHits()) {
-                        String name = hit.getId();
+                        String id = hit.getId();
                         try {
-                            Watch watch = watchParser.parse(name, true, hit.getSourceRef());
+                            Watch watch = watchParser.parse(id, true, hit.getSourceRef());
                             watch.status().version(hit.version());
-                            watches.put(name, watch);
+                            watch.version(hit.version());
+                            watches.put(id, watch);
                             count++;
                         } catch (Exception e) {
-                            logger.error("couldn't load watch [{}], ignoring it...", e, name);
+                            logger.error("couldn't load watch [{}], ignoring it...", e, id);
                         }
                     }
                     response = client.searchScroll(response.getScrollId(), scrollTimeout);

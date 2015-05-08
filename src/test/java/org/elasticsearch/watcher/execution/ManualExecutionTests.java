@@ -5,17 +5,25 @@
  */
 package org.elasticsearch.watcher.execution;
 
+import org.apache.lucene.util.LuceneTestCase.Slow;
 import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.engine.VersionConflictEngineException;
+import org.elasticsearch.watcher.WatcherException;
+import org.elasticsearch.watcher.WatcherService;
 import org.elasticsearch.watcher.actions.logging.LoggingAction;
 import org.elasticsearch.watcher.client.WatchSourceBuilder;
 import org.elasticsearch.watcher.condition.always.AlwaysCondition;
+import org.elasticsearch.watcher.condition.script.ScriptCondition;
 import org.elasticsearch.watcher.history.HistoryStore;
 import org.elasticsearch.watcher.history.WatchRecord;
 import org.elasticsearch.watcher.input.simple.SimpleInput;
+import org.elasticsearch.watcher.support.Script;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
+import org.elasticsearch.watcher.throttle.Throttler;
+import org.elasticsearch.watcher.transport.actions.delete.DeleteWatchResponse;
 import org.elasticsearch.watcher.transport.actions.execute.ExecuteWatchResponse;
 import org.elasticsearch.watcher.transport.actions.get.GetWatchRequest;
 import org.elasticsearch.watcher.transport.actions.put.PutWatchRequest;
@@ -27,8 +35,11 @@ import org.elasticsearch.watcher.watch.Payload;
 import org.elasticsearch.watcher.watch.Watch;
 import org.junit.Test;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.joda.time.DateTimeZone.UTC;
@@ -222,4 +233,83 @@ public class ManualExecutionTests extends AbstractWatcherIntegrationTests {
         watchRecord = watchRecordParser.parse(wid.value(), 1, executeWatchResponse.getSource().getBytes());
         assertThat(watchRecord.state(), equalTo(WatchRecord.State.THROTTLED));
     }
+
+
+    @Test
+    @Slow
+    public void testForceDeletionOfLongRunningWatch() throws Exception {
+        WatchSourceBuilder watchBuilder = watchBuilder()
+                .trigger(schedule(cron("0 0 0 1 * ? 2099")))
+                .input(simpleInput("foo", "bar"))
+                .condition(new ScriptCondition((new Script.Builder.Inline("sleep 10000; return true")).build()))
+                .throttlePeriod(new TimeValue(1, TimeUnit.HOURS))
+                .addAction("log", loggingAction("foobar"));
+
+        int numberOfThreads = scaledRandomIntBetween(1, 5);
+        PutWatchResponse putWatchResponse = watcherClient().putWatch(new PutWatchRequest("_id", watchBuilder)).actionGet();
+        assertThat(putWatchResponse.getVersion(), greaterThan(0L));
+        refresh();
+        assertThat(watcherClient().getWatch(new GetWatchRequest("_id")).actionGet().isFound(), equalTo(true));
+
+
+        CountDownLatch startLatch = new CountDownLatch(1);
+
+        List<Thread> threads = new ArrayList<>();
+        for (int i = 0; i < numberOfThreads; ++i) {
+            threads.add(new Thread(new ExecutionRunner(watchService(), executionService(), "_id", startLatch)));
+        }
+
+        for (Thread thread : threads) {
+            thread.start();
+        }
+        DeleteWatchResponse deleteWatchResponse = watcherClient().prepareDeleteWatch("_id").setForce(true).get();
+        assertThat(deleteWatchResponse.isFound(), is(true));
+
+        deleteWatchResponse = watcherClient().prepareDeleteWatch("_id").get();
+        assertThat(deleteWatchResponse.isFound(), is(false));
+
+        startLatch.countDown();
+
+        long startJoin = System.currentTimeMillis();
+        for (Thread thread : threads) {
+            thread.join();
+        }
+        long endJoin = System.currentTimeMillis();
+        TimeValue tv = new TimeValue(10 * (numberOfThreads+1), TimeUnit.SECONDS);
+        assertThat("Shouldn't take longer than [" + tv.getSeconds() + "] seconds for all the threads to stop", (endJoin - startJoin), lessThan(tv.getMillis()));
+    }
+
+    private static class ExecutionRunner implements Runnable {
+
+        final WatcherService watcherService;
+        final ExecutionService executionService;
+        final String watchId;
+        final CountDownLatch startLatch;
+        final ManualExecutionContext.Builder ctxBuilder;
+
+        private ExecutionRunner(WatcherService watcherService, ExecutionService executionService, String watchId, CountDownLatch startLatch) {
+            this.watcherService = watcherService;
+            this.executionService = executionService;
+            this.watchId = watchId;
+            this.startLatch = startLatch;
+            ManualTriggerEvent triggerEvent = new ManualTriggerEvent(watchId, new ScheduleTriggerEvent(new DateTime(UTC), new DateTime(UTC)));
+            ctxBuilder = ManualExecutionContext.builder(watcherService.getWatch(watchId), triggerEvent);
+            ctxBuilder.recordExecution(true);
+            ctxBuilder.withThrottle(Throttler.Result.NO);
+        }
+
+        @Override
+        public void run() {
+            try {
+                startLatch.await();
+                executionService.execute(ctxBuilder.build());
+                fail("Execution of a deleted watch should fail but didn't");
+            } catch (WatcherException we) {
+                assertThat(we.getCause(), instanceOf(VersionConflictEngineException.class));
+            } catch (Throwable t) {
+                throw new WatcherException("Failure mode execution of [{}] failed in an unexpected way", t, watchId);
+            }
+        }
+    }
+
 }

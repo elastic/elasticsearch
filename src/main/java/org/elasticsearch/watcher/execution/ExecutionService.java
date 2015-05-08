@@ -14,6 +14,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.watcher.WatcherException;
 import org.elasticsearch.watcher.actions.ActionWrapper;
 import org.elasticsearch.watcher.condition.Condition;
@@ -209,18 +210,21 @@ public class ExecutionService extends AbstractComponent {
 
     public WatchRecord execute(WatchExecutionContext ctx) throws IOException {
         WatchRecord watchRecord = new WatchRecord(ctx.id(), ctx.watch(), ctx.triggerEvent());
-
         WatchLockService.Lock lock = watchLockService.acquire(ctx.watch().id());
         try {
             WatchExecutionResult result = executeInner(ctx);
             watchRecord.seal(result);
+            if (ctx.recordExecution()) {
+                watchStore.updateStatus(ctx.watch());
+            }
+        } catch (VersionConflictEngineException vcee) {
+            throw new WatcherException("Failed to update the watch [{}] on execute perhaps it was force deleted", vcee, ctx.watch().id());
         } finally {
             lock.release();
         }
         if (ctx.recordExecution()) {
             historyStore.put(watchRecord);
         }
-        watchStore.updateStatus(ctx.watch());
         return watchRecord;
     }
 
@@ -316,34 +320,41 @@ public class ExecutionService extends AbstractComponent {
                 return;
             }
             logger.trace("executing [{}] [{}]", ctx.watch().id(), ctx.id());
+
             WatchLockService.Lock lock = watchLockService.acquire(ctx.watch().id());
             try {
-                watchRecord.update(WatchRecord.State.CHECKING, null);
-                logger.debug("checking watch [{}]", watchRecord.watchId());
-                WatchExecutionResult result = executeInner(ctx);
-                watchRecord.seal(result);
-                if (ctx.recordExecution()) {
-                    historyStore.update(watchRecord);
+                if (watchStore.get(ctx.watch().id()) == null) {
+                    //Fail fast if we are trying to execute a deleted watch
+                    String message = "unable to find watch for record [" + watchRecord.id() + "], perhaps it has been deleted, ignoring...";
+                    watchRecord.update(WatchRecord.State.DELETED_WHILE_QUEUED, message);
+                } else {
+                    watchRecord.update(WatchRecord.State.CHECKING, null);
+                    logger.debug("checking watch [{}]", watchRecord.watchId());
+                    WatchExecutionResult result = executeInner(ctx);
+                    watchRecord.seal(result);
+                    if (ctx.recordExecution()) {
+                        watchStore.updateStatus(ctx.watch());
+                    }
                 }
-                watchStore.updateStatus(ctx.watch());
             } catch (Exception e) {
                 if (started()) {
                     String detailedMessage = ExceptionsHelper.detailedMessage(e);
                     logger.warn("failed to execute watch [{}]/[{}], failure [{}]", watchRecord.watchId(), ctx.id(), detailedMessage);
-                    try {
-                        watchRecord.update(WatchRecord.State.FAILED, detailedMessage);
-                        if (ctx.recordExecution()) {
-                            historyStore.update(watchRecord);
-                        }
-                    } catch (Exception e2) {
-                        logger.error("failed to update watch record [{}]/[{}], failure [{}], original failure [{}]", watchRecord.watchId(), ctx.id(), ExceptionsHelper.detailedMessage(e2), detailedMessage);
-                    }
+                    watchRecord.update(WatchRecord.State.FAILED, detailedMessage);
                 } else {
                     logger.debug("failed to execute watch [{}] after shutdown", e, watchRecord);
                 }
             } finally {
                 lock.release();
                 logger.trace("finished [{}]/[{}]", ctx.watch().id(), ctx.id());
+            }
+
+            if (ctx.recordExecution() && started()) {
+                try {
+                    historyStore.update(watchRecord);
+                } catch (Exception e) {
+                    logger.error("failed to update watch record [{}]/[{}], failure [{}], record failure if any [{}]", watchRecord.watchId(), ctx.id(), ExceptionsHelper.detailedMessage(e), watchRecord.message());
+                }
             }
         }
     }

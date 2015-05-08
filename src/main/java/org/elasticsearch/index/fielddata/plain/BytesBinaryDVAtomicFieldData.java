@@ -27,8 +27,8 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.index.fielddata.AtomicFieldData;
-import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.search.lookup.impl.ScriptDocValuesImpl;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -100,7 +100,7 @@ final class BytesBinaryDVAtomicFieldData implements AtomicFieldData {
     }
 
     @Override
-    public ScriptDocValues getScriptValues() {
+    public ScriptDocValuesImpl getScriptValues() {
         throw new UnsupportedOperationException();
     }
 

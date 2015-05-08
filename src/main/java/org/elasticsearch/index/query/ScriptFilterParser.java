@@ -35,7 +35,7 @@ import org.elasticsearch.script.ScriptParameterParser;
 import org.elasticsearch.script.ScriptParameterParser.ScriptParameterValue;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.SearchScript;
-import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.lookup.impl.SearchLookupImpl;
 
 import java.io.IOException;
 import java.util.Map;
@@ -124,7 +124,7 @@ public class ScriptFilterParser implements FilterParser {
 
         private final SearchScript searchScript;
 
-        public ScriptFilter(String scriptLang, String script, ScriptService.ScriptType scriptType, Map<String, Object> params, ScriptService scriptService, SearchLookup searchLookup) {
+        public ScriptFilter(String scriptLang, String script, ScriptService.ScriptType scriptType, Map<String, Object> params, ScriptService scriptService, SearchLookupImpl searchLookup) {
             this.script = script;
             this.params = params;
             this.searchScript = scriptService.search(searchLookup, new Script(scriptLang, script, scriptType, newHashMap(params)), ScriptContext.Standard.SEARCH);

@@ -19,40 +19,18 @@
 
 package org.elasticsearch.search.lookup;
 
-import org.apache.lucene.analysis.payloads.PayloadHelper;
-import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.CharsRefBuilder;
-
-public class TermPosition {
-
+/** Retrieves payload at a single term position */
+public abstract class TermPosition {
+    // TODO: interface/getter?
     public int position = -1;
     public int startOffset = -1;
     public int endOffset = -1;
-    public BytesRef payload;
-    private CharsRefBuilder spare = new CharsRefBuilder(); 
+    
+    public abstract byte[] payload();
 
-    public String payloadAsString() {
-        if (payload != null && payload.length != 0) {
-            spare.copyUTF8Bytes(payload);
-            return spare.toString();
-        } else {
-            return null;
-        }
-    }
+    public abstract String payloadAsString();
 
-    public float payloadAsFloat(float defaultMissing) {
-        if (payload != null && payload.length != 0) {
-            return PayloadHelper.decodeFloat(payload.bytes, payload.offset);
-        } else {
-            return defaultMissing;
-        }
-    }
+    public abstract float payloadAsFloat(float defaultMissing);
 
-    public int payloadAsInt(int defaultMissing) {
-        if (payload != null && payload.length != 0) {
-            return PayloadHelper.decodeInt(payload.bytes, payload.offset);
-        } else {
-            return defaultMissing;
-        }
-    }
+    public abstract int payloadAsInt(int defaultMissing);
 }

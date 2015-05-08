@@ -20,6 +20,7 @@ package org.elasticsearch.search.internal;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
+
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
@@ -35,7 +36,7 @@ import org.elasticsearch.search.fetch.innerhits.InnerHitsContext;
 import org.elasticsearch.search.fetch.script.ScriptFieldsContext;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
 import org.elasticsearch.search.highlight.SearchContextHighlight;
-import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.lookup.impl.SearchLookupImpl;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rescore.RescoreSearchContext;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
@@ -339,12 +340,12 @@ public class SubSearchContext extends FilteredSearchContext {
         return fetchSearchResult;
     }
 
-    private SearchLookup searchLookup;
+    private SearchLookupImpl searchLookup;
 
     @Override
-    public SearchLookup lookup() {
+    public SearchLookupImpl lookup() {
         if (searchLookup == null) {
-            searchLookup = new SearchLookup(mapperService(), fieldData(), request().types());
+            searchLookup = new SearchLookupImpl(mapperService(), fieldData(), request().types());
         }
         return searchLookup;
     }

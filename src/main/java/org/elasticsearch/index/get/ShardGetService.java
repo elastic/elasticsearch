@@ -52,7 +52,7 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
-import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.lookup.impl.SearchLookupImpl;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -213,7 +213,7 @@ public class ShardGetService extends AbstractIndexShardComponent {
                 Translog.Source source = get.source();
 
                 Map<String, GetField> fields = null;
-                SearchLookup searchLookup = null;
+                SearchLookupImpl searchLookup = null;
 
                 // we can only load scripts that can run against the source
                 if (gFields != null && gFields.length > 0) {
@@ -238,7 +238,7 @@ public class ShardGetService extends AbstractIndexShardComponent {
                             value = source.source.length();
                         } else {
                             if (searchLookup == null) {
-                                searchLookup = new SearchLookup(mapperService, fieldDataService, new String[]{type});
+                                searchLookup = new SearchLookupImpl(mapperService, fieldDataService, new String[]{type});
                                 searchLookup.source().setSource(source.source);
                             }
 
@@ -359,7 +359,7 @@ public class ShardGetService extends AbstractIndexShardComponent {
         // now, go and do the script thingy if needed
 
         if (gFields != null && gFields.length > 0) {
-            SearchLookup searchLookup = null;
+            SearchLookupImpl searchLookup = null;
             for (String field : gFields) {
                 Object value = null;
                 FieldMapper fieldMapper = docMapper.mappers().smartNameFieldMapper(field);
@@ -370,7 +370,7 @@ public class ShardGetService extends AbstractIndexShardComponent {
                     }
                 } else if (!fieldMapper.fieldType().stored() && !fieldMapper.isGenerated()) {
                     if (searchLookup == null) {
-                        searchLookup = new SearchLookup(mapperService, fieldDataService, new String[]{type});
+                        searchLookup = new SearchLookupImpl(mapperService, fieldDataService, new String[]{type});
                         LeafSearchLookup leafSearchLookup = searchLookup.getLeafSearchLookup(docIdAndVersion.context);
                         searchLookup.source().setSource(source);
                         leafSearchLookup.setDocument(docIdAndVersion.docId);

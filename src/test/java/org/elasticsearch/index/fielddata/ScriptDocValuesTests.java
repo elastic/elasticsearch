@@ -22,6 +22,7 @@ package org.elasticsearch.index.fielddata;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.unit.DistanceUnit;
+import org.elasticsearch.search.lookup.impl.ScriptDocValuesImpl;
 import org.elasticsearch.test.ElasticsearchTestCase;
 
 import java.util.Arrays;
@@ -69,7 +70,7 @@ public class ScriptDocValuesTests extends ElasticsearchTestCase {
         final double lon1 = randomLon();
         final double lon2 = randomLon();
         final MultiGeoPointValues values = wrap(new GeoPoint(lat1, lon1), new GeoPoint(lat2, lon2));
-        final ScriptDocValues.GeoPoints script = new ScriptDocValues.GeoPoints(values);
+        final ScriptDocValuesImpl.GeoPoints script = new ScriptDocValuesImpl.GeoPoints(values);
         script.setNextDocId(1);
         assertEquals(true, script.isEmpty());
         script.setNextDocId(0);
@@ -86,10 +87,10 @@ public class ScriptDocValuesTests extends ElasticsearchTestCase {
         final double lat = randomLat();
         final double lon = randomLon();
         final MultiGeoPointValues values = wrap(new GeoPoint(lat, lon));
-        final ScriptDocValues.GeoPoints script = new ScriptDocValues.GeoPoints(values);
+        final ScriptDocValuesImpl.GeoPoints script = new ScriptDocValuesImpl.GeoPoints(values);
         script.setNextDocId(0);
 
-        final ScriptDocValues.GeoPoints emptyScript = new ScriptDocValues.GeoPoints(wrap());
+        final ScriptDocValuesImpl.GeoPoints emptyScript = new ScriptDocValuesImpl.GeoPoints(wrap());
         emptyScript.setNextDocId(0);
 
         final double otherLat = randomLat();

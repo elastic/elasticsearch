@@ -51,7 +51,7 @@ import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.fetch.innerhits.InnerHitsContext;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.lookup.impl.SearchLookupImpl;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -363,15 +363,15 @@ public class QueryParseContext {
         return Arrays.asList(types);
     }
 
-    private SearchLookup lookup = null;
+    private SearchLookupImpl lookup = null;
 
-    public SearchLookup lookup() {
+    public SearchLookupImpl lookup() {
         SearchContext current = SearchContext.current();
         if (current != null) {
             return current.lookup();
         }
         if (lookup == null) {
-            lookup = new SearchLookup(mapperService(), indexQueryParser.fieldDataService, null);
+            lookup = new SearchLookupImpl(mapperService(), indexQueryParser.fieldDataService, null);
         }
         return lookup;
     }

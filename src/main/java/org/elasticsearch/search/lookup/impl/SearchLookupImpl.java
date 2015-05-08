@@ -17,9 +17,10 @@
  * under the License.
  */
 
-package org.elasticsearch.search.lookup;
+package org.elasticsearch.search.lookup.impl;
 
 import com.google.common.collect.ImmutableMap;
+
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
@@ -28,29 +29,29 @@ import org.elasticsearch.index.mapper.MapperService;
 /**
  *
  */
-public class SearchLookup {
+public class SearchLookupImpl {
 
-    final DocLookup docMap;
+    final DocLookupImpl docMap;
 
-    final SourceLookup sourceLookup;
+    final SourceLookupImpl sourceLookup;
 
-    final FieldsLookup fieldsLookup;
+    final FieldsLookupImpl fieldsLookup;
 
-    final IndexLookup indexLookup;
+    final IndexLookupImpl indexLookup;
 
     final ImmutableMap<String, Object> asMap;
 
-    public SearchLookup(MapperService mapperService, IndexFieldDataService fieldDataService, @Nullable String[] types) {
+    public SearchLookupImpl(MapperService mapperService, IndexFieldDataService fieldDataService, @Nullable String[] types) {
         ImmutableMap.Builder<String, Object> builder = ImmutableMap.builder();
-        docMap = new DocLookup(mapperService, fieldDataService, types);
-        sourceLookup = new SourceLookup();
-        fieldsLookup = new FieldsLookup(mapperService, types);
-        indexLookup = new IndexLookup(builder);
+        docMap = new DocLookupImpl(mapperService, fieldDataService, types);
+        sourceLookup = new SourceLookupImpl();
+        fieldsLookup = new FieldsLookupImpl(mapperService, types);
+        indexLookup = new IndexLookupImpl(builder);
         asMap = builder.build();
     }
 
-    public LeafSearchLookup getLeafSearchLookup(LeafReaderContext context) {
-        return new LeafSearchLookup(context,
+    public LeafSearchLookupImpl getLeafSearchLookup(LeafReaderContext context) {
+        return new LeafSearchLookupImpl(context,
                 docMap.getLeafDocLookup(context),
                 sourceLookup,
                 fieldsLookup.getLeafFieldsLookup(context),
@@ -58,11 +59,11 @@ public class SearchLookup {
                 asMap);
     }
 
-    public DocLookup doc() {
+    public DocLookupImpl doc() {
         return docMap;
     }
 
-    public SourceLookup source() {
+    public SourceLookupImpl source() {
         return sourceLookup;
     }
 }

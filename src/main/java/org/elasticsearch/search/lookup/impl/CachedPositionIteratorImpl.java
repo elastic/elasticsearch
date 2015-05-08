@@ -17,11 +17,12 @@
  * under the License.
  */
 
-package org.elasticsearch.search.lookup;
+package org.elasticsearch.search.lookup.impl;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.IntsRefBuilder;
+import org.elasticsearch.search.lookup.TermPosition;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -29,9 +30,9 @@ import java.util.Iterator;
 /*
  * Can iterate over the positions of a term an arbotrary number of times. 
  * */
-public class CachedPositionIterator extends PositionIterator {
+public class CachedPositionIteratorImpl extends PositionIteratorImpl {
 
-    public CachedPositionIterator(IndexFieldTerm indexFieldTerm) {
+    public CachedPositionIteratorImpl(IndexFieldTermImpl indexFieldTerm) {
         super(indexFieldTerm);
     }
 
@@ -55,7 +56,7 @@ public class CachedPositionIterator extends PositionIterator {
     public Iterator<TermPosition> reset() {
         return new Iterator<TermPosition>() {
             private int pos = 0;
-            private final TermPosition termPosition = new TermPosition();
+            private final TermPositionImpl termPosition = new TermPositionImpl();
 
             @Override
             public boolean hasNext() {
@@ -83,9 +84,9 @@ public class CachedPositionIterator extends PositionIterator {
 
 
     private void record() throws IOException {
-        TermPosition termPosition;
+        TermPositionImpl termPosition;
         for (int i = 0; i < freq; i++) {
-            termPosition = super.next();
+            termPosition = (TermPositionImpl) super.next();
             positions.setIntAt(i, termPosition.position);
             addPayload(i, termPosition.payload);
             startOffsets.setIntAt(i, termPosition.startOffset);

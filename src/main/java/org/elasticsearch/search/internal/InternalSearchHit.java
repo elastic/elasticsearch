@@ -20,6 +20,7 @@
 package org.elasticsearch.search.internal;
 
 import com.google.common.collect.ImmutableMap;
+
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
@@ -43,7 +44,7 @@ import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.highlight.HighlightField;
-import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.search.lookup.impl.SourceLookupImpl;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -275,7 +276,7 @@ public class InternalSearchHit implements SearchHit {
             return sourceAsMap;
         }
 
-        sourceAsMap = SourceLookup.sourceAsMap(source);
+        sourceAsMap = SourceLookupImpl.sourceAsMap(source);
         return sourceAsMap;
     }
 

@@ -19,6 +19,7 @@
 package org.elasticsearch.script.mustache;
 
 import com.github.mustachejava.Mustache;
+
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -30,7 +31,7 @@ import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptEngineService;
 import org.elasticsearch.script.SearchScript;
-import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.lookup.impl.SearchLookupImpl;
 
 import java.io.IOException;
 import java.lang.ref.SoftReference;
@@ -138,7 +139,7 @@ public class MustacheScriptEngineService extends AbstractComponent implements Sc
     }
 
     @Override
-    public SearchScript search(Object compiledScript, SearchLookup lookup,
+    public SearchScript search(Object compiledScript, SearchLookupImpl lookup,
             @Nullable Map<String, Object> vars) {
         throw new UnsupportedOperationException();
     }

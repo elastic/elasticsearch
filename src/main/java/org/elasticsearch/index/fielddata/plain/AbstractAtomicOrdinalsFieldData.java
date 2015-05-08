@@ -24,8 +24,8 @@ import org.apache.lucene.index.RandomAccessOrds;
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.index.fielddata.AtomicOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.FieldData;
-import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.search.lookup.impl.ScriptDocValuesImpl;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -36,8 +36,8 @@ import java.util.Collections;
 public abstract class AbstractAtomicOrdinalsFieldData implements AtomicOrdinalsFieldData {
 
     @Override
-    public final ScriptDocValues getScriptValues() {
-        return new ScriptDocValues.Strings(getBytesValues());
+    public final ScriptDocValuesImpl getScriptValues() {
+        return new ScriptDocValuesImpl.Strings(getBytesValues());
     }
 
     @Override

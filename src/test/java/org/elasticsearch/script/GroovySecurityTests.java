@@ -62,6 +62,10 @@ public class GroovySecurityTests extends ElasticsearchIntegrationTest {
         assertSuccess("def foo = doc['foo'].value; if (foo == null) { return 5; }");
         // string field access
         assertSuccess("def bar = doc['bar'].value; if (bar == null) { return 5; }");
+        // _source access
+        assertSuccess("def foo = _source.foo; if (foo == null) { return 5; }");
+        // _score access
+        assertSuccess("def foo = _score; if (foo < 0) { return 5; }");
         // List
         assertSuccess("def list = [doc['foo'].value, 3, 4]; def v = list.get(1); list.add(10)");
         // Ranges
@@ -106,7 +110,7 @@ public class GroovySecurityTests extends ElasticsearchIntegrationTest {
     private void assertSuccess(String script) {
         logger.info("--> script: " + script);
         SearchResponse resp = client().prepareSearch("test")
-                .setSource("{\"query\": {\"match_all\": {}}," +
+                .setSource("{\"query\": {\"term\": { \"bar\": \"baz\" }}," +
                         "\"sort\":{\"_script\": {\"script\": \""+ script +
                         "; doc['foo'].value + 2\", \"type\": \"number\", \"lang\": \"groovy\"}}}").get();
         assertNoFailures(resp);
@@ -117,7 +121,7 @@ public class GroovySecurityTests extends ElasticsearchIntegrationTest {
     private void assertFailure(String script) {
         logger.info("--> script: " + script);
         SearchResponse resp = client().prepareSearch("test")
-                 .setSource("{\"query\": {\"match_all\": {}}," +
+                 .setSource("{\"query\": {\"term\": { \"bar\": \"baz\" }}," +
                             "\"sort\":{\"_script\": {\"script\": \""+ script +
                             "; doc['foo'].value + 2\", \"type\": \"number\", \"lang\": \"groovy\"}}}").get();
         assertEquals(0, resp.getHits().getTotalHits());

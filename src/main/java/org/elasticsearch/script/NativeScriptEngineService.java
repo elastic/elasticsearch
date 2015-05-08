@@ -26,7 +26,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.lookup.impl.SearchLookupImpl;
 
 import java.io.IOException;
 import java.util.Map;
@@ -77,7 +77,7 @@ public class NativeScriptEngineService extends AbstractComponent implements Scri
     }
 
     @Override
-    public SearchScript search(Object compiledScript, final SearchLookup lookup, @Nullable final Map<String, Object> vars) {
+    public SearchScript search(Object compiledScript, final SearchLookupImpl lookup, @Nullable final Map<String, Object> vars) {
         final NativeScriptFactory scriptFactory = (NativeScriptFactory) compiledScript;
         return new SearchScript() {
             @Override

@@ -29,8 +29,8 @@ import org.elasticsearch.index.fieldvisitor.CustomFieldsVisitor;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.search.lookup.impl.SourceLookupImpl;
 
 import java.io.IOException;
 import java.util.List;
@@ -57,7 +57,7 @@ public final class HighlightUtils {
                 textsToHighlight = ImmutableList.of();
             }
         } else {
-            SourceLookup sourceLookup = searchContext.lookup().source();
+            SourceLookupImpl sourceLookup = searchContext.lookup().source();
             sourceLookup.setSegmentAndDocument(hitContext.readerContext(), hitContext.docId());
             textsToHighlight = sourceLookup.extractRawValues(hitContext.getSourcePath(mapper.names().sourcePath()));
         }

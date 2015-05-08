@@ -39,7 +39,7 @@ import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptEngineService;
 import org.elasticsearch.script.SearchScript;
-import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.lookup.impl.SearchLookupImpl;
 
 import java.text.ParseException;
 import java.util.Calendar;
@@ -91,7 +91,7 @@ public class ExpressionScriptEngineService extends AbstractComponent implements 
     }
 
     @Override
-    public SearchScript search(Object compiledScript, SearchLookup lookup, @Nullable Map<String, Object> vars) {
+    public SearchScript search(Object compiledScript, SearchLookupImpl lookup, @Nullable Map<String, Object> vars) {
         Expression expr = (Expression)compiledScript;
         MapperService mapper = lookup.doc().mapperService();
         // NOTE: if we need to do anything complicated with bindings in the future, we can just extend Bindings,

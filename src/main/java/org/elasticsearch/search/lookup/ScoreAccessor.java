@@ -17,17 +17,17 @@
  * under the License.
  */
 
-package org.elasticsearch.script;
+package org.elasticsearch.search.lookup;
 
 import org.apache.lucene.search.Scorer;
-import org.elasticsearch.search.lookup.DocLookup;
+import org.elasticsearch.search.lookup.impl.DocLookupImpl;
 
 import java.io.IOException;
 
 /**
  * A float encapsulation that dynamically accesses the score of a document.
  *
- * The provided {@link DocLookup} is used to retrieve the score
+ * The provided {@link DocLookupImpl} is used to retrieve the score
  * for the current document.
  */
 public final class ScoreAccessor extends Number implements Comparable<Number> {

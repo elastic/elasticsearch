@@ -27,8 +27,8 @@ import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.fielddata.AtomicParentChildFieldData;
-import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.search.lookup.impl.ScriptDocValuesImpl;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -40,8 +40,8 @@ import java.util.Set;
 abstract class AbstractAtomicParentChildFieldData implements AtomicParentChildFieldData {
 
     @Override
-    public final ScriptDocValues getScriptValues() {
-        return new ScriptDocValues.Strings(getBytesValues());
+    public final ScriptDocValuesImpl getScriptValues() {
+        return new ScriptDocValuesImpl.Strings(getBytesValues());
     }
 
     @Override

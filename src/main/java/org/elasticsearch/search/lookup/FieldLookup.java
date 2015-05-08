@@ -18,83 +18,23 @@
  */
 package org.elasticsearch.search.lookup;
 
-import org.elasticsearch.index.mapper.FieldMapper;
-
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-/**
- *
- */
-public class FieldLookup {
+public interface FieldLookup {
 
-    // we can cached mapper completely per name, since its on an index/shard level (the lookup, and it does not change within the scope of a search request)
-    private final FieldMapper mapper;
-
-    private Map<String, List<Object>> fields;
-
-    private Object value;
-
-    private boolean valueLoaded = false;
-
-    private List<Object> values = new ArrayList<>();
-
-    private boolean valuesLoaded = false;
-
-    FieldLookup(FieldMapper mapper) {
-        this.mapper = mapper;
-    }
-
-    public FieldMapper mapper() {
-        return mapper;
-    }
-
-    public Map<String, List<Object>> fields() {
-        return fields;
-    }
+    Map<String, List<Object>> fields();
 
     /**
      * Sets the post processed values.
      */
-    public void fields(Map<String, List<Object>> fields) {
-        this.fields = fields;
-    }
+    void fields(Map<String, List<Object>> fields);
 
-    public void clear() {
-        value = null;
-        valueLoaded = false;
-        values.clear();
-        valuesLoaded = false;
-        fields = null;
-    }
+    void clear();
 
-    public boolean isEmpty() {
-        if (valueLoaded) {
-            return value == null;
-        }
-        if (valuesLoaded) {
-            return values.isEmpty();
-        }
-        return getValue() == null;
-    }
+    boolean isEmpty();
 
-    public Object getValue() {
-        if (valueLoaded) {
-            return value;
-        }
-        valueLoaded = true;
-        value = null;
-        List<Object> values = fields.get(mapper.names().indexName());
-        return values != null ? value = values.get(0) : null;
-    }
+    public Object getValue();
 
-    public List<Object> getValues() {
-        if (valuesLoaded) {
-            return values;
-        }
-        valuesLoaded = true;
-        values.clear();
-        return values = fields().get(mapper.names().indexName());
-    }
+    public List<Object> getValues();
 }

@@ -16,17 +16,18 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.search.lookup;
+package org.elasticsearch.search.lookup.impl;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.search.lookup.LeafDocLookup;
 
 /**
  *
  */
-public class DocLookup {
+public class DocLookupImpl {
 
     private final MapperService mapperService;
     private final IndexFieldDataService fieldDataService;
@@ -34,7 +35,7 @@ public class DocLookup {
     @Nullable
     private final String[] types;
 
-    DocLookup(MapperService mapperService, IndexFieldDataService fieldDataService, @Nullable String[] types) {
+    DocLookupImpl(MapperService mapperService, IndexFieldDataService fieldDataService, @Nullable String[] types) {
         this.mapperService = mapperService;
         this.fieldDataService = fieldDataService;
         this.types = types;
@@ -49,6 +50,6 @@ public class DocLookup {
     }
 
     public LeafDocLookup getLeafDocLookup(LeafReaderContext context) {
-        return new LeafDocLookup(mapperService, fieldDataService, types, context);
+        return new LeafDocLookupImpl(mapperService, fieldDataService, types, context);
     }
 }

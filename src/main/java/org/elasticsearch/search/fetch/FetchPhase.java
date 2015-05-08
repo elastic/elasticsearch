@@ -21,6 +21,7 @@ package org.elasticsearch.search.fetch;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.search.DocIdSet;
@@ -65,6 +66,7 @@ import org.elasticsearch.search.internal.InternalSearchHitField;
 import org.elasticsearch.search.internal.InternalSearchHits;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.search.lookup.impl.SourceLookupImpl;
 
 import java.io.IOException;
 import java.util.*;
@@ -237,7 +239,7 @@ public class FetchPhase implements SearchPhase {
         InternalSearchHit searchHit = new InternalSearchHit(docId, fieldsVisitor.uid().id(), typeText, searchFields);
 
         // go over and extract fields that are not mapped / stored
-        SourceLookup sourceLookup = context.lookup().source();
+        SourceLookupImpl sourceLookup = context.lookup().source();
         sourceLookup.setSegmentAndDocument(subReaderContext, subDocId);
         if (fieldsVisitor.source() != null) {
             sourceLookup.setSource(fieldsVisitor.source());
@@ -280,7 +282,7 @@ public class FetchPhase implements SearchPhase {
 
         Map<String, SearchHitField> searchFields = getSearchFields(context, nestedSubDocId, loadAllStored, fieldNames, subReaderContext);
         DocumentMapper documentMapper = context.mapperService().documentMapper(rootFieldsVisitor.uid().type());
-        SourceLookup sourceLookup = context.lookup().source();
+        SourceLookupImpl sourceLookup = context.lookup().source();
         sourceLookup.setSegmentAndDocument(subReaderContext, nestedSubDocId);
 
         ObjectMapper nestedObjectMapper = documentMapper.findNestedObjectMapper(nestedSubDocId, context, subReaderContext);

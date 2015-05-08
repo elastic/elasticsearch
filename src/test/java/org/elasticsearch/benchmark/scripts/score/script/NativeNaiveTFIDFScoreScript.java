@@ -23,8 +23,8 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.script.AbstractSearchScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.NativeScriptFactory;
-import org.elasticsearch.search.lookup.IndexFieldTerm;
 import org.elasticsearch.search.lookup.IndexField;
+import org.elasticsearch.search.lookup.IndexFieldTerm;
 
 import java.io.IOException;
 import java.util.ArrayList;

@@ -57,7 +57,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.query.TemplateQueryParser;
 import org.elasticsearch.script.groovy.GroovyScriptEngineService;
-import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.lookup.impl.SearchLookupImpl;
 import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -391,7 +391,7 @@ public class ScriptService extends AbstractComponent implements Closeable {
     /**
      * Compiles (or retrieves from cache) and executes the provided search script
      */
-    public SearchScript search(SearchLookup lookup, Script script, ScriptContext scriptContext) {
+    public SearchScript search(SearchLookupImpl lookup, Script script, ScriptContext scriptContext) {
         CompiledScript compiledScript = compile(script, scriptContext);
         return getScriptEngineServiceForLang(compiledScript.lang()).search(compiledScript.compiled(), lookup, script.getParams());
     }

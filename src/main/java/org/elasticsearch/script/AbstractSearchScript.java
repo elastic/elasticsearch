@@ -20,7 +20,6 @@
 package org.elasticsearch.script;
 
 import org.apache.lucene.search.Scorer;
-import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.search.lookup.*;
 
 import java.io.IOException;
@@ -58,22 +57,22 @@ public abstract class AbstractSearchScript extends AbstractExecutableScript impl
     /**
      * Returns field data strings access for the provided field.
      */
-    protected ScriptDocValues.Strings docFieldStrings(String field) {
-        return (ScriptDocValues.Strings) doc().get(field);
+    protected StringDocValues docFieldStrings(String field) {
+        return (StringDocValues) doc().get(field);
     }
 
     /**
      * Returns field data double (floating point) access for the provided field.
      */
-    protected ScriptDocValues.Doubles docFieldDoubles(String field) {
-        return (ScriptDocValues.Doubles) doc().get(field);
+    protected DoubleDocValues docFieldDoubles(String field) {
+        return (DoubleDocValues) doc().get(field);
     }
 
     /**
      * Returns field data long (integers) access for the provided field.
      */
-    protected ScriptDocValues.Longs docFieldLongs(String field) {
-        return (ScriptDocValues.Longs) doc().get(field);
+    protected LongDocValues docFieldLongs(String field) {
+        return (LongDocValues) doc().get(field);
     }
 
     /**

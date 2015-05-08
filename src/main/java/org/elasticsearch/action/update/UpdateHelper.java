@@ -49,6 +49,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
 import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.search.lookup.impl.SourceLookupImpl;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -275,7 +276,7 @@ public class UpdateHelper extends AbstractComponent {
         boolean sourceRequested = false;
         Map<String, GetField> fields = null;
         if (request.fields() != null && request.fields().length > 0) {
-            SourceLookup sourceLookup = new SourceLookup();
+            SourceLookupImpl sourceLookup = new SourceLookupImpl();
             sourceLookup.setSource(source);
             for (String field : request.fields()) {
                 if (field.equals("_source")) {

@@ -20,6 +20,7 @@ package org.elasticsearch.script;
 
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
+
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -29,7 +30,7 @@ import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.script.expression.ExpressionScriptEngineService;
 import org.elasticsearch.script.groovy.GroovyScriptEngineService;
 import org.elasticsearch.script.mustache.MustacheScriptEngineService;
-import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.lookup.impl.SearchLookupImpl;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.junit.Before;
@@ -407,7 +408,7 @@ public class ScriptServiceTests extends ElasticsearchTestCase {
         }
 
         @Override
-        public SearchScript search(Object compiledScript, SearchLookup lookup, @Nullable Map<String, Object> vars) {
+        public SearchScript search(Object compiledScript, SearchLookupImpl lookup, @Nullable Map<String, Object> vars) {
             return null;
         }
 

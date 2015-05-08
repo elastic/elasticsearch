@@ -19,11 +19,13 @@
 
 package org.elasticsearch.common.geo;
 
+import org.elasticsearch.search.lookup.GeoDocValue;
+
 
 /**
  *
  */
-public final class GeoPoint {
+public final class GeoPoint implements GeoDocValue {
 
     private double lat;
     private double lon;

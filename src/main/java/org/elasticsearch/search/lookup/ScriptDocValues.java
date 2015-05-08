@@ -16,28 +16,25 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.elasticsearch.search.lookup;
 
-import org.apache.lucene.index.LeafReaderContext;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.index.mapper.MapperService;
+import java.util.List;
+
 
 /**
- *
+ * Script level doc values, the assumption is that any implementation will implement a <code>getValue</code>
+ * and a <code>getValues</code> that return the relevant type that then can be used in scripts.
  */
-public class FieldsLookup {
+public interface ScriptDocValues<T> extends List<T> {
 
-    private final MapperService mapperService;
-    @Nullable
-    private final String[] types;
+    /**
+     * Set the current doc ID.
+     */
+    void setNextDocId(int docId);
 
-    FieldsLookup(MapperService mapperService, @Nullable String[] types) {
-        this.mapperService = mapperService;
-        this.types = types;
-    }
-
-    public LeafFieldsLookup getLeafFieldsLookup(LeafReaderContext context) {
-        return new LeafFieldsLookup(mapperService, types, context.reader());
-    }
-
+    /**
+     * Return a copy of the list of the values for the current document.
+     */
+    List<T> getValues();
 }

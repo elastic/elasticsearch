@@ -20,6 +20,7 @@
 package org.elasticsearch.search.fetch.source;
 
 import com.google.common.collect.ImmutableMap;
+
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -30,6 +31,7 @@ import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.search.lookup.impl.SourceLookupImpl;
 
 import java.io.IOException;
 import java.util.Map;
@@ -73,7 +75,7 @@ public class FetchSourceSubPhase implements FetchSubPhase {
             return;
         }
 
-        SourceLookup source = context.lookup().source();
+        SourceLookupImpl source = context.lookup().source();
         Object value = source.filter(fetchSourceContext.includes(), fetchSourceContext.excludes());
         try {
             final int initialCapacity = Math.min(1024, source.internalSourceRef().length());

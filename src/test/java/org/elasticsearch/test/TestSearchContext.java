@@ -54,7 +54,7 @@ import org.elasticsearch.search.highlight.SearchContextHighlight;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
-import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.lookup.impl.SearchLookupImpl;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rescore.RescoreSearchContext;
 import org.elasticsearch.search.scan.ScanContext;
@@ -522,8 +522,8 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public SearchLookup lookup() {
-        return new SearchLookup(mapperService(), fieldData(), null);
+    public SearchLookupImpl lookup() {
+        return new SearchLookupImpl(mapperService(), fieldData(), null);
     }
 
     @Override

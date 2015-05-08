@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.fielddata;
+package org.elasticsearch.search.lookup.impl;
 
 import com.google.common.collect.ImmutableList;
 
@@ -26,6 +26,10 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.unit.DistanceUnit;
+import org.elasticsearch.index.fielddata.MultiGeoPointValues;
+import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.search.lookup.GeoDocValue;
 import org.joda.time.DateTimeZone;
 import org.joda.time.MutableDateTime;
 
@@ -37,7 +41,7 @@ import java.util.List;
  * Script level doc values, the assumption is that any implementation will implement a <code>getValue</code>
  * and a <code>getValues</code> that return the relevant type that then can be used in scripts.
  */
-public interface ScriptDocValues<T> extends List<T> {
+public interface ScriptDocValuesImpl<T> extends List<T> {
 
     /**
      * Set the current doc ID.
@@ -49,7 +53,7 @@ public interface ScriptDocValues<T> extends List<T> {
      */
     List<T> getValues();
 
-    public final static class Strings extends AbstractList<String> implements ScriptDocValues<String> {
+    public final static class Strings extends AbstractList<String> implements ScriptDocValuesImpl<String> {
 
         private final SortedBinaryDocValues values;
 
@@ -62,11 +66,11 @@ public interface ScriptDocValues<T> extends List<T> {
             values.setDocument(docId);
         }
 
-        public SortedBinaryDocValues getInternalValues() {
+        SortedBinaryDocValues getInternalValues() {
             return this.values;
         }
 
-        public BytesRef getBytesValue() {
+        BytesRef getBytesValue() {
             if (values.count() > 0) {
                 return values.valueAt(0);
             } else {
@@ -100,7 +104,7 @@ public interface ScriptDocValues<T> extends List<T> {
 
     }
 
-    public static class Longs extends AbstractList<Long> implements ScriptDocValues<Long> {
+    public static class Longs extends AbstractList<Long> implements ScriptDocValuesImpl<Long> {
 
         private final SortedNumericDocValues values;
         private final MutableDateTime date = new MutableDateTime(0, DateTimeZone.UTC);
@@ -114,7 +118,7 @@ public interface ScriptDocValues<T> extends List<T> {
             values.setDocument(docId);
         }
 
-        public SortedNumericDocValues getInternalValues() {
+        SortedNumericDocValues getInternalValues() {
             return this.values;
         }
 
@@ -148,7 +152,7 @@ public interface ScriptDocValues<T> extends List<T> {
 
     }
 
-    public static class Doubles extends AbstractList<Double> implements ScriptDocValues<Double> {
+    public static class Doubles extends AbstractList<Double> implements ScriptDocValuesImpl<Double> {
 
         private final SortedNumericDoubleValues values;
 
@@ -161,7 +165,7 @@ public interface ScriptDocValues<T> extends List<T> {
             values.setDocument(docId);
         }
 
-        public SortedNumericDoubleValues getInternalValues() {
+        SortedNumericDoubleValues getInternalValues() {
             return this.values;
         }
 
@@ -189,7 +193,7 @@ public interface ScriptDocValues<T> extends List<T> {
         }
     }
 
-    public static class GeoPoints extends AbstractList<GeoPoint> implements ScriptDocValues<GeoPoint> {
+    public static class GeoPoints extends AbstractList<GeoDocValue> implements ScriptDocValuesImpl<GeoDocValue> {
 
         private final MultiGeoPointValues values;
 
@@ -202,7 +206,7 @@ public interface ScriptDocValues<T> extends List<T> {
             values.setDocument(docId);
         }
 
-        public GeoPoint getValue() {
+        public GeoDocValue getValue() {
             int numValues = values.count();
             if (numValues == 0) {
                 return null;
@@ -215,7 +219,7 @@ public interface ScriptDocValues<T> extends List<T> {
         }
 
         public double[] getLats() {
-            List<GeoPoint> points = getValues();
+            List<GeoDocValue> points = getValues();
             double[] lats = new double[points.size()];
             for (int i = 0; i < points.size(); i++) {
                 lats[i] = points.get(i).lat();
@@ -224,7 +228,7 @@ public interface ScriptDocValues<T> extends List<T> {
         }
 
         public double[] getLons() {
-            List<GeoPoint> points = getValues();
+            List<GeoDocValue> points = getValues();
             double[] lons = new double[points.size()];
             for (int i = 0; i < points.size(); i++) {
                 lons[i] = points.get(i).lon();
@@ -237,13 +241,13 @@ public interface ScriptDocValues<T> extends List<T> {
         }
 
         @Override
-        public List<GeoPoint> getValues() {
+        public List<GeoDocValue> getValues() {
             return ImmutableList.copyOf(this);
         }
 
         @Override
-        public GeoPoint get(int index) {
-            final GeoPoint point = values.valueAt(index);
+        public GeoDocValue get(int index) {
+            final GeoDocValue point = values.valueAt(index);
             return new GeoPoint(point.lat(), point.lon());
         }
 
@@ -253,7 +257,7 @@ public interface ScriptDocValues<T> extends List<T> {
         }
 
         public double factorDistance(double lat, double lon) {
-            GeoPoint point = getValue();
+            GeoDocValue point = getValue();
             return GeoDistance.FACTOR.calculate(point.lat(), point.lon(), lat, lon, DistanceUnit.DEFAULT);
         }
 
@@ -261,22 +265,22 @@ public interface ScriptDocValues<T> extends List<T> {
             if (isEmpty()) {
                 return defaultValue;
             }
-            GeoPoint point = getValue();
+            GeoDocValue point = getValue();
             return GeoDistance.FACTOR.calculate(point.lat(), point.lon(), lat, lon, DistanceUnit.DEFAULT);
         }
 
         public double factorDistance02(double lat, double lon) {
-            GeoPoint point = getValue();
+            GeoDocValue point = getValue();
             return GeoDistance.FACTOR.calculate(point.lat(), point.lon(), lat, lon, DistanceUnit.DEFAULT) + 1;
         }
 
         public double factorDistance13(double lat, double lon) {
-            GeoPoint point = getValue();
+            GeoDocValue point = getValue();
             return GeoDistance.FACTOR.calculate(point.lat(), point.lon(), lat, lon, DistanceUnit.DEFAULT) + 2;
         }
 
         public double arcDistance(double lat, double lon) {
-            GeoPoint point = getValue();
+            GeoDocValue point = getValue();
             return GeoDistance.ARC.calculate(point.lat(), point.lon(), lat, lon, DistanceUnit.DEFAULT);
         }
 
@@ -284,12 +288,12 @@ public interface ScriptDocValues<T> extends List<T> {
             if (isEmpty()) {
                 return defaultValue;
             }
-            GeoPoint point = getValue();
+            GeoDocValue point = getValue();
             return GeoDistance.ARC.calculate(point.lat(), point.lon(), lat, lon, DistanceUnit.DEFAULT);
         }
 
         public double arcDistanceInKm(double lat, double lon) {
-            GeoPoint point = getValue();
+            GeoDocValue point = getValue();
             return GeoDistance.ARC.calculate(point.lat(), point.lon(), lat, lon, DistanceUnit.KILOMETERS);
         }
 
@@ -297,12 +301,12 @@ public interface ScriptDocValues<T> extends List<T> {
             if (isEmpty()) {
                 return defaultValue;
             }
-            GeoPoint point = getValue();
+            GeoDocValue point = getValue();
             return GeoDistance.ARC.calculate(point.lat(), point.lon(), lat, lon, DistanceUnit.KILOMETERS);
         }
 
         public double arcDistanceInMiles(double lat, double lon) {
-            GeoPoint point = getValue();
+            GeoDocValue point = getValue();
             return GeoDistance.ARC.calculate(point.lat(), point.lon(), lat, lon, DistanceUnit.MILES);
         }
 
@@ -310,12 +314,12 @@ public interface ScriptDocValues<T> extends List<T> {
             if (isEmpty()) {
                 return defaultValue;
             }
-            GeoPoint point = getValue();
+            GeoDocValue point = getValue();
             return GeoDistance.ARC.calculate(point.lat(), point.lon(), lat, lon, DistanceUnit.MILES);
         }
 
         public double distance(double lat, double lon) {
-            GeoPoint point = getValue();
+            GeoDocValue point = getValue();
             return GeoDistance.PLANE.calculate(point.lat(), point.lon(), lat, lon, DistanceUnit.DEFAULT);
         }
 
@@ -323,12 +327,12 @@ public interface ScriptDocValues<T> extends List<T> {
             if (isEmpty()) {
                 return defaultValue;
             }
-            GeoPoint point = getValue();
+            GeoDocValue point = getValue();
             return GeoDistance.PLANE.calculate(point.lat(), point.lon(), lat, lon, DistanceUnit.DEFAULT);
         }
 
         public double distanceInKm(double lat, double lon) {
-            GeoPoint point = getValue();
+            GeoDocValue point = getValue();
             return GeoDistance.PLANE.calculate(point.lat(), point.lon(), lat, lon, DistanceUnit.KILOMETERS);
         }
 
@@ -336,12 +340,12 @@ public interface ScriptDocValues<T> extends List<T> {
             if (isEmpty()) {
                 return defaultValue;
             }
-            GeoPoint point = getValue();
+            GeoDocValue point = getValue();
             return GeoDistance.PLANE.calculate(point.lat(), point.lon(), lat, lon, DistanceUnit.KILOMETERS);
         }
 
         public double distanceInMiles(double lat, double lon) {
-            GeoPoint point = getValue();
+            GeoDocValue point = getValue();
             return GeoDistance.PLANE.calculate(point.lat(), point.lon(), lat, lon, DistanceUnit.MILES);
         }
 
@@ -349,25 +353,25 @@ public interface ScriptDocValues<T> extends List<T> {
             if (isEmpty()) {
                 return defaultValue;
             }
-            GeoPoint point = getValue();
+            GeoDocValue point = getValue();
             return GeoDistance.PLANE.calculate(point.lat(), point.lon(), lat, lon, DistanceUnit.MILES);
         }
 
         public double geohashDistance(String geohash) {
-            GeoPoint point = getValue();
-            GeoPoint p = new GeoPoint().resetFromGeoHash(geohash);
+            GeoDocValue point = getValue();
+            GeoDocValue p = new GeoPoint().resetFromGeoHash(geohash);
             return GeoDistance.ARC.calculate(point.lat(), point.lon(), p.lat(), p.lon(), DistanceUnit.DEFAULT);
         }
 
         public double geohashDistanceInKm(String geohash) {
-            GeoPoint point = getValue();
-            GeoPoint p = new GeoPoint().resetFromGeoHash(geohash);
+            GeoDocValue point = getValue();
+            GeoDocValue p = new GeoPoint().resetFromGeoHash(geohash);
             return GeoDistance.ARC.calculate(point.lat(), point.lon(), p.lat(), p.lon(), DistanceUnit.KILOMETERS);
         }
 
         public double geohashDistanceInMiles(String geohash) {
-            GeoPoint point = getValue();
-            GeoPoint p = new GeoPoint().resetFromGeoHash(geohash);
+            GeoDocValue point = getValue();
+            GeoDocValue p = new GeoPoint().resetFromGeoHash(geohash);
             return GeoDistance.ARC.calculate(point.lat(), point.lon(), p.lat(), p.lon(), DistanceUnit.MILES);
         }
 

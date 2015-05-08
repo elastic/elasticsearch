@@ -26,9 +26,9 @@ import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.index.fielddata.AtomicFieldData;
 import org.elasticsearch.index.fielddata.FieldData;
-import org.elasticsearch.index.fielddata.ScriptDocValues;
-import org.elasticsearch.index.fielddata.ScriptDocValues.Strings;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.search.lookup.ScriptDocValues;
+import org.elasticsearch.search.lookup.impl.ScriptDocValuesImpl;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -57,8 +57,8 @@ public class BinaryDVAtomicFieldData implements AtomicFieldData {
     }
 
     @Override
-    public Strings getScriptValues() {
-        return new ScriptDocValues.Strings(getBytesValues());
+    public ScriptDocValuesImpl.Strings getScriptValues() {
+        return new ScriptDocValuesImpl.Strings(getBytesValues());
     }
 
     @Override

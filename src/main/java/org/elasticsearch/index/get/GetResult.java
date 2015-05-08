@@ -20,6 +20,7 @@
 package org.elasticsearch.index.get;
 
 import com.google.common.collect.ImmutableMap;
+
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
@@ -30,7 +31,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.search.lookup.impl.SourceLookupImpl;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -172,7 +173,7 @@ public class GetResult implements Streamable, Iterable<GetField>, ToXContent {
             return sourceAsMap;
         }
 
-        sourceAsMap = SourceLookup.sourceAsMap(source);
+        sourceAsMap = SourceLookupImpl.sourceAsMap(source);
         return sourceAsMap;
     }
 

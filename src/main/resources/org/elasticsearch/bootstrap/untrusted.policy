@@ -37,13 +37,7 @@ grant {
   permission java.lang.RuntimePermission "accessClassInPackage.org.elasticsearch.search.lookup";
   
   // TODO: i think only ScoreAccessor here is used by scripts?
-  permission java.lang.RuntimePermission "accessClassInPackage.org.elasticsearch.script";
-  
-  // TODO: leaky abstractions via geo functions... nuke these when we make well-defined interface
-  permission java.lang.RuntimePermission "accessClassInPackage.org.elasticsearch.index.fielddata";
-  permission java.lang.RuntimePermission "accessClassInPackage.org.elasticsearch.common.geo";
-  permission java.lang.RuntimePermission "accessClassInPackage.org.elasticsearch.common.unit";
-  permission java.lang.RuntimePermission "accessClassInPackage.org.apache.lucene.util";
+  // permission java.lang.RuntimePermission "accessClassInPackage.org.elasticsearch.script";
 
   // WTF and shaded variant
   permission java.lang.RuntimePermission "accessClassInPackage.org.jboss.netty.buffer";

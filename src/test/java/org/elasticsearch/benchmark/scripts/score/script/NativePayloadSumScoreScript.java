@@ -19,11 +19,10 @@
 
 package org.elasticsearch.benchmark.scripts.score.script;
 
-import org.elasticsearch.search.lookup.IndexFieldTerm;
 import org.elasticsearch.search.lookup.IndexField;
+import org.elasticsearch.search.lookup.IndexFieldTerm;
 import org.elasticsearch.search.lookup.IndexLookup;
 import org.elasticsearch.search.lookup.TermPosition;
-
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.script.AbstractSearchScript;
 import org.elasticsearch.script.ExecutableScript;

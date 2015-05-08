@@ -21,12 +21,15 @@ package org.elasticsearch.index.fielddata;
 
 import com.carrotsearch.hppc.DoubleOpenHashSet;
 import com.carrotsearch.hppc.LongOpenHashSet;
+
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.LongField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.Term;
+import org.elasticsearch.search.lookup.ScriptDocValues;
+import org.elasticsearch.search.lookup.impl.ScriptDocValuesImpl;
 import org.joda.time.DateTimeZone;
 import org.junit.Test;
 
@@ -102,7 +105,7 @@ public class LongFieldDataTests extends AbstractNumericFieldDataTests {
         IndexNumericFieldData indexFieldData = getForField("value");
         AtomicNumericFieldData fieldData = indexFieldData.load(refreshReader());
 
-        ScriptDocValues.Longs scriptValues = (ScriptDocValues.Longs) fieldData.getScriptValues();
+        ScriptDocValuesImpl.Longs scriptValues = (ScriptDocValuesImpl.Longs) fieldData.getScriptValues();
         scriptValues.setNextDocId(0);
         assertThat(scriptValues.getValue(), equalTo(2l));
         assertThat(scriptValues.getDate().getMillis(), equalTo(2l));

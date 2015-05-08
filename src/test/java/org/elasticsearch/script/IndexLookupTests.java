@@ -29,6 +29,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
@@ -384,6 +385,7 @@ public class IndexLookupTests extends ElasticsearchIntegrationTest {
     private void checkArrayValsInEachDoc(String script, HashMap<String, List<Object>> expectedArray, int expectedHitSize) {
         SearchResponse sr = client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery()).addScriptField("tvtest", script)
                 .execute().actionGet();
+        ElasticsearchAssertions.assertAllSuccessful(sr);
         assertHitCount(sr, expectedHitSize);
         int nullCounter = 0;
         for (SearchHit hit : sr.getHits().getHits()) {

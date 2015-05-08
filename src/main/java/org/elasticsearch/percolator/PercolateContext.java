@@ -62,7 +62,8 @@ import org.elasticsearch.search.fetch.source.FetchSourceContext;
 import org.elasticsearch.search.highlight.SearchContextHighlight;
 import org.elasticsearch.search.internal.*;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
-import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.lookup.impl.LeafSearchLookupImpl;
+import org.elasticsearch.search.lookup.impl.SearchLookupImpl;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rescore.RescoreSearchContext;
 import org.elasticsearch.search.scan.ScanContext;
@@ -100,7 +101,7 @@ public class PercolateContext extends SearchContext {
     private ContextIndexSearcher searcher;
 
     private SearchContextHighlight highlight;
-    private SearchLookup searchLookup;
+    private SearchLookupImpl searchLookup;
     private ParsedQuery parsedQuery;
     private Query query;
     private boolean queryRewritten;
@@ -138,7 +139,7 @@ public class PercolateContext extends SearchContext {
 
         IndexReader indexReader = docSearcher.reader();
         LeafReaderContext atomicReaderContext = indexReader.leaves().get(0);
-        LeafSearchLookup leafLookup = lookup().getLeafSearchLookup(atomicReaderContext);
+        LeafSearchLookupImpl leafLookup = lookup().getLeafSearchLookup(atomicReaderContext);
         leafLookup.setDocument(0);
         leafLookup.source().setSource(parsedDocument.source());
 
@@ -200,9 +201,9 @@ public class PercolateContext extends SearchContext {
     }
 
     @Override
-    public SearchLookup lookup() {
+    public SearchLookupImpl lookup() {
         if (searchLookup == null) {
-            searchLookup = new SearchLookup(mapperService(), fieldData(), types);
+            searchLookup = new SearchLookupImpl(mapperService(), fieldData(), types);
         }
         return searchLookup;
     }
@@ -254,7 +255,7 @@ public class PercolateContext extends SearchContext {
 
     public void types(String[] types) {
         this.types = types;
-        searchLookup = new SearchLookup(mapperService(), fieldData(), types);
+        searchLookup = new SearchLookupImpl(mapperService(), fieldData(), types);
     }
 
     @Override

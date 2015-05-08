@@ -19,66 +19,22 @@
 
 package org.elasticsearch.search.lookup;
 
-import com.google.common.collect.ImmutableMap;
-
-import org.apache.lucene.index.LeafReaderContext;
-
 import java.util.Map;
 
 /**
  * Per-segment version of {@link SearchLookup}.
  */
-public class LeafSearchLookup {
+public interface LeafSearchLookup {
 
-    final LeafReaderContext ctx;
-    final LeafDocLookup docMap;
-    final SourceLookup sourceLookup;
-    final LeafFieldsLookup fieldsLookup;
-    final LeafIndexLookup indexLookup;
-    final ImmutableMap<String, Object> asMap;
+    Map<String, Object> asMap();
 
-    public LeafSearchLookup(LeafReaderContext ctx, LeafDocLookup docMap, SourceLookup sourceLookup,
-            LeafFieldsLookup fieldsLookup, LeafIndexLookup indexLookup, Map<String, Object> topLevelMap) {
-        this.ctx = ctx;
-        this.docMap = docMap;
-        this.sourceLookup = sourceLookup;
-        this.fieldsLookup = fieldsLookup;
-        this.indexLookup = indexLookup;
+    SourceLookup source();
 
-        ImmutableMap.Builder<String, Object> builder = ImmutableMap.builder();
-        builder.putAll(topLevelMap);
-        builder.put("doc", docMap);
-        builder.put("_doc", docMap);
-        builder.put("_source", sourceLookup);
-        builder.put("_fields", fieldsLookup);
-        builder.put("_index", indexLookup);
-        asMap = builder.build();
-    }
+    LeafIndexLookup indexLookup();
 
-    public ImmutableMap<String, Object> asMap() {
-        return this.asMap;
-    }
+    LeafFieldsLookup fields();
 
-    public SourceLookup source() {
-        return this.sourceLookup;
-    }
+    LeafDocLookup doc();
 
-    public LeafIndexLookup indexLookup() {
-        return this.indexLookup;
-    }
-
-    public LeafFieldsLookup fields() {
-        return this.fieldsLookup;
-    }
-
-    public LeafDocLookup doc() {
-        return this.docMap;
-    }
-
-    public void setDocument(int docId) {
-        docMap.setDocument(docId);
-        sourceLookup.setSegmentAndDocument(ctx, docId);
-        fieldsLookup.setDocument(docId);
-        indexLookup.setDocument(docId);
-    }
+    void setDocument(int docId);
 }

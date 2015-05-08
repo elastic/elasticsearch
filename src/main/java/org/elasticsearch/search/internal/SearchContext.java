@@ -55,7 +55,7 @@ import org.elasticsearch.search.fetch.innerhits.InnerHitsContext;
 import org.elasticsearch.search.fetch.script.ScriptFieldsContext;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
 import org.elasticsearch.search.highlight.SearchContextHighlight;
-import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.lookup.impl.SearchLookupImpl;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rescore.RescoreSearchContext;
 import org.elasticsearch.search.scan.ScanContext;
@@ -307,7 +307,7 @@ public abstract class SearchContext implements Releasable {
 
     public abstract ScoreDoc lastEmittedDoc();
 
-    public abstract SearchLookup lookup();
+    public abstract SearchLookupImpl lookup();
 
     public abstract DfsSearchResult dfsResult();
 

@@ -46,7 +46,8 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.*;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
-import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.lookup.ScoreAccessor;
+import org.elasticsearch.search.lookup.impl.SearchLookupImpl;
 
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -154,7 +155,7 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
 
     @SuppressWarnings({"unchecked"})
     @Override
-    public SearchScript search(final Object compiledScript, final SearchLookup lookup, @Nullable final Map<String, Object> vars) {
+    public SearchScript search(final Object compiledScript, final SearchLookupImpl lookup, @Nullable final Map<String, Object> vars) {
         return new SearchScript() {
 
             @Override

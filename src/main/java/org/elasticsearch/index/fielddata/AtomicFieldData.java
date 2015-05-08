@@ -21,6 +21,7 @@ package org.elasticsearch.index.fielddata;
 
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.search.lookup.impl.ScriptDocValuesImpl;
 
 /**
  * The thread safe {@link org.apache.lucene.index.LeafReader} level cache of the data.
@@ -30,7 +31,7 @@ public interface AtomicFieldData extends Accountable, Releasable {
     /**
      * Returns a "scripting" based values.
      */
-    ScriptDocValues getScriptValues();
+    ScriptDocValuesImpl getScriptValues();
 
     /**
      * Return a String representation of the values.

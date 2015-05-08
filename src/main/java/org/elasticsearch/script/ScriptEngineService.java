@@ -20,7 +20,7 @@
 package org.elasticsearch.script;
 
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.lookup.impl.SearchLookupImpl;
 
 import java.io.Closeable;
 import java.util.Map;
@@ -40,7 +40,7 @@ public interface ScriptEngineService extends Closeable {
 
     ExecutableScript executable(Object compiledScript, @Nullable Map<String, Object> vars);
 
-    SearchScript search(Object compiledScript, SearchLookup lookup, @Nullable Map<String, Object> vars);
+    SearchScript search(Object compiledScript, SearchLookupImpl lookup, @Nullable Map<String, Object> vars);
 
     Object execute(Object compiledScript, Map<String, Object> vars);
 

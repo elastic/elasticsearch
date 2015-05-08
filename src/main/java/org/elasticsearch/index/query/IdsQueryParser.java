@@ -20,27 +20,18 @@
 package org.elasticsearch.index.query;
 
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Iterables;
 
-
-import org.apache.lucene.queries.TermsQuery;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.Uid;
-import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 
 /**
- *
+ * Parser for the IdsQuery.
  */
-public class IdsQueryParser extends BaseQueryParserTemp {
+public class IdsQueryParser extends BaseQueryParser {
 
     public static final String NAME = "ids";
 
@@ -53,15 +44,18 @@ public class IdsQueryParser extends BaseQueryParserTemp {
         return new String[]{NAME};
     }
 
+    /**
+     * @return a QueryBuilder representation of the query passed in as XContent in the parse context
+     */
     @Override
-    public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public QueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
-
-        List<BytesRef> ids = new ArrayList<>();
-        Collection<String> types = null;
-        String currentFieldName = null;
+        List<String> ids = new ArrayList<>();
+        List<String> types = new ArrayList<>();
         float boost = 1.0f;
         String queryName = null;
+
+        String currentFieldName = null;
         XContentParser.Token token;
         boolean idsProvided = false;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -73,18 +67,17 @@ public class IdsQueryParser extends BaseQueryParserTemp {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         if ((token == XContentParser.Token.VALUE_STRING) ||
                                 (token == XContentParser.Token.VALUE_NUMBER)) {
-                            BytesRef value = parser.utf8BytesOrNull();
-                            if (value == null) {
+                            String id = parser.textOrNull();
+                            if (id == null) {
                                 throw new QueryParsingException(parseContext, "No value specified for term filter");
                             }
-                            ids.add(value);
+                            ids.add(id);
                         } else {
                             throw new QueryParsingException(parseContext, "Illegal value for id, expecting a string or number, got: "
                                     + token);
                         }
                     }
                 } else if ("types".equals(currentFieldName) || "type".equals(currentFieldName)) {
-                    types = new ArrayList<>();
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         String value = parser.textOrNull();
                         if (value == null) {
@@ -107,26 +100,14 @@ public class IdsQueryParser extends BaseQueryParserTemp {
                 }
             }
         }
-
         if (!idsProvided) {
             throw new QueryParsingException(parseContext, "[ids] query, no ids values provided");
         }
 
-        if (ids.isEmpty()) {
-            return Queries.newMatchNoDocsQuery();
-        }
-
-        if (types == null || types.isEmpty()) {
-            types = parseContext.queryTypes();
-        } else if (types.size() == 1 && Iterables.getFirst(types, null).equals("_all")) {
-            types = parseContext.mapperService().types();
-        }
-
-        TermsQuery query = new TermsQuery(UidFieldMapper.NAME, Uid.createTypeUids(types, ids));
-        query.setBoost(boost);
-        if (queryName != null) {
-            parseContext.addNamedQuery(queryName, query);
-        }
+        IdsQueryBuilder query = new IdsQueryBuilder(types.toArray(new String[types.size()]));
+        query.addIds(ids.toArray(new String[ids.size()]));
+        query.boost(boost).queryName(queryName);
+        query.validate();
         return query;
     }
 }

@@ -32,66 +32,49 @@ import java.nio.ByteBuffer;
  */
 public final class BufferingTranslogFile extends TranslogFile {
 
-    private volatile int operationCounter;
-    private volatile long lastPosition;
-    private volatile long lastWrittenPosition;
-
-    private volatile long lastSyncPosition = 0;
-
     private byte[] buffer;
     private int bufferCount;
     private WrapperOutputStream bufferOs = new WrapperOutputStream();
 
+    /* the total offset of this file including the bytes written to the file as well as into the buffer */
+    private volatile long totalOffset;
+
     public BufferingTranslogFile(ShardId shardId, long id, ChannelReference channelReference, int bufferSize) throws IOException {
         super(shardId, id, channelReference);
         this.buffer = new byte[bufferSize];
-        final TranslogStream stream = this.channelReference.stream();
-        int headerSize = stream.writeHeader(channelReference.channel());
-        this.lastPosition += headerSize;
-        this.lastWrittenPosition += headerSize;
-        this.lastSyncPosition += headerSize;
-    }
-
-    @Override
-    public int totalOperations() {
-        return operationCounter;
-    }
-
-    @Override
-    public long sizeInBytes() {
-        return lastWrittenPosition;
+        this.totalOffset = writtenOffset;
     }
 
     @Override
     public Translog.Location add(BytesReference data) throws IOException {
         try (ReleasableLock lock = writeLock.acquire()) {
             operationCounter++;
-            long position = lastPosition;
+            final long offset = totalOffset;
             if (data.length() >= buffer.length) {
-                flushBuffer();
+                flush();
                 // we use the channel to write, since on windows, writing to the RAF might not be reflected
                 // when reading through the channel
                 data.writeTo(channelReference.channel());
-                lastWrittenPosition += data.length();
-                lastPosition += data.length();
-                return new Translog.Location(id, position, data.length());
+                writtenOffset += data.length();
+                totalOffset += data.length();
+                return new Translog.Location(id, offset, data.length());
             }
             if (data.length() > buffer.length - bufferCount) {
-                flushBuffer();
+                flush();
             }
             data.writeTo(bufferOs);
-            lastPosition += data.length();
-            return new Translog.Location(id, position, data.length());
+            totalOffset += data.length();
+            return new Translog.Location(id, offset, data.length());
         }
     }
 
-    private void flushBuffer() throws IOException {
+    protected final void flush() throws IOException {
         assert writeLock.isHeldByCurrentThread();
         if (bufferCount > 0) {
             // we use the channel to write, since on windows, writing to the RAF might not be reflected
             // when reading through the channel
             Channels.writeToChannel(buffer, 0, bufferCount, channelReference.channel());
-            lastWrittenPosition += bufferCount;
+            writtenOffset += bufferCount;
             bufferCount = 0;
         }
     }
@@ -99,8 +82,8 @@ public final class BufferingTranslogFile extends TranslogFile {
     @Override
     protected void readBytes(ByteBuffer targetBuffer, long position) throws IOException {
         try (ReleasableLock lock = readLock.acquire()) {
-            if (position >= lastWrittenPosition) {
-                System.arraycopy(buffer, (int) (position - lastWrittenPosition),
+            if (position >= writtenOffset) {
+                System.arraycopy(buffer, (int) (position - writtenOffset),
                         targetBuffer.array(), targetBuffer.position(), targetBuffer.limit());
                 return;
             }
@@ -110,26 +93,9 @@ public final class BufferingTranslogFile extends TranslogFile {
         Channels.readFromFileChannelWithEofException(channelReference.channel(), position, targetBuffer);
     }
 
-    public ChannelImmutableReader immutableReader() throws TranslogException {
-        if (channelReference.tryIncRef()) {
-            try (ReleasableLock lock = writeLock.acquire()) {
-                flushBuffer();
-                ChannelImmutableReader reader = new ChannelImmutableReader(this.id, channelReference, lastWrittenPosition, operationCounter);
-                channelReference.incRef(); // for new reader
-                return reader;
-            } catch (Exception e) {
-                throw new TranslogException(shardId, "exception while creating an immutable reader", e);
-            } finally {
-                channelReference.decRef();
-            }
-        } else {
-            throw new TranslogException(shardId, "can't increment channel [" + channelReference + "] ref count");
-        }
-    }
-
     @Override
     public boolean syncNeeded() {
-        return lastPosition != lastSyncPosition;
+        return totalOffset != lastSyncedOffset;
     }
 
     @Override
@@ -138,19 +104,10 @@ public final class BufferingTranslogFile extends TranslogFile {
             return;
         }
         try (ReleasableLock lock = writeLock.acquire()) {
-            flushBuffer();
-            lastSyncPosition = lastPosition;
+            flush();
+            lastSyncedOffset = totalOffset;
         }
         channelReference.channel().force(false);
-    }
-
-    @Override
-    protected void doClose() throws IOException {
-        try {
-            sync();
-        } finally {
-            super.doClose();
-        }
     }
 
     @Override
@@ -160,7 +117,7 @@ public final class BufferingTranslogFile extends TranslogFile {
         }
         try (ReleasableLock lock = writeLock.acquire()) {
             try {
-                flushBuffer();
+                flush();
                 this.buffer = ((BufferingTranslogFile) other).buffer;
             } catch (IOException e) {
                 throw new TranslogException(shardId, "failed to flush", e);
@@ -173,7 +130,7 @@ public final class BufferingTranslogFile extends TranslogFile {
             if (this.buffer.length == bufferSize) {
                 return;
             }
-            flushBuffer();
+            flush();
             this.buffer = new byte[bufferSize];
         } catch (IOException e) {
             throw new TranslogException(shardId, "failed to flush", e);
@@ -194,5 +151,4 @@ public final class BufferingTranslogFile extends TranslogFile {
             bufferCount += len;
         }
     }
-
 }

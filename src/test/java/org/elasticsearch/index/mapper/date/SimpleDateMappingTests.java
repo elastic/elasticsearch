@@ -23,9 +23,7 @@ import org.apache.lucene.analysis.NumericTokenStream.NumericTermAttribute;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.NumericRangeQuery;
-import org.apache.lucene.search.QueryWrapperFilter;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -240,14 +238,13 @@ public class SimpleDateMappingTests extends ElasticsearchSingleNodeTest {
                 .bytes());
         assertThat(((LongFieldMapper.CustomLongNumericField) doc.rootDoc().getField("date_field")).numericAsString(), equalTo(Long.toString(new DateTime(TimeValue.timeValueHours(10).millis(), DateTimeZone.UTC).getMillis())));
 
-        Filter filter;
+        NumericRangeQuery<Long> rangeQuery;
         try {
             SearchContext.setCurrent(new TestSearchContext());
-            filter = defaultMapper.mappers().smartNameFieldMapper("date_field").rangeFilter("10:00:00", "11:00:00", true, true, null);
+            rangeQuery = (NumericRangeQuery<Long>) defaultMapper.mappers().smartNameFieldMapper("date_field").rangeQuery("10:00:00", "11:00:00", true, true, null);
         } finally {
             SearchContext.removeCurrent();
         }
-        NumericRangeQuery<Long> rangeQuery = (NumericRangeQuery<Long>) ((QueryWrapperFilter) filter).getQuery();
         assertThat(rangeQuery.getMax(), equalTo(new DateTime(TimeValue.timeValueHours(11).millis()).getMillis()));
         assertThat(rangeQuery.getMin(), equalTo(new DateTime(TimeValue.timeValueHours(10).millis()).getMillis()));
     }
@@ -267,14 +264,13 @@ public class SimpleDateMappingTests extends ElasticsearchSingleNodeTest {
                 .bytes());
         assertThat(((LongFieldMapper.CustomLongNumericField) doc.rootDoc().getField("date_field")).numericAsString(), equalTo(Long.toString(new DateTime(TimeValue.timeValueHours(34).millis(), DateTimeZone.UTC).getMillis())));
 
-        Filter filter;
+        NumericRangeQuery<Long> rangeQuery;
         try {
             SearchContext.setCurrent(new TestSearchContext());
-            filter = defaultMapper.mappers().smartNameFieldMapper("date_field").rangeFilter("Jan 02 10:00:00", "Jan 02 11:00:00", true, true, null);
+            rangeQuery = (NumericRangeQuery<Long>) defaultMapper.mappers().smartNameFieldMapper("date_field").rangeQuery("Jan 02 10:00:00", "Jan 02 11:00:00", true, true, null);
         } finally {
             SearchContext.removeCurrent();
         }
-        NumericRangeQuery<Long> rangeQuery = (NumericRangeQuery<Long>) ((QueryWrapperFilter) filter).getQuery();
         assertThat(rangeQuery.getMax(), equalTo(new DateTime(TimeValue.timeValueHours(35).millis()).getMillis()));
         assertThat(rangeQuery.getMin(), equalTo(new DateTime(TimeValue.timeValueHours(34).millis()).getMillis()));
     }

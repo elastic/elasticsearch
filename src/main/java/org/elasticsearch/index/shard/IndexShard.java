@@ -21,10 +21,9 @@ package org.elasticsearch.index.shard;
 
 import com.google.common.base.Charsets;
 import com.google.common.base.Preconditions;
+
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.index.CheckIndex;
-import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.FilteredQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitDocIdSetFilter;
 import org.apache.lucene.store.AlreadyClosedException;
@@ -116,6 +115,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.nio.channels.ClosedByInterruptException;
+import java.util.Arrays;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ScheduledFuture;
@@ -561,12 +562,12 @@ public class IndexShard extends AbstractIndexShardComponent {
             types = Strings.EMPTY_ARRAY;
         }
         Query query = queryParserService.parseQuery(source).query();
-        Filter searchFilter = mapperService.searchFilter(types);
+        Query searchFilter = mapperService.searchFilter(types);
         if (searchFilter != null) {
-            query = new FilteredQuery(query, searchFilter);
+            query = Queries.filtered(query, searchFilter);
         }
 
-        Filter aliasFilter = indexAliasesService.aliasFilter(filteringAliases);
+        Query aliasFilter = indexAliasesService.aliasFilter(filteringAliases);
         BitDocIdSetFilter parentFilter = mapperService.hasNested() ? indexCache.bitsetFilterCache().getBitDocIdSetFilter(Queries.newNonNestedFilter()) : null;
         return new Engine.DeleteByQuery(query, source, filteringAliases, aliasFilter, parentFilter, origin, startTime, types);
     }
@@ -1351,5 +1352,25 @@ public class IndexShard extends AbstractIndexShardComponent {
 
     public int getOperationsCount() {
         return indexShardOperationCounter.refCount();
+    }
+
+    /**
+     * Syncs the given location with the underlying storage unless already synced.
+     */
+    public void sync(Translog.Location location) {
+        final Engine engine = engine();
+        try {
+            engine.getTranslog().ensureSynced(location);
+        } catch (IOException ex) { // if this fails we are in deep shit - fail the request
+            logger.debug("failed to sync translog", ex);
+            throw new ElasticsearchException("failed to sync translog", ex);
+        }
+    }
+
+    /**
+     * Returns the current translog durability mode
+     */
+    public Translog.Durabilty getTranslogDurability() {
+       return engine().getTranslog().getDurabilty();
     }
 }

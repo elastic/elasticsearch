@@ -21,6 +21,7 @@ package org.elasticsearch.index.translog;
 
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.index.shard.ShardId;
 
@@ -29,18 +30,28 @@ import java.nio.ByteBuffer;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
-public abstract class TranslogFile extends ChannelReader {
+public class TranslogFile extends ChannelReader {
 
     protected final ShardId shardId;
     protected final ReleasableLock readLock;
     protected final ReleasableLock writeLock;
+    /* the offset in bytes that was written when the file was last synced*/
+    protected volatile long lastSyncedOffset;
+    /* the number of translog operations written to this file */
+    protected volatile int operationCounter;
+    /* the offset in bytes written to the file */
+    protected volatile long writtenOffset;
 
-    public TranslogFile(ShardId shardId, long id, ChannelReference channelReference) {
+    public TranslogFile(ShardId shardId, long id, ChannelReference channelReference) throws IOException {
         super(id, channelReference);
         this.shardId = shardId;
         ReadWriteLock rwl = new ReentrantReadWriteLock();
         readLock = new ReleasableLock(rwl.readLock());
         writeLock = new ReleasableLock(rwl.writeLock());
+        final TranslogStream stream = this.channelReference.stream();
+        int headerSize = stream.writeHeader(channelReference.channel());
+        this.writtenOffset += headerSize;
+        this.lastSyncedOffset += headerSize;
     }
 
 
@@ -49,7 +60,7 @@ public abstract class TranslogFile extends ChannelReader {
         SIMPLE() {
             @Override
             public TranslogFile create(ShardId shardId, long id, ChannelReference channelReference, int bufferSize) throws IOException {
-                return new SimpleTranslogFile(shardId, id, channelReference);
+                return new TranslogFile(shardId, id, channelReference);
             }
         },
         BUFFERED() {
@@ -73,24 +84,57 @@ public abstract class TranslogFile extends ChannelReader {
 
 
     /** add the given bytes to the translog and return the location they were written at */
-    public abstract Translog.Location add(BytesReference data) throws IOException;
+    public Translog.Location add(BytesReference data) throws IOException {
+        try (ReleasableLock lock = writeLock.acquire()) {
+            long position = writtenOffset;
+            data.writeTo(channelReference.channel());
+            writtenOffset = writtenOffset + data.length();
+            operationCounter = operationCounter + 1;
+            return new Translog.Location(id, position, data.length());
+        }
+    }
 
     /** reuse resources from another translog file, which is guaranteed not to be used anymore */
-    public abstract void reuse(TranslogFile other) throws TranslogException;
+    public void reuse(TranslogFile other) throws TranslogException {}
 
     /** change the size of the internal buffer if relevant */
-    public abstract void updateBufferSize(int bufferSize) throws TranslogException;
+    public void updateBufferSize(int bufferSize) throws TranslogException {}
 
     /** write all buffered ops to disk and fsync file */
-    public abstract void sync() throws IOException;
+    public void sync() throws IOException {
+        // check if we really need to sync here...
+        if (syncNeeded()) {
+            try (ReleasableLock lock = writeLock.acquire()) {
+                lastSyncedOffset = writtenOffset;
+                channelReference.channel().force(false);
+            }
+        }
+    }
 
     /** returns true if there are buffered ops */
-    public abstract boolean syncNeeded();
+    public boolean syncNeeded() {
+        return writtenOffset != lastSyncedOffset; // by default nothing is buffered
+    }
+
+    @Override
+    public int totalOperations() {
+        return operationCounter;
+    }
+
+    @Override
+    public long sizeInBytes() {
+        return writtenOffset;
+    }
 
     @Override
     public ChannelSnapshot newSnapshot() {
         return new ChannelSnapshot(immutableReader());
     }
+
+    /**
+     * Flushes the buffer if the translog is buffered.
+     */
+    protected void flush() throws IOException {}
 
     /**
      * returns a new reader that follows the current writes (most importantly allows making
@@ -112,7 +156,22 @@ public abstract class TranslogFile extends ChannelReader {
 
 
     /** returns a new immutable reader which only exposes the current written operation * */
-    abstract public ChannelImmutableReader immutableReader();
+    public ChannelImmutableReader immutableReader() throws TranslogException {
+        if (channelReference.tryIncRef()) {
+            try (ReleasableLock lock = writeLock.acquire()) {
+                flush();
+                ChannelImmutableReader reader = new ChannelImmutableReader(this.id, channelReference, writtenOffset, operationCounter);
+                channelReference.incRef(); // for new reader
+                return reader;
+            } catch (Exception e) {
+                throw new TranslogException(shardId, "exception while creating an immutable reader", e);
+            } finally {
+                channelReference.decRef();
+            }
+        } else {
+            throw new TranslogException(shardId, "can't increment channel [" + channelReference + "] ref count");
+        }
+    }
 
     boolean assertBytesAtLocation(Translog.Location location, BytesReference expectedBytes) throws IOException {
         ByteBuffer buffer = ByteBuffer.allocate(location.size);
@@ -148,6 +207,34 @@ public abstract class TranslogFile extends ChannelReader {
         @Override
         public ChannelSnapshot newSnapshot() {
             return TranslogFile.this.newSnapshot();
+        }
+    }
+
+    /**
+     * Syncs the translog up to at least the given offset unless already synced
+     * @return <code>true</code> if this call caused an actual sync operation
+     */
+    public boolean syncUpTo(long offset) throws IOException {
+        if (lastSyncedOffset < offset) {
+            sync();
+            return true;
+        }
+        return false;
+    }
+
+    @Override
+    protected final void doClose() throws IOException {
+        try {
+            sync();
+        } finally {
+            super.doClose();
+        }
+    }
+
+    @Override
+    protected void readBytes(ByteBuffer buffer, long position) throws IOException {
+        try (ReleasableLock lock = readLock.acquire()) {
+            Channels.readFromFileChannelWithEofException(channelReference.channel(), position, buffer);
         }
     }
 }

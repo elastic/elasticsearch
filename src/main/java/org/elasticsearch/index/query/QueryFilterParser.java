@@ -19,17 +19,14 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.QueryWrapperFilter;
 import org.elasticsearch.common.inject.Inject;
 
 import java.io.IOException;
 
-/**
- *
- */
-public class QueryFilterParser implements FilterParser {
+@Deprecated
+public class QueryFilterParser extends BaseQueryParserTemp {
 
     public static final String NAME = "query";
 
@@ -43,11 +40,7 @@ public class QueryFilterParser implements FilterParser {
     }
 
     @Override
-    public Filter parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
-        Query query = parseContext.parseInnerQuery();
-        if (query == null) {
-            return null;
-        }
-        return new QueryWrapperFilter(query);
+    public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
+        return new ConstantScoreQuery(parseContext.parseInnerQuery());
     }
 }

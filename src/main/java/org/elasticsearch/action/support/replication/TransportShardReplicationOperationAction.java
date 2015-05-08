@@ -62,6 +62,7 @@ import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardException;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.rest.RestStatus;
@@ -189,6 +190,26 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
             return true;
         }
         return false;
+    }
+
+    protected static class WriteResult<T extends ActionWriteResponse> {
+
+        public final T response;
+        public final Translog.Location location;
+
+        public WriteResult(T response, Translog.Location location) {
+            this.response = response;
+            this.location = location;
+        }
+
+        @SuppressWarnings("unchecked")
+        public <T extends ActionWriteResponse> T response() {
+            // this sets total, pending and failed to 0 and this is ok, because we will embed this into the replica
+            // request and not use it
+            response.setShardInfo(new ActionWriteResponse.ShardInfo());
+            return (T) response;
+        }
+
     }
 
     class OperationTransportHandler implements TransportRequestHandler<Request> {
@@ -1048,7 +1069,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
 
     /** Execute the given {@link IndexRequest} on a primary shard, throwing a
      *  {@link RetryOnPrimaryException} if the operation needs to be re-tried. */
-    protected final IndexResponse executeIndexRequestOnPrimary(BulkShardRequest shardRequest, IndexRequest request, IndexShard indexShard) throws Throwable {
+    protected final WriteResult<IndexResponse> executeIndexRequestOnPrimary(BulkShardRequest shardRequest, IndexRequest request, IndexShard indexShard) throws Throwable {
         Engine.IndexingOperation operation = prepareIndexOperationOnPrimary(shardRequest, request, indexShard);
         Mapping update = operation.parsedDoc().dynamicMappingsUpdate();
         final boolean created;
@@ -1087,6 +1108,6 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
 
         assert request.versionType().validateVersionForWrites(request.version());
 
-        return new IndexResponse(shardId.getIndex(), request.type(), request.id(), request.version(), created);
+        return new WriteResult(new IndexResponse(shardId.getIndex(), request.type(), request.id(), request.version(), created), operation.getTranslogLocation());
     }
 }

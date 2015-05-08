@@ -69,8 +69,8 @@ import java.util.List;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.FilterBuilders.existsFilter;
-import static org.elasticsearch.index.query.FilterBuilders.missingFilter;
+import static org.elasticsearch.index.query.QueryBuilders.existsQuery;
+import static org.elasticsearch.index.query.QueryBuilders.missingQuery;
 import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.*;
@@ -417,47 +417,47 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
                     client().prepareIndex(indexName, "type1", "3").setSource(jsonBuilder().startObject().startObject("obj2").field("obj2_val", "1").endObject().field("y1", "y_1").field("field2", "value2_3").endObject()),
                     client().prepareIndex(indexName, "type1", "4").setSource(jsonBuilder().startObject().startObject("obj2").field("obj2_val", "1").endObject().field("y2", "y_2").field("field3", "value3_4").endObject()));
 
-            CountResponse countResponse = client().prepareCount().setQuery(filteredQuery(matchAllQuery(), existsFilter("field1"))).get();
+            CountResponse countResponse = client().prepareCount().setQuery(filteredQuery(matchAllQuery(), existsQuery("field1"))).get();
             assertHitCount(countResponse, 2l);
 
-            countResponse = client().prepareCount().setQuery(constantScoreQuery(existsFilter("field1"))).get();
+            countResponse = client().prepareCount().setQuery(constantScoreQuery(existsQuery("field1"))).get();
             assertHitCount(countResponse, 2l);
 
             countResponse = client().prepareCount().setQuery(queryStringQuery("_exists_:field1")).get();
             assertHitCount(countResponse, 2l);
 
-            countResponse = client().prepareCount().setQuery(filteredQuery(matchAllQuery(), existsFilter("field2"))).get();
+            countResponse = client().prepareCount().setQuery(filteredQuery(matchAllQuery(), existsQuery("field2"))).get();
             assertHitCount(countResponse, 2l);
 
-            countResponse = client().prepareCount().setQuery(filteredQuery(matchAllQuery(), existsFilter("field3"))).get();
+            countResponse = client().prepareCount().setQuery(filteredQuery(matchAllQuery(), existsQuery("field3"))).get();
             assertHitCount(countResponse, 1l);
 
             // wildcard check
-            countResponse = client().prepareCount().setQuery(filteredQuery(matchAllQuery(), existsFilter("x*"))).get();
+            countResponse = client().prepareCount().setQuery(filteredQuery(matchAllQuery(), existsQuery("x*"))).get();
             assertHitCount(countResponse, 2l);
 
             // object check
-            countResponse = client().prepareCount().setQuery(filteredQuery(matchAllQuery(), existsFilter("obj1"))).get();
+            countResponse = client().prepareCount().setQuery(filteredQuery(matchAllQuery(), existsQuery("obj1"))).get();
             assertHitCount(countResponse, 2l);
 
-            countResponse = client().prepareCount().setQuery(filteredQuery(matchAllQuery(), missingFilter("field1"))).get();
+            countResponse = client().prepareCount().setQuery(filteredQuery(matchAllQuery(), missingQuery("field1"))).get();
             assertHitCount(countResponse, 2l);
 
-            countResponse = client().prepareCount().setQuery(filteredQuery(matchAllQuery(), missingFilter("field1"))).get();
+            countResponse = client().prepareCount().setQuery(filteredQuery(matchAllQuery(), missingQuery("field1"))).get();
             assertHitCount(countResponse, 2l);
 
-            countResponse = client().prepareCount().setQuery(constantScoreQuery(missingFilter("field1"))).get();
+            countResponse = client().prepareCount().setQuery(constantScoreQuery(missingQuery("field1"))).get();
             assertHitCount(countResponse, 2l);
 
             countResponse = client().prepareCount().setQuery(queryStringQuery("_missing_:field1")).get();
             assertHitCount(countResponse, 2l);
 
             // wildcard check
-            countResponse = client().prepareCount().setQuery(filteredQuery(matchAllQuery(), missingFilter("x*"))).get();
+            countResponse = client().prepareCount().setQuery(filteredQuery(matchAllQuery(), missingQuery("x*"))).get();
             assertHitCount(countResponse, 2l);
 
             // object check
-            countResponse = client().prepareCount().setQuery(filteredQuery(matchAllQuery(), missingFilter("obj1"))).get();
+            countResponse = client().prepareCount().setQuery(filteredQuery(matchAllQuery(), missingQuery("obj1"))).get();
             assertHitCount(countResponse, 2l);
             if (!backwardsCluster().upgradeOneNode()) {
                 break;

@@ -20,7 +20,6 @@
 package org.elasticsearch.index.mapper;
 
 import com.google.common.collect.ImmutableMap;
-
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -29,17 +28,13 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.similarity.SimilarityLookupService;
 
-import java.io.IOException;
 import java.util.Map;
 
-/**
- *
- */
-public interface Mapper extends ToXContent {
+public interface Mapper extends ToXContent, Iterable<Mapper> {
 
-    public static final Mapper[] EMPTY_ARRAY = new Mapper[0];
+    Mapper[] EMPTY_ARRAY = new Mapper[0];
 
-    public static class BuilderContext {
+    class BuilderContext {
         private final Settings indexSettings;
         private final ContentPath contentPath;
 
@@ -66,7 +61,7 @@ public interface Mapper extends ToXContent {
         }
     }
 
-    public static abstract class Builder<T extends Builder, Y extends Mapper> {
+    abstract class Builder<T extends Builder, Y extends Mapper> {
 
         public String name;
 
@@ -83,9 +78,9 @@ public interface Mapper extends ToXContent {
         public abstract Y build(BuilderContext context);
     }
 
-    public interface TypeParser {
+    interface TypeParser {
 
-        public static class ParserContext {
+        class ParserContext {
 
             private final AnalysisService analysisService;
 
@@ -126,10 +121,6 @@ public interface Mapper extends ToXContent {
     String name();
 
     void merge(Mapper mergeWith, MergeResult mergeResult) throws MergeMappingException;
-
-    void traverse(FieldMapperListener fieldMapperListener);
-
-    void traverse(ObjectMapperListener objectMapperListener);
 
     void close();
 }

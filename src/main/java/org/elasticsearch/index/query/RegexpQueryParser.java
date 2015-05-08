@@ -53,10 +53,6 @@ public class RegexpQueryParser extends BaseQueryParserTemp {
     public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
-        XContentParser.Token token = parser.nextToken();
-        if (token != XContentParser.Token.FIELD_NAME) {
-            throw new QueryParsingException(parseContext, "[regexp] query malformed, no field");
-        }
         String fieldName = parser.currentName();
         String rewriteMethod = null;
 
@@ -65,40 +61,45 @@ public class RegexpQueryParser extends BaseQueryParserTemp {
         int flagsValue = -1;
         int maxDeterminizedStates = Operations.DEFAULT_MAX_DETERMINIZED_STATES;
         String queryName = null;
-        token = parser.nextToken();
-        if (token == XContentParser.Token.START_OBJECT) {
-            String currentFieldName = null;
-            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                if (token == XContentParser.Token.FIELD_NAME) {
-                    currentFieldName = parser.currentName();
-                } else if (token.isValue()) {
-                    if ("value".equals(currentFieldName)) {
-                        value = parser.objectBytes();
-                    } else if ("boost".equals(currentFieldName)) {
-                        boost = parser.floatValue();
-                    } else if ("rewrite".equals(currentFieldName)) {
-                        rewriteMethod = parser.textOrNull();
-                    } else if ("flags".equals(currentFieldName)) {
-                        String flags = parser.textOrNull();
-                        flagsValue = RegexpFlag.resolveValue(flags);
-                    } else if ("flags_value".equals(currentFieldName)) {
-                        flagsValue = parser.intValue();
-                        if (flagsValue < 0) {
-                            flagsValue = RegExp.ALL;
+        String currentFieldName = null;
+        XContentParser.Token token;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if (parseContext.isDeprecatedSetting(currentFieldName)) {
+                // skip
+            } else if (token == XContentParser.Token.START_OBJECT) {
+                fieldName = currentFieldName;
+                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                    if (token == XContentParser.Token.FIELD_NAME) {
+                        currentFieldName = parser.currentName();
+                    } else {
+                        if ("value".equals(currentFieldName)) {
+                            value = parser.objectBytes();
+                        } else if ("boost".equals(currentFieldName)) {
+                            boost = parser.floatValue();
+                        } else if ("rewrite".equals(currentFieldName)) {
+                            rewriteMethod = parser.textOrNull();
+                        } else if ("flags".equals(currentFieldName)) {
+                            String flags = parser.textOrNull();
+                            flagsValue = RegexpFlag.resolveValue(flags);
+                        } else if ("max_determinized_states".equals(currentFieldName)) {
+                            maxDeterminizedStates = parser.intValue();
+                        } else if ("flags_value".equals(currentFieldName)) {
+                            flagsValue = parser.intValue();
+                        } else {
+                            throw new QueryParsingException(parseContext, "[regexp] query does not support [" + currentFieldName + "]");
                         }
-                    } else if ("maxDeterminizedStates".equals(currentFieldName)) {
-                        maxDeterminizedStates = parser.intValue();
-                    } else if ("_name".equals(currentFieldName)) {
-                        queryName = parser.text();
                     }
+                }
+            } else {
+                if ("_name".equals(currentFieldName)) {
+                    queryName = parser.text();
                 } else {
-                    throw new QueryParsingException(parseContext, "[regexp] query does not support [" + currentFieldName + "]");
+                    fieldName = currentFieldName;
+                    value = parser.objectBytes();
                 }
             }
-            parser.nextToken();
-        } else {
-            value = parser.objectBytes();
-            parser.nextToken();
         }
 
         if (value == null) {

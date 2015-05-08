@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.query.support;
 
-import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitDocIdSetFilter;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -47,7 +46,7 @@ public class NestedInnerQueryParseSupport {
 
     private BytesReference source;
     private Query innerQuery;
-    private Filter innerFilter;
+    private Query innerFilter;
     protected String path;
 
     private boolean filterParsed = false;
@@ -130,7 +129,7 @@ public class NestedInnerQueryParseSupport {
         }
     }
 
-    public Filter getInnerFilter() throws IOException {
+    public Query getInnerFilter() throws IOException {
         if (filterParsed) {
             return innerFilter;
         } else {

@@ -65,12 +65,10 @@ import java.util.NavigableSet;
 import java.util.Random;
 import java.util.TreeSet;
 
-import static org.elasticsearch.index.query.FilterBuilders.hasChildFilter;
-import static org.elasticsearch.index.query.FilterBuilders.notFilter;
-import static org.elasticsearch.index.query.FilterBuilders.termFilter;
 import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
 import static org.elasticsearch.index.query.QueryBuilders.filteredQuery;
 import static org.elasticsearch.index.query.QueryBuilders.hasChildQuery;
+import static org.elasticsearch.index.query.QueryBuilders.notQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -256,12 +254,12 @@ public class ChildrenConstantScoreQueryTests extends AbstractChildTests {
                         .setShortCircuitCutoff(shortCircuitParentDocSet);
             } else {
                 queryBuilder = constantScoreQuery(
-                        hasChildFilter("child", termQuery("field1", childValue))
+                        hasChildQuery("child", termQuery("field1", childValue))
                                 .setShortCircuitCutoff(shortCircuitParentDocSet)
                 );
             }
             // Using a FQ, will invoke / test the Scorer#advance(..) and also let the Weight#scorer not get live docs as acceptedDocs
-            queryBuilder = filteredQuery(queryBuilder, notFilter(termFilter("filter", "me")));
+            queryBuilder = filteredQuery(queryBuilder, notQuery(termQuery("filter", "me")));
             Query query = parseQuery(queryBuilder);
 
             BitSetCollector collector = new BitSetCollector(indexReader.maxDoc());

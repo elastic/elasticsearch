@@ -21,7 +21,7 @@ package org.elasticsearch.search.sort;
 
 import com.google.common.collect.Maps;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.query.FilterBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 
 import java.io.IOException;
 import java.util.Map;
@@ -43,7 +43,7 @@ public class ScriptSortBuilder extends SortBuilder {
 
     private String sortMode;
 
-    private FilterBuilder nestedFilter;
+    private QueryBuilder nestedFilter;
 
     private String nestedPath;
 
@@ -120,7 +120,7 @@ public class ScriptSortBuilder extends SortBuilder {
      * Sets the nested filter that the nested objects should match with in order to be taken into account
      * for sorting.
      */
-    public ScriptSortBuilder setNestedFilter(FilterBuilder nestedFilter) {
+    public ScriptSortBuilder setNestedFilter(QueryBuilder nestedFilter) {
         this.nestedFilter = nestedFilter;
         return this;
     }

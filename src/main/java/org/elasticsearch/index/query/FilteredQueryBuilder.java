@@ -31,7 +31,7 @@ public class FilteredQueryBuilder extends BaseQueryBuilder implements BoostableQ
 
     private final QueryBuilder queryBuilder;
 
-    private final FilterBuilder filterBuilder;
+    private final QueryBuilder filterBuilder;
 
     private float boost = -1;
 
@@ -43,7 +43,7 @@ public class FilteredQueryBuilder extends BaseQueryBuilder implements BoostableQ
      * @param queryBuilder  The query to apply the filter to (Can be null)
      * @param filterBuilder The filter to apply on the query (Can be null)
      */
-    public FilteredQueryBuilder(@Nullable QueryBuilder queryBuilder, @Nullable FilterBuilder filterBuilder) {
+    public FilteredQueryBuilder(@Nullable QueryBuilder queryBuilder, @Nullable QueryBuilder filterBuilder) {
         this.queryBuilder = queryBuilder;
         this.filterBuilder = filterBuilder;
     }

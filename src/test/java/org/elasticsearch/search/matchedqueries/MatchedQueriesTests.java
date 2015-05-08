@@ -25,7 +25,6 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
-import static org.elasticsearch.index.query.FilterBuilders.*;
 import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
@@ -47,7 +46,7 @@ public class MatchedQueriesTests extends ElasticsearchIntegrationTest {
         refresh();
 
         SearchResponse searchResponse = client().prepareSearch()
-                .setQuery(filteredQuery(matchAllQuery(), orFilter(rangeFilter("number").lte(2).filterName("test1"), rangeFilter("number").gt(2).filterName("test2")))).get();
+                .setQuery(filteredQuery(matchAllQuery(), orQuery(rangeQuery("number").lte(2).queryName("test1"), rangeQuery("number").gt(2).queryName("test2")))).get();
         assertHitCount(searchResponse, 3l);
         for (SearchHit hit : searchResponse.getHits()) {
             if (hit.id().equals("1") || hit.id().equals("2")) {
@@ -89,9 +88,9 @@ public class MatchedQueriesTests extends ElasticsearchIntegrationTest {
 
         SearchResponse searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
-                .setPostFilter(orFilter(
-                        termFilter("name", "test").filterName("name"),
-                        termFilter("title", "title1").filterName("title"))).get();
+                .setPostFilter(orQuery(
+                        termQuery("name", "test").queryName("name"),
+                        termQuery("title", "title1").queryName("title"))).get();
         assertHitCount(searchResponse, 3l);
         for (SearchHit hit : searchResponse.getHits()) {
             if (hit.id().equals("1")) {
@@ -108,9 +107,9 @@ public class MatchedQueriesTests extends ElasticsearchIntegrationTest {
 
         searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
-                .setPostFilter(queryFilter(boolQuery()
+                .setPostFilter(boolQuery()
                         .should(termQuery("name", "test").queryName("name"))
-                        .should(termQuery("title", "title1").queryName("title")))).get();
+                        .should(termQuery("title", "title1").queryName("title"))).get();
 
         assertHitCount(searchResponse, 3l);
         for (SearchHit hit : searchResponse.getHits()) {
@@ -138,8 +137,8 @@ public class MatchedQueriesTests extends ElasticsearchIntegrationTest {
         refresh();
 
         SearchResponse searchResponse = client().prepareSearch()
-                .setQuery(filteredQuery(matchAllQuery(), termsFilter("title", "title1", "title2", "title3").filterName("title")))
-                        .setPostFilter(termFilter("name", "test").filterName("name")).get();
+                .setQuery(filteredQuery(matchAllQuery(), termsQuery("title", "title1", "title2", "title3").queryName("title")))
+                        .setPostFilter(termQuery("name", "test").queryName("name")).get();
         assertHitCount(searchResponse, 3l);
         for (SearchHit hit : searchResponse.getHits()) {
             if (hit.id().equals("1") || hit.id().equals("2") || hit.id().equals("3")) {
@@ -153,7 +152,7 @@ public class MatchedQueriesTests extends ElasticsearchIntegrationTest {
 
         searchResponse = client().prepareSearch()
                 .setQuery(termsQuery("title", "title1", "title2", "title3").queryName("title"))
-                .setPostFilter(queryFilter(matchQuery("name", "test").queryName("name"))).get();
+                .setPostFilter(matchQuery("name", "test").queryName("name")).get();
         assertHitCount(searchResponse, 3l);
         for (SearchHit hit : searchResponse.getHits()) {
             if (hit.id().equals("1") || hit.id().equals("2") || hit.id().equals("3")) {
@@ -178,10 +177,10 @@ public class MatchedQueriesTests extends ElasticsearchIntegrationTest {
 
         SearchResponse searchResponse = client().prepareSearch()
                 .setQuery(filteredQuery(matchAllQuery(),
-                            orFilter(
-                                indicesFilter(termFilter("title", "title1").filterName("title1"), "test1")
-                                        .noMatchFilter(termFilter("title", "title2").filterName("title2")).filterName("indices_filter"),
-                                termFilter("title", "title3").filterName("title3")).filterName("or"))).get();
+                            orQuery(
+                                indicesQuery(termQuery("title", "title1").queryName("title1"), "test1")
+                                        .noMatchQuery(termQuery("title", "title2").queryName("title2")).queryName("indices_filter"),
+                                termQuery("title", "title3").queryName("title3")).queryName("or"))).get();
         assertHitCount(searchResponse, 3l);
 
         for (SearchHit hit : searchResponse.getHits()) {
@@ -255,7 +254,7 @@ public class MatchedQueriesTests extends ElasticsearchIntegrationTest {
 
         QueryBuilder[] queries = new QueryBuilder[]{
                 wrapperQuery(matchQuery("content", "amet").queryName("abc").buildAsBytes().toUtf8()),
-                constantScoreQuery(wrapperFilter(termFilter("content", "amet").filterName("abc").buildAsBytes().toUtf8()))
+                constantScoreQuery(wrapperQuery(termQuery("content", "amet").queryName("abc").buildAsBytes().toUtf8()))
         };
         for (QueryBuilder query : queries) {
             SearchResponse searchResponse = client().prepareSearch()

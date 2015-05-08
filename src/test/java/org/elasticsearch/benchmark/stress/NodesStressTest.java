@@ -36,9 +36,8 @@ import java.util.concurrent.atomic.AtomicLong;
 import static org.elasticsearch.client.Requests.searchRequest;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
-import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
-import static org.elasticsearch.index.query.FilterBuilders.queryFilter;
+import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
 import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.node.NodeBuilder.nodeBuilder;
@@ -207,7 +206,7 @@ public class NodesStressTest {
                 for (; counter < max; counter++) {
                     Client client = client(counter);
                     QueryBuilder query = termQuery("num", counter % fieldNumLimit);
-                    query = constantScoreQuery(queryFilter(query));
+                    query = constantScoreQuery(query);
 
                     SearchResponse search = client.search(searchRequest()
                             .source(searchSource().query(query)))

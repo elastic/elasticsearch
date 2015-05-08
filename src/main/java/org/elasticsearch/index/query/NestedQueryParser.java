@@ -20,12 +20,12 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.FilteredQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.search.join.ToParentBlockJoinQuery;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
@@ -40,6 +40,7 @@ import java.io.IOException;
 public class NestedQueryParser extends BaseQueryParserTemp {
 
     public static final String NAME = "nested";
+    private static final ParseField FILTER_FIELD = new ParseField("filter").withAllDeprecated("query");
 
     private final InnerHitsQueryParserHelper innerHitsQueryParserHelper;
 
@@ -70,7 +71,7 @@ public class NestedQueryParser extends BaseQueryParserTemp {
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if ("query".equals(currentFieldName)) {
                     builder.query();
-                } else if ("filter".equals(currentFieldName)) {
+                } else if (FILTER_FIELD.match(currentFieldName)) {
                     builder.filter();
                 } else if ("inner_hits".equals(currentFieldName)) {
                     builder.setInnerHits(innerHitsQueryParserHelper.parse(parseContext));
@@ -137,7 +138,7 @@ public class NestedQueryParser extends BaseQueryParserTemp {
             if (queryFound) {
                 innerQuery = getInnerQuery();
             } else if (filterFound) {
-                Filter innerFilter = getInnerFilter();
+                Query innerFilter = getInnerFilter();
                 if (innerFilter != null) {
                     innerQuery = new ConstantScoreQuery(getInnerFilter());
                 } else {

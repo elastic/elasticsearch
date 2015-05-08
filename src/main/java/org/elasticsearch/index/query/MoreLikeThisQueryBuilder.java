@@ -263,14 +263,6 @@ public class MoreLikeThisQueryBuilder extends BaseQueryBuilder implements Boosta
     }
 
     /**
-     * The percentage of terms to match. Defaults to <tt>0.3</tt>.
-     */
-    @Deprecated
-    public MoreLikeThisQueryBuilder percentTermsToMatch(float percentTermsToMatch) {
-        return minimumShouldMatch(Math.round(percentTermsToMatch * 100) + "%");
-    }
-
-    /**
      * The frequency below which terms will be ignored in the source doc. The default
      * frequency is <tt>2</tt>.
      */

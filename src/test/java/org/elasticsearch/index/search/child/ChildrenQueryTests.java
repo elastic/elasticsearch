@@ -79,14 +79,13 @@ import java.util.NavigableMap;
 import java.util.Random;
 import java.util.TreeMap;
 
-import static org.elasticsearch.index.query.FilterBuilders.notFilter;
-import static org.elasticsearch.index.query.FilterBuilders.termFilter;
-import static org.elasticsearch.index.query.FilterBuilders.typeFilter;
 import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
 import static org.elasticsearch.index.query.QueryBuilders.filteredQuery;
 import static org.elasticsearch.index.query.QueryBuilders.functionScoreQuery;
 import static org.elasticsearch.index.query.QueryBuilders.hasChildQuery;
+import static org.elasticsearch.index.query.QueryBuilders.notQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
+import static org.elasticsearch.index.query.QueryBuilders.typeQuery;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
@@ -241,7 +240,7 @@ public class ChildrenQueryTests extends AbstractChildTests {
                     .maxChildren(maxChildren)
                     .setShortCircuitCutoff(shortCircuitParentDocSet);
             // Using a FQ, will invoke / test the Scorer#advance(..) and also let the Weight#scorer not get live docs as acceptedDocs
-            queryBuilder = filteredQuery(queryBuilder, notFilter(termFilter("filter", "me")));
+            queryBuilder = filteredQuery(queryBuilder, notQuery(termQuery("filter", "me")));
             Query query = parseQuery(queryBuilder);
             BitSetCollector collector = new BitSetCollector(indexReader.maxDoc());
             int numHits = 1 + random().nextInt(25);
@@ -389,13 +388,14 @@ public class ChildrenQueryTests extends AbstractChildTests {
         ((TestSearchContext)context).setSearcher(new ContextIndexSearcher(context, engineSearcher));
 
         // child query that returns the score as the value of "childScore" for each child document, with the parent's score determined by the score type
-        QueryBuilder childQueryBuilder = functionScoreQuery(typeFilter("child")).add(new FieldValueFactorFunctionBuilder(CHILD_SCORE_NAME));
+        QueryBuilder childQueryBuilder = functionScoreQuery(typeQuery("child")).add(new FieldValueFactorFunctionBuilder(CHILD_SCORE_NAME));
         QueryBuilder queryBuilder = hasChildQuery("child", childQueryBuilder)
                 .scoreType(scoreType.name().toLowerCase(Locale.ENGLISH))
                 .setShortCircuitCutoff(parentDocs);
 
         // Perform the search for the documents using the selected score type
-        TopDocs docs = searcher.search(parseQuery(queryBuilder), parentDocs);
+        Query query = parseQuery(queryBuilder);
+        TopDocs docs = searcher.search(query, parentDocs);
         assertThat("Expected all parents", docs.totalHits, is(parentDocs));
 
         // score should be descending (just a sanity check)

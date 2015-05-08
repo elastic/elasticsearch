@@ -23,7 +23,6 @@ import org.elasticsearch.common.lucene.search.function.CombineFunction;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.BaseQueryBuilder;
 import org.elasticsearch.index.query.BoostableQueryBuilder;
-import org.elasticsearch.index.query.FilterBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 
 import java.io.IOException;
@@ -37,7 +36,7 @@ public class FunctionScoreQueryBuilder extends BaseQueryBuilder implements Boost
 
     private final QueryBuilder queryBuilder;
 
-    private final FilterBuilder filterBuilder;
+    private final QueryBuilder filterBuilder;
 
     private Float boost;
 
@@ -47,7 +46,7 @@ public class FunctionScoreQueryBuilder extends BaseQueryBuilder implements Boost
 
     private String boostMode;
 
-    private ArrayList<FilterBuilder> filters = new ArrayList<>();
+    private ArrayList<QueryBuilder> filters = new ArrayList<>();
     private ArrayList<ScoreFunctionBuilder> scoreFunctions = new ArrayList<>();
     private Float minScore = null;
 
@@ -60,29 +59,6 @@ public class FunctionScoreQueryBuilder extends BaseQueryBuilder implements Boost
     public FunctionScoreQueryBuilder(QueryBuilder queryBuilder) {
         this.queryBuilder = queryBuilder;
         this.filterBuilder = null;
-    }
-
-    /**
-     * Creates a function_score query that executes on documents that match query a query.
-     * Query and filter will be wrapped into a filtered_query.
-     *
-     * @param filterBuilder the filter that defines which documents the function_score query will be executed on.
-     */
-    public FunctionScoreQueryBuilder(FilterBuilder filterBuilder) {
-        this.filterBuilder = filterBuilder;
-        this.queryBuilder = null;
-    }
-
-    /**
-     * Creates a function_score query that executes on documents that match query and filter.
-     * Query and filter will be wrapped into a filtered_query.
-     *
-     * @param queryBuilder a query that will; be wrapped in a filtered query.
-     * @param filterBuilder the filter for the filtered query.
-     */
-    public FunctionScoreQueryBuilder(QueryBuilder queryBuilder, FilterBuilder filterBuilder) {
-        this.filterBuilder = filterBuilder;
-        this.queryBuilder = queryBuilder;
     }
 
     public FunctionScoreQueryBuilder() {
@@ -111,7 +87,7 @@ public class FunctionScoreQueryBuilder extends BaseQueryBuilder implements Boost
      * @param filter the filter that defines which documents the function_score query will be executed on.
      * @param scoreFunctionBuilder score function that is executed
      */
-    public FunctionScoreQueryBuilder add(FilterBuilder filter, ScoreFunctionBuilder scoreFunctionBuilder) {
+    public FunctionScoreQueryBuilder add(QueryBuilder filter, ScoreFunctionBuilder scoreFunctionBuilder) {
         if (scoreFunctionBuilder == null) {
             throw new IllegalArgumentException("function_score: function must not be null");
         }

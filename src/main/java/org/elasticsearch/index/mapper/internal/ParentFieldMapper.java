@@ -23,20 +23,14 @@ import com.google.common.base.Objects;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.TermsQuery;
-import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.QueryWrapperFilter;
-import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.loader.SettingsLoader;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -45,8 +39,8 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.InternalMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.MergeMappingException;
+import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.RootMapper;
 import org.elasticsearch.index.mapper.Uid;
@@ -55,6 +49,7 @@ import org.elasticsearch.index.query.QueryParseContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -263,51 +258,13 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
 
     @Override
     public Query termQuery(Object value, @Nullable QueryParseContext context) {
-        if (context == null) {
-            return super.termQuery(value, context);
-        }
-        return new ConstantScoreQuery(termFilter(value, context));
+        return termsQuery(Collections.singletonList(value), context);
     }
 
     @Override
-    public Filter termFilter(Object value, @Nullable QueryParseContext context) {
+    public Query termsQuery(List values, @Nullable QueryParseContext context) {
         if (context == null) {
-            return super.termFilter(value, context);
-        }
-        BytesRef bValue = BytesRefs.toBytesRef(value);
-        if (Uid.hasDelimiter(bValue)) {
-            return new QueryWrapperFilter(new TermQuery(new Term(names.indexName(), bValue)));
-        }
-
-        List<String> types = new ArrayList<>(context.mapperService().types().size());
-        for (DocumentMapper documentMapper : context.mapperService().docMappers(false)) {
-            if (!documentMapper.parentFieldMapper().active()) {
-                types.add(documentMapper.type());
-            }
-        }
-
-        if (types.isEmpty()) {
-            return Queries.newMatchNoDocsFilter();
-        } else if (types.size() == 1) {
-            return new QueryWrapperFilter(new TermQuery(new Term(names.indexName(), Uid.createUidAsBytes(types.get(0), bValue))));
-        } else {
-            // we use all non child types, cause we don't know if its exact or not...
-            List<BytesRef> typesValues = new ArrayList<>(types.size());
-            for (String type : context.mapperService().types()) {
-                typesValues.add(Uid.createUidAsBytes(type, bValue));
-            }
-            return new QueryWrapperFilter(new TermsQuery(names.indexName(), typesValues));
-        }
-    }
-
-    @Override
-    public Filter termsFilter(List values, @Nullable QueryParseContext context) {
-        if (context == null) {
-            return super.termsFilter(values, context);
-        }
-        // This will not be invoked if values is empty, so don't check for empty
-        if (values.size() == 1) {
-            return termFilter(values.get(0), context);
+            return super.termsQuery(values, context);
         }
 
         List<String> types = new ArrayList<>(context.mapperService().types().size());
@@ -329,7 +286,7 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
                 }
             }
         }
-        return new QueryWrapperFilter(new TermsQuery(names.indexName(), bValues));
+        return new TermsQuery(names.indexName(), bValues);
     }
 
     /**

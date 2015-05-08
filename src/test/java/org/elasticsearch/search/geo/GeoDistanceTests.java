@@ -21,14 +21,12 @@ package org.elasticsearch.search.geo;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
@@ -43,11 +41,23 @@ import java.util.Arrays;
 import java.util.List;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.FilterBuilders.*;
 import static org.elasticsearch.index.query.QueryBuilders.filteredQuery;
+import static org.elasticsearch.index.query.QueryBuilders.geoDistanceQuery;
+import static org.elasticsearch.index.query.QueryBuilders.geoDistanceRangeQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
-import static org.hamcrest.Matchers.*;
+import static org.elasticsearch.index.query.QueryBuilders.termQuery;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFirstHit;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertOrderedSearchHits;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasId;
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
@@ -98,7 +108,7 @@ public class GeoDistanceTests extends ElasticsearchIntegrationTest {
                 .endObject()));
 
         SearchResponse searchResponse = client().prepareSearch() // from NY
-                .setQuery(filteredQuery(matchAllQuery(), geoDistanceFilter("location").distance("3km").point(40.7143528, -74.0059731)))
+                .setQuery(filteredQuery(matchAllQuery(), geoDistanceQuery("location").distance("3km").point(40.7143528, -74.0059731)))
                 .execute().actionGet();
         assertHitCount(searchResponse, 5);
         assertThat(searchResponse.getHits().hits().length, equalTo(5));
@@ -106,7 +116,7 @@ public class GeoDistanceTests extends ElasticsearchIntegrationTest {
             assertThat(hit.id(), anyOf(equalTo("1"), equalTo("3"), equalTo("4"), equalTo("5"), equalTo("6")));
         }
         searchResponse = client().prepareSearch() // from NY
-                .setQuery(filteredQuery(matchAllQuery(), geoDistanceFilter("location").distance("3km").point(40.7143528, -74.0059731).optimizeBbox("indexed")))
+                .setQuery(filteredQuery(matchAllQuery(), geoDistanceQuery("location").distance("3km").point(40.7143528, -74.0059731).optimizeBbox("indexed")))
                 .execute().actionGet();
         assertHitCount(searchResponse, 5);
         assertThat(searchResponse.getHits().hits().length, equalTo(5));
@@ -116,7 +126,7 @@ public class GeoDistanceTests extends ElasticsearchIntegrationTest {
 
         // now with a PLANE type
         searchResponse = client().prepareSearch() // from NY
-                .setQuery(filteredQuery(matchAllQuery(), geoDistanceFilter("location").distance("3km").geoDistance(GeoDistance.PLANE).point(40.7143528, -74.0059731)))
+                .setQuery(filteredQuery(matchAllQuery(), geoDistanceQuery("location").distance("3km").geoDistance(GeoDistance.PLANE).point(40.7143528, -74.0059731)))
                 .execute().actionGet();
         assertHitCount(searchResponse, 5);
         assertThat(searchResponse.getHits().hits().length, equalTo(5));
@@ -127,7 +137,7 @@ public class GeoDistanceTests extends ElasticsearchIntegrationTest {
         // factor type is really too small for this resolution
 
         searchResponse = client().prepareSearch() // from NY
-                .setQuery(filteredQuery(matchAllQuery(), geoDistanceFilter("location").distance("2km").point(40.7143528, -74.0059731)))
+                .setQuery(filteredQuery(matchAllQuery(), geoDistanceQuery("location").distance("2km").point(40.7143528, -74.0059731)))
                 .execute().actionGet();
         assertHitCount(searchResponse, 4);
         assertThat(searchResponse.getHits().hits().length, equalTo(4));
@@ -135,24 +145,7 @@ public class GeoDistanceTests extends ElasticsearchIntegrationTest {
             assertThat(hit.id(), anyOf(equalTo("1"), equalTo("3"), equalTo("4"), equalTo("5")));
         }
         searchResponse = client().prepareSearch() // from NY
-                .setQuery(filteredQuery(matchAllQuery(), geoDistanceFilter("location").distance("2km").point(40.7143528, -74.0059731).optimizeBbox("indexed")))
-                .execute().actionGet();
-        assertHitCount(searchResponse, 4);
-        assertThat(searchResponse.getHits().hits().length, equalTo(4));
-        for (SearchHit hit : searchResponse.getHits()) {
-            assertThat(hit.id(), anyOf(equalTo("1"), equalTo("3"), equalTo("4"), equalTo("5")));
-        }
-
-        searchResponse = client().prepareSearch() // from NY
-                .setQuery(filteredQuery(matchAllQuery(), geoDistanceFilter("location").distance("1.242mi").point(40.7143528, -74.0059731)))
-                .execute().actionGet();
-        assertHitCount(searchResponse, 4);
-        assertThat(searchResponse.getHits().hits().length, equalTo(4));
-        for (SearchHit hit : searchResponse.getHits()) {
-            assertThat(hit.id(), anyOf(equalTo("1"), equalTo("3"), equalTo("4"), equalTo("5")));
-        }
-        searchResponse = client().prepareSearch() // from NY
-                .setQuery(filteredQuery(matchAllQuery(), geoDistanceFilter("location").distance("1.242mi").point(40.7143528, -74.0059731).optimizeBbox("indexed")))
+                .setQuery(filteredQuery(matchAllQuery(), geoDistanceQuery("location").distance("2km").point(40.7143528, -74.0059731).optimizeBbox("indexed")))
                 .execute().actionGet();
         assertHitCount(searchResponse, 4);
         assertThat(searchResponse.getHits().hits().length, equalTo(4));
@@ -161,7 +154,24 @@ public class GeoDistanceTests extends ElasticsearchIntegrationTest {
         }
 
         searchResponse = client().prepareSearch() // from NY
-                .setQuery(filteredQuery(matchAllQuery(), geoDistanceRangeFilter("location").from("1.0km").to("2.0km").point(40.7143528, -74.0059731)))
+                .setQuery(filteredQuery(matchAllQuery(), geoDistanceQuery("location").distance("1.242mi").point(40.7143528, -74.0059731)))
+                .execute().actionGet();
+        assertHitCount(searchResponse, 4);
+        assertThat(searchResponse.getHits().hits().length, equalTo(4));
+        for (SearchHit hit : searchResponse.getHits()) {
+            assertThat(hit.id(), anyOf(equalTo("1"), equalTo("3"), equalTo("4"), equalTo("5")));
+        }
+        searchResponse = client().prepareSearch() // from NY
+                .setQuery(filteredQuery(matchAllQuery(), geoDistanceQuery("location").distance("1.242mi").point(40.7143528, -74.0059731).optimizeBbox("indexed")))
+                .execute().actionGet();
+        assertHitCount(searchResponse, 4);
+        assertThat(searchResponse.getHits().hits().length, equalTo(4));
+        for (SearchHit hit : searchResponse.getHits()) {
+            assertThat(hit.id(), anyOf(equalTo("1"), equalTo("3"), equalTo("4"), equalTo("5")));
+        }
+
+        searchResponse = client().prepareSearch() // from NY
+                .setQuery(filteredQuery(matchAllQuery(), geoDistanceRangeQuery("location").from("1.0km").to("2.0km").point(40.7143528, -74.0059731)))
                 .execute().actionGet();
         assertHitCount(searchResponse, 2);
         assertThat(searchResponse.getHits().hits().length, equalTo(2));
@@ -169,7 +179,7 @@ public class GeoDistanceTests extends ElasticsearchIntegrationTest {
             assertThat(hit.id(), anyOf(equalTo("4"), equalTo("5")));
         }
         searchResponse = client().prepareSearch() // from NY
-                .setQuery(filteredQuery(matchAllQuery(), geoDistanceRangeFilter("location").from("1.0km").to("2.0km").point(40.7143528, -74.0059731).optimizeBbox("indexed")))
+                .setQuery(filteredQuery(matchAllQuery(), geoDistanceRangeQuery("location").from("1.0km").to("2.0km").point(40.7143528, -74.0059731).optimizeBbox("indexed")))
                 .execute().actionGet();
         assertHitCount(searchResponse, 2);
         assertThat(searchResponse.getHits().hits().length, equalTo(2));
@@ -178,13 +188,13 @@ public class GeoDistanceTests extends ElasticsearchIntegrationTest {
         }
 
         searchResponse = client().prepareSearch() // from NY
-                .setQuery(filteredQuery(matchAllQuery(), geoDistanceRangeFilter("location").to("2.0km").point(40.7143528, -74.0059731)))
+                .setQuery(filteredQuery(matchAllQuery(), geoDistanceRangeQuery("location").to("2.0km").point(40.7143528, -74.0059731)))
                 .execute().actionGet();
         assertHitCount(searchResponse, 4);
         assertThat(searchResponse.getHits().hits().length, equalTo(4));
 
         searchResponse = client().prepareSearch() // from NY
-                .setQuery(filteredQuery(matchAllQuery(), geoDistanceRangeFilter("location").from("2.0km").point(40.7143528, -74.0059731)))
+                .setQuery(filteredQuery(matchAllQuery(), geoDistanceRangeQuery("location").from("2.0km").point(40.7143528, -74.0059731)))
                 .execute().actionGet();
         assertHitCount(searchResponse, 3);
         assertThat(searchResponse.getHits().hits().length, equalTo(3));
@@ -574,7 +584,7 @@ public class GeoDistanceTests extends ElasticsearchIntegrationTest {
 
         searchResponse = client().prepareSearch("companies").setQuery(matchAllQuery())
                 .addSort(
-                        SortBuilders.geoDistanceSort("branches.location").setNestedFilter(termFilter("branches.name", "brooklyn"))
+                        SortBuilders.geoDistanceSort("branches.location").setNestedFilter(termQuery("branches.name", "brooklyn"))
                                 .point(40.7143528, -74.0059731).sortMode("avg").order(SortOrder.ASC)
                 )
                 .execute().actionGet();
@@ -629,7 +639,7 @@ public class GeoDistanceTests extends ElasticsearchIntegrationTest {
 
         SearchResponse result = client().prepareSearch("locations")
                 .setQuery(QueryBuilders.matchAllQuery())
-                .setPostFilter(FilterBuilders.geoDistanceFilter("pin")
+                .setPostFilter(QueryBuilders.geoDistanceQuery("pin")
                         .geoDistance(GeoDistance.ARC)
                         .lat(lat).lon(lon)
                         .distance("1m"))
@@ -665,7 +675,7 @@ public class GeoDistanceTests extends ElasticsearchIntegrationTest {
                 long matches = -1;
                 for (String optimizeBbox : Arrays.asList("none", "memory", "indexed")) {
                     SearchResponse resp = client().prepareSearch("index").setSize(0).setQuery(QueryBuilders.constantScoreQuery(
-                            FilterBuilders.geoDistanceFilter("location").point(originLat, originLon).distance(distance).geoDistance(geoDistance).optimizeBbox(optimizeBbox))).execute().actionGet();
+                            QueryBuilders.geoDistanceQuery("location").point(originLat, originLon).distance(distance).geoDistance(geoDistance).optimizeBbox(optimizeBbox))).execute().actionGet();
                     assertSearchResponse(resp);
                     logger.info("{} -> {} hits", optimizeBbox, resp.getHits().totalHits());
                     if (matches < 0) {

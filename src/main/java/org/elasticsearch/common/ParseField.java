@@ -102,4 +102,8 @@ public class ParseField {
         return false;
     }
 
+    @Override
+    public String toString() {
+        return getPreferredName();
+    }
 }

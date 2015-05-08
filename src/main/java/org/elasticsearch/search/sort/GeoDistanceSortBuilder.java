@@ -24,7 +24,7 @@ import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.query.FilterBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -45,7 +45,7 @@ public class GeoDistanceSortBuilder extends SortBuilder {
     private DistanceUnit unit;
     private SortOrder order;
     private String sortMode;
-    private FilterBuilder nestedFilter;
+    private QueryBuilder nestedFilter;
     private String nestedPath;
 
     /**
@@ -132,7 +132,7 @@ public class GeoDistanceSortBuilder extends SortBuilder {
      * Sets the nested filter that the nested objects should match with in order to be taken into account
      * for sorting.
      */
-    public GeoDistanceSortBuilder setNestedFilter(FilterBuilder nestedFilter) {
+    public GeoDistanceSortBuilder setNestedFilter(QueryBuilder nestedFilter) {
         this.nestedFilter = nestedFilter;
         return this;
     }

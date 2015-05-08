@@ -20,16 +20,18 @@
 package org.elasticsearch.action.percolate;
 
 import com.google.common.collect.Lists;
+
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.*;
-import org.elasticsearch.index.query.FilterBuilder;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
-import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.reducers.ReducerBuilder;
 import org.elasticsearch.search.highlight.HighlightBuilder;
 import org.elasticsearch.search.sort.ScoreSortBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
@@ -46,7 +48,6 @@ public class PercolateSourceBuilder implements ToXContent {
 
     private DocBuilder docBuilder;
     private QueryBuilder queryBuilder;
-    private FilterBuilder filterBuilder;
     private Integer size;
     private List<SortBuilder> sorts;
     private Boolean trackScores;
@@ -67,14 +68,6 @@ public class PercolateSourceBuilder implements ToXContent {
      */
     public PercolateSourceBuilder setQueryBuilder(QueryBuilder queryBuilder) {
         this.queryBuilder = queryBuilder;
-        return this;
-    }
-
-    /**
-     * Sets a filter to reduce the number of percolate queries to be evaluated.
-     */
-    public PercolateSourceBuilder setFilterBuilder(FilterBuilder filterBuilder) {
-        this.filterBuilder = filterBuilder;
         return this;
     }
 
@@ -148,10 +141,6 @@ public class PercolateSourceBuilder implements ToXContent {
         if (queryBuilder != null) {
             builder.field("query");
             queryBuilder.toXContent(builder, params);
-        }
-        if (filterBuilder != null) {
-            builder.field("filter");
-            filterBuilder.toXContent(builder, params);
         }
         if (size != null) {
             builder.field("size", size);

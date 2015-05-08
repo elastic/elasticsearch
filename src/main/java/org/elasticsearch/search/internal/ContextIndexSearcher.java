@@ -152,7 +152,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
                 // this will only get applied to the actual search collector and not
                 // to any scoped collectors, also, it will only be applied to the main collector
                 // since that is where the filter should only work
-                final Weight filterWeight = createNormalizedWeight(searchContext.parsedPostFilter().filter(), false);
+                final Weight filterWeight = createNormalizedWeight(searchContext.parsedPostFilter().query(), false);
                 collector = new FilteredCollector(collector, filterWeight);
             }
             if (queryCollectors != null && !queryCollectors.isEmpty()) {

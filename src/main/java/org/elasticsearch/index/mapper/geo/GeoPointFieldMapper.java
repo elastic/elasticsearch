@@ -22,7 +22,7 @@ package org.elasticsearch.index.mapper.geo;
 import com.carrotsearch.hppc.ObjectOpenHashSet;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.google.common.base.Objects;
-
+import com.google.common.collect.Iterators;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.DocValuesType;
@@ -45,12 +45,10 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.FieldMapperListener;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.MergeMappingException;
-import org.elasticsearch.index.mapper.ObjectMapperListener;
+import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 import org.elasticsearch.index.mapper.core.DoubleFieldMapper;
@@ -61,6 +59,7 @@ import org.elasticsearch.index.mapper.object.ArrayValueMapperParser;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
@@ -678,19 +677,16 @@ public class GeoPointFieldMapper extends AbstractFieldMapper<GeoPoint> implement
     }
 
     @Override
-    public void traverse(FieldMapperListener fieldMapperListener) {
-        super.traverse(fieldMapperListener);
+    public Iterator<Mapper> iterator() {
+        List<Mapper> extras = new ArrayList<>();
         if (enableGeoHash) {
-            geohashMapper.traverse(fieldMapperListener);
+            extras.add(geohashMapper);
         }
         if (enableLatLon) {
-            latMapper.traverse(fieldMapperListener);
-            lonMapper.traverse(fieldMapperListener);
+            extras.add(latMapper);
+            extras.add(lonMapper);
         }
-    }
-
-    @Override
-    public void traverse(ObjectMapperListener objectMapperListener) {
+        return Iterators.concat(super.iterator(), extras.iterator());
     }
 
     @Override

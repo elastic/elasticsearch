@@ -51,42 +51,46 @@ public class PrefixQueryParser extends BaseQueryParserTemp {
     public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
-        XContentParser.Token token = parser.nextToken();
-        if (token != XContentParser.Token.FIELD_NAME) {
-            throw new QueryParsingException(parseContext, "[prefix] query malformed, no field");
-        }
         String fieldName = parser.currentName();
         String rewriteMethod = null;
         String queryName = null;
 
         Object value = null;
         float boost = 1.0f;
-        token = parser.nextToken();
-        if (token == XContentParser.Token.START_OBJECT) {
-            String currentFieldName = null;
-            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                if (token == XContentParser.Token.FIELD_NAME) {
-                    currentFieldName = parser.currentName();
-                } else if (token.isValue()) {
-                    if ("prefix".equals(currentFieldName)) {
-                        value = parser.objectBytes();
-                    } else if ("value".equals(currentFieldName)) {
-                        value = parser.text();
-                    } else if ("boost".equals(currentFieldName)) {
-                        boost = parser.floatValue();
-                    } else if ("rewrite".equals(currentFieldName)) {
-                        rewriteMethod = parser.textOrNull();
-                    } else if ("_name".equals(currentFieldName)) {
-                        queryName = parser.text();
+        String currentFieldName = null;
+        XContentParser.Token token;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if (parseContext.isDeprecatedSetting(currentFieldName)) {
+                // skip
+            } else if (token == XContentParser.Token.START_OBJECT) {
+                fieldName = currentFieldName;
+                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                    if (token == XContentParser.Token.FIELD_NAME) {
+                        currentFieldName = parser.currentName();
+                    } else {
+                        if ("_name".equals(currentFieldName)) {
+                            queryName = parser.text();
+                        } else if ("value".equals(currentFieldName) || "prefix".equals(currentFieldName)) {
+                            value = parser.objectBytes();
+                        } else if ("boost".equals(currentFieldName)) {
+                            boost = parser.floatValue();
+                        } else if ("rewrite".equals(currentFieldName)) {
+                            rewriteMethod = parser.textOrNull();
+                        } else {
+                            throw new QueryParsingException(parseContext, "[regexp] query does not support [" + currentFieldName + "]");
+                        }
                     }
+                }
+            } else {
+                if ("_name".equals(currentFieldName)) {
+                    queryName = parser.text();
                 } else {
-                    throw new QueryParsingException(parseContext, "[prefix] query does not support [" + currentFieldName + "]");
+                    fieldName = currentFieldName;
+                    value = parser.objectBytes();
                 }
             }
-            parser.nextToken();
-        } else {
-            value = parser.text();
-            parser.nextToken();
         }
 
         if (value == null) {

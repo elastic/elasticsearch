@@ -19,17 +19,14 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.QueryWrapperFilter;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.junit.Test;
 
 import java.io.IOException;
 
-import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.*;
 
 public class TermQueryBuilderTest extends BaseQueryTestCase<TermQueryBuilder> {
 
@@ -80,14 +77,8 @@ public class TermQueryBuilderTest extends BaseQueryTestCase<TermQueryBuilder> {
         assertThat(termQuery.getTerm().field(), is(queryBuilder.fieldName()));
         assertThat(termQuery.getTerm().bytes(), is(BytesRefs.toBytesRef(queryBuilder.value())));
         if (queryBuilder.queryName() != null) {
-            Filter namedQuery = context.copyNamedFilters().get(queryBuilder.queryName());
-            assertNotNull(namedQuery);
-            if (namedQuery instanceof QueryWrapperFilter) {
-                assertThat(query, is(((QueryWrapperFilter) namedQuery).getQuery()));
-            } else {
-                fail("Expected either a QueryWrapperFilter or a CustomQueryWrappingFilter to be registered under " + queryBuilder.queryName() +
-                        " in the query parse context");
-            }
+            Query namedQuery = context.copyNamedFilters().get(queryBuilder.queryName());
+            assertThat(namedQuery, equalTo((Query)termQuery));
         }
     }
 

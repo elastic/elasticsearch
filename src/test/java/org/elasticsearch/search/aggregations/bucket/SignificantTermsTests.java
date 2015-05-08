@@ -23,7 +23,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.query.FilterBuilders;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTerms;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTerms.Bucket;
@@ -301,7 +301,7 @@ public class SignificantTermsTests extends ElasticsearchIntegrationTest {
                 .setQuery(new TermQueryBuilder("_all", "terje"))
                 .setFrom(0).setSize(60).setExplain(true)                
                 .addAggregation(new SignificantTermsBuilder("mySignificantTerms").field("description")
-                           .minDocCount(2).backgroundFilter(FilterBuilders.termFilter("fact_category", 1)))
+                           .minDocCount(2).backgroundFilter(QueryBuilders.termQuery("fact_category", 1)))
                 .execute()
                 .actionGet();
         assertSearchResponse(response);
@@ -327,7 +327,7 @@ public class SignificantTermsTests extends ElasticsearchIntegrationTest {
                 .setQuery(new TermQueryBuilder("_all", "weller"))
                 .setFrom(0).setSize(60).setExplain(true)                
                 .addAggregation(new SignificantTermsBuilder("mySignificantTerms").field("description")
-                           .minDocCount(1).backgroundFilter(FilterBuilders.termsFilter("description",  "paul")))
+                           .minDocCount(1).backgroundFilter(QueryBuilders.termsQuery("description",  "paul")))
                 .execute()
                 .actionGet();
         assertSearchResponse(response);

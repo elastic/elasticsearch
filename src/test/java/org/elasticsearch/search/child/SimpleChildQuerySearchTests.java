@@ -19,7 +19,6 @@
 package org.elasticsearch.search.child;
 
 import org.apache.lucene.util.LuceneTestCase;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
@@ -42,9 +41,6 @@ import org.elasticsearch.index.cache.filter.index.IndexFilterCache;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.FieldMapper.Loading;
 import org.elasticsearch.index.mapper.MergeMappingException;
-import org.elasticsearch.index.query.FilterBuilder;
-import org.elasticsearch.index.query.FilterBuilders;
-import org.elasticsearch.index.query.HasChildFilterBuilder;
 import org.elasticsearch.index.query.HasChildQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -76,13 +72,6 @@ import static com.google.common.collect.Maps.newHashMap;
 import static org.elasticsearch.common.io.Streams.copyToStringFromClasspath;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.FilterBuilders.boolFilter;
-import static org.elasticsearch.index.query.FilterBuilders.hasParentFilter;
-import static org.elasticsearch.index.query.FilterBuilders.matchAllFilter;
-import static org.elasticsearch.index.query.FilterBuilders.notFilter;
-import static org.elasticsearch.index.query.FilterBuilders.queryFilter;
-import static org.elasticsearch.index.query.FilterBuilders.termFilter;
-import static org.elasticsearch.index.query.FilterBuilders.termsFilter;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
 import static org.elasticsearch.index.query.QueryBuilders.filteredQuery;
@@ -91,9 +80,11 @@ import static org.elasticsearch.index.query.QueryBuilders.idsQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.index.query.QueryBuilders.multiMatchQuery;
+import static org.elasticsearch.index.query.QueryBuilders.notQuery;
 import static org.elasticsearch.index.query.QueryBuilders.prefixQuery;
 import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
+import static org.elasticsearch.index.query.QueryBuilders.termsQuery;
 import static org.elasticsearch.index.query.QueryBuilders.topChildrenQuery;
 import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.factorFunction;
 import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.scriptFunction;
@@ -147,23 +138,23 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
                 .setQuery(
                         filteredQuery(
                                 matchAllQuery(),
-                                hasChildFilter(
+                                hasChildQuery(
                                         "child",
                                         filteredQuery(termQuery("c_field", "c_value1"),
-                                                hasChildFilter("grandchild", termQuery("gc_field", "gc_value1")))))).get();
+                                                hasChildQuery("grandchild", termQuery("gc_field", "gc_value1")))))).get();
         assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo("p1"));
 
         searchResponse = client().prepareSearch("test")
-                .setQuery(filteredQuery(matchAllQuery(), hasParentFilter("parent", termFilter("p_field", "p_value1")))).execute()
+                .setQuery(filteredQuery(matchAllQuery(), hasParentQuery("parent", termQuery("p_field", "p_value1")))).execute()
                 .actionGet();
         assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo("c1"));
 
         searchResponse = client().prepareSearch("test")
-                .setQuery(filteredQuery(matchAllQuery(), hasParentFilter("child", termFilter("c_field", "c_value1")))).execute()
+                .setQuery(filteredQuery(matchAllQuery(), hasParentQuery("child", termQuery("c_field", "c_value1")))).execute()
                 .actionGet();
         assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
@@ -373,7 +364,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         assertThat(indicesStatsResponse.getTotal().getFieldData().getMemorySizeInBytes(), equalTo(0l));
 
         SearchResponse searchResponse = client().prepareSearch("test")
-                .setQuery(constantScoreQuery(hasChildFilter("child", termQuery("c_field", "blue"))))
+                .setQuery(constantScoreQuery(hasChildQuery("child", termQuery("c_field", "blue"))))
                 .get();
         assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
@@ -423,15 +414,15 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         for (int i = 1; i <= 10; i++) {
             logger.info("Round {}", i);
             SearchResponse searchResponse = client().prepareSearch("test")
-                    .setQuery(constantScoreQuery(queryFilter(topChildrenQuery("child", matchAllQuery())))).execute()
+                    .setQuery(constantScoreQuery(topChildrenQuery("child", matchAllQuery()))).execute()
                     .actionGet();
             assertNoFailures(searchResponse);
             searchResponse = client().prepareSearch("test")
-                    .setQuery(constantScoreQuery(queryFilter(hasChildQuery("child", matchAllQuery()).scoreType("max"))))
+                    .setQuery(constantScoreQuery(hasChildQuery("child", matchAllQuery()).scoreType("max")))
                     .get();
             assertNoFailures(searchResponse);
             searchResponse = client().prepareSearch("test")
-                    .setQuery(constantScoreQuery(queryFilter(hasParentQuery("parent", matchAllQuery()).scoreType("score"))))
+                    .setQuery(constantScoreQuery(hasParentQuery("parent", matchAllQuery()).scoreType("score")))
                     .get();
             assertNoFailures(searchResponse);
         }
@@ -473,7 +464,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         assertThat(parentToChildren.isEmpty(), equalTo(false));
         for (Map.Entry<String, Set<String>> parentToChildrenEntry : parentToChildren.entrySet()) {
             SearchResponse searchResponse = client().prepareSearch("test")
-                    .setQuery(constantScoreQuery(hasParentFilter("parent", termQuery("p_field", parentToChildrenEntry.getKey()))))
+                    .setQuery(constantScoreQuery(hasParentQuery("parent", termQuery("p_field", parentToChildrenEntry.getKey()))))
                     .setSize(numChildDocsPerParent).get();
 
             assertNoFailures(searchResponse);
@@ -554,18 +545,18 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         // HAS CHILD FILTER
 
         searchResponse = client().prepareSearch("test")
-                .setQuery(constantScoreQuery(hasChildFilter("child", termQuery("c_field", "yellow")))).get();
+                .setQuery(constantScoreQuery(hasChildQuery("child", termQuery("c_field", "yellow")))).get();
         assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo("p1"));
 
-        searchResponse = client().prepareSearch("test").setQuery(constantScoreQuery(hasChildFilter("child", termQuery("c_field", "blue"))))
+        searchResponse = client().prepareSearch("test").setQuery(constantScoreQuery(hasChildQuery("child", termQuery("c_field", "blue"))))
                 .get();
         assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo("p2"));
 
-        searchResponse = client().prepareSearch("test").setQuery(constantScoreQuery(hasChildFilter("child", termQuery("c_field", "red"))))
+        searchResponse = client().prepareSearch("test").setQuery(constantScoreQuery(hasChildQuery("child", termQuery("c_field", "red"))))
                 .get();
         assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
@@ -594,7 +585,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
                 .prepareSearch("test")
                 .setQuery(topChildrenQuery("child", boolQuery().should(termQuery("c_field", "red")).should(termQuery("c_field", "yellow"))))
                 .addAggregation(AggregationBuilders.global("global").subAggregation(
-                        AggregationBuilders.filter("filter").filter(boolFilter().should(termFilter("c_field", "red")).should(termFilter("c_field", "yellow"))).subAggregation(
+                        AggregationBuilders.filter("filter").filter(boolQuery().should(termQuery("c_field", "red")).should(termQuery("c_field", "yellow"))).subAggregation(
                                 AggregationBuilders.terms("facet1").field("c_field")))).get();
         assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
@@ -637,7 +628,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         assertThat(searchResponse.getHits().getAt(0).sourceAsString(), containsString("\"p_value1\""));
 
         searchResponse = client().prepareSearch("test")
-                .setQuery(constantScoreQuery(hasChildFilter("child", termQuery("c_field", "yellow")))).get();
+                .setQuery(constantScoreQuery(hasChildQuery("child", termQuery("c_field", "yellow")))).get();
         assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo("p1"));
@@ -656,7 +647,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         assertThat(searchResponse.getHits().getAt(0).sourceAsString(), containsString("\"p_value1_updated\""));
 
         searchResponse = client().prepareSearch("test")
-                .setQuery(constantScoreQuery(hasChildFilter("child", termQuery("c_field", "yellow")))).get();
+                .setQuery(constantScoreQuery(hasChildQuery("child", termQuery("c_field", "yellow")))).get();
         assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo("p1"));
@@ -768,12 +759,12 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         client().admin().indices().prepareFlush("test").get();
 
         SearchResponse searchResponse = client().prepareSearch("test")
-                .setQuery(filteredQuery(matchAllQuery(), hasChildFilter("child", matchAllQuery()))).get();
+                .setQuery(filteredQuery(matchAllQuery(), hasChildQuery("child", matchAllQuery()))).get();
         assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
 
         searchResponse = client().prepareSearch("test")
-                .setQuery(filteredQuery(matchAllQuery(), hasParentFilter("parent", matchAllQuery()))).get();
+                .setQuery(filteredQuery(matchAllQuery(), hasParentQuery("parent", matchAllQuery()))).get();
         assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
     }
@@ -802,11 +793,11 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
                 .get();
         assertHitCount(countResponse, 1l);
 
-        countResponse = client().prepareCount("test").setQuery(constantScoreQuery(hasChildFilter("child", termQuery("c_field", "1"))))
+        countResponse = client().prepareCount("test").setQuery(constantScoreQuery(hasChildQuery("child", termQuery("c_field", "1"))))
                 .get();
         assertHitCount(countResponse, 1l);
 
-        countResponse = client().prepareCount("test").setQuery(constantScoreQuery(hasParentFilter("parent", termQuery("p_field", "1"))))
+        countResponse = client().prepareCount("test").setQuery(constantScoreQuery(hasParentQuery("parent", termQuery("p_field", "1"))))
                 .get();
         assertHitCount(countResponse, 1l);
     }
@@ -1041,13 +1032,13 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         client().admin().indices().prepareFlush("test").get();
 
         SearchResponse searchResponse = client().prepareSearch("test")
-                .setQuery(filteredQuery(matchAllQuery(), hasChildFilter("child", termFilter("c_field", 1)))).get();
+                .setQuery(filteredQuery(matchAllQuery(), hasChildQuery("child", termQuery("c_field", 1)))).get();
         assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
         assertThat(searchResponse.getHits().hits()[0].id(), equalTo("1"));
 
         searchResponse = client().prepareSearch("test")
-                .setQuery(filteredQuery(matchAllQuery(), hasParentFilter("parent", termFilter("p_field", 1)))).get();
+                .setQuery(filteredQuery(matchAllQuery(), hasParentQuery("parent", termQuery("p_field", 1)))).get();
         assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
         assertThat(searchResponse.getHits().hits()[0].id(), equalTo("2"));
@@ -1067,27 +1058,27 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         refresh();
 
         SearchResponse searchResponse = client().prepareSearch("test")
-                .setQuery(filteredQuery(matchAllQuery(), queryFilter(hasChildQuery("child", matchQuery("c_field", 1))))).get();
+                .setQuery(filteredQuery(matchAllQuery(), hasChildQuery("child", matchQuery("c_field", 1)))).get();
         assertSearchHit(searchResponse, 1, hasId("1"));
 
         searchResponse = client().prepareSearch("test")
-                .setQuery(filteredQuery(matchAllQuery(), queryFilter(topChildrenQuery("child", matchQuery("c_field", 1))))).get();
+                .setQuery(filteredQuery(matchAllQuery(), topChildrenQuery("child", matchQuery("c_field", 1)))).get();
         assertSearchHit(searchResponse, 1, hasId("1"));
 
         searchResponse = client().prepareSearch("test")
-                .setQuery(filteredQuery(matchAllQuery(), queryFilter(hasParentQuery("parent", matchQuery("p_field", 1))))).get();
+                .setQuery(filteredQuery(matchAllQuery(), hasParentQuery("parent", matchQuery("p_field", 1)))).get();
         assertSearchHit(searchResponse, 1, hasId("2"));
 
         searchResponse = client().prepareSearch("test")
-                .setQuery(filteredQuery(matchAllQuery(), queryFilter(boolQuery().must(hasChildQuery("child", matchQuery("c_field", 1)))))).get();
+                .setQuery(filteredQuery(matchAllQuery(), boolQuery().must(hasChildQuery("child", matchQuery("c_field", 1))))).get();
         assertSearchHit(searchResponse, 1, hasId("1"));
 
         searchResponse = client().prepareSearch("test")
-                .setQuery(filteredQuery(matchAllQuery(), queryFilter(boolQuery().must(topChildrenQuery("child", matchQuery("c_field", 1)))))).get();
+                .setQuery(filteredQuery(matchAllQuery(), boolQuery().must(topChildrenQuery("child", matchQuery("c_field", 1))))).get();
         assertSearchHit(searchResponse, 1, hasId("1"));
 
         searchResponse = client().prepareSearch("test")
-                .setQuery(filteredQuery(matchAllQuery(), queryFilter(boolQuery().must(hasParentQuery("parent", matchQuery("p_field", 1)))))).get();
+                .setQuery(filteredQuery(matchAllQuery(), boolQuery().must(hasParentQuery("parent", matchQuery("p_field", 1))))).get();
         assertSearchHit(searchResponse, 1, hasId("2"));
     }
 
@@ -1254,7 +1245,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         ensureGreen();
 
         // test term filter
-        SearchResponse response = client().prepareSearch("test").setQuery(filteredQuery(matchAllQuery(), termFilter("_parent", "p1")))
+        SearchResponse response = client().prepareSearch("test").setQuery(filteredQuery(matchAllQuery(), termQuery("_parent", "p1")))
                 .get();
         assertHitCount(response, 0l);
 
@@ -1262,51 +1253,51 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         client().prepareIndex("test", "parent", "p1").setSource("p_field", "value").get();
         client().prepareIndex("test", "child", "c1").setSource("c_field", "value").setParent("p1").get();
 
-        response = client().prepareSearch("test").setQuery(filteredQuery(matchAllQuery(), termFilter("_parent", "p1"))).execute()
+        response = client().prepareSearch("test").setQuery(filteredQuery(matchAllQuery(), termQuery("_parent", "p1"))).execute()
                 .actionGet();
         assertHitCount(response, 0l);
         refresh();
 
-        response = client().prepareSearch("test").setQuery(filteredQuery(matchAllQuery(), termFilter("_parent", "p1"))).execute()
+        response = client().prepareSearch("test").setQuery(filteredQuery(matchAllQuery(), termQuery("_parent", "p1"))).execute()
                 .actionGet();
         assertHitCount(response, 1l);
 
-        response = client().prepareSearch("test").setQuery(filteredQuery(matchAllQuery(), termFilter("_parent", "parent#p1"))).execute()
+        response = client().prepareSearch("test").setQuery(filteredQuery(matchAllQuery(), termQuery("_parent", "parent#p1"))).execute()
                 .actionGet();
         assertHitCount(response, 1l);
 
         client().prepareIndex("test", "parent2", "p1").setSource("p_field", "value").setRefresh(true).get();
 
-        response = client().prepareSearch("test").setQuery(filteredQuery(matchAllQuery(), termFilter("_parent", "p1"))).execute()
+        response = client().prepareSearch("test").setQuery(filteredQuery(matchAllQuery(), termQuery("_parent", "p1"))).execute()
                 .actionGet();
         assertHitCount(response, 1l);
 
-        response = client().prepareSearch("test").setQuery(filteredQuery(matchAllQuery(), termFilter("_parent", "parent#p1"))).execute()
+        response = client().prepareSearch("test").setQuery(filteredQuery(matchAllQuery(), termQuery("_parent", "parent#p1"))).execute()
                 .actionGet();
         assertHitCount(response, 1l);
 
         // test terms filter
         client().prepareIndex("test", "child2", "c1").setSource("c_field", "value").setParent("p1").get();
-        response = client().prepareSearch("test").setQuery(filteredQuery(matchAllQuery(), termsFilter("_parent", "p1"))).execute()
+        response = client().prepareSearch("test").setQuery(filteredQuery(matchAllQuery(), termsQuery("_parent", "p1"))).execute()
                 .actionGet();
         assertHitCount(response, 1l);
 
-        response = client().prepareSearch("test").setQuery(filteredQuery(matchAllQuery(), termsFilter("_parent", "parent#p1"))).execute()
+        response = client().prepareSearch("test").setQuery(filteredQuery(matchAllQuery(), termsQuery("_parent", "parent#p1"))).execute()
                 .actionGet();
         assertHitCount(response, 1l);
 
         refresh();
-        response = client().prepareSearch("test").setQuery(filteredQuery(matchAllQuery(), termsFilter("_parent", "p1"))).execute()
+        response = client().prepareSearch("test").setQuery(filteredQuery(matchAllQuery(), termsQuery("_parent", "p1"))).execute()
                 .actionGet();
         assertHitCount(response, 2l);
 
         refresh();
-        response = client().prepareSearch("test").setQuery(filteredQuery(matchAllQuery(), termsFilter("_parent", "p1", "p1"))).execute()
+        response = client().prepareSearch("test").setQuery(filteredQuery(matchAllQuery(), termsQuery("_parent", "p1", "p1"))).execute()
                 .actionGet();
         assertHitCount(response, 2l);
 
         response = client().prepareSearch("test")
-                .setQuery(filteredQuery(matchAllQuery(), termsFilter("_parent", "parent#p1", "parent2#p1"))).get();
+                .setQuery(filteredQuery(matchAllQuery(), termsQuery("_parent", "parent#p1", "parent2#p1"))).get();
         assertHitCount(response, 2l);
     }
 
@@ -1333,7 +1324,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         client().admin().indices().prepareRefresh("test").get();
 
         SearchResponse searchResponse = client().prepareSearch("test")
-                .setQuery(constantScoreQuery(hasChildFilter("child", termQuery("c_field", "blue")).cache(true)))
+                .setQuery(constantScoreQuery(hasChildQuery("child", termQuery("c_field", "blue"))))
                 .get();
         assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
@@ -1342,7 +1333,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         client().admin().indices().prepareRefresh("test").get();
 
         searchResponse = client().prepareSearch("test")
-                .setQuery(constantScoreQuery(hasChildFilter("child", termQuery("c_field", "blue")).cache(true)))
+                .setQuery(constantScoreQuery(hasChildQuery("child", termQuery("c_field", "blue"))))
                 .get();
         assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
@@ -1351,9 +1342,9 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
     private QueryBuilder randomHasChild(String type, String field, String value) {
         if (randomBoolean()) {
             if (randomBoolean()) {
-                return constantScoreQuery(hasChildFilter(type, termQuery(field, value)));
+                return constantScoreQuery(hasChildQuery(type, termQuery(field, value)));
             } else {
-                return filteredQuery(matchAllQuery(), hasChildFilter(type, termQuery(field, value)));
+                return filteredQuery(matchAllQuery(), hasChildQuery(type, termQuery(field, value)));
             }
         } else {
             return hasChildQuery(type, termQuery(field, value));
@@ -1363,9 +1354,9 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
     private QueryBuilder randomHasParent(String type, String field, String value) {
         if (randomBoolean()) {
             if (randomBoolean()) {
-                return constantScoreQuery(hasParentFilter(type, termQuery(field, value)));
+                return constantScoreQuery(hasParentQuery(type, termQuery(field, value)));
             } else {
-                return filteredQuery(matchAllQuery(), hasParentFilter(type, termQuery(field, value)));
+                return filteredQuery(matchAllQuery(), hasParentQuery(type, termQuery(field, value)));
             }
         } else {
             return hasParentQuery(type, termQuery(field, value));
@@ -1558,13 +1549,13 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
 
         String scoreMode = ScoreType.values()[getRandom().nextInt(ScoreType.values().length)].name().toLowerCase(Locale.ROOT);
         SearchResponse searchResponse = client().prepareSearch("test")
-                .setQuery(filteredQuery(QueryBuilders.hasChildQuery("child", termQuery("c_field", "blue")).scoreType(scoreMode), notFilter(termFilter("p_field", "3"))))
+                .setQuery(filteredQuery(QueryBuilders.hasChildQuery("child", termQuery("c_field", "blue")).scoreType(scoreMode), notQuery(termQuery("p_field", "3"))))
                 .get();
         assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
 
         searchResponse = client().prepareSearch("test")
-                .setQuery(filteredQuery(QueryBuilders.hasChildQuery("child", termQuery("c_field", "red")).scoreType(scoreMode), notFilter(termFilter("p_field", "3"))))
+                .setQuery(filteredQuery(QueryBuilders.hasChildQuery("child", termQuery("c_field", "red")).scoreType(scoreMode), notQuery(termQuery("p_field", "3"))))
                 .get();
         assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
@@ -1584,6 +1575,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
 
         SearchResponse searchResponse = client().prepareSearch("test").setQuery(topChildrenQuery("child", termQuery("c_field", "1")).queryName("test"))
                 .get();
+        System.out.println(searchResponse);
         assertHitCount(searchResponse, 1l);
         assertThat(searchResponse.getHits().getAt(0).getMatchedQueries().length, equalTo(1));
         assertThat(searchResponse.getHits().getAt(0).getMatchedQueries()[0], equalTo("test"));
@@ -1600,13 +1592,13 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         assertThat(searchResponse.getHits().getAt(0).getMatchedQueries().length, equalTo(1));
         assertThat(searchResponse.getHits().getAt(0).getMatchedQueries()[0], equalTo("test"));
 
-        searchResponse = client().prepareSearch("test").setQuery(constantScoreQuery(hasChildFilter("child", termQuery("c_field", "1")).filterName("test")))
+        searchResponse = client().prepareSearch("test").setQuery(constantScoreQuery(hasChildQuery("child", termQuery("c_field", "1")).queryName("test")))
                 .get();
         assertHitCount(searchResponse, 1l);
         assertThat(searchResponse.getHits().getAt(0).getMatchedQueries().length, equalTo(1));
         assertThat(searchResponse.getHits().getAt(0).getMatchedQueries()[0], equalTo("test"));
 
-        searchResponse = client().prepareSearch("test").setQuery(constantScoreQuery(hasParentFilter("parent", termQuery("p_field", "1")).filterName("test")))
+        searchResponse = client().prepareSearch("test").setQuery(constantScoreQuery(hasParentQuery("parent", termQuery("p_field", "1")).queryName("test")))
                 .get();
         assertHitCount(searchResponse, 1l);
         assertThat(searchResponse.getHits().getAt(0).getMatchedQueries().length, equalTo(1));
@@ -1645,7 +1637,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
 
         try {
             client().prepareSearch("test")
-                    .setPostFilter(hasChildFilter("child", termQuery("c_field", "1")))
+                    .setPostFilter(hasChildQuery("child", termQuery("c_field", "1")))
                     .get();
             fail();
         } catch (SearchPhaseExecutionException e) {
@@ -1672,7 +1664,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
 
         try {
             client().prepareSearch("test")
-                    .setPostFilter(hasParentFilter("parent", termQuery("p_field", "1")))
+                    .setPostFilter(hasParentQuery("parent", termQuery("p_field", "1")))
                     .get();
             fail();
         } catch (SearchPhaseExecutionException e) {
@@ -1713,7 +1705,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
 
 
         searchResponse = client().prepareSearch("test")
-                .setPostFilter(hasChildFilter("child", termQuery("c_field", "1")))
+                .setPostFilter(hasChildQuery("child", termQuery("c_field", "1")))
                 .get();
         assertHitCount(searchResponse, 1l);
         assertSearchHits(searchResponse, parentId);
@@ -1725,7 +1717,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         assertSearchHits(searchResponse, parentId);
 
         searchResponse = client().prepareSearch("test")
-                .setPostFilter(hasParentFilter("parent", termQuery("p_field", "1")))
+                .setPostFilter(hasParentQuery("parent", termQuery("p_field", "1")))
                 .get();
         assertHitCount(searchResponse, 1l);
         assertSearchHits(searchResponse, "c1");
@@ -1766,9 +1758,9 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
 
         for (int i = 0; i < 2; i++) {
             SearchResponse searchResponse = client().prepareSearch()
-                    .setQuery(filteredQuery(matchAllQuery(), boolFilter()
-                            .must(FilterBuilders.hasChildFilter("child", matchQuery("c_field", "red")))
-                            .must(matchAllFilter())))
+                    .setQuery(filteredQuery(matchAllQuery(), boolQuery()
+                            .must(QueryBuilders.hasChildQuery("child", matchQuery("c_field", "red")))
+                            .must(matchAllQuery())))
                     .get();
             assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
         }
@@ -1778,9 +1770,9 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         client().admin().indices().prepareRefresh("test").get();
 
         SearchResponse searchResponse = client().prepareSearch()
-                .setQuery(filteredQuery(matchAllQuery(), boolFilter()
-                        .must(FilterBuilders.hasChildFilter("child", matchQuery("c_field", "red")))
-                        .must(matchAllFilter())))
+                .setQuery(filteredQuery(matchAllQuery(), boolQuery()
+                        .must(QueryBuilders.hasChildQuery("child", matchQuery("c_field", "red")))
+                        .must(matchAllQuery())))
                 .get();
 
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
@@ -1801,9 +1793,9 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
 
         QueryBuilder[] queries = new QueryBuilder[]{
                 hasChildQuery("child", matchAllQuery()),
-                filteredQuery(matchAllQuery(), hasChildFilter("child", matchAllQuery())),
+                filteredQuery(matchAllQuery(), hasChildQuery("child", matchAllQuery())),
                 hasParentQuery("parent", matchAllQuery()),
-                filteredQuery(matchAllQuery(), hasParentFilter("parent", matchAllQuery())),
+                filteredQuery(matchAllQuery(), hasParentQuery("parent", matchAllQuery())),
                 topChildrenQuery("child", matchAllQuery()).factor(10)
         };
 
@@ -1890,22 +1882,22 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         indexRandom(true, indexRequests);
 
         SearchResponse searchResponse = client().prepareSearch("test")
-                .setQuery(constantScoreQuery(hasParentFilter("parent", notFilter(termFilter("field1", "a")))))
+                .setQuery(constantScoreQuery(hasParentQuery("parent", notQuery(termQuery("field1", "a")))))
                 .get();
         assertHitCount(searchResponse, 0l);
 
         searchResponse = client().prepareSearch("test")
-                .setQuery(hasParentQuery("parent", constantScoreQuery(notFilter(termFilter("field1", "a")))))
+                .setQuery(hasParentQuery("parent", constantScoreQuery(notQuery(termQuery("field1", "a")))))
                 .get();
         assertHitCount(searchResponse, 0l);
 
         searchResponse = client().prepareSearch("test")
-                .setQuery(constantScoreQuery(hasParentFilter("parent", termFilter("field1", "a"))))
+                .setQuery(constantScoreQuery(hasParentQuery("parent", termQuery("field1", "a"))))
                 .get();
         assertHitCount(searchResponse, 2l);
 
         searchResponse = client().prepareSearch("test")
-                .setQuery(hasParentQuery("parent", constantScoreQuery(termFilter("field1", "a"))))
+                .setQuery(hasParentQuery("parent", constantScoreQuery(termQuery("field1", "a"))))
                 .get();
         assertHitCount(searchResponse, 2l);
     }
@@ -1954,10 +1946,10 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
                         QueryBuilders
                                 .hasChildQuery(
                                         "child",
-                                        QueryBuilders.functionScoreQuery(constantScoreQuery(FilterBuilders.termFilter("foo", "two"))).boostMode("replace").scoreMode("sum")
-                                                .add(FilterBuilders.matchAllFilter(), factorFunction(1))
-                                                .add(FilterBuilders.termFilter("foo", "three"), factorFunction(1))
-                                                .add(FilterBuilders.termFilter("foo", "four"), factorFunction(1))).scoreType(scoreType)
+                                        QueryBuilders.functionScoreQuery(constantScoreQuery(QueryBuilders.termQuery("foo", "two"))).boostMode("replace").scoreMode("sum")
+                                                .add(QueryBuilders.matchAllQuery(), factorFunction(1))
+                                                .add(QueryBuilders.termQuery("foo", "three"), factorFunction(1))
+                                                .add(QueryBuilders.termQuery("foo", "four"), factorFunction(1))).scoreType(scoreType)
                                 .minChildren(minChildren).maxChildren(maxChildren).setShortCircuitCutoff(cutoff))
                 .addSort("_score", SortOrder.DESC).addSort("id", SortOrder.ASC).get();
     }
@@ -1966,7 +1958,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         return client()
                 .prepareSearch("test")
                 .setQuery(
-                        QueryBuilders.constantScoreQuery(FilterBuilders.hasChildFilter("child", termFilter("foo", "two"))
+                        QueryBuilders.constantScoreQuery(QueryBuilders.hasChildQuery("child", termQuery("foo", "two"))
                                 .minChildren(minChildren).maxChildren(maxChildren).setShortCircuitCutoff(cutoff)))
                 .addSort("id", SortOrder.ASC).setTrackScores(true).get();
     }
@@ -2407,28 +2399,16 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
 
         try {
             client().prepareSearch("test")
-                    .setQuery(QueryBuilders.constantScoreQuery(FilterBuilders.hasChildFilter("child", matchAllQuery())))
+                    .setQuery(QueryBuilders.constantScoreQuery(QueryBuilders.hasChildQuery("child", matchAllQuery())))
                     .get();
             fail();
         } catch (SearchPhaseExecutionException e) {
         }
 
         response = client().prepareSearch("test")
-                .setQuery(QueryBuilders.constantScoreQuery(FilterBuilders.hasParentFilter("parent", matchAllQuery())))
+                .setQuery(QueryBuilders.constantScoreQuery(QueryBuilders.hasParentQuery("parent", matchAllQuery())))
                 .get();
         assertHitCount(response, 0);
-    }
-
-    private static HasChildFilterBuilder hasChildFilter(String type, QueryBuilder queryBuilder) {
-        HasChildFilterBuilder hasChildFilterBuilder = FilterBuilders.hasChildFilter(type, queryBuilder);
-        hasChildFilterBuilder.setShortCircuitCutoff(randomInt(10));
-        return hasChildFilterBuilder;
-    }
-
-    private static HasChildFilterBuilder hasChildFilter(String type, FilterBuilder filterBuilder) {
-        HasChildFilterBuilder hasChildFilterBuilder = FilterBuilders.hasChildFilter(type, filterBuilder);
-        hasChildFilterBuilder.setShortCircuitCutoff(randomInt(10));
-        return hasChildFilterBuilder;
     }
 
     private static HasChildQueryBuilder hasChildQuery(String type, QueryBuilder queryBuilder) {

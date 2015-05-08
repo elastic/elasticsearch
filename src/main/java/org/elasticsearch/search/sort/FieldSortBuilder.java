@@ -20,7 +20,7 @@
 package org.elasticsearch.search.sort;
 
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.query.FilterBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 
 import java.io.IOException;
 
@@ -41,7 +41,7 @@ public class FieldSortBuilder extends SortBuilder {
 
     private String sortMode;
 
-    private FilterBuilder nestedFilter;
+    private QueryBuilder nestedFilter;
 
     private String nestedPath;
 
@@ -114,7 +114,7 @@ public class FieldSortBuilder extends SortBuilder {
      * Sets the nested filter that the nested objects should match with in order to be taken into account
      * for sorting.
      */
-    public FieldSortBuilder setNestedFilter(FilterBuilder nestedFilter) {
+    public FieldSortBuilder setNestedFilter(QueryBuilder nestedFilter) {
         this.nestedFilter = nestedFilter;
         return this;
     }

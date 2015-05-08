@@ -28,7 +28,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.query.FilterBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 
 import java.io.IOException;
 import java.util.Map;
@@ -154,7 +154,7 @@ public class AliasAction implements Streamable {
         }
     }
 
-    public AliasAction filter(FilterBuilder filterBuilder) {
+    public AliasAction filter(QueryBuilder filterBuilder) {
         if (filterBuilder == null) {
             this.filter = null;
             return this;

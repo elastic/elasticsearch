@@ -20,7 +20,7 @@
 package org.elasticsearch.search.aggregations.bucket.significant;
 
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.query.FilterBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicBuilder;
@@ -47,7 +47,7 @@ public class SignificantTermsBuilder extends AggregationBuilder<SignificantTerms
     private int excludeFlags;
     private String[] includeTerms = null;
     private String[] excludeTerms = null;
-    private FilterBuilder filterBuilder;
+    private QueryBuilder filterBuilder;
     private SignificanceHeuristicBuilder significanceHeuristicBuilder;
 
     /**
@@ -92,7 +92,7 @@ public class SignificantTermsBuilder extends AggregationBuilder<SignificantTerms
     /**
      * Set the background filter to compare to. Defaults to the whole index.
      */
-    public SignificantTermsBuilder backgroundFilter(FilterBuilder filter) {
+    public SignificantTermsBuilder backgroundFilter(QueryBuilder filter) {
         this.filterBuilder = filter;
         return this;
     }

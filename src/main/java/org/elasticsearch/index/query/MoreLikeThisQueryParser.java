@@ -67,7 +67,6 @@ public class MoreLikeThisQueryParser extends BaseQueryParserTemp {
         public static final ParseField MAX_DOC_FREQ = new ParseField("max_doc_freq");
         public static final ParseField BOOST_TERMS = new ParseField("boost_terms");
         public static final ParseField MINIMUM_SHOULD_MATCH = new ParseField("minimum_should_match");
-        public static final ParseField PERCENT_TERMS_TO_MATCH = new ParseField("percent_terms_to_match").withAllDeprecated("minimum_should_match");
         public static final ParseField FAIL_ON_UNSUPPORTED_FIELD = new ParseField("fail_on_unsupported_field");
         public static final ParseField STOP_WORDS = new ParseField("stop_words");
         public static final ParseField DOCUMENT_IDS = new ParseField("ids").withAllDeprecated("like");
@@ -142,8 +141,6 @@ public class MoreLikeThisQueryParser extends BaseQueryParserTemp {
                     }
                 } else if (Fields.MINIMUM_SHOULD_MATCH.match(currentFieldName, parseContext.parseFlags())) {
                     mltQuery.setMinimumShouldMatch(parser.text());
-                } else if (Fields.PERCENT_TERMS_TO_MATCH.match(currentFieldName, parseContext.parseFlags())) {
-                    mltQuery.setMinimumShouldMatch(Math.round(parser.floatValue() * 100) + "%");
                 } else if ("analyzer".equals(currentFieldName)) {
                     analyzer = parseContext.analysisService().analyzer(parser.text());
                 } else if ("boost".equals(currentFieldName)) {

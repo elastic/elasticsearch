@@ -18,9 +18,7 @@
  */
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.FilteredQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.QueryWrapperFilter;
 import org.apache.lucene.search.join.BitDocIdSetFilter;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
@@ -131,11 +129,11 @@ public class TopChildrenQueryParser extends BaseQueryParserTemp {
 
         innerQuery.setBoost(boost);
         // wrap the query with type query
-        innerQuery = new FilteredQuery(innerQuery, childDocMapper.typeFilter());
+        innerQuery = Queries.filtered(innerQuery, childDocMapper.typeFilter());
         ParentChildIndexFieldData parentChildIndexFieldData = parseContext.getForField(parentFieldMapper);
         TopChildrenQuery query = new TopChildrenQuery(parentChildIndexFieldData, innerQuery, childType, parentType, scoreType, factor, incrementalFactor, nonNestedDocsFilter);
         if (queryName != null) {
-            parseContext.addNamedFilter(queryName, new QueryWrapperFilter(query));
+            parseContext.addNamedQuery(queryName, query);
         }
         return query;
     }

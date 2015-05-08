@@ -22,6 +22,7 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.MultiTermQuery;
+import org.apache.lucene.search.MultiTermQuery.RewriteMethod;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.inject.Inject;
@@ -69,6 +70,9 @@ public class FuzzyQueryParser extends BaseQueryParserTemp {
         boolean transpositions = false;
         String queryName = null;
         MultiTermQuery.RewriteMethod rewriteMethod = null;
+        if (parseContext.isFilter()) {
+            rewriteMethod = MultiTermQuery.CONSTANT_SCORE_REWRITE;
+        }
         token = parser.nextToken();
         if (token == XContentParser.Token.START_OBJECT) {
             String currentFieldName = null;

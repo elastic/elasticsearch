@@ -99,7 +99,6 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldMapper.Loading;
 import org.elasticsearch.index.mapper.internal.SizeFieldMapper;
-import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
 import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
 import org.elasticsearch.index.merge.policy.AbstractMergePolicyProvider;
 import org.elasticsearch.index.merge.policy.LogByteSizeMergePolicyProvider;
@@ -585,6 +584,9 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         }
         if (random.nextBoolean()) {
             builder.put(TranslogService.INDEX_TRANSLOG_DISABLE_FLUSH, random.nextBoolean());
+        }
+        if (random.nextBoolean()) {
+            builder.put(Translog.INDEX_TRANSLOG_DURABILITY, RandomPicks.randomFrom(random, Translog.Durabilty.values()));
         }
         return builder;
     }
@@ -1730,15 +1732,12 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         }
 
         final String nodePrefix;
-        final LifecycleScope nodeDirScope;
         switch (scope) {
             case TEST:
                 nodePrefix = TEST_CLUSTER_NODE_PREFIX;
-                nodeDirScope = LifecycleScope.TEST;
                 break;
             case SUITE:
                 nodePrefix = SUITE_CLUSTER_NODE_PREFIX;
-                nodeDirScope = LifecycleScope.SUITE;
                 break;
             default:
                 throw new ElasticsearchException("Scope not supported: " + scope);

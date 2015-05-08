@@ -39,9 +39,8 @@ import java.util.List;
 import java.util.Locale;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.FilterBuilders.hasChildFilter;
-import static org.elasticsearch.index.query.FilterBuilders.nestedFilter;
-import static org.elasticsearch.index.query.FilterBuilders.queryFilter;
+import static org.elasticsearch.index.query.QueryBuilders.hasChildQuery;
+import static org.elasticsearch.index.query.QueryBuilders.nestedQuery;
 import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.*;
@@ -115,7 +114,7 @@ public class InnerHitsTests extends ElasticsearchIntegrationTest {
                 client().prepareSearch("articles")
                         .setQuery(nestedQuery("comments", matchQuery("comments.message", "elephant")).innerHit(new QueryInnerHitBuilder().setName("comment"))).request(),
                 client().prepareSearch("articles")
-                        .setQuery(nestedQuery("comments", queryFilter(matchQuery("comments.message", "elephant"))).innerHit(new QueryInnerHitBuilder().setName("comment").addSort("_doc", SortOrder.DESC))).request()
+                        .setQuery(nestedQuery("comments", matchQuery("comments.message", "elephant")).innerHit(new QueryInnerHitBuilder().setName("comment").addSort("_doc", SortOrder.DESC))).request()
         };
         for (SearchRequest searchRequest : searchRequests) {
             SearchResponse response = client().search(searchRequest).actionGet();
@@ -208,8 +207,8 @@ public class InnerHitsTests extends ElasticsearchIntegrationTest {
                 boolQuery.should(nestedQuery("field1", matchAllQuery()).innerHit(new QueryInnerHitBuilder().setName("a").addSort("_doc", SortOrder.DESC).setSize(size)));
                 boolQuery.should(nestedQuery("field2", matchAllQuery()).innerHit(new QueryInnerHitBuilder().setName("b").addSort("_doc", SortOrder.DESC).setSize(size)));
             } else {
-                boolQuery.should(constantScoreQuery(nestedFilter("field1", matchAllQuery()).innerHit(new QueryInnerHitBuilder().setName("a").addSort("_doc", SortOrder.DESC).setSize(size))));
-                boolQuery.should(constantScoreQuery(nestedFilter("field2", matchAllQuery()).innerHit(new QueryInnerHitBuilder().setName("b").addSort("_doc", SortOrder.DESC).setSize(size))));
+                boolQuery.should(constantScoreQuery(nestedQuery("field1", matchAllQuery()).innerHit(new QueryInnerHitBuilder().setName("a").addSort("_doc", SortOrder.DESC).setSize(size))));
+                boolQuery.should(constantScoreQuery(nestedQuery("field2", matchAllQuery()).innerHit(new QueryInnerHitBuilder().setName("b").addSort("_doc", SortOrder.DESC).setSize(size))));
             }
             searchResponse = client().prepareSearch("idx")
                     .setQuery(boolQuery)
@@ -393,8 +392,8 @@ public class InnerHitsTests extends ElasticsearchIntegrationTest {
                 boolQuery.should(hasChildQuery("child1", matchAllQuery()).innerHit(new QueryInnerHitBuilder().setName("a").addSort("_uid", SortOrder.ASC).setSize(size)));
                 boolQuery.should(hasChildQuery("child2", matchAllQuery()).innerHit(new QueryInnerHitBuilder().setName("b").addSort("_uid", SortOrder.ASC).setSize(size)));
             } else {
-                boolQuery.should(constantScoreQuery(hasChildFilter("child1", matchAllQuery()).innerHit(new QueryInnerHitBuilder().setName("a").addSort("_uid", SortOrder.ASC).setSize(size))));
-                boolQuery.should(constantScoreQuery(hasChildFilter("child2", matchAllQuery()).innerHit(new QueryInnerHitBuilder().setName("b").addSort("_uid", SortOrder.ASC).setSize(size))));
+                boolQuery.should(constantScoreQuery(hasChildQuery("child1", matchAllQuery()).innerHit(new QueryInnerHitBuilder().setName("a").addSort("_uid", SortOrder.ASC).setSize(size))));
+                boolQuery.should(constantScoreQuery(hasChildQuery("child2", matchAllQuery()).innerHit(new QueryInnerHitBuilder().setName("b").addSort("_uid", SortOrder.ASC).setSize(size))));
             }
             searchResponse = client().prepareSearch("idx")
                     .setSize(numDocs)

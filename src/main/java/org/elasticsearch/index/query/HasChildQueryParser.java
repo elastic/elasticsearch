@@ -20,9 +20,10 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.FilteredQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryWrapperFilter;
 import org.apache.lucene.search.join.BitDocIdSetFilter;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
@@ -47,6 +48,7 @@ import java.io.IOException;
 public class HasChildQueryParser extends BaseQueryParserTemp {
 
     public static final String NAME = "has_child";
+    private static final ParseField QUERY_FIELD = new ParseField("query", "filter");
 
     private final InnerHitsQueryParserHelper innerHitsQueryParserHelper;
 
@@ -80,12 +82,14 @@ public class HasChildQueryParser extends BaseQueryParserTemp {
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
+            } else if (parseContext.isDeprecatedSetting(currentFieldName)) {
+                // skip
             } else if (token == XContentParser.Token.START_OBJECT) {
                 // Usually, the query would be parsed here, but the child
                 // type may not have been extracted yet, so use the
                 // XContentStructure.<type> facade to parse if available,
                 // or delay parsing if not.
-                if ("query".equals(currentFieldName)) {
+                if (QUERY_FIELD.match(currentFieldName)) {
                     iq = new XContentStructure.InnerQuery(parseContext, childType == null ? null : new String[] { childType });
                     queryFound = true;
                 } else if ("inner_hits".equals(currentFieldName)) {
@@ -165,10 +169,11 @@ public class HasChildQueryParser extends BaseQueryParserTemp {
         }
 
         // wrap the query with type query
-        innerQuery = new FilteredQuery(innerQuery, childDocMapper.typeFilter());
+        innerQuery = Queries.filtered(innerQuery, childDocMapper.typeFilter());
 
         Query query;
-        Filter parentFilter = parentDocMapper.typeFilter();
+        // TODO: use the query API
+        Filter parentFilter = new QueryWrapperFilter(parentDocMapper.typeFilter());
         ParentChildIndexFieldData parentChildIndexFieldData = parseContext.getForField(parentFieldMapper);
         if (minChildren > 1 || maxChildren > 0 || scoreType != ScoreType.NONE) {
             query = new ChildrenQuery(parentChildIndexFieldData, parentType, childType, parentFilter, innerQuery, scoreType, minChildren,

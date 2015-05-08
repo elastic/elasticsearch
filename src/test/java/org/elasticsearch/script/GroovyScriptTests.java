@@ -31,7 +31,7 @@ import org.junit.Test;
 import java.util.List;
 
 import static com.google.common.collect.Lists.newArrayList;
-import static org.elasticsearch.index.query.FilterBuilders.scriptFilter;
+import static org.elasticsearch.index.query.QueryBuilders.scriptQuery;
 import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
 import static org.elasticsearch.index.query.QueryBuilders.functionScoreQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -73,7 +73,7 @@ public class GroovyScriptTests extends ElasticsearchIntegrationTest {
         }
         indexRandom(true, false, reqs);
         try {
-            client().prepareSearch("test").setQuery(constantScoreQuery(scriptFilter("1 == not_found").lang(GroovyScriptEngineService.NAME))).get();
+            client().prepareSearch("test").setQuery(constantScoreQuery(scriptQuery("1 == not_found").lang(GroovyScriptEngineService.NAME))).get();
             fail("should have thrown an exception");
         } catch (SearchPhaseExecutionException e) {
             assertThat(e.toString()+ "should not contained NotSerializableTransportException",
@@ -86,7 +86,7 @@ public class GroovyScriptTests extends ElasticsearchIntegrationTest {
 
         try {
             client().prepareSearch("test").setQuery(constantScoreQuery(
-                    scriptFilter("assert false").lang("groovy"))).get();
+                    scriptQuery("assert false").lang("groovy"))).get();
             fail("should have thrown an exception");
         } catch (SearchPhaseExecutionException e) {
             assertThat(e.toString()+ "should not contained NotSerializableTransportException",

@@ -26,7 +26,6 @@ import org.apache.lucene.queryparser.classic.MapperQueryParser;
 import org.apache.lucene.queryparser.classic.QueryParserSettings;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.QueryWrapperFilter;
 import org.apache.lucene.search.join.BitDocIdSetFilter;
 import org.apache.lucene.search.similarities.Similarity;
 import org.elasticsearch.Version;
@@ -93,7 +92,7 @@ public class QueryParseContext {
 
     private final IndexQueryParserService indexQueryParser;
 
-    private final Map<String, Filter> namedFilters = Maps.newHashMap();
+    private final Map<String, Query> namedQueries = Maps.newHashMap();
 
     private final MapperQueryParser queryParser = new MapperQueryParser(this);
 
@@ -106,6 +105,8 @@ public class QueryParseContext {
     private boolean mapUnmappedFieldAsString;
 
     private NestedScope nestedScope;
+
+    private boolean isFilter;
 
     public QueryParseContext(Index index, IndexQueryParserService indexQueryParser) {
         this.index = index;
@@ -125,8 +126,9 @@ public class QueryParseContext {
         this.parseFlags = ParseField.EMPTY_FLAGS;
         this.lookup = null;
         this.parser = jp;
-        this.namedFilters.clear();
+        this.namedQueries.clear();
         this.nestedScope = new NestedScope();
+        this.isFilter = false;
     }
 
     public Index index() {
@@ -187,20 +189,23 @@ public class QueryParseContext {
         return indexQueryParser.fieldDataService.getForField(mapper);
     }
 
-    public void addNamedFilter(String name, Filter filter) {
-        namedFilters.put(name, filter);
-    }
-
     public void addNamedQuery(String name, Query query) {
-        namedFilters.put(name, new QueryWrapperFilter(query));
+        namedQueries.put(name, query);
     }
 
-    public ImmutableMap<String, Filter> copyNamedFilters() {
-        return ImmutableMap.copyOf(namedFilters);
+    public ImmutableMap<String, Query> copyNamedFilters() {
+        return ImmutableMap.copyOf(namedQueries);
     }
 
     public void combineNamedFilters(QueryParseContext context) {
-        namedFilters.putAll(context.namedFilters);
+        namedQueries.putAll(context.namedQueries);
+    }
+
+    /**
+     * Return whether we are currently parsing a filter or a query.
+     */
+    public boolean isFilter() {
+        return isFilter;
     }
 
     public void addInnerHits(String name, InnerHitsContext.BaseInnerHits context) {
@@ -229,6 +234,10 @@ public class QueryParseContext {
             }
         }
         token = parser.nextToken();
+        if (token == XContentParser.Token.END_OBJECT) {
+            // empty query
+            return null;
+        }
         if (token != XContentParser.Token.FIELD_NAME) {
             throw new QueryParsingException(this, "[_na] query malformed, no field after start_object");
         }
@@ -263,48 +272,28 @@ public class QueryParseContext {
     }
 
     @Nullable
-    public Filter parseInnerFilter() throws IOException, QueryParsingException {
-        // move to START object
-        XContentParser.Token token;
-        if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
-            token = parser.nextToken();
-            if (token != XContentParser.Token.START_OBJECT) {
-                throw new QueryParsingException(this, "[_na] filter malformed, must start with start_object");
-            }
+    public Query parseInnerFilter() throws QueryParsingException, IOException {
+        final boolean originalIsFilter = isFilter;
+        try {
+            isFilter = true;
+            return parseInnerQuery();
+        } finally {
+            isFilter = originalIsFilter;
         }
-        token = parser.nextToken();
-        if (token != XContentParser.Token.FIELD_NAME) {
-            // empty filter
-            if (token == XContentParser.Token.END_OBJECT || token == XContentParser.Token.VALUE_NULL) {
-                return null;
-            }
-            throw new QueryParsingException(this, "[_na] filter malformed, no field after start_object");
-        }
-        String filterName = parser.currentName();
-        // move to the next START_OBJECT or START_ARRAY
-        token = parser.nextToken();
-        if (token != XContentParser.Token.START_OBJECT && token != XContentParser.Token.START_ARRAY) {
-            throw new QueryParsingException(this, "[_na] filter malformed, no field after start_object");
-        }
-
-        FilterParser filterParser = indexQueryParser.filterParser(filterName);
-        if (filterParser == null) {
-            throw new QueryParsingException(this, "No filter registered for [" + filterName + "]");
-        }
-        Filter result = filterParser.parse(this);
-        if (parser.currentToken() == XContentParser.Token.END_OBJECT || parser.currentToken() == XContentParser.Token.END_ARRAY) {
-            // if we are at END_OBJECT, move to the next one...
-            parser.nextToken();
-        }
-        return result;
     }
 
-    public Filter parseInnerFilter(String filterName) throws IOException, QueryParsingException {
-        FilterParser filterParser = indexQueryParser.filterParser(filterName);
-        if (filterParser == null) {
-            throw new QueryParsingException(this, "No filter registered for [" + filterName + "]");
+    public Query parseInnerFilter(String queryName) throws IOException, QueryParsingException {
+        final boolean originalIsFilter = isFilter;
+        try {
+            isFilter = true;
+            QueryParser queryParser = indexQueryParser.queryParser(queryName);
+            if (queryParser == null) {
+                throw new QueryParsingException(this, "No query registered for [" + queryName + "]");
+            }
+            return queryParser.parse(this);
+        } finally {
+            isFilter = originalIsFilter;
         }
-        return filterParser.parse(this);
     }
 
     public FieldMapper fieldMapper(String name) {

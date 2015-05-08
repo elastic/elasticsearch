@@ -130,7 +130,7 @@ public class TransformOnIndexMapperIntegrationTest extends ElasticsearchIntegrat
             // Single transform
             builder.startObject();
             buildTransformScript(builder);
-            builder.field("lang", GroovyScriptEngineService.NAME);
+            builder.field("lang", randomFrom(null, GroovyScriptEngineService.NAME));
             builder.endObject();
         } else {
             // Multiple transforms
@@ -144,7 +144,7 @@ public class TransformOnIndexMapperIntegrationTest extends ElasticsearchIntegrat
                 } else {
                     builder.field("script", "true");
                 }
-                builder.field("lang", GroovyScriptEngineService.NAME);
+                builder.field("lang", randomFrom(null, GroovyScriptEngineService.NAME));
                 builder.endObject();
             }
             builder.endArray();

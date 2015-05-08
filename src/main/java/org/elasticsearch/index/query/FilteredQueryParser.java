@@ -23,6 +23,7 @@ import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.FilteredQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryWrapperFilter;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -50,7 +51,7 @@ public class FilteredQueryParser extends BaseQueryParserTemp {
         XContentParser parser = parseContext.parser();
 
         Query query = Queries.newMatchAllQuery();
-        Filter filter = null;
+        Query filter = null;
         boolean filterFound = false;
         float boost = 1.0f;
         String queryName = null;
@@ -130,7 +131,10 @@ public class FilteredQueryParser extends BaseQueryParserTemp {
             return q;
         }
 
-        FilteredQuery filteredQuery = new FilteredQuery(query, filter, filterStrategy);
+        if (filter instanceof Filter == false) {
+            filter = new QueryWrapperFilter(filter);
+        }
+        FilteredQuery filteredQuery = new FilteredQuery(query, (Filter) filter, filterStrategy);
         filteredQuery.setBoost(boost);
         if (queryName != null) {
             parseContext.addNamedQuery(queryName, filteredQuery);

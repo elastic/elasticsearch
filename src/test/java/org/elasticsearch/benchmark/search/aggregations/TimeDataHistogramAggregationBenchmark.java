@@ -35,7 +35,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.query.FilterBuilders;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.IndexAlreadyExistsException;
 import org.elasticsearch.node.Node;
@@ -210,7 +210,7 @@ public class TimeDataHistogramAggregationBenchmark {
     private static SearchResponse doTermsAggsSearch(String name, String field, float matchPercentage) {
         SearchResponse response = client.prepareSearch()
                 .setSize(0)
-                .setQuery(QueryBuilders.constantScoreQuery(FilterBuilders.scriptFilter("random()<matchP").addParam("matchP", matchPercentage)))
+                .setQuery(QueryBuilders.constantScoreQuery(QueryBuilders.scriptQuery("random()<matchP").addParam("matchP", matchPercentage)))
                 .addAggregation(AggregationBuilders.histogram(name).field(field).interval(3600 * 1000)).get();
 
         if (response.getHits().totalHits() < COUNT * matchPercentage * 0.7) {

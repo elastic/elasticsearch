@@ -19,6 +19,7 @@
 
 package org.elasticsearch.bootstrap;
 
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.env.Environment;
 
 import java.io.*;
@@ -82,6 +83,7 @@ public class Security {
     }
 
     /** Simple checks that everything is ok */
+    @SuppressForbidden(reason = "accesses jvm default tempdir as a self-test")
     public static void selfTest() {
         // check we can manipulate temporary files
         try {

@@ -40,7 +40,7 @@ public class IdsQueryBuilderTest extends BaseQueryTestCase<IdsQueryBuilder> {
      * @throws IOException
      */
     @Test(expected=QueryParsingException.class)
-    public void idsNotProvided() throws IOException {
+    public void testIdsNotProvided() throws IOException {
         String noIdsFieldQuery = "{\"ids\" : { \"type\" : \"my_type\"  }";
         XContentParser parser = XContentFactory.xContent(noIdsFieldQuery).createParser(noIdsFieldQuery);
         QueryParseContext context = createContext();
@@ -62,7 +62,7 @@ public class IdsQueryBuilderTest extends BaseQueryTestCase<IdsQueryBuilder> {
             assertThat(query, is(instanceOf(TermsQuery.class)));
             TermsQuery termQuery = (TermsQuery) query;
             assertThat(termQuery.getBoost(), is(testQuery.boost()));
-            // because internals of TermsFilter are well hidden, check string representation
+            // because internals of TermsQuery are well hidden, check string representation
             String[] parts = termQuery.toString().split(" ");
             assertThat(parts.length, is(queryBuilder.ids().size() * queryBuilder.types().size()));
             assertThat(parts[0].substring(0, parts[0].indexOf(":")), is(UidFieldMapper.NAME));

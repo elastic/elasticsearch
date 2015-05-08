@@ -21,11 +21,8 @@ package org.elasticsearch.http;
 
 import com.google.common.collect.ImmutableMap;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.FileSystemUtils;
-import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.service.NodeService;
@@ -172,7 +169,8 @@ public class HttpServer extends AbstractLifecycleComponent<HttpServer> {
         if (sitePath.length() == 0) {
             sitePath = "index.html";
         } else {
-            while (sitePath.charAt(0) == '/') {
+            // remove extraneous leading slashes, its not an absolute path.
+            while (sitePath.length() > 0 && sitePath.charAt(0) == '/') {
                 sitePath = sitePath.substring(1);
             }
         }

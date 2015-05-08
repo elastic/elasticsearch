@@ -54,7 +54,7 @@ public class UpdateThreadPoolSettingsTests extends ElasticsearchTestCase {
         ThreadPool threadPool = new ThreadPool(
                 ImmutableSettings.settingsBuilder()
                         .put("threadpool.search.type", "cached")
-                        .put("name","testCachedExecutorType").build(), null);
+                        .put("name","testCachedExecutorType").build());
 
         assertThat(info(threadPool, Names.SEARCH).getType(), equalTo("cached"));
         assertThat(info(threadPool, Names.SEARCH).getKeepAlive().minutes(), equalTo(5L));
@@ -109,7 +109,7 @@ public class UpdateThreadPoolSettingsTests extends ElasticsearchTestCase {
     public void testFixedExecutorType() throws InterruptedException {
         ThreadPool threadPool = new ThreadPool(settingsBuilder()
                 .put("threadpool.search.type", "fixed")
-                .put("name","testCachedExecutorType").build(), null);
+                .put("name","testCachedExecutorType").build());
 
         assertThat(threadPool.executor(Names.SEARCH), instanceOf(EsThreadPoolExecutor.class));
 
@@ -170,7 +170,7 @@ public class UpdateThreadPoolSettingsTests extends ElasticsearchTestCase {
         ThreadPool threadPool = new ThreadPool(settingsBuilder()
                 .put("threadpool.search.type", "scaling")
                 .put("threadpool.search.size", 10)
-                .put("name","testCachedExecutorType").build(), null);
+                .put("name","testCachedExecutorType").build());
 
         assertThat(info(threadPool, Names.SEARCH).getMin(), equalTo(1));
         assertThat(info(threadPool, Names.SEARCH).getMax(), equalTo(10));
@@ -204,7 +204,7 @@ public class UpdateThreadPoolSettingsTests extends ElasticsearchTestCase {
     public void testShutdownDownNowDoesntBlock() throws Exception {
         ThreadPool threadPool = new ThreadPool(ImmutableSettings.settingsBuilder()
                 .put("threadpool.search.type", "cached")
-                .put("name","testCachedExecutorType").build(), null);
+                .put("name","testCachedExecutorType").build());
 
         final CountDownLatch latch = new CountDownLatch(1);
         Executor oldExecutor = threadPool.executor(Names.SEARCH);
@@ -236,7 +236,7 @@ public class UpdateThreadPoolSettingsTests extends ElasticsearchTestCase {
                 .put("threadpool.my_pool2.type", "fixed")
                 .put("threadpool.my_pool2.size", "1")
                 .put("threadpool.my_pool2.queue_size", "1")
-                .put("name", "testCustomThreadPool").build(), null);
+                .put("name", "testCustomThreadPool").build());
 
         ThreadPoolInfo groups = threadPool.info();
         boolean foundPool1 = false;

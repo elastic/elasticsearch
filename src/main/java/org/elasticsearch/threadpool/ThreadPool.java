@@ -91,13 +91,14 @@ public class ThreadPool extends AbstractComponent {
 
     private final EstimatedTimeThread estimatedTimeThread;
 
+    private boolean settingsListenerIsSet = false;
+
 
     public ThreadPool(String name) {
-        this(ImmutableSettings.builder().put("name", name).build(), null);
+        this(ImmutableSettings.builder().put("name", name).build());
     }
 
-    @Inject
-    public ThreadPool(Settings settings, @Nullable NodeSettingsService nodeSettingsService) {
+    public ThreadPool(Settings settings) {
         super(settings);
 
         assert settings.get("name") != null : "ThreadPool's settings should contain a name";
@@ -148,13 +149,18 @@ public class ThreadPool extends AbstractComponent {
         this.scheduler.setExecuteExistingDelayedTasksAfterShutdownPolicy(false);
         this.scheduler.setContinueExistingPeriodicTasksAfterShutdownPolicy(false);
         this.scheduler.setRemoveOnCancelPolicy(true);
-        if (nodeSettingsService != null) {
-            nodeSettingsService.addListener(new ApplySettings());
-        }
 
         TimeValue estimatedTimeInterval = settings.getAsTime("threadpool.estimated_time_interval", TimeValue.timeValueMillis(200));
         this.estimatedTimeThread = new EstimatedTimeThread(EsExecutors.threadName(settings, "[timer]"), estimatedTimeInterval.millis());
         this.estimatedTimeThread.start();
+    }
+
+    public void setNodeSettingsService(NodeSettingsService nodeSettingsService) {
+        if(settingsListenerIsSet) {
+            throw new IllegalStateException("the node settings listener was set more then once");
+        }
+        nodeSettingsService.addListener(new ApplySettings());
+        settingsListenerIsSet = true;
     }
 
     public long estimatedTimeInMillis() {

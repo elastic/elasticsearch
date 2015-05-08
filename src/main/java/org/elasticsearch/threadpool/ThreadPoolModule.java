@@ -27,14 +27,14 @@ import org.elasticsearch.common.settings.Settings;
  */
 public class ThreadPoolModule extends AbstractModule {
 
-    private final Settings settings;
+    private final ThreadPool threadPool;
 
-    public ThreadPoolModule(Settings settings) {
-        this.settings = settings;
+    public ThreadPoolModule(ThreadPool threadPool) {
+        this.threadPool = threadPool;
     }
 
     @Override
     protected void configure() {
-        bind(ThreadPool.class).asEagerSingleton();
+        bind(ThreadPool.class).toInstance(threadPool);
     }
 }

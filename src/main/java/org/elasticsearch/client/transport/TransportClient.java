@@ -43,6 +43,7 @@ import org.elasticsearch.env.EnvironmentModule;
 import org.elasticsearch.indices.breaker.CircuitBreakerModule;
 import org.elasticsearch.monitor.MonitorService;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
+import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.plugins.PluginsModule;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.search.TransportSearchModule;
@@ -125,24 +126,34 @@ public class TransportClient extends AbstractClient {
 
             CompressorFactory.configure(this.settings);
 
-            ModulesBuilder modules = new ModulesBuilder();
-            modules.add(new Version.Module(version));
-            modules.add(new PluginsModule(this.settings, pluginsService));
-            modules.add(new EnvironmentModule(environment));
-            modules.add(new SettingsModule(this.settings));
-            modules.add(new NetworkModule());
-            modules.add(new ClusterNameModule(this.settings));
-            modules.add(new ThreadPoolModule(this.settings));
-            modules.add(new TransportSearchModule());
-            modules.add(new TransportModule(this.settings));
-            modules.add(new ActionModule(true));
-            modules.add(new ClientTransportModule());
-            modules.add(new CircuitBreakerModule(this.settings));
+            final ThreadPool threadPool = new ThreadPool(settings);
 
-            Injector injector = modules.createInjector();
-            injector.getInstance(TransportService.class).start();
+            boolean success = false;
+            try {
+                ModulesBuilder modules = new ModulesBuilder();
+                modules.add(new Version.Module(version));
+                modules.add(new PluginsModule(this.settings, pluginsService));
+                modules.add(new EnvironmentModule(environment));
+                modules.add(new SettingsModule(this.settings));
+                modules.add(new NetworkModule());
+                modules.add(new ClusterNameModule(this.settings));
+                modules.add(new ThreadPoolModule(threadPool));
+                modules.add(new TransportSearchModule());
+                modules.add(new TransportModule(this.settings));
+                modules.add(new ActionModule(true));
+                modules.add(new ClientTransportModule());
+                modules.add(new CircuitBreakerModule(this.settings));
 
-            return new TransportClient(injector);
+                Injector injector = modules.createInjector();
+                injector.getInstance(TransportService.class).start();
+                TransportClient transportClient = new TransportClient(injector);
+                success = true;
+                return transportClient;
+            } finally {
+                if (!success) {
+                    ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
+                }
+            }
         }
     }
 

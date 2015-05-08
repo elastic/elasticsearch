@@ -27,7 +27,6 @@ import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.CreationException;
 import org.elasticsearch.common.inject.spi.Message;
-import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.jna.Kernel32Library;
 import org.elasticsearch.common.jna.Natives;
 import org.elasticsearch.common.lease.Releasables;

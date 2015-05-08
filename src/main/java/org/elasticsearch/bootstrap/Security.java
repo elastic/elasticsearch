@@ -19,7 +19,6 @@
 
 package org.elasticsearch.bootstrap;
 
-import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.env.Environment;
 
 import java.io.*;
@@ -56,7 +55,7 @@ public class Security {
         // TODO: improve test infra so we can reduce permissions where read/write
         // is not really needed...
         Permissions policy = new Permissions();
-        addPath(policy, PathUtils.get(System.getProperty("java.io.tmpdir")), "read,readlink,write,delete");
+        addPath(policy, environment.tmpFile(), "read,readlink,write,delete");
         addPath(policy, environment.homeFile(), "read,readlink,write,delete");
         addPath(policy, environment.configFile(), "read,readlink,write,delete");
         addPath(policy, environment.logsFile(), "read,readlink,write,delete");

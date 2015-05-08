@@ -167,16 +167,22 @@ public class HttpServer extends AbstractLifecycleComponent<HttpServer> {
             sitePath = path.substring(i1 + 1);
         }
 
+        // we default to index.html, or what the plugin provides (as a unix-style path)
+        // this is a relative path under _site configured by the plugin.
         if (sitePath.length() == 0) {
-            sitePath = "/index.html";
+            sitePath = "index.html";
+        } else {
+            while (sitePath.charAt(0) == '/') {
+                sitePath = sitePath.substring(1);
+            }
         }
         final Path siteFile = environment.pluginsFile().resolve(pluginName).resolve("_site");
 
         final String separator = siteFile.getFileSystem().getSeparator();
         // Convert file separators.
         sitePath = sitePath.replace("/", separator);
-        // this is a plugin provided site, serve it as static files from the plugin location
-        Path file = FileSystemUtils.append(siteFile, PathUtils.get(sitePath), 0);
+        
+        Path file = siteFile.resolve(sitePath);
 
         // return not found instead of forbidden to prevent malicious requests to find out if files exist or dont exist
         if (!Files.exists(file) || Files.isHidden(file) || !file.toAbsolutePath().normalize().startsWith(siteFile.toAbsolutePath())) {

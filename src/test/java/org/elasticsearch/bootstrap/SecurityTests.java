@@ -39,11 +39,11 @@ public class SecurityTests extends ElasticsearchTestCase {
         settingsBuilder.put("path.home", esHome.toString());
         Settings settings = settingsBuilder.build();
 
-        Environment environment = new Environment(settings);
         Path fakeTmpDir = createTempDir();
         String realTmpDir = System.getProperty("java.io.tmpdir");
         Permissions permissions;
         try {
+            Environment environment = new Environment(settings);
             System.setProperty("java.io.tmpdir", fakeTmpDir.toString());
             permissions = Security.createPermissions(environment);
         } finally {
@@ -73,11 +73,11 @@ public class SecurityTests extends ElasticsearchTestCase {
         settingsBuilder.put("pidfile", path.resolve("test.pid").toString());
         Settings settings = settingsBuilder.build();
 
-        Environment environment = new Environment(settings);
         Path fakeTmpDir = createTempDir();
         String realTmpDir = System.getProperty("java.io.tmpdir");
         Permissions permissions;
         try {
+            Environment environment = new Environment(settings);
             System.setProperty("java.io.tmpdir", fakeTmpDir.toString());
             permissions = Security.createPermissions(environment);
         } finally {

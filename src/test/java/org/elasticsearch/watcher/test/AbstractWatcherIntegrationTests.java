@@ -89,6 +89,8 @@ public abstract class AbstractWatcherIntegrationTests extends ElasticsearchInteg
         logger.info("using schedule engine [" + scheduleImplName + "]");
         return ImmutableSettings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
+                // we do this by default in core, but for watcher this isn't needed and only adds noise.
+                .put("index.store.mock.check_index_on_close", false)
                 .put("scroll.size", randomIntBetween(1, 100))
                 .put("plugin.types",
                         (timeWarped() ? TimeWarpedWatcherPlugin.class.getName() : WatcherPlugin.class.getName()) + "," +

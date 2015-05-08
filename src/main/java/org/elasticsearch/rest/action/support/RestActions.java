@@ -104,6 +104,9 @@ public class RestActions {
         QueryStringQueryBuilder queryBuilder = QueryBuilders.queryStringQuery(queryString);
         queryBuilder.defaultField(request.param("df"));
         queryBuilder.analyzer(request.param("analyzer"));
+        queryBuilder.analyzeWildcard(request.paramAsBoolean("analyze_wildcard", false));
+        queryBuilder.lowercaseExpandedTerms(request.paramAsBoolean("lowercase_expanded_terms", true));
+        queryBuilder.lenient(request.paramAsBoolean("lenient", null));
         String defaultOperator = request.param("default_operator");
         if (defaultOperator != null) {
             if ("OR".equals(defaultOperator)) {

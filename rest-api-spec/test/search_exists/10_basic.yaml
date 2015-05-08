@@ -1,0 +1,38 @@
+---
+"search_exists with body":
+  - do:
+      indices.create:
+          index:  test
+  - do:
+      index:
+          index:  test
+          type:   test
+          id:     1
+          body:   { foo: bar }
+
+  - do:
+      indices.refresh:
+        index: [test]
+
+  - do:
+      search_exists:
+        index: test
+        type: test
+        body:
+          query:
+            match:
+              foo: bar
+
+  - is_true: exists
+
+  - do:
+      catch: missing
+      search_exists:
+        index: test
+        type: test
+        body:
+          query:
+            match:
+              foo: test
+
+  - is_false: exists

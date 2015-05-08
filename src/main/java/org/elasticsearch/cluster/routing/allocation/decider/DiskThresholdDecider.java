@@ -168,7 +168,7 @@ public class DiskThresholdDecider extends AllocationDecider {
                     warnAboutDiskIfNeeded(entry);
                     if (entry.getFreeBytes() < DiskThresholdDecider.this.freeBytesThresholdHigh.bytes() ||
                             entry.getFreeDiskAsPercentage() < DiskThresholdDecider.this.freeDiskThresholdHigh) {
-                        if ((TimeValue.nsecToMSec(System.nanoTime() - lastRunNS)) > DiskThresholdDecider.this.rerouteInterval.millis()) {
+                        if ((System.nanoTime() - lastRunNS) > DiskThresholdDecider.this.rerouteInterval.nanos()) {
                             lastRunNS = System.nanoTime();
                             reroute = true;
                         } else {

@@ -756,7 +756,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
                             return;
                         }
                     }
-                } while (TimeValue.nsecToMSec(System.nanoTime() - startTimeNS) < timeout.millis());
+                } while ((System.nanoTime() - startTimeNS) < timeout.nanos());
             }
         } finally {
             IOUtils.close(shardLocks);

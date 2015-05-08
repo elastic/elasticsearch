@@ -313,7 +313,7 @@ public class PluginsService extends AbstractComponent {
     synchronized public PluginsInfo info() {
         if (refreshInterval.millis() != 0) {
             if (cachedPluginsInfo != null &&
-                    (refreshInterval.millis() < 0 || TimeValue.nsecToMSec(System.nanoTime() - lastRefreshNS) < refreshInterval.millis())) {
+                    (refreshInterval.millis() < 0 || (System.nanoTime() - lastRefreshNS) < refreshInterval.nanos())) {
                 if (logger.isTraceEnabled()) {
                     logger.trace("using cache to retrieve plugins info");
                 }

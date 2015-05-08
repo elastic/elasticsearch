@@ -402,8 +402,7 @@ public class RecoveryState implements ToXContent, Streamable {
             if (time >= 0) {
                 return time;
             }
-            long t = TimeValue.nsecToMSec(System.nanoTime());
-            return Math.max(0, t - startTime);
+            return Math.max(0, TimeValue.nsecToMSec(System.nanoTime()) - startTime);
         }
 
         /** Returns stop time in millis */

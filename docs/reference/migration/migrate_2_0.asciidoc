@@ -508,3 +508,9 @@ Settings settings = ImmutableSettings.settingsBuilder()
         .put("cluster.name", "myClusterName").build();
 Client client = TransportClient.builder().settings(settings).build();
 --------------------------------------------------
+
+=== Highlighting
+
+The default value for the `require_field_match` option is `false` rather than
+`true`, meaning that the highlighters will take the fields that were queried
+into account by default, unless `require_field_match` is disabled.

@@ -404,10 +404,10 @@ at the field level.
 [[field-match]]
 ==== Require Field Match
 
-`require_field_match` can be set to `true` which will cause a field to
-be highlighted only if a query matched that field. `false` means that
-terms are highlighted on all requested fields regardless if the query
-matches specifically on them.
+`require_field_match` can be set to `false` which will cause any field to
+be highlighted regardless of whether the query matched specifically on them.
+The default behaviour is `true`, meaning that only fields that hold a query
+match will be highlighted.
 
 [[boundary-characters]]
 ==== Boundary Characters

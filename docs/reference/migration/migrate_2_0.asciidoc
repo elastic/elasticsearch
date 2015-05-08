@@ -591,8 +591,18 @@ from fielddata.
 [float]
 === Highlighting
 
+The default value for the `require_field_match` option is `true` rather than
+`false`, meaning that the highlighters will take the fields that were queried
+into account by default. That means for instance that highlighting any field
+when querying the `_all` field will produce no highlighted snippets by default,
+given that the match was on the `_all` field only. Querying the same fields
+that need to be highlighted is the cleaner solution to get highlighted snippets
+back. Otherwise `require_field_match` option can be set to `false` to ignore
+field names completely when highlighting.
+
 The postings highlighter doesn't support the `require_field_match` option
 anymore, it will only highlight fields that were queried.
 
 The `match` query with type set to `match_phrase_prefix` is not supported by the
 postings highlighter. No highlighted snippets will be returned.
+

@@ -20,8 +20,6 @@ package org.elasticsearch.search.highlight;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
-
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.highlight.DefaultEncoder;
 import org.apache.lucene.search.highlight.Encoder;
 import org.apache.lucene.search.highlight.SimpleHTMLEncoder;
@@ -29,7 +27,6 @@ import org.elasticsearch.index.fieldvisitor.CustomFieldsVisitor;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;

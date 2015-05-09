@@ -39,7 +39,7 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class IdMappingTests extends ElasticsearchSingleNodeTest {
     
-    public void simpleIdTests() throws Exception {
+    public void testId() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .endObject().endObject().string();
         DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
@@ -57,18 +57,10 @@ public class IdMappingTests extends ElasticsearchSingleNodeTest {
                     .startObject()
                     .endObject()
                     .bytes());
-            fail();
+            fail("expect missing id");
         } catch (MapperParsingException e) {
+            assertTrue(e.getMessage().contains("No id found"));
         }
-
-        doc = docMapper.parse("type", null, XContentFactory.jsonBuilder()
-                .startObject()
-                .field("_id", 1)
-                .endObject()
-                .bytes());
-
-        assertThat(doc.rootDoc().get(UidFieldMapper.NAME), notNullValue());
-        assertThat(doc.rootDoc().get(IdFieldMapper.NAME), nullValue());
     }
     
     public void testIdIndexedBackcompat() throws Exception {
@@ -80,15 +72,6 @@ public class IdMappingTests extends ElasticsearchSingleNodeTest {
 
         ParsedDocument doc = docMapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject()
-                .endObject()
-                .bytes());
-
-        assertThat(doc.rootDoc().get(UidFieldMapper.NAME), notNullValue());
-        assertThat(doc.rootDoc().get(IdFieldMapper.NAME), notNullValue());
-
-        doc = docMapper.parse("type", null, XContentFactory.jsonBuilder()
-                .startObject()
-                .field("_id", 1)
                 .endObject()
                 .bytes());
 

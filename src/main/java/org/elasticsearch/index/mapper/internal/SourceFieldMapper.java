@@ -45,7 +45,12 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.fielddata.FieldDataType;
-import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.MergeMappingException;
+import org.elasticsearch.index.mapper.MergeResult;
+import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.RootMapper;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 
 import java.io.IOException;
@@ -60,7 +65,7 @@ import static org.elasticsearch.index.mapper.MapperBuilders.source;
 /**
  *
  */
-public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements InternalMapper, RootMapper {
+public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements RootMapper {
 
     public static final String NAME = "_source";
 
@@ -255,11 +260,6 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
     public Mapper parse(ParseContext context) throws IOException {
         // nothing to do here, we will call it in pre parse
         return null;
-    }
-
-    @Override
-    public boolean includeInObject() {
-        return false;
     }
 
     @Override

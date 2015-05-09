@@ -30,11 +30,10 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.AlreadyExpiredException;
-import org.elasticsearch.index.mapper.InternalMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.MergeMappingException;
+import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.RootMapper;
 import org.elasticsearch.index.mapper.SourceToParse;
@@ -52,7 +51,7 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBo
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeTimeValue;
 import static org.elasticsearch.index.mapper.MapperBuilders.ttl;
 
-public class TTLFieldMapper extends LongFieldMapper implements InternalMapper, RootMapper {
+public class TTLFieldMapper extends LongFieldMapper implements RootMapper {
 
     public static final String NAME = "_ttl";
     public static final String CONTENT_TYPE = "_ttl";
@@ -189,11 +188,6 @@ public class TTLFieldMapper extends LongFieldMapper implements InternalMapper, R
             context.sourceToParse().ttl(ttl);
         }
         return null;
-    }
-
-    @Override
-    public boolean includeInObject() {
-        return true;
     }
 
     @Override

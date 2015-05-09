@@ -267,8 +267,8 @@ public class MapperService extends AbstractIndexComponent  {
                 List<ObjectMapper> newObjectMappers = new ArrayList<>();
                 List<FieldMapper<?>> newFieldMappers = new ArrayList<>();
                 for (RootMapper rootMapper : mapper.mapping().rootMappers) {
-                    if (!rootMapper.includeInObject() && rootMapper instanceof FieldMapper) {
-                        newFieldMappers.add((FieldMapper<?>) rootMapper);
+                    if (rootMapper instanceof FieldMapper<?>) {
+                        newFieldMappers.add((FieldMapper<?>)rootMapper);
                     }
                 }
                 MapperUtils.collect(mapper.mapping().root, newObjectMappers, newFieldMappers);

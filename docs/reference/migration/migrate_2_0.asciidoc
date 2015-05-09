@@ -279,6 +279,11 @@ to provide special features.  They now have limited configuration options.
 * `_field_names` configuration is limited to disabling the field.
 * `_size` configuration is limited to enabling the field.
 
+==== Meta fields in documents
+Meta fields can no longer be specified within a document. They should be specified
+via the API.  For example, instead of adding a field `_routing` within a document,
+use the `routing` url parameter when indexing that document.
+
 ==== Source field limitations
 The `_source` field could previously be disabled dynamically. Since this field
 is a critical piece of many features like the Update API, it is no longer

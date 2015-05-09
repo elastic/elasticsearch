@@ -32,11 +32,10 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.fielddata.FieldDataType;
-import org.elasticsearch.index.mapper.InternalMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.MergeMappingException;
+import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.RootMapper;
@@ -53,7 +52,7 @@ import static org.elasticsearch.index.mapper.core.TypeParsers.parseField;
 /**
  *
  */
-public class UidFieldMapper extends AbstractFieldMapper<Uid> implements InternalMapper, RootMapper {
+public class UidFieldMapper extends AbstractFieldMapper<Uid> implements RootMapper {
 
     public static final String NAME = "_uid";
 
@@ -165,11 +164,6 @@ public class UidFieldMapper extends AbstractFieldMapper<Uid> implements Internal
     public Mapper parse(ParseContext context) throws IOException {
         // nothing to do here, we either do it in post parse, or in pre parse.
         return null;
-    }
-
-    @Override
-    public boolean includeInObject() {
-        return false;
     }
 
     @Override

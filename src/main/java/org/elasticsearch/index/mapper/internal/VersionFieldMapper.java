@@ -27,11 +27,10 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.fielddata.FieldDataType;
-import org.elasticsearch.index.mapper.InternalMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.MergeMappingException;
+import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.RootMapper;
@@ -45,7 +44,7 @@ import java.util.Map;
 import static org.elasticsearch.index.mapper.MapperBuilders.version;
 
 /** Mapper for the _version field. */
-public class VersionFieldMapper extends AbstractFieldMapper<Long> implements InternalMapper, RootMapper {
+public class VersionFieldMapper extends AbstractFieldMapper<Long> implements RootMapper {
 
     public static final String NAME = "_version";
     public static final String CONTENT_TYPE = "_version";
@@ -134,11 +133,6 @@ public class VersionFieldMapper extends AbstractFieldMapper<Long> implements Int
             final Document doc = context.docs().get(i);
             doc.add(new NumericDocValuesField(NAME, 1L));
         }
-    }
-
-    @Override
-    public boolean includeInObject() {
-        return false;
     }
 
     @Override

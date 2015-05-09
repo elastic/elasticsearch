@@ -36,11 +36,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.FieldDataType;
-import org.elasticsearch.index.mapper.InternalMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.MergeMappingException;
+import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.RootMapper;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
@@ -61,7 +60,7 @@ import static org.elasticsearch.index.mapper.core.TypeParsers.parseField;
 /**
  *
  */
-public class AllFieldMapper extends AbstractFieldMapper<String> implements InternalMapper, RootMapper {
+public class AllFieldMapper extends AbstractFieldMapper<String> implements RootMapper {
 
     public interface IncludeInAll extends Mapper {
 
@@ -210,11 +209,6 @@ public class AllFieldMapper extends AbstractFieldMapper<String> implements Inter
     public Mapper parse(ParseContext context) throws IOException {
         // we parse in post parse
         return null;
-    }
-
-    @Override
-    public boolean includeInObject() {
-        return true;
     }
 
     @Override

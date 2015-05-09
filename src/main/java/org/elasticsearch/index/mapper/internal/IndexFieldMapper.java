@@ -30,12 +30,11 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.fielddata.FieldDataType;
-import org.elasticsearch.index.mapper.InternalMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilders;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.MergeMappingException;
+import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.RootMapper;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
@@ -51,7 +50,7 @@ import static org.elasticsearch.index.mapper.core.TypeParsers.parseField;
 /**
  *
  */
-public class IndexFieldMapper extends AbstractFieldMapper<String> implements InternalMapper, RootMapper {
+public class IndexFieldMapper extends AbstractFieldMapper<String> implements RootMapper {
 
     public static final String NAME = "_index";
 
@@ -168,11 +167,6 @@ public class IndexFieldMapper extends AbstractFieldMapper<String> implements Int
     @Override
     public Mapper parse(ParseContext context) throws IOException {
         return null;
-    }
-
-    @Override
-    public boolean includeInObject() {
-        return false;
     }
 
     @Override

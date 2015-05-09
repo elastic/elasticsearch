@@ -37,7 +37,12 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.DocumentMapperParser;
+import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MergeResult;
+import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.junit.Test;
@@ -53,7 +58,14 @@ import static org.elasticsearch.Version.V_1_5_0;
 import static org.elasticsearch.Version.V_2_0_0;
 import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.isIn;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.notNullValue;
 
 /**
  */
@@ -577,12 +589,17 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
                 .endObject().endObject().string();
 
         MergeResult mergeResult = docMapper.merge(parser.parse(mapping).mapping(), true);
-        String[] expectedConflicts = {"mapper [_timestamp] has different index values", "mapper [_timestamp] has different store values", "Cannot update default in _timestamp value. Value is 1970-01-01 now encountering 1970-01-02", "Cannot update path in _timestamp value. Value is foo path in merged mapping is bar", "mapper [_timestamp] has different tokenize values"};
+        List<String> expectedConflicts = new ArrayList<>(Arrays.asList(
+            "mapper [_timestamp] has different index values",
+            "mapper [_timestamp] has different store values",
+            "Cannot update default in _timestamp value. Value is 1970-01-01 now encountering 1970-01-02",
+            "Cannot update path in _timestamp value. Value is foo path in merged mapping is bar",
+            "mapper [_timestamp] has different tokenize values"));
 
         for (String conflict : mergeResult.buildConflicts()) {
-            assertThat(conflict, isIn(expectedConflicts));
+            assertTrue("found unexpected conflict [" + conflict + "]", expectedConflicts.remove(conflict));
         }
-        assertThat(mergeResult.buildConflicts().length, equalTo(expectedConflicts.length));
+        assertTrue("missing conflicts: " + Arrays.toString(expectedConflicts.toArray()), expectedConflicts.isEmpty());
         assertThat(docMapper.timestampFieldMapper().fieldDataType().getLoading(), equalTo(FieldMapper.Loading.LAZY));
         assertTrue(docMapper.timestampFieldMapper().enabled());
         assertThat(docMapper.timestampFieldMapper().fieldDataType().getFormat(indexSettings), equalTo("doc_values"));

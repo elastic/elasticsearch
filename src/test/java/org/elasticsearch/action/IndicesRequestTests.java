@@ -19,10 +19,14 @@
 
 package org.elasticsearch.action;
 
+import com.carrotsearch.ant.tasks.junit4.dependencies.com.google.common.base.Charsets;
+import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeAction;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequest;
+import org.elasticsearch.action.admin.indices.analyze.AnalyzeResponse;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheAction;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexAction;
@@ -88,10 +92,14 @@ import org.elasticsearch.action.termvectors.TermVectorsRequest;
 import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.BytesStream;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.action.SearchServiceTransportAction;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
@@ -101,6 +109,8 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import java.io.IOException;
+import java.nio.charset.Charset;
 import java.util.*;
 
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
@@ -167,18 +177,44 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
         assertSameIndices(getFieldMappingsRequest, getFieldMappingsShardAction);
     }
 
+
     @Test
-    public void testAnalyze() {
+    public void testAnalyze() throws IOException {
         String analyzeShardAction = AnalyzeAction.NAME + "[s]";
         interceptTransportActions(analyzeShardAction);
 
         AnalyzeRequest analyzeRequest = new AnalyzeRequest(randomIndexOrAlias());
         analyzeRequest.text("text");
-        internalCluster().clientNodeClient().admin().indices().analyze(analyzeRequest).actionGet();
-
+        AnalyzeResponse response =  internalCluster().clientNodeClient().admin().indices().analyze(analyzeRequest).actionGet();
+        AnalyzeResponse.AnalyzeToken token = response.getTokens().get(0);
+        assertFalse(token.isAlldata());
+        XContentBuilder builder = JsonXContent.contentBuilder();
+        response.toXContent(builder,null);
+        String str = new String(builder.bytes().array(), Charset.forName("UTF8"));
+        assertFalse(str.contains("\"flags\":"));
         clearInterceptedActions();
         assertSameIndices(analyzeRequest, analyzeShardAction);
     }
+
+    @Test
+    public void testAllDataAnalyze() throws IOException {
+        String analyzeShardAction = AnalyzeAction.NAME + "[s]";
+        interceptTransportActions(analyzeShardAction);
+        String  index = randomIndexOrAlias();
+        AnalyzeRequest analyzeRequest = new AnalyzeRequest(index);
+        analyzeRequest.text("text other text");
+        analyzeRequest.allData("true");
+        AnalyzeResponse response = internalCluster().clientNodeClient().admin().indices().analyze(analyzeRequest).actionGet();
+        AnalyzeResponse.AnalyzeToken token = response.getTokens().get(0);
+        assertTrue(token.isAlldata());
+        XContentBuilder builder = JsonXContent.contentBuilder();
+        response.toXContent(builder,null);
+        String str = new String(builder.bytes().array(), Charset.forName("UTF8"));
+        assertTrue(str.contains("\"flags\":"));
+        clearInterceptedActions();
+        assertSameIndices(analyzeRequest, analyzeShardAction);
+    }
+
 
     @Test
     public void testIndex() {
@@ -723,6 +759,28 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
         clearInterceptedActions();
         assertSameIndices(searchRequest, SearchServiceTransportAction.SCAN_ACTION_NAME);
     }
+
+    @Test
+    public void testAllDataModifierCanBeApplyedToAnalyzerRequest(){
+        AnalyzeRequest request = new AnalyzeRequest(randomIndexOrAlias());
+        assertFalse(request.allData());
+        request.allData("");
+        assertFalse(request.allData());
+        request.allData(null);
+        assertFalse(request.allData());
+        request.allData("0");
+        assertFalse(request.allData());
+        request.allData("false");
+        assertFalse(request.allData());
+        request.allData("1");
+        assertTrue(request.allData());
+        request.allData("true");
+        assertTrue(request.allData());
+        request.allData("TrUe");
+        assertTrue(request.allData());
+    }
+
+
 
     private static void assertSameIndices(IndicesRequest originalRequest, String... actions) {
         assertSameIndices(originalRequest, false, actions);

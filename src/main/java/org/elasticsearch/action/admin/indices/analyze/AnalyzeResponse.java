@@ -42,16 +42,31 @@ public class AnalyzeResponse extends ActionResponse implements Iterable<AnalyzeR
         private int endOffset;
         private int position;
         private String type;
+        private int flags;
+        private int increment;
+        private String payload;
+        private boolean keyword;
+        private boolean alldata;
 
         AnalyzeToken() {
         }
 
         public AnalyzeToken(String term, int position, int startOffset, int endOffset, String type) {
+            this(false,term,position,startOffset,endOffset,type,0,0,false,""); //keep initial sygnaure for back compatibility
+        }
+
+        public AnalyzeToken(boolean alldata,String term, int position, int startOffset, int endOffset, String type,
+                            int flags,int increment,boolean keyword, String payload) {
+            this.alldata = alldata;
             this.term = term;
             this.position = position;
             this.startOffset = startOffset;
             this.endOffset = endOffset;
+            this.flags = flags;
             this.type = type;
+            this.increment = increment;
+            this.payload =payload;
+            this.keyword = keyword;
         }
 
         public String getTerm() {
@@ -70,6 +85,13 @@ public class AnalyzeResponse extends ActionResponse implements Iterable<AnalyzeR
             return this.position;
         }
 
+        public int getFlags() { return  this.flags; }
+        public boolean isAlldata() { return  this.alldata; }
+
+        public int getIncrement() { return  this.increment; }
+        public boolean getKeyword() { return  this.keyword; }
+        public String getPayload() { return  this.payload; }
+
         public String getType() {
             return this.type;
         }
@@ -82,20 +104,31 @@ public class AnalyzeResponse extends ActionResponse implements Iterable<AnalyzeR
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
+            alldata = in.readBoolean();
             term = in.readString();
             startOffset = in.readInt();
             endOffset = in.readInt();
             position = in.readVInt();
             type = in.readOptionalString();
+            flags = in.readInt();
+            increment = in.readInt();
+            keyword = in.readBoolean();
+            payload = in.readOptionalString();
+
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
+            out.writeBoolean(alldata);
             out.writeString(term);
             out.writeInt(startOffset);
             out.writeInt(endOffset);
             out.writeVInt(position);
             out.writeOptionalString(type);
+            out.writeInt(flags);
+            out.writeInt(increment);
+            out.writeBoolean(keyword);
+            out.writeOptionalString(payload);
         }
     }
 
@@ -127,6 +160,12 @@ public class AnalyzeResponse extends ActionResponse implements Iterable<AnalyzeR
             builder.field(Fields.END_OFFSET, token.getEndOffset());
             builder.field(Fields.TYPE, token.getType());
             builder.field(Fields.POSITION, token.getPosition());
+            if(token.isAlldata()) {
+                builder.field(Fields.FLAGS, token.getFlags());
+                builder.field(Fields.INCREMENT, token.getIncrement());
+                builder.field(Fields.KEYWORD, token.getKeyword());
+                builder.field(Fields.PAYLOAD, token.getPayload());
+            }
             builder.endObject();
         }
         builder.endArray();
@@ -159,5 +198,9 @@ public class AnalyzeResponse extends ActionResponse implements Iterable<AnalyzeR
         static final XContentBuilderString END_OFFSET = new XContentBuilderString("end_offset");
         static final XContentBuilderString TYPE = new XContentBuilderString("type");
         static final XContentBuilderString POSITION = new XContentBuilderString("position");
+        static final XContentBuilderString FLAGS = new XContentBuilderString("flags");
+        static final XContentBuilderString INCREMENT = new XContentBuilderString("increment");
+        static final XContentBuilderString KEYWORD = new XContentBuilderString("keyword");
+        static final XContentBuilderString PAYLOAD = new XContentBuilderString("payload");
     }
 }

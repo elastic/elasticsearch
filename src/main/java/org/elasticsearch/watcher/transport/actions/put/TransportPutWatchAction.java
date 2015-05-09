@@ -62,7 +62,6 @@ public class TransportPutWatchAction extends WatcherTransportAction<PutWatchRequ
 
     @Override
     protected ClusterBlockException checkBlock(PutWatchRequest request, ClusterState state) {
-        request.beforeLocalFork(); // This is the best place to make the watch source safe
         return state.blocks().indexBlockedException(ClusterBlockLevel.WRITE, WatchStore.INDEX);
     }
 

@@ -28,20 +28,17 @@ public class PutWatchRequest extends MasterNodeOperationRequest<PutWatchRequest>
 
     private String id;
     private BytesReference source;
-    private boolean sourceUnsafe;
 
     PutWatchRequest() {
-        this(null, null, false);
     }
 
     public PutWatchRequest(String id, WatchSourceBuilder source) {
-        this(id, source.buildAsBytes(XContentType.JSON), false);
+        this(id, source.buildAsBytes(XContentType.JSON));
     }
 
-    public PutWatchRequest(String id, BytesReference source, boolean sourceUnsafe) {
+    public PutWatchRequest(String id, BytesReference source) {
         this.id = id;
         this.source = source;
-        this.sourceUnsafe = sourceUnsafe;
         masterNodeTimeout(DEFAULT_TIMEOUT);
     }
 
@@ -78,22 +75,6 @@ public class PutWatchRequest extends MasterNodeOperationRequest<PutWatchRequest>
      */
     public void setSource(BytesReference source) {
         this.source = source;
-        this.sourceUnsafe = false;
-    }
-
-    /**
-     * Set the source of the watch with boolean to control source safety
-     */
-    public void setSource(BytesReference source, boolean sourceUnsafe) {
-        this.source = source;
-        this.sourceUnsafe = sourceUnsafe;
-    }
-
-    void beforeLocalFork() {
-        if (sourceUnsafe) {
-            source = source.copyBytesArray();
-            sourceUnsafe = false;
-        }
     }
 
     @Override
@@ -113,7 +94,6 @@ public class PutWatchRequest extends MasterNodeOperationRequest<PutWatchRequest>
         super.readFrom(in);
         id = in.readString();
         source = in.readBytesReference();
-        sourceUnsafe = false;
     }
 
     @Override

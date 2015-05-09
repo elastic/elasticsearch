@@ -108,7 +108,16 @@ public abstract class ScheduleTestCase extends ElasticsearchTestCase {
         int count = randomIntBetween(2, 5);
         Set<MonthTimes> times = new HashSet<>();
         for (int i = 0; i < count; i++) {
-            times.add(validMonthTime());
+            MonthTimes testMonthTimes = validMonthTime();
+            boolean intersectsExistingMonthTimes = false;
+            for (MonthTimes validMonthTimes : times) {
+                if (validMonthTimes.intersects(testMonthTimes)) {
+                    intersectsExistingMonthTimes = true;
+                }
+            }
+            if (!intersectsExistingMonthTimes) {
+                times.add(testMonthTimes);
+            }
         }
         return times.toArray(new MonthTimes[times.size()]);
     }

@@ -101,6 +101,29 @@ public class MonthTimes implements Times {
         return "days [" + Ints.join(",", days) + "], times [" + Joiner.on(",").join(times) + "]";
     }
 
+    public boolean contains(int day, DayTimes dayTimes) {
+        if (Arrays.binarySearch(days, day) == -1) { //days are already sorted
+            return false;
+        }
+        for (DayTimes dayTimes1 : this.times()) {
+            if (dayTimes.equals(dayTimes1)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public boolean intersects(MonthTimes testTimes) {
+        for (int day : testTimes.days()) {
+            for (DayTimes dayTimes : testTimes.times()) {
+                if (contains(day, dayTimes)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();

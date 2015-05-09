@@ -53,8 +53,8 @@ public class MonthlyScheduleTests extends ScheduleTestCase {
         MonthlySchedule schedule = new MonthlySchedule(times);
         String[] crons = expressions(schedule);
         int count = 0;
-        for (int i = 0; i < times.length; i++) {
-            count += times[i].times().length;
+        for (MonthTimes time : times) {
+            count += time.times().length;
         }
         assertThat(crons, arrayWithSize(count));
         for (MonthTimes monthTimes : times) {

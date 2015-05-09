@@ -48,6 +48,8 @@ public class AnalyzeRequest extends SingleCustomOperationRequest<AnalyzeRequest>
 
     private String field;
 
+    private String alldata;
+
     AnalyzeRequest() {
 
     }
@@ -63,6 +65,15 @@ public class AnalyzeRequest extends SingleCustomOperationRequest<AnalyzeRequest>
 
     public String text() {
         return this.text;
+    }
+
+    public boolean allData(){
+        return alldata!=null && (alldata.equals("1") || alldata.equalsIgnoreCase("true") );
+    }
+
+    public AnalyzeRequest allData(String alldataparam) {
+        this.alldata = alldataparam;
+        return this;
     }
 
     public AnalyzeRequest text(String text) {
@@ -139,6 +150,7 @@ public class AnalyzeRequest extends SingleCustomOperationRequest<AnalyzeRequest>
         tokenFilters = in.readStringArray();
         charFilters = in.readStringArray();
         field = in.readOptionalString();
+        alldata = in.readOptionalString();
     }
 
     @Override
@@ -150,5 +162,6 @@ public class AnalyzeRequest extends SingleCustomOperationRequest<AnalyzeRequest>
         out.writeStringArray(tokenFilters);
         out.writeStringArray(charFilters);
         out.writeOptionalString(field);
+        out.writeOptionalString(alldata);
     }
 }

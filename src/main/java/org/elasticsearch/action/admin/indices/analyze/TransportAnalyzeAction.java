@@ -21,10 +21,8 @@ package org.elasticsearch.action.admin.indices.analyze;
 import com.google.common.collect.Lists;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
-import org.apache.lucene.analysis.tokenattributes.OffsetAttribute;
-import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
-import org.apache.lucene.analysis.tokenattributes.TypeAttribute;
+import org.apache.lucene.analysis.tokenattributes.*;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.ActionFilters;
@@ -217,6 +215,17 @@ public class TransportAnalyzeAction extends TransportSingleCustomOperationAction
             PositionIncrementAttribute posIncr = stream.addAttribute(PositionIncrementAttribute.class);
             OffsetAttribute offset = stream.addAttribute(OffsetAttribute.class);
             TypeAttribute type = stream.addAttribute(TypeAttribute.class);
+            FlagsAttribute flags = stream.addAttribute(FlagsAttribute.class);
+            PositionIncrementAttribute incAtt = stream.addAttribute(PositionIncrementAttribute.class);
+            KeywordAttribute keyword = stream.addAttribute(KeywordAttribute.class);
+            PayloadAttribute payload = stream.addAttribute(PayloadAttribute.class);
+            BytesRef p = payload.getPayload();
+            String plstr = "";
+            if(null!=p){
+                plstr = p.utf8ToString();
+                plstr = null==plstr ? "" : plstr;
+            }
+
 
             int position = -1;
             while (stream.incrementToken()) {
@@ -224,7 +233,18 @@ public class TransportAnalyzeAction extends TransportSingleCustomOperationAction
                 if (increment > 0) {
                     position = position + increment;
                 }
-                tokens.add(new AnalyzeResponse.AnalyzeToken(term.toString(), position, offset.startOffset(), offset.endOffset(), type.type()));
+                tokens.add(new AnalyzeResponse.AnalyzeToken(
+                        request.allData(),
+                        term.toString(),
+                        position,
+                        offset.startOffset(),
+                        offset.endOffset(),
+                        type.type(),
+                        flags.getFlags(),
+                        incAtt.getPositionIncrement(),
+                        keyword.isKeyword(),
+                        plstr
+                ));
             }
             stream.end();
         } catch (IOException e) {

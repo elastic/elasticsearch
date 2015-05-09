@@ -587,3 +587,12 @@ Before version `1.1.0` the parent/child had its own in-memory data structures fo
 
 Removed `id_cache` option from the clear cache apis. The `fielddata` option should be used to clear `_parent` field
 from fielddata.
+
+[float]
+=== Highlighting
+
+The postings highlighter doesn't support the `require_field_match` option
+anymore, it will only highlight fields that were queried.
+
+The `match` query with type set to `match_phrase_prefix` is not supported by the
+postings highlighter. No highlighted snippets will be returned.

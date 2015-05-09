@@ -72,11 +72,9 @@ that the query is composed of, regardless of whether they are actually part of
 a query match, effectively ignoring their positions.
 
 [WARNING]
-The postings highlighter does support highlighting of multi term queries, like
-prefix queries, wildcard queries and so on. On the other hand, this requires
-the queries to be rewritten using a proper
-<<query-dsl-multi-term-rewrite,rewrite method>> that supports multi term
-extraction, which is a potentially expensive operation.
+The postings highlighter doesn't support highlighting some complex queries,
+like a `match` query with `type` set to `match_phrase_prefix`. No highlighted
+snippets will be returned in that case.
 
 [[fast-vector-highlighter]]
 ==== Fast vector highlighter

@@ -65,6 +65,8 @@ public class CustomPassageFormatter extends PassageFormatter {
             //we remove the paragraph separator if present at the end of the snippet (we used it as separator between values)
             if (sb.charAt(sb.length() - 1) == HighlightUtils.PARAGRAPH_SEPARATOR) {
                 sb.deleteCharAt(sb.length() - 1);
+            } else if (sb.charAt(sb.length() - 1) == HighlightUtils.NULL_SEPARATOR) {
+                sb.deleteCharAt(sb.length() - 1);
             }
             //and we trim the snippets too
             snippets[j] = new Snippet(sb.toString().trim(), passage.score, passage.numMatches > 0);

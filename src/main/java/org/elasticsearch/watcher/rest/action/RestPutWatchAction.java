@@ -34,7 +34,7 @@ public class RestPutWatchAction extends WatcherRestHandler {
 
     @Override
     protected void handleRequest(final RestRequest request, RestChannel channel, WatcherClient client) throws Exception {
-        PutWatchRequest putWatchRequest = new PutWatchRequest(request.param("id"), request.content(), request.contentUnsafe());
+        PutWatchRequest putWatchRequest = new PutWatchRequest(request.param("id"), request.content());
         putWatchRequest.masterNodeTimeout(request.paramAsTime("master_timeout", putWatchRequest.masterNodeTimeout()));
         client.putWatch(putWatchRequest, new RestBuilderListener<PutWatchResponse>(channel) {
             @Override

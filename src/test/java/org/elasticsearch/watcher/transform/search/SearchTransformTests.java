@@ -19,7 +19,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.watcher.actions.ActionWrapper;
@@ -34,7 +33,6 @@ import org.elasticsearch.watcher.support.WatcherUtils;
 import org.elasticsearch.watcher.support.clock.ClockMock;
 import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
 import org.elasticsearch.watcher.support.template.Template;
-import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
 import org.elasticsearch.watcher.transform.Transform;
 import org.elasticsearch.watcher.transform.TransformBuilders;
 import org.elasticsearch.watcher.trigger.schedule.IntervalSchedule;
@@ -45,7 +43,10 @@ import org.elasticsearch.watcher.watch.Watch;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.common.joda.time.DateTimeZone.UTC;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
@@ -268,7 +269,7 @@ public class SearchTransformTests extends ElasticsearchIntegrationTest {
 
         SearchTransform.Result executedResult = executeSearchTransform(request);
 
-        assertThat(executedResult.executedRequest().templateSource().toUtf8(), equalTo(expectedQuery));
+        assertThat(areJsonEquivalent(executedResult.executedRequest().templateSource().toUtf8(), expectedQuery), is(true));
     }
 
     @Test

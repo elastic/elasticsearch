@@ -9,12 +9,15 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.base.Charsets;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.settings.NodeSettingsService;
@@ -221,4 +224,11 @@ public final class WatcherTestUtils {
         return randomFrom(searchTypes.toArray(new SearchType[searchTypes.size()]));
     }
 
+    public static boolean areJsonEquivalent(String json1, String json2) throws IOException {
+        XContentParser parser1 = XContentHelper.createParser(json1.getBytes(Charsets.UTF_8), 0, json1.getBytes(Charsets.UTF_8).length);
+        XContentParser parser2 = XContentHelper.createParser(json2.getBytes(Charsets.UTF_8), 0, json2.getBytes(Charsets.UTF_8).length);
+        Map<String, Object> map1 = parser1.map();
+        Map<String, Object> map2 = parser2.map();
+        return map1.equals(map2);
+    }
 }

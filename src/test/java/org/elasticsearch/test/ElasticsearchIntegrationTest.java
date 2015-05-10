@@ -877,24 +877,13 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
             @Override
             public void run() {
                 for (Client client : clients()) {
+                    ClusterHealthResponse clusterHealth = client.admin().cluster().prepareHealth().setLocal(true).get();
+                    assertThat("client " + client  + " still has in flight fetch", clusterHealth.getNumberOfInFlightFetch(), equalTo(0));
                     PendingClusterTasksResponse pendingTasks = client.admin().cluster().preparePendingClusterTasks().setLocal(true).get();
                     assertThat("client " + client + " still has pending tasks " + pendingTasks.prettyPrint(), pendingTasks, Matchers.emptyIterable());
+                    clusterHealth = client.admin().cluster().prepareHealth().setLocal(true).get();
+                    assertThat("client " + client  + " still has in flight fetch", clusterHealth.getNumberOfInFlightFetch(), equalTo(0));
                 }
-            }
-        });
-        assertNoTimeout(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).get());
-    }
-
-    /**
-     * Waits until the elected master node has no pending tasks.
-     */
-    public void waitNoPendingTasksOnMaster() throws Exception {
-        assertNoTimeout(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).get());
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                PendingClusterTasksResponse pendingTasks = client().admin().cluster().preparePendingClusterTasks().setLocal(true).get();
-                assertThat("master still has pending tasks " + pendingTasks.prettyPrint(), pendingTasks, Matchers.emptyIterable());
             }
         });
         assertNoTimeout(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).get());

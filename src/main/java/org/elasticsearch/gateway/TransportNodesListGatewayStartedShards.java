@@ -22,6 +22,7 @@ package org.elasticsearch.gateway;
 import com.google.common.collect.Lists;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.*;
@@ -48,7 +49,8 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
 /**
  *
  */
-public class TransportNodesListGatewayStartedShards extends TransportNodesOperationAction<TransportNodesListGatewayStartedShards.Request, TransportNodesListGatewayStartedShards.NodesGatewayStartedShards, TransportNodesListGatewayStartedShards.NodeRequest, TransportNodesListGatewayStartedShards.NodeGatewayStartedShards> {
+public class TransportNodesListGatewayStartedShards extends TransportNodesOperationAction<TransportNodesListGatewayStartedShards.Request, TransportNodesListGatewayStartedShards.NodesGatewayStartedShards, TransportNodesListGatewayStartedShards.NodeRequest, TransportNodesListGatewayStartedShards.NodeGatewayStartedShards>
+        implements AsyncShardFetch.List<TransportNodesListGatewayStartedShards.NodesGatewayStartedShards, TransportNodesListGatewayStartedShards.NodeGatewayStartedShards> {
 
     public static final String ACTION_NAME = "internal:gateway/local/started_shards";
     private final NodeEnvironment nodeEnv;
@@ -56,12 +58,13 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesOperat
     @Inject
     public TransportNodesListGatewayStartedShards(Settings settings, ClusterName clusterName, ThreadPool threadPool, ClusterService clusterService, TransportService transportService, ActionFilters actionFilters, NodeEnvironment env) {
         super(settings, ACTION_NAME, clusterName, threadPool, clusterService, transportService, actionFilters,
-                Request.class, NodeRequest.class, ThreadPool.Names.GENERIC);
+                Request.class, NodeRequest.class, ThreadPool.Names.FETCH_SHARD_STARTED);
         this.nodeEnv = env;
     }
 
-    public ActionFuture<NodesGatewayStartedShards> list(ShardId shardId, String indexUUID, String[] nodesIds, @Nullable TimeValue timeout) {
-        return execute(new Request(shardId, indexUUID, nodesIds).timeout(timeout));
+    @Override
+    public void list(ShardId shardId, IndexMetaData indexMetaData, String[] nodesIds, ActionListener<NodesGatewayStartedShards> listener) {
+        execute(new Request(shardId, indexMetaData.getUUID(), nodesIds), listener);
     }
 
     @Override
@@ -174,6 +177,7 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesOperat
             this.failures = failures;
         }
 
+        @Override
         public FailedNodeException[] failures() {
             return failures;
         }

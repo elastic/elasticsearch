@@ -21,7 +21,9 @@ package org.elasticsearch.action.support.nodes;
 
 import com.google.common.collect.Maps;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -44,6 +46,14 @@ public abstract class NodesOperationResponse<NodeResponse extends NodeOperationR
     protected NodesOperationResponse(ClusterName clusterName, NodeResponse[] nodes) {
         this.clusterName = clusterName;
         this.nodes = nodes;
+    }
+
+    /**
+     * The failed nodes, if set to be captured.
+     */
+    @Nullable
+    public FailedNodeException[] failures() {
+        return null;
     }
 
     public ClusterName getClusterName() {

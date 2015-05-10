@@ -3,7 +3,7 @@
 if  [[ $OSTYPE = *win* || $OSTYPE = msys ]]; then
 	ES_CLASSPATH="$ES_HOME\\lib\\${project.build.finalName}.jar;$ES_HOME\\lib\\*;$ES_HOME\\lib\\sigar\\*"
 else
-	ES_CLASSPATH="$ES_CLASSPATH:$ES_HOME/${project.build.finalName}.jar:$ES_HOME/lib/${project.build.finalName}.jar:$ES_HOME/lib/*:$ES_HOME/lib/sigar/*"
+	ES_CLASSPATH="$ES_CLASSPATH:$ES_HOME/lib/${project.build.finalName}.jar:$ES_HOME/lib/*:$ES_HOME/lib/sigar/*"
 fi
 
 if [ "x$ES_MIN_MEM" = "x" ]; then

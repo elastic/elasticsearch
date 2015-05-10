@@ -45,6 +45,7 @@ import org.junit.Test;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -1033,9 +1034,13 @@ public class StoreTest extends ElasticsearchTestCase {
         DirectoryService directoryService = new LuceneManagedDirectoryService(random());
         Settings settings = ImmutableSettings.builder().put(Store.INDEX_STORE_STATS_REFRESH_INTERVAL, TimeValue.timeValueMinutes(0)).build();
         Store store = new Store(shardId, settings, directoryService, new DummyShardLock(shardId));
-
+        long initialStoreSize = 0;
+        for (String extraFiles : store.directory().listAll()) {
+            assertTrue("expected extraFS file but got: " + extraFiles, extraFiles.startsWith("extra"));
+            initialStoreSize += store.directory().fileLength(extraFiles);
+        }
         StoreStats stats = store.stats();
-        assertEquals(stats.getSize().bytes(), 0);
+        assertEquals(stats.getSize().bytes(), initialStoreSize);
 
         Directory dir = store.directory();
         final long length;
@@ -1050,7 +1055,7 @@ public class StoreTest extends ElasticsearchTestCase {
 
         assertTrue(numNonExtraFiles(store) > 0);
         stats = store.stats();
-        assertEquals(stats.getSizeInBytes(), length);
+        assertEquals(stats.getSizeInBytes(), length + initialStoreSize);
 
         deleteContent(store.directory());
         IOUtils.close(store);

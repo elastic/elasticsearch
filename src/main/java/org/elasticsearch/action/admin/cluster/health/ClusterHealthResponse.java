@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.cluster.health;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Maps;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -57,6 +58,7 @@ public class ClusterHealthResponse extends ActionResponse implements Iterable<Cl
     int initializingShards = 0;
     int unassignedShards = 0;
     int numberOfPendingTasks = 0;
+    int numberOfInFlightFetch = 0;
     boolean timedOut = false;
     ClusterHealthStatus status = ClusterHealthStatus.RED;
     private List<String> validationFailures;
@@ -67,12 +69,14 @@ public class ClusterHealthResponse extends ActionResponse implements Iterable<Cl
 
     /** needed for plugins BWC */
     public ClusterHealthResponse(String clusterName, String[] concreteIndices, ClusterState clusterState) {
-        this(clusterName, concreteIndices, clusterState, -1);
+        this(clusterName, concreteIndices, clusterState, -1, -1);
     }
 
-    public ClusterHealthResponse(String clusterName, String[] concreteIndices, ClusterState clusterState, int numberOfPendingTasks) {
+    public ClusterHealthResponse(String clusterName, String[] concreteIndices, ClusterState clusterState, int numberOfPendingTasks,
+                                 int numberOfInFlightFetch) {
         this.clusterName = clusterName;
         this.numberOfPendingTasks = numberOfPendingTasks;
+        this.numberOfInFlightFetch = numberOfInFlightFetch;
         RoutingTableValidation validation = clusterState.routingTable().validate(clusterState.metaData());
         validationFailures = validation.failures();
         numberOfNodes = clusterState.nodes().size();
@@ -166,6 +170,10 @@ public class ClusterHealthResponse extends ActionResponse implements Iterable<Cl
         return this.numberOfPendingTasks;
     }
 
+    public int getNumberOfInFlightFetch() {
+        return this.numberOfInFlightFetch;
+    }
+
     /**
      * <tt>true</tt> if the waitForXXX has timeout out and did not match.
      */
@@ -220,6 +228,10 @@ public class ClusterHealthResponse extends ActionResponse implements Iterable<Cl
                 validationFailures.add(in.readString());
             }
         }
+
+        if (in.getVersion().onOrAfter(Version.V_1_6_0)) {
+            numberOfInFlightFetch = in.readInt();
+        }
     }
 
     @Override
@@ -245,6 +257,10 @@ public class ClusterHealthResponse extends ActionResponse implements Iterable<Cl
         for (String failure : validationFailures) {
             out.writeString(failure);
         }
+
+        if (out.getVersion().onOrAfter(Version.V_1_6_0)) {
+            out.writeInt(numberOfInFlightFetch);
+        }
     }
 
 
@@ -268,6 +284,7 @@ public class ClusterHealthResponse extends ActionResponse implements Iterable<Cl
         static final XContentBuilderString NUMBER_OF_NODES = new XContentBuilderString("number_of_nodes");
         static final XContentBuilderString NUMBER_OF_DATA_NODES = new XContentBuilderString("number_of_data_nodes");
         static final XContentBuilderString NUMBER_OF_PENDING_TASKS = new XContentBuilderString("number_of_pending_tasks");
+        static final XContentBuilderString NUMBER_OF_IN_FLIGHT_FETCH = new XContentBuilderString("number_of_in_flight_fetch");
         static final XContentBuilderString ACTIVE_PRIMARY_SHARDS = new XContentBuilderString("active_primary_shards");
         static final XContentBuilderString ACTIVE_SHARDS = new XContentBuilderString("active_shards");
         static final XContentBuilderString RELOCATING_SHARDS = new XContentBuilderString("relocating_shards");
@@ -290,6 +307,7 @@ public class ClusterHealthResponse extends ActionResponse implements Iterable<Cl
         builder.field(Fields.INITIALIZING_SHARDS, getInitializingShards());
         builder.field(Fields.UNASSIGNED_SHARDS, getUnassignedShards());
         builder.field(Fields.NUMBER_OF_PENDING_TASKS, getNumberOfPendingTasks());
+        builder.field(Fields.NUMBER_OF_IN_FLIGHT_FETCH, getNumberOfInFlightFetch());
 
         String level = params.param("level", "cluster");
         boolean outputIndices = "indices".equals(level) || "shards".equals(level);

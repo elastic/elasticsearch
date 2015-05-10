@@ -20,7 +20,6 @@
 package org.elasticsearch.node;
 
 import org.elasticsearch.Build;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
@@ -56,6 +55,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.EnvironmentModule;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.NodeEnvironmentModule;
+import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.gateway.GatewayModule;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.http.HttpServer;
@@ -258,6 +258,10 @@ public class Node implements Releasable {
         injector.getInstance(SearchService.class).start();
         injector.getInstance(MonitorService.class).start();
         injector.getInstance(RestController.class).start();
+
+        // TODO hack around circular dependecncies problems
+        injector.getInstance(GatewayAllocator.class).setReallocation(injector.getInstance(ClusterService.class), injector.getInstance(AllocationService.class));
+
         DiscoveryService discoService = injector.getInstance(DiscoveryService.class).start();
         discoService.waitForInitialState();
 

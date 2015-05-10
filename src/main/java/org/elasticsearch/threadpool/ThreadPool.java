@@ -77,6 +77,8 @@ public class ThreadPool extends AbstractComponent {
         public static final String WARMER = "warmer";
         public static final String SNAPSHOT = "snapshot";
         public static final String OPTIMIZE = "optimize";
+        public static final String FETCH_SHARD_STARTED = "fetch_shard_started";
+        public static final String FETCH_SHARD_STORE = "fetch_shard_store";
     }
 
     public static final String THREADPOOL_GROUP = "threadpool.";
@@ -125,6 +127,8 @@ public class ThreadPool extends AbstractComponent {
                 .put(Names.WARMER, settingsBuilder().put("type", "scaling").put("keep_alive", "5m").put("size", halfProcMaxAt5).build())
                 .put(Names.SNAPSHOT, settingsBuilder().put("type", "scaling").put("keep_alive", "5m").put("size", halfProcMaxAt5).build())
                 .put(Names.OPTIMIZE, settingsBuilder().put("type", "fixed").put("size", 1).build())
+                .put(Names.FETCH_SHARD_STARTED, settingsBuilder().put("type", "scaling").put("keep_alive", "5m").put("size", availableProcessors * 2).build())
+                .put(Names.FETCH_SHARD_STORE, settingsBuilder().put("type", "scaling").put("keep_alive", "5m").put("size", availableProcessors * 2).build())
                 .build();
 
         Map<String, ExecutorHolder> executors = Maps.newHashMap();

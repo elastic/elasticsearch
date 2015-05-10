@@ -22,7 +22,6 @@ package org.elasticsearch.cluster;
 import com.google.common.base.Predicate;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
@@ -33,18 +32,15 @@ import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
 
-import java.io.IOException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.client.Requests.clusterHealthRequest;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.*;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
@@ -126,29 +122,26 @@ public class MinimumMasterNodesTests extends ElasticsearchIntegrationTest {
         assertThat(state.nodes().size(), equalTo(2));
         assertThat(state.metaData().indices().containsKey("test"), equalTo(true));
 
-        logger.info("Running Cluster Health");
-        ClusterHealthResponse clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
-        logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
-        assertThat(clusterHealth.isTimedOut(), equalTo(false));
-        assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
+        ensureGreen();
 
-        logger.info("--> verify we the data back");
+        logger.info("--> verify we the data back after cluster reform");
         for (int i = 0; i < 10; i++) {
-            assertThat(client().prepareCount().setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getCount(), equalTo(100l));
+            assertHitCount(client().prepareCount().setQuery(QueryBuilders.matchAllQuery()).execute().actionGet(), 100);
         }
 
         internalCluster().stopRandomNonMasterNode();
-        assertThat(awaitBusy(new Predicate<Object>() {
+        assertBusy(new Runnable() {
             @Override
-            public boolean apply(Object obj) {
+            public void run() {
                 ClusterState state = client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
-                return state.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID);
+                assertThat(state.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID), equalTo(true));
             }
-        }), equalTo(true));
+        });
 
         logger.info("--> starting the previous master node again...");
         internalCluster().startNode(settings);
 
+        ensureGreen();
         clusterHealthResponse = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForNodes("2").setWaitForGreenStatus().execute().actionGet();
         assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
 
@@ -166,7 +159,7 @@ public class MinimumMasterNodesTests extends ElasticsearchIntegrationTest {
 
         logger.info("--> verify we the data back");
         for (int i = 0; i < 10; i++) {
-            assertThat(client().prepareCount().setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getCount(), equalTo(100l));
+            assertHitCount(client().prepareCount().setQuery(QueryBuilders.matchAllQuery()).execute().actionGet(), 100);
         }
     }
 
@@ -180,35 +173,24 @@ public class MinimumMasterNodesTests extends ElasticsearchIntegrationTest {
                 .build();
 
         logger.info("--> start first 2 nodes");
-        internalCluster().startNode(settings);
-        internalCluster().startNode(settings);
+        internalCluster().startNodesAsync(2, settings).get();
 
         ClusterState state;
 
-        awaitBusy(new Predicate<Object>() {
+        assertBusy(new Runnable() {
             @Override
-            public boolean apply(Object obj) {
-                ClusterState state = client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
-                return state.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID);
+            public void run() {
+                for (Client client : clients()) {
+                    ClusterState state = client.admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
+                    assertThat(state.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID), equalTo(true));
+                }
             }
         });
-
-        awaitBusy(new Predicate<Object>() {
-            @Override
-            public boolean apply(Object obj) {
-                ClusterState state = client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
-                return state.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID);
-            }
-        });
-
-        state = client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
-        assertThat(state.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID), equalTo(true));
-        state = client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
-        assertThat(state.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID), equalTo(true));
 
         logger.info("--> start two more nodes");
         internalCluster().startNodesAsync(2, settings).get();
 
+        ensureGreen();
         ClusterHealthResponse clusterHealthResponse = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForNodes("4").execute().actionGet();
         assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
 
@@ -221,15 +203,16 @@ public class MinimumMasterNodesTests extends ElasticsearchIntegrationTest {
         for (int i = 0; i < 100; i++) {
             client().prepareIndex("test", "type1", Integer.toString(i)).setSource("field", "value").execute().actionGet();
         }
+        ensureGreen();
         // make sure that all shards recovered before trying to flush
         assertThat(client().admin().cluster().prepareHealth("test").setWaitForActiveShards(numShards.totalNumShards).execute().actionGet().isTimedOut(), equalTo(false));
         // flush for simpler debugging
         client().admin().indices().prepareFlush().execute().actionGet();
 
-        client().admin().indices().prepareRefresh().execute().actionGet();
+        refresh();
         logger.info("--> verify we the data back");
         for (int i = 0; i < 10; i++) {
-            assertThat(client().prepareCount().setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getCount(), equalTo(100l));
+            assertHitCount(client().prepareCount().setQuery(QueryBuilders.matchAllQuery()).execute().actionGet(), 100);
         }
 
         internalCluster().stopRandomNonMasterNode();
@@ -242,14 +225,9 @@ public class MinimumMasterNodesTests extends ElasticsearchIntegrationTest {
         logger.info("--> start back the 2 nodes ");
         String[] newNodes = internalCluster().startNodesAsync(2, settings).get().toArray(Strings.EMPTY_ARRAY);
 
+        ensureGreen();
         clusterHealthResponse = client().admin().cluster().prepareHealth().setWaitForNodes("4").execute().actionGet();
         assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
-
-        logger.info("--> running Cluster Health");
-        ClusterHealthResponse clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
-        logger.info("--> done Cluster Health, status " + clusterHealth.getStatus());
-        assertThat(clusterHealth.isTimedOut(), equalTo(false));
-        assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
 
         state = client().admin().cluster().prepareState().execute().actionGet().getState();
         assertThat(state.nodes().size(), equalTo(4));
@@ -258,12 +236,12 @@ public class MinimumMasterNodesTests extends ElasticsearchIntegrationTest {
 
         logger.info("--> verify we the data back");
         for (int i = 0; i < 10; i++) {
-            assertThat(client().prepareCount().setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getCount(), equalTo(100l));
+            assertHitCount(client().prepareCount().setQuery(QueryBuilders.matchAllQuery()).execute().actionGet(), 100);
         }
     }
 
     @Test
-    public void dynamicUpdateMinimumMasterNodes() throws InterruptedException, IOException {
+    public void dynamicUpdateMinimumMasterNodes() throws Exception {
         Settings settings = settingsBuilder()
                 .put("discovery.type", "zen")
                 .put("discovery.zen.ping_timeout", "400ms")
@@ -271,8 +249,7 @@ public class MinimumMasterNodesTests extends ElasticsearchIntegrationTest {
                 .build();
 
         logger.info("--> start 2 nodes");
-        internalCluster().startNode(settings);
-        internalCluster().startNode(settings);
+        internalCluster().startNodesAsync(2, settings).get();
 
         // wait until second node join the cluster
         ClusterHealthResponse clusterHealthResponse = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForNodes("2").get();

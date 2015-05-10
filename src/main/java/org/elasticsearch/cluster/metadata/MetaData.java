@@ -642,19 +642,12 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData> {
      * @param indicesOptions   how the aliases or indices need to be resolved to concrete indices
      * @param aliasesOrIndices the aliases or indices to be resolved to concrete indices
      * @return the obtained concrete indices
-<<<<<<< HEAD
      * @throws IndexMissingException if one of the aliases or indices is missing and the provided indices options
      * don't allow such a case, or if the final result of the indices resolution is no indices and the indices options
      * don't allow such a case.
      * @throws IllegalArgumentException if one of the aliases resolve to multiple indices and the provided
      * indices options don't allow such a case.
-=======
-     * @throws IndexMissingException                 if one of the aliases or indices is missing and the provided indices options
-     *                                               don't allow such a case, or if the final result of the indices resolution is no indices and the indices options
-     *                                               don't allow such a case.
-     * @throws ElasticsearchIllegalArgumentException if one of the aliases resolve to multiple indices and the provided
-     *                                               indices options don't allow such a case.
->>>>>>> Add support for cluster state diffs
+     * Add support for cluster state diffs
      */
     public String[] concreteIndices(IndicesOptions indicesOptions, String... aliasesOrIndices) throws IndexMissingException, IllegalArgumentException {
         if (indicesOptions.expandWildcardsOpen() || indicesOptions.expandWildcardsClosed()) {
@@ -1287,7 +1280,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData> {
     public static Builder builder(MetaData metaData) {
         return new Builder(metaData);
     }
-
+    public static String REMOVE_MARKER = "__REMOVE__";
     public static class Builder {
 
         private String uuid;
@@ -1393,6 +1386,47 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData> {
             this.customs.putAll(customs);
             return this;
         }
+        /*@
+
+         */
+        public static Settings getUpdatedSettings(Settings settings, Settings existedSettings){
+            Set<String> removed =  Sets.newHashSet();
+            ImmutableSettings.Builder updatedSettingsBuilder = ImmutableSettings.settingsBuilder();
+            updatedSettingsBuilder.put(settings);
+            ImmutableSettings.Builder cleanedSourceBuilder = ImmutableSettings.settingsBuilder();
+            for(Map.Entry<String, String> setting : updatedSettingsBuilder.internalMap().entrySet()){
+                if(setting.getValue().equals(REMOVE_MARKER)){
+                    removed.add(setting.getKey());
+                }else{
+                    String key = setting.getKey();
+                    String value = setting.getValue();
+                    cleanedSourceBuilder.put(key, value);
+                    //avoid strange behavior of Java binder that can choose Object... notation of ctor
+                }
+            }
+            final Settings cleanedSourceSettings = cleanedSourceBuilder.build();
+            ImmutableSettings.Builder sourceBuilder = ImmutableSettings.settingsBuilder();
+            sourceBuilder.put(existedSettings);
+            ImmutableSettings.Builder cleanedBuilder = ImmutableSettings.settingsBuilder();
+            for(Map.Entry<String, String> setting : sourceBuilder.internalMap().entrySet()){
+                boolean include = true;
+                for(String prefix : removed){
+                    if(setting.getKey().startsWith(prefix)){
+                        include =false;
+                        break;
+                    }
+                }
+                if(include){
+                    String key = setting.getKey();
+                    String value = setting.getValue();
+                    cleanedBuilder.put(key, value);
+                    //avoid strange behavior of Java binder that can choose Object... notation of ctor
+                }
+            }
+            final Settings cleanedTargetSettings = cleanedBuilder.build();
+            final Settings updatedSettings = settingsBuilder().put(cleanedTargetSettings).put(cleanedSourceSettings).build();
+            return updatedSettings;
+        }
 
         public Builder updateSettings(Settings settings, String... indices) {
             if (indices == null || indices.length == 0) {
@@ -1403,8 +1437,9 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData> {
                 if (indexMetaData == null) {
                     throw new IndexMissingException(new Index(index));
                 }
-                put(IndexMetaData.builder(indexMetaData)
-                        .settings(settingsBuilder().put(indexMetaData.settings()).put(settings)));
+                Settings existedSettings = indexMetaData.settings();
+                Settings updatedSettings = getUpdatedSettings(settings,existedSettings);
+                put(IndexMetaData.builder(indexMetaData).settings(updatedSettings));
             }
             return this;
         }

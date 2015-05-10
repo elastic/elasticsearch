@@ -21,6 +21,7 @@ package org.elasticsearch.cluster.routing.allocation.allocator;
 
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.gateway.local.LocalGatewayAllocator;
 import org.elasticsearch.gateway.none.NoneGatewayAllocator;
 
 /**
@@ -57,6 +58,7 @@ public class ShardsAllocatorModule extends AbstractModule {
         if (shardsAllocator == null) {
             shardsAllocator = loadShardsAllocator(settings);
         }
+        bind(LocalGatewayAllocator.class).asEagerSingleton();
         bind(GatewayAllocator.class).to(gatewayAllocator).asEagerSingleton();
         bind(ShardsAllocator.class).to(shardsAllocator).asEagerSingleton();
     }

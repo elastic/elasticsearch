@@ -63,6 +63,7 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.NodeEnvironmentModule;
 import org.elasticsearch.gateway.GatewayModule;
 import org.elasticsearch.gateway.GatewayService;
+import org.elasticsearch.gateway.local.LocalGatewayAllocator;
 import org.elasticsearch.http.HttpServer;
 import org.elasticsearch.http.HttpServerModule;
 import org.elasticsearch.index.search.shape.ShapeModule;
@@ -256,6 +257,10 @@ public final class InternalNode implements Node {
         injector.getInstance(SearchService.class).start();
         injector.getInstance(MonitorService.class).start();
         injector.getInstance(RestController.class).start();
+
+        // TODO hack around circular dependecncies problems
+        injector.getInstance(LocalGatewayAllocator.class).setReallocation(injector.getInstance(ClusterService.class), injector.getInstance(AllocationService.class));
+
         DiscoveryService discoService = injector.getInstance(DiscoveryService.class).start();
         discoService.waitForInitialState();
 

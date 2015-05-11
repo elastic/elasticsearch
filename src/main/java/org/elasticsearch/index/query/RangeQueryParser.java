@@ -111,14 +111,15 @@ public class RangeQueryParser extends BaseQueryParser {
             }
         }
 
-        // move to the next end object, to close the field name
-        token = parser.nextToken();
-        if (token != XContentParser.Token.END_OBJECT) {
-            throw new QueryParsingException(parseContext, "[range] query malformed, does not end with an object");
-        }
         RangeQueryBuilder rangeQuery = new RangeQueryBuilder(fieldName);
-        rangeQuery.from(from).to(to).includeLower(includeLower).includeUpper(includeUpper).timeZone(timeZone).boost(boost)
-                .queryName(queryName).format(format);
+        rangeQuery.from(from)
+            .to(to)
+            .includeLower(includeLower)
+            .includeUpper(includeUpper)
+            .timeZone(timeZone)
+            .boost(boost)
+            .queryName(queryName)
+            .format(format);
         rangeQuery.validate();
         return rangeQuery;
     }

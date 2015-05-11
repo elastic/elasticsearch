@@ -19,28 +19,27 @@
 
 package org.elasticsearch.index.mapper.core;
 
-import com.carrotsearch.hppc.ObjectOpenHashSet;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+import com.google.common.base.Function;
 import com.google.common.base.Objects;
 import com.google.common.collect.ImmutableList;
-
+import com.google.common.collect.Iterators;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.index.Terms;
 import org.apache.lucene.queries.TermsQuery;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.QueryWrapperFilter;
 import org.apache.lucene.search.RegexpQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
-import org.apache.lucene.index.Terms;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.fieldstats.FieldStats;
@@ -55,20 +54,24 @@ import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.FieldDataType;
-import org.elasticsearch.index.mapper.*;
-import org.elasticsearch.index.mapper.ParseContext.Document;
+import org.elasticsearch.index.mapper.ContentPath;
+import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.MergeMappingException;
+import org.elasticsearch.index.mapper.MergeResult;
+import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.internal.AllFieldMapper;
-import org.elasticsearch.index.mapper.object.ObjectMapper;
-import org.elasticsearch.index.mapper.object.RootObjectMapper;
 import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.index.search.FieldDataTermsFilter;
 import org.elasticsearch.index.similarity.SimilarityLookupService;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Comparator;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.TreeMap;
@@ -444,15 +447,11 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
         return false;
     }
 
-    @Override
-    public void traverse(FieldMapperListener fieldMapperListener) {
-        fieldMapperListener.fieldMapper(this);
-        multiFields.traverse(fieldMapperListener);
-    }
-
-    @Override
-    public void traverse(ObjectMapperListener objectMapperListener) {
-        // nothing to do here...
+    public Iterator<Mapper> iterator() {
+        if (multiFields == null) {
+            return Collections.emptyIterator();
+        }
+        return multiFields.iterator();
     }
 
     @Override
@@ -481,44 +480,24 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
     }
 
     @Override
-    public Filter termFilter(Object value, @Nullable QueryParseContext context) {
-        return new QueryWrapperFilter(new TermQuery(names().createIndexNameTerm(indexedValueForSearch(value))));
-    }
-
-    @Override
-    public Filter termsFilter(List values, @Nullable QueryParseContext context) {
+    public Query termsQuery(List values, @Nullable QueryParseContext context) {
         switch (values.size()) {
         case 0:
-            return Queries.newMatchNoDocsFilter();
+            return Queries.newMatchNoDocsQuery();
         case 1:
             // When there is a single term, it's important to return a term filter so that
             // it can return a DocIdSet that is directly backed by a postings list, instead
             // of loading everything into a bit set and returning an iterator based on the
             // bit set
-            return termFilter(values.get(0), context);
+            return termQuery(values.get(0), context);
         default:
             BytesRef[] bytesRefs = new BytesRef[values.size()];
             for (int i = 0; i < bytesRefs.length; i++) {
                 bytesRefs[i] = indexedValueForSearch(values.get(i));
             }
-            return new QueryWrapperFilter(new TermsQuery(names.indexName(), bytesRefs));
+            return new TermsQuery(names.indexName(), bytesRefs);
             
         }
-    }
-
-    /**
-     * A terms filter based on the field data cache
-     */
-    @Override
-    public Filter fieldDataTermsFilter(List values, @Nullable QueryParseContext context) {
-        // create with initial size large enough to avoid rehashing
-        ObjectOpenHashSet<BytesRef> terms =
-                new ObjectOpenHashSet<>((int) (values.size() * (1 + ObjectOpenHashSet.DEFAULT_LOAD_FACTOR)));
-        for (int i = 0, len = values.size(); i < len; i++) {
-            terms.add(indexedValueForSearch(values.get(i)));
-        }
-
-        return FieldDataTermsFilter.newBytes(context.getForField(this), terms);
     }
 
     @Override
@@ -527,14 +506,6 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
                 lowerTerm == null ? null : indexedValueForSearch(lowerTerm),
                 upperTerm == null ? null : indexedValueForSearch(upperTerm),
                 includeLower, includeUpper);
-    }
-
-    @Override
-    public Filter rangeFilter(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
-        return new QueryWrapperFilter(new TermRangeQuery(names.indexName(),
-                lowerTerm == null ? null : indexedValueForSearch(lowerTerm),
-                upperTerm == null ? null : indexedValueForSearch(upperTerm),
-                includeLower, includeUpper));
     }
 
     @Override
@@ -552,11 +523,6 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
     }
 
     @Override
-    public Filter prefixFilter(Object value, @Nullable QueryParseContext context) {
-        return new QueryWrapperFilter(new PrefixQuery(names().createIndexNameTerm(indexedValueForSearch(value))));
-    }
-
-    @Override
     public Query regexpQuery(Object value, int flags, int maxDeterminizedStates, @Nullable MultiTermQuery.RewriteMethod method, @Nullable QueryParseContext context) {
         RegexpQuery query = new RegexpQuery(names().createIndexNameTerm(indexedValueForSearch(value)), flags, maxDeterminizedStates);
         if (method != null) {
@@ -566,12 +532,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
     }
 
     @Override
-    public Filter regexpFilter(Object value, int flags, int maxDeterminizedStates, @Nullable QueryParseContext parseContext) {
-        return new QueryWrapperFilter(new RegexpQuery(names().createIndexNameTerm(indexedValueForSearch(value)), flags, maxDeterminizedStates));
-    }
-
-    @Override
-    public Filter nullValueFilter() {
+    public Query nullValueFilter() {
         return null;
     }
 
@@ -955,10 +916,13 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
             }
         }
 
-        public void traverse(FieldMapperListener fieldMapperListener) {
-            for (ObjectCursor<FieldMapper> cursor : mappers.values()) {
-                cursor.value.traverse(fieldMapperListener);
-            }
+        public Iterator<Mapper> iterator() {
+            return Iterators.transform(mappers.values().iterator(), new Function<ObjectCursor<FieldMapper>, Mapper>() {
+                @Override
+                public Mapper apply(@Nullable ObjectCursor<FieldMapper> cursor) {
+                    return cursor.value;
+                }
+            });
         }
 
         public void close() {

@@ -2,26 +2,10 @@
 === `_id`
 
 Each document indexed is associated with an id and a type. The `_id`
-field can be used to index just the id, and possible also store it. By
-default it is not indexed and not stored (thus, not created).
+field allows accessing only the id of a document.
 
 Note, even though the `_id` is not indexed, all the APIs still work
 (since they work with the `_uid` field), as well as fetching by ids
 using `term`, `terms` or `prefix` queries/filters (including the
 specific `ids` query/filter).
-
-The `_id` field can be enabled to be indexed, and possibly stored,
-using the appropriate mapping attributes:
-
-[source,js]
---------------------------------------------------
-{
-    "tweet" : {
-        "_id" : {
-            "index" : "not_analyzed",
-            "store" : true
-        }
-    }
-}
---------------------------------------------------
 

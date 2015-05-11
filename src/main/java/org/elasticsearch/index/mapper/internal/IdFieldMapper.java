@@ -29,13 +29,11 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.TermsQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.QueryWrapperFilter;
 import org.apache.lucene.search.RegexpQuery;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
@@ -49,8 +47,8 @@ import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.InternalMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.MergeMappingException;
+import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.RootMapper;
 import org.elasticsearch.index.mapper.Uid;
@@ -59,6 +57,7 @@ import org.elasticsearch.index.query.QueryParseContext;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -191,24 +190,20 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
         if (fieldType.indexOptions() != IndexOptions.NONE || context == null) {
             return super.termQuery(value, context);
         }
-        // no need for constant score filter, since we don't cache the filter, and it always takes deletes into account
-        return new ConstantScoreQuery(termFilter(value, context));
+        final BytesRef[] uids = Uid.createTypeUids(context.queryTypes(), value);
+        if (uids.length == 1) {
+            return new TermQuery(new Term(UidFieldMapper.NAME, uids[0]));
+        } else {
+            return new TermsQuery(UidFieldMapper.NAME, uids);
+        }
     }
 
     @Override
-    public Filter termFilter(Object value, @Nullable QueryParseContext context) {
+    public Query termsQuery(List values, @Nullable QueryParseContext context) {
         if (fieldType.indexOptions() != IndexOptions.NONE || context == null) {
-            return super.termFilter(value, context);
+            return super.termsQuery(values, context);
         }
-        return new QueryWrapperFilter(new TermsQuery(UidFieldMapper.NAME, Uid.createTypeUids(context.queryTypes(), value)));
-    }
-
-    @Override
-    public Filter termsFilter(List values, @Nullable QueryParseContext context) {
-        if (fieldType.indexOptions() != IndexOptions.NONE || context == null) {
-            return super.termsFilter(values, context);
-        }
-        return new QueryWrapperFilter(new TermsQuery(UidFieldMapper.NAME, Uid.createTypeUids(context.queryTypes(), values)));
+        return new TermsQuery(UidFieldMapper.NAME, Uid.createTypeUids(context.queryTypes(), values));
     }
 
     @Override
@@ -226,19 +221,6 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
             query.add(prefixQuery, BooleanClause.Occur.SHOULD);
         }
         return query;
-    }
-
-    @Override
-    public Filter prefixFilter(Object value, @Nullable QueryParseContext context) {
-        if (fieldType.indexOptions() != IndexOptions.NONE || context == null) {
-            return super.prefixFilter(value, context);
-        }
-        Collection<String> queryTypes = context.queryTypes();
-        BooleanQuery filter = new BooleanQuery();
-        for (String queryType : queryTypes) {
-            filter.add(new PrefixQuery(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(queryType, BytesRefs.toBytesRef(value)))), BooleanClause.Occur.SHOULD);
-        }
-        return new QueryWrapperFilter(filter);
     }
 
     @Override
@@ -264,20 +246,6 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
             query.add(regexpQuery, BooleanClause.Occur.SHOULD);
         }
         return query;
-    }
-
-    @Override
-    public Filter regexpFilter(Object value, int flags, int maxDeterminizedStates, @Nullable QueryParseContext context) {
-        if (fieldType.indexOptions() != IndexOptions.NONE || context == null) {
-            return super.regexpFilter(value, flags, maxDeterminizedStates, context);
-        }
-        Collection<String> queryTypes = context.queryTypes();
-        BooleanQuery filter = new BooleanQuery();
-        for (String queryType : queryTypes) {
-            filter.add(new RegexpQuery(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(queryType, BytesRefs.toBytesRef(value))),
-                                        flags, maxDeterminizedStates), BooleanClause.Occur.SHOULD);
-        }
-        return new QueryWrapperFilter(filter);
     }
 
     @Override

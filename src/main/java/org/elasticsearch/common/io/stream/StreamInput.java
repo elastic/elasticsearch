@@ -335,6 +335,21 @@ public abstract class StreamInput extends InputStream {
         return ret;
     }
 
+    /**
+     * Read in a list of strings. List can be empty but not {@code null}.
+     */
+    public List<String> readStringList() throws IOException {
+        int size = readVInt();
+        if (size == 0) {
+            return Collections.emptyList();
+        }
+        List<String> ret = new ArrayList<>(size);
+        for (int i = 0; i < size; i++) {
+            ret.add(readString());
+        }
+        return ret;
+    }
+
     @Nullable
     public Map<String, Object> readMap() throws IOException {
         return (Map<String, Object>) readGenericValue();

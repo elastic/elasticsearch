@@ -40,12 +40,11 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.cache.filter.FilterCacheModule;
-import org.elasticsearch.index.cache.filter.FilterCacheStats;
 import org.elasticsearch.index.cache.filter.FilterCacheModule.FilterCacheSettings;
+import org.elasticsearch.index.cache.filter.FilterCacheStats;
 import org.elasticsearch.index.cache.filter.index.IndexFilterCache;
 import org.elasticsearch.index.merge.policy.TieredMergePolicyProvider;
 import org.elasticsearch.index.merge.scheduler.ConcurrentMergeSchedulerProvider;
-import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.indices.cache.query.IndicesQueryCache;
@@ -62,7 +61,9 @@ import java.util.Random;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
@@ -153,11 +154,11 @@ public class IndexStatsTests extends ElasticsearchIntegrationTest {
 
         // sort to load it to field data and filter to load filter cache
         client().prepareSearch()
-                .setPostFilter(FilterBuilders.termFilter("field", "value1"))
+                .setPostFilter(QueryBuilders.termQuery("field", "value1"))
                 .addSort("field", SortOrder.ASC)
                 .execute().actionGet();
         client().prepareSearch()
-                .setPostFilter(FilterBuilders.termFilter("field", "value2"))
+                .setPostFilter(QueryBuilders.termQuery("field", "value2"))
                 .addSort("field", SortOrder.ASC)
                 .execute().actionGet();
 

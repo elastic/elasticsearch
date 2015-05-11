@@ -35,6 +35,7 @@ import java.nio.file.Paths;
  * be changed during tests.
  */
 @SuppressForbidden(reason = "accesses the default filesystem by design")
+// TODO: can we move this to the .env package and make it package-private?
 public final class PathUtils {
     /** no instantiation */
     private PathUtils() {}

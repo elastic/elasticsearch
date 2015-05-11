@@ -65,13 +65,12 @@ public class IndexQueryParserPlugin2Tests extends ElasticsearchTestCase {
 
         IndexQueryParserModule queryParserModule = new IndexQueryParserModule(settings);
         queryParserModule.addQueryParser("my", PluginJsonQueryParser.class);
-        queryParserModule.addFilterParser("my", PluginJsonFilterParser.class);
 
         Index index = new Index("test");
         Injector injector = new ModulesBuilder().add(
                 new EnvironmentModule(new Environment(settings)),
                 new SettingsModule(settings),
-                new ThreadPoolModule(settings),
+                new ThreadPoolModule(new ThreadPool(settings)),
                 new IndicesQueriesModule(),
                 new ScriptModule(settings),
                 new IndexSettingsModule(index, settings),
@@ -95,9 +94,6 @@ public class IndexQueryParserPlugin2Tests extends ElasticsearchTestCase {
         PluginJsonQueryParser myJsonQueryParser = (PluginJsonQueryParser) indexQueryParserService.queryParser("my");
 
         assertThat(myJsonQueryParser.names()[0], equalTo("my"));
-
-        PluginJsonFilterParser myJsonFilterParser = (PluginJsonFilterParser) indexQueryParserService.filterParser("my");
-        assertThat(myJsonFilterParser.names()[0], equalTo("my"));
 
         terminate(injector.getInstance(ThreadPool.class));
     }

@@ -27,7 +27,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.query.GeoBoundingBoxFilterBuilder;
+import org.elasticsearch.index.query.GeoBoundingBoxQueryBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoHashGrid;
@@ -190,8 +190,8 @@ public class GeoHashGridTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void filtered() throws Exception {
-        GeoBoundingBoxFilterBuilder bbox = new GeoBoundingBoxFilterBuilder("location");
-        bbox.topLeft(smallestGeoHash).bottomRight(smallestGeoHash).filterName("bbox");
+        GeoBoundingBoxQueryBuilder bbox = new GeoBoundingBoxQueryBuilder("location");
+        bbox.topLeft(smallestGeoHash).bottomRight(smallestGeoHash).queryName("bbox");
         for (int precision = 1; precision <= highestPrecisionGeohash; precision++) {
             SearchResponse response = client().prepareSearch("idx")
                     .addAggregation(

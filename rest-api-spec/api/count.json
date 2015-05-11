@@ -41,6 +41,36 @@
         "routing": {
           "type" : "string",
           "description" : "Specific routing value"
+        },
+        "q": {
+          "type" : "string",
+          "description" : "Query in the Lucene query string syntax"
+        },
+        "analyzer": {
+          "type" : "string",
+          "description" : "The analyzer to use for the query string"
+        },
+        "analyze_wildcard": {
+          "type" : "boolean",
+          "description" : "Specify whether wildcard and prefix queries should be analyzed (default: false)"
+        },
+        "default_operator": {
+          "type" : "enum",
+          "options" : ["AND","OR"],
+          "default" : "OR",
+          "description" : "The default operator for query string query (AND or OR)"
+        },
+        "df": {
+          "type" : "string",
+          "description" : "The field to use as default where no field prefix is given in the query string"
+        },
+        "lenient": {
+          "type" : "boolean",
+          "description" : "Specify whether format-based query failures (such as providing text to a numeric field) should be ignored"
+        },
+        "lowercase_expanded_terms": {
+          "type" : "boolean",
+          "description" : "Specify whether query terms should be lowercased"
         }
       }
     },

@@ -31,7 +31,7 @@ import java.util.concurrent.TimeUnit;
  * Simple stop watch, allowing for timing of a number of tasks,
  * exposing total running time and running time for each named task.
  * <p/>
- * <p>Conceals use of <code>System.currentTimeMillis()</code>, improving the
+ * <p>Conceals use of <code>System.nanoTime()</code>, improving the
  * readability of application code and reducing the likelihood of calculation errors.
  * <p/>
  * <p>Note that this object is not designed to be thread-safe and does not
@@ -58,7 +58,7 @@ public class StopWatch {
     /**
      * Start time of the current task
      */
-    private long startTimeMillis;
+    private long startTimeNS;
 
     /**
      * Is the stop watch currently running?
@@ -77,7 +77,7 @@ public class StopWatch {
     /**
      * Total running time
      */
-    private long totalTimeMillis;
+    private long totalTimeNS;
 
     /**
      * Construct a new stop watch. Does not start any task.
@@ -129,7 +129,7 @@ public class StopWatch {
         if (this.running) {
             throw new IllegalStateException("Can't start StopWatch: it's already running");
         }
-        this.startTimeMillis = System.currentTimeMillis();
+        this.startTimeNS = System.nanoTime();
         this.running = true;
         this.currentTaskName = taskName;
         return this;
@@ -146,9 +146,9 @@ public class StopWatch {
         if (!this.running) {
             throw new IllegalStateException("Can't stop StopWatch: it's not running");
         }
-        long lastTime = System.currentTimeMillis() - this.startTimeMillis;
-        this.totalTimeMillis += lastTime;
-        this.lastTaskInfo = new TaskInfo(this.currentTaskName, lastTime);
+        long lastTimeNS = System.nanoTime() - this.startTimeNS;
+        this.totalTimeNS += lastTimeNS;
+        this.lastTaskInfo = new TaskInfo(this.currentTaskName, TimeValue.nsecToMSec(lastTimeNS));
         if (this.keepTaskList) {
             this.taskList.add(lastTaskInfo);
         }
@@ -189,7 +189,7 @@ public class StopWatch {
      * Return the total time for all tasks.
      */
     public TimeValue totalTime() {
-        return new TimeValue(totalTimeMillis, TimeUnit.MILLISECONDS);
+        return new TimeValue(totalTimeNS, TimeUnit.NANOSECONDS);
     }
 
     /**

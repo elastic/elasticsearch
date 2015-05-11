@@ -37,8 +37,6 @@ public class IndexQueryParserModuleTests extends ElasticsearchSingleNodeTest {
         Settings settings = settingsBuilder()
                 .put("index.queryparser.query.my.type", MyJsonQueryParser.class)
                 .put("index.queryparser.query.my.param1", "value1")
-                .put("index.queryparser.filter.my.type", MyJsonFilterParser.class)
-                .put("index.queryparser.filter.my.param2", "value2")
                 .put("index.cache.filter.type", "none")
                 .put("name", "IndexQueryParserModuleTests")
                 .build();
@@ -49,9 +47,5 @@ public class IndexQueryParserModuleTests extends ElasticsearchSingleNodeTest {
 
         assertThat(myJsonQueryParser.names()[0], equalTo("my"));
         assertThat(myJsonQueryParser.settings().get("param1"), equalTo("value1"));
-
-        MyJsonFilterParser myJsonFilterParser = (MyJsonFilterParser) indexQueryParserService.filterParser("my");
-        assertThat(myJsonFilterParser.names()[0], equalTo("my"));
-        assertThat(myJsonFilterParser.settings().get("param2"), equalTo("value2"));
     }
 }

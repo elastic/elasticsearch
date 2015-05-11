@@ -30,7 +30,7 @@ import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.SizeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.query.FilterBuilders;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 
@@ -138,7 +138,7 @@ public class QueryFilterAggregationSearchBenchmark {
             SearchResponse searchResponse = client.prepareSearch()
                     .setSize(0)
                     .setQuery(termQuery("l_value", anyValue))
-                    .addAggregation(AggregationBuilders.filter("filter").filter(FilterBuilders.termFilter("l_value", anyValue)))
+                    .addAggregation(AggregationBuilders.filter("filter").filter(QueryBuilders.termQuery("l_value", anyValue)))
                     .execute().actionGet();
             totalQueryTime += searchResponse.getTookInMillis();
         }

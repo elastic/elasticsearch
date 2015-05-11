@@ -26,7 +26,7 @@ import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.util.Counter;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.index.query.ParsedFilter;
+import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.fetch.FetchSearchResult;
@@ -217,7 +217,7 @@ public class SubSearchContext extends FilteredSearchContext {
     }
 
     @Override
-    public SearchContext parsedPostFilter(ParsedFilter postFilter) {
+    public SearchContext parsedPostFilter(ParsedQuery postFilter) {
         throw new UnsupportedOperationException("Not supported");
     }
 

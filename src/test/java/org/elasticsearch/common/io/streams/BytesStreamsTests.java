@@ -28,6 +28,8 @@ import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Ignore;
 import org.junit.Test;
 
+import java.util.Arrays;
+
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -282,6 +284,7 @@ public class BytesStreamsTests extends ElasticsearchTestCase {
         out.writeGenericValue(doubleArray);
         out.writeString("hello");
         out.writeString("goodbye");
+        out.writeStringList(Arrays.asList(new String[]{"Hello", "Again"}));
         out.writeGenericValue(BytesRefs.toBytesRef("bytesref"));
         BytesStreamInput in = new BytesStreamInput(out.bytes().toBytes());
         assertThat(in.readBoolean(), equalTo(false));
@@ -299,6 +302,7 @@ public class BytesStreamsTests extends ElasticsearchTestCase {
         assertThat(in.readGenericValue(), equalTo((Object)doubleArray));
         assertThat(in.readString(), equalTo("hello"));
         assertThat(in.readString(), equalTo("goodbye"));
+        assertThat(in.readStringList(), equalTo(Arrays.asList(new String[]{"Hello", "Again"})));
         assertThat(in.readGenericValue(), equalTo((Object)BytesRefs.toBytesRef("bytesref")));
         in.close();
         out.close();

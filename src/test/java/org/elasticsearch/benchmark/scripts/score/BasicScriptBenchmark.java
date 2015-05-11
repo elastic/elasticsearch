@@ -30,7 +30,7 @@ import org.elasticsearch.common.lucene.search.function.CombineFunction;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.query.FilterBuilders;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.functionscore.script.ScriptScoreFunctionBuilder;
 import org.joda.time.DateTime;
@@ -284,7 +284,7 @@ public class BasicScriptBenchmark {
                     searchSource()
                             .explain(false)
                             .size(0)
-                            .query(functionScoreQuery(FilterBuilders.termsFilter("text", terms), scriptFunction).boostMode(
+                            .query(functionScoreQuery(QueryBuilders.termsQuery("text", terms), scriptFunction).boostMode(
                                     CombineFunction.REPLACE)));
             nativeSearchRequests.add(new AbstractMap.SimpleEntry<>(infoString, new RequestInfo(request, nTerms + 1)));
         }
@@ -297,7 +297,7 @@ public class BasicScriptBenchmark {
         ScriptScoreFunctionBuilder scriptFunction = (langNative == true) ? scriptFunction(script, "native") : scriptFunction(script);
         SearchRequest request = searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
                 searchSource().explain(false).size(0)
-                        .query(functionScoreQuery(FilterBuilders.matchAllFilter(), scriptFunction).boostMode(CombineFunction.REPLACE)));
+                        .query(functionScoreQuery(QueryBuilders.matchAllQuery(), scriptFunction).boostMode(CombineFunction.REPLACE)));
         nativeSearchRequests.add(new AbstractMap.SimpleEntry<>(infoString, new RequestInfo(request, 0)));
 
         return nativeSearchRequests;

@@ -41,7 +41,6 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.percolator.PercolatorException;
-import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryParsingException;
@@ -50,7 +49,6 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.highlight.HighlightBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -72,8 +70,6 @@ import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilde
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.smileBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.yamlBuilder;
-import static org.elasticsearch.index.query.FilterBuilders.rangeFilter;
-import static org.elasticsearch.index.query.FilterBuilders.termFilter;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
 import static org.elasticsearch.index.query.QueryBuilders.functionScoreQuery;
@@ -236,49 +232,6 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
         assertMatchCount(response, 1l);
         assertThat(response.getMatches(), arrayWithSize(1));
         assertThat(convertFromTextArray(response.getMatches(), "test"), arrayContaining("test1"));
-
-        // add a range query (cached)
-        // add a query
-        client().prepareIndex("test", PercolatorService.TYPE_NAME, "test3")
-                .setSource(
-                        XContentFactory.jsonBuilder().startObject().field("query",
-                                constantScoreQuery(rangeFilter("field1").from(1).to(5).includeLower(true).setExecution("fielddata"))
-                        ).endObject()
-                )
-                .execute().actionGet();
-
-        response = client().preparePercolate()
-                .setIndices("test").setDocumentType("type1")
-                .setSource(doc).execute().actionGet();
-        ElasticsearchAssertions.assertFailures(response);
-        // TODO: with doc values by default, fielddata execution mode causes a doc values
-        // lookup, but memory index doesn't have doc values. we should consider just removing
-        // execution mode.
-        //assertMatchCount(response, 2l);
-        //assertThat(response.getMatches(), arrayWithSize(2));
-        //assertThat(convertFromTextArray(response.getMatches(), "test"), arrayContainingInAnyOrder("test1", "test3"));
-    }
-
-    @Test
-    public void testRangeFilterThatUsesFD() throws Exception {
-        client().admin().indices().prepareCreate("test")
-                .addMapping("type1", "field1", "type=long,doc_values=false")
-                .get();
-
-
-        client().prepareIndex("test", PercolatorService.TYPE_NAME, "1")
-                .setSource(
-                        XContentFactory.jsonBuilder().startObject().field("query",
-                                constantScoreQuery(rangeFilter("field1").from(1).to(5).setExecution("fielddata"))
-                        ).endObject()
-                ).get();
-
-        PercolateResponse response = client().preparePercolate()
-                .setIndices("test").setDocumentType("type1")
-                .setPercolateDoc(PercolateSourceBuilder.docBuilder().setDoc("field1", 3)).get();
-        assertMatchCount(response, 1l);
-        assertThat(response.getMatches(), arrayWithSize(1));
-        assertThat(convertFromTextArray(response.getMatches(), "test"), arrayContaining("1"));
     }
 
     @Test
@@ -960,9 +913,9 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
     public void testPercolateWithAliasFilter() throws Exception {
         assertAcked(prepareCreate("my-index")
                         .addMapping(PercolatorService.TYPE_NAME, "a", "type=string,index=not_analyzed")
-                        .addAlias(new Alias("a").filter(FilterBuilders.termFilter("a", "a")))
-                        .addAlias(new Alias("b").filter(FilterBuilders.termFilter("a", "b")))
-                        .addAlias(new Alias("c").filter(FilterBuilders.termFilter("a", "c")))
+                        .addAlias(new Alias("a").filter(QueryBuilders.termQuery("a", "a")))
+                        .addAlias(new Alias("b").filter(QueryBuilders.termQuery("a", "b")))
+                        .addAlias(new Alias("c").filter(QueryBuilders.termQuery("a", "c")))
         );
         client().prepareIndex("my-index", PercolatorService.TYPE_NAME, "1")
                 .setSource(jsonBuilder().startObject().field("query", matchAllQuery()).field("a", "a").endObject())
@@ -1007,7 +960,7 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
                 .setIndices("a")
                 .setDocumentType("my-type")
                 .setPercolateDoc(new PercolateSourceBuilder.DocBuilder().setDoc("{}"))
-                .setPercolateFilter(FilterBuilders.matchAllFilter())
+                .setPercolateQuery(QueryBuilders.matchAllQuery())
                 .get();
         assertNoFailures(response);
         assertThat(response.getCount(), equalTo(1l));
@@ -1017,7 +970,7 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
                 .setIndices("b")
                 .setDocumentType("my-type")
                 .setPercolateDoc(new PercolateSourceBuilder.DocBuilder().setDoc("{}"))
-                .setPercolateFilter(FilterBuilders.matchAllFilter())
+                .setPercolateQuery(QueryBuilders.matchAllQuery())
                 .get();
         assertNoFailures(response);
         assertThat(response.getCount(), equalTo(1l));
@@ -1028,7 +981,7 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
                 .setIndices("c")
                 .setDocumentType("my-type")
                 .setPercolateDoc(new PercolateSourceBuilder.DocBuilder().setDoc("{}"))
-                .setPercolateFilter(FilterBuilders.matchAllFilter())
+                .setPercolateQuery(QueryBuilders.matchAllQuery())
                 .get();
         assertNoFailures(response);
         assertThat(response.getCount(), equalTo(0l));
@@ -1230,7 +1183,7 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
                     .setIndices("my-index").setDocumentType("my-type")
                     .setOnlyCount(onlyCount)
                     .setPercolateDoc(docBuilder().setDoc("field", "value"))
-                    .setPercolateFilter(termFilter("level", 1 + randomInt(numLevels - 1)))
+                    .setPercolateQuery(termQuery("level", 1 + randomInt(numLevels - 1)))
                     .execute().actionGet();
             assertMatchCount(response, numQueriesPerLevel);
             if (!onlyCount) {
@@ -1246,7 +1199,7 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
                     .setOnlyCount(onlyCount)
                     .setSize(size)
                     .setPercolateDoc(docBuilder().setDoc("field", "value"))
-                    .setPercolateFilter(termFilter("level", 1 + randomInt(numLevels - 1)))
+                    .setPercolateQuery(termQuery("level", 1 + randomInt(numLevels - 1)))
                     .execute().actionGet();
             assertMatchCount(response, numQueriesPerLevel);
             if (!onlyCount) {
@@ -1680,9 +1633,9 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
         logger.info("--> register a query");
         client().prepareIndex("test", PercolatorService.TYPE_NAME, "1")
                 .setSource(jsonBuilder().startObject()
-                        .field("query", QueryBuilders.constantScoreQuery(FilterBuilders.andFilter(
-                                FilterBuilders.queryFilter(QueryBuilders.queryStringQuery("root")),
-                                FilterBuilders.termFilter("message", "tree"))))
+                        .field("query", QueryBuilders.constantScoreQuery(QueryBuilders.andQuery(
+                                QueryBuilders.queryStringQuery("root"),
+                                QueryBuilders.termQuery("message", "tree"))))
                         .endObject())
                 .setRefresh(true)
                 .execute().actionGet();
@@ -1834,7 +1787,7 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
         PercolateResponse response = client().preparePercolate()
                 .setIndices("test").setDocumentType("type")
                 .setPercolateDoc(docBuilder().setDoc(jsonBuilder().startObject().field("field", "value").endObject()))
-                .setPercolateFilter(FilterBuilders.matchAllFilter())
+                .setPercolateQuery(QueryBuilders.matchAllQuery())
                 .get();
         assertMatchCount(response, 1l);
         assertThat(response.getMatches(), arrayWithSize(1));
@@ -1876,7 +1829,7 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
                 .setSource(jsonBuilder().startObject().field("query", rangeQuery("timestamp").from("now-1d").to("now")).endObject())
                 .get();
         client().prepareIndex("test", PercolatorService.TYPE_NAME, "2")
-                .setSource(jsonBuilder().startObject().field("query", constantScoreQuery(rangeFilter("timestamp").from("now-1d").to("now"))).endObject())
+                .setSource(jsonBuilder().startObject().field("query", constantScoreQuery(rangeQuery("timestamp").from("now-1d").to("now"))).endObject())
                 .get();
 
         logger.info("--> Percolate doc with field1=b");

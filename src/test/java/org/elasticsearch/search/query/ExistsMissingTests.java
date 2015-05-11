@@ -27,7 +27,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.mapper.internal.FieldNamesFieldMapper;
-import org.elasticsearch.index.query.FilterBuilders;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.FilteredQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
@@ -113,7 +113,7 @@ public class ExistsMissingTests extends ElasticsearchIntegrationTest {
             final String fieldName = entry.getKey();
             final int count = entry.getValue();
             // exists
-            FilteredQueryBuilder query = QueryBuilders.filteredQuery(QueryBuilders.matchAllQuery(), FilterBuilders.existsFilter(fieldName));
+            FilteredQueryBuilder query = QueryBuilders.filteredQuery(QueryBuilders.matchAllQuery(), QueryBuilders.existsQuery(fieldName));
             SearchResponse resp = client().prepareSearch("idx").setQuery(query).execute().actionGet();
             assertSearchResponse(resp);
             try {
@@ -130,7 +130,7 @@ public class ExistsMissingTests extends ElasticsearchIntegrationTest {
             }
 
             // missing
-            resp = client().prepareSearch("idx").setQuery(QueryBuilders.filteredQuery(QueryBuilders.matchAllQuery(), FilterBuilders.missingFilter(fieldName))).execute().actionGet();
+            resp = client().prepareSearch("idx").setQuery(QueryBuilders.filteredQuery(QueryBuilders.matchAllQuery(), QueryBuilders.missingQuery(fieldName))).execute().actionGet();
             assertSearchResponse(resp);
             assertEquals(String.format(Locale.ROOT, "missing(%s, %d) mapping: %s response: %s", fieldName, count, mapping.string(), resp), numDocs - count, resp.getHits().totalHits());
         }

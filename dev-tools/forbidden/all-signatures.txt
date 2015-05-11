@@ -41,3 +41,7 @@ org.apache.lucene.search.PrefixFilter
 
 java.nio.file.Paths @ Use PathUtils.get instead.
 java.nio.file.FileSystems#getDefault() @ use PathUtils.getDefault instead.
+
+@defaultMessage Specify a location for the temp file/directory instead.
+java.nio.file.Files#createTempDirectory(java.lang.String,java.nio.file.attribute.FileAttribute[])
+java.nio.file.Files#createTempFile(java.lang.String,java.lang.String,java.nio.file.attribute.FileAttribute[])

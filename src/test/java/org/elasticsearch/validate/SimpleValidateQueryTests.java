@@ -27,7 +27,6 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.IndexMissingException;
@@ -167,7 +166,7 @@ public class SimpleValidateQueryTests extends ElasticsearchIntegrationTest {
     public void explainFilteredAlias() {
         assertAcked(prepareCreate("test")
                 .addMapping("test", "field", "type=string")
-                .addAlias(new Alias("alias").filter(FilterBuilders.termFilter("field", "value1"))));
+                .addAlias(new Alias("alias").filter(QueryBuilders.termQuery("field", "value1"))));
         ensureGreen();
 
         ValidateQueryResponse validateQueryResponse = client().admin().indices().prepareValidateQuery("alias")

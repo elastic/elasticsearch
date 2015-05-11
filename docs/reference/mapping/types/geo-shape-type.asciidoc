@@ -7,9 +7,7 @@ used when either the data being indexed or the queries being executed
 contain shapes other than just points.
 
 You can query documents using this type using
-<<query-dsl-geo-shape-filter,geo_shape Filter>>
-or <<query-dsl-geo-shape-query,geo_shape
-Query>>.
+<<query-dsl-geo-shape-query,geo_shape Query>>.
 
 [[geo-shape-mapping-options]]
 [float]

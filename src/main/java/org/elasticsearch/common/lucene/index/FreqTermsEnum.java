@@ -21,9 +21,8 @@ package org.elasticsearch.common.lucene.index;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.PostingsEnum;
-import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
@@ -48,7 +47,7 @@ public class FreqTermsEnum extends FilterableTermsEnum implements Releasable {
     private final boolean needTotalTermFreqs;
 
 
-    public FreqTermsEnum(IndexReader reader, String field, boolean needDocFreq, boolean needTotalTermFreq, @Nullable Filter filter, BigArrays bigArrays) throws IOException {
+    public FreqTermsEnum(IndexReader reader, String field, boolean needDocFreq, boolean needTotalTermFreq, @Nullable Query filter, BigArrays bigArrays) throws IOException {
         super(reader, field, needTotalTermFreq ? PostingsEnum.FREQS : PostingsEnum.NONE, filter);
         this.bigArrays = bigArrays;
         this.needDocFreqs = needDocFreq;

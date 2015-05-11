@@ -115,11 +115,11 @@ public final class GeoBoundsAggregator extends MetricsAggregator {
                         bottom = value.lat();
                     }
                     double posLeft = posLefts.get(bucket);
-                    if (value.lon() > 0 && value.lon() < posLeft) {
+                    if (value.lon() >= 0 && value.lon() < posLeft) {
                         posLeft = value.lon();
                     }
                     double posRight = posRights.get(bucket);
-                    if (value.lon() > 0 && value.lon() > posRight) {
+                    if (value.lon() >= 0 && value.lon() > posRight) {
                         posRight = value.lon();
                     }
                     double negLeft = negLefts.get(bucket);

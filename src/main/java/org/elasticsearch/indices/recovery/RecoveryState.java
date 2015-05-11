@@ -395,13 +395,15 @@ public class RecoveryState implements ToXContent, Streamable {
 
         public synchronized void start() {
             assert startTime == 0 : "already started";
-            startTime = System.currentTimeMillis();
+            startTime = TimeValue.nsecToMSec(System.nanoTime());
         }
 
+        /** Returns start time in millis */
         public synchronized long startTime() {
             return startTime;
         }
 
+        /** Returns elapsed time in millis, or 0 if timer was not started */
         public synchronized long time() {
             if (startTime == 0) {
                 return 0;
@@ -409,16 +411,17 @@ public class RecoveryState implements ToXContent, Streamable {
             if (time >= 0) {
                 return time;
             }
-            return Math.max(0, System.currentTimeMillis() - startTime);
+            return Math.max(0, TimeValue.nsecToMSec(System.nanoTime()) - startTime);
         }
 
+        /** Returns stop time in millis */
         public synchronized long stopTime() {
             return stopTime;
         }
 
         public synchronized void stop() {
             assert stopTime == 0 : "already stopped";
-            stopTime = Math.max(System.currentTimeMillis(), startTime);
+            stopTime = Math.max(TimeValue.nsecToMSec(System.nanoTime()), startTime);
             time = stopTime - startTime;
             assert time >= 0;
         }

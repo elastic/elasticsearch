@@ -23,9 +23,9 @@ import com.carrotsearch.hppc.ObjectFloatOpenHashMap;
 import com.google.common.base.Charsets;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
-
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.support.QuerySourceBuilder;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -36,10 +36,8 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.query.FilterBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
-import org.elasticsearch.search.aggregations.reducers.ReducerBuilder;
 import org.elasticsearch.search.fetch.innerhits.InnerHitsBuilder;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
 import org.elasticsearch.search.highlight.HighlightBuilder;
@@ -79,11 +77,9 @@ public class SearchSourceBuilder implements ToXContent {
         return new HighlightBuilder();
     }
 
-    private QueryBuilder queryBuilder;
+    private QuerySourceBuilder querySourceBuilder;
 
-    private BytesReference queryBinary;
-
-    private FilterBuilder postFilterBuilder;
+    private QueryBuilder postQueryBuilder;
 
     private BytesReference filterBinary;
 
@@ -132,12 +128,23 @@ public class SearchSourceBuilder implements ToXContent {
     }
 
     /**
+     * Sets the query provided as a {@link QuerySourceBuilder}
+     */
+    public SearchSourceBuilder query(QuerySourceBuilder querySourceBuilder) {
+        this.querySourceBuilder = querySourceBuilder;
+        return this;
+    }
+
+    /**
      * Constructs a new search source builder with a search query.
      *
      * @see org.elasticsearch.index.query.QueryBuilders
      */
     public SearchSourceBuilder query(QueryBuilder query) {
-        this.queryBuilder = query;
+        if (this.querySourceBuilder == null) {
+            this.querySourceBuilder = new QuerySourceBuilder();
+        }
+        this.querySourceBuilder.setQuery(query);
         return this;
     }
 
@@ -159,7 +166,10 @@ public class SearchSourceBuilder implements ToXContent {
      * Constructs a new search source builder with a raw search query.
      */
     public SearchSourceBuilder query(BytesReference queryBinary) {
-        this.queryBinary = queryBinary;
+        if (this.querySourceBuilder == null) {
+            this.querySourceBuilder = new QuerySourceBuilder();
+        }
+        this.querySourceBuilder.setQuery(queryBinary);
         return this;
     }
 
@@ -195,8 +205,8 @@ public class SearchSourceBuilder implements ToXContent {
      * only has affect on the search hits (not aggregations). This filter is
      * always executed as last filtering mechanism.
      */
-    public SearchSourceBuilder postFilter(FilterBuilder postFilter) {
-        this.postFilterBuilder = postFilter;
+    public SearchSourceBuilder postFilter(QueryBuilder postFilter) {
+        this.postQueryBuilder = postFilter;
         return this;
     }
 
@@ -706,22 +716,13 @@ public class SearchSourceBuilder implements ToXContent {
             builder.field("terminate_after", terminateAfter);
         }
 
-        if (queryBuilder != null) {
-            builder.field("query");
-            queryBuilder.toXContent(builder, params);
+        if (querySourceBuilder != null) {
+            querySourceBuilder.innerToXContent(builder, params);
         }
 
-        if (queryBinary != null) {
-            if (XContentFactory.xContentType(queryBinary) == builder.contentType()) {
-                builder.rawField("query", queryBinary);
-            } else {
-                builder.field("query_binary", queryBinary);
-            }
-        }
-
-        if (postFilterBuilder != null) {
+        if (postQueryBuilder != null) {
             builder.field("post_filter");
-            postFilterBuilder.toXContent(builder, params);
+            postQueryBuilder.toXContent(builder, params);
         }
 
         if (filterBinary != null) {

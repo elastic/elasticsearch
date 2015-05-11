@@ -25,6 +25,8 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.*;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.Iterator;
 import java.util.Map;
 
 public class ExternalRootMapper implements RootMapper {
@@ -46,11 +48,8 @@ public class ExternalRootMapper implements RootMapper {
     }
 
     @Override
-    public void traverse(FieldMapperListener fieldMapperListener) {
-    }
-
-    @Override
-    public void traverse(ObjectMapperListener objectMapperListener) {
+    public Iterator<Mapper> iterator() {
+        return Collections.emptyIterator();
     }
 
     @Override

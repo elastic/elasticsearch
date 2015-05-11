@@ -26,13 +26,15 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
-import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.Weight;
+import org.apache.lucene.util.BitDocIdSet;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.lucene.docset.DocIdSets;
 
 import java.io.IOException;
 import java.util.List;
@@ -66,7 +68,7 @@ public class FilterableTermsEnum extends TermsEnum {
     protected final int docsEnumFlag;
     protected int numDocs;
 
-    public FilterableTermsEnum(IndexReader reader, String field, int docsEnumFlag, @Nullable final Filter filter) throws IOException {
+    public FilterableTermsEnum(IndexReader reader, String field, int docsEnumFlag, @Nullable Query filter) throws IOException {
         if ((docsEnumFlag != PostingsEnum.FREQS) && (docsEnumFlag != PostingsEnum.NONE)) {
             throw new IllegalArgumentException("invalid docsEnumFlag of " + docsEnumFlag);
         }
@@ -78,6 +80,14 @@ public class FilterableTermsEnum extends TermsEnum {
         }
         List<LeafReaderContext> leaves = reader.leaves();
         List<Holder> enums = Lists.newArrayListWithExpectedSize(leaves.size());
+        final Weight weight;
+        if (filter == null) {
+            weight = null;
+        } else {
+            final IndexSearcher searcher = new IndexSearcher(reader);
+            searcher.setQueryCache(null);
+            weight = searcher.createNormalizedWeight(filter, false);
+        }
         for (LeafReaderContext context : leaves) {
             Terms terms = context.reader().terms(field);
             if (terms == null) {
@@ -88,21 +98,23 @@ public class FilterableTermsEnum extends TermsEnum {
                 continue;
             }
             Bits bits = null;
-            if (filter != null) {
+            if (weight != null) {
                 // we want to force apply deleted docs
-                DocIdSet docIdSet = filter.getDocIdSet(context, context.reader().getLiveDocs());
-                if (DocIdSets.isEmpty(docIdSet)) {
+                Scorer docs = weight.scorer(context, context.reader().getLiveDocs());
+                if (docs == null) {
                     // fully filtered, none matching, no need to iterate on this
                     continue;
                 }
-                bits = DocIdSets.toSafeBits(context.reader().maxDoc(), docIdSet);
+
+                BitDocIdSet.Builder builder = new BitDocIdSet.Builder(context.reader().maxDoc());
+                builder.or(docs);
+                bits = builder.build().bits();
+
                 // Count how many docs are in our filtered set
                 // TODO make this lazy-loaded only for those that need it?
-                DocIdSetIterator iterator = docIdSet.iterator();
-                if (iterator != null) {
-                    while (iterator.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
-                        numDocs++;
-                    }
+                docs = weight.scorer(context, context.reader().getLiveDocs());
+                while (docs.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
+                    numDocs++;
                 }
             }
             enums.add(new Holder(termsEnum, bits));

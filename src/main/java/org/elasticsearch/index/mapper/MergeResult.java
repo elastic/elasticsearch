@@ -38,6 +38,10 @@ public abstract class MergeResult {
 
     public abstract void addObjectMappers(Collection<ObjectMapper> objectMappers);
 
+    public abstract Collection<FieldMapper<?>> getNewFieldMappers();
+
+    public abstract Collection<ObjectMapper> getNewObjectMappers();
+
     public boolean simulate() {
         return simulate;
     }

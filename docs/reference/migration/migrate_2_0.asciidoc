@@ -29,6 +29,9 @@ Partial fields were deprecated since 1.0.0beta1 in favor of <<search-request-sou
 The More Like This API and the More Like This Field query have been removed in
 favor of the <<query-dsl-mlt-query, More Like This Query>>.
 
+The parameter `percent_terms_to_match` has been removed in favor of
+`minimum_should_match`.
+
 === Routing
 
 The default hash function that is used for routing has been changed from djb2 to
@@ -105,7 +108,11 @@ in addition to the actual HTTP status code. We removed `status` field in json re
 
 === Java API
 
-Some query builders have been removed or renamed:
+`org.elasticsearch.index.queries.FilterBuilders` has been removed as part of the merge of
+queries and filters. These filters are now available in `QueryBuilders` with the same name.
+All methods that used to accept a `FilterBuilder` now accept a `QueryBuilder` instead.
+
+In addition some query builders have been removed or renamed:
 
 * `commonTerms(...)` renamed with `commonTermsQuery(...)`
 * `queryString(...)` renamed with `queryStringQuery(...)`
@@ -433,6 +440,14 @@ ignored. Instead filters are always used as their own cache key and elasticsearc
 makes decisions by itself about whether it should cache filters based on how
 often they are used.
 
+==== Query/filter merge
+
+Elasticsearch no longer makes a difference between queries and filters in the
+DSL; it detects when scores are not needed and automatically optimizes the
+query to not compute scores and optionally caches the result.
+
+As a consequence the `query` filter serves no purpose anymore and is deprecated.
+
 === Snapshot and Restore
 
 The obsolete parameters `expand_wildcards_open` and `expand_wildcards_close` are no longer
@@ -493,3 +508,15 @@ Settings settings = ImmutableSettings.settingsBuilder()
         .put("cluster.name", "myClusterName").build();
 Client client = TransportClient.builder().settings(settings).build();
 --------------------------------------------------
+
+=== Logging
+
+Log messages are now truncated at 10,000 characters. This can be changed in the
+`logging.yml` configuration file.
+
+[float]
+=== Removed `top_children` query
+
+The `top_children` query has been removed in favour of the `has_child` query. The `top_children` query wasn't always faster
+than the `has_child` query and the `top_children` query was often inaccurate. The total hits and any aggregations in the
+same search request will likely be off if `top_children` was used.

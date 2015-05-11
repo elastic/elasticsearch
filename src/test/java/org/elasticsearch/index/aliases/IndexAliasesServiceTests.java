@@ -25,7 +25,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.query.FilterBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.indices.InvalidAliasNameException;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
@@ -33,7 +33,7 @@ import org.junit.Test;
 
 import java.io.IOException;
 
-import static org.elasticsearch.index.query.FilterBuilders.termFilter;
+import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -48,7 +48,7 @@ public class IndexAliasesServiceTests extends ElasticsearchSingleNodeTest {
         return indexService.aliasesService();
     }
 
-    public static CompressedString filter(FilterBuilder filterBuilder) throws IOException {
+    public static CompressedString filter(QueryBuilder filterBuilder) throws IOException {
         XContentBuilder builder = XContentFactory.jsonBuilder();
         filterBuilder.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.close();
@@ -58,47 +58,47 @@ public class IndexAliasesServiceTests extends ElasticsearchSingleNodeTest {
     @Test
     public void testFilteringAliases() throws Exception {
         IndexAliasesService indexAliasesService = newIndexAliasesService();
-        indexAliasesService.add("cats", filter(termFilter("animal", "cat")));
-        indexAliasesService.add("dogs", filter(termFilter("animal", "dog")));
+        indexAliasesService.add("cats", filter(termQuery("animal", "cat")));
+        indexAliasesService.add("dogs", filter(termQuery("animal", "dog")));
         indexAliasesService.add("all", null);
 
         assertThat(indexAliasesService.hasAlias("cats"), equalTo(true));
         assertThat(indexAliasesService.hasAlias("dogs"), equalTo(true));
         assertThat(indexAliasesService.hasAlias("turtles"), equalTo(false));
 
-        assertThat(indexAliasesService.aliasFilter("cats").toString(), equalTo("QueryWrapperFilter(animal:cat)"));
-        assertThat(indexAliasesService.aliasFilter("cats", "dogs").toString(), equalTo("QueryWrapperFilter(QueryWrapperFilter(animal:cat) QueryWrapperFilter(animal:dog))"));
+        assertThat(indexAliasesService.aliasFilter("cats").toString(), equalTo("animal:cat"));
+        assertThat(indexAliasesService.aliasFilter("cats", "dogs").toString(), equalTo("animal:cat animal:dog"));
 
         // Non-filtering alias should turn off all filters because filters are ORed
         assertThat(indexAliasesService.aliasFilter("all"), nullValue());
         assertThat(indexAliasesService.aliasFilter("cats", "all"), nullValue());
         assertThat(indexAliasesService.aliasFilter("all", "cats"), nullValue());
 
-        indexAliasesService.add("cats", filter(termFilter("animal", "feline")));
-        indexAliasesService.add("dogs", filter(termFilter("animal", "canine")));
-        assertThat(indexAliasesService.aliasFilter("dogs", "cats").toString(), equalTo("QueryWrapperFilter(QueryWrapperFilter(animal:canine) QueryWrapperFilter(animal:feline))"));
+        indexAliasesService.add("cats", filter(termQuery("animal", "feline")));
+        indexAliasesService.add("dogs", filter(termQuery("animal", "canine")));
+        assertThat(indexAliasesService.aliasFilter("dogs", "cats").toString(), equalTo("animal:canine animal:feline"));
     }
 
     @Test
     public void testAliasFilters() throws Exception {
         IndexAliasesService indexAliasesService = newIndexAliasesService();
-        indexAliasesService.add("cats", filter(termFilter("animal", "cat")));
-        indexAliasesService.add("dogs", filter(termFilter("animal", "dog")));
+        indexAliasesService.add("cats", filter(termQuery("animal", "cat")));
+        indexAliasesService.add("dogs", filter(termQuery("animal", "dog")));
 
         assertThat(indexAliasesService.aliasFilter(), nullValue());
-        assertThat(indexAliasesService.aliasFilter("dogs").toString(), equalTo("QueryWrapperFilter(animal:dog)"));
-        assertThat(indexAliasesService.aliasFilter("dogs", "cats").toString(), equalTo("QueryWrapperFilter(QueryWrapperFilter(animal:dog) QueryWrapperFilter(animal:cat))"));
+        assertThat(indexAliasesService.aliasFilter("dogs").toString(), equalTo("animal:dog"));
+        assertThat(indexAliasesService.aliasFilter("dogs", "cats").toString(), equalTo("animal:dog animal:cat"));
 
-        indexAliasesService.add("cats", filter(termFilter("animal", "feline")));
-        indexAliasesService.add("dogs", filter(termFilter("animal", "canine")));
+        indexAliasesService.add("cats", filter(termQuery("animal", "feline")));
+        indexAliasesService.add("dogs", filter(termQuery("animal", "canine")));
 
-        assertThat(indexAliasesService.aliasFilter("dogs", "cats").toString(), equalTo("QueryWrapperFilter(QueryWrapperFilter(animal:canine) QueryWrapperFilter(animal:feline))"));
+        assertThat(indexAliasesService.aliasFilter("dogs", "cats").toString(), equalTo("animal:canine animal:feline"));
     }
 
     @Test(expected = InvalidAliasNameException.class)
     public void testRemovedAliasFilter() throws Exception {
         IndexAliasesService indexAliasesService = newIndexAliasesService();
-        indexAliasesService.add("cats", filter(termFilter("animal", "cat")));
+        indexAliasesService.add("cats", filter(termQuery("animal", "cat")));
         indexAliasesService.remove("cats");
         indexAliasesService.aliasFilter("cats");
     }
@@ -107,8 +107,8 @@ public class IndexAliasesServiceTests extends ElasticsearchSingleNodeTest {
     @Test
     public void testUnknownAliasFilter() throws Exception {
         IndexAliasesService indexAliasesService = newIndexAliasesService();
-        indexAliasesService.add("cats", filter(termFilter("animal", "cat")));
-        indexAliasesService.add("dogs", filter(termFilter("animal", "dog")));
+        indexAliasesService.add("cats", filter(termQuery("animal", "cat")));
+        indexAliasesService.add("dogs", filter(termQuery("animal", "dog")));
 
         try {
             indexAliasesService.aliasFilter("unknown");

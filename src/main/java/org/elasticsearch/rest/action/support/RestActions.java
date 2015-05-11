@@ -64,17 +64,22 @@ public class RestActions {
         static final XContentBuilderString FAILURES = new XContentBuilderString("failures");
         static final XContentBuilderString INDEX = new XContentBuilderString("index");
         static final XContentBuilderString SHARD = new XContentBuilderString("shard");
+        static final XContentBuilderString STATUS = new XContentBuilderString("status");
         static final XContentBuilderString REASON = new XContentBuilderString("reason");
     }
 
     public static void buildBroadcastShardsHeader(XContentBuilder builder, BroadcastOperationResponse response) throws IOException {
+        buildBroadcastShardsHeader(builder, response.getTotalShards(), response.getSuccessfulShards(), response.getFailedShards(), response.getShardFailures());
+    }
+
+    public static void buildBroadcastShardsHeader(XContentBuilder builder, int total, int successful, int failed, ShardOperationFailedException[] shardFailures) throws IOException {
         builder.startObject(Fields._SHARDS);
-        builder.field(Fields.TOTAL, response.getTotalShards());
-        builder.field(Fields.SUCCESSFUL, response.getSuccessfulShards());
-        builder.field(Fields.FAILED, response.getFailedShards());
-        if (response.getShardFailures() != null && response.getShardFailures().length > 0) {
+        builder.field(Fields.TOTAL, total);
+        builder.field(Fields.SUCCESSFUL, successful);
+        builder.field(Fields.FAILED, failed);
+        if (shardFailures != null && shardFailures.length > 0) {
             builder.startArray(Fields.FAILURES);
-            for (ShardOperationFailedException shardFailure : response.getShardFailures()) {
+            for (ShardOperationFailedException shardFailure : shardFailures) {
                 builder.startObject();
                 if (shardFailure.index() != null) {
                     builder.field(Fields.INDEX, shardFailure.index(), XContentBuilder.FieldCaseConversion.NONE);
@@ -82,6 +87,7 @@ public class RestActions {
                 if (shardFailure.shardId() != -1) {
                     builder.field(Fields.SHARD, shardFailure.shardId());
                 }
+                builder.field(Fields.STATUS, shardFailure.status().getStatus());
                 builder.field(Fields.REASON, shardFailure.reason());
                 builder.endObject();
             }
@@ -98,6 +104,9 @@ public class RestActions {
         QueryStringQueryBuilder queryBuilder = QueryBuilders.queryStringQuery(queryString);
         queryBuilder.defaultField(request.param("df"));
         queryBuilder.analyzer(request.param("analyzer"));
+        queryBuilder.analyzeWildcard(request.paramAsBoolean("analyze_wildcard", false));
+        queryBuilder.lowercaseExpandedTerms(request.paramAsBoolean("lowercase_expanded_terms", true));
+        queryBuilder.lenient(request.paramAsBoolean("lenient", null));
         String defaultOperator = request.param("default_operator");
         if (defaultOperator != null) {
             if ("OR".equals(defaultOperator)) {

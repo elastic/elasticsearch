@@ -21,7 +21,7 @@ package org.elasticsearch.search.aggregations.bucket;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.index.query.FilterBuilders;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
@@ -896,7 +896,7 @@ public class DoubleTermsTests extends AbstractTermsTests {
                         .field("num_tag")
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
                         .order(Terms.Order.aggregation("filter", asc))
-                        .subAggregation(filter("filter").filter(FilterBuilders.matchAllFilter()))
+                        .subAggregation(filter("filter").filter(QueryBuilders.matchAllQuery()))
                 ).execute().actionGet();
 
 
@@ -934,8 +934,8 @@ public class DoubleTermsTests extends AbstractTermsTests {
                         .field("num_tag")
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
                         .order(Terms.Order.aggregation("filter1>filter2>max", asc))
-                        .subAggregation(filter("filter1").filter(FilterBuilders.matchAllFilter())
-                                .subAggregation(filter("filter2").filter(FilterBuilders.matchAllFilter())
+                        .subAggregation(filter("filter1").filter(QueryBuilders.matchAllQuery())
+                                .subAggregation(filter("filter2").filter(QueryBuilders.matchAllQuery())
                                         .subAggregation(max("max").field(SINGLE_VALUED_FIELD_NAME))))
                 ).execute().actionGet();
 

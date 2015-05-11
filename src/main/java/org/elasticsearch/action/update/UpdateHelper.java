@@ -74,7 +74,7 @@ public class UpdateHelper extends AbstractComponent {
      */
     @SuppressWarnings("unchecked")
     public Result prepare(UpdateRequest request, IndexShard indexShard) {
-        long getDate = System.currentTimeMillis();
+        long getDateNS = System.nanoTime();
         final GetResult getResult = indexShard.getService().get(request.type(), request.id(),
                 new String[]{RoutingFieldMapper.NAME, ParentFieldMapper.NAME, TTLFieldMapper.NAME, TimestampFieldMapper.NAME},
                 true, request.version(), request.versionType(), FetchSourceContext.FETCH_SOURCE, false);
@@ -222,7 +222,7 @@ public class UpdateHelper extends AbstractComponent {
         if (ttl == null) {
             ttl = getResult.getFields().containsKey(TTLFieldMapper.NAME) ? (Long) getResult.field(TTLFieldMapper.NAME).getValue() : null;
             if (ttl != null) {
-                ttl = ttl - (System.currentTimeMillis() - getDate); // It is an approximation of exact TTL value, could be improved
+                ttl = ttl - TimeValue.nsecToMSec(System.nanoTime() - getDateNS); // It is an approximation of exact TTL value, could be improved
             }
         }
 

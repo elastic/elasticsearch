@@ -67,6 +67,9 @@ class SecurityBootstrap {
                 Path javaTmpDir = PathUtils.get(Objects.requireNonNull(System.getProperty("java.io.tmpdir"), 
                                                                       "please set ${java.io.tmpdir} in pom.xml"));
                 Security.addPath(perms, javaTmpDir, "read,readlink,write,delete");
+                Path bwcPath = PathUtils.get(Objects.requireNonNull(System.getProperty(ElasticsearchBackwardsCompatIntegrationTest.TESTS_BACKWARDS_COMPATIBILITY_PATH),
+                                                                      "please set ${tests.bwc.path} in pom.xml"));
+                Security.addPath(perms, bwcPath, "read,readlink");
                 Policy.setPolicy(new ESPolicy(perms));
                 System.setSecurityManager(new TestSecurityManager());
                 Security.selfTest();

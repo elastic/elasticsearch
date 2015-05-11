@@ -20,7 +20,6 @@
 package org.elasticsearch.bootstrap;
 
 import org.apache.lucene.util.StringHelper;
-import org.apache.lucene.util.Constants;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.PidFile;
@@ -28,6 +27,7 @@ import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.CreationException;
 import org.elasticsearch.common.inject.spi.Message;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.jna.Kernel32Library;
 import org.elasticsearch.common.jna.Natives;
 import org.elasticsearch.common.lease.Releasables;
@@ -88,11 +88,7 @@ public class Bootstrap {
     public static void initializeNatives(boolean mlockAll, boolean ctrlHandler) {
         // mlockall if requested
         if (mlockAll) {
-            if (Constants.WINDOWS) {
-               Natives.tryVirtualLock();
-            } else {
-               Natives.tryMlockall();
-            }
+            Natives.tryMlockall();
         }
         
         // check if the user is running as root, and bail

@@ -20,13 +20,10 @@
 package org.elasticsearch.common.jna;
 
 import com.sun.jna.Native;
-import com.sun.jna.NativeLong;
-import com.sun.jna.Pointer;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.jna.Kernel32Library.ConsoleCtrlHandler;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.monitor.jvm.JvmInfo;
 
 import java.util.Locale;
 
@@ -75,42 +72,6 @@ public class Natives {
         } catch (Throwable error) {
             logger.warn("unable to determine euid", error);
             return false; // don't know
-        }
-    }
-
-    public static void tryVirtualLock()
-    {
-        Kernel32Library kernel = Kernel32Library.getInstance();
-        Pointer process = null;
-        try {
-            process = kernel.GetCurrentProcess();
-            // By default, Windows limits the number of pages that can be locked.
-            // Thus, we need to first increase the working set size of the JVM by
-            // the amount of memory we wish to lock, plus a small overhead (1MB).
-            SizeT size = new SizeT(JvmInfo.jvmInfo().getMem().getHeapInit().getBytes() + (1024 * 1024));
-            if (!kernel.SetProcessWorkingSetSize(process, size, size)) {
-                logger.warn("Unable to lock JVM memory. Failed to set working set size. Error code " + Native.getLastError());
-            } else {
-                Kernel32Library.MemoryBasicInformation memInfo = new Kernel32Library.MemoryBasicInformation();
-                long address = 0;
-                while (kernel.VirtualQueryEx(process, new Pointer(address), memInfo, memInfo.size()) != 0) {
-                    boolean lockable = memInfo.State.longValue() == Kernel32Library.MEM_COMMIT
-                            && (memInfo.Protect.longValue() & Kernel32Library.PAGE_NOACCESS) != Kernel32Library.PAGE_NOACCESS
-                            && (memInfo.Protect.longValue() & Kernel32Library.PAGE_GUARD) != Kernel32Library.PAGE_GUARD;
-                    if (lockable) {
-                        kernel.VirtualLock(memInfo.BaseAddress, new SizeT(memInfo.RegionSize.longValue()));
-                    }
-                    // Move to the next region
-                    address += memInfo.RegionSize.longValue();
-                }
-                LOCAL_MLOCKALL = true;
-            }
-        } catch (UnsatisfiedLinkError e) {
-            // this will have already been logged by Kernel32Library, no need to repeat it
-        } finally {
-            if (process != null) {
-                kernel.CloseHandle(process);
-            }
         }
     }
 

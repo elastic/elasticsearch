@@ -263,7 +263,7 @@ public abstract class QueryBuilders {
     /**
      * A query that acts similar to a query_string query, but won't throw
      * exceptions for any weird string syntax. See
-     * {@link org.apache.lucene.queryparser.XSimpleQueryParser} for the full
+     * {@link org.apache.lucene.queryparser.simple.SimpleQueryParser} for the full
      * supported syntax.
      */
     public static SimpleQueryStringBuilder simpleQueryStringQuery(String queryString) {
@@ -424,18 +424,6 @@ public abstract class QueryBuilders {
     }
 
     /**
-     * Constructs a new scoring child query, with the child type and the query to run on the child documents. The
-     * results of this query are the parent docs that those child docs matched.
-     *
-     * @param type  The child type.
-     * @param query The query.
-     */
-    @Deprecated
-    public static TopChildrenQueryBuilder topChildrenQuery(String type, QueryBuilder query) {
-        return new TopChildrenQueryBuilder(type, query);
-    }
-
-    /**
      * Constructs a new NON scoring child query, with the child type and the query to run on the child documents. The
      * results of this query are the parent docs that those child docs matched.
      *
@@ -543,6 +531,13 @@ public abstract class QueryBuilders {
      * A Query builder which allows building a query thanks to a JSON string or binary data.
      */
     public static WrapperQueryBuilder wrapperQuery(String source) {
+        return new WrapperQueryBuilder(source);
+    }
+
+    /**
+     * A Query builder which allows building a query thanks to a JSON string or binary data.
+     */
+    public static WrapperQueryBuilder wrapperQuery(BytesReference source) {
         return new WrapperQueryBuilder(source);
     }
 
@@ -767,15 +762,6 @@ public abstract class QueryBuilders {
 
     public static NotQueryBuilder notQuery(QueryBuilder filter) {
         return new NotQueryBuilder(filter);
-    }
-
-    /**
-     * Constructs a bytes filter to generate a filter from a {@link BytesReference} source
-     *
-     * @param source The filter source
-     */
-    public static BytesQueryBuilder bytesQuery(BytesReference source) {
-        return new BytesQueryBuilder(source);
     }
 
     /**

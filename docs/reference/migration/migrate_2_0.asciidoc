@@ -508,3 +508,15 @@ Settings settings = ImmutableSettings.settingsBuilder()
         .put("cluster.name", "myClusterName").build();
 Client client = TransportClient.builder().settings(settings).build();
 --------------------------------------------------
+
+=== Logging
+
+Log messages are now truncated at 10,000 characters. This can be changed in the
+`logging.yml` configuration file.
+
+[float]
+=== Removed `top_children` query
+
+The `top_children` query has been removed in favour of the `has_child` query. The `top_children` query wasn't always faster
+than the `has_child` query and the `top_children` query was often inaccurate. The total hits and any aggregations in the
+same search request will likely be off if `top_children` was used.

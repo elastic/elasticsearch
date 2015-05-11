@@ -22,8 +22,14 @@ package org.elasticsearch.bwcompat;
 import com.google.common.collect.ImmutableMap;
 
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.script.ScriptContext;
+import org.elasticsearch.script.ScriptModes;
+import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.groovy.GroovyScriptEngineService;
 import org.elasticsearch.test.ElasticsearchBackwardsCompatIntegrationTest;
 import org.junit.Test;
 
@@ -37,6 +43,20 @@ import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.not;
 
 public class ScriptTransformBackwardsCompatibilityTests extends ElasticsearchBackwardsCompatIntegrationTest {
+
+    public static final String INLINE_GROOVY_MAPPING_SCRIPT = "script.engine" + "." + GroovyScriptEngineService.NAME + "." + ScriptService.ScriptType.INLINE + "." + ScriptContext.Standard.MAPPING;
+
+    @Override
+    protected Settings externalNodeSettings(int nodeOrdinal) {
+        //enable scripting on the external nodes
+        return ImmutableSettings.builder().put(super.externalNodeSettings(nodeOrdinal)).put(INLINE_GROOVY_MAPPING_SCRIPT, "on").build();
+    }
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        //enable scripting on the internal nodes
+        return ImmutableSettings.builder().put(super.nodeSettings(nodeOrdinal)).put(INLINE_GROOVY_MAPPING_SCRIPT, "on").build();
+    }
 
     @Test
     public void testTransformWithNoLangSpecified() throws Exception {

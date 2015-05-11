@@ -24,8 +24,8 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
+import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.bucket.terms.LongTermsAggregator;
 import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
 import org.elasticsearch.search.aggregations.reducers.Reducer;
@@ -82,11 +82,15 @@ public class SignificantLongTermsAggregator extends LongTermsAggregator {
         BucketSignificancePriorityQueue ordered = new BucketSignificancePriorityQueue(size);
         SignificantLongTerms.Bucket spare = null;
         for (long i = 0; i < bucketOrds.size(); i++) {
+            final int docCount = bucketDocCount(i);
+            if (docCount < bucketCountThresholds.getShardMinDocCount()) {
+                continue;
+            }
             if (spare == null) {
                 spare = new SignificantLongTerms.Bucket(0, 0, 0, 0, 0, null, formatter);
             }
             spare.term = bucketOrds.get(i);
-            spare.subsetDf = bucketDocCount(i);
+            spare.subsetDf = docCount;
             spare.subsetSize = subsetSize;
             spare.supersetDf = termsAggFactory.getBackgroundFrequency(spare.term);
             spare.supersetSize = supersetSize;
@@ -95,9 +99,7 @@ public class SignificantLongTermsAggregator extends LongTermsAggregator {
             spare.updateScore(termsAggFactory.getSignificanceHeuristic());
 
             spare.bucketOrd = i;
-            if (spare.subsetDf >= bucketCountThresholds.getShardMinDocCount()) {
-                spare = (SignificantLongTerms.Bucket) ordered.insertWithOverflow(spare);
-            }
+            spare = (SignificantLongTerms.Bucket) ordered.insertWithOverflow(spare);
         }
 
         final InternalSignificantTerms.Bucket[] list = new InternalSignificantTerms.Bucket[ordered.size()];

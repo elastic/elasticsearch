@@ -340,8 +340,8 @@ public class WatchTests extends ElasticsearchTestCase {
             list.add(new ActionWrapper("_email_" + randomAsciiOfLength(8), transform, new ExecutableEmailAction(action, logger, emailService, templateEngine)));
         }
         if (randomBoolean()) {
-            IndexAction aciton = new IndexAction("_index", "_type");
-            list.add(new ActionWrapper("_index_" + randomAsciiOfLength(8), randomTransform(), new ExecutableIndexAction(aciton, logger, client)));
+            IndexAction action = new IndexAction("_index", "_type");
+            list.add(new ActionWrapper("_index_" + randomAsciiOfLength(8), randomTransform(), new ExecutableIndexAction(action, logger, client)));
         }
         if (randomBoolean()) {
             HttpRequestTemplate httpRequest = HttpRequestTemplate.builder("test.host", randomIntBetween(8000, 9000))

@@ -119,7 +119,7 @@ public class WatcherUtilsTests extends ElasticsearchTestCase {
                     Template.file(text).params(params).build(),
                     Template.indexed(text).params(params).build()
             );
-            expectedRequest.templateSource(jsonBuilder().startObject().field("template", template).endObject().bytes(), false);
+            expectedRequest.templateSource(jsonBuilder().startObject().field("template", template).endObject().string());
         }
 
         XContentBuilder builder = jsonBuilder();

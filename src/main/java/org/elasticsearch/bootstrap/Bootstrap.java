@@ -20,7 +20,6 @@
 package org.elasticsearch.bootstrap;
 
 import com.google.common.base.Charsets;
-import org.apache.lucene.util.Constants;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.collect.Tuple;
@@ -41,6 +40,7 @@ import org.elasticsearch.node.internal.InternalSettingsPreparer;
 
 import java.io.File;
 import java.io.FileOutputStream;
+import java.nio.file.Paths;
 import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
@@ -63,11 +63,7 @@ public class Bootstrap {
 
     private void setup(boolean addShutdownHook, Tuple<Settings, Environment> tuple) throws Exception {
         if (tuple.v1().getAsBoolean("bootstrap.mlockall", false)) {
-           if (Constants.WINDOWS) {
-               Natives.tryVirtualLock();
-            } else {
-               Natives.tryMlockall();
-            }
+            Natives.tryMlockall();
         }
 
         NodeBuilder nodeBuilder = NodeBuilder.nodeBuilder().settings(tuple.v1()).loadConfigSettings(false);

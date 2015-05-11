@@ -51,6 +51,7 @@ governing permissions and limitations under the License. -->
     <properties>
         <google.gce.version>v1-rev59-1.20.0</google.gce.version>
         <es.plugin.port>9300</es.plugin.port>
+        <tests.security.manager>true</tests.security.manager>
     </properties>
 
     <dependencies>

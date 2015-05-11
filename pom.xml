@@ -33,6 +33,7 @@
 
     <properties>
         <!-- You can add any specific project property here -->
+        <tests.security.manager>true</tests.security.manager>
     </properties>
 
     <dependencies>

@@ -31,7 +31,9 @@ public class NativesTests extends ElasticsearchTestCase {
     public void testMlockall() {
         if (Constants.MAC_OS_X) {
             assertFalse("Memory locking is not available on OS X platforms", Natives.LOCAL_MLOCKALL);
-        } else {
+        }
+
+        if (Constants.WINDOWS) {
             assertTrue(Natives.LOCAL_MLOCKALL);
         }
     }

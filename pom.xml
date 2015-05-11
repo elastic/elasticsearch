@@ -32,7 +32,7 @@
     </parent>
 
     <properties>
-        <amazonaws.version>1.9.23</amazonaws.version>
+        <amazonaws.version>1.9.34</amazonaws.version>
     </properties>
 
     <dependencies>

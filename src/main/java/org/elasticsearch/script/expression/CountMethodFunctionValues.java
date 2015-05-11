@@ -22,22 +22,23 @@ package org.elasticsearch.script.expression;
 import org.apache.lucene.queries.function.ValueSource;
 import org.apache.lucene.queries.function.docvalues.DoubleDocValues;
 import org.elasticsearch.index.fielddata.AtomicNumericFieldData;
-import org.elasticsearch.index.fielddata.NumericDoubleValues;
-import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 
 /**
- * A {@link org.apache.lucene.queries.function.FunctionValues} which wrap field data.
+ * FunctionValues to get the count of the number of values in a field for a document.
  */
-class FieldDataFunctionValues extends DoubleDocValues {
-    NumericDoubleValues dataAccessor;
+public class CountMethodFunctionValues extends DoubleDocValues {
+    SortedNumericDoubleValues values;
 
-    FieldDataFunctionValues(ValueSource parent, MultiValueMode m, AtomicNumericFieldData d) {
+    CountMethodFunctionValues(ValueSource parent, AtomicNumericFieldData fieldData) {
         super(parent);
-        dataAccessor = m.select(d.getDoubleValues(), 0d);
+
+        values = fieldData.getDoubleValues();
     }
 
     @Override
-    public double doubleVal(int i) {
-        return dataAccessor.get(i);
+    public double doubleVal(int doc) {
+        values.setDocument(doc);
+        return values.count();
     }
 }

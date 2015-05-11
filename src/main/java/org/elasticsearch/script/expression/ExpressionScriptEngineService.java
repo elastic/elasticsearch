@@ -39,6 +39,7 @@ import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptEngineService;
 import org.elasticsearch.script.SearchScript;
+import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.text.ParseException;
@@ -59,6 +60,13 @@ public class ExpressionScriptEngineService extends AbstractComponent implements 
     protected static final String GET_HOUR_OF_DAY_METHOD  = "getHourOfDay";
     protected static final String GET_MINUTES_METHOD      = "getMinutes";
     protected static final String GET_SECONDS_METHOD      = "getSeconds";
+
+    protected static final String MINIMUM_METHOD          = "min";
+    protected static final String MAXIMUM_METHOD          = "max";
+    protected static final String AVERAGE_METHOD          = "avg";
+    protected static final String MEDIAN_METHOD           = "median";
+    protected static final String SUM_METHOD              = "sum";
+    protected static final String COUNT_METHOD            = "count";
 
     @Inject
     public ExpressionScriptEngineService(Settings settings) {
@@ -156,7 +164,7 @@ public class ExpressionScriptEngineService extends AbstractComponent implements 
 
                 IndexFieldData<?> fieldData = lookup.doc().fieldDataService().getForField((NumberFieldMapper)field);
                 if (methodname == null) {
-                    bindings.add(variable, new FieldDataValueSource(fieldData));
+                    bindings.add(variable, new FieldDataValueSource(fieldData, MultiValueMode.MIN));
                 } else {
                     bindings.add(variable, getMethodValueSource(field, fieldData, fieldname, methodname));
                 }
@@ -180,6 +188,18 @@ public class ExpressionScriptEngineService extends AbstractComponent implements 
                 return getDateMethodValueSource(field, fieldData, fieldName, methodName, Calendar.MINUTE);
             case GET_SECONDS_METHOD:
                 return getDateMethodValueSource(field, fieldData, fieldName, methodName, Calendar.SECOND);
+            case MINIMUM_METHOD:
+                return new FieldDataValueSource(fieldData, MultiValueMode.MIN);
+            case MAXIMUM_METHOD:
+                return new FieldDataValueSource(fieldData, MultiValueMode.MAX);
+            case AVERAGE_METHOD:
+                return new FieldDataValueSource(fieldData, MultiValueMode.AVG);
+            case MEDIAN_METHOD:
+                return new FieldDataValueSource(fieldData, MultiValueMode.MEDIAN);
+            case SUM_METHOD:
+                return new FieldDataValueSource(fieldData, MultiValueMode.SUM);
+            case COUNT_METHOD:
+                return new CountMethodValueSource(fieldData);
             default:
                 throw new IllegalArgumentException("Member method [" + methodName + "] does not exist.");
         }
@@ -190,7 +210,7 @@ public class ExpressionScriptEngineService extends AbstractComponent implements 
             throw new IllegalArgumentException("Member method [" + methodName + "] can only be used with a date field type, not the field [" + fieldName + "].");
         }
 
-        return new DateMethodValueSource(fieldData, methodName, calendarType);
+        return new DateMethodValueSource(fieldData, MultiValueMode.MIN, methodName, calendarType);
     }
 
     @Override

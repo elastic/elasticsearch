@@ -1879,7 +1879,7 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
 
         logger.info("--> searching on _all, highlighting on field1");
         source = searchSource()
-                .query(termQuery("field1", "test"))
+                .query(termQuery("_all", "test"))
                 .highlight(highlight().field("field1").preTags("<xxx>").postTags("</xxx>").requireFieldMatch(false));
 
         searchResponse = client().search(searchRequest("test").source(source)).actionGet();
@@ -1888,7 +1888,7 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
 
         logger.info("--> searching on _all, highlighting on field2");
         source = searchSource()
-                .query(termQuery("field2", "quick"))
+                .query(termQuery("_all", "quick"))
                 .highlight(highlight().field("field2").order("score").preTags("<xxx>").postTags("</xxx>").requireFieldMatch(false));
 
         searchResponse = client().search(searchRequest("test").source(source)).actionGet();
@@ -1897,7 +1897,7 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
 
         logger.info("--> searching on _all, highlighting on field2");
         source = searchSource()
-                .query(matchPhraseQuery("field2", "quick brown"))
+                .query(matchPhraseQuery("_all", "quick brown"))
                 .highlight(highlight().field("field2").preTags("<xxx>").postTags("</xxx>").requireFieldMatch(false));
 
         searchResponse = client().search(searchRequest("test").source(source)).actionGet();
@@ -1908,8 +1908,8 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
         //lets fall back to the standard highlighter then, what people would do to highlight query matches
         logger.info("--> searching on _all, highlighting on field2, falling back to the plain highlighter");
         source = searchSource()
-                .query(matchPhraseQuery("field2", "quick brown"))
-                .highlight(highlight().field("field2").preTags("<xxx>").postTags("</xxx>").highlighterType("highlighter"));
+                .query(matchPhraseQuery("_all", "quick brown"))
+                .highlight(highlight().field("field2").preTags("<xxx>").postTags("</xxx>").highlighterType("highlighter").requireFieldMatch(false));
 
         searchResponse = client().search(searchRequest("test").source(source)).actionGet();
 

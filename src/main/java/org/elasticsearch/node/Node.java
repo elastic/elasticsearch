@@ -349,11 +349,12 @@ public class Node implements Releasable {
         stopWatch.stop().start("indices_cluster");
         injector.getInstance(IndicesClusterStateService.class).close();
         stopWatch.stop().start("indices");
-        injector.getInstance(IndicesFilterCache.class).close();
-        injector.getInstance(IndicesFieldDataCache.class).close();
         injector.getInstance(IndexingMemoryController.class).close();
         injector.getInstance(IndicesTTLService.class).close();
         injector.getInstance(IndicesService.class).close();
+        // close filter/fielddata caches after indices
+        injector.getInstance(IndicesFilterCache.class).close();
+        injector.getInstance(IndicesFieldDataCache.class).close();
         injector.getInstance(IndicesStore.class).close();
         stopWatch.stop().start("routing");
         injector.getInstance(RoutingService.class).close();

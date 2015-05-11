@@ -125,6 +125,72 @@ public class ExpressionScriptTests extends ElasticsearchIntegrationTest {
         assertEquals(1983.0, hits.getAt(1).field("foo").getValue());
     }
 
+    public void testMultiValueMethods() throws Exception {
+        ElasticsearchAssertions.assertAcked(prepareCreate("test").addMapping("doc", "double0", "type=double", "double1", "type=double"));
+        ensureGreen("test");
+        indexRandom(true,
+                client().prepareIndex("test", "doc", "1").setSource("double0", "5.0", "double0", "1.0", "double0", "1.5", "double1", "1.2", "double1", "2.4"),
+                client().prepareIndex("test", "doc", "2").setSource("double0", "5.0", "double1", "3.0"),
+                client().prepareIndex("test", "doc", "3").setSource("double0", "5.0", "double0", "1.0", "double0", "1.5", "double0", "-1.5", "double1", "4.0"));
+
+
+        SearchResponse rsp = buildRequest("doc['double0'].count() + doc['double1'].count()").get();
+        assertSearchResponse(rsp);
+        SearchHits hits = rsp.getHits();
+        assertEquals(3, hits.getTotalHits());
+        assertEquals(5.0, hits.getAt(0).field("foo").getValue());
+        assertEquals(2.0, hits.getAt(1).field("foo").getValue());
+        assertEquals(5.0, hits.getAt(2).field("foo").getValue());
+
+        rsp = buildRequest("doc['double0'].sum()").get();
+        assertSearchResponse(rsp);
+        hits = rsp.getHits();
+        assertEquals(3, hits.getTotalHits());
+        assertEquals(7.5, hits.getAt(0).field("foo").getValue());
+        assertEquals(5.0, hits.getAt(1).field("foo").getValue());
+        assertEquals(6.0, hits.getAt(2).field("foo").getValue());
+
+        rsp = buildRequest("doc['double0'].avg() + doc['double1'].avg()").get();
+        assertSearchResponse(rsp);
+        hits = rsp.getHits();
+        assertEquals(3, hits.getTotalHits());
+        assertEquals(4.3, hits.getAt(0).field("foo").getValue());
+        assertEquals(8.0, hits.getAt(1).field("foo").getValue());
+        assertEquals(5.5, hits.getAt(2).field("foo").getValue());
+
+        rsp = buildRequest("doc['double0'].median()").get();
+        assertSearchResponse(rsp);
+        hits = rsp.getHits();
+        assertEquals(3, hits.getTotalHits());
+        assertEquals(1.5, hits.getAt(0).field("foo").getValue());
+        assertEquals(5.0, hits.getAt(1).field("foo").getValue());
+        assertEquals(1.25, hits.getAt(2).field("foo").getValue());
+
+        rsp = buildRequest("doc['double0'].min()").get();
+        assertSearchResponse(rsp);
+        hits = rsp.getHits();
+        assertEquals(3, hits.getTotalHits());
+        assertEquals(1.0, hits.getAt(0).field("foo").getValue());
+        assertEquals(5.0, hits.getAt(1).field("foo").getValue());
+        assertEquals(-1.5, hits.getAt(2).field("foo").getValue());
+
+        rsp = buildRequest("doc['double0'].max()").get();
+        assertSearchResponse(rsp);
+        hits = rsp.getHits();
+        assertEquals(3, hits.getTotalHits());
+        assertEquals(5.0, hits.getAt(0).field("foo").getValue());
+        assertEquals(5.0, hits.getAt(1).field("foo").getValue());
+        assertEquals(5.0, hits.getAt(2).field("foo").getValue());
+
+        rsp = buildRequest("doc['double0'].sum()/doc['double0'].count()").get();
+        assertSearchResponse(rsp);
+        hits = rsp.getHits();
+        assertEquals(3, hits.getTotalHits());
+        assertEquals(2.5, hits.getAt(0).field("foo").getValue());
+        assertEquals(5.0, hits.getAt(1).field("foo").getValue());
+        assertEquals(1.5, hits.getAt(2).field("foo").getValue());
+    }
+
     public void testInvalidDateMethodCall() throws Exception {
         ElasticsearchAssertions.assertAcked(prepareCreate("test").addMapping("doc", "double", "type=double"));
         ensureGreen("test");

@@ -91,7 +91,7 @@ public class TrackingConcurrentMergeScheduler extends ConcurrentMergeScheduler {
     protected void doMerge(MergePolicy.OneMerge merge) throws IOException {
         int totalNumDocs = merge.totalNumDocs();
         long totalSizeInBytes = merge.totalBytesSize();
-        long time = System.currentTimeMillis();
+        long timeNS = System.nanoTime();
         currentMerges.inc();
         currentMergesNumDocs.inc(totalNumDocs);
         currentMergesSizeInBytes.inc(totalSizeInBytes);
@@ -106,7 +106,7 @@ public class TrackingConcurrentMergeScheduler extends ConcurrentMergeScheduler {
             beforeMerge(onGoingMerge);
             super.doMerge(merge);
         } finally {
-            long took = System.currentTimeMillis() - time;
+            long tookMS = TimeValue.nsecToMSec(System.nanoTime() - timeNS);
 
             onGoingMerges.remove(onGoingMerge);
             afterMerge(onGoingMerge);
@@ -117,15 +117,16 @@ public class TrackingConcurrentMergeScheduler extends ConcurrentMergeScheduler {
 
             totalMergesNumDocs.inc(totalNumDocs);
             totalMergesSizeInBytes.inc(totalSizeInBytes);
-            totalMerges.inc(took);
+            totalMerges.inc(tookMS);
+
             String message = String.format(Locale.ROOT,
                                            "merge segment [%s] done: took [%s], [%,.1f MB], [%,d docs]",
                                            merge.info == null ? "_na_" : merge.info.info.name,
-                                           TimeValue.timeValueMillis(took),
+                                           TimeValue.timeValueMillis(tookMS),
                                            totalSizeInBytes/1024f/1024f,
                                            totalNumDocs);
 
-            if (took > 20000) { // if more than 20 seconds, DEBUG log it
+            if (tookMS > 20000) { // if more than 20 seconds, DEBUG log it
                 logger.debug(message);
             } else if (logger.isTraceEnabled()) {
                 logger.trace(message);

@@ -26,6 +26,7 @@ import org.apache.lucene.util.packed.PackedInts;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.fielddata.AtomicOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -43,7 +44,7 @@ public enum GlobalOrdinalsBuilder {
      */
     public static IndexOrdinalsFieldData build(final IndexReader indexReader, IndexOrdinalsFieldData indexFieldData, Settings settings, CircuitBreakerService breakerService, ESLogger logger) throws IOException {
         assert indexReader.leaves().size() > 1;
-        long startTime = System.currentTimeMillis();
+        long startTimeNS = System.nanoTime();
 
         final AtomicOrdinalsFieldData[] atomicFD = new AtomicOrdinalsFieldData[indexReader.leaves().size()];
         final RandomAccessOrds[] subs = new RandomAccessOrds[indexReader.leaves().size()];
@@ -60,7 +61,7 @@ public enum GlobalOrdinalsBuilder {
                     "Global-ordinals[{}][{}] took {} ms",
                     indexFieldData.getFieldNames().fullName(),
                     ordinalMap.getValueCount(),
-                    (System.currentTimeMillis() - startTime)
+                    TimeValue.nsecToMSec(System.nanoTime() - startTimeNS)
             );
         }
         return new InternalGlobalOrdinalsIndexFieldData(indexFieldData.index(), settings, indexFieldData.getFieldNames(),

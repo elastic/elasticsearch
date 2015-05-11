@@ -1203,7 +1203,7 @@ public class IndexShard extends AbstractIndexShardComponent {
 
     private void checkIndex(boolean throwException) throws IndexShardException {
         try {
-            long time = System.currentTimeMillis();
+            long timeNS = System.nanoTime();
             if (!Lucene.indexExists(store.directory())) {
                 return;
             }
@@ -1238,7 +1238,7 @@ public class IndexShard extends AbstractIndexShardComponent {
                     logger.debug("check index [success]\n{}", new String(os.bytes().toBytes(), Charsets.UTF_8));
                 }
             }
-            recoveryState.getStart().checkIndexTime(Math.max(0, System.currentTimeMillis() - time));
+            recoveryState.getStart().checkIndexTime(Math.max(0, TimeValue.nsecToMSec(System.nanoTime() - timeNS)));
         } catch (Exception e) {
             logger.warn("failed to check index", e);
         }

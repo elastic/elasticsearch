@@ -16,6 +16,8 @@
 
 package org.elasticsearch.common.inject.internal;
 
+import org.elasticsearch.common.unit.TimeValue;
+
 import java.util.logging.Logger;
 
 /**
@@ -26,17 +28,17 @@ import java.util.logging.Logger;
 public class Stopwatch {
     private static final Logger logger = Logger.getLogger(Stopwatch.class.getName());
 
-    private long start = System.currentTimeMillis();
+    private long startNS = System.nanoTime();
 
     /**
      * Resets and returns elapsed time in milliseconds.
      */
     public long reset() {
-        long now = System.currentTimeMillis();
+        long nowNS = System.nanoTime();
         try {
-            return now - start;
+            return TimeValue.nsecToMSec(nowNS - startNS);
         } finally {
-            start = now;
+            startNS = nowNS;
         }
     }
 

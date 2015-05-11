@@ -284,7 +284,7 @@ public class SearchInputTests extends ElasticsearchIntegrationTest {
         XContentBuilder jsonBuilder = jsonBuilder();
         jsonBuilder.startObject();
         jsonBuilder.field(SearchInput.Field.PAYLOAD.getPreferredName(), data);
-        jsonBuilder.field(SearchInput.Field.EXECUTED_REQUEST.getPreferredName());
+        jsonBuilder.field(SearchInput.Field.REQUEST.getPreferredName());
         WatcherUtils.writeSearchRequest(request, jsonBuilder, ToXContent.EMPTY_PARAMS);
         jsonBuilder.endObject();
 

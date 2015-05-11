@@ -98,8 +98,8 @@ public class HistoryTemplateHttpMappingsTests extends AbstractWatcherIntegration
         assertWatchWithMinimumActionsCount("_id", WatchRecord.State.EXECUTED, 1);
 
         SearchResponse response = client().prepareSearch(HistoryStore.INDEX_PREFIX + "*").setSource(searchSource()
-                .aggregation(terms("input_result_path").field("execution_result.input.http.sent_request.path"))
-                .aggregation(terms("input_result_host").field("execution_result.input.http.sent_request.host"))
+                .aggregation(terms("input_result_path").field("execution_result.input.http.request.path"))
+                .aggregation(terms("input_result_host").field("execution_result.input.http.request.host"))
                 .aggregation(terms("webhook_path").field("execution_result.actions.webhook.request.path"))
                 .buildAsBytes())
                 .get();

@@ -68,9 +68,9 @@ public class HistoryTemplateSearchInputMappingsTests extends AbstractWatcherInte
         assertWatchWithMinimumActionsCount("_id", WatchRecord.State.EXECUTED, 1);
 
         SearchResponse response = client().prepareSearch(HistoryStore.INDEX_PREFIX + "*").setSource(searchSource()
-                .aggregation(terms("input_search_type").field("execution_result.input.search.executed_request.search_type"))
-                .aggregation(terms("input_indices").field("execution_result.input.search.executed_request.indices"))
-                .aggregation(terms("input_types").field("execution_result.input.search.executed_request.types"))
+                .aggregation(terms("input_search_type").field("execution_result.input.search.request.search_type"))
+                .aggregation(terms("input_indices").field("execution_result.input.search.request.indices"))
+                .aggregation(terms("input_types").field("execution_result.input.search.request.types"))
                 .buildAsBytes())
                 .get();
 

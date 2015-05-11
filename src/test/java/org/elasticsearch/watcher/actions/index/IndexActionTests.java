@@ -56,7 +56,7 @@ public class IndexActionTests extends ElasticsearchIntegrationTest {
         IndexAction action = new IndexAction("test-index", "test-type");
         ExecutableIndexAction executable = new ExecutableIndexAction(action, logger, ClientProxy.of(client()));
         final String account = "account1";
-        Watch watch = WatcherTestUtils.createTestWatch("testAlert",
+        Watch watch = WatcherTestUtils.createTestWatch("test_watch",
                 ClientProxy.of(client()),
                 ScriptServiceProxy.of(internalCluster().getInstance(ScriptService.class)),
                 new HttpClient(ImmutableSettings.EMPTY, mock(HttpAuthRegistry.class)),
@@ -208,7 +208,7 @@ public class IndexActionTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testParser_Result_Simulated_SelfGenerated() throws Exception {
-        IndexRequest request = new IndexRequest("testindex").type("testtype");
+        IndexRequest request = new IndexRequest("test-index").type("test-type");
         XContentBuilder resultBuilder = XContentFactory.jsonBuilder().prettyPrint();
         resultBuilder.startObject();
         resultBuilder.field("data", new HashMap<String, Object>());

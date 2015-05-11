@@ -126,21 +126,21 @@ public class SearchInput implements Input {
 
     public static class Result extends Input.Result {
 
-        private final SearchRequest executedRequest;
+        private final SearchRequest request;
 
-        public Result(SearchRequest executedRequest, Payload payload) {
+        public Result(SearchRequest request, Payload payload) {
             super(TYPE, payload);
-            this.executedRequest = executedRequest;
+            this.request = request;
         }
 
         public SearchRequest executedRequest() {
-            return executedRequest;
+            return request;
         }
 
         @Override
         protected XContentBuilder toXContentBody(XContentBuilder builder, Params params) throws IOException {
-            builder.field(Field.EXECUTED_REQUEST.getPreferredName());
-            WatcherUtils.writeSearchRequest(executedRequest, builder, params);
+            builder.field(Field.REQUEST.getPreferredName());
+            WatcherUtils.writeSearchRequest(request, builder, params);
             return builder;
         }
 
@@ -153,7 +153,7 @@ public class SearchInput implements Input {
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
-                } else if (Field.EXECUTED_REQUEST.match(currentFieldName)) {
+                } else if (Field.REQUEST.match(currentFieldName)) {
                     try {
                         executedRequest = WatcherUtils.readSearchRequest(parser, ExecutableSearchInput.DEFAULT_SEARCH_TYPE);
                     } catch (SearchRequestParseException srpe) {
@@ -169,7 +169,7 @@ public class SearchInput implements Input {
             }
 
             if (executedRequest == null) {
-                throw new SearchInputException("could not parse [{}] input result for watch [{}]. missing required [{}] field", TYPE, watchId, Field.EXECUTED_REQUEST.getPreferredName());
+                throw new SearchInputException("could not parse [{}] input result for watch [{}]. missing required [{}] field", TYPE, watchId, Field.REQUEST.getPreferredName());
             }
 
             if (payload == null) {
@@ -208,7 +208,6 @@ public class SearchInput implements Input {
 
     public interface Field extends Input.Field {
         ParseField REQUEST = new ParseField("request");
-        ParseField EXECUTED_REQUEST = new ParseField("executed_request");
         ParseField EXTRACT = new ParseField("extract");
     }
 }

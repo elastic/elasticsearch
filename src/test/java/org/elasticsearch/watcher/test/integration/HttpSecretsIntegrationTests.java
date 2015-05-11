@@ -20,10 +20,10 @@ import org.elasticsearch.watcher.support.http.HttpRequestTemplate;
 import org.elasticsearch.watcher.support.http.auth.basic.ApplicableBasicAuth;
 import org.elasticsearch.watcher.support.http.auth.basic.BasicAuth;
 import org.elasticsearch.watcher.support.secret.SecretService;
+import org.elasticsearch.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
 import org.elasticsearch.watcher.transport.actions.execute.ExecuteWatchResponse;
 import org.elasticsearch.watcher.transport.actions.get.GetWatchResponse;
-import org.elasticsearch.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.watcher.trigger.TriggerEvent;
 import org.elasticsearch.watcher.trigger.schedule.ScheduleTriggerEvent;
 import org.elasticsearch.watcher.watch.WatchStore;
@@ -153,7 +153,7 @@ public class HttpSecretsIntegrationTests extends AbstractWatcherIntegrationTests
                 .get();
         assertThat(executeResponse, notNullValue());
         contentSource = executeResponse.getSource();
-        value = contentSource.getValue("execution_result.input.http.http_status");
+        value = contentSource.getValue("execution_result.input.http.status");
         assertThat(value, notNullValue());
         assertThat(value, is((Object) 200));
 

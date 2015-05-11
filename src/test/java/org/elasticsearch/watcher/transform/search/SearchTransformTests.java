@@ -373,7 +373,7 @@ public class SearchTransformTests extends ElasticsearchIntegrationTest {
         XContentBuilder jsonBuilder = jsonBuilder();
         jsonBuilder.startObject();
         jsonBuilder.field(SearchTransform.Field.PAYLOAD.getPreferredName(), data);
-        jsonBuilder.field(SearchTransform.Field.EXECUTED_REQUEST.getPreferredName());
+        jsonBuilder.field(SearchTransform.Field.REQUEST.getPreferredName());
         WatcherUtils.writeSearchRequest(request, jsonBuilder, ToXContent.EMPTY_PARAMS);
         jsonBuilder.endObject();
 

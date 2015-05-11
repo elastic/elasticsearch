@@ -184,8 +184,8 @@ public class HttpInputTests extends ElasticsearchTestCase {
         Map<String, Object> payload = MapBuilder.<String, Object>newMapBuilder().put("x", "y").map();
 
         XContentBuilder builder = jsonBuilder().startObject();
-        builder.field(HttpInput.Field.HTTP_STATUS.getPreferredName(), 123);
-        builder.field(HttpInput.Field.SENT_REQUEST.getPreferredName(), request);
+        builder.field(HttpInput.Field.STATUS.getPreferredName(), 123);
+        builder.field(HttpInput.Field.REQUEST.getPreferredName(), request);
         builder.field(HttpInput.Field.PAYLOAD.getPreferredName(), payload);
         builder.endObject();
 
@@ -194,13 +194,13 @@ public class HttpInputTests extends ElasticsearchTestCase {
         HttpInput.Result result = httpParser.parseResult("_id", parser);
         assertThat(result.type(), equalTo(HttpInput.TYPE));
         assertThat(result.payload().data(), equalTo(payload));
-        assertThat(result.statusCode(), equalTo(123));
-        assertThat(result.sentRequest().method().method(), equalTo("GET"));
-        assertThat(result.sentRequest().headers().size(), equalTo(headers.size()));
-        assertThat(result.sentRequest().headers(), hasEntry("a", (Object) "b"));
-        assertThat(result.sentRequest().host(), equalTo("_host"));
-        assertThat(result.sentRequest().port(), equalTo(123));
-        assertThat(result.sentRequest().body(), equalTo("_body"));
+        assertThat(result.status(), equalTo(123));
+        assertThat(result.request().method().method(), equalTo("GET"));
+        assertThat(result.request().headers().size(), equalTo(headers.size()));
+        assertThat(result.request().headers(), hasEntry("a", (Object) "b"));
+        assertThat(result.request().host(), equalTo("_host"));
+        assertThat(result.request().port(), equalTo(123));
+        assertThat(result.request().body(), equalTo("_body"));
     }
 
 }

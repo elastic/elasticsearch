@@ -76,7 +76,7 @@
                   "type": "object",
                   "dynamic": true,
                   "properties": {
-                    "executed_request": {
+                    "request": {
                       "type": "object",
                       "dynamic": true,
                       "properties": {
@@ -100,7 +100,7 @@
                   "type": "object",
                   "dynamic": true,
                   "properties": {
-                    "sent_request": {
+                    "request": {
                       "type": "object",
                       "dynamic": true,
                       "properties": {

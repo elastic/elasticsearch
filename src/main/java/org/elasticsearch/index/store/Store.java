@@ -1078,10 +1078,8 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         }
 
         synchronized void writeChecksums(Directory directory, Map<String, String> checksums, long lastVersion) throws IOException {
-            long nextVersion = System.currentTimeMillis();
-            while (nextVersion <= lastVersion) {
-                nextVersion = System.currentTimeMillis();
-            }
+            // Make sure if clock goes backwards we still move version forwards:
+            long nextVersion = Math.max(lastVersion+1, System.currentTimeMillis());
             final String checksumName = CHECKSUMS_PREFIX + nextVersion;
             try (IndexOutput output = directory.createOutput(checksumName, IOContext.DEFAULT)) {
                 output.writeInt(0); // version

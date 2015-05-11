@@ -82,9 +82,9 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
             try {
                 ensureNoPre019State();
                 pre20Upgrade();
-                long start = System.currentTimeMillis();
+                long startNS = System.nanoTime();
                 metaStateService.loadFullState();
-                logger.debug("took {} to load state", TimeValue.timeValueMillis(System.currentTimeMillis() - start));
+                logger.debug("took {} to load state", TimeValue.timeValueMillis(TimeValue.nsecToMSec(System.nanoTime() - startNS)));
             } catch (Exception e) {
                 logger.error("failed to read local state, exiting...", e);
                 throw e;

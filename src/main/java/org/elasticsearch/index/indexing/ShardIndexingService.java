@@ -26,6 +26,7 @@ import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.indexing.slowlog.ShardSlowLogIndexingService;
 import org.elasticsearch.index.settings.IndexSettings;
@@ -259,33 +260,33 @@ public class ShardIndexingService extends AbstractIndexShardComponent {
         public final CounterMetric noopUpdates = new CounterMetric();
         public final CounterMetric throttleTimeMillisMetric = new CounterMetric();
         volatile boolean isThrottled = false;
-        volatile long startOfThrottleMillis;
+        volatile long startOfThrottleNS;
 
         public IndexingStats.Stats stats() {
-            long currentThrottleMillis = 0;
-            if (isThrottled && startOfThrottleMillis != 0) {
-                currentThrottleMillis +=  System.currentTimeMillis() - startOfThrottleMillis;
-                if (currentThrottleMillis < 0) {
-                    //Timeslip must have happened, have to ignore this value
-                    currentThrottleMillis = 0;
+            long currentThrottleNS = 0;
+            if (isThrottled && startOfThrottleNS != 0) {
+                currentThrottleNS +=  System.nanoTime() - startOfThrottleNS;
+                if (currentThrottleNS < 0) {
+                    // Paranoia (System.nanoTime() is supposed to be monotonic): time slip must have happened, have to ignore this value
+                    currentThrottleNS = 0;
                 }
             }
             return new IndexingStats.Stats(
                     indexMetric.count(), TimeUnit.NANOSECONDS.toMillis(indexMetric.sum()), indexCurrent.count(),
                     deleteMetric.count(), TimeUnit.NANOSECONDS.toMillis(deleteMetric.sum()), deleteCurrent.count(),
-                    noopUpdates.count(), isThrottled, TimeUnit.MILLISECONDS.toMillis(throttleTimeMillisMetric.count() + currentThrottleMillis));
+                    noopUpdates.count(), isThrottled, TimeUnit.MILLISECONDS.toMillis(throttleTimeMillisMetric.count() + TimeValue.nsecToMSec(currentThrottleNS)));
         }
 
 
         void setThrottled(boolean isThrottled) {
             if (!this.isThrottled && isThrottled) {
-                startOfThrottleMillis = System.currentTimeMillis();
+                startOfThrottleNS = System.nanoTime();
             } else if (this.isThrottled && !isThrottled) {
-                assert startOfThrottleMillis > 0 : "Bad state of startOfThrottleMillis";
-                long throttleTimeMillis = System.currentTimeMillis() - startOfThrottleMillis;
-                if (throttleTimeMillis >= 0) {
-                    //A timeslip may have occurred but never want to add a negative number
-                    throttleTimeMillisMetric.inc(throttleTimeMillis);
+                assert startOfThrottleNS > 0 : "Bad state of startOfThrottleNS";
+                long throttleTimeNS = System.nanoTime() - startOfThrottleNS;
+                if (throttleTimeNS >= 0) {
+                    // Paranoia (System.nanoTime() is supposed to be monotonic): time slip may have occurred but never want to add a negative number
+                    throttleTimeMillisMetric.inc(TimeValue.nsecToMSec(throttleTimeNS));
                 }
             }
             this.isThrottled = isThrottled;

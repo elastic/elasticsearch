@@ -55,6 +55,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
 /**
@@ -133,7 +134,7 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesOperatio
 
     private StoreFilesMetaData listStoreMetaData(ShardId shardId) throws IOException {
         logger.trace("listing store meta data for {}", shardId);
-        long startTime = System.currentTimeMillis();
+        long startTimeNS = System.nanoTime();
         boolean exists = false;
         try {
             IndexService indexService = indicesService.indexService(shardId.index().name());
@@ -165,7 +166,7 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesOperatio
             }
             return new StoreFilesMetaData(false, shardId, Store.readMetadataSnapshot(shardPath.resolveIndex(), logger).asMap());
         } finally {
-            TimeValue took = new TimeValue(System.currentTimeMillis() - startTime);
+            TimeValue took = new TimeValue(System.nanoTime() - startTimeNS, TimeUnit.NANOSECONDS);
             if (exists) {
                 logger.debug("{} loaded store meta data (took [{}])", shardId, took);
             } else {

@@ -38,6 +38,9 @@ import java.util.concurrent.TimeUnit;
  */
 public class TimeValue implements Serializable, Streamable {
 
+    /** How many nano-seconds in one milli-second */
+    public static final long NSEC_PER_MSEC = 1000000;
+
     public static TimeValue timeValueNanos(long nanos) {
         return new TimeValue(nanos, TimeUnit.NANOSECONDS);
     }
@@ -295,5 +298,9 @@ public class TimeValue implements Serializable, Streamable {
     public int hashCode() {
         long normalized = timeUnit.toNanos(duration);
         return (int) (normalized ^ (normalized >>> 32));
+    }
+
+    public static long nsecToMSec(long ns) {
+        return ns / NSEC_PER_MSEC;
     }
 }

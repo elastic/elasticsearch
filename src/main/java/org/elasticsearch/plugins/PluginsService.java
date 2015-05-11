@@ -81,7 +81,7 @@ public class PluginsService extends AbstractComponent {
     private PluginsInfo cachedPluginsInfo;
     private final TimeValue refreshInterval;
     private final boolean checkLucene;
-    private long lastRefresh;
+    private long lastRefreshNS;
 
     static class OnModuleReference {
         public final Class<? extends Module> moduleClass;
@@ -313,13 +313,13 @@ public class PluginsService extends AbstractComponent {
     synchronized public PluginsInfo info() {
         if (refreshInterval.millis() != 0) {
             if (cachedPluginsInfo != null &&
-                    (refreshInterval.millis() < 0 || (System.currentTimeMillis() - lastRefresh) < refreshInterval.millis())) {
+                    (refreshInterval.millis() < 0 || (System.nanoTime() - lastRefreshNS) < refreshInterval.nanos())) {
                 if (logger.isTraceEnabled()) {
                     logger.trace("using cache to retrieve plugins info");
                 }
                 return cachedPluginsInfo;
             }
-            lastRefresh = System.currentTimeMillis();
+            lastRefreshNS = System.nanoTime();
         }
 
         if (logger.isTraceEnabled()) {

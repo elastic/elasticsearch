@@ -33,6 +33,7 @@ import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
@@ -384,11 +385,11 @@ public class NodeEnvironment extends AbstractComponent implements Closeable {
         logger.trace("locking all shards for index {} - [{}]", index, numShards);
         List<ShardLock> allLocks = new ArrayList<>(numShards);
         boolean success = false;
-        long startTime = System.currentTimeMillis();
+        long startTimeNS = System.nanoTime();
         try {
             for (int i = 0; i < numShards; i++) {
-                long timeoutLeft = Math.max(0, lockTimeoutMS - (System.currentTimeMillis() - startTime));
-                allLocks.add(shardLock(new ShardId(index, i), timeoutLeft));
+                long timeoutLeftMS = Math.max(0, lockTimeoutMS - TimeValue.nsecToMSec((System.nanoTime() - startTimeNS)));
+                allLocks.add(shardLock(new ShardId(index, i), timeoutLeftMS));
             }
             success = true;
         } finally {

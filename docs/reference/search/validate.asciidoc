@@ -21,6 +21,34 @@ curl -XGET 'http://localhost:9200/twitter/_validate/query?q=user:foo'
 {"valid":true,"_shards":{"total":1,"successful":1,"failed":0}}
 --------------------------------------------------
 
+[float]
+=== Request Parameters
+
+When executing exists using the query parameter `q`, the query passed is
+a query string using Lucene query parser. There are additional
+parameters that can be passed:
+
+[cols="<,<",options="header",]
+|=======================================================================
+|Name |Description
+|`df` |The default field to use when no field prefix is defined within the
+query.
+
+|`analyzer` |The analyzer name to be used when analyzing the query string.
+
+|`default_operator` |The default operator to be used, can be `AND` or
+`OR`. Defaults to `OR`.
+
+|`lenient` |If set to true will cause format based failures (like
+providing text to a numeric field) to be ignored. Defaults to false.
+
+|`lowercase_expanded_terms` |Should terms be automatically lowercased or
+not. Defaults to `true`.
+
+|`analyze_wildcard` |Should wildcard and prefix queries be analyzed or
+not. Defaults to `false`.
+|=======================================================================
+
 Or, with a request body:
 
 [source,js]

@@ -29,6 +29,8 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.IdFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
@@ -97,5 +99,20 @@ public class IdMappingTests extends ElasticsearchSingleNodeTest {
                 .endObject().string();
 
         assertThat(serialized_id_mapping, equalTo(expected_id_mapping));
+    }
+
+    public void testIncludeInObjectBackcompat() throws Exception {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject().string();
+        Settings settings = ImmutableSettings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build();
+        DocumentMapper docMapper = createIndex("test", settings).mapperService().documentMapperParser().parse(mapping);
+
+        ParsedDocument doc = docMapper.parse(SourceToParse.source(XContentFactory.jsonBuilder()
+            .startObject()
+            .field("_id", "1")
+            .endObject()
+            .bytes()).type("type"));
+
+        // _id is not indexed so we need to check _uid
+        assertEquals(Uid.createUid("type", "1"), doc.rootDoc().get(UidFieldMapper.NAME));
     }
 }

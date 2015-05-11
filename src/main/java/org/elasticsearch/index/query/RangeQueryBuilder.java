@@ -82,14 +82,13 @@ public class RangeQueryBuilder extends MultiTermQueryBuilder implements Streamab
     /**
      * The from part of the range query. Null indicates unbounded.
      */
-    public RangeQueryBuilder from(Object from, boolean includeLower, boolean includeUpper) {
+    public RangeQueryBuilder from(Object from, boolean includeLower) {
         if (from instanceof String) {
             this.from = BytesRefs.toBytesRef(from);
         } else {
             this.from = from;
         }
         this.includeLower = includeLower;
-        this.includeUpper = includeUpper;
         return this;
     }
 
@@ -97,42 +96,7 @@ public class RangeQueryBuilder extends MultiTermQueryBuilder implements Streamab
      * The from part of the range query. Null indicates unbounded.
      */
     public RangeQueryBuilder from(Object from) {
-        return from(from, true, true);
-    }
-
-    /**
-     * The from part of the range query. Null indicates unbounded.
-     */
-    public RangeQueryBuilder from(String from) {
-        return from((Object) from, true, true);
-    }
-
-    /**
-     * The from part of the range query. Null indicates unbounded.
-     */
-    public RangeQueryBuilder from(int from) {
-        return from((Object) from, true, true);
-    }
-
-    /**
-     * The from part of the range query. Null indicates unbounded.
-     */
-    public RangeQueryBuilder from(long from) {
-        return from((Object) from, true, true);
-    }
-
-    /**
-     * The from part of the range query. Null indicates unbounded.
-     */
-    public RangeQueryBuilder from(float from) {
-        return from((Object) from, true, true);
-    }
-
-    /**
-     * The from part of the range query. Null indicates unbounded.
-     */
-    public RangeQueryBuilder from(double from) {
-        return from((Object) from, true, true);
+        return from(from, this.includeLower);
     }
 
     /**
@@ -146,96 +110,25 @@ public class RangeQueryBuilder extends MultiTermQueryBuilder implements Streamab
      * The from part of the range query. Null indicates unbounded.
      */
     public RangeQueryBuilder gt(Object from) {
-        return from((Object) from, false, true);
-    }
-
-    /**
-     * The from part of the range query. Null indicates unbounded.
-     */
-    public RangeQueryBuilder gt(String from) {
-        return from((Object) from, false, true);
-    }
-
-    /**
-     * The from part of the range query. Null indicates unbounded.
-     */
-    public RangeQueryBuilder gt(int from) {
-        return from((Object) from, false, true);
-    }
-
-    /**
-     * The from part of the range query. Null indicates unbounded.
-     */
-    public RangeQueryBuilder gt(long from) {
-        return from((Object) from, false, true);
-    }
-
-    /**
-     * The from part of the range query. Null indicates unbounded.
-     */
-    public RangeQueryBuilder gt(float from) {
-        return from((Object) from, false, true);
-    }
-
-    /**
-     * The from part of the range query. Null indicates unbounded.
-     */
-    public RangeQueryBuilder gt(double from) {
-        return from((Object) from, false, true);
-    }
-
-    /**
-     * The from part of the range query. Null indicates unbounded.
-     */
-    public RangeQueryBuilder gte(String from) {
-        return from((Object) from, true, true);
+        return from(from, false);
     }
 
     /**
      * The from part of the range query. Null indicates unbounded.
      */
     public RangeQueryBuilder gte(Object from) {
-        return from(from, true, true);
-    }
-
-    /**
-     * The from part of the range query. Null indicates unbounded.
-     */
-    public RangeQueryBuilder gte(int from) {
-        return from((Object) from, true, true);
-    }
-
-    /**
-     * The from part of the range query. Null indicates unbounded.
-     */
-    public RangeQueryBuilder gte(long from) {
-        return from((Object) from, true, true);
-    }
-
-    /**
-     * The from part of the range query. Null indicates unbounded.
-     */
-    public RangeQueryBuilder gte(float from) {
-        return from((Object) from, true, true);
-    }
-
-    /**
-     * The from part of the range query. Null indicates unbounded.
-     */
-    public RangeQueryBuilder gte(double from) {
-        return from((Object) from, true, true);
+        return from(from, true);
     }
 
     /**
      * The to part of the range query. Null indicates unbounded.
      */
-    public RangeQueryBuilder to(Object to, boolean includeLower, boolean includeUpper) {
+    public RangeQueryBuilder to(Object to, boolean includeUpper) {
         if (to instanceof String) {
             this.to = BytesRefs.toBytesRef(to);
         } else {
             this.to = to;
         }
-        this.includeLower = includeLower;
         this.includeUpper = includeUpper;
         return this;
     }
@@ -244,42 +137,7 @@ public class RangeQueryBuilder extends MultiTermQueryBuilder implements Streamab
      * The to part of the range query. Null indicates unbounded.
      */
     public RangeQueryBuilder to(Object to) {
-        return to(to, true, true);
-    }
-
-    /**
-     * The to part of the range query. Null indicates unbounded.
-     */
-    public RangeQueryBuilder to(String to) {
-        return to(to, true, true);
-    }
-
-    /**
-     * The to part of the range query. Null indicates unbounded.
-     */
-    public RangeQueryBuilder to(int to) {
-        return to(to, true, true);
-    }
-
-    /**
-     * The to part of the range query. Null indicates unbounded.
-     */
-    public RangeQueryBuilder to(long to) {
-        return to(to, true, true);
-    }
-
-    /**
-     * The to part of the range query. Null indicates unbounded.
-     */
-    public RangeQueryBuilder to(float to) {
-        return to(to, true, true);
-    }
-
-    /**
-     * The to part of the range query. Null indicates unbounded.
-     */
-    public RangeQueryBuilder to(double to) {
-        return to(to, true, true);
+        return to(to, this.includeUpper);
     }
 
     /**
@@ -292,85 +150,15 @@ public class RangeQueryBuilder extends MultiTermQueryBuilder implements Streamab
     /**
      * The to part of the range query. Null indicates unbounded.
      */
-    public RangeQueryBuilder lt(String to) {
-        return to(to, true, false);
-    }
-
-    /**
-     * The to part of the range query. Null indicates unbounded.
-     */
     public RangeQueryBuilder lt(Object to) {
-        return to(to, true, false);
-    }
-
-    /**
-     * The to part of the range query. Null indicates unbounded.
-     */
-    public RangeQueryBuilder lt(int to) {
-        return to(to, true, false);
-    }
-
-    /**
-     * The to part of the range query. Null indicates unbounded.
-     */
-    public RangeQueryBuilder lt(long to) {
-        return to(to, true, false);
-    }
-
-    /**
-     * The to part of the range query. Null indicates unbounded.
-     */
-    public RangeQueryBuilder lt(float to) {
-        return to(to, true, false);
-    }
-
-    /**
-     * The to part of the range query. Null indicates unbounded.
-     */
-    public RangeQueryBuilder lt(double to) {
-        return to(to, true, false);
-    }
-
-    /**
-     * The to part of the range query. Null indicates unbounded.
-     */
-    public RangeQueryBuilder lte(String to) {
-        return to(to, true, true);
+        return to(to, false);
     }
 
     /**
      * The to part of the range query. Null indicates unbounded.
      */
     public RangeQueryBuilder lte(Object to) {
-        return to(to, true, true);
-    }
-
-    /**
-     * The to part of the range query. Null indicates unbounded.
-     */
-    public RangeQueryBuilder lte(int to) {
-        return to(to, true, true);
-    }
-
-    /**
-     * The to part of the range query. Null indicates unbounded.
-     */
-    public RangeQueryBuilder lte(long to) {
-        return to(to, true, true);
-    }
-
-    /**
-     * The to part of the range query. Null indicates unbounded.
-     */
-    public RangeQueryBuilder lte(float to) {
-        return to(to, true, true);
-    }
-
-    /**
-     * The to part of the range query. Null indicates unbounded.
-     */
-    public RangeQueryBuilder lte(double to) {
-        return to(to, true, true);
+        return to(to, true);
     }
 
     /**
@@ -505,7 +293,11 @@ public class RangeQueryBuilder extends MultiTermQueryBuilder implements Streamab
                     if (this.format  != null) {
                         forcedDateParser = new DateMathParser(Joda.forPattern(this.format), DateFieldMapper.Defaults.TIME_UNIT);
                     }
-                    query = ((DateFieldMapper) mapper).rangeQuery(from, to, includeLower, includeUpper, DateTimeZone.forID(this.timeZone), forcedDateParser, parseContext);
+                    DateTimeZone dateTimeZone = null;
+                    if (this.timeZone != null) {
+                        dateTimeZone = DateTimeZone.forID(this.timeZone);
+                    }
+                    query = ((DateFieldMapper) mapper).rangeQuery(from, to, includeLower, includeUpper, dateTimeZone, forcedDateParser, parseContext);
                 } else  {
                     if (timeZone != null) {
                         throw new QueryParsingException(parseContext, "[range] time_zone can not be applied to non date field ["

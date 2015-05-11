@@ -41,13 +41,12 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine.Searcher;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParseContext.Document;
+import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.internal.AllFieldMapper;
 import org.elasticsearch.index.mapper.internal.IndexFieldMapper;
 import org.elasticsearch.index.mapper.internal.SizeFieldMapper;
-import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.hamcrest.Matchers;
 import org.junit.Test;
@@ -62,7 +61,6 @@ import java.util.Map;
 import static org.elasticsearch.common.io.Streams.copyToBytesFromClasspath;
 import static org.elasticsearch.common.io.Streams.copyToStringFromClasspath;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -71,12 +69,8 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
-/**
- *
- */
 public class SimpleAllMapperTests extends ElasticsearchSingleNodeTest {
 
-    @Test
     public void testSimpleAllMappers() throws Exception {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/all/mapping.json");
         DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
@@ -95,7 +89,6 @@ public class SimpleAllMapperTests extends ElasticsearchSingleNodeTest {
         assertThat(mapper.queryStringTermQuery(new Term("_all", "foobar")), Matchers.instanceOf(AllTermQuery.class));
     }
 
-    @Test
     public void testAllMappersNoBoost() throws Exception {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/all/noboost-mapping.json");
         IndexService index = createIndex("test");
@@ -111,7 +104,6 @@ public class SimpleAllMapperTests extends ElasticsearchSingleNodeTest {
         assertThat(field.fieldType().omitNorms(), equalTo(false));
     }
 
-    @Test
     public void testAllMappersTermQuery() throws Exception {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/all/mapping_omit_positions_on_all.json");
         DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
@@ -130,7 +122,6 @@ public class SimpleAllMapperTests extends ElasticsearchSingleNodeTest {
     }
 
     // #6187: make sure we see AllTermQuery even when offsets are indexed in the _all field:
-    @Test
     public void testAllMappersWithOffsetsTermQuery() throws Exception {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/all/mapping_offsets_on_all.json");
         DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
@@ -150,7 +141,6 @@ public class SimpleAllMapperTests extends ElasticsearchSingleNodeTest {
     }
 
     // #6187: if _all doesn't index positions then we never use AllTokenStream, even if some fields have boost
-    @Test
     public void testBoostWithOmitPositions() throws Exception {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/all/mapping_boost_omit_positions_on_all.json");
         DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
@@ -162,7 +152,6 @@ public class SimpleAllMapperTests extends ElasticsearchSingleNodeTest {
     }
 
     // #6187: if no fields were boosted, we shouldn't use AllTokenStream
-    @Test
     public void testNoBoost() throws Exception {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/all/noboost-mapping.json");
         DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
@@ -173,8 +162,6 @@ public class SimpleAllMapperTests extends ElasticsearchSingleNodeTest {
         assertThat(field.tokenStream(docMapper.mappers().indexAnalyzer(), null), Matchers.not(Matchers.instanceOf(AllTokenStream.class)));
     }
 
-
-    @Test
     public void testSimpleAllMappersWithReparse() throws Exception {
         DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/all/mapping.json");
@@ -194,7 +181,6 @@ public class SimpleAllMapperTests extends ElasticsearchSingleNodeTest {
         assertThat(field.fieldType().omitNorms(), equalTo(true));
     }
 
-    @Test
     public void testSimpleAllMappersWithStore() throws Exception {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/all/store-mapping.json");
         DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
@@ -211,7 +197,6 @@ public class SimpleAllMapperTests extends ElasticsearchSingleNodeTest {
         assertThat(field.fieldType().omitNorms(), equalTo(false));
     }
 
-    @Test
     public void testSimpleAllMappersWithReparseWithStore() throws Exception {
         DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/all/store-mapping.json");
@@ -233,7 +218,6 @@ public class SimpleAllMapperTests extends ElasticsearchSingleNodeTest {
         assertThat(field.fieldType().omitNorms(), equalTo(false));
     }
 
-    @Test
     public void testRandom() throws Exception {
         boolean omitNorms = false;
         boolean stored = false;
@@ -338,7 +322,6 @@ public class SimpleAllMapperTests extends ElasticsearchSingleNodeTest {
 
     }
 
-    @Test
     public void testMultiField_includeInAllSetToFalse() throws IOException {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/all/multifield-mapping_include_in_all_set_to_false.json");
         DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
@@ -357,7 +340,6 @@ public class SimpleAllMapperTests extends ElasticsearchSingleNodeTest {
         assertThat(allEntries.fields(), empty());
     }
 
-    @Test
     public void testMultiField_defaults() throws IOException {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/all/multifield-mapping_default.json");
         DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
@@ -399,7 +381,6 @@ public class SimpleAllMapperTests extends ElasticsearchSingleNodeTest {
 
     // issue https://github.com/elasticsearch/elasticsearch/issues/5864
     // test that RootObjectMapping still works
-    @Test
     public void testRootObjectMapperPropertiesDoNotCauseException() throws IOException {
         DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/all/type_dynamic_template_mapping.json");
@@ -413,7 +394,6 @@ public class SimpleAllMapperTests extends ElasticsearchSingleNodeTest {
     }
 
     // issue https://github.com/elasticsearch/elasticsearch/issues/5864
-    @Test
     public void testRootMappersStillWorking() {
         String mapping = "{";
         Map<String, String> rootTypes = new HashMap<>();
@@ -471,5 +451,18 @@ public class SimpleAllMapperTests extends ElasticsearchSingleNodeTest {
                 assertThat(query, Matchers.instanceOf(expected));
             }
         }
+    }
+
+    public void testIncludeInObjectBackcompat() throws Exception {
+        String mapping = jsonBuilder().startObject().startObject("type").endObject().endObject().string();
+        Settings settings = ImmutableSettings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build();
+        DocumentMapper docMapper = createIndex("test", settings).mapperService().documentMapperParser().parse(mapping);
+        ParsedDocument doc = docMapper.parse("type", "1", XContentFactory.jsonBuilder()
+            .startObject().field("_all", "foo").endObject().bytes());
+
+        assertNull(doc.rootDoc().get("_all"));
+        AllField field = (AllField) doc.rootDoc().getField("_all");
+        // the backcompat behavior is actually ignoring directly specifying _all
+        assertFalse(field.getAllEntries().fields().iterator().hasNext());
     }
 }

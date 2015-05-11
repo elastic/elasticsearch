@@ -214,7 +214,7 @@ public class TimestampFieldMapper extends DateFieldMapper implements RootMapper 
         super(new Names(Defaults.NAME, Defaults.NAME, Defaults.NAME, Defaults.NAME), dateTimeFormatter,
                 Defaults.PRECISION_STEP_64_BIT, Defaults.BOOST, fieldType, docValues,
                 Defaults.NULL_VALUE, TimeUnit.MILLISECONDS /*always milliseconds*/,
-                ignoreMalformed, coerce, null, normsLoading, fieldDataSettings, 
+                ignoreMalformed, coerce, null, normsLoading, fieldDataSettings,
                 indexSettings, MultiFields.empty(), null);
         this.enabledState = enabledState;
         this.path = path;

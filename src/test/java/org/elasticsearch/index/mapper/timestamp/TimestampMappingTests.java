@@ -689,7 +689,7 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
         docMapper.refreshSource();
         docMapper = parser.parse(docMapper.mappingSource().string());
         MergeResult mergeResult = docMapper.merge(parser.parse(mapping2).mapping(), true);
-        assertThat(mergeResult.buildConflicts().length, equalTo(conflict == null ? 0:1));
+        assertThat(mergeResult.buildConflicts().length, equalTo(conflict == null ? 0 : 1));
         if (conflict != null) {
             assertThat(mergeResult.buildConflicts()[0], containsString(conflict));
         }
@@ -748,5 +748,36 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
         docMapper = parser.parse(docMapper.mappingSource().string());
         assertThat(docMapper.timestampFieldMapper().hasDocValues(), equalTo(docValues));
         assertAcked(client().admin().indices().prepareDelete("test_doc_values"));
+    }
+
+    public void testPath() throws Exception {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+            .startObject("_timestamp").field("enabled", true).field("path", "custom_timestamp").endObject()
+            .endObject().endObject().string();
+        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+
+        XContentBuilder doc = XContentFactory.jsonBuilder().startObject().field("custom_timestamp", 1).endObject();
+        MappingMetaData mappingMetaData = new MappingMetaData(docMapper);
+        IndexRequest request = new IndexRequest("test", "type", "1").source(doc);
+        request.process(MetaData.builder().build(), mappingMetaData, true, "test");
+
+        assertEquals(request.timestamp(), "1");
+    }
+
+    public void testIncludeInObjectBackcompat() throws Exception {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+            .startObject("_timestamp").field("enabled", true).field("default", "1970").field("format", "YYYY").endObject()
+            .endObject().endObject().string();
+        Settings settings = ImmutableSettings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build();
+        DocumentMapper docMapper = createIndex("test", settings).mapperService().documentMapperParser().parse(mapping);
+
+        XContentBuilder doc = XContentFactory.jsonBuilder().startObject().field("_timestamp", 2000000).endObject();
+        MappingMetaData mappingMetaData = new MappingMetaData(docMapper);
+        IndexRequest request = new IndexRequest("test", "type", "1").source(doc);
+        request.process(MetaData.builder().build(), mappingMetaData, true, "test");
+
+        // _timestamp in a document never worked, so backcompat is ignoring the field
+        assertEquals(MappingMetaData.Timestamp.parseStringTimestamp("1970", Joda.forPattern("YYYY")), request.timestamp());
+        assertNull(docMapper.parse("type", "1", doc.bytes()).rootDoc().get("_timestamp"));
     }
 }

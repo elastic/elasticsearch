@@ -245,25 +245,15 @@ public interface FieldMapper<T> extends Mapper {
 
     Query termQuery(Object value, @Nullable QueryParseContext context);
 
-    Filter termFilter(Object value, @Nullable QueryParseContext context);
-
-    Filter termsFilter(List values, @Nullable QueryParseContext context);
-
-    Filter fieldDataTermsFilter(List values, @Nullable QueryParseContext context);
+    Query termsQuery(List values, @Nullable QueryParseContext context);
 
     Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context);
-
-    Filter rangeFilter(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context);
 
     Query fuzzyQuery(String value, Fuzziness fuzziness, int prefixLength, int maxExpansions, boolean transpositions);
 
     Query prefixQuery(Object value, @Nullable MultiTermQuery.RewriteMethod method, @Nullable QueryParseContext context);
 
-    Filter prefixFilter(Object value, @Nullable QueryParseContext context);
-
     Query regexpQuery(Object value, int flags, int maxDeterminizedStates, @Nullable MultiTermQuery.RewriteMethod method, @Nullable QueryParseContext context);
-
-    Filter regexpFilter(Object value, int flags, int maxDeterminizedStates, @Nullable QueryParseContext parseContext);
 
     /**
      * A term query to use when parsing a query string. Can return <tt>null</tt>.
@@ -275,7 +265,7 @@ public interface FieldMapper<T> extends Mapper {
      * Null value filter, returns <tt>null</tt> if there is no null value associated with the field.
      */
     @Nullable
-    Filter nullValueFilter();
+    Query nullValueFilter();
 
     FieldDataType fieldDataType();
 

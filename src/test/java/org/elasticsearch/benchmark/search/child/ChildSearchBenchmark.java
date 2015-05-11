@@ -36,8 +36,12 @@ import static org.elasticsearch.client.Requests.createIndexRequest;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
-import static org.elasticsearch.index.query.FilterBuilders.*;
-import static org.elasticsearch.index.query.QueryBuilders.*;
+import static org.elasticsearch.index.query.QueryBuilders.filteredQuery;
+import static org.elasticsearch.index.query.QueryBuilders.hasChildQuery;
+import static org.elasticsearch.index.query.QueryBuilders.hasParentQuery;
+import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
+import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.node.NodeBuilder.nodeBuilder;
 
 /**
@@ -109,7 +113,7 @@ public class ChildSearchBenchmark {
                     .setQuery(
                             filteredQuery(
                                     matchAllQuery(),
-                                    hasChildFilter("child", termQuery("field2", parentChildIndexGenerator.getQueryValue()))
+                                    hasChildQuery("child", termQuery("field2", parentChildIndexGenerator.getQueryValue()))
                             )
                     )
                     .execute().actionGet();
@@ -124,7 +128,7 @@ public class ChildSearchBenchmark {
                     .setQuery(
                             filteredQuery(
                                     matchAllQuery(),
-                                    hasChildFilter("child", termQuery("field2", parentChildIndexGenerator.getQueryValue()))
+                                    hasChildQuery("child", termQuery("field2", parentChildIndexGenerator.getQueryValue()))
                             )
                     )
                     .execute().actionGet();
@@ -145,7 +149,7 @@ public class ChildSearchBenchmark {
                     .setQuery(
                             filteredQuery(
                                     matchAllQuery(),
-                                    hasChildFilter("child", matchAllQuery())
+                                    hasChildQuery("child", matchAllQuery())
                             )
                     )
                     .execute().actionGet();
@@ -205,7 +209,7 @@ public class ChildSearchBenchmark {
                     .setQuery(
                             filteredQuery(
                                     matchAllQuery(),
-                                    hasParentFilter("parent", termQuery("field1", parentChildIndexGenerator.getQueryValue()))
+                                    hasParentQuery("parent", termQuery("field1", parentChildIndexGenerator.getQueryValue()))
                             )
                     )
                     .execute().actionGet();
@@ -220,7 +224,7 @@ public class ChildSearchBenchmark {
                     .setQuery(
                             filteredQuery(
                                     matchAllQuery(),
-                                    hasParentFilter("parent", termQuery("field1", parentChildIndexGenerator.getQueryValue()))
+                                    hasParentQuery("parent", termQuery("field1", parentChildIndexGenerator.getQueryValue()))
                             )
                     )
                     .execute().actionGet();
@@ -240,7 +244,7 @@ public class ChildSearchBenchmark {
             SearchResponse searchResponse = client.prepareSearch(indexName)
                     .setQuery(filteredQuery(
                             matchAllQuery(),
-                            hasParentFilter("parent", matchAllQuery())
+                            hasParentQuery("parent", matchAllQuery())
                     ))
                     .execute().actionGet();
             if (searchResponse.getFailedShards() > 0) {
@@ -252,37 +256,6 @@ public class ChildSearchBenchmark {
             totalQueryTime += searchResponse.getTookInMillis();
         }
         System.out.println("--> has_parent filter with match_all parent query, Query Avg: " + (totalQueryTime / QUERY_COUNT) + "ms");
-        System.out.println("--> Running top_children query");
-        // run parent child score query
-        for (int j = 0; j < QUERY_WARMUP; j++) {
-            client.prepareSearch(indexName).setQuery(topChildrenQuery("child", termQuery("field2", parentChildIndexGenerator.getQueryValue()))).execute().actionGet();
-        }
-
-        totalQueryTime = 0;
-        for (int j = 0; j < QUERY_COUNT; j++) {
-            SearchResponse searchResponse = client.prepareSearch(indexName).setQuery(topChildrenQuery("child", termQuery("field2", parentChildIndexGenerator.getQueryValue()))).execute().actionGet();
-            if (j % 10 == 0) {
-                System.out.println("--> hits [" + j + "], got [" + searchResponse.getHits().totalHits() + "]");
-            }
-            totalQueryTime += searchResponse.getTookInMillis();
-        }
-        System.out.println("--> top_children Query Avg: " + (totalQueryTime / QUERY_COUNT) + "ms");
-
-        System.out.println("--> Running top_children query, with match_all as child query");
-        // run parent child score query
-        for (int j = 0; j < QUERY_WARMUP; j++) {
-            client.prepareSearch(indexName).setQuery(topChildrenQuery("child", matchAllQuery())).execute().actionGet();
-        }
-
-        totalQueryTime = 0;
-        for (int j = 0; j < QUERY_COUNT; j++) {
-            SearchResponse searchResponse = client.prepareSearch(indexName).setQuery(topChildrenQuery("child", matchAllQuery())).execute().actionGet();
-            if (j % 10 == 0) {
-                System.out.println("--> hits [" + j + "], got [" + searchResponse.getHits().totalHits() + "]");
-            }
-            totalQueryTime += searchResponse.getTookInMillis();
-        }
-        System.out.println("--> top_children, with match_all Query Avg: " + (totalQueryTime / QUERY_COUNT) + "ms");
 
         statsResponse = client.admin().cluster().prepareNodesStats()
                 .setJvm(true).setIndices(true).execute().actionGet();

@@ -22,9 +22,9 @@ package org.elasticsearch.index.query.functionscore;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableMap.Builder;
 
+import org.apache.lucene.search.BooleanClause.Occur;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.FilteredQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
@@ -58,6 +58,7 @@ public class FunctionScoreQueryParser implements QueryParser {
     static final String MISPLACED_BOOST_FUNCTION_MESSAGE_SUFFIX = " Did you mean \"boost\" instead?";
 
     public static final ParseField WEIGHT_FIELD = new ParseField("weight");
+    private static final ParseField FILTER_FIELD = new ParseField("filter").withAllDeprecated("query");
 
     @Inject
     public FunctionScoreQueryParser(ScoreFunctionParserMapper functionParserMapper) {
@@ -85,7 +86,7 @@ public class FunctionScoreQueryParser implements QueryParser {
         XContentParser parser = parseContext.parser();
 
         Query query = null;
-        Filter filter = null;
+        Query filter = null;
         float boost = 1.0f;
 
         FiltersFunctionScoreQuery.ScoreMode scoreMode = FiltersFunctionScoreQuery.ScoreMode.Multiply;
@@ -106,7 +107,7 @@ public class FunctionScoreQueryParser implements QueryParser {
                 currentFieldName = parser.currentName();
             } else if ("query".equals(currentFieldName)) {
                 query = parseContext.parseInnerQuery();
-            } else if ("filter".equals(currentFieldName)) {
+            } else if (FILTER_FIELD.match(currentFieldName)) {
                 filter = parseContext.parseInnerFilter();
             } else if ("score_mode".equals(currentFieldName) || "scoreMode".equals(currentFieldName)) {
                 scoreMode = parseScoreMode(parseContext, parser);
@@ -154,7 +155,10 @@ public class FunctionScoreQueryParser implements QueryParser {
         } else if (query == null && filter != null) {
             query = new ConstantScoreQuery(filter);
         } else if (query != null && filter != null) {
-            query = new FilteredQuery(query, filter);
+            final BooleanQuery filtered = new BooleanQuery();
+            filtered.add(query, Occur.MUST);
+            filtered.add(filter, Occur.FILTER);
+            query = filtered;
         }
         // if all filter elements returned null, just use the query
         if (filterFunctions.isEmpty() && combineFunction == null) {
@@ -198,7 +202,7 @@ public class FunctionScoreQueryParser implements QueryParser {
                                             ArrayList<FiltersFunctionScoreQuery.FilterFunction> filterFunctions, String currentFieldName) throws IOException {
         XContentParser.Token token;
         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-            Filter filter = null;
+            Query filter = null;
             ScoreFunction scoreFunction = null;
             Float functionWeight = null;
             if (token != XContentParser.Token.START_OBJECT) {
@@ -227,7 +231,7 @@ public class FunctionScoreQueryParser implements QueryParser {
                 }
             }
             if (filter == null) {
-                filter = Queries.newMatchAllFilter();
+                filter = Queries.newMatchAllQuery();
             }
             if (scoreFunction == null) {
                 throw new ElasticsearchParseException("function_score: One entry in functions list is missing a function.");

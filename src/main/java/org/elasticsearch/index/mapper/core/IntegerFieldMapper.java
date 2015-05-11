@@ -43,14 +43,12 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.NumericIntegerAnalyzer;
 import org.elasticsearch.index.fielddata.FieldDataType;
-import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.MergeMappingException;
+import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.index.search.NumericRangeFieldDataFilter;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 
 import java.io.IOException;
@@ -199,22 +197,6 @@ public class IntegerFieldMapper extends NumberFieldMapper<Integer> {
     @Override
     public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
         return NumericRangeQuery.newIntRange(names.indexName(), precisionStep,
-                lowerTerm == null ? null : parseValue(lowerTerm),
-                upperTerm == null ? null : parseValue(upperTerm),
-                includeLower, includeUpper);
-    }
-
-    @Override
-    public Filter rangeFilter(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
-        return new QueryWrapperFilter(NumericRangeQuery.newIntRange(names.indexName(), precisionStep,
-                lowerTerm == null ? null : parseValue(lowerTerm),
-                upperTerm == null ? null : parseValue(upperTerm),
-                includeLower, includeUpper));
-    }
-
-    @Override
-    public Filter rangeFilter(QueryParseContext parseContext, Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
-        return NumericRangeFieldDataFilter.newIntRange((IndexNumericFieldData) parseContext.getForField(this),
                 lowerTerm == null ? null : parseValue(lowerTerm),
                 upperTerm == null ? null : parseValue(upperTerm),
                 includeLower, includeUpper);

@@ -32,7 +32,7 @@ import org.junit.Test;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.FilterBuilders.scriptFilter;
+import static org.elasticsearch.index.query.QueryBuilders.scriptQuery;
 import static org.elasticsearch.index.query.QueryBuilders.filteredQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.hamcrest.Matchers.equalTo;
@@ -70,7 +70,7 @@ public class ScriptFilterSearchTests extends ElasticsearchIntegrationTest {
 
         logger.info("running doc['num1'].value > 1");
         SearchResponse response = client().prepareSearch()
-                .setQuery(filteredQuery(matchAllQuery(), scriptFilter("doc['num1'].value > 1")))
+                .setQuery(filteredQuery(matchAllQuery(), scriptQuery("doc['num1'].value > 1")))
                 .addSort("num1", SortOrder.ASC)
                 .addScriptField("sNum1", "doc['num1'].value")
                 .execute().actionGet();
@@ -83,7 +83,7 @@ public class ScriptFilterSearchTests extends ElasticsearchIntegrationTest {
 
         logger.info("running doc['num1'].value > param1");
         response = client().prepareSearch()
-                .setQuery(filteredQuery(matchAllQuery(), scriptFilter("doc['num1'].value > param1").addParam("param1", 2)))
+                .setQuery(filteredQuery(matchAllQuery(), scriptQuery("doc['num1'].value > param1").addParam("param1", 2)))
                 .addSort("num1", SortOrder.ASC)
                 .addScriptField("sNum1", "doc['num1'].value")
                 .execute().actionGet();
@@ -94,7 +94,7 @@ public class ScriptFilterSearchTests extends ElasticsearchIntegrationTest {
 
         logger.info("running doc['num1'].value > param1");
         response = client().prepareSearch()
-                .setQuery(filteredQuery(matchAllQuery(), scriptFilter("doc['num1'].value > param1").addParam("param1", -1)))
+                .setQuery(filteredQuery(matchAllQuery(), scriptQuery("doc['num1'].value > param1").addParam("param1", -1)))
                 .addSort("num1", SortOrder.ASC)
                 .addScriptField("sNum1", "doc['num1'].value")
                 .execute().actionGet();

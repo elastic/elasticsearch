@@ -38,6 +38,10 @@ you can write:
 SearchResponse response = client.prepareSearch().execute().actionGet();
 --------------------------------------------------
 
+NOTE:   Although the Java API defines the additional search types QUERY_AND_FETCH and
+        DFS_QUERY_AND_FETCH, these modes are internal optimizations and should not
+        be specified explicitly by users of the API.
+
 For more information on the search operation, check out the REST
 {ref}/search.html[search] docs.
 

@@ -21,14 +21,17 @@ package org.elasticsearch.rest.action.search;
 
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.QuerySourceBuilder;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.query.QueryStringQueryBuilder;
-import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.exists.RestExistsAction;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestStatusToXContentListener;
@@ -94,8 +97,18 @@ public class RestSearchAction extends BaseRestHandler {
             }
         }
 
+        // do not allow 'query_and_fetch' or 'dfs_query_and_fetch' search types
+        // from the REST layer. these modes are an internal optimization and should
+        // not be specified explicitly by the user.
+        String searchType = request.param("search_type");
+        if (SearchType.fromString(searchType).equals(SearchType.QUERY_AND_FETCH) ||
+                SearchType.fromString(searchType).equals(SearchType.DFS_QUERY_AND_FETCH)) {
+            throw new IllegalArgumentException("Unsupported search type [" + searchType + "]");
+        } else {
+            searchRequest.searchType(searchType);
+        }
+
         searchRequest.extraSource(parseSearchSource(request));
-        searchRequest.searchType(request.param("search_type"));
         searchRequest.queryCache(request.paramAsBoolean("query_cache", null));
 
         String scroll = request.param("scroll");
@@ -113,28 +126,11 @@ public class RestSearchAction extends BaseRestHandler {
 
     public static SearchSourceBuilder parseSearchSource(RestRequest request) {
         SearchSourceBuilder searchSourceBuilder = null;
-        String queryString = request.param("q");
-        if (queryString != null) {
-            QueryStringQueryBuilder queryBuilder = QueryBuilders.queryStringQuery(queryString);
-            queryBuilder.defaultField(request.param("df"));
-            queryBuilder.analyzer(request.param("analyzer"));
-            queryBuilder.analyzeWildcard(request.paramAsBoolean("analyze_wildcard", false));
-            queryBuilder.lowercaseExpandedTerms(request.paramAsBoolean("lowercase_expanded_terms", true));
-            queryBuilder.lenient(request.paramAsBoolean("lenient", null));
-            String defaultOperator = request.param("default_operator");
-            if (defaultOperator != null) {
-                if ("OR".equals(defaultOperator)) {
-                    queryBuilder.defaultOperator(QueryStringQueryBuilder.Operator.OR);
-                } else if ("AND".equals(defaultOperator)) {
-                    queryBuilder.defaultOperator(QueryStringQueryBuilder.Operator.AND);
-                } else {
-                    throw new IllegalArgumentException("Unsupported defaultOperator [" + defaultOperator + "], can either be [OR] or [AND]");
-                }
-            }
-            if (searchSourceBuilder == null) {
-                searchSourceBuilder = new SearchSourceBuilder();
-            }
-            searchSourceBuilder.query(queryBuilder);
+
+        QuerySourceBuilder querySourceBuilder = RestActions.parseQuerySource(request);
+        if (querySourceBuilder != null) {
+            searchSourceBuilder = new SearchSourceBuilder();
+            searchSourceBuilder.query(querySourceBuilder);
         }
 
         int from = request.paramAsInt("from", -1);
@@ -246,7 +242,7 @@ public class RestSearchAction extends BaseRestHandler {
 
         String suggestField = request.param("suggest_field");
         if (suggestField != null) {
-            String suggestText = request.param("suggest_text", queryString);
+            String suggestText = request.param("suggest_text", request.param("q"));
             int suggestSize = request.paramAsInt("suggest_size", 5);
             if (searchSourceBuilder == null) {
                 searchSourceBuilder = new SearchSourceBuilder();

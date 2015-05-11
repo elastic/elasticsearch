@@ -20,7 +20,6 @@ package org.elasticsearch.search.aggregations.bucket;
 
 import com.carrotsearch.hppc.LongOpenHashSet;
 
-import org.apache.tools.ant.filters.TokenFilter.ContainsString;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
@@ -41,7 +40,6 @@ import java.util.Iterator;
 import java.util.List;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.FilterBuilders.matchAllFilter;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.filter;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
@@ -563,7 +561,7 @@ public class HistogramTests extends ElasticsearchIntegrationTest {
         boolean asc = randomBoolean();
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval).order(Histogram.Order.aggregation("filter>max", asc))
-                        .subAggregation(filter("filter").filter(matchAllFilter())
+                        .subAggregation(filter("filter").filter(matchAllQuery())
                                 .subAggregation(max("max").field(SINGLE_VALUED_FIELD_NAME))))
                 .execute().actionGet();
 

@@ -25,6 +25,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.Lists;
+
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.DelegatingAnalyzerWrapper;
 import org.apache.lucene.index.IndexOptions;
@@ -33,7 +34,7 @@ import org.apache.lucene.queries.TermsQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryWrapperFilter;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
@@ -61,6 +62,7 @@ import org.elasticsearch.percolator.PercolatorService;
 import org.elasticsearch.script.ScriptService;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -103,9 +105,6 @@ public class MapperService extends AbstractIndexComponent  {
 
     private final DocumentMapperParser documentParser;
 
-    private final InternalFieldMapperListener fieldMapperListener = new InternalFieldMapperListener();
-    private final InternalObjectMapperListener objectMapperListener = new InternalObjectMapperListener();
-
     private final SmartIndexNameSearchAnalyzer searchAnalyzer;
     private final SmartIndexNameSearchQuoteAnalyzer searchQuoteAnalyzer;
 
@@ -121,7 +120,7 @@ public class MapperService extends AbstractIndexComponent  {
         this.analysisService = analysisService;
         this.fieldDataService = fieldDataService;
         this.fieldMappers = new FieldMappersLookup();
-        this.documentParser = new DocumentMapperParser(index, indexSettings, analysisService, similarityLookupService, scriptService);
+        this.documentParser = new DocumentMapperParser(index, indexSettings, this, analysisService, similarityLookupService, scriptService);
         this.searchAnalyzer = new SmartIndexNameSearchAnalyzer(analysisService.defaultSearchAnalyzer());
         this.searchQuoteAnalyzer = new SmartIndexNameSearchQuoteAnalyzer(analysisService.defaultSearchQuoteAnalyzer());
 
@@ -265,15 +264,16 @@ public class MapperService extends AbstractIndexComponent  {
                 fieldDataService.onMappingUpdate();
                 return oldMapper;
             } else {
-                FieldMapperListener.Aggregator fieldMappersAgg = new FieldMapperListener.Aggregator();
-                mapper.traverse(fieldMappersAgg);
-                addFieldMappers(fieldMappersAgg.mappers);
-                mapper.addFieldMapperListener(fieldMapperListener);
-
-                ObjectMapperListener.Aggregator objectMappersAgg = new ObjectMapperListener.Aggregator();
-                mapper.traverse(objectMappersAgg);
-                addObjectMappers(objectMappersAgg.mappers.toArray(new ObjectMapper[objectMappersAgg.mappers.size()]));
-                mapper.addObjectMapperListener(objectMapperListener);
+                List<ObjectMapper> newObjectMappers = new ArrayList<>();
+                List<FieldMapper<?>> newFieldMappers = new ArrayList<>();
+                for (RootMapper rootMapper : mapper.mapping().rootMappers) {
+                    if (!rootMapper.includeInObject() && rootMapper instanceof FieldMapper) {
+                        newFieldMappers.add((FieldMapper<?>) rootMapper);
+                    }
+                }
+                MapperUtils.collect(mapper.mapping().root, newObjectMappers, newFieldMappers);
+                addFieldMappers(newFieldMappers);
+                addObjectMappers(newObjectMappers);
 
                 for (DocumentTypeListener typeListener : typeListeners) {
                     typeListener.beforeCreate(mapper);
@@ -284,7 +284,7 @@ public class MapperService extends AbstractIndexComponent  {
         }
     }
 
-    private void addObjectMappers(ObjectMapper[] objectMappers) {
+    protected void addObjectMappers(Collection<ObjectMapper> objectMappers) {
         synchronized (mappersMutex) {
             ImmutableOpenMap.Builder<String, ObjectMappers> fullPathObjectMappers = ImmutableOpenMap.builder(this.fullPathObjectMappers);
             for (ObjectMapper objectMapper : objectMappers) {
@@ -304,7 +304,7 @@ public class MapperService extends AbstractIndexComponent  {
         }
     }
 
-    private void addFieldMappers(Collection<FieldMapper<?>> fieldMappers) {
+    protected void addFieldMappers(Collection<FieldMapper<?>> fieldMappers) {
         synchronized (mappersMutex) {
             this.fieldMappers = this.fieldMappers.copyAndAddAll(fieldMappers);
         }
@@ -352,7 +352,7 @@ public class MapperService extends AbstractIndexComponent  {
      * A filter for search. If a filter is required, will return it, otherwise, will return <tt>null</tt>.
      */
     @Nullable
-    public Filter searchFilter(String... types) {
+    public Query searchFilter(String... types) {
         boolean filterPercolateType = hasMapping(PercolatorService.TYPE_NAME);
         if (types != null && filterPercolateType) {
             for (String type : types) {
@@ -362,7 +362,7 @@ public class MapperService extends AbstractIndexComponent  {
                 }
             }
         }
-        Filter percolatorType = null;
+        Query percolatorType = null;
         if (filterPercolateType) {
             percolatorType = documentMapper(PercolatorService.TYPE_NAME).typeFilter();
         }
@@ -385,7 +385,7 @@ public class MapperService extends AbstractIndexComponent  {
         // since they have different types (starting with __)
         if (types.length == 1) {
             DocumentMapper docMapper = documentMapper(types[0]);
-            Filter filter = docMapper != null ? docMapper.typeFilter() : new QueryWrapperFilter(new TermQuery(new Term(TypeFieldMapper.NAME, types[0])));
+            Query filter = docMapper != null ? docMapper.typeFilter() : new TermQuery(new Term(TypeFieldMapper.NAME, types[0]));
             if (filterPercolateType) {
                 BooleanQuery bq = new BooleanQuery();
                 bq.add(percolatorType, Occur.MUST_NOT);
@@ -842,30 +842,6 @@ public class MapperService extends AbstractIndexComponent  {
                 return mappers.mapper().searchQuoteAnalyzer();
             }
             return defaultAnalyzer;
-        }
-    }
-
-    class InternalFieldMapperListener extends FieldMapperListener {
-        @Override
-        public void fieldMapper(FieldMapper<?> fieldMapper) {
-            addFieldMappers(Collections.<FieldMapper<?>>singletonList(fieldMapper));
-        }
-
-        @Override
-        public void fieldMappers(Collection<FieldMapper<?>> fieldMappers) {
-            addFieldMappers(fieldMappers);
-        }
-    }
-
-    class InternalObjectMapperListener extends ObjectMapperListener {
-        @Override
-        public void objectMapper(ObjectMapper objectMapper) {
-            addObjectMappers(new ObjectMapper[]{objectMapper});
-        }
-
-        @Override
-        public void objectMappers(ObjectMapper... objectMappers) {
-            addObjectMappers(objectMappers);
         }
     }
 }

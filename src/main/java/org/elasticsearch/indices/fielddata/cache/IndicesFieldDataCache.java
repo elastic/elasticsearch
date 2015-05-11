@@ -312,7 +312,7 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
 
         @Override
         public void run() {
-            long startTime = System.currentTimeMillis();
+            long startTimeNS = System.nanoTime();
             if (logger.isTraceEnabled()) {
                 logger.trace("running periodic field data cache cleanup");
             }
@@ -322,7 +322,7 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
                 logger.warn("Exception during periodic field data cache cleanup:", e);
             }
             if (logger.isTraceEnabled()) {
-                logger.trace("periodic field data cache cleanup finished in {} milliseconds", System.currentTimeMillis() - startTime);
+                logger.trace("periodic field data cache cleanup finished in {} milliseconds", TimeValue.nsecToMSec(System.nanoTime() - startTimeNS));
             }
             // Reschedule itself to run again if not closed
             if (closed == false) {

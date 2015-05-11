@@ -21,6 +21,7 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
+import org.elasticsearch.index.mapper.object.RootObjectMapper;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -28,9 +29,7 @@ import java.util.Collection;
 public enum MapperUtils {
     ;
 
-
-
-    private static MergeResult newStrictMergeContext() {
+    private static MergeResult newStrictMergeResult() {
         return new MergeResult(false) {
 
             @Override
@@ -44,13 +43,23 @@ public enum MapperUtils {
             }
 
             @Override
+            public void addFieldMappers(Collection<FieldMapper<?>> fieldMappers) {
+                // no-op
+            }
+
+            @Override
             public void addObjectMappers(Collection<ObjectMapper> objectMappers) {
                 // no-op
             }
 
             @Override
-            public void addFieldMappers(Collection<FieldMapper<?>> fieldMappers) {
-                // no-op
+            public Collection<FieldMapper<?>> getNewFieldMappers() {
+                throw new UnsupportedOperationException("Strict merge result does not support new field mappers");
+            }
+
+            @Override
+            public Collection<ObjectMapper> getNewObjectMappers() {
+                throw new UnsupportedOperationException("Strict merge result does not support new object mappers");
             }
 
             @Override
@@ -65,7 +74,7 @@ public enum MapperUtils {
      * merges mappings, not lookup structures. Conflicts are returned as exceptions.
      */
     public static void merge(Mapper mergeInto, Mapper mergeWith) {
-        mergeInto.merge(mergeWith, newStrictMergeContext());
+        mergeInto.merge(mergeWith, newStrictMergeResult());
     }
 
     /**
@@ -73,7 +82,20 @@ public enum MapperUtils {
      * merges mappings, not lookup structures. Conflicts are returned as exceptions.
      */
     public static void merge(Mapping mergeInto, Mapping mergeWith) {
-        mergeInto.merge(mergeWith, newStrictMergeContext());
+        mergeInto.merge(mergeWith, newStrictMergeResult());
     }
 
+    /** Split mapper and its descendants into object and field mappers. */
+    public static void collect(Mapper mapper, Collection<ObjectMapper> objectMappers, Collection<FieldMapper<?>> fieldMappers) {
+        if (mapper instanceof RootObjectMapper) {
+            // root mapper isn't really an object mapper
+        } else if (mapper instanceof ObjectMapper) {
+            objectMappers.add((ObjectMapper)mapper);
+        } else if (mapper instanceof FieldMapper<?>) {
+            fieldMappers.add((FieldMapper<?>)mapper);
+        }
+        for (Mapper child : mapper) {
+            collect(child, objectMappers, fieldMappers);
+        }
+    }
 }

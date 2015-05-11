@@ -19,8 +19,6 @@
 
 package org.elasticsearch.index.query.support;
 
-import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -98,29 +96,6 @@ public abstract class XContentStructure {
     }
 
     /**
-     * Use the captured bytes to parse the inner filter using the specified
-     * types. The original QueryParseContext's parser is switched during this
-     * parsing, so this method is NOT thread-safe.
-     * @param types types to be used during the inner filter parsing
-     * @return {@link XConstantScoreQuery} wrapping the filter parsed from the bytes captured in {@code freeze()}
-     */
-    public Query asFilter(String... types) throws IOException {
-        BytesReference br = this.bytes();
-        assert br != null : "innerBytes must be set with .bytes(bytes) or .freeze() before parsing";
-        XContentParser innerParser = XContentHelper.createParser(br);
-        String[] origTypes = QueryParseContext.setTypesWithPrevious(types);
-        XContentParser old = parseContext.parser();
-        parseContext.parser(innerParser);
-        try {
-            Filter innerFilter = parseContext.parseInnerFilter();
-            return new ConstantScoreQuery(innerFilter);
-        } finally {
-            parseContext.parser(old);
-            QueryParseContext.setTypes(origTypes);
-        }
-    }
-
-    /**
      * InnerQuery is an extension of {@code XContentStructure} that eagerly
      * parses the query in a streaming manner if the types are available at
      * construction time.
@@ -158,46 +133,4 @@ public abstract class XContentStructure {
         }
     }
 
-    /**
-     * InnerFilter is an extension of {@code XContentStructure} that eagerly
-     * parses the filter in a streaming manner if the types are available at
-     * construction time.
-     */
-    public static class InnerFilter extends XContentStructure {
-        private Query query = null;
-        private boolean queryParsed = false;
-
-
-        public InnerFilter(QueryParseContext parseContext1, @Nullable String... types) throws IOException {
-            super(parseContext1);
-            if (types != null) {
-                String[] origTypes = QueryParseContext.setTypesWithPrevious(types);
-                try {
-                    Filter innerFilter = parseContext1.parseInnerFilter();
-                    query = new ConstantScoreQuery(innerFilter);
-                    queryParsed = true;
-                } finally {
-                    QueryParseContext.setTypes(origTypes);
-                }
-            } else {
-                BytesReference innerBytes = XContentFactory.smileBuilder().copyCurrentStructure(parseContext1.parser()).bytes();
-                super.bytes(innerBytes);
-            }
-        }
-
-        /**
-         * Return the filter as an
-         * {@link org.elasticsearch.common.lucene.search.XConstantScoreQuery}
-         * represented by the XContentStructure object,
-         * returning the cached Query if it has already been parsed.
-         * @param types types to be used during the inner filter parsing
-         */
-        @Override
-        public Query asFilter(String... types) throws IOException {
-            if (!queryParsed) { // query can be null
-                this.query = super.asFilter(types);
-            }
-            return this.query;
-        }
-    }
 }

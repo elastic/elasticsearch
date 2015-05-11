@@ -19,6 +19,7 @@
 
 package org.elasticsearch.repositories.fs;
 
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.fs.FsBlobStore;
@@ -67,7 +68,7 @@ public class FsRepository extends BlobStoreRepository {
      * @param indexShardRepository index shard repository
      * @throws IOException
      */
-    @Inject
+    @Inject @SuppressForbidden(reason = "needs fixing: https://github.com/elastic/elasticsearch/issues/11068")
     public FsRepository(RepositoryName name, RepositorySettings repositorySettings, IndexShardRepository indexShardRepository) throws IOException {
         super(name.getName(), repositorySettings, indexShardRepository);
         Path locationFile;

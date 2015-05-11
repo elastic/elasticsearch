@@ -22,6 +22,7 @@ package org.elasticsearch.index.query;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Objects;
 
 /**
  * A query that wraps a filter and simply returns a constant score equal to the
@@ -31,32 +32,19 @@ import java.io.IOException;
  */
 public class ConstantScoreQueryBuilder extends BaseQueryBuilder implements BoostableQueryBuilder<ConstantScoreQueryBuilder> {
 
-    private final FilterBuilder filterBuilder;
-    private final QueryBuilder queryBuilder;
+    private final QueryBuilder filterBuilder;
 
     private float boost = -1;
-    
 
-    /**
-     * A query that wraps a filter and simply returns a constant score equal to the
-     * query boost for every document in the filter.
-     *
-     * @param filterBuilder The filter to wrap in a constant score query
-     */
-    public ConstantScoreQueryBuilder(FilterBuilder filterBuilder) {
-        this.filterBuilder = filterBuilder;
-        this.queryBuilder = null;
-    }
     /**
      * A query that wraps a query and simply returns a constant score equal to the
      * query boost for every document in the query.
      *
-     * @param queryBuilder The query to wrap in a constant score query
+     * @param filterBuilder The query to wrap in a constant score query
      */
-    public ConstantScoreQueryBuilder(QueryBuilder queryBuilder) {
-        this.filterBuilder = null;
-        this.queryBuilder = queryBuilder;
-    }    
+    public ConstantScoreQueryBuilder(QueryBuilder filterBuilder) {
+        this.filterBuilder = Objects.requireNonNull(filterBuilder);
+    }
 
     /**
      * Sets the boost for this query.  Documents matching this query will (in addition to the normal
@@ -71,15 +59,9 @@ public class ConstantScoreQueryBuilder extends BaseQueryBuilder implements Boost
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(ConstantScoreQueryParser.NAME);
-        if (queryBuilder != null) {
-            assert filterBuilder == null;
-            builder.field("query");
-            queryBuilder.toXContent(builder, params);
-        } else {
-            builder.field("filter");
-            filterBuilder.toXContent(builder, params);  
-        }
-        
+        builder.field("filter");
+        filterBuilder.toXContent(builder, params);
+
         if (boost != -1) {
             builder.field("boost", boost);
         }

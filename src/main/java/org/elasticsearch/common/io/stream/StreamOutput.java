@@ -294,6 +294,16 @@ public abstract class StreamOutput extends OutputStream {
     }
 
     /**
+     * Write a list of strings. List can be empty but not {@code null}.
+     */
+    public void writeStringList(List<String> stringList) throws IOException {
+        writeVInt(stringList.size());
+        for (String s : stringList) {
+            writeString(s);
+        }
+    }
+
+    /**
      * Writes a string array, for nullable string, writes it as 0 (empty string).
      */
     public void writeStringArrayNullable(@Nullable String[] array) throws IOException {
@@ -409,21 +419,21 @@ public abstract class StreamOutput extends OutputStream {
             writeInt(value[i]);
         }
     }
-    
+
     public void writeLongArray(long[] value) throws IOException {
         writeVInt(value.length);
         for (int i=0; i<value.length; i++) {
             writeLong(value[i]);
         }
     }
-    
+
     public void writeFloatArray(float[] value) throws IOException {
         writeVInt(value.length);
         for (int i=0; i<value.length; i++) {
             writeFloat(value[i]);
         }
     }
-    
+
     public void writeDoubleArray(double[] value) throws IOException {
         writeVInt(value.length);
         for (int i=0; i<value.length; i++) {

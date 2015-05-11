@@ -95,7 +95,7 @@ public class ThreadPoolSerializationTests extends ElasticsearchTestCase {
     @Test
     public void testThatNegativeSettingAllowsToStart() throws InterruptedException {
         Settings settings = settingsBuilder().put("name", "index").put("threadpool.index.queue_size", "-1").build();
-        ThreadPool threadPool = new ThreadPool(settings, null);
+        ThreadPool threadPool = new ThreadPool(settings);
         assertThat(threadPool.info("index").getQueueSize(), is(nullValue()));
         terminate(threadPool);
     }

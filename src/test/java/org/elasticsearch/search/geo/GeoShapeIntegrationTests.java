@@ -24,33 +24,36 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
-import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.geo.GeoShapeFieldMapper;
-import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.test.geo.RandomShapeGenerator;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.builders.GeometryCollectionBuilder;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.query.FilterBuilders;
-import org.elasticsearch.index.query.GeoShapeFilterBuilder;
+import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.geo.GeoShapeFieldMapper;
 import org.elasticsearch.index.query.GeoShapeQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.geo.RandomShapeGenerator;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.FilterBuilders.geoIntersectionFilter;
-import static org.elasticsearch.index.query.QueryBuilders.*;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
-import static org.hamcrest.Matchers.*;
+import static org.elasticsearch.index.query.QueryBuilders.filteredQuery;
+import static org.elasticsearch.index.query.QueryBuilders.geoIntersectionQuery;
+import static org.elasticsearch.index.query.QueryBuilders.geoIntersectionQuery;
+import static org.elasticsearch.index.query.QueryBuilders.geoShapeQuery;
+import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.nullValue;
 
 public class GeoShapeIntegrationTests extends ElasticsearchIntegrationTest {
 
@@ -102,7 +105,7 @@ public class GeoShapeIntegrationTests extends ElasticsearchIntegrationTest {
 
         SearchResponse searchResponse = client().prepareSearch()
                 .setQuery(filteredQuery(matchAllQuery(),
-                        geoIntersectionFilter("location", shape)))
+                        geoIntersectionQuery("location", shape)))
                 .execute().actionGet();
 
         assertSearchResponse(searchResponse);
@@ -152,7 +155,7 @@ public class GeoShapeIntegrationTests extends ElasticsearchIntegrationTest {
         // used the bottom-level optimization in SpatialPrefixTree#recursiveGetNodes.
         SearchResponse searchResponse = client().prepareSearch()
                 .setQuery(filteredQuery(matchAllQuery(),
-                        geoIntersectionFilter("location", query)))
+                        geoIntersectionQuery("location", query)))
                 .execute().actionGet();
 
         assertSearchResponse(searchResponse);
@@ -188,7 +191,7 @@ public class GeoShapeIntegrationTests extends ElasticsearchIntegrationTest {
 
         SearchResponse searchResponse = client().prepareSearch("test")
                 .setQuery(filteredQuery(matchAllQuery(),
-                        geoIntersectionFilter("location", "Big_Rectangle", "shape_type")))
+                        geoIntersectionQuery("location", "Big_Rectangle", "shape_type")))
                 .execute().actionGet();
 
         assertSearchResponse(searchResponse);
@@ -290,28 +293,28 @@ public class GeoShapeIntegrationTests extends ElasticsearchIntegrationTest {
                         .endObject().endObject()));
         ensureSearchable("test", "shapes");
 
-        GeoShapeFilterBuilder filter = FilterBuilders.geoShapeFilter("location", "1", "type", ShapeRelation.INTERSECTS)
+        GeoShapeQueryBuilder filter = QueryBuilders.geoShapeQuery("location", "1", "type", ShapeRelation.INTERSECTS)
                 .indexedShapeIndex("shapes")
                 .indexedShapePath("location");
         SearchResponse result = client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery())
                 .setPostFilter(filter).get();
         assertSearchResponse(result);
         assertHitCount(result, 1);
-        filter = FilterBuilders.geoShapeFilter("location", "1", "type", ShapeRelation.INTERSECTS)
+        filter = QueryBuilders.geoShapeQuery("location", "1", "type", ShapeRelation.INTERSECTS)
                 .indexedShapeIndex("shapes")
                 .indexedShapePath("1.location");
         result = client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery())
                 .setPostFilter(filter).get();
         assertSearchResponse(result);
         assertHitCount(result, 1);
-        filter = FilterBuilders.geoShapeFilter("location", "1", "type", ShapeRelation.INTERSECTS)
+        filter = QueryBuilders.geoShapeQuery("location", "1", "type", ShapeRelation.INTERSECTS)
                 .indexedShapeIndex("shapes")
                 .indexedShapePath("1.2.location");
         result = client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery())
                 .setPostFilter(filter).get();
         assertSearchResponse(result);
         assertHitCount(result, 1);
-        filter = FilterBuilders.geoShapeFilter("location", "1", "type", ShapeRelation.INTERSECTS)
+        filter = QueryBuilders.geoShapeQuery("location", "1", "type", ShapeRelation.INTERSECTS)
                 .indexedShapeIndex("shapes")
                 .indexedShapePath("1.2.3.location");
         result = client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery())
@@ -364,7 +367,7 @@ public class GeoShapeIntegrationTests extends ElasticsearchIntegrationTest {
 
         ShapeBuilder filterShape = (gcb.getShapeAt(randomIntBetween(0, gcb.numShapes() - 1)));
 
-        GeoShapeFilterBuilder filter = FilterBuilders.geoShapeFilter("location", filterShape, ShapeRelation.INTERSECTS);
+        GeoShapeQueryBuilder filter = QueryBuilders.geoShapeQuery("location", filterShape, ShapeRelation.INTERSECTS);
         SearchResponse result = client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery())
                 .setPostFilter(filter).get();
         assertSearchResponse(result);
@@ -403,17 +406,17 @@ public class GeoShapeIntegrationTests extends ElasticsearchIntegrationTest {
                 .setSource(docSource));
         ensureSearchable("test");
 
-        GeoShapeFilterBuilder filter = FilterBuilders.geoShapeFilter("location", ShapeBuilder.newGeometryCollection().polygon(ShapeBuilder.newPolygon().point(99.0, -1.0).point(99.0, 3.0).point(103.0, 3.0).point(103.0, -1.0).point(99.0, -1.0)), ShapeRelation.INTERSECTS);
+        GeoShapeQueryBuilder filter = QueryBuilders.geoShapeQuery("location", ShapeBuilder.newGeometryCollection().polygon(ShapeBuilder.newPolygon().point(99.0, -1.0).point(99.0, 3.0).point(103.0, 3.0).point(103.0, -1.0).point(99.0, -1.0)), ShapeRelation.INTERSECTS);
         SearchResponse result = client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery())
                 .setPostFilter(filter).get();
         assertSearchResponse(result);
         assertHitCount(result, 1);
-        filter = FilterBuilders.geoShapeFilter("location", ShapeBuilder.newGeometryCollection().polygon(ShapeBuilder.newPolygon().point(199.0, -11.0).point(199.0, 13.0).point(193.0, 13.0).point(193.0, -11.0).point(199.0, -11.0)), ShapeRelation.INTERSECTS);
+        filter = QueryBuilders.geoShapeQuery("location", ShapeBuilder.newGeometryCollection().polygon(ShapeBuilder.newPolygon().point(199.0, -11.0).point(199.0, 13.0).point(193.0, 13.0).point(193.0, -11.0).point(199.0, -11.0)), ShapeRelation.INTERSECTS);
         result = client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery())
                 .setPostFilter(filter).get();
         assertSearchResponse(result);
         assertHitCount(result, 0);
-        filter = FilterBuilders.geoShapeFilter("location", ShapeBuilder.newGeometryCollection()
+        filter = QueryBuilders.geoShapeQuery("location", ShapeBuilder.newGeometryCollection()
                 .polygon(ShapeBuilder.newPolygon().point(99.0, -1.0).point(99.0, 3.0).point(103.0, 3.0).point(103.0, -1.0).point(99.0, -1.0))
                 .polygon(ShapeBuilder.newPolygon().point(199.0, -11.0).point(199.0, 13.0).point(193.0, 13.0).point(193.0, -11.0).point(199.0, -11.0)), ShapeRelation.INTERSECTS);
         result = client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery())

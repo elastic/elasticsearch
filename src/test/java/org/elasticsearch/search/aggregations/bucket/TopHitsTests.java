@@ -24,7 +24,7 @@ import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.query.FilterBuilders;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.SearchHits;
@@ -337,7 +337,7 @@ public class TopHitsTests extends ElasticsearchIntegrationTest {
                 .setTypes("type")
                 .setFrom(from)
                 .setSize(size)
-                .setPostFilter(FilterBuilders.termFilter(TERMS_AGGS_FIELD, "val0"))
+                .setPostFilter(QueryBuilders.termQuery(TERMS_AGGS_FIELD, "val0"))
                 .addSort(SORT_FIELD, SortOrder.DESC)
                 .get();
         assertSearchResponse(control);

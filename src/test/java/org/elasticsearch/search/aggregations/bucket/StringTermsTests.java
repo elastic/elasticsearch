@@ -25,7 +25,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.index.mapper.internal.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.internal.IndexFieldMapper;
-import org.elasticsearch.index.query.FilterBuilders;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
@@ -49,11 +49,10 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.regex.Pattern;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.FilterBuilders.termFilter;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.avg;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.count;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.extendedStats;
@@ -987,7 +986,7 @@ public class StringTermsTests extends AbstractTermsTests {
     public void stringTermsNestedIntoPerBucketAggregator() throws Exception {
         // no execution hint so that the logic that decides whether or not to use ordinals is executed
         SearchResponse response = client().prepareSearch("idx").setTypes("type")
-                .addAggregation(filter("filter").filter(termFilter(MULTI_VALUED_FIELD_NAME, "val3")).subAggregation(terms("terms").field(MULTI_VALUED_FIELD_NAME)
+                .addAggregation(filter("filter").filter(termQuery(MULTI_VALUED_FIELD_NAME, "val3")).subAggregation(terms("terms").field(MULTI_VALUED_FIELD_NAME)
                         .collectMode(randomFrom(SubAggCollectionMode.values()))))
                 .execute().actionGet();
 
@@ -1069,7 +1068,7 @@ public class StringTermsTests extends AbstractTermsTests {
                         .field("tag")
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
                         .order(Terms.Order.aggregation("filter", asc))
-                        .subAggregation(filter("filter").filter(FilterBuilders.matchAllFilter()))
+                        .subAggregation(filter("filter").filter(QueryBuilders.matchAllQuery()))
                 ).execute().actionGet();
 
 
@@ -1108,8 +1107,8 @@ public class StringTermsTests extends AbstractTermsTests {
                         .field("tag")
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
                         .order(Terms.Order.aggregation("filter1>filter2>stats.max", asc))
-                        .subAggregation(filter("filter1").filter(FilterBuilders.matchAllFilter())
-                                .subAggregation(filter("filter2").filter(FilterBuilders.matchAllFilter())
+                        .subAggregation(filter("filter1").filter(QueryBuilders.matchAllQuery())
+                                .subAggregation(filter("filter2").filter(QueryBuilders.matchAllQuery())
                                         .subAggregation(stats("stats").field("i"))))
                 ).execute().actionGet();
 
@@ -1170,8 +1169,8 @@ public class StringTermsTests extends AbstractTermsTests {
                         .field("tag")
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
                         .order(Terms.Order.aggregation("filter1>" + filter2Name + ">" + statsName + ".max", asc))
-                        .subAggregation(filter("filter1").filter(FilterBuilders.matchAllFilter())
-                                .subAggregation(filter(filter2Name).filter(FilterBuilders.matchAllFilter())
+                        .subAggregation(filter("filter1").filter(QueryBuilders.matchAllQuery())
+                                .subAggregation(filter(filter2Name).filter(QueryBuilders.matchAllQuery())
                                         .subAggregation(stats(statsName).field("i"))))
                 ).execute().actionGet();
 
@@ -1232,8 +1231,8 @@ public class StringTermsTests extends AbstractTermsTests {
                         .field("tag")
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
                         .order(Terms.Order.aggregation("filter1>" + filter2Name + ">" + statsName + "[max]", asc))
-                        .subAggregation(filter("filter1").filter(FilterBuilders.matchAllFilter())
-                                .subAggregation(filter(filter2Name).filter(FilterBuilders.matchAllFilter())
+                        .subAggregation(filter("filter1").filter(QueryBuilders.matchAllQuery())
+                                .subAggregation(filter(filter2Name).filter(QueryBuilders.matchAllQuery())
                                         .subAggregation(stats(statsName).field("i"))))
                 ).execute().actionGet();
 

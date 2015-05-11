@@ -24,7 +24,6 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TestUtil;
 import org.apache.lucene.util.UnicodeUtil;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
@@ -40,7 +39,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.Uid;
-import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders;
 import org.elasticsearch.search.SearchHit;
@@ -51,16 +49,44 @@ import org.hamcrest.Matchers;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Locale;
 import java.util.Map.Entry;
+import java.util.Random;
+import java.util.Set;
+import java.util.TreeMap;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.QueryBuilders.*;
+import static org.elasticsearch.index.query.QueryBuilders.functionScoreQuery;
+import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.scriptFunction;
 import static org.elasticsearch.search.sort.SortBuilders.fieldSort;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
-import static org.hamcrest.Matchers.*;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFirstHit;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertOrderedSearchHits;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSecondHit;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSortValues;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasId;
+import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 
 /**
@@ -131,8 +157,8 @@ public class SimpleSortTests extends ElasticsearchIntegrationTest {
         indexRandom(true, builders);
         ensureYellow();
         SearchResponse allDocsResponse = client().prepareSearch().setQuery(QueryBuilders.filteredQuery(matchAllQuery(),
-                FilterBuilders.boolFilter().must(FilterBuilders.termFilter("foo", "bar"),
-                        FilterBuilders.rangeFilter("timeUpdated").gte("2014/0" + randomIntBetween(1, 7) + "/01"))))
+                QueryBuilders.boolQuery().must(QueryBuilders.termQuery("foo", "bar")).must(
+                        QueryBuilders.rangeQuery("timeUpdated").gte("2014/0" + randomIntBetween(1, 7) + "/01"))))
                 .addSort(new FieldSortBuilder("timeUpdated").order(SortOrder.ASC).unmappedType("date"))
                 .setSize(docs).get();
         assertSearchResponse(allDocsResponse);
@@ -140,8 +166,8 @@ public class SimpleSortTests extends ElasticsearchIntegrationTest {
         final int numiters = randomIntBetween(1, 20);
         for (int i = 0; i < numiters; i++) {
             SearchResponse searchResponse = client().prepareSearch().setQuery(QueryBuilders.filteredQuery(matchAllQuery(),
-                    FilterBuilders.boolFilter().must(FilterBuilders.termFilter("foo", "bar"),
-                            FilterBuilders.rangeFilter("timeUpdated").gte("2014/" + String.format(Locale.ROOT, "%02d", randomIntBetween(1, 7)) + "/01"))))
+                    QueryBuilders.boolQuery().must(QueryBuilders.termQuery("foo", "bar")).must(
+                            QueryBuilders.rangeQuery("timeUpdated").gte("2014/" + String.format(Locale.ROOT, "%02d", randomIntBetween(1, 7)) + "/01"))))
                     .addSort(new FieldSortBuilder("timeUpdated").order(SortOrder.ASC).unmappedType("date"))
                     .setSize(scaledRandomIntBetween(1, docs)).get();
             assertSearchResponse(searchResponse);
@@ -272,7 +298,7 @@ public class SimpleSortTests extends ElasticsearchIntegrationTest {
         if (!sparseBytes.isEmpty()) {
             int size = between(1, sparseBytes.size());
             SearchResponse searchResponse = client().prepareSearch().setQuery(matchAllQuery())
-                    .setPostFilter(FilterBuilders.existsFilter("sparse_bytes")).setSize(size).addSort("sparse_bytes", SortOrder.ASC).execute()
+                    .setPostFilter(QueryBuilders.existsQuery("sparse_bytes")).setSize(size).addSort("sparse_bytes", SortOrder.ASC).execute()
                     .actionGet();
             assertNoFailures(searchResponse);
             assertThat(searchResponse.getHits().getTotalHits(), equalTo((long) sparseBytes.size()));

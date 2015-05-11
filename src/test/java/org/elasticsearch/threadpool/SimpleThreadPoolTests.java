@@ -32,6 +32,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.node.NodeBuilder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
@@ -188,6 +189,24 @@ public class SimpleThreadPoolTests extends ElasticsearchIntegrationTest {
             assertThat(found, equalTo(true));
 
             Map<String, Object> poolMap = getPoolSettingsThroughJson(nodeInfo.getThreadPool(), Names.SEARCH);
+        }
+    }
+
+    @Test
+    public void testThreadPoolLeakingThreadsWithTribeNode() {
+        Settings settings = ImmutableSettings.builder()
+                .put("node.name", "thread_pool_leaking_threads_tribe_node")
+                .put("path.home", createTempDir())
+                .put("tribe.t1.cluster.name", "non_existing_cluster")
+                        //trigger initialization failure of one of the tribes (doesn't require starting the node)
+                .put("tribe.t1.plugin.mandatory", "non_existing").build();
+
+        try {
+            NodeBuilder.nodeBuilder().settings(settings).build();
+            fail("The node startup is supposed to fail");
+        } catch(Throwable t) {
+            //all good
+            assertThat(t.getMessage(), containsString("mandatory plugins [non_existing]"));
         }
     }
 

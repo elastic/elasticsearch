@@ -70,11 +70,10 @@ import java.util.NavigableMap;
 import java.util.Random;
 import java.util.TreeMap;
 
-import static org.elasticsearch.index.query.FilterBuilders.notFilter;
-import static org.elasticsearch.index.query.FilterBuilders.termFilter;
 import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
 import static org.elasticsearch.index.query.QueryBuilders.filteredQuery;
 import static org.elasticsearch.index.query.QueryBuilders.hasParentQuery;
+import static org.elasticsearch.index.query.QueryBuilders.notQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 
 public class ParentQueryTests extends AbstractChildTests {
@@ -211,7 +210,7 @@ public class ParentQueryTests extends AbstractChildTests {
             String parentValue = parentValues[random().nextInt(numUniqueParentValues)];
             QueryBuilder queryBuilder = hasParentQuery("parent", constantScoreQuery(termQuery("field1", parentValue)));
             // Using a FQ, will invoke / test the Scorer#advance(..) and also let the Weight#scorer not get live docs as acceptedDocs
-            queryBuilder = filteredQuery(queryBuilder, notFilter(termFilter("filter", "me")));
+            queryBuilder = filteredQuery(queryBuilder, notQuery(termQuery("filter", "me")));
             Query query = parseQuery(queryBuilder);
 
             BitSetCollector collector = new BitSetCollector(indexReader.maxDoc());

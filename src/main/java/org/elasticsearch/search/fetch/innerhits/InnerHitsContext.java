@@ -98,7 +98,7 @@ public final class InnerHitsContext {
 
         @Override
         public ParsedQuery parsedQuery() {
-            return new ParsedQuery(query, ImmutableMap.<String, Filter>of());
+            return new ParsedQuery(query, ImmutableMap.<String, Query>of());
         }
 
         public abstract TopDocs topDocs(SearchContext context, FetchSubPhase.HitContext hitContext) throws IOException;
@@ -307,7 +307,7 @@ public final class InnerHitsContext {
                 }
             }
             Filter filter = new QueryWrapperFilter(new TermQuery(new Term(field, term))); // Only include docs that have the current hit as parent
-            Filter typeFilter = documentMapper.typeFilter(); // Only include docs that have this inner hits type.
+            Query typeFilter = documentMapper.typeFilter(); // Only include docs that have this inner hits type.
 
             BooleanQuery filteredQuery = new BooleanQuery();
             filteredQuery.add(query, Occur.MUST);

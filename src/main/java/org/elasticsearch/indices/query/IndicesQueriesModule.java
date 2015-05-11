@@ -32,8 +32,6 @@ public class IndicesQueriesModule extends AbstractModule {
 
     private Set<Class<QueryParser>> queryParsersClasses = Sets.newHashSet();
     private Set<QueryParser> queryParsers = Sets.newHashSet();
-    private Set<Class<FilterParser>> filterParsersClasses = Sets.newHashSet();
-    private Set<FilterParser> filterParsers = Sets.newHashSet();
 
     public synchronized IndicesQueriesModule addQuery(Class<QueryParser> queryParser) {
         queryParsersClasses.add(queryParser);
@@ -42,16 +40,6 @@ public class IndicesQueriesModule extends AbstractModule {
 
     public synchronized IndicesQueriesModule addQuery(QueryParser queryParser) {
         queryParsers.add(queryParser);
-        return this;
-    }
-
-    public synchronized IndicesQueriesModule addFilter(Class<FilterParser> filterParser) {
-        filterParsersClasses.add(filterParser);
-        return this;
-    }
-
-    public synchronized IndicesQueriesModule addFilter(FilterParser filterParser) {
-        filterParsers.add(filterParser);
         return this;
     }
 
@@ -71,7 +59,6 @@ public class IndicesQueriesModule extends AbstractModule {
         qpBinders.addBinding().to(NestedQueryParser.class).asEagerSingleton();
         qpBinders.addBinding().to(HasChildQueryParser.class).asEagerSingleton();
         qpBinders.addBinding().to(HasParentQueryParser.class).asEagerSingleton();
-        qpBinders.addBinding().to(TopChildrenQueryParser.class).asEagerSingleton();
         qpBinders.addBinding().to(DisMaxQueryParser.class).asEagerSingleton();
         qpBinders.addBinding().to(IdsQueryParser.class).asEagerSingleton();
         qpBinders.addBinding().to(MatchAllQueryParser.class).asEagerSingleton();
@@ -103,48 +90,25 @@ public class IndicesQueriesModule extends AbstractModule {
         qpBinders.addBinding().to(FunctionScoreQueryParser.class).asEagerSingleton();
         qpBinders.addBinding().to(SimpleQueryStringParser.class).asEagerSingleton();
         qpBinders.addBinding().to(TemplateQueryParser.class).asEagerSingleton();
+        qpBinders.addBinding().to(TypeQueryParser.class).asEagerSingleton();
+        qpBinders.addBinding().to(LimitQueryParser.class).asEagerSingleton();
+        qpBinders.addBinding().to(TermsQueryParser.class).asEagerSingleton();
+        qpBinders.addBinding().to(ScriptQueryParser.class).asEagerSingleton();
+        qpBinders.addBinding().to(GeoDistanceQueryParser.class).asEagerSingleton();
+        qpBinders.addBinding().to(GeoDistanceRangeQueryParser.class).asEagerSingleton();
+        qpBinders.addBinding().to(GeoBoundingBoxQueryParser.class).asEagerSingleton();
+        qpBinders.addBinding().to(GeohashCellQuery.Parser.class).asEagerSingleton();
+        qpBinders.addBinding().to(GeoPolygonQueryParser.class).asEagerSingleton();
+        qpBinders.addBinding().to(QueryFilterParser.class).asEagerSingleton();
+        qpBinders.addBinding().to(FQueryFilterParser.class).asEagerSingleton();
+        qpBinders.addBinding().to(AndQueryParser.class).asEagerSingleton();
+        qpBinders.addBinding().to(OrQueryParser.class).asEagerSingleton();
+        qpBinders.addBinding().to(NotQueryParser.class).asEagerSingleton();
+        qpBinders.addBinding().to(ExistsQueryParser.class).asEagerSingleton();
+        qpBinders.addBinding().to(MissingQueryParser.class).asEagerSingleton();
 
         if (ShapesAvailability.JTS_AVAILABLE) {
             qpBinders.addBinding().to(GeoShapeQueryParser.class).asEagerSingleton();
         }
-
-        Multibinder<FilterParser> fpBinders = Multibinder.newSetBinder(binder(), FilterParser.class);
-        for (Class<FilterParser> filterParser : filterParsersClasses) {
-            fpBinders.addBinding().to(filterParser).asEagerSingleton();
-        }
-        for (FilterParser filterParser : filterParsers) {
-            fpBinders.addBinding().toInstance(filterParser);
-        }
-        fpBinders.addBinding().to(HasChildFilterParser.class).asEagerSingleton();
-        fpBinders.addBinding().to(HasParentFilterParser.class).asEagerSingleton();
-        fpBinders.addBinding().to(NestedFilterParser.class).asEagerSingleton();
-        fpBinders.addBinding().to(TypeFilterParser.class).asEagerSingleton();
-        fpBinders.addBinding().to(IdsFilterParser.class).asEagerSingleton();
-        fpBinders.addBinding().to(LimitFilterParser.class).asEagerSingleton();
-        fpBinders.addBinding().to(TermFilterParser.class).asEagerSingleton();
-        fpBinders.addBinding().to(TermsFilterParser.class).asEagerSingleton();
-        fpBinders.addBinding().to(RangeFilterParser.class).asEagerSingleton();
-        fpBinders.addBinding().to(PrefixFilterParser.class).asEagerSingleton();
-        fpBinders.addBinding().to(RegexpFilterParser.class).asEagerSingleton();
-        fpBinders.addBinding().to(ScriptFilterParser.class).asEagerSingleton();
-        fpBinders.addBinding().to(GeoDistanceFilterParser.class).asEagerSingleton();
-        fpBinders.addBinding().to(GeoDistanceRangeFilterParser.class).asEagerSingleton();
-        fpBinders.addBinding().to(GeoBoundingBoxFilterParser.class).asEagerSingleton();
-        fpBinders.addBinding().to(GeohashCellFilter.Parser.class).asEagerSingleton();
-        fpBinders.addBinding().to(GeoPolygonFilterParser.class).asEagerSingleton();
-        if (ShapesAvailability.JTS_AVAILABLE) {
-            fpBinders.addBinding().to(GeoShapeFilterParser.class).asEagerSingleton();
-        }
-        fpBinders.addBinding().to(QueryFilterParser.class).asEagerSingleton();
-        fpBinders.addBinding().to(FQueryFilterParser.class).asEagerSingleton();
-        fpBinders.addBinding().to(BoolFilterParser.class).asEagerSingleton();
-        fpBinders.addBinding().to(AndFilterParser.class).asEagerSingleton();
-        fpBinders.addBinding().to(OrFilterParser.class).asEagerSingleton();
-        fpBinders.addBinding().to(NotFilterParser.class).asEagerSingleton();
-        fpBinders.addBinding().to(MatchAllFilterParser.class).asEagerSingleton();
-        fpBinders.addBinding().to(ExistsFilterParser.class).asEagerSingleton();
-        fpBinders.addBinding().to(MissingFilterParser.class).asEagerSingleton();
-        fpBinders.addBinding().to(IndicesFilterParser.class).asEagerSingleton();
-        fpBinders.addBinding().to(WrapperFilterParser.class).asEagerSingleton();
     }
 }

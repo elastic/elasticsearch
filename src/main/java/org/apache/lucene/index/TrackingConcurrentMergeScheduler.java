@@ -101,7 +101,7 @@ public class TrackingConcurrentMergeScheduler extends ConcurrentMergeScheduler {
     protected void doMerge(IndexWriter writer, MergePolicy.OneMerge merge) throws IOException {
         int totalNumDocs = merge.totalNumDocs();
         long totalSizeInBytes = merge.totalBytesSize();
-        long time = System.currentTimeMillis();
+        long timeNS = System.nanoTime();
         currentMerges.inc();
         currentMergesNumDocs.inc(totalNumDocs);
         currentMergesSizeInBytes.inc(totalSizeInBytes);
@@ -116,7 +116,7 @@ public class TrackingConcurrentMergeScheduler extends ConcurrentMergeScheduler {
             beforeMerge(onGoingMerge);
             super.doMerge(writer, merge);
         } finally {
-            long took = System.currentTimeMillis() - time;
+            long tookMS = TimeValue.nsecToMSec(System.nanoTime() - timeNS);
 
             onGoingMerges.remove(onGoingMerge);
             afterMerge(onGoingMerge);
@@ -127,10 +127,10 @@ public class TrackingConcurrentMergeScheduler extends ConcurrentMergeScheduler {
 
             totalMergesNumDocs.inc(totalNumDocs);
             totalMergesSizeInBytes.inc(totalSizeInBytes);
-            totalMerges.inc(took);
+            totalMerges.inc(tookMS);
 
-            long stoppedMS = merge.rateLimiter.getTotalStoppedNS()/1000000;
-            long throttledMS = merge.rateLimiter.getTotalPausedNS()/1000000;
+            long stoppedMS = TimeValue.nsecToMSec(merge.rateLimiter.getTotalStoppedNS());
+            long throttledMS = TimeValue.nsecToMSec(merge.rateLimiter.getTotalPausedNS());
 
             totalMergeStoppedTime.inc(stoppedMS);
             totalMergeThrottledTime.inc(throttledMS);
@@ -138,7 +138,7 @@ public class TrackingConcurrentMergeScheduler extends ConcurrentMergeScheduler {
             String message = String.format(Locale.ROOT,
                                            "merge segment [%s] done: took [%s], [%,.1f MB], [%,d docs], [%s stopped], [%s throttled], [%,.1f MB written], [%,.1f MB/sec throttle]",
                                            merge.info == null ? "_na_" : merge.info.info.name,
-                                           TimeValue.timeValueMillis(took),
+                                           TimeValue.timeValueMillis(tookMS),
                                            totalSizeInBytes/1024f/1024f,
                                            totalNumDocs,
                                            TimeValue.timeValueMillis(stoppedMS),
@@ -146,7 +146,7 @@ public class TrackingConcurrentMergeScheduler extends ConcurrentMergeScheduler {
                                            merge.rateLimiter.getTotalBytesWritten()/1024f/1024f,
                                            merge.rateLimiter.getMBPerSec());
 
-            if (took > 20000) { // if more than 20 seconds, DEBUG log it
+            if (tookMS > 20000) { // if more than 20 seconds, DEBUG log it
                 logger.debug(message);
             } else if (logger.isTraceEnabled()) {
                 logger.trace(message);

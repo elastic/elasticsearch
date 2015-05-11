@@ -28,13 +28,16 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.CharsRefBuilder;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.search.*;
+import org.elasticsearch.action.search.MultiSearchRequestBuilder;
+import org.elasticsearch.action.search.MultiSearchResponse;
+import org.elasticsearch.action.search.SearchRequestBuilder;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.common.text.Text;
-import org.elasticsearch.index.query.FilterBuilders;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
@@ -42,7 +45,9 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.suggest.Suggest.Suggestion;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry.Option;
-import org.elasticsearch.search.suggest.*;
+import org.elasticsearch.search.suggest.SuggestContextParser;
+import org.elasticsearch.search.suggest.SuggestUtils;
+import org.elasticsearch.search.suggest.Suggester;
 import org.elasticsearch.search.suggest.phrase.NoisyChannelSpellChecker.Result;
 
 import java.io.IOException;
@@ -168,7 +173,7 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
             if (isFilter) {
                 req = client.prepareSearch()
                         .setPreference(suggestions.getPreference())
-                        .setQuery(QueryBuilders.constantScoreQuery(FilterBuilders.bytesFilter(querySource)))
+                        .setQuery(QueryBuilders.constantScoreQuery(QueryBuilders.wrapperQuery(querySource)))
                         .setSize(0)
                         .setTerminateAfter(1);
             } else {

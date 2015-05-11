@@ -76,15 +76,6 @@ public class CachedDfSource extends IndexSearcher {
     }
 
     @Override
-    public Query rewrite(Query query) {
-        // this is a bit of a hack. We know that a query which
-        // creates a Weight based on this Dummy-Searcher is
-        // always already rewritten (see preparedWeight()).
-        // Therefore we just return the unmodified query here
-        return query;
-    }
-
-    @Override
     public Document doc(int i) {
         throw new UnsupportedOperationException();
     }

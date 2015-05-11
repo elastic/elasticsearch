@@ -33,7 +33,6 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.SyncedFlushService;
@@ -324,7 +323,7 @@ public class RecoveryFromGatewayTests extends ElasticsearchIntegrationTest {
                                     .startObject("field2").field("type", "string").field("store", "yes").field("index", "not_analyzed").endObject()
                                     .endObject().endObject().endObject())
                             .execute().actionGet();
-                    client.admin().indices().prepareAliases().addAlias("test", "test_alias", FilterBuilders.termFilter("field", "value")).execute().actionGet();
+                    client.admin().indices().prepareAliases().addAlias("test", "test_alias", QueryBuilders.termQuery("field", "value")).execute().actionGet();
                     logger.info("--> starting two nodes back, verifying we got the latest version");
                 }
 

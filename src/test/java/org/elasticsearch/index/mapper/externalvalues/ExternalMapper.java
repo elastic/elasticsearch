@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.mapper.externalvalues;
 
+import com.google.common.collect.Iterators;
+import com.google.common.collect.Lists;
 import com.spatial4j.core.shape.Point;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
@@ -30,12 +32,10 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.FieldMapperListener;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.MergeMappingException;
-import org.elasticsearch.index.mapper.ObjectMapperListener;
+import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 import org.elasticsearch.index.mapper.core.BinaryFieldMapper;
@@ -221,16 +221,8 @@ public class ExternalMapper extends AbstractFieldMapper<Object> {
     }
 
     @Override
-    public void traverse(FieldMapperListener fieldMapperListener) {
-        binMapper.traverse(fieldMapperListener);
-        boolMapper.traverse(fieldMapperListener);
-        pointMapper.traverse(fieldMapperListener);
-        shapeMapper.traverse(fieldMapperListener);
-        stringMapper.traverse(fieldMapperListener);
-    }
-
-    @Override
-    public void traverse(ObjectMapperListener objectMapperListener) {
+    public Iterator<Mapper> iterator() {
+        return Iterators.concat(super.iterator(), Lists.newArrayList(binMapper, boolMapper, pointMapper, shapeMapper, stringMapper).iterator());
     }
 
     @Override

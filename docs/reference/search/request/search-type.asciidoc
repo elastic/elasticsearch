@@ -82,23 +82,4 @@ Parameter value: *scan*.
 The `scan` search type disables sorting in order to allow very efficient
 scrolling through large result sets.  See <<scroll-scan>> for more.
 
-[[query-and-fetch]]
-==== Query And Fetch
-
-Parameter value: *query_and_fetch*.
-
-The `query_and_fetch` mode is an *internal* optimization which
-is chosen automatically when a `query_then_fetch` request
-targets a single shard only.  Both phases of `query_then_fetch`
-are executed in a single pass.  This mode should not be
-explicitly specified by the user.
-
-[[dfs-query-and-fetch]]
-==== Dfs, Query And Fetch
-
-Parameter value: *dfs_query_and_fetch*.
-
-Same as `query_and_fetch`, except for an initial scatter phase which
-goes and computes the distributed term frequencies for more accurate
-scoring. This mode should not be explicitly specified by the user.
 

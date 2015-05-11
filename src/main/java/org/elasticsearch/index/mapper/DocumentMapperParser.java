@@ -87,6 +87,7 @@ import static org.elasticsearch.index.mapper.MapperBuilders.doc;
  */
 public class DocumentMapperParser extends AbstractIndexComponent {
 
+    final MapperService mapperService;
     final AnalysisService analysisService;
     private static final ESLogger logger = Loggers.getLogger(DocumentMapperParser.class);
     private final SimilarityLookupService similarityLookupService;
@@ -100,9 +101,10 @@ public class DocumentMapperParser extends AbstractIndexComponent {
     private volatile ImmutableMap<String, Mapper.TypeParser> typeParsers;
     private volatile ImmutableMap<String, Mapper.TypeParser> rootTypeParsers;
 
-    public DocumentMapperParser(Index index, @IndexSettings Settings indexSettings, AnalysisService analysisService,
+    public DocumentMapperParser(Index index, @IndexSettings Settings indexSettings, MapperService mapperService, AnalysisService analysisService,
                                 SimilarityLookupService similarityLookupService, ScriptService scriptService) {
         super(index, indexSettings);
+        this.mapperService = mapperService;
         this.analysisService = analysisService;
         this.similarityLookupService = similarityLookupService;
         this.scriptService = scriptService;
@@ -269,7 +271,7 @@ public class DocumentMapperParser extends AbstractIndexComponent {
 
         checkNoRemainingFields(mapping, parserContext.indexVersionCreated(), "Root mapping definition has unsupported parameters: ");
 
-        DocumentMapper documentMapper = docBuilder.build(this);
+        DocumentMapper documentMapper = docBuilder.build(mapperService, this);
         // update the source with the generated one
         documentMapper.refreshSource();
         return documentMapper;

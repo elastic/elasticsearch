@@ -334,19 +334,19 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
 
 
     static abstract class TimedPrioritizedRunnable extends PrioritizedRunnable {
-        private final long creationTime;
+        private final long creationTimeNS;
         protected final String source;
 
         protected TimedPrioritizedRunnable(Priority priority, String source) {
             super(priority);
             this.source = source;
-            this.creationTime = System.currentTimeMillis();
+            this.creationTimeNS = System.nanoTime();
         }
 
         public long timeSinceCreatedInMillis() {
             // max with 0 to make sure we always return a non negative number
             // even if time shifts.
-            return Math.max(0, System.currentTimeMillis() - creationTime);
+            return Math.max(0, TimeValue.nsecToMSec(System.nanoTime() - creationTimeNS));
         }
 
         public String source() {
@@ -378,11 +378,11 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
                 return;
             }
             ClusterState newClusterState;
-            long startTime = System.currentTimeMillis();
+            long startTimeNS = System.nanoTime();
             try {
                 newClusterState = updateTask.execute(previousClusterState);
             } catch (Throwable e) {
-                TimeValue executionTime = TimeValue.timeValueMillis(Math.max(0, System.currentTimeMillis() - startTime));
+                TimeValue executionTime = TimeValue.timeValueMillis(Math.max(0, TimeValue.nsecToMSec(System.nanoTime() - startTimeNS)));
                 if (logger.isTraceEnabled()) {
                     StringBuilder sb = new StringBuilder("failed to execute cluster state update in ").append(executionTime).append(", state:\nversion [").append(previousClusterState.version()).append("], source [").append(source).append("]\n");
                     sb.append(previousClusterState.nodes().prettyPrint());
@@ -403,7 +403,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
                 if (updateTask instanceof ProcessedClusterStateUpdateTask) {
                     ((ProcessedClusterStateUpdateTask) updateTask).clusterStateProcessed(source, previousClusterState, newClusterState);
                 }
-                TimeValue executionTime = TimeValue.timeValueMillis(Math.max(0, System.currentTimeMillis() - startTime));
+                TimeValue executionTime = TimeValue.timeValueMillis(Math.max(0, TimeValue.nsecToMSec(System.nanoTime() - startTimeNS)));
                 logger.debug("processing [{}]: took {} no change in cluster_state", source, executionTime);
                 warnAboutSlowTaskIfNeeded(executionTime, source);
                 return;
@@ -523,11 +523,11 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
                     ((ProcessedClusterStateUpdateTask) updateTask).clusterStateProcessed(source, previousClusterState, newClusterState);
                 }
 
-                TimeValue executionTime = TimeValue.timeValueMillis(Math.max(0, System.currentTimeMillis() - startTime));
+                TimeValue executionTime = TimeValue.timeValueMillis(Math.max(0, TimeValue.nsecToMSec(System.nanoTime() - startTimeNS)));
                 logger.debug("processing [{}]: took {} done applying updated cluster_state (version: {}, uuid: {})", source, executionTime, newClusterState.version(), newClusterState.uuid());
                 warnAboutSlowTaskIfNeeded(executionTime, source);
             } catch (Throwable t) {
-                TimeValue executionTime = TimeValue.timeValueMillis(Math.max(0, System.currentTimeMillis() - startTime));
+                TimeValue executionTime = TimeValue.timeValueMillis(Math.max(0, TimeValue.nsecToMSec(System.nanoTime() - startTimeNS)));
                 StringBuilder sb = new StringBuilder("failed to apply updated cluster state in ").append(executionTime).append(":\nversion [").append(newClusterState.version()).append("], uuid [").append(newClusterState.uuid()).append("], source [").append(source).append("]\n");
                 sb.append(newClusterState.nodes().prettyPrint());
                 sb.append(newClusterState.routingTable().prettyPrint());

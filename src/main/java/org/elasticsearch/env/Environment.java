@@ -20,6 +20,7 @@
 package org.elasticsearch.env;
 
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 
@@ -36,6 +37,9 @@ import static org.elasticsearch.common.Strings.cleanPath;
 /**
  * The environment of where things exists.
  */
+@SuppressForbidden(reason = "configures paths for the system")
+// TODO: move PathUtils to be package-private here instead of 
+// public+forbidden api!
 public class Environment {
 
     private final Settings settings;
@@ -54,6 +58,9 @@ public class Environment {
 
     /** Path to the PID file (can be null if no PID file is configured) **/
     private final Path pidFile;
+    
+    /** Path to the temporary file directory used by the JDK */
+    private final Path tmpFile = PathUtils.get(System.getProperty("java.io.tmpdir"));
 
     /** List of filestores on the system */
     private static final FileStore[] fileStores;
@@ -165,6 +172,11 @@ public class Environment {
      */
     public Path pidFile() {
         return pidFile;
+    }
+    
+    /** Path to the default temp directory used by the JDK */
+    public Path tmpFile() {
+        return tmpFile;
     }
 
     /**

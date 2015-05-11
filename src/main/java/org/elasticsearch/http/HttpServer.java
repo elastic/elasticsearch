@@ -21,11 +21,8 @@ package org.elasticsearch.http;
 
 import com.google.common.collect.ImmutableMap;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.FileSystemUtils;
-import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.service.NodeService;
@@ -167,16 +164,23 @@ public class HttpServer extends AbstractLifecycleComponent<HttpServer> {
             sitePath = path.substring(i1 + 1);
         }
 
+        // we default to index.html, or what the plugin provides (as a unix-style path)
+        // this is a relative path under _site configured by the plugin.
         if (sitePath.length() == 0) {
-            sitePath = "/index.html";
+            sitePath = "index.html";
+        } else {
+            // remove extraneous leading slashes, its not an absolute path.
+            while (sitePath.length() > 0 && sitePath.charAt(0) == '/') {
+                sitePath = sitePath.substring(1);
+            }
         }
         final Path siteFile = environment.pluginsFile().resolve(pluginName).resolve("_site");
 
         final String separator = siteFile.getFileSystem().getSeparator();
         // Convert file separators.
         sitePath = sitePath.replace("/", separator);
-        // this is a plugin provided site, serve it as static files from the plugin location
-        Path file = FileSystemUtils.append(siteFile, PathUtils.get(sitePath), 0);
+        
+        Path file = siteFile.resolve(sitePath);
 
         // return not found instead of forbidden to prevent malicious requests to find out if files exist or dont exist
         if (!Files.exists(file) || Files.isHidden(file) || !file.toAbsolutePath().normalize().startsWith(siteFile.toAbsolutePath())) {

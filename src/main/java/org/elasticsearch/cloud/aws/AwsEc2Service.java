@@ -62,6 +62,9 @@ public class AwsEc2Service extends AbstractLifecycleComponent<AwsEc2Service> {
         }
 
         ClientConfiguration clientConfiguration = new ClientConfiguration();
+        // the response metadata cache is only there for diagnostics purposes,
+        // but can force objects from every response to the old generation.
+        clientConfiguration.setResponseMetadataCacheSize(0);
         String protocol = settings.get("cloud.aws.protocol", "https").toLowerCase();
         protocol = settings.get("cloud.aws.ec2.protocol", protocol).toLowerCase();
         if ("http".equals(protocol)) {

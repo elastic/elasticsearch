@@ -24,8 +24,8 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
+import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTermsAggregator;
 import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
 import org.elasticsearch.search.aggregations.reducers.Reducer;
@@ -81,12 +81,17 @@ public class SignificantStringTermsAggregator extends StringTermsAggregator {
         BucketSignificancePriorityQueue ordered = new BucketSignificancePriorityQueue(size);
         SignificantStringTerms.Bucket spare = null;
         for (int i = 0; i < bucketOrds.size(); i++) {
+            final int docCount = bucketDocCount(i);
+            if (docCount < bucketCountThresholds.getShardMinDocCount()) {
+                continue;
+            }
+
             if (spare == null) {
                 spare = new SignificantStringTerms.Bucket(new BytesRef(), 0, 0, 0, 0, null);
             }
 
             bucketOrds.get(i, spare.termBytes);
-            spare.subsetDf = bucketDocCount(i);
+            spare.subsetDf = docCount;
             spare.subsetSize = subsetSize;
             spare.supersetDf = termsAggFactory.getBackgroundFrequency(spare.termBytes);
             spare.supersetSize = supersetSize;
@@ -97,9 +102,7 @@ public class SignificantStringTermsAggregator extends StringTermsAggregator {
             spare.updateScore(termsAggFactory.getSignificanceHeuristic());
 
             spare.bucketOrd = i;
-            if (spare.subsetDf >= bucketCountThresholds.getShardMinDocCount()) {
-                spare = (SignificantStringTerms.Bucket) ordered.insertWithOverflow(spare);
-            }
+            spare = (SignificantStringTerms.Bucket) ordered.insertWithOverflow(spare);
         }
 
         final InternalSignificantTerms.Bucket[] list = new InternalSignificantTerms.Bucket[ordered.size()];

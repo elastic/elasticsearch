@@ -7,14 +7,7 @@ package org.elasticsearch.watcher.condition.script;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.StringText;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.node.settings.NodeSettingsService;
-import org.elasticsearch.script.ScriptEngineService;
-import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.script.groovy.GroovyScriptEngineService;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogram;
@@ -23,18 +16,15 @@ import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.InternalSearchHits;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.watcher.support.Script;
 import org.elasticsearch.watcher.support.init.proxy.ScriptServiceProxy;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
+import org.elasticsearch.watcher.test.WatcherTestUtils;
 import org.elasticsearch.watcher.watch.Payload;
-import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
-
-import java.util.HashSet;
-import java.util.Set;
 
 import static org.elasticsearch.watcher.test.WatcherTestUtils.mockExecutionContext;
 import static org.hamcrest.Matchers.is;
@@ -50,14 +40,7 @@ public class ScriptConditionSearchTests extends AbstractWatcherIntegrationTests 
     @Before
     public void init() throws Exception {
         tp = new ThreadPool(ThreadPool.Names.SAME);
-        Settings settings = ImmutableSettings.settingsBuilder()
-                .put(ScriptService.DISABLE_DYNAMIC_SCRIPTING_SETTING, "none")
-                .build();
-        GroovyScriptEngineService groovyScriptEngineService = new GroovyScriptEngineService(settings);
-        Set<ScriptEngineService> engineServiceSet = new HashSet<>();
-        engineServiceSet.add(groovyScriptEngineService);
-        NodeSettingsService nodeSettingsService = new NodeSettingsService(settings);
-        scriptService = ScriptServiceProxy.of(new ScriptService(settings, new Environment(), engineServiceSet, new ResourceWatcherService(settings, tp), nodeSettingsService));
+        scriptService = WatcherTestUtils.getScriptServiceProxy(tp);
     }
 
     @After

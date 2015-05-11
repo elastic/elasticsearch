@@ -318,7 +318,8 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTests {
                 .value(Template.indexed("my-template").build())
                 .bytes();
         SearchRequest searchRequest = newInputSearchRequest("events");
-        searchRequest.templateSource(templateSource, false);
+        // TODO (2.0 upgrade): move back to BytesReference instead of coverting to a string
+        searchRequest.templateSource(templateSource.toUtf8());
         testConditionSearch(searchRequest);
     }
 

@@ -284,10 +284,15 @@ public class HistoryStore extends AbstractComponent implements NodeSettingsServi
         }
         putUpdateLock.lock();
         try {
-            BytesReference bytes = XContentFactory.jsonBuilder().value(watchRecord).bytes();
+            BytesReference source = XContentFactory.jsonBuilder().value(watchRecord).bytes();
             IndexRequest request = new IndexRequest(getHistoryIndexNameForTime(watchRecord.triggerEvent().triggeredTime()), DOC_TYPE, watchRecord.id().value())
-                    .source(bytes, true)
                     .version(watchRecord.version());
+            // TODO (2.0 upgrade): move back to BytesReference instead of dealing with the array directly
+            if (source.hasArray()) {
+                request.source(source.array(), source.arrayOffset(), source.length());
+            } else {
+                request.source(source.toBytes());
+            }
             IndexResponse response = client.index(request);
             watchRecord.version(response.getVersion());
             logger.debug("successfully updated watch record [{}]", watchRecord);

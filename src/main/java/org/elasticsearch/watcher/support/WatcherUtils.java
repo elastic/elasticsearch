@@ -75,7 +75,11 @@ public final class WatcherUtils {
             XContentHelper.writeRawField("template", requestPrototype.source(), builder, ToXContent.EMPTY_PARAMS);
             builder.field("params", watcherContextParams);
             builder.endObject();
-            request.templateSource(builder.bytes(), false);
+            // Unfortunately because of SearchRequest#templateSource(BytesReference, boolean) has been removed in 1.6 and
+            // SearchRequest#templateSource(BytesReference) doesn't exist in 1.5, we are forced to use SearchRequest#templateSource(String)
+            // that exist in both 1.5 and 1.6
+            // TODO (2.0 upgrade): move back to BytesReference
+            request.templateSource(builder.string());
         } else if (Strings.hasLength(requestPrototype.templateSource())) {
             // Here we convert watcher template into a ES core templates. Due to the different format we use, we
             // convert to the template format used in ES core
@@ -107,8 +111,11 @@ public final class WatcherUtils {
                 params.putAll(template.getParams());
                 builder.field("params", params);
                 builder.endObject();
-
-                request.templateSource(builder.bytes(), false);
+                // Unfortunately because of SearchRequest#templateSource(BytesReference, boolean) has been removed in 1.6 and
+                // SearchRequest#templateSource(BytesReference) doesn't exist in 1.5, we are forced to use SearchRequest#templateSource(String)
+                // that exist in both 1.5 and 1.6
+                // TODO (2.0 upgrade): move back to BytesReference
+                request.templateSource(builder.string());
             }
         } else if (requestPrototype.templateName() != null) {
             // In Watcher templates on all places can be defined in one format
@@ -125,7 +132,7 @@ public final class WatcherUtils {
      */
     public static SearchRequest readSearchRequest(XContentParser parser, SearchType searchType) throws IOException {
         BytesReference searchBody = null;
-        BytesReference templateBody = null;
+        String templateBody = null;
         IndicesOptions indicesOptions = DEFAULT_INDICES_OPTIONS;
         SearchRequest searchRequest = new SearchRequest();
 
@@ -208,7 +215,7 @@ public final class WatcherUtils {
                 } else if (TEMPLATE_FIELD.match(currentFieldName)) {
                     XContentBuilder builder = XContentBuilder.builder(parser.contentType().xContent());
                     builder.copyCurrentStructure(parser);
-                    templateBody = builder.bytes();
+                    templateBody = builder.string();
                 } else {
                     throw new SearchRequestParseException("could not read search request. unexpected object field [" + currentFieldName + "]");
                 }
@@ -238,10 +245,16 @@ public final class WatcherUtils {
         searchRequest.searchType(searchType);
         searchRequest.indicesOptions(indicesOptions);
         if (searchBody != null) {
-            searchRequest.source(searchBody, false);
+            // TODO (2.0 upgrade): move back to BytesReference instead of dealing with the array directly
+            assert searchBody.hasArray();
+            searchRequest.source(searchBody.array(), searchBody.arrayOffset(), searchBody.length());
         }
         if (templateBody != null) {
-            searchRequest.templateSource(templateBody, false);
+            // Unfortunately because of SearchRequest#templateSource(BytesReference, boolean) has been removed in 1.6 and
+            // SearchRequest#templateSource(BytesReference) doesn't exist in 1.5, we are forced to use SearchRequest#templateSource(String)
+            // that exist in both 1.5 and 1.6
+            // TODO (2.0 upgrade): move back to BytesReference
+            searchRequest.templateSource(templateBody);
         }
         return searchRequest;
     }

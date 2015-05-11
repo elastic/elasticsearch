@@ -65,7 +65,6 @@ public class HistoryTemplateEmailMappingsTests extends AbstractWatcherIntegratio
         }
         return ImmutableSettings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put("script.disable_dynamic", false)
 
                 // email
                 .put("watcher.actions.email.service.account.test.smtp.auth", true)

@@ -68,6 +68,7 @@ import org.elasticsearch.watcher.watch.Watch;
 
 import javax.mail.internet.AddressException;
 import java.io.IOException;
+import java.lang.reflect.Constructor;
 import java.util.*;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -98,8 +99,9 @@ public final class WatcherTestUtils {
     }
 
     public static SearchRequest matchAllRequest(IndicesOptions indicesOptions) {
+        // TODO (2.0 upgrade): move back to BytesReference, instead of converting to a string
         SearchRequest request = new SearchRequest(Strings.EMPTY_ARRAY)
-                .source(SearchSourceBuilder.searchSource().query(matchAllQuery()).buildAsBytes(XContentType.JSON), false);
+                .source(SearchSourceBuilder.searchSource().query(matchAllQuery()).buildAsBytes(XContentType.JSON).toUtf8());
         if (indicesOptions != null) {
             request.indicesOptions(indicesOptions);
         }
@@ -202,7 +204,7 @@ public final class WatcherTestUtils {
                 new Watch.Status());
     }
 
-    public static ScriptServiceProxy getScriptServiceProxy(ThreadPool tp) throws IOException {
+    public static ScriptServiceProxy getScriptServiceProxy(ThreadPool tp) throws Exception {
         Settings settings = ImmutableSettings.settingsBuilder()
                 .put(ScriptService.DISABLE_DYNAMIC_SCRIPTING_SETTING, "none")
                 .build();
@@ -212,7 +214,21 @@ public final class WatcherTestUtils {
         engineServiceSet.add(mustacheScriptEngineService);
         engineServiceSet.add(groovyScriptEngineService);
         NodeSettingsService nodeSettingsService = new NodeSettingsService(settings);
-        return ScriptServiceProxy.of(new ScriptService(settings, new Environment(), engineServiceSet, new ResourceWatcherService(settings, tp), nodeSettingsService));
+
+        // TODO (2.0 upgrade): remove this reflection hack:
+        Class scriptServiceClass = ScriptService.class;
+        Constructor scriptServiceConstructor = scriptServiceClass.getConstructors()[0];
+        if (scriptServiceConstructor.getParameterTypes().length == 5) {
+            return ScriptServiceProxy.of((ScriptService) scriptServiceConstructor.newInstance(settings, new Environment(), engineServiceSet, new ResourceWatcherService(settings, tp), nodeSettingsService));
+        } else if (scriptServiceConstructor.getParameterTypes().length == 6) {
+            Class scriptContextRegistryClass = Class.forName("org.elasticsearch.script.ScriptContextRegistry");
+            Constructor scriptContextRegistryConstructor = scriptContextRegistryClass.getDeclaredConstructors()[0];
+            scriptContextRegistryConstructor.setAccessible(true);
+            Object scriptContextRegistry = scriptContextRegistryConstructor.newInstance(Collections.emptyList());
+            return ScriptServiceProxy.of((ScriptService) scriptServiceConstructor.newInstance(settings, new Environment(), engineServiceSet, new ResourceWatcherService(settings, tp), nodeSettingsService, scriptContextRegistry));
+        } else {
+            throw new RuntimeException("ScriptService is supposed to have 5 or 6 parameters in its constructor");
+        }
     }
 
     public static SearchType getRandomSupportedSearchType() {

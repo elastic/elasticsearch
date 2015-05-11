@@ -135,9 +135,15 @@ public class NoMasterNodeTests extends AbstractWatcherIntegrationTests {
     public void testDedicatedMasterNodeLayout() throws Exception {
         // Only the master nodes are in the unicast nodes list:
         config = new ClusterDiscoveryConfiguration.UnicastZen(3);
-        Settings settings = ImmutableSettings.builder().put("node.type", "master").build();
+        Settings settings = ImmutableSettings.builder()
+                .put("node.data", false)
+                .put("node.master", true)
+                .build();
         internalTestCluster().startNodesAsync(3, settings).get();
-        settings = ImmutableSettings.builder().put("node.type", "data").build();
+        settings = ImmutableSettings.builder()
+                .put("node.data", true)
+                .put("node.master", false)
+                .build();
         internalTestCluster().startNodesAsync(7, settings).get();
         ensureWatcherStarted(false);
         ensureLicenseEnabled();

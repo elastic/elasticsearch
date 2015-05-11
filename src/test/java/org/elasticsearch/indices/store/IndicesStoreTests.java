@@ -29,16 +29,23 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.ImmutableShardRouting;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.common.io.stream.BytesStreamInput;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.transport.LocalTransportAddress;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Before;
 import org.junit.Test;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 /**
@@ -191,4 +198,25 @@ public class IndicesStoreTests extends ElasticsearchTestCase {
         assertTrue(indicesStore.shardCanBeDeleted(clusterState.build(), routingTable.build()));
     }
 
+    public void testShardActiveRequestStreaming() throws IOException {
+        BytesStreamOutput out = new BytesStreamOutput();
+        Version version = randomVersion();
+        out.setVersion(version);
+        IndicesStore.ShardActiveRequest shardActiveRequest = new IndicesStore.ShardActiveRequest(new ClusterName("cluster"), "indexUUID", new ShardId("index", 0), new TimeValue(100));
+        shardActiveRequest.writeTo(out);
+        out.close();
+        StreamInput in = new BytesStreamInput(out.bytes());
+        in.setVersion(version);
+        IndicesStore.ShardActiveRequest readShardActiveRequest = new IndicesStore.ShardActiveRequest();
+        readShardActiveRequest.readFrom(in);
+        in.close();
+        if (version.onOrAfter(Version.V_1_5_0)) {
+            assertThat(shardActiveRequest.timeout, equalTo(readShardActiveRequest.timeout));
+        } else {
+            assertThat(readShardActiveRequest.timeout, equalTo(IndicesStore.DEFAULT_SHARD_DELETE_TIMEOUT));
+        }
+        assertThat(shardActiveRequest.clusterName, equalTo(readShardActiveRequest.clusterName));
+        assertThat(shardActiveRequest.indexUUID, equalTo(readShardActiveRequest.indexUUID));
+        assertThat(shardActiveRequest.shardId, equalTo(readShardActiveRequest.shardId));
+    }
 }

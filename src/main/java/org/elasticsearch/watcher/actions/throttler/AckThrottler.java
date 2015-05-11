@@ -7,10 +7,9 @@ package org.elasticsearch.watcher.actions.throttler;
 
 import org.elasticsearch.watcher.actions.ActionStatus;
 import org.elasticsearch.watcher.actions.ActionStatus.AckStatus;
-import org.elasticsearch.watcher.actions.throttler.Throttler;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
 
-import static org.elasticsearch.watcher.support.WatcherDateUtils.formatDate;
+import static org.elasticsearch.watcher.support.WatcherDateTimeUtils.formatDate;
 
 /**
  *

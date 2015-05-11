@@ -57,7 +57,7 @@ import static org.elasticsearch.index.query.FilterBuilders.*;
 import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope.SUITE;
-import static org.elasticsearch.watcher.support.WatcherDateUtils.parseDate;
+import static org.elasticsearch.watcher.support.WatcherDateTimeUtils.parseDate;
 import static org.elasticsearch.watcher.test.WatcherTestUtils.*;
 import static org.hamcrest.Matchers.*;
 

@@ -10,7 +10,7 @@ import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.watcher.WatcherException;
-import org.elasticsearch.watcher.support.WatcherDateUtils;
+import org.elasticsearch.watcher.support.WatcherDateTimeUtils;
 import org.elasticsearch.watcher.support.clock.Clock;
 import org.elasticsearch.watcher.trigger.TriggerEvent;
 
@@ -47,8 +47,8 @@ public class ScheduleTriggerEvent extends TriggerEvent {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        WatcherDateUtils.writeDate(Field.TRIGGERED_TIME.getPreferredName(), builder, triggeredTime);
-        WatcherDateUtils.writeDate(Field.SCHEDULED_TIME.getPreferredName(), builder, scheduledTime);
+        WatcherDateTimeUtils.writeDate(Field.TRIGGERED_TIME.getPreferredName(), builder, triggeredTime);
+        WatcherDateTimeUtils.writeDate(Field.SCHEDULED_TIME.getPreferredName(), builder, scheduledTime);
         return builder.endObject();
     }
 
@@ -63,15 +63,15 @@ public class ScheduleTriggerEvent extends TriggerEvent {
                 currentFieldName = parser.currentName();
             } else if (Field.TRIGGERED_TIME.match(currentFieldName)) {
                 try {
-                    triggeredTime = WatcherDateUtils.parseDateMath(currentFieldName, parser, UTC, clock);
-                } catch (WatcherDateUtils.ParseException pe) {
+                    triggeredTime = WatcherDateTimeUtils.parseDateMath(currentFieldName, parser, UTC, clock);
+                } catch (WatcherDateTimeUtils.ParseException pe) {
                     //Failed to parse as a date try datemath parsing
                     throw new ParseException("could not parse [{}] trigger event for [{}] for watch [{}]. failed to parse date field [{}]", pe, ScheduleTriggerEngine.TYPE, context, watchId, currentFieldName);
                 }
             }  else if (Field.SCHEDULED_TIME.match(currentFieldName)) {
                 try {
-                    scheduledTime = WatcherDateUtils.parseDateMath(currentFieldName, parser, UTC, clock);
-                } catch (WatcherDateUtils.ParseException pe) {
+                    scheduledTime = WatcherDateTimeUtils.parseDateMath(currentFieldName, parser, UTC, clock);
+                } catch (WatcherDateTimeUtils.ParseException pe) {
                     throw new ParseException("could not parse [{}] trigger event for [{}] for watch [{}]. failed to parse date field [{}]", pe, ScheduleTriggerEngine.TYPE, context, watchId, currentFieldName);
                 }
             }else {

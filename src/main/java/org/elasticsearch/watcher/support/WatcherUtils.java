@@ -25,7 +25,7 @@ import java.lang.reflect.Array;
 import java.util.*;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.watcher.support.WatcherDateUtils.formatDate;
+import static org.elasticsearch.watcher.support.WatcherDateTimeUtils.formatDate;
 
 /**
  */

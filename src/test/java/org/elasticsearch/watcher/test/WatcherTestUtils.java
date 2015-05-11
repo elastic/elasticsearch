@@ -16,6 +16,7 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -87,6 +88,10 @@ public final class WatcherTestUtils {
     public static final Payload EMPTY_PAYLOAD = new Payload.Simple(ImmutableMap.<String, Object>of());
 
     private WatcherTestUtils() {
+    }
+
+    public static XContentParser xContentParser(XContentBuilder builder) throws IOException {
+        return builder.contentType().xContent().createParser(builder.bytes());
     }
 
     public static SearchRequest newInputSearchRequest(String... indices) {

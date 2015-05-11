@@ -18,7 +18,7 @@ import org.elasticsearch.watcher.condition.Condition;
 import org.elasticsearch.watcher.condition.ConditionRegistry;
 import org.elasticsearch.watcher.input.Input;
 import org.elasticsearch.watcher.input.InputRegistry;
-import org.elasticsearch.watcher.support.WatcherDateUtils;
+import org.elasticsearch.watcher.support.WatcherDateTimeUtils;
 import org.elasticsearch.watcher.transform.Transform;
 import org.elasticsearch.watcher.transform.TransformRegistry;
 
@@ -72,7 +72,7 @@ public class WatchExecutionResult implements ToXContent {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        WatcherDateUtils.writeDate(Field.EXECUTION_TIME.getPreferredName(), builder, executionTime);
+        WatcherDateTimeUtils.writeDate(Field.EXECUTION_TIME.getPreferredName(), builder, executionTime);
         if (inputResult != null) {
             builder.startObject(Field.INPUT.getPreferredName())
                     .field(inputResult.type(), inputResult, params)
@@ -109,8 +109,8 @@ public class WatchExecutionResult implements ToXContent {
                     currentFieldName = parser.currentName();
                 } else if (Field.EXECUTION_TIME.match(currentFieldName)) {
                     try {
-                        executionTime = WatcherDateUtils.parseDate(currentFieldName, parser, UTC);
-                    } catch (WatcherDateUtils.ParseException pe) {
+                        executionTime = WatcherDateTimeUtils.parseDate(currentFieldName, parser, UTC);
+                    } catch (WatcherDateTimeUtils.ParseException pe) {
                         throw new WatcherException("could not parse watch execution [{}]. failed to parse date field [{}]", pe, wid, currentFieldName);
                     }
                 } else if (Field.ACTIONS.match(currentFieldName)) {

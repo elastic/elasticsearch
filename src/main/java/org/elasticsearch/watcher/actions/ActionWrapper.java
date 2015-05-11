@@ -18,6 +18,7 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.watcher.execution.Wid;
 import org.elasticsearch.watcher.license.LicenseService;
+import org.elasticsearch.watcher.support.WatcherDateTimeUtils;
 import org.elasticsearch.watcher.support.clock.Clock;
 import org.elasticsearch.watcher.actions.throttler.ActionThrottler;
 import org.elasticsearch.watcher.actions.throttler.Throttler;
@@ -153,10 +154,10 @@ public class ActionWrapper implements ToXContent {
                 if (Transform.Field.TRANSFORM.match(currentFieldName)) {
                     transform = transformRegistry.parse(watchId, parser);
                 } else if (Throttler.Field.THROTTLE_PERIOD.match(currentFieldName)) {
-                    if (token == XContentParser.Token.VALUE_NUMBER) {
-                        throttlePeriod = new TimeValue(parser.longValue());
-                    } else {
-                        throw new ActionException("could not parse action [{}/{}]. expected field [{}] to hold a numeric value, but instead found", watchId, actionId, currentFieldName, token);
+                    try {
+                        throttlePeriod = WatcherDateTimeUtils.parseTimeValue(parser, null);
+                    } catch (WatcherDateTimeUtils.ParseException pe) {
+                        throw new ActionException("could not parse action [{}/{}]. failed to parse field [{}] as time value", pe, watchId, actionId, currentFieldName);
                     }
                 } else {
                     // it's the type of the action

@@ -13,7 +13,7 @@ import org.elasticsearch.watcher.watch.Watch;
 import org.elasticsearch.watcher.watch.WatchStatus;
 import org.junit.Test;
 
-import static org.elasticsearch.watcher.support.WatcherDateUtils.formatDate;
+import static org.elasticsearch.watcher.support.WatcherDateTimeUtils.formatDate;
 import static org.elasticsearch.watcher.test.WatcherTestUtils.EMPTY_PAYLOAD;
 import static org.elasticsearch.watcher.test.WatcherTestUtils.mockExecutionContext;
 import static org.hamcrest.CoreMatchers.nullValue;

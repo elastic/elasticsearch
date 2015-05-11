@@ -25,7 +25,7 @@ import java.io.IOException;
 import java.util.Map;
 
 import static org.elasticsearch.common.joda.time.DateTimeZone.UTC;
-import static org.elasticsearch.watcher.support.WatcherDateUtils.*;
+import static org.elasticsearch.watcher.support.WatcherDateTimeUtils.*;
 
 /**
  *

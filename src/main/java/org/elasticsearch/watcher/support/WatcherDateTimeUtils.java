@@ -12,10 +12,14 @@ import org.elasticsearch.common.joda.DateMathParser;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.joda.time.DateTimeZone;
+import org.elasticsearch.common.joda.time.PeriodType;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
 import org.elasticsearch.watcher.WatcherException;
+import org.elasticsearch.watcher.actions.ActionException;
+import org.elasticsearch.watcher.rest.action.RestExecuteWatchAction;
 import org.elasticsearch.watcher.support.clock.Clock;
 
 import java.io.IOException;
@@ -24,12 +28,12 @@ import java.util.concurrent.TimeUnit;
 /**
  *
  */
-public class WatcherDateUtils {
+public class WatcherDateTimeUtils {
 
     public static final FormatDateTimeFormatter dateTimeFormatter = DateFieldMapper.Defaults.DATE_TIME_FORMATTER;
     public static final DateMathParser dateMathParser = new DateMathParser(dateTimeFormatter, TimeUnit.SECONDS);
 
-    private WatcherDateUtils() {
+    private WatcherDateTimeUtils() {
     }
 
     public static DateTime parseDate(String dateAsText) {
@@ -114,6 +118,24 @@ public class WatcherDateUtils {
 
     public static DateTime readOptionalDate(StreamInput in, DateTimeZone timeZone) throws IOException {
         return in.readBoolean() ? new DateTime(in.readLong(), timeZone) : null;
+    }
+
+    public static TimeValue parseTimeValue(XContentParser parser, TimeValue defaultValue) throws IOException {
+        return parseTimeValue(parser, TimeUnit.MILLISECONDS, defaultValue);
+    }
+
+    public static TimeValue parseTimeValue(XContentParser parser, TimeUnit defaultTimeUnit, TimeValue defaultValue) throws IOException {
+        XContentParser.Token token = parser.currentToken();
+        if (token == XContentParser.Token.VALUE_NULL) {
+            return defaultValue;
+        }
+        if (token == XContentParser.Token.VALUE_NUMBER) {
+            return new TimeValue(parser.longValue(), defaultTimeUnit);
+        } else if (token == XContentParser.Token.VALUE_STRING) {
+            return TimeValue.parseTimeValue(parser.text(), defaultValue);
+        } else {
+            throw new ParseException("could not parse time value. expected either a string or a numeric value but found [{}] instead", token);
+        }
     }
 
     public static class ParseException extends WatcherException {

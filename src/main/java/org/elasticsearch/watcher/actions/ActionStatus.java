@@ -19,7 +19,7 @@ import java.io.IOException;
 import java.util.Locale;
 
 import static org.elasticsearch.common.joda.time.DateTimeZone.UTC;
-import static org.elasticsearch.watcher.support.WatcherDateUtils.dateTimeFormatter;
+import static org.elasticsearch.watcher.support.WatcherDateTimeUtils.dateTimeFormatter;
 
 /**
  *

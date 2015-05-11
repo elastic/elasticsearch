@@ -32,6 +32,7 @@ import org.elasticsearch.watcher.condition.always.ExecutableAlwaysCondition;
 import org.elasticsearch.watcher.input.ExecutableInput;
 import org.elasticsearch.watcher.input.InputRegistry;
 import org.elasticsearch.watcher.input.none.ExecutableNoneInput;
+import org.elasticsearch.watcher.support.WatcherDateTimeUtils;
 import org.elasticsearch.watcher.support.clock.Clock;
 import org.elasticsearch.watcher.support.secret.SecretService;
 import org.elasticsearch.watcher.support.secret.SensitiveXContentParser;
@@ -286,12 +287,19 @@ public class Watch implements TriggerEngine.Job, ToXContent {
                 } else if (Field.TRANSFORM.match(currentFieldName)) {
                     transform = transformRegistry.parse(id, parser);
                 } else if (Field.THROTTLE_PERIOD.match(currentFieldName)) {
+<<<<<<< HEAD
                     if (token == XContentParser.Token.VALUE_STRING) {
                         throttlePeriod = TimeValue.parseTimeValue(parser.text(), null);
                     } else if (token == XContentParser.Token.VALUE_NUMBER) {
                         throttlePeriod = TimeValue.timeValueMillis(parser.longValue());
                     } else {
                         throw new ParseException("could not parse watch [{}]. expected field [{}] to either be string or numeric, but found [{}] instead", id, currentFieldName, token);
+=======
+                    try {
+                        throttlePeriod = WatcherDateTimeUtils.parseTimeValue(parser, null);
+                    } catch (WatcherDateTimeUtils.ParseException pe) {
+                        throw new ParseException("could not parse watch [{}]. failed to parse time value for field [{}]", pe, id, currentFieldName);
+>>>>>>> Centralized xcontent parsing of time values
                     }
                 } else if (Field.ACTIONS.match(currentFieldName)) {
                     actions = actionRegistry.parseActions(id, parser);

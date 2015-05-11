@@ -27,7 +27,7 @@ import java.io.IOException;
 import java.util.*;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.watcher.support.WatcherDateUtils.formatDate;
+import static org.elasticsearch.watcher.support.WatcherDateTimeUtils.formatDate;
 import static org.elasticsearch.watcher.support.WatcherUtils.DEFAULT_INDICES_OPTIONS;
 import static org.elasticsearch.watcher.support.WatcherUtils.flattenModel;
 import static org.elasticsearch.watcher.test.WatcherTestUtils.getRandomSupportedSearchType;

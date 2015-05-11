@@ -25,8 +25,10 @@ import org.elasticsearch.bootstrap.ESPolicy;
 import org.elasticsearch.bootstrap.Security;
 import org.elasticsearch.common.io.PathUtils;
 
+import java.nio.file.Path;
 import java.security.Permissions;
 import java.security.Policy;
+import java.util.Objects;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.systemPropertyAsBoolean;
 
@@ -48,9 +50,23 @@ class SecurityBootstrap {
         // install security manager if requested
         if (systemPropertyAsBoolean("tests.security.manager", false)) {
             try {
-                // initialize tmpdir the same exact way as bootstrap.
+                // initialize paths the same exact way as bootstrap.
                 Permissions perms = new Permissions();
-                Security.addPath(perms, PathUtils.get(System.getProperty("java.io.tmpdir")), "read,readlink,write,delete");
+                Path basedir = PathUtils.get(Objects.requireNonNull(System.getProperty("project.basedir"), 
+                                                                    "please set ${project.basedir} in pom.xml"));
+                // target/classes, target/test-classes
+                Security.addPath(perms, basedir.resolve("target").resolve("classes"), "read,readlink");
+                Security.addPath(perms, basedir.resolve("target").resolve("test-classes"), "read,readlink");
+                // lib/sigar
+                Security.addPath(perms, basedir.resolve("lib").resolve("sigar"), "read,readlink");
+                // .m2/repository
+                Path m2repoDir = PathUtils.get(Objects.requireNonNull(System.getProperty("m2.repository"), 
+                                                                     "please set ${m2.repository} in pom.xml"));
+                Security.addPath(perms, m2repoDir, "read,readlink");
+                // java.io.tmpdir
+                Path javaTmpDir = PathUtils.get(Objects.requireNonNull(System.getProperty("java.io.tmpdir"), 
+                                                                      "please set ${java.io.tmpdir} in pom.xml"));
+                Security.addPath(perms, javaTmpDir, "read,readlink,write,delete");
                 Policy.setPolicy(new ESPolicy(perms));
                 System.setSecurityManager(new TestSecurityManager());
                 Security.selfTest();

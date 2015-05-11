@@ -20,6 +20,7 @@
 package org.elasticsearch.bootstrap;
 
 import org.apache.lucene.util.StringHelper;
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.PidFile;
@@ -87,7 +88,11 @@ public class Bootstrap {
     public static void initializeNatives(boolean mlockAll, boolean ctrlHandler) {
         // mlockall if requested
         if (mlockAll) {
-            Natives.tryMlockall();
+            if (Constants.WINDOWS) {
+               Natives.tryVirtualLock();
+            } else {
+               Natives.tryMlockall();
+            }
         }
         
         // check if the user is running as root, and bail

@@ -66,15 +66,20 @@ import static org.hamcrest.Matchers.*;
 @ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.TEST, numDataNodes = 0)
 public class IndexWithShadowReplicasTests extends ElasticsearchIntegrationTest {
 
+    private Settings nodeSettings() {
+        return ImmutableSettings.builder()
+                .put("node.add_id_to_custom_path", false)
+                .put("node.enable_custom_paths", true)
+                .put("index.store.fs.fs_lock", randomFrom("native", "simple"))
+                .build();
+    }
+
     /**
      * Tests the case where we create an index without shadow replicas, snapshot it and then restore into
      * an index with shadow replicas enabled.
      */
     public void testRestoreToShadow() throws ExecutionException, InterruptedException {
-        Settings nodeSettings = ImmutableSettings.builder()
-                .put("node.add_id_to_custom_path", false)
-                .put("node.enable_custom_paths", true)
-                .build();
+        Settings nodeSettings = nodeSettings();
 
         internalCluster().startNodesAsync(3, nodeSettings).get();
         final Path dataPath = createTempDir();
@@ -130,10 +135,7 @@ public class IndexWithShadowReplicasTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testIndexWithFewDocuments() throws Exception {
-        Settings nodeSettings = ImmutableSettings.builder()
-                .put("node.add_id_to_custom_path", false)
-                .put("node.enable_custom_paths", true)
-                .build();
+        Settings nodeSettings = nodeSettings();
 
         internalCluster().startNodesAsync(3, nodeSettings).get();
         final String IDX = "test";
@@ -196,10 +198,7 @@ public class IndexWithShadowReplicasTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testReplicaToPrimaryPromotion() throws Exception {
-        Settings nodeSettings = ImmutableSettings.builder()
-                .put("node.add_id_to_custom_path", false)
-                .put("node.enable_custom_paths", true)
-                .build();
+        Settings nodeSettings = nodeSettings();
 
         String node1 = internalCluster().startNode(nodeSettings);
         Path dataPath = createTempDir();
@@ -258,10 +257,7 @@ public class IndexWithShadowReplicasTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testPrimaryRelocation() throws Exception {
-        Settings nodeSettings = ImmutableSettings.builder()
-                .put("node.add_id_to_custom_path", false)
-                .put("node.enable_custom_paths", true)
-                .build();
+        Settings nodeSettings = nodeSettings();
 
         String node1 = internalCluster().startNode(nodeSettings);
         Path dataPath = createTempDir();
@@ -322,10 +318,7 @@ public class IndexWithShadowReplicasTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testPrimaryRelocationWithConcurrentIndexing() throws Exception {
-        Settings nodeSettings = ImmutableSettings.builder()
-                .put("node.add_id_to_custom_path", false)
-                .put("node.enable_custom_paths", true)
-                .build();
+        Settings nodeSettings = nodeSettings();
 
         String node1 = internalCluster().startNode(nodeSettings);
         Path dataPath = createTempDir();
@@ -490,10 +483,7 @@ public class IndexWithShadowReplicasTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testIndexWithShadowReplicasCleansUp() throws Exception {
-        Settings nodeSettings = ImmutableSettings.builder()
-                .put("node.add_id_to_custom_path", false)
-                .put("node.enable_custom_paths", true)
-                .build();
+        Settings nodeSettings = nodeSettings();
 
         int nodeCount = randomIntBetween(2, 5);
         internalCluster().startNodesAsync(nodeCount, nodeSettings).get();
@@ -535,10 +525,7 @@ public class IndexWithShadowReplicasTests extends ElasticsearchIntegrationTest {
      */
     @Test
     public void testShadowReplicaNaturalRelocation() throws Exception {
-        Settings nodeSettings = ImmutableSettings.builder()
-                .put("node.add_id_to_custom_path", false)
-                .put("node.enable_custom_paths", true)
-                .build();
+        Settings nodeSettings = nodeSettings();
 
         internalCluster().startNodesAsync(2, nodeSettings).get();
         Path dataPath = createTempDir();
@@ -592,10 +579,7 @@ public class IndexWithShadowReplicasTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testShadowReplicasUsingFieldData() throws Exception {
-        Settings nodeSettings = ImmutableSettings.builder()
-                .put("node.add_id_to_custom_path", false)
-                .put("node.enable_custom_paths", true)
-                .build();
+        Settings nodeSettings = nodeSettings();
 
         internalCluster().startNodesAsync(3, nodeSettings).get();
         Path dataPath = createTempDir();
@@ -630,10 +614,7 @@ public class IndexWithShadowReplicasTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testIndexOnSharedFSRecoversToAnyNode() throws Exception {
-        Settings nodeSettings = ImmutableSettings.builder()
-                .put("node.add_id_to_custom_path", false)
-                .put("node.enable_custom_paths", true)
-                .build();
+        Settings nodeSettings = nodeSettings();
 
         internalCluster().startNode(nodeSettings);
         Path dataPath = createTempDir();

@@ -21,10 +21,12 @@ package org.elasticsearch.env;
 
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
+
 import org.apache.lucene.store.*;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.FileSystemUtils;
@@ -137,8 +139,7 @@ public class NodeEnvironment extends AbstractComponent implements Closeable {
         int maxLocalStorageNodes = settings.getAsInt("node.max_local_storage_nodes", 50);
         for (int possibleLockId = 0; possibleLockId < maxLocalStorageNodes; possibleLockId++) {
             for (int dirIndex = 0; dirIndex < environment.dataWithClusterFiles().length; dirIndex++) {
-                // TODO: wtf with resolve(get())
-                Path dir = environment.dataWithClusterFiles()[dirIndex].resolve(PathUtils.get(NODES_FOLDER, Integer.toString(possibleLockId)));
+                Path dir = environment.dataWithClusterFiles()[dirIndex].resolve(NODES_FOLDER).resolve(Integer.toString(possibleLockId));
                 Files.createDirectories(dir);
                 
                 try (Directory luceneDir = FSDirectory.open(dir, NativeFSLockFactory.INSTANCE)) {
@@ -689,6 +690,7 @@ public class NodeEnvironment extends AbstractComponent implements Closeable {
      *
      * @param indexSettings settings for the index
      */
+    @SuppressForbidden(reason = "Lee is working on it: https://github.com/elastic/elasticsearch/pull/11065")
     private Path resolveCustomLocation(@IndexSettings Settings indexSettings) {
         assert indexSettings != ImmutableSettings.EMPTY;
         String customDataDir = indexSettings.get(IndexMetaData.SETTING_DATA_PATH);
@@ -696,7 +698,7 @@ public class NodeEnvironment extends AbstractComponent implements Closeable {
             // This assert is because this should be caught by MetaDataCreateIndexService
             assert customPathsEnabled;
             if (addNodeId) {
-                return PathUtils.get(customDataDir, Integer.toString(this.localNodeId));
+                return PathUtils.get(customDataDir).resolve(Integer.toString(this.localNodeId));
             } else {
                 return PathUtils.get(customDataDir);
             }

@@ -59,8 +59,8 @@ public abstract class FsDirectoryService extends DirectoryService implements Sto
         return indexStore.rateLimiting();
     }
 
-    protected final LockFactory buildLockFactory() throws IOException {
-        String fsLock = componentSettings.get("lock", componentSettings.get("fs_lock", "native"));
+    public static LockFactory buildLockFactory(@IndexSettings Settings indexSettings) throws IOException {
+        String fsLock = indexSettings.get("index.store.fs.lock", indexSettings.get("index.store.fs.fs_lock", "native"));
         LockFactory lockFactory = NoLockFactory.getNoLockFactory();
         if (fsLock.equals("native")) {
             lockFactory = new NativeFSLockFactory();
@@ -112,7 +112,7 @@ public abstract class FsDirectoryService extends DirectoryService implements Sto
         Directory[] dirs = new Directory[locations.length];
         for (int i = 0; i < dirs.length; i++) {
             Files.createDirectories(locations[i]);
-            Directory wrapped = newFSDirectory(locations[i].toFile(), buildLockFactory());
+            Directory wrapped = newFSDirectory(locations[i].toFile(), buildLockFactory(indexSettings));
             dirs[i] = new RateLimitedFSDirectory(wrapped, this, this) ;
         }
         return dirs;

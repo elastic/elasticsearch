@@ -22,11 +22,11 @@ package org.elasticsearch.env;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 import com.google.common.primitives.Ints;
-import org.apache.lucene.store.Lock;
-import org.apache.lucene.store.LockObtainFailedException;
-import org.apache.lucene.store.NativeFSLockFactory;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.store.*;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.XIOUtils;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -37,11 +37,11 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.fs.FsDirectoryService;
 import org.elasticsearch.monitor.fs.FsStats;
 import org.elasticsearch.monitor.fs.JmxFsProbe;
 
@@ -306,19 +306,57 @@ public class NodeEnvironment extends AbstractComponent implements Closeable {
     }
 
     /**
-     * Deletes a shard data directory. Note: this method assumes that the shard lock is acquired
+     * Acquires, then releases, all {@code write.lock} files in the given
+     * shard paths. The "write.lock" file is assumed to be under the shard
+     * path's "index" directory as used by Elasticsearch.
+     *
+     * @throws ElasticsearchException if any of the locks could not be acquired
+     */
+    public static void acquireFSLockForPaths(@IndexSettings Settings indexSettings, Path... shardPaths) throws IOException {
+        Lock[] locks = new Lock[shardPaths.length];
+        Directory[] dirs = new Directory[shardPaths.length];
+        try {
+            for (int i = 0; i < shardPaths.length; i++) {
+                // resolve the directory the shard actually lives in
+                Path p = shardPaths[i].resolve("index");
+                // open a directory (will be immediately closed) on the shard's location
+                dirs[i] = new SimpleFSDirectory(p.toFile(), FsDirectoryService.buildLockFactory(indexSettings));
+                // create a lock for the "write.lock" file
+                locks[i] = dirs[i].makeLock(IndexWriter.WRITE_LOCK_NAME);
+                if (locks[i].obtain() == false) {
+                    throw new ElasticsearchException("unable to acquire " +
+                            IndexWriter.WRITE_LOCK_NAME + " for " + p);
+                }
+            }
+        } finally {
+            IOUtils.closeWhileHandlingException(locks);
+            IOUtils.closeWhileHandlingException(dirs);
+        }
+    }
+
+    /**
+     * Deletes a shard data directory. Note: this method assumes that the shard
+     * lock is acquired. This method will also attempt to acquire the write
+     * locks for the shard's paths before deleting the data, but this is best
+     * effort, as the lock is released before the deletion happens in order to
+     * allow the folder to be deleted
      *
      * @param lock the shards lock
      * @throws IOException if an IOException occurs
+     * @throws ElasticsearchException if the write.lock is not acquirable
      */
     public void deleteShardDirectoryUnderLock(ShardLock lock, @IndexSettings Settings indexSettings) throws IOException {
         assert indexSettings != ImmutableSettings.EMPTY;
         final ShardId shardId = lock.getShardId();
         assert isShardLocked(shardId) : "shard " + shardId + " is not locked";
         final Path[] paths = shardPaths(shardId);
+        logger.trace("acquiring locks for {}, paths: [{}]", shardId, paths);
+        acquireFSLockForPaths(indexSettings, paths);
         XIOUtils.rm(paths);
         if (hasCustomDataPath(indexSettings)) {
             Path customLocation = resolveCustomLocation(indexSettings, shardId);
+            logger.trace("acquiring lock for {}, custom path: [{}]", shardId, customLocation);
+            acquireFSLockForPaths(indexSettings, customLocation);
             logger.trace("deleting custom shard {} directory [{}]", shardId, customLocation);
             XIOUtils.rm(customLocation);
         }

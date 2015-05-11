@@ -34,13 +34,17 @@ import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.Discovery;
+import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShadowIndexShard;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoveryTarget;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.snapshots.SnapshotState;
+import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -67,16 +71,22 @@ import static org.hamcrest.Matchers.*;
 @ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.TEST, numDataNodes = 0)
 public class IndexWithShadowReplicasTests extends ElasticsearchIntegrationTest {
 
+    private Settings nodeSettings() {
+        return ImmutableSettings.builder()
+                .put("node.add_id_to_custom_path", false)
+                .put("node.enable_custom_paths", true)
+                .put("gateway.type", "local") // don't delete things!
+                .put("index.store.fs.fs_lock", randomFrom("native", "simple"))
+                .build();
+    }
+
     /**
      * Tests the case where we create an index without shadow replicas, snapshot it and then restore into
      * an index with shadow replicas enabled.
      */
     @Test
     public void testRestoreToShadow() throws ExecutionException, InterruptedException {
-        Settings nodeSettings = ImmutableSettings.builder()
-                .put("node.add_id_to_custom_path", false)
-                .put("node.enable_custom_paths", true)
-                .build();
+        Settings nodeSettings = nodeSettings();
 
         internalCluster().startNodesAsync(3, nodeSettings).get();
         final Path dataPath = newTempDir().toPath();
@@ -132,11 +142,7 @@ public class IndexWithShadowReplicasTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testIndexWithFewDocuments() throws Exception {
-        Settings nodeSettings = ImmutableSettings.builder()
-                .put("node.add_id_to_custom_path", false)
-                .put("node.enable_custom_paths", true)
-                .put("gateway.type", "local") // don't delete things!
-                .build();
+        Settings nodeSettings = nodeSettings();
 
         internalCluster().startNodesAsync(3, nodeSettings).get();
         final String IDX = "test";
@@ -199,11 +205,7 @@ public class IndexWithShadowReplicasTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testReplicaToPrimaryPromotion() throws Exception {
-        Settings nodeSettings = ImmutableSettings.builder()
-                .put("node.add_id_to_custom_path", false)
-                .put("node.enable_custom_paths", true)
-                .put("gateway.type", "local") // don't delete things!
-                .build();
+        Settings nodeSettings = nodeSettings();
 
         String node1 = internalCluster().startNode(nodeSettings);
         Path dataPath = newTempDir().toPath();
@@ -262,11 +264,7 @@ public class IndexWithShadowReplicasTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testPrimaryRelocation() throws Exception {
-        Settings nodeSettings = ImmutableSettings.builder()
-                .put("node.add_id_to_custom_path", false)
-                .put("node.enable_custom_paths", true)
-                .put("gateway.type", "local") // don't delete things!
-                .build();
+        Settings nodeSettings = nodeSettings();
 
         String node1 = internalCluster().startNode(nodeSettings);
         Path dataPath = newTempDir().toPath();
@@ -327,10 +325,7 @@ public class IndexWithShadowReplicasTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testPrimaryRelocationWithConcurrentIndexing() throws Exception {
-        Settings nodeSettings = ImmutableSettings.builder()
-                .put("node.add_id_to_custom_path", false)
-                .put("node.enable_custom_paths", true)
-                .build();
+        Settings nodeSettings = nodeSettings();
 
         String node1 = internalCluster().startNode(nodeSettings);
         Path dataPath = newTempDir().toPath();
@@ -495,11 +490,7 @@ public class IndexWithShadowReplicasTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testIndexWithShadowReplicasCleansUp() throws Exception {
-        Settings nodeSettings = ImmutableSettings.builder()
-                .put("node.add_id_to_custom_path", false)
-                .put("node.enable_custom_paths", true)
-                .put("gateway.type", "local") // don't delete things!
-                .build();
+        Settings nodeSettings = nodeSettings();
 
         int nodeCount = randomIntBetween(2, 5);
         internalCluster().startNodesAsync(nodeCount, nodeSettings).get();
@@ -541,11 +532,7 @@ public class IndexWithShadowReplicasTests extends ElasticsearchIntegrationTest {
      */
     @Test
     public void testShadowReplicaNaturalRelocation() throws Exception {
-        Settings nodeSettings = ImmutableSettings.builder()
-                .put("node.add_id_to_custom_path", false)
-                .put("node.enable_custom_paths", true)
-                .put("gateway.type", "local") // don't delete things!
-                .build();
+        Settings nodeSettings = nodeSettings();
 
         internalCluster().startNodesAsync(2, nodeSettings).get();
         Path dataPath = newTempDir().toPath();
@@ -599,11 +586,7 @@ public class IndexWithShadowReplicasTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testShadowReplicasUsingFieldData() throws Exception {
-        Settings nodeSettings = ImmutableSettings.builder()
-                .put("node.add_id_to_custom_path", false)
-                .put("node.enable_custom_paths", true)
-                .put("gateway.type", "local") // don't delete things!
-                .build();
+        Settings nodeSettings = nodeSettings();
 
         internalCluster().startNodesAsync(3, nodeSettings).get();
         Path dataPath = newTempDir().toPath();
@@ -639,11 +622,7 @@ public class IndexWithShadowReplicasTests extends ElasticsearchIntegrationTest {
     @Test
     @TestLogging("gateway.local:TRACE")
     public void testIndexOnSharedFSRecoversToAnyNode() throws Exception {
-        Settings nodeSettings = ImmutableSettings.builder()
-                .put("node.add_id_to_custom_path", false)
-                .put("node.enable_custom_paths", true)
-                .put("gateway.type", "local")
-                .build();
+        Settings nodeSettings = nodeSettings();
 
         internalCluster().startNode(nodeSettings);
         Path dataPath = newTempDir().toPath();
@@ -678,5 +657,50 @@ public class IndexWithShadowReplicasTests extends ElasticsearchIntegrationTest {
         flushAndRefresh(IDX);
         SearchResponse resp = client().prepareSearch(IDX).setQuery(matchAllQuery()).addFieldDataField("foo").addSort("foo", SortOrder.ASC).get();
         assertHitCount(resp, 4);
+    }
+
+    @Test
+    public void testLockTryingToDelete() throws Exception {
+        String lockType = "native"; // test does not work with simple locks
+        Settings nodeSettings = ImmutableSettings.builder()
+                .put("gateway.type", "local") // don't delete things!
+                .put("index.store.fs.fs_lock", lockType)
+                .build();
+        String IDX = "test";
+        logger.info("--> lock type: {}", lockType);
+
+        internalCluster().startNode(nodeSettings);
+        Settings idxSettings = ImmutableSettings.builder()
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put("index.store.fs.fs_lock", lockType)
+                .build();
+
+        // only one node, so all primaries will end up on node1
+        prepareCreate(IDX).setSettings(idxSettings).addMapping("doc", "foo", "type=string,index=not_analyzed").get();
+        ensureGreen(IDX);
+        client().prepareIndex(IDX, "doc").setSource("foo", "bar").get();
+        flushAndRefresh(IDX);
+        NodeEnvironment env = internalCluster().getDataNodeInstance(NodeEnvironment.class);
+        logger.info("--> data paths: [{}]", env.nodeDataPaths());
+        Path[] shardPaths = env.shardDataPaths(new ShardId("test", 0), ImmutableSettings.builder().build());
+        logger.info("--> paths: [{}]", shardPaths);
+        // Should not be able to acquire the lock because it's already open
+        try {
+            NodeEnvironment.acquireFSLockForPaths(ImmutableSettings.EMPTY, shardPaths);
+            fail("should not have been able to acquire the lock");
+        } catch (ElasticsearchException e) {
+            assertTrue("msg: " + e.getMessage(), e.getMessage().contains("unable to acquire write.lock"));
+        }
+        // Test without the regular shard lock to assume we can acquire it
+        // (worst case, meaning that the shard lock could be acquired and
+        // we're green to delete the shard's directory)
+        ShardLock sLock = new DummyShardLock(new ShardId("test", 0));
+        try {
+            env.deleteShardDirectoryUnderLock(sLock, ImmutableSettings.builder().build());
+            fail("should not have been able to delete the directory");
+        } catch (ElasticsearchException e) {
+            assertTrue("msg: " + e.getMessage(), e.getMessage().contains("unable to acquire write.lock"));
+        }
     }
 }

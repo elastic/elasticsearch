@@ -21,6 +21,7 @@ package org.elasticsearch.index.store;
 
 import com.carrotsearch.ant.tasks.junit4.dependencies.com.google.common.collect.Lists;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+import org.apache.lucene.codecs.CodecUtil;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
@@ -31,6 +32,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.translog.TranslogStreams;
 import org.elasticsearch.monitor.fs.FsStats;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.engine.MockEngineSupport;
@@ -42,7 +44,6 @@ import org.junit.Test;
 import java.io.File;
 import java.io.FileFilter;
 import java.io.IOException;
-import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.*;
@@ -145,7 +146,7 @@ public class CorruptedTranslogTests extends ElasticsearchIntegrationTest {
                 fileToCorrupt = RandomPicks.randomFrom(getRandom(), files);
                 try (FileChannel raf = FileChannel.open(fileToCorrupt.toPath(), StandardOpenOption.READ, StandardOpenOption.WRITE)) {
                     // read
-                    raf.position(randomIntBetween(0, (int) Math.min(Integer.MAX_VALUE, raf.size() - 1)));
+                    raf.position(randomIntBetween(0, (int) Math.min(CodecUtil.headerLength(TranslogStreams.TRANSLOG_CODEC), raf.size() - 1))); // only corrupt the header to ensure we actually fail
                     long filePointer = raf.position();
                     ByteBuffer bb = ByteBuffer.wrap(new byte[1]);
                     raf.read(bb);

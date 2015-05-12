@@ -300,22 +300,6 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                         }
                     }
 
-                    // now add config level mappings
-                    Path mappingsDir = environment.configFile().resolve("mappings");
-                    if (Files.isDirectory(mappingsDir)) {
-                        // first index level
-                        Path indexMappingsDir = mappingsDir.resolve(request.index());
-                        if (Files.isDirectory(indexMappingsDir)) {
-                            addMappings(mappings, indexMappingsDir);
-                        }
-
-                        // second is the _default mapping
-                        Path defaultMappingsDir = mappingsDir.resolve("_default");
-                        if (Files.isDirectory(defaultMappingsDir)) {
-                            addMappings(mappings, defaultMappingsDir);
-                        }
-                    }
-
                     ImmutableSettings.Builder indexSettingsBuilder = settingsBuilder();
                     // apply templates, here, in reverse order, since first ones are better matching
                     for (int i = templates.size() - 1; i >= 0; i--) {
@@ -514,30 +498,6 @@ public class MetaDataCreateIndexService extends AbstractComponent {
             IndexTemplateMetaData template = cursor.value;
             if (indexTemplateFilter.apply(request, template)) {
                 templates.add(template);
-            }
-        }
-
-        // see if we have templates defined under config
-        final Path templatesDir = environment.configFile().resolve("templates");
-        if (Files.isDirectory(templatesDir)) {
-            try (DirectoryStream<Path> stream = Files.newDirectoryStream(templatesDir)) {
-                for (Path templatesFile : stream) {
-                    if (Files.isRegularFile(templatesFile)) {
-                        XContentParser parser = null;
-                        try {
-                            final byte[] templatesData = Files.readAllBytes(templatesFile);
-                            parser = XContentHelper.createParser(templatesData, 0, templatesData.length);
-                            IndexTemplateMetaData template = IndexTemplateMetaData.Builder.fromXContent(parser, templatesFile.getFileName().toString());
-                            if (indexTemplateFilter.apply(request, template)) {
-                                templates.add(template);
-                            }
-                        } catch (Exception e) {
-                            logger.warn("[{}] failed to read template [{}] from config", e, request.index(), templatesFile.toAbsolutePath());
-                        } finally {
-                            Releasables.closeWhileHandlingException(parser);
-                        }
-                    }
-                }
             }
         }
 

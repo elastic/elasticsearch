@@ -99,6 +99,10 @@ public class GlobalOrdinalsSignificantTermsAggregator extends GlobalOrdinalsStri
             if (bucketCountThresholds.getMinDocCount() > 0 && bucketDocCount == 0) {
                 continue;
             }
+            if (bucketDocCount < bucketCountThresholds.getShardMinDocCount()) {
+                continue;
+            }
+
             if (spare == null) {
                 spare = new SignificantStringTerms.Bucket(new BytesRef(), 0, 0, 0, 0, null);
             }
@@ -113,9 +117,7 @@ public class GlobalOrdinalsSignificantTermsAggregator extends GlobalOrdinalsStri
             // Back at the central reducer these properties will be updated with
             // global stats
             spare.updateScore(termsAggFactory.getSignificanceHeuristic());
-            if (spare.subsetDf >= bucketCountThresholds.getShardMinDocCount()) {
-                spare = (SignificantStringTerms.Bucket) ordered.insertWithOverflow(spare);
-            }
+            spare = (SignificantStringTerms.Bucket) ordered.insertWithOverflow(spare);
         }
 
         final InternalSignificantTerms.Bucket[] list = new InternalSignificantTerms.Bucket[ordered.size()];

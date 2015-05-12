@@ -32,25 +32,31 @@ import static org.elasticsearch.common.joda.time.DateTimeZone.UTC;
 public class WatchExecutionResult implements ToXContent {
 
     private final DateTime executionTime;
+    private final long executionDurationMs;
     private final Input.Result inputResult;
     private final Condition.Result conditionResult;
     private final @Nullable Transform.Result transformResult;
     private final ExecutableActions.Results actionsResults;
 
-    public WatchExecutionResult(WatchExecutionContext context) {
-        this(context.executionTime(), context.inputResult(), context.conditionResult(), context.transformResult(), context.actionsResults());
+    public WatchExecutionResult(WatchExecutionContext context, long executionDurationMs) {
+        this(context.executionTime(), executionDurationMs, context.inputResult(), context.conditionResult(), context.transformResult(), context.actionsResults());
     }
 
-    WatchExecutionResult(DateTime executionTime, Input.Result inputResult, Condition.Result conditionResult, @Nullable Transform.Result transformResult, ExecutableActions.Results actionsResults) {
+    WatchExecutionResult(DateTime executionTime, long executionDurationMs, Input.Result inputResult, Condition.Result conditionResult, @Nullable Transform.Result transformResult, ExecutableActions.Results actionsResults) {
         this.executionTime = executionTime;
         this.inputResult = inputResult;
         this.conditionResult = conditionResult;
         this.transformResult = transformResult;
         this.actionsResults = actionsResults;
+        this.executionDurationMs = executionDurationMs;
     }
 
     public DateTime executionTime() {
         return executionTime;
+    }
+
+    public long executionDurationMs() {
+        return executionDurationMs;
     }
 
     public Input.Result inputResult() {
@@ -72,7 +78,10 @@ public class WatchExecutionResult implements ToXContent {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
+
         WatcherDateTimeUtils.writeDate(Field.EXECUTION_TIME.getPreferredName(), builder, executionTime);
+        builder.field(Field.EXECUTION_DURATION.getPreferredName(), executionDurationMs);
+
         if (inputResult != null) {
             builder.startObject(Field.INPUT.getPreferredName())
                     .field(inputResult.type(), inputResult, params)
@@ -97,6 +106,9 @@ public class WatchExecutionResult implements ToXContent {
         public static WatchExecutionResult parse(Wid wid, XContentParser parser, ConditionRegistry conditionRegistry, ActionRegistry actionRegistry,
                                            InputRegistry inputRegistry, TransformRegistry transformRegistry) throws IOException {
             DateTime executionTime = null;
+            long executionDurationMs = 0;
+            boolean throttled = false;
+            String throttleReason = null;
             ExecutableActions.Results actionResults = null;
             Input.Result inputResult = null;
             Condition.Result conditionResult = null;
@@ -121,6 +133,8 @@ public class WatchExecutionResult implements ToXContent {
                     conditionResult = conditionRegistry.parseResult(wid.watchId(), parser);
                 } else if (Transform.Field.TRANSFORM.match(currentFieldName)) {
                     transformResult = transformRegistry.parseResult(wid.watchId(), parser);
+                }  else if (Field.EXECUTION_DURATION.match(currentFieldName) && token.isValue()) {
+                    executionDurationMs = parser.longValue();
                 } else {
                     throw new WatcherException("could not parse watch execution [{}]. unexpected field [{}]", wid, currentFieldName);
                 }
@@ -128,7 +142,8 @@ public class WatchExecutionResult implements ToXContent {
             if (executionTime == null) {
                 throw new WatcherException("could not parse watch execution [{}]. missing required date field [{}]", wid, Field.EXECUTION_TIME.getPreferredName());
             }
-            return new WatchExecutionResult(executionTime, inputResult, conditionResult, transformResult, actionResults);
+
+            return new WatchExecutionResult(executionTime, executionDurationMs, inputResult, conditionResult, transformResult, actionResults);
         }
     }
 
@@ -137,5 +152,6 @@ public class WatchExecutionResult implements ToXContent {
         ParseField INPUT = new ParseField("input");
         ParseField CONDITION = new ParseField("condition");
         ParseField ACTIONS = new ParseField("actions");
+        ParseField EXECUTION_DURATION = new ParseField("execution_duration");
     }
 }

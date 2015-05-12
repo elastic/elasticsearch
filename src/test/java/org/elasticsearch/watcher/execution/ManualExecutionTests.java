@@ -239,6 +239,19 @@ public class ManualExecutionTests extends AbstractWatcherIntegrationTests {
         assertThat(watchRecord.state(), equalTo(WatchRecord.State.THROTTLED));
     }
 
+    @Test
+    public void testWatchExecutionDuration() throws Exception {
+        WatchSourceBuilder watchBuilder = watchBuilder()
+                .trigger(schedule(cron("0 0 0 1 * ? 2099")))
+                .input(simpleInput("foo", "bar"))
+                .condition(new ScriptCondition((new Script.Builder.Inline("sleep 100; return true")).build()))
+                .addAction("log", loggingAction("foobar"));
+
+        Watch watch = watchParser().parse("_id", false, watchBuilder.buildAsBytes(XContentType.JSON));
+        ManualExecutionContext.Builder ctxBuilder = ManualExecutionContext.builder(watch, new ManualTriggerEvent("_id", new ScheduleTriggerEvent(new DateTime(UTC), new DateTime(UTC))), new TimeValue(1, TimeUnit.HOURS));
+        WatchRecord record = executionService().execute(ctxBuilder.build());
+        assertThat(record.execution().executionDurationMs(), greaterThanOrEqualTo(100L));
+    }
 
     @Test
     @Slow

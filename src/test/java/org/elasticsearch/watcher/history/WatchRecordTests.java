@@ -17,6 +17,7 @@ import org.elasticsearch.watcher.condition.Condition;
 import org.elasticsearch.watcher.condition.always.AlwaysCondition;
 import org.elasticsearch.watcher.execution.TriggeredExecutionContext;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
+import org.elasticsearch.watcher.execution.WatchExecutionResult;
 import org.elasticsearch.watcher.execution.Wid;
 import org.elasticsearch.watcher.input.simple.SimpleInput;
 import org.elasticsearch.watcher.support.http.HttpRequest;
@@ -26,7 +27,6 @@ import org.elasticsearch.watcher.test.WatcherTestUtils;
 import org.elasticsearch.watcher.trigger.schedule.ScheduleTriggerEvent;
 import org.elasticsearch.watcher.watch.Payload;
 import org.elasticsearch.watcher.watch.Watch;
-import org.elasticsearch.watcher.execution.WatchExecutionResult;
 import org.junit.Test;
 
 import static org.elasticsearch.common.joda.time.DateTimeZone.UTC;
@@ -70,8 +70,9 @@ public class WatchRecordTests extends AbstractWatcherIntegrationTests {
         Condition.Result conditionResult = AlwaysCondition.Result.INSTANCE;
         ctx.onInputResult(inputResult);
         ctx.onConditionResult(conditionResult);
-        watchRecord.seal(new WatchExecutionResult(ctx));
-
+        long watchExecutionDuration = randomIntBetween(30, 100000);
+        watchRecord.seal(new WatchExecutionResult(ctx, watchExecutionDuration));
+        assertThat(watchRecord.execution().executionDurationMs(), equalTo(watchExecutionDuration));
         XContentBuilder jsonBuilder = XContentFactory.jsonBuilder();
         watchRecord.toXContent(jsonBuilder, ToXContent.EMPTY_PARAMS);
         WatchRecord parsedWatchRecord = watchRecordParser().parse(watchRecord.id().value(), 0, jsonBuilder.bytes());
@@ -98,8 +99,9 @@ public class WatchRecordTests extends AbstractWatcherIntegrationTests {
         Condition.Result conditionResult = AlwaysCondition.Result.INSTANCE;
         ctx.onInputResult(inputResult);
         ctx.onConditionResult(conditionResult);
-        watchRecord.seal(new WatchExecutionResult(ctx));
-
+        long watchExecutionDuration = randomIntBetween(30, 100000);
+        watchRecord.seal(new WatchExecutionResult(ctx, watchExecutionDuration));
+        assertThat(watchRecord.execution().executionDurationMs(), equalTo(watchExecutionDuration));
         XContentBuilder jsonBuilder = XContentFactory.jsonBuilder();
         watchRecord.toXContent(jsonBuilder, ToXContent.EMPTY_PARAMS);
         WatchRecord parsedWatchRecord = watchRecordParser().parse(watchRecord.id().value(), 0, jsonBuilder.bytes());

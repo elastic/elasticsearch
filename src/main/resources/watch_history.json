@@ -78,6 +78,9 @@
             "execution_time": {
               "type": "date"
             },
+            "execution_duration": {
+              "type": "long"
+            },
             "input": {
               "type": "object",
               "dynamic": true,

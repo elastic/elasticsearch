@@ -168,7 +168,7 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
             if (isFilter) {
                 req = client.prepareSearch()
                         .setPreference(suggestions.getPreference())
-                        .setQuery(QueryBuilders.constantScoreQuery(FilterBuilders.bytesFilter(querySource)))
+                        .setQuery(QueryBuilders.constantScoreQuery(FilterBuilders.wrapperFilter(querySource)))
                         .setSearchType(SearchType.COUNT)
                         .setTerminateAfter(1);
             } else {

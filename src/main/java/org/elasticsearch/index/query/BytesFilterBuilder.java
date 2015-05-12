@@ -27,14 +27,16 @@ import java.io.IOException;
 /**
  * FilterBuilder that constructs filters from {@link org.elasticsearch.common.bytes.BytesReference}
  * source
+ *
+ * @deprecated replace with {@link WrapperFilterBuilder}
  */
+@Deprecated
 public class BytesFilterBuilder extends BaseFilterBuilder {
 
     private final BytesReference source;
 
     public BytesFilterBuilder(BytesReference source) {
         this.source = source;
-
     }
 
     @Override

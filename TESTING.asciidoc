@@ -224,18 +224,19 @@ mvn test -Dtests.jvm.argline="-XX:HeapDumpPath=/path/to/heapdumps"
 
 Running backwards compatibility tests is disabled by default since it
 requires a release version of elasticsearch to be present on the test system.
-To run backwards compatibiilty tests untar or unzip a release and run the tests
+To run backwards compatibilty tests untar or unzip a release and run the tests
 with the following command:
 
 ---------------------------------------------------------------------------
-mvn test -Dtests.filter="@backwards" -Dtests.bwc.version=x.y.z -Dtests.bwc.path=/path/to/elasticsearch
+mvn test -Dtests.filter="@backwards" -Dtests.bwc.version=x.y.z -Dtests.bwc.path=/path/to/elasticsearch -Dtests.security.manager=false
 ---------------------------------------------------------------------------
 
+Note that backwards tests must be run with security manager disabled.
 If the elasticsearch release is placed under `./backwards/elasticsearch-x.y.z` the path
 can be omitted:
  
 ---------------------------------------------------------------------------
-mvn test -Dtests.filter="@backwards" -Dtests.bwc.version=x.y.z
+mvn test -Dtests.filter="@backwards" -Dtests.bwc.version=x.y.z -Dtests.security.manager=false
 ---------------------------------------------------------------------------
 
 To setup the bwc test environment execute the following steps (provided you are

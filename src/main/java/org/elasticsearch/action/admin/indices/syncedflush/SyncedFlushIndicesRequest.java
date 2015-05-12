@@ -37,8 +37,6 @@ public class SyncedFlushIndicesRequest extends ActionRequest implements IndicesR
 
     private String[] indices;
 
-    // timeout in ms
-    long timeout = 30000;
     private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpenAndForbidClosed();
 
     SyncedFlushIndicesRequest() {
@@ -52,27 +50,18 @@ public class SyncedFlushIndicesRequest extends ActionRequest implements IndicesR
         this.indices = indices;
     }
 
-    public long getTimeout() {
-        return timeout;
-    }
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeStringArrayNullable(indices);
-        out.writeVLong(timeout);
         indicesOptions.writeIndicesOptions(out);
-    }
-
-    public void setTimeout(long timeout) {
-        this.timeout = timeout;
     }
 
     @Override
     public String toString() {
         return "SyncedFlushIndicesRequest{" +
                 "indices=" + Arrays.toString(indices) +
-                ", timeout=" + timeout +
+                ", indicesOptions=" + indicesOptions +
                 '}';
     }
 
@@ -85,7 +74,6 @@ public class SyncedFlushIndicesRequest extends ActionRequest implements IndicesR
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         indices = in.readStringArray();
-        timeout = in.readVLong();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
     }
 

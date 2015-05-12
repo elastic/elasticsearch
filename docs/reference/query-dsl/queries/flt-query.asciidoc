@@ -1,8 +1,6 @@
 [[query-dsl-flt-query]]
 === Fuzzy Like This Query
 
-deprecated[1.6.0, This query will be removed in Elasticsearch 2.0]
-
 Fuzzy like this query find documents that are "like" provided text by
 running it against one or more fields.
 

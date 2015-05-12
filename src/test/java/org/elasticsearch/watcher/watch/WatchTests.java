@@ -7,7 +7,6 @@ package org.elasticsearch.watcher.watch;
 
 import com.carrotsearch.ant.tasks.junit4.dependencies.com.google.common.collect.ImmutableSet;
 import com.carrotsearch.randomizedtesting.annotations.Repeat;
-import com.carrotsearch.randomizedtesting.annotations.Seed;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.collect.ImmutableMap;
@@ -50,6 +49,7 @@ import org.elasticsearch.watcher.input.ExecutableInput;
 import org.elasticsearch.watcher.input.InputBuilders;
 import org.elasticsearch.watcher.input.InputFactory;
 import org.elasticsearch.watcher.input.InputRegistry;
+import org.elasticsearch.watcher.input.none.ExecutableNoneInput;
 import org.elasticsearch.watcher.input.search.ExecutableSearchInput;
 import org.elasticsearch.watcher.input.search.SearchInput;
 import org.elasticsearch.watcher.input.search.SearchInputFactory;
@@ -99,8 +99,8 @@ import java.util.Map;
 
 import static org.elasticsearch.watcher.input.InputBuilders.searchInput;
 import static org.elasticsearch.watcher.test.WatcherTestUtils.matchAllRequest;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
+import static org.elasticsearch.watcher.trigger.TriggerBuilders.schedule;
+import static org.hamcrest.Matchers.*;
 import static org.mockito.Mockito.mock;
 
 public class WatchTests extends ElasticsearchTestCase {
@@ -207,6 +207,37 @@ public class WatchTests extends ElasticsearchTestCase {
         } catch (WatcherException we) {
             assertThat(we.getMessage().contains("could not parse watch [failure]. unexpected token"), is(true));
         }
+    }
+
+    @Test
+    public void testParser_Defaults() throws Exception {
+        Schedule schedule = randomSchedule();
+        ScheduleRegistry scheduleRegistry = registry(schedule);
+        TriggerEngine triggerEngine = new ParseOnlyScheduleTriggerEngine(ImmutableSettings.EMPTY, scheduleRegistry, SystemClock.INSTANCE);
+        TriggerService triggerService = new TriggerService(ImmutableSettings.EMPTY, ImmutableSet.of(triggerEngine));
+        SecretService secretService = new SecretService.PlainText();
+
+        ConditionRegistry conditionRegistry = registry(new ExecutableAlwaysCondition(logger));
+        InputRegistry inputRegistry = registry(new ExecutableNoneInput(logger));
+        TransformRegistry transformRegistry = transformRegistry();
+        ExecutableActions actions =  new ExecutableActions(ImmutableList.<ActionWrapper>of());
+        ActionRegistry actionRegistry = registry(actions, transformRegistry);
+
+        XContentBuilder builder = XContentFactory.jsonBuilder();
+        builder.startObject();
+        builder.startObject(Watch.Parser.TRIGGER_FIELD.getPreferredName())
+                .field(ScheduleTrigger.TYPE, schedule(schedule).build())
+                .endObject();
+        builder.endObject();
+        Watch.Parser watchParser = new Watch.Parser(settings, mock(LicenseService.class), conditionRegistry, triggerService, transformRegistry, actionRegistry, inputRegistry, SystemClock.INSTANCE, secretService);
+        Watch watch = watchParser.parse("failure", false, builder.bytes());
+        assertThat(watch, notNullValue());
+        assertThat(watch.trigger(), instanceOf(ScheduleTrigger.class));
+        assertThat(watch.input(), instanceOf(ExecutableNoneInput.class));
+        assertThat(watch.condition(), instanceOf(ExecutableAlwaysCondition.class));
+        assertThat(watch.transform(), nullValue());
+        assertThat(watch.actions(), notNullValue());
+        assertThat(watch.actions().count(), is(0));
     }
 
     private static Schedule randomSchedule() {

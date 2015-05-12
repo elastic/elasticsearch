@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.watcher.watch;
 
+import com.google.common.collect.ImmutableList;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -23,6 +24,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.watcher.WatcherException;
 import org.elasticsearch.watcher.actions.ActionRegistry;
+import org.elasticsearch.watcher.actions.ActionWrapper;
 import org.elasticsearch.watcher.actions.ExecutableActions;
 import org.elasticsearch.watcher.condition.ConditionRegistry;
 import org.elasticsearch.watcher.condition.ExecutableCondition;
@@ -220,6 +222,7 @@ public class Watch implements TriggerEngine.Job, ToXContent {
 
         private final ExecutableInput defaultInput;
         private final ExecutableCondition defaultCondition;
+        private final ExecutableActions defaultActions;
         private final TimeValue defaultThrottleTimePeriod;
 
         @Inject
@@ -239,6 +242,7 @@ public class Watch implements TriggerEngine.Job, ToXContent {
 
             this.defaultInput = new ExecutableNoneInput(logger);
             this.defaultCondition = new ExecutableAlwaysCondition(logger);
+            this.defaultActions = new ExecutableActions(ImmutableList.<ActionWrapper>of());
             this.defaultThrottleTimePeriod = settings.getAsTime(DEFAULT_THROTTLE_PERIOD_SETTING, DEFAULT_THROTTLE_PERIOD);
         }
 
@@ -288,7 +292,7 @@ public class Watch implements TriggerEngine.Job, ToXContent {
             Trigger trigger = null;
             ExecutableInput input = defaultInput;
             ExecutableCondition condition = defaultCondition;
-            ExecutableActions actions = null;
+            ExecutableActions actions = defaultActions;
             ExecutableTransform transform = null;
             Map<String, Object> metatdata = null;
             Status status = null;
@@ -338,10 +342,6 @@ public class Watch implements TriggerEngine.Job, ToXContent {
             if (trigger == null) {
                 throw new WatcherException("could not parse watch [{}]. missing required field [{}]", id, TRIGGER_FIELD.getPreferredName());
             }
-            if (actions == null) {
-                throw new WatcherException("could not parse watch [{}]. missing required field [{}]", id, ACTIONS_FIELD.getPreferredName());
-            }
-
             return new Watch(id, clock, licenseService, trigger, input, condition, transform, actions, metatdata, throttlePeriod, status);
         }
 

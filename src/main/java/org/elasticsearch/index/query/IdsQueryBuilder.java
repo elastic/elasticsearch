@@ -23,7 +23,6 @@ import com.google.common.collect.Iterables;
 
 import org.apache.lucene.queries.TermsQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -51,6 +50,10 @@ public class IdsQueryBuilder extends BaseQueryBuilder implements Streamable, Boo
     private float boost = 1.0f;
 
     private String queryName;
+
+    public IdsQueryBuilder() {
+        //for serialization only
+    }
 
     public IdsQueryBuilder(String... types) {
         this.types = (types == null || types.length == 0) ? new ArrayList<String>() : Arrays.asList(types);

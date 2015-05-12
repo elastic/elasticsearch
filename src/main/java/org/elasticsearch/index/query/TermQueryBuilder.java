@@ -121,7 +121,7 @@ public class TermQueryBuilder extends BaseQueryBuilder implements Streamable, Bo
         }
     }
 
-    TermQueryBuilder() {
+    public TermQueryBuilder() {
         // for serialization only
     }
 

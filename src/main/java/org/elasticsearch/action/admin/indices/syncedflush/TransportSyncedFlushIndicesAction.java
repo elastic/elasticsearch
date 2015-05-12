@@ -33,6 +33,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.SyncedFlushService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -67,26 +68,10 @@ public class TransportSyncedFlushIndicesAction extends HandledTransportAction<Sy
     @Override
     protected void doExecute(final SyncedFlushIndicesRequest request, final ActionListener<SyncedFlushIndicesResponse> listener) {
         // we need to execute in a thread here because getSyncedFlushResults(request, state) blocks
-        threadPool.generic().execute(new AbstractRunnable() {
-            @Override
-            public void onFailure(Throwable t) {
-                listener.onFailure(t);
-            }
-
-            @Override
-            protected void doRun() throws Exception {
-                ClusterState state = clusterService.state();
-                final Set<SyncedFlushService.SyncedFlushResult> results = getSyncedFlushResults(request, state);
-                listener.onResponse(new SyncedFlushIndicesResponse(results));
-            }
-        });
-
-    }
-
-    private Set<SyncedFlushService.SyncedFlushResult> getSyncedFlushResults(SyncedFlushIndicesRequest request, ClusterState state) {
+        ClusterState state = clusterService.state();
         String[] concreteIndices = state.metaData().concreteIndices(request.indicesOptions(), request.indices());
         GroupShardsIterator primaries = state.routingTable().activePrimaryShardsGrouped(concreteIndices, false);
-        final CountDownLatch countDownLatch = new CountDownLatch(primaries.size());
+        final CountDown countDown = new CountDown(primaries.size());
         DiscoveryNode localNode = state.getNodes().localNode();
         final Set<SyncedFlushService.SyncedFlushResult> results = ConcurrentCollections.newConcurrentSet();
         for (ShardIterator shard : primaries) {
@@ -101,14 +86,18 @@ public class TransportSyncedFlushIndicesAction extends HandledTransportAction<Sy
                         @Override
                         public void handleResponse(SyncedFlushService.SyncedFlushResult response) {
                             results.add(response);
-                            countDownLatch.countDown();
+                            if (countDown.countDown()) {
+                                listener.onResponse(new SyncedFlushIndicesResponse(results));
+                            }
                         }
 
                         @Override
                         public void handleException(TransportException exp) {
                             logger.debug("{} unexpected error while executing synced flush", shardId);
                             results.add(new SyncedFlushService.SyncedFlushResult(shardId, exp.getMessage()));
-                            countDownLatch.countDown();
+                            if (countDown.countDown()) {
+                                listener.onResponse(new SyncedFlushIndicesResponse(results));
+                            }
                         }
 
                         @Override
@@ -117,14 +106,6 @@ public class TransportSyncedFlushIndicesAction extends HandledTransportAction<Sy
                         }
                     });
         }
-        try {
-            if (countDownLatch.await(request.getTimeout(), TimeUnit.MILLISECONDS) == false) {
-                logger.warn("waiting for synced flush timed out");
-            }
-        } catch (InterruptedException e) {
-            logger.warn("interrupted while waiting for synced flush to finish");
-        }
-        return results;
     }
 
     final static class ShardSyncedFlushRequest extends TransportRequest {

@@ -33,6 +33,7 @@
 
     <properties>
         <!-- You can add any specific project property here -->
+        <tests.security.manager>true</tests.security.manager>
     </properties>
 
     <dependencies>
@@ -57,7 +58,7 @@
         <dependency>
             <groupId>org.python</groupId>
             <artifactId>jython-standalone</artifactId>
-            <version>2.7-b3</version>
+            <version>2.7.0</version>
         </dependency>
 
         <dependency>

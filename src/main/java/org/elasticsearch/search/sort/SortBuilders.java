@@ -19,6 +19,8 @@
 
 package org.elasticsearch.search.sort;
 
+import org.elasticsearch.script.Script;
+
 /**
  * A set of static factory methods for {@link SortBuilder}s.
  *
@@ -48,6 +50,20 @@ public class SortBuilders {
      * @param script The script to use.
      * @param type   The type, can either be "string" or "number".
      */
+    public static ScriptSortBuilder scriptSort(Script script, String type) {
+        return new ScriptSortBuilder(script, type);
+    }
+
+    /**
+     * Constructs a new script based sort.
+     *
+     * @param script
+     *            The script to use.
+     * @param type
+     *            The type, can either be "string" or "number".
+     * @deprecated Use {@link #scriptSort(Script, String)} instead.
+     */
+    @Deprecated
     public static ScriptSortBuilder scriptSort(String script, String type) {
         return new ScriptSortBuilder(script, type);
     }

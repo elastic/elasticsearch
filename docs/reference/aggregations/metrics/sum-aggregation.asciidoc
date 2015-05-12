@@ -55,7 +55,29 @@ Computing the intraday return based on a script:
 }
 --------------------------------------------------
 
-TIP: The `script` parameter expects an inline script. Use `script_id` for indexed scripts and `script_file` for scripts in the `config/scripts/` directory.
+This will interpret the `script` parameter as an `inline` script with the default script language and no script parameters. To use a file script use the following syntax:
+
+[source,js]
+--------------------------------------------------
+{
+    ...,
+
+    "aggs" : {
+        "intraday_return" : { 
+            "sum" : { 
+                "script" : {
+                    "file": "my_script",
+                    "params" : {
+                        "field" : "change"
+                    }
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+TIP: for indexed scripts replace the `file` parameter with an `id` parameter.
 
 ===== Value Script
 
@@ -71,7 +93,8 @@ Computing the sum of squares over all stock tick changes:
             "daytime_return" : {
                 "sum" : {
                     "field" : "change",
-                    "script" : "_value * _value" }
+                    "script" : "_value * _value"
+                }
             }
         }
     }

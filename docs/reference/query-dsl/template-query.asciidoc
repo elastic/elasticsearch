@@ -12,7 +12,7 @@ GET /_search
 {
     "query": {
         "template": {
-            "query": { "match": { "text": "{{query_string}}" }},
+            "inline": { "match": { "text": "{{query_string}}" }},
             "params" : {
                 "query_string" : "all about search"
             }
@@ -45,7 +45,7 @@ GET /_search
 {
     "query": {
         "template": {
-            "query": "{ \"match\": { \"text\": \"{{query_string}}\" }}", <1>
+            "inline": "{ \"match\": { \"text\": \"{{query_string}}\" }}", <1>
             "params" : {
                 "query_string" : "all about search"
             }

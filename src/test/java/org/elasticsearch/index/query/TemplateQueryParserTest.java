@@ -107,12 +107,11 @@ public class TemplateQueryParserTest extends ElasticsearchTestCase {
 
     @Test
     public void testParser() throws IOException {
-        String templateString = "{\"template\": {"
-                + "\"query\":{\"match_{{template}}\": {}},"
-                + "\"params\":{\"template\":\"all\"}}" + "}";
+        String templateString = "{" + "\"query\":{\"match_{{template}}\": {}}," + "\"params\":{\"template\":\"all\"}" + "}";
 
         XContentParser templateSourceParser = XContentFactory.xContent(templateString).createParser(templateString);
         context.reset(templateSourceParser);
+        templateSourceParser.nextToken();
 
         TemplateQueryParser parser = injector.getInstance(TemplateQueryParser.class);
         Query query = parser.parse(context);
@@ -121,10 +120,11 @@ public class TemplateQueryParserTest extends ElasticsearchTestCase {
 
     @Test
     public void testParserCanExtractTemplateNames() throws Exception {
-        String templateString = "{ \"template\": { \"file\": \"storedTemplate\" ,\"params\":{\"template\":\"all\" } } } ";
+        String templateString = "{ \"file\": \"storedTemplate\" ,\"params\":{\"template\":\"all\" } } ";
 
         XContentParser templateSourceParser = XContentFactory.xContent(templateString).createParser(templateString);
         context.reset(templateSourceParser);
+        templateSourceParser.nextToken();
 
         TemplateQueryParser parser = injector.getInstance(TemplateQueryParser.class);
         Query query = parser.parse(context);

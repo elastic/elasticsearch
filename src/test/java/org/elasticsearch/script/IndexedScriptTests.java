@@ -38,7 +38,9 @@ import java.util.List;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class IndexedScriptTests extends ElasticsearchIntegrationTest {
 
@@ -120,6 +122,29 @@ public class IndexedScriptTests extends ElasticsearchIntegrationTest {
         }
         client().prepareIndex("test", "scriptTest", "1").setSource("{\"theField\":\"foo\"}").get();
         try {
+            client().prepareUpdate("test", "scriptTest", "1")
+                    .setScript(new Script("script1", ScriptService.ScriptType.INDEXED, GroovyScriptEngineService.NAME, null)).get();
+            fail("update script should have been rejected");
+        } catch (Exception e) {
+            assertThat(e.getMessage(), containsString("failed to execute script"));
+            assertThat(ExceptionsHelper.detailedMessage(e),
+                    containsString("scripts of type [indexed], operation [update] and lang [groovy] are disabled"));
+        }
+    }
+
+    /*
+     * TODO Remove in 2.0
+     */
+    @Test
+    public void testDisabledUpdateIndexedScriptsOnlyOldScriptAPI() {
+        if (randomBoolean()) {
+            client().preparePutIndexedScript(GroovyScriptEngineService.NAME, "script1", "{\"script\":\"2\"}").get();
+        } else {
+            client().prepareIndex(ScriptService.SCRIPT_INDEX, GroovyScriptEngineService.NAME, "script1").setSource("{\"script\":\"2\"}")
+                    .get();
+        }
+        client().prepareIndex("test", "scriptTest", "1").setSource("{\"theField\":\"foo\"}").get();
+        try {
             client().prepareUpdate("test", "scriptTest", "1").setScript("script1", ScriptService.ScriptType.INDEXED).setScriptLang(GroovyScriptEngineService.NAME).get();
             fail("update script should have been rejected");
         } catch(Exception e) {
@@ -150,6 +175,41 @@ public class IndexedScriptTests extends ElasticsearchIntegrationTest {
             client().preparePutIndexedScript(ExpressionScriptEngineService.NAME, "script1", "{\"script\":\"2\"}").get();
         } else {
             client().prepareIndex(ScriptService.SCRIPT_INDEX, ExpressionScriptEngineService.NAME, "script1").setSource("{\"script\":\"2\"}").get();
+        }
+        client().prepareIndex("test", "scriptTest", "1").setSource("{\"theField\":\"foo\"}").get();
+        try {
+            client().prepareUpdate("test", "scriptTest", "1")
+                    .setScript(new Script("script1", ScriptService.ScriptType.INDEXED, ExpressionScriptEngineService.NAME, null)).get();
+            fail("update script should have been rejected");
+        } catch(Exception e) {
+            assertThat(e.getMessage(), containsString("failed to execute script"));
+            assertThat(e.getCause().toString(), containsString("scripts of type [indexed], operation [update] and lang [expression] are disabled"));
+        }
+        try {
+            String query = "{ \"script_fields\" : { \"test1\" : { \"script_id\" : \"script1\", \"lang\":\"expression\" }}}";
+            client().prepareSearch().setSource(query).setIndices("test").setTypes("scriptTest").get();
+            fail("search script should have been rejected");
+        } catch(Exception e) {
+            assertThat(e.toString(), containsString("scripts of type [indexed], operation [search] and lang [expression] are disabled"));
+        }
+        try {
+            String source = "{\"aggs\": {\"test\": { \"terms\" : { \"script_id\":\"script1\", \"script_lang\":\"expression\" } } } }";
+            client().prepareSearch("test").setSource(source).get();
+        } catch(Exception e) {
+            assertThat(e.toString(), containsString("scripts of type [indexed], operation [aggs] and lang [expression] are disabled"));
+        }
+    }
+
+    /*
+     * TODO Remove in 2.0
+     */
+    @Test
+    public void testAllOpsDisabledIndexedScriptsOldScriptAPI() throws IOException {
+        if (randomBoolean()) {
+            client().preparePutIndexedScript(ExpressionScriptEngineService.NAME, "script1", "{\"script\":\"2\"}").get();
+        } else {
+            client().prepareIndex(ScriptService.SCRIPT_INDEX, ExpressionScriptEngineService.NAME, "script1")
+                    .setSource("{\"script\":\"2\"}").get();
         }
         client().prepareIndex("test", "scriptTest", "1").setSource("{\"theField\":\"foo\"}").get();
         try {

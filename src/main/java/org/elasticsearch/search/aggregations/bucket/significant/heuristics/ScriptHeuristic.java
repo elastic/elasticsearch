@@ -30,12 +30,20 @@ import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParsingException;
-import org.elasticsearch.script.*;
+import org.elasticsearch.script.ExecutableScript;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.Script.ScriptField;
+import org.elasticsearch.script.ScriptContext;
+import org.elasticsearch.script.ScriptParameterParser;
+import org.elasticsearch.script.ScriptParameterParser.ScriptParameterValue;
+import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
+
+import static com.google.common.collect.Maps.newHashMap;
 
 public class ScriptHeuristic extends SignificanceHeuristic {
 
@@ -44,16 +52,14 @@ public class ScriptHeuristic extends SignificanceHeuristic {
     private final LongAccessor supersetSizeHolder;
     private final LongAccessor subsetDfHolder;
     private final LongAccessor supersetDfHolder;
-    ExecutableScript script = null;
-    String scriptLang;
-    String scriptString;
-    ScriptService.ScriptType scriptType;
-    Map<String, Object> params;
+    ExecutableScript searchScript = null;
+    Script script;
 
     public static final SignificanceHeuristicStreams.Stream STREAM = new SignificanceHeuristicStreams.Stream() {
         @Override
         public SignificanceHeuristic readResult(StreamInput in) throws IOException {
-            return new ScriptHeuristic(null, in.readOptionalString(), in.readString(), ScriptService.ScriptType.readFrom(in), in.readMap());
+            Script script = Script.readScript(in);
+            return new ScriptHeuristic(null, script);
         }
 
         @Override
@@ -62,32 +68,29 @@ public class ScriptHeuristic extends SignificanceHeuristic {
         }
     };
 
-    public ScriptHeuristic(ExecutableScript searchScript, String scriptLang, String scriptString, ScriptService.ScriptType scriptType, Map<String, Object> params) {
+    public ScriptHeuristic(ExecutableScript searchScript, Script script) {
         subsetSizeHolder = new LongAccessor();
         supersetSizeHolder = new LongAccessor();
         subsetDfHolder = new LongAccessor();
         supersetDfHolder = new LongAccessor();
-        this.script = searchScript;
-        if (script != null) {
-            script.setNextVar("_subset_freq", subsetDfHolder);
-            script.setNextVar("_subset_size", subsetSizeHolder);
-            script.setNextVar("_superset_freq", supersetDfHolder);
-            script.setNextVar("_superset_size", supersetSizeHolder);
+        this.searchScript = searchScript;
+        if (searchScript != null) {
+            searchScript.setNextVar("_subset_freq", subsetDfHolder);
+            searchScript.setNextVar("_subset_size", subsetSizeHolder);
+            searchScript.setNextVar("_superset_freq", supersetDfHolder);
+            searchScript.setNextVar("_superset_size", supersetSizeHolder);
         }
-        this.scriptLang = scriptLang;
-        this.scriptString = scriptString;
-        this.scriptType = scriptType;
-        this.params = params;
+        this.script = script;
 
 
     }
 
     public void initialize(InternalAggregation.ReduceContext context) {
-        script = context.scriptService().executable(new Script(scriptLang, scriptString, scriptType, params), ScriptContext.Standard.AGGS);
-        script.setNextVar("_subset_freq", subsetDfHolder);
-        script.setNextVar("_subset_size", subsetSizeHolder);
-        script.setNextVar("_superset_freq", supersetDfHolder);
-        script.setNextVar("_superset_size", supersetSizeHolder);
+        searchScript = context.scriptService().executable(script, ScriptContext.Standard.AGGS);
+        searchScript.setNextVar("_subset_freq", subsetDfHolder);
+        searchScript.setNextVar("_subset_size", subsetSizeHolder);
+        searchScript.setNextVar("_superset_freq", supersetDfHolder);
+        searchScript.setNextVar("_superset_size", supersetSizeHolder);
     }
 
     /**
@@ -101,7 +104,7 @@ public class ScriptHeuristic extends SignificanceHeuristic {
      */
     @Override
     public double getScore(long subsetFreq, long subsetSize, long supersetFreq, long supersetSize) {
-        if (script == null) {
+        if (searchScript == null) {
             //In tests, wehn calling assertSearchResponse(..) the response is streamed one additional time with an arbitrary version, see assertVersionSerializable(..).
             // Now, for version before 1.5.0 the score is computed after streaming the response but for scripts the script does not exists yet.
             // assertSearchResponse() might therefore fail although there is no problem.
@@ -113,16 +116,13 @@ public class ScriptHeuristic extends SignificanceHeuristic {
         supersetSizeHolder.value = supersetSize;
         subsetDfHolder.value = subsetFreq;
         supersetDfHolder.value = supersetFreq;
-        return ((Number) script.run()).doubleValue();
+        return ((Number) searchScript.run()).doubleValue();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(STREAM.getName());
-        out.writeOptionalString(scriptLang);
-        out.writeString(scriptString);
-        ScriptService.ScriptType.writeTo(scriptType, out);
-        out.writeMap(params);
+        script.writeTo(out);
     }
 
     public static class ScriptHeuristicParser implements SignificanceHeuristicParser {
@@ -135,18 +135,18 @@ public class ScriptHeuristic extends SignificanceHeuristic {
         @Override
         public SignificanceHeuristic parse(XContentParser parser) throws IOException, QueryParsingException {
             NAMES_FIELD.match(parser.currentName(), ParseField.EMPTY_FLAGS);
-            String script = null;
-            String scriptLang;
+            Script script = null;
             XContentParser.Token token;
-            Map<String, Object> params = new HashMap<>();
+            Map<String, Object> params = null;
             String currentFieldName = null;
-            ScriptService.ScriptType scriptType = ScriptService.ScriptType.INLINE;
             ScriptParameterParser scriptParameterParser = new ScriptParameterParser();
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token.equals(XContentParser.Token.FIELD_NAME)) {
                     currentFieldName = parser.currentName();
                 } else if (token == XContentParser.Token.START_OBJECT) {
-                    if ("params".equals(currentFieldName)) {
+                    if (ScriptField.SCRIPT.match(currentFieldName)) {
+                        script = Script.parse(parser);
+                    } else if ("params".equals(currentFieldName)) { // TODO remove in 2.0 (here to support old script APIs)
                         params = parser.map();
                     } else {
                         throw new ElasticsearchParseException("unknown object " + currentFieldName + " in script_heuristic");
@@ -156,23 +156,28 @@ public class ScriptHeuristic extends SignificanceHeuristic {
                 }
             }
 
-            ScriptParameterParser.ScriptParameterValue scriptValue = scriptParameterParser.getDefaultScriptParameterValue();
-            if (scriptValue != null) {
-                script = scriptValue.script();
-                scriptType = scriptValue.scriptType();
+            if (script == null) { // Didn't find anything using the new API so try using the old one instead
+                ScriptParameterValue scriptValue = scriptParameterParser.getDefaultScriptParameterValue();
+                if (scriptValue != null) {
+                    if (params == null) {
+                        params = newHashMap();
+                    }
+                    script = new Script(scriptValue.script(), scriptValue.scriptType(), scriptParameterParser.lang(), params);
+                }
+            } else if (params != null) {
+                throw new ElasticsearchParseException("script params must be specified inside script object");
             }
-            scriptLang = scriptParameterParser.lang();
 
             if (script == null) {
                 throw new ElasticsearchParseException("No script found in script_heuristic");
             }
             ExecutableScript searchScript;
             try {
-                searchScript = scriptService.executable(new Script(scriptLang, script, scriptType, params), ScriptContext.Standard.AGGS);
+                searchScript = scriptService.executable(script, ScriptContext.Standard.AGGS);
             } catch (Exception e) {
                 throw new ElasticsearchParseException("The script [" + script + "] could not be loaded", e);
             }
-            return new ScriptHeuristic(searchScript, scriptLang, script, scriptType, params);
+            return new ScriptHeuristic(searchScript, script);
         }
 
         @Override
@@ -183,55 +188,82 @@ public class ScriptHeuristic extends SignificanceHeuristic {
 
     public static class ScriptHeuristicBuilder implements SignificanceHeuristicBuilder {
 
-        private String script = null;
+        private Script script = null;
+        private String scriptString = null;
+        private ScriptType type = null;
         private String lang = null;
         private Map<String, Object> params = null;
-        private String scriptId;
-        private String scriptFile;
-        public ScriptHeuristicBuilder setScript(String script) {
+
+        public ScriptHeuristicBuilder setScript(Script script) {
             this.script = script;
             return this;
         }
 
-        public ScriptHeuristicBuilder setScriptFile(String script) {
-            this.scriptFile = script;
+        /**
+         * @deprecated use {@link #setScript(Script)}
+         */
+        @Deprecated
+        public ScriptHeuristicBuilder setScript(String script) {
+            if (script != null) {
+                this.scriptString = script;
+                this.type = ScriptType.INLINE;
+            }
             return this;
         }
 
+        /**
+         * @deprecated use {@link #setScript(Script)}
+         */
+        @Deprecated
+        public ScriptHeuristicBuilder setScriptFile(String script) {
+            if (script != null) {
+                this.scriptString = script;
+                this.type = ScriptType.FILE;
+            }
+            return this;
+        }
+
+        /**
+         * @deprecated use {@link #setScript(Script)}
+         */
+        @Deprecated
         public ScriptHeuristicBuilder setLang(String lang) {
             this.lang = lang;
             return this;
         }
 
+        /**
+         * @deprecated use {@link #setScript(Script)}
+         */
+        @Deprecated
         public ScriptHeuristicBuilder setParams(Map<String, Object> params) {
             this.params = params;
             return this;
         }
 
+        /**
+         * @deprecated use {@link #setScript(Script)}
+         */
+        @Deprecated
         public ScriptHeuristicBuilder setScriptId(String scriptId) {
-            this.scriptId = scriptId;
+            if (scriptId != null) {
+                this.scriptString = scriptId;
+                this.type = ScriptType.INDEXED;
+            }
             return this;
         }
 
         @Override
-        public void toXContent(XContentBuilder builder) throws IOException {
+        public XContentBuilder toXContent(XContentBuilder builder, Params builderParams) throws IOException {
             builder.startObject(STREAM.getName());
-            if (script != null) {
-                builder.field("script", script);
-            }
-            if (lang != null) {
-                builder.field("lang", lang);
-            }
-            if (params != null) {
-                builder.field("params", params);
-            }
-            if (scriptId != null) {
-                builder.field("script_id", scriptId);
-            }
-            if (scriptFile != null) {
-                builder.field("script_file", scriptFile);
+            builder.field(ScriptField.SCRIPT.getPreferredName());
+            if (script == null) {
+                new Script(scriptString, type, lang, params).toXContent(builder, builderParams);
+            } else {
+                script.toXContent(builder, builderParams);
             }
             builder.endObject();
+            return builder;
         }
 
     }

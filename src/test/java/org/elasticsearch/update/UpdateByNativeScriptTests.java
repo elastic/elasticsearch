@@ -19,16 +19,22 @@
 package org.elasticsearch.update;
 
 import com.google.common.collect.Maps;
+
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.script.*;
+import org.elasticsearch.script.AbstractExecutableScript;
+import org.elasticsearch.script.ExecutableScript;
+import org.elasticsearch.script.NativeScriptEngineService;
+import org.elasticsearch.script.NativeScriptFactory;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
+import org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import org.junit.Test;
 
 import java.util.Map;
 
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.*;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
 
@@ -48,6 +54,26 @@ public class UpdateByNativeScriptTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testThatUpdateUsingNativeScriptWorks() throws Exception {
+        createIndex("test");
+        ensureYellow();
+
+        index("test", "type", "1", "text", "value");
+
+        Map<String, Object> params = Maps.newHashMap();
+        params.put("foo", "SETVALUE");
+        client().prepareUpdate("test", "type", "1")
+                .setScript(new Script("custom", ScriptService.ScriptType.INLINE, NativeScriptEngineService.NAME, params)).get();
+
+        Map<String, Object> data = client().prepareGet("test", "type", "1").get().getSource();
+        assertThat(data, hasKey("foo"));
+        assertThat(data.get("foo").toString(), is("SETVALUE"));
+    }
+
+    /*
+     * TODO Remove in 2.0
+     */
+    @Test
+    public void testThatUpdateUsingNativeScriptWorksOldScriptAPI() throws Exception {
         createIndex("test");
         ensureYellow();
 

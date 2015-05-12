@@ -34,6 +34,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
@@ -521,6 +522,149 @@ public class SimpleNestedTests extends ElasticsearchIntegrationTest {
         assertThat(searchResponse.getHits().hits()[2].sortValues()[0].toString(), equalTo("2"));
 
         searchResponse = client().prepareSearch("test")
+                .setTypes("type1")
+                .setQuery(QueryBuilders.matchAllQuery())
+                .addSort(
+                        SortBuilders.scriptSort(new Script("_fields['nested1.field1'].value + 1"), "number").setNestedPath("nested1")
+                                .order(SortOrder.DESC)).execute().actionGet();
+
+        assertHitCount(searchResponse, 3);
+        assertThat(searchResponse.getHits().hits()[0].id(), equalTo("1"));
+        assertThat(searchResponse.getHits().hits()[0].sortValues()[0].toString(), equalTo("6.0"));
+        assertThat(searchResponse.getHits().hits()[1].id(), equalTo("3"));
+        assertThat(searchResponse.getHits().hits()[1].sortValues()[0].toString(), equalTo("5.0"));
+        assertThat(searchResponse.getHits().hits()[2].id(), equalTo("2"));
+        assertThat(searchResponse.getHits().hits()[2].sortValues()[0].toString(), equalTo("3.0"));
+
+        searchResponse = client()
+                .prepareSearch("test")
+                .setTypes("type1")
+                .setQuery(QueryBuilders.matchAllQuery())
+                .addSort(
+                        SortBuilders.scriptSort(new Script("_fields['nested1.field1'].value + 1"), "number").setNestedPath("nested1")
+                                .sortMode("sum").order(SortOrder.DESC)).execute().actionGet();
+
+        // B/c of sum it is actually +2
+        assertHitCount(searchResponse, 3);
+        assertThat(searchResponse.getHits().hits()[0].id(), equalTo("1"));
+        assertThat(searchResponse.getHits().hits()[0].sortValues()[0].toString(), equalTo("11.0"));
+        assertThat(searchResponse.getHits().hits()[1].id(), equalTo("3"));
+        assertThat(searchResponse.getHits().hits()[1].sortValues()[0].toString(), equalTo("9.0"));
+        assertThat(searchResponse.getHits().hits()[2].id(), equalTo("2"));
+        assertThat(searchResponse.getHits().hits()[2].sortValues()[0].toString(), equalTo("5.0"));
+
+        searchResponse = client()
+                .prepareSearch("test")
+                .setTypes("type1")
+                .setQuery(QueryBuilders.matchAllQuery())
+                .addSort(
+                        SortBuilders.scriptSort(new Script("_fields['nested1.field1'].value"), "number")
+                                .setNestedFilter(rangeQuery("nested1.field1").from(1).to(3)).setNestedPath("nested1").sortMode("avg")
+                                .order(SortOrder.DESC)).execute().actionGet();
+
+        assertHitCount(searchResponse, 3);
+        assertThat(searchResponse.getHits().hits()[0].id(), equalTo("1"));
+        assertThat(searchResponse.getHits().hits()[0].sortValues()[0].toString(), equalTo(Double.toString(Double.MAX_VALUE)));
+        assertThat(searchResponse.getHits().hits()[1].id(), equalTo("3"));
+        assertThat(searchResponse.getHits().hits()[1].sortValues()[0].toString(), equalTo("3.0"));
+        assertThat(searchResponse.getHits().hits()[2].id(), equalTo("2"));
+        assertThat(searchResponse.getHits().hits()[2].sortValues()[0].toString(), equalTo("1.5"));
+
+        searchResponse = client()
+                .prepareSearch("test")
+                .setTypes("type1")
+                .setQuery(QueryBuilders.matchAllQuery())
+                .addSort(
+                        SortBuilders.scriptSort(new Script("_fields['nested1.field1'].value"), "string").setNestedPath("nested1")
+                                .order(SortOrder.DESC)).execute().actionGet();
+
+        assertHitCount(searchResponse, 3);
+        assertThat(searchResponse.getHits().hits()[0].id(), equalTo("1"));
+        assertThat(searchResponse.getHits().hits()[0].sortValues()[0].toString(), equalTo("5"));
+        assertThat(searchResponse.getHits().hits()[1].id(), equalTo("3"));
+        assertThat(searchResponse.getHits().hits()[1].sortValues()[0].toString(), equalTo("4"));
+        assertThat(searchResponse.getHits().hits()[2].id(), equalTo("2"));
+        assertThat(searchResponse.getHits().hits()[2].sortValues()[0].toString(), equalTo("2"));
+
+        searchResponse = client()
+                .prepareSearch("test")
+                .setTypes("type1")
+                .setQuery(QueryBuilders.matchAllQuery())
+                .addSort(
+                        SortBuilders.scriptSort(new Script("_fields['nested1.field1'].value"), "string").setNestedPath("nested1")
+                                .order(SortOrder.ASC)).execute().actionGet();
+
+        assertHitCount(searchResponse, 3);
+        assertThat(searchResponse.getHits().hits()[0].id(), equalTo("2"));
+        assertThat(searchResponse.getHits().hits()[0].sortValues()[0].toString(), equalTo("1"));
+        assertThat(searchResponse.getHits().hits()[1].id(), equalTo("3"));
+        assertThat(searchResponse.getHits().hits()[1].sortValues()[0].toString(), equalTo("3"));
+        assertThat(searchResponse.getHits().hits()[2].id(), equalTo("1"));
+        assertThat(searchResponse.getHits().hits()[2].sortValues()[0].toString(), equalTo("4"));
+
+        try {
+            client().prepareSearch("test")
+                    .setTypes("type1")
+                    .setQuery(QueryBuilders.matchAllQuery())
+                    .addSort(
+                            SortBuilders.scriptSort(new Script("_fields['nested1.field1'].value"), "string").setNestedPath("nested1")
+                                    .sortMode("sum").order(SortOrder.ASC)).execute().actionGet();
+            Assert.fail("SearchPhaseExecutionException should have been thrown");
+        } catch (SearchPhaseExecutionException e) {
+            assertThat(e.toString(), containsString("type [string] doesn't support mode [SUM]"));
+        }
+    }
+
+    /*
+     * TODO Remove in 2.0
+     */
+    @Test
+    public void testSimpleNestedSortingOldScriptAPI() throws Exception {
+        assertAcked(prepareCreate("test").setSettings(settingsBuilder().put(indexSettings()).put("index.refresh_interval", -1)).addMapping(
+                "type1",
+                jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("nested1").field("type", "nested")
+                        .startObject("properties").startObject("field1").field("type", "long").field("store", "yes").endObject()
+                        .endObject().endObject().endObject().endObject().endObject()));
+        ensureGreen();
+
+        client().prepareIndex("test", "type1", "1")
+                .setSource(
+                        jsonBuilder().startObject().field("field1", 1).startArray("nested1").startObject().field("field1", 5).endObject()
+                                .startObject().field("field1", 4).endObject().endArray().endObject()).execute().actionGet();
+        client().prepareIndex("test", "type1", "2")
+                .setSource(
+                        jsonBuilder().startObject().field("field1", 2).startArray("nested1").startObject().field("field1", 1).endObject()
+                                .startObject().field("field1", 2).endObject().endArray().endObject()).execute().actionGet();
+        client().prepareIndex("test", "type1", "3")
+                .setSource(
+                        jsonBuilder().startObject().field("field1", 3).startArray("nested1").startObject().field("field1", 3).endObject()
+                                .startObject().field("field1", 4).endObject().endArray().endObject()).execute().actionGet();
+        refresh();
+
+        SearchResponse searchResponse = client().prepareSearch("test").setTypes("type1").setQuery(QueryBuilders.matchAllQuery())
+                .addSort(SortBuilders.fieldSort("nested1.field1").order(SortOrder.ASC)).execute().actionGet();
+
+        assertHitCount(searchResponse, 3);
+        assertThat(searchResponse.getHits().hits()[0].id(), equalTo("2"));
+        assertThat(searchResponse.getHits().hits()[0].sortValues()[0].toString(), equalTo("1"));
+        assertThat(searchResponse.getHits().hits()[1].id(), equalTo("3"));
+        assertThat(searchResponse.getHits().hits()[1].sortValues()[0].toString(), equalTo("3"));
+        assertThat(searchResponse.getHits().hits()[2].id(), equalTo("1"));
+        assertThat(searchResponse.getHits().hits()[2].sortValues()[0].toString(), equalTo("4"));
+
+        searchResponse = client().prepareSearch("test").setTypes("type1").setQuery(QueryBuilders.matchAllQuery())
+                .addSort(SortBuilders.fieldSort("nested1.field1").order(SortOrder.DESC)).execute().actionGet();
+
+        assertHitCount(searchResponse, 3);
+        assertThat(searchResponse.getHits().hits()[0].id(), equalTo("1"));
+        assertThat(searchResponse.getHits().hits()[0].sortValues()[0].toString(), equalTo("5"));
+        assertThat(searchResponse.getHits().hits()[1].id(), equalTo("3"));
+        assertThat(searchResponse.getHits().hits()[1].sortValues()[0].toString(), equalTo("4"));
+        assertThat(searchResponse.getHits().hits()[2].id(), equalTo("2"));
+        assertThat(searchResponse.getHits().hits()[2].sortValues()[0].toString(), equalTo("2"));
+
+        searchResponse = client()
+                .prepareSearch("test")
                 .setTypes("type1")
                 .setQuery(QueryBuilders.matchAllQuery())
                 .addSort(SortBuilders.scriptSort("_fields['nested1.field1'].value + 1", "number").setNestedPath("nested1").order(SortOrder.DESC))

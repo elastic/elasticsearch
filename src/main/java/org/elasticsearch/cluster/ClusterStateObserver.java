@@ -51,7 +51,7 @@ public class ClusterStateObserver {
     final TimeoutClusterStateListener clusterStateListener = new ObserverClusterStateListener();
     // observingContext is not null when waiting on cluster state changes
     final AtomicReference<ObservingContext> observingContext = new AtomicReference<ObservingContext>(null);
-    volatile Long startTime;
+    volatile Long startTimeNS;
     volatile boolean timedOut;
 
 
@@ -69,7 +69,7 @@ public class ClusterStateObserver {
         this.lastObservedState = new AtomicReference<>(new ObservedState(clusterService.state()));
         this.timeOutValue = timeout;
         if (timeOutValue != null) {
-            this.startTime = System.currentTimeMillis();
+            this.startTimeNS = System.nanoTime();
         }
         this.logger = logger;
     }
@@ -111,15 +111,15 @@ public class ClusterStateObserver {
             throw new ElasticsearchException("already waiting for a cluster state change");
         }
 
-        Long timeoutTimeLeft;
+        Long timeoutTimeLeftMS;
         if (timeOutValue == null) {
             timeOutValue = this.timeOutValue;
             if (timeOutValue != null) {
-                long timeSinceStart = System.currentTimeMillis() - startTime;
-                timeoutTimeLeft = timeOutValue.millis() - timeSinceStart;
-                if (timeoutTimeLeft <= 0l) {
+                long timeSinceStartMS = TimeValue.nsecToMSec(System.nanoTime() - startTimeNS);
+                timeoutTimeLeftMS = timeOutValue.millis() - timeSinceStartMS;
+                if (timeoutTimeLeftMS <= 0l) {
                     // things have timeout while we were busy -> notify
-                    logger.debug("observer timed out. notifying listener. timeout setting [{}], time since start [{}]", timeOutValue, new TimeValue(timeSinceStart));
+                    logger.debug("observer timed out. notifying listener. timeout setting [{}], time since start [{}]", timeOutValue, new TimeValue(timeSinceStartMS));
                     // update to latest, in case people want to retry
                     timedOut = true;
                     lastObservedState.set(new ObservedState(clusterService.state()));
@@ -127,12 +127,12 @@ public class ClusterStateObserver {
                     return;
                 }
             } else {
-                timeoutTimeLeft = null;
+                timeoutTimeLeftMS = null;
             }
         } else {
-            this.startTime = System.currentTimeMillis();
+            this.startTimeNS = System.nanoTime();
             this.timeOutValue = timeOutValue;
-            timeoutTimeLeft = timeOutValue.millis();
+            timeoutTimeLeftMS = timeOutValue.millis();
             timedOut = false;
         }
 
@@ -150,7 +150,7 @@ public class ClusterStateObserver {
             if (!observingContext.compareAndSet(null, context)) {
                 throw new ElasticsearchException("already waiting for a cluster state change");
             }
-            clusterService.add(timeoutTimeLeft == null ? null : new TimeValue(timeoutTimeLeft), clusterStateListener);
+            clusterService.add(timeoutTimeLeftMS == null ? null : new TimeValue(timeoutTimeLeftMS), clusterStateListener);
         }
     }
 
@@ -230,8 +230,8 @@ public class ClusterStateObserver {
             ObservingContext context = observingContext.getAndSet(null);
             if (context != null) {
                 clusterService.remove(this);
-                long timeSinceStart = System.currentTimeMillis() - startTime;
-                logger.debug("observer: timeout notification from cluster service. timeout setting [{}], time since start [{}]", timeOutValue, new TimeValue(timeSinceStart));
+                long timeSinceStartMS = TimeValue.nsecToMSec(System.nanoTime() - startTimeNS);
+                logger.debug("observer: timeout notification from cluster service. timeout setting [{}], time since start [{}]", timeOutValue, new TimeValue(timeSinceStartMS));
                 // update to latest, in case people want to retry
                 lastObservedState.set(new ObservedState(clusterService.state()));
                 timedOut = true;

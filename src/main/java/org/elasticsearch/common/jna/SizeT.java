@@ -19,29 +19,17 @@
 
 package org.elasticsearch.common.jna;
 
-import org.apache.lucene.util.Constants;
-import org.elasticsearch.test.ElasticsearchTestCase;
-import org.junit.Test;
+import com.sun.jna.IntegerType;
+import com.sun.jna.Native;
 
-import static org.hamcrest.Matchers.equalTo;
+public class SizeT extends IntegerType {
 
-public class NativesTests extends ElasticsearchTestCase {
-
-    @Test
-    public void testMlockall() {
-        if (Constants.MAC_OS_X) {
-            assertFalse("Memory locking is not available on OS X platforms", Natives.LOCAL_MLOCKALL);
-        }
+    public SizeT() {
+       this(0);
     }
-    
-    @Test
-    public void testConsoleCtrlHandler() {
-        if (Constants.WINDOWS) {
-            assertNotNull(Kernel32Library.getInstance());
-            assertThat(Kernel32Library.getInstance().getCallbacks().size(), equalTo(1));
-        } else {
-            assertNotNull(Kernel32Library.getInstance());
-            assertThat(Kernel32Library.getInstance().getCallbacks().size(), equalTo(0));
-        }
+
+    public SizeT(long value) {
+        super(Native.SIZE_T_SIZE, value);
     }
+
 }

@@ -21,6 +21,7 @@ package org.elasticsearch.env;
 
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
 
 import java.io.IOException;
@@ -42,6 +43,9 @@ class ESFileStore extends FileStore {
     /** Cached result of Lucene's {@code IOUtils.spins} on path. */
     final Boolean spins;
     
+    @SuppressForbidden(reason = "tries to determine if disk is spinning")
+    // TODO: move PathUtils to be package-private here instead of 
+    // public+forbidden api!
     ESFileStore(FileStore in) {
         this.in = in;
         Boolean spins;

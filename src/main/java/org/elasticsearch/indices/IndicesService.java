@@ -697,7 +697,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
      */
     public void processPendingDeletes(Index index, @IndexSettings Settings indexSettings, TimeValue timeout) throws IOException {
         logger.debug("{} processing pending deletes", index);
-        final long startTime = System.currentTimeMillis();
+        final long startTimeNS = System.nanoTime();
         final List<ShardLock> shardLocks = nodeEnv.lockAllForIndex(index, indexSettings, timeout.millis());
         try {
             Map<ShardId, ShardLock> locks = new HashMap<>();
@@ -756,7 +756,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
                             return;
                         }
                     }
-                } while ((System.currentTimeMillis() - startTime) < timeout.millis());
+                } while ((System.nanoTime() - startTimeNS) < timeout.nanos());
             }
         } finally {
             IOUtils.close(shardLocks);

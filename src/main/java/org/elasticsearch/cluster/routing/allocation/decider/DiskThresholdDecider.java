@@ -130,7 +130,7 @@ public class DiskThresholdDecider extends AllocationDecider {
      */
     class DiskListener implements ClusterInfoService.Listener {
         private final Client client;
-        private long lastRun;
+        private long lastRunNS;
 
         DiskListener(Client client) {
             this.client = client;
@@ -168,8 +168,8 @@ public class DiskThresholdDecider extends AllocationDecider {
                     warnAboutDiskIfNeeded(entry);
                     if (entry.getFreeBytes() < DiskThresholdDecider.this.freeBytesThresholdHigh.bytes() ||
                             entry.getFreeDiskAsPercentage() < DiskThresholdDecider.this.freeDiskThresholdHigh) {
-                        if ((System.currentTimeMillis() - lastRun) > DiskThresholdDecider.this.rerouteInterval.millis()) {
-                            lastRun = System.currentTimeMillis();
+                        if ((System.nanoTime() - lastRunNS) > DiskThresholdDecider.this.rerouteInterval.nanos()) {
+                            lastRunNS = System.nanoTime();
                             reroute = true;
                         } else {
                             logger.debug("high disk watermark exceeded on {} but an automatic reroute has occurred in the last [{}], skipping reroute",

@@ -156,6 +156,10 @@ public class GeoBoundsTests extends ElasticsearchIntegrationTest {
                     .endObject()));
         }
 
+        builders.add(client().prepareIndex("idx_zero", "type").setSource(
+                jsonBuilder().startObject().array(SINGLE_VALUED_FIELD_NAME, 0.0, 1.0).endObject()));
+        assertAcked(prepareCreate("idx_zero").addMapping("type", SINGLE_VALUED_FIELD_NAME, "type=geo_point"));
+
         indexRandom(true, builders);
         ensureSearchable();
 
@@ -413,6 +417,24 @@ public class GeoBoundsTests extends ElasticsearchIntegrationTest {
             assertThat(geoBounds.bottomRight().getLat(), allOf(greaterThanOrEqualTo(-90.0), lessThanOrEqualTo(90.0)));
             assertThat(geoBounds.bottomRight().getLon(), allOf(greaterThanOrEqualTo(-180.0), lessThanOrEqualTo(180.0)));
         }
+    }
+
+    @Test
+    public void singleValuedFieldWithZeroLon() throws Exception {
+        SearchResponse response = client().prepareSearch("idx_zero")
+                .addAggregation(geoBounds("geoBounds").field(SINGLE_VALUED_FIELD_NAME).wrapLongitude(false)).execute().actionGet();
+
+        assertSearchResponse(response);
+
+        GeoBounds geoBounds = response.getAggregations().get("geoBounds");
+        assertThat(geoBounds, notNullValue());
+        assertThat(geoBounds.getName(), equalTo("geoBounds"));
+        GeoPoint topLeft = geoBounds.topLeft();
+        GeoPoint bottomRight = geoBounds.bottomRight();
+        assertThat(topLeft.lat(), equalTo(1.0));
+        assertThat(topLeft.lon(), equalTo(0.0));
+        assertThat(bottomRight.lat(), equalTo(1.0));
+        assertThat(bottomRight.lon(), equalTo(0.0));
     }
 
 }

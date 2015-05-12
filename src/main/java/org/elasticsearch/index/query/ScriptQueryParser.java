@@ -20,13 +20,11 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.BitsFilteredDocIdSet;
-import org.apache.lucene.search.DocIdSet;
-import org.apache.lucene.search.DocValuesDocIdSet;
-import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.RandomAccessWeight;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.script.LeafSearchScript;
@@ -110,22 +108,20 @@ public class ScriptQueryParser implements QueryParser {
             params = newHashMap();
         }
 
-        Query query = new ScriptFilter(scriptLang, script, scriptType, params, parseContext.scriptService(), parseContext.lookup());
+        Query query = new ScriptQuery(scriptLang, script, scriptType, params, parseContext.scriptService(), parseContext.lookup());
         if (queryName != null) {
             parseContext.addNamedQuery(queryName, query);
         }
         return query;
     }
 
-    public static class ScriptFilter extends Filter {
+    static class ScriptQuery extends Query {
 
         private final String script;
-
         private final Map<String, Object> params;
-
         private final SearchScript searchScript;
 
-        public ScriptFilter(String scriptLang, String script, ScriptService.ScriptType scriptType, Map<String, Object> params, ScriptService scriptService, SearchLookup searchLookup) {
+        private ScriptQuery(String scriptLang, String script, ScriptService.ScriptType scriptType, Map<String, Object> params, ScriptService scriptService, SearchLookup searchLookup) {
             this.script = script;
             this.params = params;
             this.searchScript = scriptService.search(searchLookup, new Script(scriptLang, script, scriptType, newHashMap(params)), ScriptContext.Standard.SEARCH);
@@ -145,7 +141,7 @@ public class ScriptQueryParser implements QueryParser {
             if (this == o) return true;
             if (super.equals(o) == false) return false;
 
-            ScriptFilter that = (ScriptFilter) o;
+            ScriptQuery that = (ScriptQuery) o;
 
             if (params != null ? !params.equals(that.params) : that.params != null) return false;
             if (script != null ? !script.equals(that.script) : that.script != null) return false;
@@ -162,41 +158,37 @@ public class ScriptQueryParser implements QueryParser {
         }
 
         @Override
-        public DocIdSet getDocIdSet(LeafReaderContext context, Bits acceptDocs) throws IOException {
-            final LeafSearchScript leafScript = searchScript.getLeafSearchScript(context);
-            // LUCENE 4 UPGRADE: we can simply wrap this here since it is not cacheable and if we are not top level we will get a null passed anyway 
-            return BitsFilteredDocIdSet.wrap(new ScriptDocSet(context.reader().maxDoc(), acceptDocs, leafScript), acceptDocs);
-        }
+        public Weight createWeight(IndexSearcher searcher, boolean needsScores) throws IOException {
+            return new RandomAccessWeight(this) {
+                @Override
+                protected Bits getMatchingDocs(final LeafReaderContext context) throws IOException {
+                    final LeafSearchScript leafScript = searchScript.getLeafSearchScript(context);
+                    return new Bits() {
 
-        static class ScriptDocSet extends DocValuesDocIdSet {
+                        @Override
+                        public boolean get(int doc) {
+                            leafScript.setDocument(doc);
+                            Object val = leafScript.run();
+                            if (val == null) {
+                                return false;
+                            }
+                            if (val instanceof Boolean) {
+                                return (Boolean) val;
+                            }
+                            if (val instanceof Number) {
+                                return ((Number) val).longValue() != 0;
+                            }
+                            throw new IllegalArgumentException("Can't handle type [" + val + "] in script filter");
+                        }
 
-            private final LeafSearchScript searchScript;
+                        @Override
+                        public int length() {
+                            return context.reader().maxDoc();
+                        }
 
-            public ScriptDocSet(int maxDoc, @Nullable Bits acceptDocs, LeafSearchScript searchScript) {
-                super(maxDoc, acceptDocs);
-                this.searchScript = searchScript;
-            }
-
-            @Override
-            protected boolean matchDoc(int doc) {
-                searchScript.setDocument(doc);
-                Object val = searchScript.run();
-                if (val == null) {
-                    return false;
+                    };
                 }
-                if (val instanceof Boolean) {
-                    return (Boolean) val;
-                }
-                if (val instanceof Number) {
-                    return ((Number) val).longValue() != 0;
-                }
-                throw new IllegalArgumentException("Can't handle type [" + val + "] in script filter");
-            }
-
-            @Override
-            public long ramBytesUsed() {
-                return 0;
-            }
+            };
         }
     }
 }

@@ -362,7 +362,7 @@ public class SyncedFlushService extends AbstractComponent {
          * success constructor
          */
 
-        SyncedFlushResult(ShardId shardId, String syncId, Map<ShardRouting, SyncedFlushResponse> shardResponses) {
+        public SyncedFlushResult(ShardId shardId, String syncId, Map<ShardRouting, SyncedFlushResponse> shardResponses) {
             this.failureReason = null;
             this.shardResponses = shardResponses;
             this.syncId = syncId;

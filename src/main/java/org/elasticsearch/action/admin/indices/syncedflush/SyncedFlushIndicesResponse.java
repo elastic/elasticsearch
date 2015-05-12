@@ -20,18 +20,22 @@
 package org.elasticsearch.action.admin.indices.syncedflush;
 
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.indices.SyncedFlushService;
 
 import java.io.IOException;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 
 /**
  * A response to a synced flush action on several indices.
  */
-public class SyncedFlushIndicesResponse extends ActionResponse {
+public class SyncedFlushIndicesResponse extends ActionResponse implements ToXContent {
 
     private Set<SyncedFlushService.SyncedFlushResult> results;
 
@@ -65,5 +69,21 @@ public class SyncedFlushIndicesResponse extends ActionResponse {
 
     public Set<SyncedFlushService.SyncedFlushResult> results() {
         return results;
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        for (SyncedFlushService.SyncedFlushResult result : results) {
+            if (result.shardResponses().size() > 0) {
+                builder.startObject(result.shardId().index() + "/" + result.shardId().id());
+                for (Map.Entry<ShardRouting, SyncedFlushService.SyncedFlushResponse> shardResponse : result.shardResponses().entrySet()) {
+                    builder.field(shardResponse.getKey().currentNodeId(), shardResponse.getValue().success() ? "SUCCESS" : shardResponse.getValue().failureReason());
+                }
+                builder.endObject();
+            } else {
+                builder.field(result.shardId().index() + "/" + result.shardId().id(), result.failureReason());
+            }
+        }
+        return builder;
     }
 }

@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.indices.SyncedFlushService;
 import org.elasticsearch.rest.*;
@@ -56,25 +57,12 @@ public class RestSyncedFlushAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
         String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
-
         SyncedFlushIndicesRequest syncedFlushIndicesRequest = new SyncedFlushIndicesRequest(indices);
         client.admin().indices().execute(SyncedFlushIndicesAction.INSTANCE, syncedFlushIndicesRequest, new RestBuilderListener<SyncedFlushIndicesResponse>(channel) {
             @Override
             public RestResponse buildResponse(SyncedFlushIndicesResponse response, XContentBuilder builder) throws Exception {
                 builder.startObject();
-
-                for (SyncedFlushService.SyncedFlushResult result : response.results()) {
-                    if (result.shardResponses().size() > 0) {
-                        builder.startObject(result.shardId().index() + "/" + result.shardId().id());
-                        for (Map.Entry<ShardRouting, SyncedFlushService.SyncedFlushResponse> shardResponse : result.shardResponses().entrySet()) {
-                            builder.field(shardResponse.getKey().currentNodeId(), shardResponse.getValue().success() ? "SUCCESS" : shardResponse.getValue().failureReason());
-                        }
-                        builder.endObject();
-                    } else {
-                        builder.field(result.shardId().index() + "/" + result.shardId().id(), result.failureReason());
-                    }
-                }
-
+                builder = response.toXContent(builder, ToXContent.EMPTY_PARAMS);
                 builder.endObject();
                 return new BytesRestResponse(OK, builder);
             }

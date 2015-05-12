@@ -72,9 +72,9 @@ public class Natives {
         }
         try {
             return CLibrary.geteuid() == 0;
-        } catch (Throwable error) {
-            logger.warn("unable to determine euid", error);
-            return false; // don't know
+        } catch (UnsatisfiedLinkError e) {
+            // this will have already been logged by Kernel32Library, no need to repeat it
+            return false;
         }
     }
 

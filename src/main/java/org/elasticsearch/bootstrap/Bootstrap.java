@@ -58,7 +58,7 @@ public class Bootstrap {
 
     private static volatile Bootstrap INSTANCE;
 
-    private Node node;
+    private volatile Node node;
     private final CountDownLatch keepAliveLatch = new CountDownLatch(1);
     private final Thread keepAliveThread;
 
@@ -144,19 +144,22 @@ public class Bootstrap {
         initializeNatives(settings.getAsBoolean("bootstrap.mlockall", false), 
                           settings.getAsBoolean("bootstrap.ctrlhandler", true));
 
-        NodeBuilder nodeBuilder = NodeBuilder.nodeBuilder().settings(settings).loadConfigSettings(false);
-        node = nodeBuilder.build();
         if (addShutdownHook) {
             Runtime.getRuntime().addShutdownHook(new Thread() {
                 @Override
                 public void run() {
-                    node.close();
+                    if (node != null) {
+                        node.close();
+                    }
                 }
             });
         }
         
         // install SM after natives, shutdown hooks, etc.
         setupSecurity(settings, environment);
+        
+        NodeBuilder nodeBuilder = NodeBuilder.nodeBuilder().settings(settings).loadConfigSettings(false);
+        node = nodeBuilder.build();
     }
     
     /** 

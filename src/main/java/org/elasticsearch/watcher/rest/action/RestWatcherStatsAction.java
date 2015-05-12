@@ -6,17 +6,20 @@
 package org.elasticsearch.watcher.rest.action;
 
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
+import org.elasticsearch.rest.action.support.RestToXContentListener;
 import org.elasticsearch.watcher.client.WatcherClient;
 import org.elasticsearch.watcher.rest.WatcherRestHandler;
 import org.elasticsearch.watcher.transport.actions.stats.WatcherStatsResponse;
 import org.elasticsearch.watcher.transport.actions.stats.WatcherStatsRequest;
 
 import java.util.Locale;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestStatus.OK;
@@ -27,24 +30,25 @@ public class RestWatcherStatsAction extends WatcherRestHandler {
     protected RestWatcherStatsAction(Settings settings, RestController controller, Client client) {
         super(settings, controller, client);
         controller.registerHandler(GET, URI_BASE + "/stats", this);
+        controller.registerHandler(GET, URI_BASE + "/stats/{metric}", this);
     }
 
     @Override
-    protected void handleRequest(RestRequest request, RestChannel restChannel, WatcherClient client) throws Exception {
-        client.watcherStats(new WatcherStatsRequest(), new RestBuilderListener<WatcherStatsResponse>(restChannel) {
+    protected void handleRequest(final RestRequest restRequest, RestChannel restChannel, WatcherClient client) throws Exception {
+        Set<String> metrics = Strings.splitStringByCommaToSet(restRequest.param("metric"));
+
+        WatcherStatsRequest request = new WatcherStatsRequest();
+        if (metrics.size() == 1 && metrics.contains("_all")) {
+            request.includeCurrentWatches(true);
+        } else {
+            request.includeCurrentWatches(metrics.contains("executing_watches"));
+        }
+
+        client.watcherStats(request, new RestBuilderListener<WatcherStatsResponse>(restChannel) {
             @Override
             public RestResponse buildResponse(WatcherStatsResponse watcherStatsResponse, XContentBuilder builder) throws Exception {
-                builder.startObject();
-                builder.field("watcher_state", watcherStatsResponse.getWatcherState().toString().toLowerCase(Locale.ROOT))
-                        .field("watch_count", watcherStatsResponse.getWatchesCount());
-
-                builder.startObject("execution_queue")
-                        .field("size", watcherStatsResponse.getExecutionQueueSize())
-                        .field("max_size", watcherStatsResponse.getWatchExecutionQueueMaxSize())
-                        .endObject();
-                builder.endObject();
+                watcherStatsResponse.toXContent(builder, restRequest);
                 return new BytesRestResponse(OK, builder);
-
             }
         });
     }

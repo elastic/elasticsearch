@@ -6,6 +6,7 @@
 package org.elasticsearch.watcher.execution;
 
 import org.elasticsearch.common.joda.time.DateTime;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.watcher.actions.ActionWrapper;
 import org.elasticsearch.watcher.actions.ExecutableActions;
 import org.elasticsearch.watcher.condition.Condition;
@@ -16,8 +17,7 @@ import org.elasticsearch.watcher.trigger.TriggerEvent;
 import org.elasticsearch.watcher.watch.Payload;
 import org.elasticsearch.watcher.watch.Watch;
 
-import java.util.HashMap;
-import java.util.Map;
+import java.util.concurrent.ConcurrentMap;
 
 /**
  *
@@ -33,9 +33,10 @@ public abstract class WatchExecutionContext {
     private Condition.Result conditionResult;
     private Throttler.Result throttleResult;
     private Transform.Result transformResult;
-    private Map<String, ActionWrapper.Result> actionsResults = new HashMap<>();
+    private ConcurrentMap<String, ActionWrapper.Result> actionsResults = ConcurrentCollections.newConcurrentMap();
 
     private Payload payload;
+    private volatile ExecutionPhase executionPhase = ExecutionPhase.AWAITS_EXECUTION;
 
     public WatchExecutionContext(Watch watch, DateTime executionTime, TriggerEvent triggerEvent) {
         this.watch = watch;
@@ -74,6 +75,14 @@ public abstract class WatchExecutionContext {
         return payload;
     }
 
+    public ExecutionPhase executionPhase() {
+        return executionPhase;
+    }
+
+    public void beforeInput() {
+        executionPhase = ExecutionPhase.INPUT;
+    }
+
     public void onInputResult(Input.Result inputResult) {
         this.inputResult = inputResult;
         this.payload = inputResult.payload();
@@ -81,6 +90,10 @@ public abstract class WatchExecutionContext {
 
     public Input.Result inputResult() {
         return inputResult;
+    }
+
+    public void beforeCondition() {
+        executionPhase = ExecutionPhase.CONDITION;
     }
 
     public void onConditionResult(Condition.Result conditionResult) {
@@ -106,6 +119,10 @@ public abstract class WatchExecutionContext {
         }
     }
 
+    public void beforeWatchTransform() {
+        this.executionPhase = ExecutionPhase.WATCH_TRANSFORM;
+    }
+
     public Throttler.Result throttleResult() {
         return throttleResult;
     }
@@ -119,6 +136,10 @@ public abstract class WatchExecutionContext {
         return transformResult;
     }
 
+    public void beforeAction() {
+        executionPhase = ExecutionPhase.ACTIONS;
+    }
+
     public void onActionResult(ActionWrapper.Result result) {
         actionsResults.put(result.id(), result);
     }
@@ -128,6 +149,11 @@ public abstract class WatchExecutionContext {
     }
 
     public WatchExecutionResult finish() {
+        executionPhase = ExecutionPhase.FINISHED;
         return new WatchExecutionResult(this);
+    }
+
+    public WatchExecutionSnapshot createSnapshot(Thread executionThread) {
+        return new WatchExecutionSnapshot(this, executionThread.getStackTrace());
     }
 }

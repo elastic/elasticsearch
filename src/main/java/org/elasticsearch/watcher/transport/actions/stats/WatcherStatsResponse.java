@@ -6,15 +6,21 @@
 package org.elasticsearch.watcher.transport.actions.stats;
 
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.watcher.WatcherBuild;
 import org.elasticsearch.watcher.WatcherState;
 import org.elasticsearch.watcher.WatcherVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.watcher.execution.WatchExecutionSnapshot;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.Locale;
 
-public class WatcherStatsResponse extends ActionResponse {
+public class WatcherStatsResponse extends ActionResponse implements ToXContent {
 
     private WatcherVersion version;
     private WatcherBuild build;
@@ -22,6 +28,8 @@ public class WatcherStatsResponse extends ActionResponse {
     private WatcherState watcherState;
     private long watchExecutionQueueSize;
     private long watchExecutionQueueMaxSize;
+
+    private List<WatchExecutionSnapshot> snapshots;
 
     WatcherStatsResponse() {
     }
@@ -92,6 +100,15 @@ public class WatcherStatsResponse extends ActionResponse {
         this.build = build;
     }
 
+    @Nullable
+    public List<WatchExecutionSnapshot> getSnapshots() {
+        return snapshots;
+    }
+
+    void setSnapshots(List<WatchExecutionSnapshot> snapshots) {
+        this.snapshots = snapshots;
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
@@ -101,6 +118,13 @@ public class WatcherStatsResponse extends ActionResponse {
         watcherState = WatcherState.fromId(in.readByte());
         version = WatcherVersion.readVersion(in);
         build = WatcherBuild.readBuild(in);
+
+        if (in.readBoolean()) {
+            int size = in.readVInt();
+            for (int i = 0; i < size; i++) {
+                snapshots.add(new WatchExecutionSnapshot(in));
+            }
+        }
     }
 
     @Override
@@ -112,5 +136,37 @@ public class WatcherStatsResponse extends ActionResponse {
         out.writeByte(watcherState.getId());
         WatcherVersion.writeVersion(version, out);
         WatcherBuild.writeBuild(build, out);
+
+        if (snapshots != null) {
+            out.writeBoolean(true);
+            out.writeVInt(snapshots.size());
+            for (WatchExecutionSnapshot snapshot : snapshots) {
+                snapshot.writeTo(out);
+            }
+        } else {
+            out.writeBoolean(false);
+        }
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        builder.field("watcher_state", watcherState.toString().toLowerCase(Locale.ROOT));
+        builder.field("watch_count", watchesCount);
+        builder.startObject("execution_queue");
+        builder.field("size", watchExecutionQueueSize);
+        builder.field("max_size", watchExecutionQueueMaxSize);
+        builder.endObject();
+
+        if (snapshots != null) {
+            builder.startArray("current_watches");
+            for (WatchExecutionSnapshot snapshot : snapshots) {
+                snapshot.toXContent(builder, params);
+            }
+            builder.endArray();
+        }
+
+        builder.endObject();
+        return builder;
     }
 }

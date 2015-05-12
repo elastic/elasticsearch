@@ -13,6 +13,7 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.watcher.WatcherException;
@@ -31,10 +32,8 @@ import org.elasticsearch.watcher.watch.WatchLockService;
 import org.elasticsearch.watcher.watch.WatchStore;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.LinkedList;
-import java.util.List;
+import java.util.*;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.common.joda.time.DateTimeZone.UTC;
@@ -48,6 +47,7 @@ public class ExecutionService extends AbstractComponent {
     private final WatchStore watchStore;
     private final WatchLockService watchLockService;
     private final Clock clock;
+    private final ConcurrentMap<String, WatchExecution> currentExecutions = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
 
     private final AtomicBoolean started = new AtomicBoolean(false);
 
@@ -104,6 +104,21 @@ public class ExecutionService extends AbstractComponent {
 
     public long largestQueueSize() {
         return executor.largestPoolSize();
+    }
+
+    public List<WatchExecutionSnapshot> currentExecutions() {
+        List<WatchExecutionSnapshot> currentExecutions = new ArrayList<>();
+        for (WatchExecution watchExecution : this.currentExecutions.values()) {
+            currentExecutions.add(watchExecution.createSnapshot());
+        }
+        // Lets show the longest running watch first:
+        Collections.sort(currentExecutions, new Comparator<WatchExecutionSnapshot>() {
+            @Override
+            public int compare(WatchExecutionSnapshot e1, WatchExecutionSnapshot e2) {
+                return -e1.executionTime().compareTo(e2.executionTime());
+            }
+        });
+        return currentExecutions;
     }
 
     void processEventsAsync(Iterable<TriggerEvent> events) throws WatcherException {
@@ -212,6 +227,7 @@ public class ExecutionService extends AbstractComponent {
         WatchRecord watchRecord = new WatchRecord(ctx.id(), ctx.watch(), ctx.triggerEvent());
         WatchLockService.Lock lock = watchLockService.acquire(ctx.watch().id());
         try {
+            currentExecutions.put(ctx.watch().id(), new WatchExecution(ctx, Thread.currentThread()));
             WatchExecutionResult result = executeInner(ctx);
             watchRecord.seal(result);
             if (ctx.recordExecution()) {
@@ -220,6 +236,7 @@ public class ExecutionService extends AbstractComponent {
         } catch (VersionConflictEngineException vcee) {
             throw new WatcherException("Failed to update the watch [{}] on execute perhaps it was force deleted", vcee, ctx.watch().id());
         } finally {
+            currentExecutions.remove(ctx.watch().id());
             lock.release();
         }
         if (ctx.recordExecution()) {
@@ -250,11 +267,13 @@ public class ExecutionService extends AbstractComponent {
 
     WatchExecutionResult executeInner(WatchExecutionContext ctx) throws IOException {
         Watch watch = ctx.watch();
+        ctx.beforeInput();
         Input.Result inputResult = ctx.inputResult();
         if (inputResult == null) {
             inputResult = watch.input().execute(ctx);
             ctx.onInputResult(inputResult);
         }
+        ctx.beforeCondition();
         Condition.Result conditionResult = ctx.conditionResult();
         if (conditionResult == null) {
             conditionResult = watch.condition().execute(ctx);
@@ -262,7 +281,6 @@ public class ExecutionService extends AbstractComponent {
         }
 
         if (conditionResult.met()) {
-
             Throttler.Result throttleResult = ctx.throttleResult();
             if (throttleResult == null) {
                 throttleResult = watch.throttler().throttle(ctx);
@@ -272,9 +290,11 @@ public class ExecutionService extends AbstractComponent {
             if (!throttleResult.throttle()) {
                 ExecutableTransform transform = watch.transform();
                 if (transform != null) {
+                    ctx.beforeWatchTransform();
                     Transform.Result result = watch.transform().execute(ctx, inputResult.payload());
                     ctx.onTransformResult(result);
                 }
+                ctx.beforeAction();
                 for (ActionWrapper action : watch.actions()) {
                     ActionWrapper.Result actionResult = action.execute(ctx);
                     ctx.onActionResult(actionResult);
@@ -323,6 +343,7 @@ public class ExecutionService extends AbstractComponent {
 
             WatchLockService.Lock lock = watchLockService.acquire(ctx.watch().id());
             try {
+                currentExecutions.put(ctx.watch().id(), new WatchExecution(ctx, Thread.currentThread()));
                 if (watchStore.get(ctx.watch().id()) == null) {
                     //Fail fast if we are trying to execute a deleted watch
                     String message = "unable to find watch for record [" + watchRecord.id() + "], perhaps it has been deleted, ignoring...";
@@ -345,6 +366,7 @@ public class ExecutionService extends AbstractComponent {
                     logger.debug("failed to execute watch [{}] after shutdown", e, watchRecord);
                 }
             } finally {
+                currentExecutions.remove(ctx.watch().id());
                 lock.release();
                 logger.trace("finished [{}]/[{}]", ctx.watch().id(), ctx.id());
             }
@@ -357,5 +379,21 @@ public class ExecutionService extends AbstractComponent {
                 }
             }
         }
+    }
+
+    public static class WatchExecution {
+
+        private final WatchExecutionContext context;
+        private final Thread executionThread;
+
+        public WatchExecution(WatchExecutionContext context, Thread executionThread) {
+            this.context = context;
+            this.executionThread = executionThread;
+        }
+
+        public WatchExecutionSnapshot createSnapshot() {
+            return context.createSnapshot(executionThread);
+        }
+
     }
 }

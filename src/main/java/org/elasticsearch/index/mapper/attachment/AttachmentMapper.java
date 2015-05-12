@@ -486,7 +486,7 @@ public class AttachmentMapper extends AbstractFieldMapper<Object> {
             if (!ignoreErrors) {
                 logger.trace("exception caught", e);
                 throw new MapperParsingException("Failed to extract [" + indexedChars + "] characters of text for [" + name + "] : "
-                        + e.getMessage());
+                        + e.getMessage(), e);
             } else {
                 logger.debug("Failed to extract [{}] characters of text for [{}]: [{}]", indexedChars, name, e.getMessage());
                 logger.trace("exception caught", e);

@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.test;
+package org.elasticsearch.bootstrap;
 
 import org.apache.lucene.util.TestSecurityManager;
 import org.elasticsearch.bootstrap.Bootstrap;
@@ -33,13 +33,14 @@ import java.util.Objects;
 import static com.carrotsearch.randomizedtesting.RandomizedTest.systemPropertyAsBoolean;
 
 /** 
- * Installs test security manager (ensures it happens regardless of which
+ * Initializes natives and installs test security manager
+ * (init'd early by base classes to ensure it happens regardless of which
  * test case happens to be first, test ordering, etc). 
  * <p>
  * The idea is to mimic as much as possible what happens with ES in production
  * mode (e.g. assign permissions and install security manager the same way)
  */
-class SecurityBootstrap {
+public class BootstrapForTesting {
     
     // TODO: can we share more code with the non-test side here
     // without making things complex???
@@ -77,5 +78,5 @@ class SecurityBootstrap {
     }
 
     // does nothing, just easy way to make sure the class is loaded.
-    static void ensureInitialized() {}
+    public static void ensureInitialized() {}
 }

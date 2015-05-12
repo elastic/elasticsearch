@@ -37,7 +37,7 @@ import java.security.Policy;
  * We use a template file (the one we test with), and add additional 
  * permissions based on the environment (data paths, etc)
  */
-public class Security {
+class Security {
        
     /** 
      * Initializes securitymanager for the environment
@@ -77,7 +77,7 @@ public class Security {
     }
     
     /** Add access to path (and all files underneath it */
-    public static void addPath(Permissions policy, Path path, String permissions) throws IOException {
+    static void addPath(Permissions policy, Path path, String permissions) throws IOException {
         // paths may not exist yet
         ensureDirectoryExists(path);
 
@@ -111,7 +111,7 @@ public class Security {
 
     /** Simple checks that everything is ok */
     @SuppressForbidden(reason = "accesses jvm default tempdir as a self-test")
-    public static void selfTest() throws IOException {
+    static void selfTest() throws IOException {
         // check we can manipulate temporary files
         try {
             Path p = Files.createTempFile(null, null);

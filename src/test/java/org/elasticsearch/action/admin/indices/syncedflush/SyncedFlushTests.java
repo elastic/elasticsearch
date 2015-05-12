@@ -27,10 +27,7 @@ import org.elasticsearch.indices.SyncedFlushService;
 import org.elasticsearch.test.ElasticsearchTestCase;
 
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 import static org.elasticsearch.test.XContentTestUtils.convertToMap;
 import static org.hamcrest.Matchers.equalTo;
@@ -46,7 +43,7 @@ public class SyncedFlushTests extends ElasticsearchTestCase {
         SyncedFlushService.SyncedFlushResponse syncedFlushResponse = new SyncedFlushService.SyncedFlushResponse("failed for some reason");
         responses.put(shardRouting, syncedFlushResponse);
         shardRouting = new ImmutableShardRouting("test", 0, "node_2", false, ShardRoutingState.RELOCATING, 2);
-        syncedFlushResponse = new SyncedFlushService.SyncedFlushResponse("SUCCESS");
+        syncedFlushResponse = new SyncedFlushService.SyncedFlushResponse();
         responses.put(shardRouting, syncedFlushResponse);
         SyncedFlushService.SyncedFlushResult syncedFlushResult = new SyncedFlushService.SyncedFlushResult(new ShardId("test", 0), "some_sync_id", responses);
         shardResults.add(syncedFlushResult);
@@ -55,9 +52,14 @@ public class SyncedFlushTests extends ElasticsearchTestCase {
         shardResults.add(syncedFlushResult);
         SyncedFlushIndicesResponse syncedFlushIndicesResponse = new SyncedFlushIndicesResponse(shardResults);
         Map<String, Object> asMap = convertToMap(syncedFlushIndicesResponse);
-        assertNotNull(asMap.get("[test]/0"));
-        assertNotNull(((Map<String, Object>) asMap.get("[test]/0")).get("node_1"));
-        assertThat((String) ((Map<String, Object>) asMap.get("[test]/0")).get("node_1"), equalTo("failed for some reason"));
-        assertThat(((String) asMap.get("[test]/1")), equalTo("all failed :("));
+        assertNotNull(asMap.get("test"));
+        assertThat((Integer)(((HashMap)((ArrayList) asMap.get("test")).get(0)).get("shard_id")), equalTo(0));
+        assertThat((String)(((HashMap)((ArrayList) asMap.get("test")).get(0)).get("message")), equalTo("failed on some copies"));
+        HashMap<String, String> shardResponses  = (HashMap<String, String>)((HashMap)((ArrayList) asMap.get("test")).get(0)).get("responses");
+        assertThat(shardResponses.get("node_1"), equalTo("failed for some reason"));
+        assertThat(shardResponses.get("node_2"), equalTo("success"));
+        HashMap<String, Object> failedShard = (HashMap<String, Object>)(((ArrayList) asMap.get("test")).get(1));
+        assertThat((Integer)(failedShard.get("shard_id")), equalTo(1));
+        assertThat((String)(failedShard.get("message")), equalTo("all failed :("));
     }
 }

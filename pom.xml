@@ -34,7 +34,6 @@
     <properties>
         <tests.jvms>1</tests.jvms>
         <es.logger.level>INFO</es.logger.level>
-        <tests.security.manager>true</tests.security.manager>
     </properties>
 
     <dependencies>

@@ -1,0 +1,53 @@
+---
+"Noop":
+
+  - do:
+      update:
+          index:            test_1
+          type:             test
+          id:               1
+          body:
+            doc:            { foo: bar }
+            doc_as_upsert:  1
+
+  - match: { _version: 1  }
+  - match: { _noop: false }
+
+  - do:
+      update:
+          index:            test_1
+          type:             test
+          id:               1
+          body:
+            doc:            { foo: bar }
+            doc_as_upsert:  1
+            detect_noop:    true
+
+  - match: { _version: 1    }
+  - match: { _noop:    true }
+
+  - do:
+      update:
+          index:            test_1
+          type:             test
+          id:               1
+          body:
+            doc:            { foo: bar }
+            doc_as_upsert:  1
+            detect_noop:    false
+
+  - match: { _version: 2     }
+  - match: { _noop:    false }
+
+  - do:
+      update:
+          index:            test_1
+          type:             test
+          id:               1
+          body:
+            doc:            { foo: baz }
+            doc_as_upsert:  1
+            detect_noop:    true
+
+  - match: { _version: 3     }
+  - match: { _noop:    false }

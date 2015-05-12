@@ -59,7 +59,7 @@ public class TransportGetRepositoriesAction extends TransportMasterNodeReadOpera
 
     @Override
     protected ClusterBlockException checkBlock(GetRepositoriesRequest request, ClusterState state) {
-        return state.blocks().indexBlockedException(ClusterBlockLevel.METADATA_READ, "");
+        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
     }
 
     @Override

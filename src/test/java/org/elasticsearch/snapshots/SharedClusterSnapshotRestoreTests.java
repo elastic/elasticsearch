@@ -950,16 +950,7 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
         client.admin().cluster().prepareDeleteSnapshot("test-repo", "test-snap").get();
 
         logger.info("--> snapshot with closed index");
-        createSnapshotResponse = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap").setWaitForCompletion(true).setIndices("test-idx", "test-idx-closed").get();
-        assertThat(createSnapshotResponse.getSnapshotInfo().indices().size(), equalTo(2));
-        assertThat(createSnapshotResponse.getSnapshotInfo().state(), equalTo(SnapshotState.FAILED));
-        assertThat(createSnapshotResponse.getSnapshotInfo().reason(), containsString("Indices are closed [test-idx-closed]"));
-        for(SnapshotShardFailure failure : createSnapshotResponse.getSnapshotInfo().shardFailures()) {
-            assertThat(failure.reason(), containsString("index is closed"));
-        }
-
-        logger.info("-->  deleting snapshot");
-        client.admin().cluster().prepareDeleteSnapshot("test-repo", "test-snap").get();
+        assertBlocked(client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap").setWaitForCompletion(true).setIndices("test-idx", "test-idx-closed"), MetaDataIndexStateService.INDEX_CLOSED_BLOCK);
     }
 
     @Test
@@ -977,10 +968,8 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
         assertAcked(client.admin().indices().prepareClose("test-idx"));
 
         logger.info("--> snapshot");
-        CreateSnapshotResponse createSnapshotResponse = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap-1")
-                .setWaitForCompletion(true).setIndices("test-idx").get();
-        assertThat(createSnapshotResponse.getSnapshotInfo().indices().size(), equalTo(1));
-        assertThat(createSnapshotResponse.getSnapshotInfo().state(), equalTo(SnapshotState.FAILED));
+        assertBlocked(client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap-1")
+                .setWaitForCompletion(true).setIndices("test-idx"), MetaDataIndexStateService.INDEX_CLOSED_BLOCK);
     }
 
     @Test

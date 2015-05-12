@@ -188,6 +188,7 @@ public abstract class AbstractWatcherIntegrationTests extends ElasticsearchInteg
 
     private void startWatcherIfNodesExist() throws Exception {
         if (internalTestCluster().size() > 0) {
+            ensureLicenseEnabled();
             WatcherStatsResponse response = watcherClient().prepareWatcherStats().get();
             if (response.getWatcherState() == WatcherState.STOPPED) {
                 logger.info("[{}#{}]: starting watcher", getTestClass().getSimpleName(), getTestName());

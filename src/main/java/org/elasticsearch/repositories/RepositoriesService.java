@@ -191,6 +191,9 @@ public class RepositoriesService extends AbstractComponent implements ClusterSta
                         return ClusterState.builder(currentState).metaData(mdBuilder).build();
                     }
                 }
+                if (Regex.isMatchAllPattern(request.name)) { // we use a wildcard so we don't barf if it's not present.
+                    return currentState;
+                }
                 throw new RepositoryMissingException(request.name);
             }
 

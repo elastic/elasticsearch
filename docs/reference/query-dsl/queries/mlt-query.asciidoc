@@ -1,6 +1,8 @@
 [[query-dsl-mlt-query]]
 === More Like This Query
 
+deprecated[1.6.0, This query will be removed in Elasticsearch 2.0]
+
 The More Like This Query (MLT Query) finds documents that are "like" a given
 set of documents. In order to do so, MLT selects a set of representative terms
 of these input documents, forms a query using these terms, executes the query

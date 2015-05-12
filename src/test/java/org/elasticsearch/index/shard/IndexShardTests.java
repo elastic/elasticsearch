@@ -233,13 +233,20 @@ public class IndexShardTests extends ElasticsearchSingleNodeTest {
     }
 
     @Test
-    public void testMarkAsInactiveTriggersSyncedFlush() {
+    public void testMarkAsInactiveTriggersSyncedFlush() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test")
                 .setSettings(SETTING_NUMBER_OF_SHARDS, 1, SETTING_NUMBER_OF_REPLICAS, 0));
         client().prepareIndex("test", "test").setSource("{}").get();
         ensureGreen("test");
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         indicesService.indexService("test").shard(0).markAsInactive();
+        assertBusy(new Runnable() { // should be very very quick
+            @Override
+            public void run() {
+                IndexStats indexStats = client().admin().indices().prepareStats("test").get().getIndex("test");
+                assertNotNull(indexStats.getShards()[0].getCommitStats().getUserData().get(Engine.SYNC_COMMIT_ID));
+            }
+        });
         IndexStats indexStats = client().admin().indices().prepareStats("test").get().getIndex("test");
         assertNotNull(indexStats.getShards()[0].getCommitStats().getUserData().get(Engine.SYNC_COMMIT_ID));
     }

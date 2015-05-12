@@ -553,19 +553,34 @@ public abstract class FilterBuilders {
         return new IndicesFilterBuilder(filter, indices);
     }
 
+    /**
+     * A Filter builder which allows building a query thanks to a JSON string or binary data.
+     */
     public static WrapperFilterBuilder wrapperFilter(String filter) {
         return new WrapperFilterBuilder(filter);
     }
 
+    /**
+     * A Filter builder which allows building a query thanks to a JSON string or binary data.
+     */
     public static WrapperFilterBuilder wrapperFilter(byte[] data, int offset, int length) {
         return new WrapperFilterBuilder(data, offset, length);
     }
 
     /**
+     * A Filter builder which allows building a query thanks to a JSON string or binary data.
+     */
+    public static WrapperFilterBuilder wrapperFilter(BytesReference source) {
+        return new WrapperFilterBuilder(source);
+    }
+
+    /**
      * Constructs a bytes filter to generate a filter from a {@link BytesReference} source
+     * @deprecated replace with {@link #wrapperFilter(byte[], int, int)}
      *
      * @param source The filter source
      */
+    @Deprecated
     public static BytesFilterBuilder bytesFilter(BytesReference source) {
         return new BytesFilterBuilder(source);
     }

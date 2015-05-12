@@ -18,20 +18,15 @@
  */
 
 package org.elasticsearch.index.query;
-/**
- * Created by IntelliJ IDEA.
- * User: cedric
- * Date: 12/07/11
- * Time: 11:30
- */
 
 import com.google.common.base.Charsets;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
 /**
- * A Filter builder which allows building a filter thanks to a JSON string or binary data. This is useful when you want
+ * A Filter builder which allows building a query given JSON string or binary data provided as input. This is useful when you want
  * to use the Java Builder API but still have JSON filter strings at hand that you want to combine with other
  * query builders.
  */
@@ -41,16 +36,31 @@ public class WrapperFilterBuilder extends BaseFilterBuilder {
     private final int offset;
     private final int length;
 
+    /**
+     * Creates a filter builder given a query provided as a string
+     */
     public WrapperFilterBuilder(String source) {
         this.source = source.getBytes(Charsets.UTF_8);
         this.offset = 0;
         this.length = this.source.length;
     }
 
+    /**
+     * Creates a filter builder given a query provided as a bytes array
+     */
     public WrapperFilterBuilder(byte[] source, int offset, int length) {
         this.source = source;
         this.offset = offset;
         this.length = length;
+    }
+
+    /**
+     * Creates a filter builder given a query provided as a {@link BytesReference}
+     */
+    public WrapperFilterBuilder(BytesReference source) {
+        this.source = source.array();
+        this.offset = source.arrayOffset();
+        this.length = source.length();
     }
 
     @Override

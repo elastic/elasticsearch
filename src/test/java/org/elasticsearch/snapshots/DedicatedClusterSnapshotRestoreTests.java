@@ -42,6 +42,7 @@ import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.MetaData.Custom;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
+import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -75,6 +76,7 @@ import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
 import static org.hamcrest.Matchers.*;
 
@@ -436,19 +438,23 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
                 .setType("fs").setSettings(Settings.settingsBuilder().put("location", randomRepoPath())).execute().actionGet();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
 
-        logger.info("--> start snapshot with default settings - should fail");
-        CreateSnapshotResponse createSnapshotResponse = client().admin().cluster().prepareCreateSnapshot("test-repo", "test-snap-1")
+        logger.info("--> start snapshot with default settings and closed index - should be blocked");
+        assertBlocked(client().admin().cluster().prepareCreateSnapshot("test-repo", "test-snap-1")
                 .setIndices("test-idx-all", "test-idx-none", "test-idx-some", "test-idx-closed")
+                .setWaitForCompletion(true), MetaDataIndexStateService.INDEX_CLOSED_BLOCK);
+
+
+        logger.info("--> start snapshot with default settings without a closed index - should fail");
+        CreateSnapshotResponse createSnapshotResponse = client().admin().cluster().prepareCreateSnapshot("test-repo", "test-snap-1")
+                .setIndices("test-idx-all", "test-idx-none", "test-idx-some")
                 .setWaitForCompletion(true).execute().actionGet();
         assertThat(createSnapshotResponse.getSnapshotInfo().state(), equalTo(SnapshotState.FAILED));
         assertThat(createSnapshotResponse.getSnapshotInfo().reason(), containsString("Indices don't have primary shards"));
-        assertThat(createSnapshotResponse.getSnapshotInfo().reason(), containsString("; Indices are closed [test-idx-closed]"));
-
 
         if (randomBoolean()) {
             logger.info("checking snapshot completion using status");
             client().admin().cluster().prepareCreateSnapshot("test-repo", "test-snap-2")
-                    .setIndices("test-idx-all", "test-idx-none", "test-idx-some", "test-idx-closed")
+                    .setIndices("test-idx-all", "test-idx-none", "test-idx-some")
                     .setWaitForCompletion(false).setPartial(true).execute().actionGet();
             awaitBusy(new Predicate<Object>() {
                 @Override
@@ -467,7 +473,7 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
             assertThat(snapshotStatuses.size(), equalTo(1));
             SnapshotStatus snapshotStatus = snapshotStatuses.get(0);
             logger.info("State: [{}], Reason: [{}]", createSnapshotResponse.getSnapshotInfo().state(), createSnapshotResponse.getSnapshotInfo().reason());
-            assertThat(snapshotStatus.getShardsStats().getTotalShards(), equalTo(22));
+            assertThat(snapshotStatus.getShardsStats().getTotalShards(), equalTo(18));
             assertThat(snapshotStatus.getShardsStats().getDoneShards(), lessThan(12));
             assertThat(snapshotStatus.getShardsStats().getDoneShards(), greaterThan(6));
 
@@ -489,10 +495,10 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
         } else {
             logger.info("checking snapshot completion using wait_for_completion flag");
             createSnapshotResponse = client().admin().cluster().prepareCreateSnapshot("test-repo", "test-snap-2")
-                    .setIndices("test-idx-all", "test-idx-none", "test-idx-some", "test-idx-closed")
+                    .setIndices("test-idx-all", "test-idx-none", "test-idx-some")
                     .setWaitForCompletion(true).setPartial(true).execute().actionGet();
             logger.info("State: [{}], Reason: [{}]", createSnapshotResponse.getSnapshotInfo().state(), createSnapshotResponse.getSnapshotInfo().reason());
-            assertThat(createSnapshotResponse.getSnapshotInfo().totalShards(), equalTo(22));
+            assertThat(createSnapshotResponse.getSnapshotInfo().totalShards(), equalTo(18));
             assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), lessThan(12));
             assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(6));
             assertThat(client().admin().cluster().prepareGetSnapshots("test-repo").setSnapshots("test-snap-2").execute().actionGet().getSnapshots().get(0).state(), equalTo(SnapshotState.PARTIAL));

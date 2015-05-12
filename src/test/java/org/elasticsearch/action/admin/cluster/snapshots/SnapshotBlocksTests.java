@@ -24,6 +24,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRes
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestStatus;
@@ -32,6 +33,8 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.junit.Before;
 import org.junit.Test;
 
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_READ_ONLY;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_READ;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
 import static org.hamcrest.Matchers.equalTo;
@@ -45,18 +48,25 @@ import static org.hamcrest.Matchers.hasSize;
 @ClusterScope(scope = ElasticsearchIntegrationTest.Scope.TEST)
 public class SnapshotBlocksTests extends ElasticsearchIntegrationTest {
 
-    protected static final String INDEX_NAME = "test-blocks";
+    protected static final String INDEX_NAME = "test-blocks-1";
+    protected static final String OTHER_INDEX_NAME = "test-blocks-2";
+    protected static final String COMMON_INDEX_NAME_MASK = "test-blocks-*";
     protected static final String REPOSITORY_NAME = "repo-" + INDEX_NAME;
     protected static final String SNAPSHOT_NAME = "snapshot-0";
 
     @Before
     protected void setUpRepository() throws Exception {
-        createIndex(INDEX_NAME);
+        createIndex(INDEX_NAME, OTHER_INDEX_NAME);
 
         int docs = between(10, 100);
         for (int i = 0; i < docs; i++) {
             client().prepareIndex(INDEX_NAME, "type").setSource("test", "init").execute().actionGet();
         }
+        docs = between(10, 100);
+        for (int i = 0; i < docs; i++) {
+            client().prepareIndex(OTHER_INDEX_NAME, "type").setSource("test", "init").execute().actionGet();
+        }
+
 
         logger.info("--> register a repository");
         assertAcked(client().admin().cluster().preparePutRepository(REPOSITORY_NAME)
@@ -94,6 +104,27 @@ public class SnapshotBlocksTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
+    public void testCreateSnapshotWithIndexBlocks() {
+        logger.info("-->  creating a snapshot is not blocked when an index is read only");
+        try {
+            enableIndexBlock(INDEX_NAME, SETTING_READ_ONLY);
+            assertThat(client().admin().cluster().prepareCreateSnapshot(REPOSITORY_NAME, "snapshot-1").setIndices(COMMON_INDEX_NAME_MASK).setWaitForCompletion(true).get().status(), equalTo(RestStatus.OK));
+        } finally {
+            disableIndexBlock(INDEX_NAME, SETTING_READ_ONLY);
+        }
+
+        logger.info("-->  creating a snapshot is blocked when an index is blocked for reads");
+        try {
+            enableIndexBlock(INDEX_NAME, SETTING_BLOCKS_READ);
+            assertBlocked(client().admin().cluster().prepareCreateSnapshot(REPOSITORY_NAME, "snapshot-2").setIndices(COMMON_INDEX_NAME_MASK), IndexMetaData.INDEX_READ_BLOCK);
+            logger.info("-->  creating a snapshot is not blocked when an read-blocked index is not part of the snapshot");
+            assertThat(client().admin().cluster().prepareCreateSnapshot(REPOSITORY_NAME, "snapshot-2").setIndices(OTHER_INDEX_NAME).setWaitForCompletion(true).get().status(), equalTo(RestStatus.OK));
+        } finally {
+            disableIndexBlock(INDEX_NAME, SETTING_BLOCKS_READ);
+        }
+    }
+
+    @Test
     public void testDeleteSnapshotWithBlocks() {
         logger.info("-->  deleting a snapshot is blocked when the cluster is read only");
         try {
@@ -110,8 +141,8 @@ public class SnapshotBlocksTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testRestoreSnapshotWithBlocks() {
-        assertAcked(client().admin().indices().prepareDelete(INDEX_NAME));
-        assertFalse(client().admin().indices().prepareExists(INDEX_NAME).get().isExists());
+        assertAcked(client().admin().indices().prepareDelete(INDEX_NAME, OTHER_INDEX_NAME));
+        assertFalse(client().admin().indices().prepareExists(INDEX_NAME, OTHER_INDEX_NAME).get().isExists());
 
         logger.info("-->  restoring a snapshot is blocked when the cluster is read only");
         try {
@@ -127,6 +158,7 @@ public class SnapshotBlocksTests extends ElasticsearchIntegrationTest {
                 .execute().actionGet();
         assertThat(response.status(), equalTo(RestStatus.OK));
         assertTrue(client().admin().indices().prepareExists(INDEX_NAME).get().isExists());
+        assertTrue(client().admin().indices().prepareExists(OTHER_INDEX_NAME).get().isExists());
     }
 
     @Test

@@ -156,6 +156,8 @@ public class SecurityTests extends ElasticsearchTestCase {
             Files.createSymbolicLink(linkExists, exists);
         } catch (UnsupportedOperationException | IOException e) {
             assumeNoException("test requires filesystem that supports symbolic links", e);
+        } catch (SecurityException e) {
+            assumeNoException("test cannot create symbolic links with security manager enabled", e);
         }
         Security.ensureDirectoryExists(linkExists);
         Files.createTempFile(linkExists, null, null);
@@ -170,6 +172,8 @@ public class SecurityTests extends ElasticsearchTestCase {
             Files.createSymbolicLink(brokenLink, p.resolve("nonexistent"));
         } catch (UnsupportedOperationException | IOException e) {
             assumeNoException("test requires filesystem that supports symbolic links", e);
+        } catch (SecurityException e) {
+            assumeNoException("test cannot create symbolic links with security manager enabled", e);
         }
         try {
             Security.ensureDirectoryExists(brokenLink);

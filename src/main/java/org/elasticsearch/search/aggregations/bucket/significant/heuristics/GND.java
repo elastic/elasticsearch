@@ -139,10 +139,11 @@ public class GND extends NXYSignificanceHeuristic {
         }
 
         @Override
-        public void toXContent(XContentBuilder builder) throws IOException {
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject(STREAM.getName());
             builder.field(BACKGROUND_IS_SUPERSET.getPreferredName(), backgroundIsSuperset);
             builder.endObject();
+            return builder;
         }
     }
 }

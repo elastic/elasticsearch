@@ -72,9 +72,10 @@ import org.elasticsearch.indices.IndicesWarmer.TerminationHandle;
 import org.elasticsearch.indices.IndicesWarmer.WarmerContext;
 import org.elasticsearch.indices.cache.query.IndicesQueryCache;
 import org.elasticsearch.script.ExecutableScript;
-import org.elasticsearch.script.Script;
+import org.elasticsearch.script.Script.ScriptParseException;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.Template;
 import org.elasticsearch.script.mustache.MustacheScriptEngineService;
 import org.elasticsearch.search.dfs.CachedDfSource;
 import org.elasticsearch.search.dfs.DfsPhase;
@@ -670,35 +671,41 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
     private void parseTemplate(ShardSearchRequest request) {
 
         final ExecutableScript executable;
-        if (hasLength(request.templateName())) {
-            executable = this.scriptService.executable(new Script(MustacheScriptEngineService.NAME, request.templateName(), request.templateType(), request.templateParams()), ScriptContext.Standard.SEARCH);
+        if (request.template() != null) {
+            executable = this.scriptService.executable(request.template(), ScriptContext.Standard.SEARCH);
         } else {
             if (!hasLength(request.templateSource())) {
                 return;
             }
             XContentParser parser = null;
-            TemplateQueryParser.TemplateContext templateContext = null;
+            Template template = null;
 
             try {
                 parser = XContentFactory.xContent(request.templateSource()).createParser(request.templateSource());
-                templateContext = TemplateQueryParser.parse(parser, "params", "template");
+                template = TemplateQueryParser.parse(parser, "params", "template");
 
-                if (templateContext.scriptType() == ScriptService.ScriptType.INLINE) {
+                if (template.getType() == ScriptService.ScriptType.INLINE) {
                     //Try to double parse for nested template id/file
                     parser = null;
                     try {
-                        byte[] templateBytes = templateContext.template().getBytes(Charsets.UTF_8);
+                        byte[] templateBytes = template.getScript().getBytes(Charsets.UTF_8);
                         parser = XContentFactory.xContent(templateBytes).createParser(templateBytes);
                     } catch (ElasticsearchParseException epe) {
                         //This was an non-nested template, the parse failure was due to this, it is safe to assume this refers to a file
                         //for backwards compatibility and keep going
-                        templateContext = new TemplateQueryParser.TemplateContext(ScriptService.ScriptType.FILE, templateContext.template(), templateContext.params());
+                        template = new Template(template.getScript(), ScriptService.ScriptType.FILE, MustacheScriptEngineService.NAME,
+                                null, template.getParams());
                     }
                     if (parser != null) {
-                        TemplateQueryParser.TemplateContext innerContext = TemplateQueryParser.parse(parser, "params");
-                        if (hasLength(innerContext.template()) && !innerContext.scriptType().equals(ScriptService.ScriptType.INLINE)) {
-                            //An inner template referring to a filename or id
-                            templateContext = new TemplateQueryParser.TemplateContext(innerContext.scriptType(), innerContext.template(), templateContext.params());
+                        try {
+                            Template innerTemplate = TemplateQueryParser.parse(parser);
+                            if (hasLength(innerTemplate.getScript()) && !innerTemplate.getType().equals(ScriptService.ScriptType.INLINE)) {
+                                //An inner template referring to a filename or id
+                                template = new Template(innerTemplate.getScript(), innerTemplate.getType(),
+                                        MustacheScriptEngineService.NAME, null, template.getParams());
+                            }
+                        } catch (ScriptParseException e) {
+                            // No inner template found, use original template from above
                         }
                     }
                 }
@@ -708,10 +715,10 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
                 Releasables.closeWhileHandlingException(parser);
             }
 
-            if (!hasLength(templateContext.template())) {
+            if (!hasLength(template.getScript())) {
                 throw new ElasticsearchParseException("Template must have [template] field configured");
             }
-            executable = this.scriptService.executable(new Script(MustacheScriptEngineService.NAME, templateContext.template(), templateContext.scriptType(), templateContext.params()), ScriptContext.Standard.SEARCH);
+            executable = this.scriptService.executable(template, ScriptContext.Standard.SEARCH);
         }
 
         BytesReference processedQuery = (BytesReference) executable.run();

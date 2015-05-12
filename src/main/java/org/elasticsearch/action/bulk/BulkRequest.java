@@ -20,7 +20,12 @@
 package org.elasticsearch.action.bulk;
 
 import com.google.common.collect.Lists;
-import org.elasticsearch.action.*;
+
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.CompositeIndicesRequest;
+import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.update.UpdateRequest;
@@ -140,7 +145,7 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
             sizeInBytes += request.upsertRequest().source().length();
         }
         if (request.script() != null) {
-            sizeInBytes += request.script().length() * 2;
+            sizeInBytes += request.script().getScript().length() * 2;
         }
         return this;
     }

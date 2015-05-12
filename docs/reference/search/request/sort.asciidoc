@@ -318,10 +318,12 @@ Allow to sort based on custom scripts, here is an example:
     },
     "sort" : {
         "_script" : {
-            "script" : "doc['field_name'].value * factor",
             "type" : "number",
-            "params" : {
-                "factor" : 1.1
+            "script" : {
+                "inline": "doc['field_name'].value * factor",
+                "params" : {
+                    "factor" : 1.1
+                }
             },
             "order" : "asc"
         }

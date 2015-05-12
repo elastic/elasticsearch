@@ -31,6 +31,8 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.RangeQueryBuilder;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
@@ -46,6 +48,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.extendedStats;
@@ -300,8 +303,12 @@ public class EquivalenceTests extends ElasticsearchIntegrationTest {
         }
         assertNoFailures(client().admin().indices().prepareRefresh("idx").setIndicesOptions(IndicesOptions.lenientExpandOpen()).execute().get());
 
+        Map<String, Object> params = new HashMap<>();
+        params.put("interval", interval);
         SearchResponse resp = client().prepareSearch("idx")
-                .addAggregation(terms("terms").field("values").collectMode(randomFrom(SubAggCollectionMode.values())).script("floor(_value / interval)").param("interval", interval).size(maxNumTerms))
+                .addAggregation(
+                        terms("terms").field("values").collectMode(randomFrom(SubAggCollectionMode.values()))
+                                .script(new Script("floor(_value / interval)", ScriptType.INLINE, null, params)).size(maxNumTerms))
                 .addAggregation(histogram("histo").field("values").interval(interval).minDocCount(1))
                 .execute().actionGet();
 

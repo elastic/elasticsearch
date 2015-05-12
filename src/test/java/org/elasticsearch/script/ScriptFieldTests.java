@@ -24,9 +24,11 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.AbstractPlugin;
+import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
+import org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
@@ -49,6 +51,36 @@ public class ScriptFieldTests extends ElasticsearchIntegrationTest {
     static double[] doubleArray = { Double.MAX_VALUE, Double.MIN_VALUE, 3.3d };
 
     public void testNativeScript() throws InterruptedException, ExecutionException {
+
+        indexRandom(true, client().prepareIndex("test", "type1", "1").setSource("text", "doc1"), client()
+                .prepareIndex("test", "type1", "2").setSource("text", "doc2"),
+                client().prepareIndex("test", "type1", "3").setSource("text", "doc3"), client().prepareIndex("test", "type1", "4")
+                        .setSource("text", "doc4"), client().prepareIndex("test", "type1", "5").setSource("text", "doc5"), client()
+                        .prepareIndex("test", "type1", "6").setSource("text", "doc6"));
+
+        client().admin().indices().prepareFlush("test").execute().actionGet();
+        SearchResponse sr = client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery())
+                .addScriptField("int", new Script("int", ScriptType.INLINE, "native", null))
+                .addScriptField("float", new Script("float", ScriptType.INLINE, "native", null))
+                .addScriptField("double", new Script("double", ScriptType.INLINE, "native", null))
+                .addScriptField("long", new Script("long", ScriptType.INLINE, "native", null)).execute().actionGet();
+        assertThat(sr.getHits().hits().length, equalTo(6));
+        for (SearchHit hit : sr.getHits().getHits()) {
+            Object result = hit.getFields().get("int").getValues().get(0);
+            assertThat(result, equalTo((Object) intArray));
+            result = hit.getFields().get("long").getValues().get(0);
+            assertThat(result, equalTo((Object) longArray));
+            result = hit.getFields().get("float").getValues().get(0);
+            assertThat(result, equalTo((Object) floatArray));
+            result = hit.getFields().get("double").getValues().get(0);
+            assertThat(result, equalTo((Object) doubleArray));
+        }
+    }
+
+    /*
+     * TODO Remove in 2.0
+     */
+    public void testNativeScriptOldScriptAPI() throws InterruptedException, ExecutionException {
 
         indexRandom(true, client().prepareIndex("test", "type1", "1").setSource("text", "doc1"), client()
                 .prepareIndex("test", "type1", "2").setSource("text", "doc2"),

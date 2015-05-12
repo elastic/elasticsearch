@@ -21,6 +21,7 @@ package org.elasticsearch.search.aggregations.bucket;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.index.mapper.ip.IpFieldMapper;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.range.Range;
 import org.elasticsearch.search.aggregations.bucket.range.Range.Bucket;
@@ -344,17 +345,13 @@ public class IPv4RangeTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void singleValuedField_WithValueScript() throws Exception {
-        SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(ipRange("range")
-                        .field("ip")
-                        .script("_value")
-                        .addUnboundedTo("10.0.0.100")
-                        .addRange("10.0.0.100", "10.0.0.200")
-                        .addUnboundedFrom("10.0.0.200"))
-                .execute().actionGet();
+        SearchResponse response = client()
+                .prepareSearch("idx")
+                .addAggregation(
+                        ipRange("range").field("ip").script(new Script("_value")).addUnboundedTo("10.0.0.100")
+                                .addRange("10.0.0.100", "10.0.0.200").addUnboundedFrom("10.0.0.200")).execute().actionGet();
 
         assertSearchResponse(response);
-
 
         Range range = response.getAggregations().get("range");
         assertThat(range, notNullValue());
@@ -456,14 +453,11 @@ public class IPv4RangeTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void multiValuedField_WithValueScript() throws Exception {
-        SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(ipRange("range")
-                        .field("ips")
-                        .script("_value")
-                        .addUnboundedTo("10.0.0.100")
-                        .addRange("10.0.0.100", "10.0.0.200")
-                        .addUnboundedFrom("10.0.0.200"))
-                .execute().actionGet();
+        SearchResponse response = client()
+                .prepareSearch("idx")
+                .addAggregation(
+                        ipRange("range").field("ips").script(new Script("_value")).addUnboundedTo("10.0.0.100")
+                                .addRange("10.0.0.100", "10.0.0.200").addUnboundedFrom("10.0.0.200")).execute().actionGet();
 
         assertSearchResponse(response);
 
@@ -504,18 +498,14 @@ public class IPv4RangeTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void multiValuedField_WithValueScript_WithInheritedSubAggregator() throws Exception {
-        SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(ipRange("range")
-                        .field("ips")
-                        .script("_value")
-                        .addUnboundedTo("10.0.0.100")
-                        .addRange("10.0.0.100", "10.0.0.200")
-                        .addUnboundedFrom("10.0.0.200")
-                        .subAggregation(max("max")))
-                .execute().actionGet();
+        SearchResponse response = client()
+                .prepareSearch("idx")
+                .addAggregation(
+                        ipRange("range").field("ips").script(new Script("_value")).addUnboundedTo("10.0.0.100")
+                                .addRange("10.0.0.100", "10.0.0.200").addUnboundedFrom("10.0.0.200").subAggregation(max("max"))).execute()
+                .actionGet();
 
         assertSearchResponse(response);
-
 
         Range range = response.getAggregations().get("range");
         assertThat(range, notNullValue());
@@ -562,13 +552,11 @@ public class IPv4RangeTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void script_SingleValue() throws Exception {
-        SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(ipRange("range")
-                        .script("doc['ip'].value")
-                        .addUnboundedTo("10.0.0.100")
-                        .addRange("10.0.0.100", "10.0.0.200")
-                        .addUnboundedFrom("10.0.0.200"))
-                .execute().actionGet();
+        SearchResponse response = client()
+                .prepareSearch("idx")
+                .addAggregation(
+                        ipRange("range").script(new Script("doc['ip'].value")).addUnboundedTo("10.0.0.100")
+                                .addRange("10.0.0.100", "10.0.0.200").addUnboundedFrom("10.0.0.200")).execute().actionGet();
 
         assertSearchResponse(response);
 
@@ -609,14 +597,12 @@ public class IPv4RangeTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void script_SingleValue_WithSubAggregator_Inherited() throws Exception {
-        SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(ipRange("range")
-                        .script("doc['ip'].value")
-                        .addUnboundedTo("10.0.0.100")
-                        .addRange("10.0.0.100", "10.0.0.200")
-                        .addUnboundedFrom("10.0.0.200")
-                        .subAggregation(max("max")))
-                .execute().actionGet();
+        SearchResponse response = client()
+                .prepareSearch("idx")
+                .addAggregation(
+                        ipRange("range").script(new Script("doc['ip'].value")).addUnboundedTo("10.0.0.100")
+                                .addRange("10.0.0.100", "10.0.0.200").addUnboundedFrom("10.0.0.200").subAggregation(max("max"))).execute()
+                .actionGet();
 
         assertSearchResponse(response);
 
@@ -666,13 +652,11 @@ public class IPv4RangeTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void script_MultiValued() throws Exception {
-        SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(ipRange("range")
-                        .script("doc['ips'].values")
-                        .addUnboundedTo("10.0.0.100")
-                        .addRange("10.0.0.100", "10.0.0.200")
-                        .addUnboundedFrom("10.0.0.200"))
-                .execute().actionGet();
+        SearchResponse response = client()
+                .prepareSearch("idx")
+                .addAggregation(
+                        ipRange("range").script(new Script("doc['ips'].values")).addUnboundedTo("10.0.0.100")
+                                .addRange("10.0.0.100", "10.0.0.200").addUnboundedFrom("10.0.0.200")).execute().actionGet();
 
         assertSearchResponse(response);
 
@@ -713,14 +697,12 @@ public class IPv4RangeTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void script_MultiValued_WithAggregatorInherited() throws Exception {
-        SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(ipRange("range")
-                        .script("doc['ips'].values")
-                        .addUnboundedTo("10.0.0.100")
-                        .addRange("10.0.0.100", "10.0.0.200")
-                        .addUnboundedFrom("10.0.0.200")
-                        .subAggregation(max("max")))
-                .execute().actionGet();
+        SearchResponse response = client()
+                .prepareSearch("idx")
+                .addAggregation(
+                        ipRange("range").script(new Script("doc['ips'].values")).addUnboundedTo("10.0.0.100")
+                                .addRange("10.0.0.100", "10.0.0.200").addUnboundedFrom("10.0.0.200").subAggregation(max("max"))).execute()
+                .actionGet();
 
         assertSearchResponse(response);
 
@@ -886,5 +868,361 @@ public class IPv4RangeTests extends ElasticsearchIntegrationTest {
         assertThat(buckets.get(0).getFromAsString(), equalTo("10.0.0.1"));
         assertThat(buckets.get(0).getToAsString(), equalTo("10.0.0.10"));
         assertThat(buckets.get(0).getDocCount(), equalTo(0l));
+    }
+
+    /*
+     * TODO Remove in 2.0
+     */
+    @Test
+    public void singleValuedField_WithValueScriptOldScriptAPI() throws Exception {
+        SearchResponse response = client()
+                .prepareSearch("idx")
+                .addAggregation(
+                        ipRange("range").field("ip").script("_value").addUnboundedTo("10.0.0.100").addRange("10.0.0.100", "10.0.0.200")
+                                .addUnboundedFrom("10.0.0.200")).execute().actionGet();
+
+        assertSearchResponse(response);
+
+        Range range = response.getAggregations().get("range");
+        assertThat(range, notNullValue());
+        assertThat(range.getName(), equalTo("range"));
+        List<? extends Bucket> buckets = range.getBuckets();
+        assertThat(range.getBuckets().size(), equalTo(3));
+
+        Range.Bucket bucket = buckets.get(0);
+        assertThat(bucket, notNullValue());
+        assertThat((String) bucket.getKey(), equalTo("*-10.0.0.100"));
+        assertThat(((Number) bucket.getFrom()).doubleValue(), equalTo(Double.NEGATIVE_INFINITY));
+        assertThat(bucket.getFromAsString(), nullValue());
+        assertThat(bucket.getToAsString(), equalTo("10.0.0.100"));
+        assertThat(((Number) bucket.getTo()).doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.100")));
+        assertThat(bucket.getDocCount(), equalTo(100l));
+
+        bucket = buckets.get(1);
+        assertThat(bucket, notNullValue());
+        assertThat((String) bucket.getKey(), equalTo("10.0.0.100-10.0.0.200"));
+        assertThat(bucket.getFromAsString(), equalTo("10.0.0.100"));
+        assertThat(((Number) bucket.getFrom()).doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.100")));
+        assertThat(bucket.getToAsString(), equalTo("10.0.0.200"));
+        assertThat(((Number) bucket.getTo()).doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.200")));
+        assertThat(bucket.getDocCount(), equalTo(100l));
+
+        bucket = buckets.get(2);
+        assertThat(bucket, notNullValue());
+        assertThat((String) bucket.getKey(), equalTo("10.0.0.200-*"));
+        assertThat(bucket.getFromAsString(), equalTo("10.0.0.200"));
+        assertThat(((Number) bucket.getFrom()).doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.200")));
+        assertThat(((Number) bucket.getTo()).doubleValue(), equalTo(Double.POSITIVE_INFINITY));
+        assertThat(bucket.getToAsString(), nullValue());
+        assertThat(bucket.getDocCount(), equalTo(55l));
+    }
+
+    /*
+     * TODO Remove in 2.0
+     */
+    @Test
+    public void multiValuedField_WithValueScriptOldScriptAPI() throws Exception {
+        SearchResponse response = client()
+                .prepareSearch("idx")
+                .addAggregation(
+                        ipRange("range").field("ips").script("_value").addUnboundedTo("10.0.0.100").addRange("10.0.0.100", "10.0.0.200")
+                                .addUnboundedFrom("10.0.0.200")).execute().actionGet();
+
+        assertSearchResponse(response);
+
+        Range range = response.getAggregations().get("range");
+        assertThat(range, notNullValue());
+        assertThat(range.getName(), equalTo("range"));
+        List<? extends Bucket> buckets = range.getBuckets();
+        assertThat(range.getBuckets().size(), equalTo(3));
+
+        Range.Bucket bucket = buckets.get(0);
+        assertThat(bucket, notNullValue());
+        assertThat((String) bucket.getKey(), equalTo("*-10.0.0.100"));
+        assertThat(((Number) bucket.getFrom()).doubleValue(), equalTo(Double.NEGATIVE_INFINITY));
+        assertThat(bucket.getFromAsString(), nullValue());
+        assertThat(bucket.getToAsString(), equalTo("10.0.0.100"));
+        assertThat(((Number) bucket.getTo()).doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.100")));
+        assertThat(bucket.getDocCount(), equalTo(100l));
+
+        bucket = buckets.get(1);
+        assertThat(bucket, notNullValue());
+        assertThat((String) bucket.getKey(), equalTo("10.0.0.100-10.0.0.200"));
+        assertThat(bucket.getFromAsString(), equalTo("10.0.0.100"));
+        assertThat(((Number) bucket.getFrom()).doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.100")));
+        assertThat(bucket.getToAsString(), equalTo("10.0.0.200"));
+        assertThat(((Number) bucket.getTo()).doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.200")));
+        assertThat(bucket.getDocCount(), equalTo(101l));
+
+        bucket = buckets.get(2);
+        assertThat(bucket, notNullValue());
+        assertThat((String) bucket.getKey(), equalTo("10.0.0.200-*"));
+        assertThat(bucket.getFromAsString(), equalTo("10.0.0.200"));
+        assertThat(((Number) bucket.getFrom()).doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.200")));
+        assertThat(((Number) bucket.getTo()).doubleValue(), equalTo(Double.POSITIVE_INFINITY));
+        assertThat(bucket.getToAsString(), nullValue());
+        assertThat(bucket.getDocCount(), equalTo(56l));
+    }
+
+    /*
+     * TODO Remove in 2.0
+     */
+    @Test
+    public void multiValuedField_WithValueScript_WithInheritedSubAggregatorOldScriptAPI() throws Exception {
+        SearchResponse response = client()
+                .prepareSearch("idx")
+                .addAggregation(
+                        ipRange("range").field("ips").script("_value").addUnboundedTo("10.0.0.100").addRange("10.0.0.100", "10.0.0.200")
+                                .addUnboundedFrom("10.0.0.200").subAggregation(max("max"))).execute().actionGet();
+
+        assertSearchResponse(response);
+
+        Range range = response.getAggregations().get("range");
+        assertThat(range, notNullValue());
+        assertThat(range.getName(), equalTo("range"));
+        List<? extends Bucket> buckets = range.getBuckets();
+        assertThat(range.getBuckets().size(), equalTo(3));
+
+        Range.Bucket bucket = buckets.get(0);
+        assertThat(bucket, notNullValue());
+        assertThat((String) bucket.getKey(), equalTo("*-10.0.0.100"));
+        assertThat(((Number) bucket.getFrom()).doubleValue(), equalTo(Double.NEGATIVE_INFINITY));
+        assertThat(bucket.getFromAsString(), nullValue());
+        assertThat(bucket.getToAsString(), equalTo("10.0.0.100"));
+        assertThat(((Number) bucket.getTo()).doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.100")));
+        assertThat(bucket.getDocCount(), equalTo(100l));
+        Max max = bucket.getAggregations().get("max");
+        assertThat(max, Matchers.notNullValue());
+        assertThat((long) max.getValue(), equalTo(IpFieldMapper.ipToLong("10.0.0.100")));
+
+        bucket = buckets.get(1);
+        assertThat(bucket, notNullValue());
+        assertThat((String) bucket.getKey(), equalTo("10.0.0.100-10.0.0.200"));
+        assertThat(bucket.getFromAsString(), equalTo("10.0.0.100"));
+        assertThat(((Number) bucket.getFrom()).doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.100")));
+        assertThat(bucket.getToAsString(), equalTo("10.0.0.200"));
+        assertThat(((Number) bucket.getTo()).doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.200")));
+        assertThat(bucket.getDocCount(), equalTo(101l));
+        max = bucket.getAggregations().get("max");
+        assertThat(max, Matchers.notNullValue());
+        assertThat((long) max.getValue(), equalTo(IpFieldMapper.ipToLong("10.0.0.200")));
+
+        bucket = buckets.get(2);
+        assertThat(bucket, notNullValue());
+        assertThat((String) bucket.getKey(), equalTo("10.0.0.200-*"));
+        assertThat(bucket.getFromAsString(), equalTo("10.0.0.200"));
+        assertThat(((Number) bucket.getFrom()).doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.200")));
+        assertThat(((Number) bucket.getTo()).doubleValue(), equalTo(Double.POSITIVE_INFINITY));
+        assertThat(bucket.getToAsString(), nullValue());
+        assertThat(bucket.getDocCount(), equalTo(56l));
+        max = bucket.getAggregations().get("max");
+        assertThat(max, Matchers.notNullValue());
+        assertThat((long) max.getValue(), equalTo(IpFieldMapper.ipToLong("10.0.0.255")));
+    }
+
+    /*
+     * TODO Remove in 2.0
+     */
+    @Test
+    public void script_SingleValueOldScriptAPI() throws Exception {
+        SearchResponse response = client()
+                .prepareSearch("idx")
+                .addAggregation(
+                        ipRange("range").script("doc['ip'].value").addUnboundedTo("10.0.0.100").addRange("10.0.0.100", "10.0.0.200")
+                                .addUnboundedFrom("10.0.0.200")).execute().actionGet();
+
+        assertSearchResponse(response);
+
+        Range range = response.getAggregations().get("range");
+        assertThat(range, notNullValue());
+        assertThat(range.getName(), equalTo("range"));
+        List<? extends Bucket> buckets = range.getBuckets();
+        assertThat(range.getBuckets().size(), equalTo(3));
+
+        Range.Bucket bucket = buckets.get(0);
+        assertThat(bucket, notNullValue());
+        assertThat((String) bucket.getKey(), equalTo("*-10.0.0.100"));
+        assertThat(((Number) bucket.getFrom()).doubleValue(), equalTo(Double.NEGATIVE_INFINITY));
+        assertThat(bucket.getFromAsString(), nullValue());
+        assertThat(bucket.getToAsString(), equalTo("10.0.0.100"));
+        assertThat(((Number) bucket.getTo()).doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.100")));
+        assertThat(bucket.getDocCount(), equalTo(100l));
+
+        bucket = buckets.get(1);
+        assertThat(bucket, notNullValue());
+        assertThat((String) bucket.getKey(), equalTo("10.0.0.100-10.0.0.200"));
+        assertThat(bucket.getFromAsString(), equalTo("10.0.0.100"));
+        assertThat(((Number) bucket.getFrom()).doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.100")));
+        assertThat(bucket.getToAsString(), equalTo("10.0.0.200"));
+        assertThat(((Number) bucket.getTo()).doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.200")));
+        assertThat(bucket.getDocCount(), equalTo(100l));
+
+        bucket = buckets.get(2);
+        assertThat(bucket, notNullValue());
+        assertThat((String) bucket.getKey(), equalTo("10.0.0.200-*"));
+        assertThat(bucket.getFromAsString(), equalTo("10.0.0.200"));
+        assertThat(((Number) bucket.getFrom()).doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.200")));
+        assertThat(((Number) bucket.getTo()).doubleValue(), equalTo(Double.POSITIVE_INFINITY));
+        assertThat(bucket.getToAsString(), nullValue());
+        assertThat(bucket.getDocCount(), equalTo(55l));
+    }
+
+    /*
+     * TODO Remove in 2.0
+     */
+    @Test
+    public void script_SingleValue_WithSubAggregator_InheritedOldScriptAPI() throws Exception {
+        SearchResponse response = client()
+                .prepareSearch("idx")
+                .addAggregation(
+                        ipRange("range").script("doc['ip'].value").addUnboundedTo("10.0.0.100").addRange("10.0.0.100", "10.0.0.200")
+                                .addUnboundedFrom("10.0.0.200").subAggregation(max("max"))).execute().actionGet();
+
+        assertSearchResponse(response);
+
+        Range range = response.getAggregations().get("range");
+        assertThat(range, notNullValue());
+        assertThat(range.getName(), equalTo("range"));
+        List<? extends Bucket> buckets = range.getBuckets();
+        assertThat(range.getBuckets().size(), equalTo(3));
+
+        Range.Bucket bucket = buckets.get(0);
+        assertThat(bucket, notNullValue());
+        assertThat((String) bucket.getKey(), equalTo("*-10.0.0.100"));
+        assertThat(((Number) bucket.getFrom()).doubleValue(), equalTo(Double.NEGATIVE_INFINITY));
+        assertThat(bucket.getFromAsString(), nullValue());
+        assertThat(bucket.getToAsString(), equalTo("10.0.0.100"));
+        assertThat(((Number) bucket.getTo()).doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.100")));
+        assertThat(bucket.getDocCount(), equalTo(100l));
+        Max max = bucket.getAggregations().get("max");
+        assertThat(max, notNullValue());
+        assertThat(max.getValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.99")));
+
+        bucket = buckets.get(1);
+        assertThat(bucket, notNullValue());
+        assertThat((String) bucket.getKey(), equalTo("10.0.0.100-10.0.0.200"));
+        assertThat(bucket.getFromAsString(), equalTo("10.0.0.100"));
+        assertThat(((Number) bucket.getFrom()).doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.100")));
+        assertThat(bucket.getToAsString(), equalTo("10.0.0.200"));
+        assertThat(((Number) bucket.getTo()).doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.200")));
+        assertThat(bucket.getDocCount(), equalTo(100l));
+        max = bucket.getAggregations().get("max");
+        assertThat(max, notNullValue());
+        assertThat(max.getValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.199")));
+
+        bucket = buckets.get(2);
+        assertThat(bucket, notNullValue());
+        assertThat((String) bucket.getKey(), equalTo("10.0.0.200-*"));
+        assertThat(bucket.getFromAsString(), equalTo("10.0.0.200"));
+        assertThat(((Number) bucket.getFrom()).doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.200")));
+        assertThat(((Number) bucket.getTo()).doubleValue(), equalTo(Double.POSITIVE_INFINITY));
+        assertThat(bucket.getToAsString(), nullValue());
+        assertThat(bucket.getDocCount(), equalTo(55l));
+        max = bucket.getAggregations().get("max");
+        assertThat(max, notNullValue());
+        assertThat(max.getValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.254")));
+    }
+
+    /*
+     * TODO Remove in 2.0
+     */
+    @Test
+    public void script_MultiValuedOldScriptAPI() throws Exception {
+        SearchResponse response = client()
+                .prepareSearch("idx")
+                .addAggregation(
+                        ipRange("range").script("doc['ips'].values").addUnboundedTo("10.0.0.100").addRange("10.0.0.100", "10.0.0.200")
+                                .addUnboundedFrom("10.0.0.200")).execute().actionGet();
+
+        assertSearchResponse(response);
+
+        Range range = response.getAggregations().get("range");
+        assertThat(range, notNullValue());
+        assertThat(range.getName(), equalTo("range"));
+        List<? extends Bucket> buckets = range.getBuckets();
+        assertThat(range.getBuckets().size(), equalTo(3));
+
+        Range.Bucket bucket = buckets.get(0);
+        assertThat(bucket, notNullValue());
+        assertThat((String) bucket.getKey(), equalTo("*-10.0.0.100"));
+        assertThat(((Number) bucket.getFrom()).doubleValue(), equalTo(Double.NEGATIVE_INFINITY));
+        assertThat(bucket.getFromAsString(), nullValue());
+        assertThat(bucket.getToAsString(), equalTo("10.0.0.100"));
+        assertThat(((Number) bucket.getTo()).doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.100")));
+        assertThat(bucket.getDocCount(), equalTo(100l));
+
+        bucket = buckets.get(1);
+        assertThat(bucket, notNullValue());
+        assertThat((String) bucket.getKey(), equalTo("10.0.0.100-10.0.0.200"));
+        assertThat(bucket.getFromAsString(), equalTo("10.0.0.100"));
+        assertThat(((Number) bucket.getFrom()).doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.100")));
+        assertThat(bucket.getToAsString(), equalTo("10.0.0.200"));
+        assertThat(((Number) bucket.getTo()).doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.200")));
+        assertThat(bucket.getDocCount(), equalTo(101l));
+
+        bucket = buckets.get(2);
+        assertThat(bucket, notNullValue());
+        assertThat((String) bucket.getKey(), equalTo("10.0.0.200-*"));
+        assertThat(bucket.getFromAsString(), equalTo("10.0.0.200"));
+        assertThat(((Number) bucket.getFrom()).doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.200")));
+        assertThat(((Number) bucket.getTo()).doubleValue(), equalTo(Double.POSITIVE_INFINITY));
+        assertThat(bucket.getToAsString(), nullValue());
+        assertThat(bucket.getDocCount(), equalTo(56l));
+    }
+
+    /*
+     * TODO Remove in 2.0
+     */
+    @Test
+    public void script_MultiValued_WithAggregatorInheritedOldScriptAPI() throws Exception {
+        SearchResponse response = client()
+                .prepareSearch("idx")
+                .addAggregation(
+                        ipRange("range").script("doc['ips'].values").addUnboundedTo("10.0.0.100").addRange("10.0.0.100", "10.0.0.200")
+                                .addUnboundedFrom("10.0.0.200").subAggregation(max("max"))).execute().actionGet();
+
+        assertSearchResponse(response);
+
+        Range range = response.getAggregations().get("range");
+        assertThat(range, notNullValue());
+        assertThat(range.getName(), equalTo("range"));
+        List<? extends Bucket> buckets = range.getBuckets();
+        assertThat(range.getBuckets().size(), equalTo(3));
+
+        Range.Bucket bucket = buckets.get(0);
+        assertThat(bucket, notNullValue());
+        assertThat((String) bucket.getKey(), equalTo("*-10.0.0.100"));
+        assertThat(((Number) bucket.getFrom()).doubleValue(), equalTo(Double.NEGATIVE_INFINITY));
+        assertThat(bucket.getFromAsString(), nullValue());
+        assertThat(bucket.getToAsString(), equalTo("10.0.0.100"));
+        assertThat(((Number) bucket.getTo()).doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.100")));
+        assertThat(bucket.getDocCount(), equalTo(100l));
+        Max max = bucket.getAggregations().get("max");
+        assertThat(max, Matchers.notNullValue());
+        assertThat((long) max.getValue(), equalTo(IpFieldMapper.ipToLong("10.0.0.100")));
+
+        bucket = buckets.get(1);
+        assertThat(bucket, notNullValue());
+        assertThat((String) bucket.getKey(), equalTo("10.0.0.100-10.0.0.200"));
+        assertThat(bucket.getFromAsString(), equalTo("10.0.0.100"));
+        assertThat(((Number) bucket.getFrom()).doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.100")));
+        assertThat(bucket.getToAsString(), equalTo("10.0.0.200"));
+        assertThat(((Number) bucket.getTo()).doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.200")));
+        assertThat(bucket.getDocCount(), equalTo(101l));
+        max = bucket.getAggregations().get("max");
+        assertThat(max, Matchers.notNullValue());
+        assertThat((long) max.getValue(), equalTo(IpFieldMapper.ipToLong("10.0.0.200")));
+
+        bucket = buckets.get(2);
+        assertThat(bucket, notNullValue());
+        assertThat((String) bucket.getKey(), equalTo("10.0.0.200-*"));
+        assertThat(bucket.getFromAsString(), equalTo("10.0.0.200"));
+        assertThat(((Number) bucket.getFrom()).doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.200")));
+        assertThat(((Number) bucket.getTo()).doubleValue(), equalTo(Double.POSITIVE_INFINITY));
+        assertThat(bucket.getToAsString(), nullValue());
+        assertThat(bucket.getDocCount(), equalTo(56l));
+        max = bucket.getAggregations().get("max");
+        assertThat(max, Matchers.notNullValue());
+        assertThat((long) max.getValue(), equalTo(IpFieldMapper.ipToLong("10.0.0.255")));
     }
 }

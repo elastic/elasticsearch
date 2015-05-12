@@ -32,6 +32,8 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.functionscore.script.ScriptScoreFunctionBuilder;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptService.ScriptType;
 import org.joda.time.DateTime;
 
 import java.io.BufferedWriter;
@@ -40,8 +42,13 @@ import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.security.SecureRandom;
-import java.util.*;
+import java.util.AbstractMap;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Random;
 
 import static org.elasticsearch.client.Requests.searchRequest;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -276,8 +283,8 @@ public class BasicScriptBenchmark {
             String[] terms = getTerms(nTerms + 1);
             params.put("text", terms);
             String infoString = "Results for native script with " + (nTerms + 1) + " terms:";
-            ScriptScoreFunctionBuilder scriptFunction = (langNative == true) ? scriptFunction(script, "native", params) : scriptFunction(
-                    script, params);
+            ScriptScoreFunctionBuilder scriptFunction = (langNative == true) ? scriptFunction(new Script(script, ScriptType.INLINE,
+                    "native", params)) : scriptFunction(new Script(script, ScriptType.INLINE, null, params));
             SearchRequest request = searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
                     searchSource()
                             .explain(false)
@@ -292,7 +299,8 @@ public class BasicScriptBenchmark {
     static List<Entry<String, RequestInfo>> initScriptMatchAllSearchRequests(String script, boolean langNative) {
         List<Entry<String, RequestInfo>> nativeSearchRequests = new ArrayList<>();
         String infoString = "Results for constant score script:";
-        ScriptScoreFunctionBuilder scriptFunction = (langNative == true) ? scriptFunction(script, "native") : scriptFunction(script);
+        ScriptScoreFunctionBuilder scriptFunction = (langNative == true) ? scriptFunction(new Script(script, ScriptType.INLINE, "native",
+                null)) : scriptFunction(new Script(script));
         SearchRequest request = searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
                 searchSource().explain(false).size(0)
                         .query(functionScoreQuery(QueryBuilders.matchAllQuery(), scriptFunction).boostMode(CombineFunction.REPLACE)));

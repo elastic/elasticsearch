@@ -44,6 +44,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.search.child.ScoreType;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
@@ -771,7 +772,8 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
                 .setQuery(
                         QueryBuilders.hasChildQuery(
                                 "child",
-                                QueryBuilders.functionScoreQuery(matchQuery("c_field2", 0), scriptFunction("doc['c_field1'].value"))
+                                QueryBuilders.functionScoreQuery(matchQuery("c_field2", 0),
+                                        scriptFunction(new Script("doc['c_field1'].value")))
                                         .boostMode(CombineFunction.REPLACE.getName())).scoreType("sum")).get();
 
         assertThat(response.getHits().totalHits(), equalTo(3l));
@@ -787,7 +789,8 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
                 .setQuery(
                         QueryBuilders.hasChildQuery(
                                 "child",
-                                QueryBuilders.functionScoreQuery(matchQuery("c_field2", 0), scriptFunction("doc['c_field1'].value"))
+                                QueryBuilders.functionScoreQuery(matchQuery("c_field2", 0),
+                                        scriptFunction(new Script("doc['c_field1'].value")))
                                         .boostMode(CombineFunction.REPLACE.getName())).scoreType("max")).get();
 
         assertThat(response.getHits().totalHits(), equalTo(3l));
@@ -803,7 +806,8 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
                 .setQuery(
                         QueryBuilders.hasChildQuery(
                                 "child",
-                                QueryBuilders.functionScoreQuery(matchQuery("c_field2", 0), scriptFunction("doc['c_field1'].value"))
+                                QueryBuilders.functionScoreQuery(matchQuery("c_field2", 0),
+                                        scriptFunction(new Script("doc['c_field1'].value")))
                                         .boostMode(CombineFunction.REPLACE.getName())).scoreType("avg")).get();
 
         assertThat(response.getHits().totalHits(), equalTo(3l));
@@ -819,7 +823,8 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
                 .setQuery(
                         QueryBuilders.hasParentQuery(
                                 "parent",
-                                QueryBuilders.functionScoreQuery(matchQuery("p_field1", "p_value3"), scriptFunction("doc['p_field2'].value"))
+                                QueryBuilders.functionScoreQuery(matchQuery("p_field1", "p_value3"),
+                                        scriptFunction(new Script("doc['p_field2'].value")))
                                         .boostMode(CombineFunction.REPLACE.getName())).scoreType("score"))
                 .addSort(SortBuilders.fieldSort("c_field3")).addSort(SortBuilders.scoreSort()).get();
 

@@ -123,6 +123,7 @@ public class UpdateResponse extends ActionWriteResponse {
         id = in.readString();
         version = in.readLong();
         created = in.readBoolean();
+        noop = in.readBoolean();
         if (in.readBoolean()) {
             getResult = GetResult.readGetResult(in);
         }
@@ -136,6 +137,7 @@ public class UpdateResponse extends ActionWriteResponse {
         out.writeString(id);
         out.writeLong(version);
         out.writeBoolean(created);
+        out.writeBoolean(noop);
         if (getResult == null) {
             out.writeBoolean(false);
         } else {

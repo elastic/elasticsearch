@@ -130,7 +130,7 @@ public class MoreLikeThisQueryBuilder extends QueryBuilder implements BoostableQ
 
     private final String[] fields;
     private List<Item> docs = new ArrayList<>();
-    private List<Item> ignoreDocs = new ArrayList<>();
+    private List<Item> unlikeDocs = new ArrayList<>();
     private Boolean include = null;
     private String minimumShouldMatch = null;
     private int minTermFreq = -1;
@@ -189,7 +189,7 @@ public class MoreLikeThisQueryBuilder extends QueryBuilder implements BoostableQ
      * Sets the documents from which the terms should not be selected from.
      */
     public MoreLikeThisQueryBuilder ignoreLike(Item... docs) {
-        this.ignoreDocs = Arrays.asList(docs);
+        this.unlikeDocs = Arrays.asList(docs);
         return this;
     }
 
@@ -197,9 +197,9 @@ public class MoreLikeThisQueryBuilder extends QueryBuilder implements BoostableQ
      * Sets the text from which the terms should not be selected from.
      */
     public MoreLikeThisQueryBuilder ignoreLike(String... likeText) {
-        this.ignoreDocs = new ArrayList<>();
+        this.unlikeDocs = new ArrayList<>();
         for (String text : likeText) {
-            this.ignoreDocs.add(new Item(text));
+            this.unlikeDocs.add(new Item(text));
         }
         return this;
     }
@@ -378,8 +378,8 @@ public class MoreLikeThisQueryBuilder extends QueryBuilder implements BoostableQ
         } else {
             builder.field(likeFieldName, docs);
         }
-        if (!ignoreDocs.isEmpty()) {
-            builder.field(MoreLikeThisQueryParser.Fields.LIKE.getPreferredName(), ignoreDocs);
+        if (!unlikeDocs.isEmpty()) {
+            builder.field(MoreLikeThisQueryParser.Fields.UNLIKE.getPreferredName(), unlikeDocs);
         }
         if (minimumShouldMatch != null) {
             builder.field(MoreLikeThisQueryParser.Fields.MINIMUM_SHOULD_MATCH.getPreferredName(), minimumShouldMatch);

@@ -441,7 +441,7 @@ public final class InternalTestCluster extends TestCluster {
 
         if (random.nextBoolean()) {
             builder.put(Translog.INDEX_TRANSLOG_FS_TYPE, RandomPicks.randomFrom(random, TranslogFile.Type.values()));
-            if (random.nextBoolean()) {
+            if (rarely(random)) {
                 builder.put(Translog.INDEX_TRANSLOG_SYNC_INTERVAL, 0); // 0 has special meaning to sync each op
             } else {
                 builder.put(Translog.INDEX_TRANSLOG_SYNC_INTERVAL, RandomInts.randomIntBetween(random, 100, 5000));

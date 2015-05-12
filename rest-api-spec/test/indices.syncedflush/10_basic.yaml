@@ -1,0 +1,16 @@
+---
+"Synced flush rest test":
+- do:
+   indices.create:
+      index: testing
+
+- do:
+   cluster.health:
+      wait_for_status: green
+- do:
+   indices.syncedflush:
+      index: testing
+- do:
+   indices.stats: {level: shards}
+
+- is_true: indices.testing.shards.0.0.commit.user_data.sync_id

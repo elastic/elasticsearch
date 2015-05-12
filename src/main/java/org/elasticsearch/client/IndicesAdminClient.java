@@ -84,6 +84,9 @@ import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRespons
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequestBuilder;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
+import org.elasticsearch.action.admin.indices.syncedflush.SyncedFlushIndicesRequest;
+import org.elasticsearch.action.admin.indices.syncedflush.SyncedFlushIndicesRequestBuilder;
+import org.elasticsearch.action.admin.indices.syncedflush.SyncedFlushIndicesResponse;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateRequestBuilder;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateResponse;
@@ -358,6 +361,27 @@ public interface IndicesAdminClient extends ElasticsearchClient {
      * Explicitly flush one or more indices (releasing memory from the node).
      */
     FlushRequestBuilder prepareFlush(String... indices);
+
+    /**
+     * Explicitly sync flush one or more indices
+     *
+     * @param request The sync flush request
+     * @return A result future
+     */
+    ActionFuture<SyncedFlushIndicesResponse> syncedFlush(SyncedFlushIndicesRequest request);
+
+    /**
+     * Explicitly sync flush one or more indices
+     *
+     * @param request The sync flush request
+     * @param listener A listener to be notified with a result
+     */
+    void syncedFlush(SyncedFlushIndicesRequest request, ActionListener <SyncedFlushIndicesResponse> listener);
+
+    /**
+     * Explicitly sync flush one or more indices
+     */
+    SyncedFlushIndicesRequestBuilder prepareSyncedFlush(String... indices);
 
     /**
      * Explicitly optimize one or more indices into a the number of segments.
@@ -723,4 +747,5 @@ public interface IndicesAdminClient extends ElasticsearchClient {
      * @see #getSettings(org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest)
      */
     GetSettingsRequestBuilder prepareGetSettings(String... indices);
+
 }

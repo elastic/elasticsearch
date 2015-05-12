@@ -37,7 +37,6 @@ import java.util.Map;
 
 import static org.elasticsearch.client.Requests.searchRequest;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.FilterBuilders.scriptFilter;
 import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.scriptFunction;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
@@ -73,7 +72,7 @@ public class JavaScriptScriptSearchTests extends ElasticsearchIntegrationTest {
 
         logger.info(" --> running doc['num1'].value > 1");
         SearchResponse response = client().prepareSearch()
-                .setQuery(filteredQuery(matchAllQuery(), scriptFilter("doc['num1'].value > 1").lang("js")))
+                .setQuery(filteredQuery(matchAllQuery(), scriptQuery("doc['num1'].value > 1").lang("js")))
                 .addSort("num1", SortOrder.ASC)
                 .addScriptField("sNum1", "js", "doc['num1'].value", null)
                 .execute().actionGet();
@@ -86,7 +85,7 @@ public class JavaScriptScriptSearchTests extends ElasticsearchIntegrationTest {
 
         logger.info(" --> running doc['num1'].value > param1");
         response = client().prepareSearch()
-                .setQuery(filteredQuery(matchAllQuery(), scriptFilter("doc['num1'].value > param1").lang("js").addParam("param1", 2)))
+                .setQuery(filteredQuery(matchAllQuery(), scriptQuery("doc['num1'].value > param1").lang("js").addParam("param1", 2)))
                 .addSort("num1", SortOrder.ASC)
                 .addScriptField("sNum1", "js", "doc['num1'].value", null)
                 .execute().actionGet();
@@ -97,7 +96,7 @@ public class JavaScriptScriptSearchTests extends ElasticsearchIntegrationTest {
 
         logger.info(" --> running doc['num1'].value > param1");
         response = client().prepareSearch()
-                .setQuery(filteredQuery(matchAllQuery(), scriptFilter("doc['num1'].value > param1").lang("js").addParam("param1", -1)))
+                .setQuery(filteredQuery(matchAllQuery(), scriptQuery("doc['num1'].value > param1").lang("js").addParam("param1", -1)))
                 .addSort("num1", SortOrder.ASC)
                 .addScriptField("sNum1", "js", "doc['num1'].value", null)
                 .execute().actionGet();

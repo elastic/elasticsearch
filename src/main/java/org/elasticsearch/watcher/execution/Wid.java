@@ -23,7 +23,7 @@ public class Wid {
 
     public Wid(String watchId, long nonce, DateTime executionTime) {
         this.watchId = watchId;
-        this.value = watchId + "_" + String.valueOf(nonce) + "#" +  formatter.print(executionTime);
+        this.value = watchId + "_" + String.valueOf(nonce) + "-" +  formatter.print(executionTime);
     }
 
     public Wid(String value) {

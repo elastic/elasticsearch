@@ -20,6 +20,8 @@ package org.elasticsearch.repositories.hdfs;
 
 import java.io.File;
 import java.io.IOException;
+import java.lang.String;
+import java.lang.System;
 import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URL;
@@ -46,6 +48,7 @@ import org.elasticsearch.index.snapshots.IndexShardRepository;
 import org.elasticsearch.repositories.RepositoryName;
 import org.elasticsearch.repositories.RepositorySettings;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
+import org.apache.hadoop.security.UserGroupInformation;
 
 public class HdfsRepository extends BlobStoreRepository {
 
@@ -97,6 +100,8 @@ public class HdfsRepository extends BlobStoreRepository {
             cfg.set(entry.getKey(), entry.getValue());
         }
 
+        initAuthorization(repositorySettings, cfg);
+
         String uri = repositorySettings.settings().get("uri", componentSettings.get("uri"));
         URI actualUri = (uri != null ? URI.create(uri) : FileSystem.getDefaultUri(cfg));
         String user = repositorySettings.settings().get("user", componentSettings.get("user"));
@@ -107,6 +112,17 @@ public class HdfsRepository extends BlobStoreRepository {
             throw new ElasticsearchGenerationException(String.format("Cannot create Hdfs file-system for uri [%s]", actualUri), ex);
         }
     }
+
+    private void initAuthorization(RepositorySettings repositorySettings, Configuration cfg) {
+        String authenticationType = repositorySettings.settings().get("authentication_type");
+        if ("kerberos".equals(authenticationType)) {
+            System.setProperty("java.security.krb5.conf", cfg.get("kerberos_config"));
+            cfg.addResource(new Path(cfg.get("hdfs_config")));
+            cfg.addResource(new Path(cfg.get("hadoop_config")));
+            cfg.set("hadoop.security.authentication", authenticationType);
+            UserGroupInformation.setConfiguration(cfg);
+        }
+      }
 
     private void addConfigLocation(Configuration cfg, String confLocation) {
         URL cfgURL = null;

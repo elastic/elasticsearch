@@ -10,5 +10,8 @@ repositories:
         concurrent_streams: "2"
         compress: "true"
         chunk_size: "1mb"
+        conf.kerberos_config: "/etc/krb5.conf"
+        conf.hdfs_config: "/etc/hadoop/hdfs-site.xml"
+        conf.hadoop_config: "/etc/hadoop/core-site.xml"
 
 

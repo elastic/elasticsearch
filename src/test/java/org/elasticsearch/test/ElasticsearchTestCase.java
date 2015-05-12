@@ -30,12 +30,14 @@ import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import com.carrotsearch.randomizedtesting.rules.TestRuleAdapter;
 import com.google.common.base.Predicate;
+
 import org.apache.lucene.uninverting.UninvertingReader;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
 import org.apache.lucene.util.TestUtil;
 import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.Version;
+import org.elasticsearch.bootstrap.BootstrapForTesting;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.DjbHashFunction;
@@ -93,7 +95,7 @@ import static com.google.common.collect.Lists.newArrayList;
 public abstract class ElasticsearchTestCase extends LuceneTestCase {
 
     static {
-        SecurityBootstrap.ensureInitialized();
+        BootstrapForTesting.ensureInitialized();
     }
 
     protected final ESLogger logger = Loggers.getLogger(getClass());

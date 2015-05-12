@@ -642,19 +642,11 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData> {
      * @param indicesOptions   how the aliases or indices need to be resolved to concrete indices
      * @param aliasesOrIndices the aliases or indices to be resolved to concrete indices
      * @return the obtained concrete indices
-<<<<<<< HEAD
      * @throws IndexMissingException if one of the aliases or indices is missing and the provided indices options
      * don't allow such a case, or if the final result of the indices resolution is no indices and the indices options
      * don't allow such a case.
      * @throws IllegalArgumentException if one of the aliases resolve to multiple indices and the provided
      * indices options don't allow such a case.
-=======
-     * @throws IndexMissingException                 if one of the aliases or indices is missing and the provided indices options
-     *                                               don't allow such a case, or if the final result of the indices resolution is no indices and the indices options
-     *                                               don't allow such a case.
-     * @throws ElasticsearchIllegalArgumentException if one of the aliases resolve to multiple indices and the provided
-     *                                               indices options don't allow such a case.
->>>>>>> Add support for cluster state diffs
      */
     public String[] concreteIndices(IndicesOptions indicesOptions, String... aliasesOrIndices) throws IndexMissingException, IllegalArgumentException {
         if (indicesOptions.expandWildcardsOpen() || indicesOptions.expandWildcardsClosed()) {

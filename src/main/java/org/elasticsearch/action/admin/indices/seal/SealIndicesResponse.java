@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.syncedflush;
+package org.elasticsearch.action.admin.indices.seal;
 
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -31,16 +31,16 @@ import java.io.IOException;
 import java.util.*;
 
 /**
- * A response to a synced flush action on several indices.
+ * A response to a seal action on several indices.
  */
-public class SyncedFlushIndicesResponse extends ActionResponse implements ToXContent {
+public class SealIndicesResponse extends ActionResponse implements ToXContent {
 
     private Set<SyncedFlushService.SyncedFlushResult> results;
 
-    SyncedFlushIndicesResponse() {
+    SealIndicesResponse() {
     }
 
-    SyncedFlushIndicesResponse(Set<SyncedFlushService.SyncedFlushResult> results) {
+    SealIndicesResponse(Set<SyncedFlushService.SyncedFlushResult> results) {
         this.results = results;
     }
 

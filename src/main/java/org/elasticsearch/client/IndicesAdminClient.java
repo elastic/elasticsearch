@@ -84,9 +84,9 @@ import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRespons
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequestBuilder;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
-import org.elasticsearch.action.admin.indices.syncedflush.SyncedFlushIndicesRequest;
-import org.elasticsearch.action.admin.indices.syncedflush.SyncedFlushIndicesRequestBuilder;
-import org.elasticsearch.action.admin.indices.syncedflush.SyncedFlushIndicesResponse;
+import org.elasticsearch.action.admin.indices.seal.SealIndicesRequest;
+import org.elasticsearch.action.admin.indices.seal.SealIndicesRequestBuilder;
+import org.elasticsearch.action.admin.indices.seal.SealIndicesResponse;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateRequestBuilder;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateResponse;
@@ -365,23 +365,23 @@ public interface IndicesAdminClient extends ElasticsearchClient {
     /**
      * Explicitly sync flush one or more indices
      *
-     * @param request The sync flush request
+     * @param request The seal indices request
      * @return A result future
      */
-    ActionFuture<SyncedFlushIndicesResponse> syncedFlush(SyncedFlushIndicesRequest request);
+    ActionFuture<SealIndicesResponse> sealIndices(SealIndicesRequest request);
 
     /**
      * Explicitly sync flush one or more indices
      *
-     * @param request The sync flush request
+     * @param request  The seal indices request
      * @param listener A listener to be notified with a result
      */
-    void syncedFlush(SyncedFlushIndicesRequest request, ActionListener <SyncedFlushIndicesResponse> listener);
+    void sealIndices(SealIndicesRequest request, ActionListener<SealIndicesResponse> listener);
 
     /**
-     * Explicitly sync flush one or more indices
+     * Explicitly seal one or more indices
      */
-    SyncedFlushIndicesRequestBuilder prepareSyncedFlush(String... indices);
+    SealIndicesRequestBuilder prepareSealIndices(String... indices);
 
     /**
      * Explicitly optimize one or more indices into a the number of segments.

@@ -180,10 +180,10 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequestBuilder;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
-import org.elasticsearch.action.admin.indices.syncedflush.SyncedFlushIndicesAction;
-import org.elasticsearch.action.admin.indices.syncedflush.SyncedFlushIndicesRequest;
-import org.elasticsearch.action.admin.indices.syncedflush.SyncedFlushIndicesRequestBuilder;
-import org.elasticsearch.action.admin.indices.syncedflush.SyncedFlushIndicesResponse;
+import org.elasticsearch.action.admin.indices.seal.SealIndicesAction;
+import org.elasticsearch.action.admin.indices.seal.SealIndicesRequest;
+import org.elasticsearch.action.admin.indices.seal.SealIndicesRequestBuilder;
+import org.elasticsearch.action.admin.indices.seal.SealIndicesResponse;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateRequestBuilder;
@@ -1328,18 +1328,18 @@ public abstract class AbstractClient extends AbstractComponent implements Client
         }
 
         @Override
-        public ActionFuture<SyncedFlushIndicesResponse> syncedFlush(SyncedFlushIndicesRequest request) {
-            return execute(SyncedFlushIndicesAction.INSTANCE, request);
+        public ActionFuture<SealIndicesResponse> sealIndices(SealIndicesRequest request) {
+            return execute(SealIndicesAction.INSTANCE, request);
         }
 
         @Override
-        public void syncedFlush(SyncedFlushIndicesRequest request, ActionListener <SyncedFlushIndicesResponse> listener) {
-            execute(SyncedFlushIndicesAction.INSTANCE, request, listener);
+        public void sealIndices(SealIndicesRequest request, ActionListener<SealIndicesResponse> listener) {
+            execute(SealIndicesAction.INSTANCE, request, listener);
         }
 
         @Override
-        public SyncedFlushIndicesRequestBuilder prepareSyncedFlush(String... indices) {
-            return new SyncedFlushIndicesRequestBuilder(this, SyncedFlushIndicesAction.INSTANCE).indices(indices);
+        public SealIndicesRequestBuilder prepareSealIndices(String... indices) {
+            return new SealIndicesRequestBuilder(this, SealIndicesAction.INSTANCE).indices(indices);
         }
 
         @Override

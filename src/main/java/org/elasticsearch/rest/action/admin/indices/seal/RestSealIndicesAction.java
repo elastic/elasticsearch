@@ -17,23 +17,19 @@
  * under the License.
  */
 
-package org.elasticsearch.rest.action.admin.indices.syncedflush;
+package org.elasticsearch.rest.action.admin.indices.seal;
 
-import org.elasticsearch.action.admin.indices.syncedflush.SyncedFlushIndicesAction;
-import org.elasticsearch.action.admin.indices.syncedflush.SyncedFlushIndicesRequest;
-import org.elasticsearch.action.admin.indices.syncedflush.SyncedFlushIndicesResponse;
+import org.elasticsearch.action.admin.indices.seal.SealIndicesAction;
+import org.elasticsearch.action.admin.indices.seal.SealIndicesRequest;
+import org.elasticsearch.action.admin.indices.seal.SealIndicesResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.indices.SyncedFlushService;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
-
-import java.util.Map;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -42,25 +38,25 @@ import static org.elasticsearch.rest.RestStatus.OK;
 /**
  *
  */
-public class RestSyncedFlushAction extends BaseRestHandler {
+public class RestSealIndicesAction extends BaseRestHandler {
 
     @Inject
-    public RestSyncedFlushAction(Settings settings, RestController controller, Client client) {
+    public RestSealIndicesAction(Settings settings, RestController controller, Client client) {
         super(settings, controller, client);
-        controller.registerHandler(POST, "/_syncedflush", this);
-        controller.registerHandler(POST, "/{index}/_syncedflush", this);
+        controller.registerHandler(POST, "/_seal", this);
+        controller.registerHandler(POST, "/{index}/_seal", this);
 
-        controller.registerHandler(GET, "/_syncedflush", this);
-        controller.registerHandler(GET, "/{index}/_syncedflush", this);
+        controller.registerHandler(GET, "/_seal", this);
+        controller.registerHandler(GET, "/{index}/_seal", this);
     }
 
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
         String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
-        SyncedFlushIndicesRequest syncedFlushIndicesRequest = new SyncedFlushIndicesRequest(indices);
-        client.admin().indices().execute(SyncedFlushIndicesAction.INSTANCE, syncedFlushIndicesRequest, new RestBuilderListener<SyncedFlushIndicesResponse>(channel) {
+        SealIndicesRequest sealIndicesRequest = new SealIndicesRequest(indices);
+        client.admin().indices().execute(SealIndicesAction.INSTANCE, sealIndicesRequest, new RestBuilderListener<SealIndicesResponse>(channel) {
             @Override
-            public RestResponse buildResponse(SyncedFlushIndicesResponse response, XContentBuilder builder) throws Exception {
+            public RestResponse buildResponse(SealIndicesResponse response, XContentBuilder builder) throws Exception {
                 builder.startObject();
                 builder = response.toXContent(builder, ToXContent.EMPTY_PARAMS);
                 builder.endObject();

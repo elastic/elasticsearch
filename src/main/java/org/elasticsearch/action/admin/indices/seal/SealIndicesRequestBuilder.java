@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.syncedflush;
+package org.elasticsearch.action.admin.indices.seal;
 
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
@@ -25,13 +25,13 @@ import org.elasticsearch.client.ElasticsearchClient;
 /**
  *
  */
-public class SyncedFlushIndicesRequestBuilder extends ActionRequestBuilder<SyncedFlushIndicesRequest, SyncedFlushIndicesResponse, SyncedFlushIndicesRequestBuilder> {
+public class SealIndicesRequestBuilder extends ActionRequestBuilder<SealIndicesRequest, SealIndicesResponse, SealIndicesRequestBuilder> {
 
-    public SyncedFlushIndicesRequestBuilder(ElasticsearchClient client, SyncedFlushIndicesAction action) {
-        super(client, action, new SyncedFlushIndicesRequest());
+    public SealIndicesRequestBuilder(ElasticsearchClient client, SealIndicesAction action) {
+        super(client, action, new SealIndicesRequest());
     }
 
-    public SyncedFlushIndicesRequestBuilder indices(String ... indices) {
+    public SealIndicesRequestBuilder indices(String ... indices) {
         request.indices(indices);
         return this;
     }

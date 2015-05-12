@@ -17,29 +17,29 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.syncedflush;
+package org.elasticsearch.action.admin.indices.seal;
 
 import org.elasticsearch.action.Action;
 import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  */
-public class SyncedFlushIndicesAction extends Action<SyncedFlushIndicesRequest, SyncedFlushIndicesResponse, SyncedFlushIndicesRequestBuilder> {
+public class SealIndicesAction extends Action<SealIndicesRequest, SealIndicesResponse, SealIndicesRequestBuilder> {
 
-    public static final SyncedFlushIndicesAction INSTANCE = new SyncedFlushIndicesAction();
-    public static final String NAME = "indices:admin/syncedflushindices";
+    public static final SealIndicesAction INSTANCE = new SealIndicesAction();
+    public static final String NAME = "indices:admin/sealindices";
 
-    private SyncedFlushIndicesAction() {
+    private SealIndicesAction() {
         super(NAME);
     }
 
     @Override
-    public SyncedFlushIndicesResponse newResponse() {
-        return new SyncedFlushIndicesResponse();
+    public SealIndicesResponse newResponse() {
+        return new SealIndicesResponse();
     }
 
     @Override
-    public SyncedFlushIndicesRequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new SyncedFlushIndicesRequestBuilder(client, this);
+    public SealIndicesRequestBuilder newRequestBuilder(ElasticsearchClient client) {
+        return new SealIndicesRequestBuilder(client, this);
     }
 }

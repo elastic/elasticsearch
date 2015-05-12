@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.syncedflush;
+package org.elasticsearch.action.admin.indices.seal;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -30,23 +30,22 @@ import java.io.IOException;
 import java.util.Arrays;
 
 /**
- * A synced flush request to sync flush one or more indices.
- * <p>Best created with {@link org.elasticsearch.client.Requests#flushRequest(String...)}.
+ * A request to seal one or more indices.
  */
-public class SyncedFlushIndicesRequest extends ActionRequest implements IndicesRequest.Replaceable {
+public class SealIndicesRequest extends ActionRequest implements IndicesRequest.Replaceable {
 
     private String[] indices;
 
     private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpenAndForbidClosed();
 
-    SyncedFlushIndicesRequest() {
+    SealIndicesRequest() {
     }
 
     /**
-     * Constructs a new synced flush request against one or more indices. If nothing is provided, all indices will
-     * be sync flushed.
+     * Constructs a seal request against one or more indices. If nothing is provided, all indices will
+     * be sealed.
      */
-    public SyncedFlushIndicesRequest(String... indices) {
+    public SealIndicesRequest(String... indices) {
         this.indices = indices;
     }
 
@@ -59,7 +58,7 @@ public class SyncedFlushIndicesRequest extends ActionRequest implements IndicesR
 
     @Override
     public String toString() {
-        return "SyncedFlushIndicesRequest{" +
+        return "SealIndicesRequest{" +
                 "indices=" + Arrays.toString(indices) +
                 ", indicesOptions=" + indicesOptions +
                 '}';
@@ -78,7 +77,7 @@ public class SyncedFlushIndicesRequest extends ActionRequest implements IndicesR
     }
 
     @Override
-    public SyncedFlushIndicesRequest indices(String[] indices) {
+    public SealIndicesRequest indices(String[] indices) {
         this.indices = indices;
         return this;
     }
@@ -93,7 +92,7 @@ public class SyncedFlushIndicesRequest extends ActionRequest implements IndicesR
     }
 
     @SuppressWarnings("unchecked")
-    public final SyncedFlushIndicesRequest indicesOptions(IndicesOptions indicesOptions) {
+    public final SealIndicesRequest indicesOptions(IndicesOptions indicesOptions) {
         this.indicesOptions = indicesOptions;
         return this;
     }

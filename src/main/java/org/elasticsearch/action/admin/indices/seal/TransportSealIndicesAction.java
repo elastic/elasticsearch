@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.syncedflush;
+package org.elasticsearch.action.admin.indices.seal;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
@@ -31,7 +31,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.index.shard.ShardId;
@@ -41,32 +40,28 @@ import org.elasticsearch.transport.*;
 
 import java.io.IOException;
 import java.util.Set;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 
 /**
- * Synced flush action
  */
-public class TransportSyncedFlushIndicesAction extends HandledTransportAction<SyncedFlushIndicesRequest, SyncedFlushIndicesResponse> {
+public class TransportSealIndicesAction extends HandledTransportAction<SealIndicesRequest, SealIndicesResponse> {
 
 
     final private SyncedFlushService syncedFlushService;
     final private ClusterService clusterService;
     private final TransportService transportService;
-    public static final String INDICES_SYNCED_FLUSH_ACTION_NAME = "internal:indices/flush/synced/indices";
 
     @Inject
-    public TransportSyncedFlushIndicesAction(Settings settings, ThreadPool threadPool, TransportService transportService, ActionFilters actionFilters, SyncedFlushService syncedFlushService, ClusterService clusterService) {
-        super(settings, SyncedFlushIndicesAction.NAME, threadPool, transportService, actionFilters, SyncedFlushIndicesRequest.class);
+    public TransportSealIndicesAction(Settings settings, ThreadPool threadPool, TransportService transportService, ActionFilters actionFilters, SyncedFlushService syncedFlushService, ClusterService clusterService) {
+        super(settings, SealIndicesAction.NAME, threadPool, transportService, actionFilters, SealIndicesRequest.class);
         this.syncedFlushService = syncedFlushService;
         this.clusterService = clusterService;
         this.transportService = transportService;
-        transportService.registerRequestHandler(INDICES_SYNCED_FLUSH_ACTION_NAME, ShardSyncedFlushRequest.class, ThreadPool.Names.GENERIC, new ShardSyncedFlushHandler());
+        transportService.registerRequestHandler(SealIndicesAction.NAME, ShardSyncedFlushRequest.class, ThreadPool.Names.GENERIC, new ShardSyncedFlushHandler());
     }
 
 
     @Override
-    protected void doExecute(final SyncedFlushIndicesRequest request, final ActionListener<SyncedFlushIndicesResponse> listener) {
+    protected void doExecute(final SealIndicesRequest request, final ActionListener<SealIndicesResponse> listener) {
         // we need to execute in a thread here because getSyncedFlushResults(request, state) blocks
         ClusterState state = clusterService.state();
         String[] concreteIndices = state.metaData().concreteIndices(request.indicesOptions(), request.indices());
@@ -76,7 +71,7 @@ public class TransportSyncedFlushIndicesAction extends HandledTransportAction<Sy
         final Set<SyncedFlushService.SyncedFlushResult> results = ConcurrentCollections.newConcurrentSet();
         for (ShardIterator shard : primaries) {
             final ShardId shardId = shard.shardId();
-            transportService.sendRequest(localNode, INDICES_SYNCED_FLUSH_ACTION_NAME, new ShardSyncedFlushRequest(shardId),
+            transportService.sendRequest(localNode, SealIndicesAction.NAME, new ShardSyncedFlushRequest(shardId),
                     new BaseTransportResponseHandler<SyncedFlushService.SyncedFlushResult>() {
                         @Override
                         public SyncedFlushService.SyncedFlushResult newInstance() {
@@ -87,7 +82,7 @@ public class TransportSyncedFlushIndicesAction extends HandledTransportAction<Sy
                         public void handleResponse(SyncedFlushService.SyncedFlushResult response) {
                             results.add(response);
                             if (countDown.countDown()) {
-                                listener.onResponse(new SyncedFlushIndicesResponse(results));
+                                listener.onResponse(new SealIndicesResponse(results));
                             }
                         }
 
@@ -96,7 +91,7 @@ public class TransportSyncedFlushIndicesAction extends HandledTransportAction<Sy
                             logger.debug("{} unexpected error while executing synced flush", shardId);
                             results.add(new SyncedFlushService.SyncedFlushResult(shardId, exp.getMessage()));
                             if (countDown.countDown()) {
-                                listener.onResponse(new SyncedFlushIndicesResponse(results));
+                                listener.onResponse(new SealIndicesResponse(results));
                             }
                         }
 

@@ -1,5 +1,5 @@
 ---
-"Synced flush rest test":
+"Index seal rest test":
 - do:
    indices.create:
       index: testing
@@ -8,7 +8,7 @@
    cluster.health:
       wait_for_status: green
 - do:
-   indices.syncedflush:
+   indices.seal:
       index: testing
 - do:
    indices.stats: {level: shards}

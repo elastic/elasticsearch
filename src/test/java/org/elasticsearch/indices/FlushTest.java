@@ -22,7 +22,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
-import org.elasticsearch.action.admin.indices.syncedflush.SyncedFlushIndicesResponse;
+import org.elasticsearch.action.admin.indices.seal.SealIndicesResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -41,7 +41,6 @@ import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -152,7 +151,7 @@ public class FlushTest extends ElasticsearchIntegrationTest {
             assertNull(shardStats.getCommitStats().getUserData().get(Engine.SYNC_COMMIT_ID));
         }
         logger.info("--> trying sync flush");
-        SyncedFlushIndicesResponse syncedFlushIndicesResponse = client().admin().indices().prepareSyncedFlush("test").get();
+        SealIndicesResponse sealIndicesResponse = client().admin().indices().prepareSealIndices("test").get();
         logger.info("--> sync flush done");
         indexStats = client().admin().indices().prepareStats("test").get().getIndex("test");
         for (ShardStats shardStats : indexStats.getShards()) {
@@ -188,13 +187,13 @@ public class FlushTest extends ElasticsearchIntegrationTest {
             assertNull(shardStats.getCommitStats().getUserData().get(Engine.SYNC_COMMIT_ID));
         }
         logger.info("--> trying sync flush");
-        SyncedFlushIndicesResponse syncedFlushIndicesResponse = client().admin().indices().prepareSyncedFlush("test").get();
+        SealIndicesResponse sealIndicesResponse = client().admin().indices().prepareSealIndices("test").get();
         logger.info("--> sync flush done");
         stop.set(true);
         indexingThread.join();
         indexStats = client().admin().indices().prepareStats("test").get().getIndex("test");
         for (ShardStats shardStats : indexStats.getShards()) {
-            assertFlushResponseEqualsShardStats(shardStats, syncedFlushIndicesResponse);
+            assertFlushResponseEqualsShardStats(shardStats, sealIndicesResponse);
         }
         refresh();
         assertThat(client().prepareCount().get().getCount(), equalTo((long) numDocs.get()));
@@ -205,9 +204,9 @@ public class FlushTest extends ElasticsearchIntegrationTest {
         assertThat(client().prepareCount().get().getCount(), equalTo((long) numDocs.get()));
     }
 
-    private void assertFlushResponseEqualsShardStats(ShardStats shardStats, SyncedFlushIndicesResponse syncedFlushIndicesResponse) {
+    private void assertFlushResponseEqualsShardStats(ShardStats shardStats, SealIndicesResponse sealIndicesResponse) {
 
-        for (SyncedFlushService.SyncedFlushResult shardResult : syncedFlushIndicesResponse.results()) {
+        for (SyncedFlushService.SyncedFlushResult shardResult : sealIndicesResponse.results()) {
             if (shardStats.getShardRouting().getId() == shardResult.shardId().getId()) {
                 for (Map.Entry<ShardRouting, SyncedFlushService.SyncedFlushResponse> singleResponse : shardResult.shardResponses().entrySet()) {
                     if (singleResponse.getKey().currentNodeId().equals(shardStats.getShardRouting().currentNodeId())) {

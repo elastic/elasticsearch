@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.syncedflush;
+package org.elasticsearch.action.admin.indices.seal;
 
 import org.elasticsearch.cluster.routing.ImmutableShardRouting;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -32,7 +32,7 @@ import java.util.*;
 import static org.elasticsearch.test.XContentTestUtils.convertToMap;
 import static org.hamcrest.Matchers.equalTo;
 
-public class SyncedFlushTests extends ElasticsearchTestCase {
+public class SealIndicesTests extends ElasticsearchTestCase {
 
     public void testXContentResponse() throws IOException {
 
@@ -50,8 +50,8 @@ public class SyncedFlushTests extends ElasticsearchTestCase {
         // add one result where all failed
         syncedFlushResult = new SyncedFlushService.SyncedFlushResult(new ShardId("test", 1), "all failed :(");
         shardResults.add(syncedFlushResult);
-        SyncedFlushIndicesResponse syncedFlushIndicesResponse = new SyncedFlushIndicesResponse(shardResults);
-        Map<String, Object> asMap = convertToMap(syncedFlushIndicesResponse);
+        SealIndicesResponse sealIndicesResponse = new SealIndicesResponse(shardResults);
+        Map<String, Object> asMap = convertToMap(sealIndicesResponse);
         assertNotNull(asMap.get("test"));
         assertThat((Integer)(((HashMap)((ArrayList) asMap.get("test")).get(0)).get("shard_id")), equalTo(0));
         assertThat((String)(((HashMap)((ArrayList) asMap.get("test")).get(0)).get("message")), equalTo("failed on some copies"));

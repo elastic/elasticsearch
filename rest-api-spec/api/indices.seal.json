@@ -1,10 +1,10 @@
 {
-  "indices.syncedflush": {
-    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/indices-synced-flush.html",
+  "indices.seal": {
+    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/indices-seal.html",
     "methods": ["POST", "GET"],
     "url": {
-      "path": "/_syncedflush",
-      "paths": ["/_syncedflush", "/{index}/_syncedflush"],
+      "path": "/_seal",
+      "paths": ["/_seal", "/{index}/_seal"],
       "parts": {
         "index": {
           "type" : "list",

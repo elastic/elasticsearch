@@ -218,3 +218,6 @@ See the {client}/net-api/current/index.html[official Elasticsearch .NET client].
 === R
 * https://github.com/Tomesch/elasticsearch[elasticsearch]
   R client for Elasticsearch
+
+* https://github.com/ropensci/elastic[elastic]: 
+  A general purpose R client for Elasticsearch

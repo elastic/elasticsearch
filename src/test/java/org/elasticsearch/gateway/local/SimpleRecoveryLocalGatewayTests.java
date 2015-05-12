@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocation
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.gateway.local.LocalIndexShardGateway;
 import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.recovery.RecoveryState;
@@ -113,9 +114,7 @@ public class SimpleRecoveryLocalGatewayTests extends ElasticsearchIntegrationTes
     @Test
     @Slow
     public void testSingleNodeNoFlush() throws Exception {
-
         internalCluster().startNode(settingsBuilder().build());
-
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("field").field("type", "string").endObject().startObject("num").field("type", "integer").endObject().endObject()
                 .endObject().endObject().string();
@@ -123,7 +122,8 @@ public class SimpleRecoveryLocalGatewayTests extends ElasticsearchIntegrationTes
         int numberOfShards = numberOfShards();
         assertAcked(prepareCreate("test").setSettings(
                 SETTING_NUMBER_OF_SHARDS, numberOfShards(),
-                SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 1)
+                SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 1),
+                LocalIndexShardGateway.SYNC_INTERVAL, "5s" //fsync is expensive and we are replaying a lot of docs during translog replay - make sure we dont' get a random 0 here causing sync on every operation
         ).addMapping("type1", mapping));
 
         int value1Docs;

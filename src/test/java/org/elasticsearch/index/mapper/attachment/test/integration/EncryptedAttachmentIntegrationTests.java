@@ -75,7 +75,7 @@ public class EncryptedAttachmentIntegrationTests extends AttachmentIntegrationTe
         refresh();
 
 
-        CountResponse countResponse = client().prepareCount("test").setQuery(queryStringQuery("World").defaultField("file1")).execute().get();
+        CountResponse countResponse = client().prepareCount("test").setQuery(queryStringQuery("World").defaultField("file1.content")).execute().get();
         assertThatWithError(countResponse.getCount(), equalTo(1l));
 
         countResponse = client().prepareCount("test").setQuery(queryStringQuery("World").defaultField("hello")).execute().get();

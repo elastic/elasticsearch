@@ -3,7 +3,6 @@
         "properties": {
             "file": {
                 "type": "attachment",
-                "path": "full",
                 "fields": {
                     "language": { "type": "string" }
                 }

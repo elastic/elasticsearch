@@ -133,16 +133,15 @@ public class VariousDocTest extends AttachmentUnitTestCase {
 
         BytesReference json = jsonBuilder()
                 .startObject()
-                    .field("_id", 1)
                     .startObject("file")
                         .field("_name", filename)
                         .field("_content", html)
                     .endObject()
                 .endObject().bytes();
 
-        ParseContext.Document doc =  docMapper.parse(json).rootDoc();
+        ParseContext.Document doc =  docMapper.parse("person", "1", json).rootDoc();
         if (!errorExpected) {
-            assertThat(doc.get(docMapper.mappers().getMapper("file").names().indexName()), not(isEmptyOrNullString()));
+            assertThat(doc.get(docMapper.mappers().getMapper("file.content").names().indexName()), not(isEmptyOrNullString()));
             logger.debug("-> extracted content: {}", doc.get(docMapper.mappers().getMapper("file").names().indexName()));
             logger.debug("-> extracted metadata:");
             printMetadataContent(doc, AUTHOR);

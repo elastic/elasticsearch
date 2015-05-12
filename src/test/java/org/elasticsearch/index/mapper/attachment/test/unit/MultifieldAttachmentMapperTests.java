@@ -63,8 +63,8 @@ public class MultifieldAttachmentMapperTests extends AttachmentUnitTestCase {
         DocumentMapper docMapper = mapperParser.parse(mapping);
 
 
-        assertThat(docMapper.mappers().getMapper("file"), instanceOf(StringFieldMapper.class));
-        assertThat(docMapper.mappers().getMapper("file.suggest"), instanceOf(StringFieldMapper.class));
+        assertThat(docMapper.mappers().getMapper("file.content"), instanceOf(StringFieldMapper.class));
+        assertThat(docMapper.mappers().getMapper("file.content.suggest"), instanceOf(StringFieldMapper.class));
 
         assertThat(docMapper.mappers().getMapper("file.date"), instanceOf(DateFieldMapper.class));
         assertThat(docMapper.mappers().getMapper("file.date.string"), instanceOf(StringFieldMapper.class));
@@ -107,8 +107,8 @@ public class MultifieldAttachmentMapperTests extends AttachmentUnitTestCase {
                 .endObject()
                 .bytes());
 
-        assertThat(doc.rootDoc().getField("file"), notNullValue());
-        assertThat(doc.rootDoc().getField("file").stringValue(), is(originalText + "\n"));
+        assertThat(doc.rootDoc().getField("file.content"), notNullValue());
+        assertThat(doc.rootDoc().getField("file.content").stringValue(), is(originalText + "\n"));
 
         assertThat(doc.rootDoc().getField("file.content_type"), notNullValue());
         assertThat(doc.rootDoc().getField("file.content_type").stringValue(), is(contentType));
@@ -117,8 +117,8 @@ public class MultifieldAttachmentMapperTests extends AttachmentUnitTestCase {
         assertThat(doc.rootDoc().getField("file.content_length"), notNullValue());
         assertThat(doc.rootDoc().getField("file.content_length").numericValue().intValue(), is(originalText.length()));
 
-        assertThat(doc.rootDoc().getField("file.suggest"), notNullValue());
-        assertThat(doc.rootDoc().getField("file.suggest").stringValue(), is(originalText + "\n"));
+        assertThat(doc.rootDoc().getField("file.content.suggest"), notNullValue());
+        assertThat(doc.rootDoc().getField("file.content.suggest").stringValue(), is(originalText + "\n"));
 
         // Let's force some values
         doc = documentMapper.parse("person", "1", XContentFactory.jsonBuilder()
@@ -130,8 +130,8 @@ public class MultifieldAttachmentMapperTests extends AttachmentUnitTestCase {
                 .endObject()
                 .bytes());
 
-        assertThat(doc.rootDoc().getField("file"), notNullValue());
-        assertThat(doc.rootDoc().getField("file").stringValue(), is(originalText + "\n"));
+        assertThat(doc.rootDoc().getField("file.content"), notNullValue());
+        assertThat(doc.rootDoc().getField("file.content").stringValue(), is(originalText + "\n"));
 
         assertThat(doc.rootDoc().getField("file.content_type"), notNullValue());
         assertThat(doc.rootDoc().getField("file.content_type").stringValue(), is(contentType));
@@ -140,8 +140,8 @@ public class MultifieldAttachmentMapperTests extends AttachmentUnitTestCase {
         assertThat(doc.rootDoc().getField("file.content_length"), notNullValue());
         assertThat(doc.rootDoc().getField("file.content_length").numericValue().intValue(), is(originalText.length()));
 
-        assertThat(doc.rootDoc().getField("file.suggest"), notNullValue());
-        assertThat(doc.rootDoc().getField("file.suggest").stringValue(), is(originalText + "\n"));
+        assertThat(doc.rootDoc().getField("file.content.suggest"), notNullValue());
+        assertThat(doc.rootDoc().getField("file.content.suggest").stringValue(), is(originalText + "\n"));
 
         assertThat(doc.rootDoc().getField("file.name"), notNullValue());
         assertThat(doc.rootDoc().getField("file.name").stringValue(), is(forcedName));

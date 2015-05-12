@@ -61,7 +61,7 @@ public class EncryptedDocMapperTest extends AttachmentUnitTestCase {
                 .endObject().bytes();
 
         ParseContext.Document doc =  docMapper.parse(json).rootDoc();
-        assertThat(doc.get(docMapper.mappers().getMapper("file1").names().indexName()), containsString("World"));
+        assertThat(doc.get(docMapper.mappers().getMapper("file1.content").names().indexName()), containsString("World"));
         assertThat(doc.get(docMapper.mappers().getMapper("file1.title").names().indexName()), equalTo("Hello"));
         assertThat(doc.get(docMapper.mappers().getMapper("file1.author").names().indexName()), equalTo("kimchy"));
         assertThat(doc.get(docMapper.mappers().getMapper("file1.keywords").names().indexName()), equalTo("elasticsearch,cool,bonsai"));
@@ -101,7 +101,7 @@ public class EncryptedDocMapperTest extends AttachmentUnitTestCase {
         assertThat(doc.get(docMapper.mappers().getMapper("file1.content_type").names().indexName()), nullValue());
         assertThat(doc.getField(docMapper.mappers().getMapper("file1.content_length").names().indexName()), nullValue());
 
-        assertThat(doc.get(docMapper.mappers().getMapper("file2").names().indexName()), containsString("World"));
+        assertThat(doc.get(docMapper.mappers().getMapper("file2.content").names().indexName()), containsString("World"));
         assertThat(doc.get(docMapper.mappers().getMapper("file2.title").names().indexName()), equalTo("Hello"));
         assertThat(doc.get(docMapper.mappers().getMapper("file2.author").names().indexName()), equalTo("kimchy"));
         assertThat(doc.get(docMapper.mappers().getMapper("file2.keywords").names().indexName()), equalTo("elasticsearch,cool,bonsai"));

@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.mapper.attachment.test.unit;
 
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -64,7 +66,7 @@ public class MetadataMapperTest extends AttachmentUnitTestCase {
                 .endObject().bytes();
 
         ParseContext.Document doc =  docMapper.parse(json).rootDoc();
-        assertThat(doc.get(docMapper.mappers().getMapper("file").names().indexName()), containsString("World"));
+        assertThat(doc.get(docMapper.mappers().getMapper("file.content").names().indexName()), containsString("World"));
         assertThat(doc.get(docMapper.mappers().getMapper("file.name").names().indexName()), equalTo(filename));
         if (expectedDate == null) {
             assertThat(doc.getField(docMapper.mappers().getMapper("file.date").names().indexName()), nullValue());

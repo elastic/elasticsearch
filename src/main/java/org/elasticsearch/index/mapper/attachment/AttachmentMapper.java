@@ -25,6 +25,9 @@ import org.apache.lucene.util.Constants;
 import org.apache.tika.Tika;
 import org.apache.tika.language.LanguageIdentifier;
 import org.apache.tika.metadata.Metadata;
+import org.elasticsearch.Version;
+import org.elasticsearch.common.collect.Iterators;
+import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
@@ -76,6 +79,7 @@ public class AttachmentMapper extends AbstractFieldMapper<Object> {
     }
 
     public static class FieldNames {
+        public static final String CONTENT = "content";
         public static final String TITLE = "title";
         public static final String NAME = "name";
         public static final String AUTHOR = "author";
@@ -117,7 +121,7 @@ public class AttachmentMapper extends AbstractFieldMapper<Object> {
         public Builder(String name) {
             super(name, new FieldType(AbstractFieldMapper.Defaults.FIELD_TYPE));
             this.builder = this;
-            this.contentBuilder = stringField(name);
+            this.contentBuilder = stringField(FieldNames.CONTENT);
         }
 
         public Builder pathType(ContentPath.Type pathType) {
@@ -175,11 +179,21 @@ public class AttachmentMapper extends AbstractFieldMapper<Object> {
             ContentPath.Type origPathType = context.path().pathType();
             context.path().pathType(pathType);
 
-            // create the content mapper under the actual name
-            FieldMapper<?> contentMapper = (FieldMapper<?>) contentBuilder.build(context);
+            FieldMapper<?> contentMapper;
+            if (context.indexCreatedVersion().before(Version.V_2_0_0)) {
+                // old behavior, we need the content to be indexed under the attachment field name
+                if (contentBuilder instanceof AbstractFieldMapper.Builder == false) {
+                    throw new IllegalStateException("content field for attachment must be a field mapper");
+                }
+                ((AbstractFieldMapper.Builder)contentBuilder).indexName(name);
+                contentBuilder.name = name + "." + FieldNames.CONTENT;
+                contentMapper = (FieldMapper<?>) contentBuilder.build(context);
+                context.path().add(name);
+            } else {
+                context.path().add(name);
+                contentMapper = (FieldMapper<?>) contentBuilder.build(context);
+            }
 
-            // create the DC one under the name
-            context.path().add(name);
             FieldMapper<?> dateMapper = (FieldMapper<?>) dateBuilder.build(context);
             FieldMapper<?> authorMapper = (FieldMapper<?>) authorBuilder.build(context);
             FieldMapper<?> titleMapper = (FieldMapper<?>) titleBuilder.build(context);
@@ -228,7 +242,7 @@ public class AttachmentMapper extends AbstractFieldMapper<Object> {
      *  field1 : {
      *      type : "attachment",
      *      fields : {
-     *          field1 : {type : "binary"},
+     *          content : {type : "binary"},
      *          title : {store : "yes"},
      *          date : {store : "yes"},
      *          name : {store : "yes"},
@@ -265,7 +279,7 @@ public class AttachmentMapper extends AbstractFieldMapper<Object> {
                 Map.Entry<String, Object> entry = iterator.next();
                 String fieldName = entry.getKey();
                 Object fieldNode = entry.getValue();
-                if (fieldName.equals("path")) {
+                if (fieldName.equals("path") && parserContext.indexVersionCreated().before(Version.V_2_0_0)) {
                     builder.pathType(parsePathType(name, fieldNode.toString()));
                     iterator.remove();
                 } else if (fieldName.equals("fields")) {
@@ -278,11 +292,15 @@ public class AttachmentMapper extends AbstractFieldMapper<Object> {
                         Mapper.Builder<?, ?> mapperBuilder = findMapperBuilder(propNode, propName, parserContext);
                         if (parseMultiField((AbstractFieldMapper.Builder) mapperBuilder, fieldName, parserContext, propName, propNode)) {
                             fieldsIterator.remove();
-                        } else if (propName.equals(name)) {
+                        } else if (propName.equals(name) && parserContext.indexVersionCreated().before(Version.V_2_0_0)) {
                             builder.content(mapperBuilder);
                             fieldsIterator.remove();
                         } else {
                             switch (propName) {
+                                case FieldNames.CONTENT:
+                                    builder.content(mapperBuilder);
+                                    fieldsIterator.remove();
+                                    break;
                                 case FieldNames.DATE:
                                     builder.date(mapperBuilder);
                                 fieldsIterator.remove();
@@ -592,20 +610,18 @@ public class AttachmentMapper extends AbstractFieldMapper<Object> {
     }
 
     @Override
-    public void traverse(FieldMapperListener fieldMapperListener) {
-        contentMapper.traverse(fieldMapperListener);
-        dateMapper.traverse(fieldMapperListener);
-        titleMapper.traverse(fieldMapperListener);
-        nameMapper.traverse(fieldMapperListener);
-        authorMapper.traverse(fieldMapperListener);
-        keywordsMapper.traverse(fieldMapperListener);
-        contentTypeMapper.traverse(fieldMapperListener);
-        contentLengthMapper.traverse(fieldMapperListener);
-        languageMapper.traverse(fieldMapperListener);
-    }
-
-    @Override
-    public void traverse(ObjectMapperListener objectMapperListener) {
+    public Iterator<Mapper> iterator() {
+        List<FieldMapper<?>> extras = Lists.newArrayList(
+            contentMapper,
+            dateMapper,
+            titleMapper,
+            nameMapper,
+            authorMapper,
+            keywordsMapper,
+            contentTypeMapper,
+            contentLengthMapper,
+            languageMapper);
+        return Iterators.concat(super.iterator(), extras.iterator());
     }
 
     @Override
@@ -625,7 +641,9 @@ public class AttachmentMapper extends AbstractFieldMapper<Object> {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(name());
         builder.field("type", CONTENT_TYPE);
-        builder.field("path", pathType.name().toLowerCase());
+        if (indexCreatedBefore2x) {
+            builder.field("path", pathType.name().toLowerCase());
+        }
 
         builder.startObject("fields");
         contentMapper.toXContent(builder, params);

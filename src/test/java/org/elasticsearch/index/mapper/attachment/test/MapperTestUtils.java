@@ -107,7 +107,8 @@ public class MapperTestUtils {
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .put(settings)
                 .build();
-        return new DocumentMapperParser(new Index("test"), forcedSettings, MapperTestUtils.newAnalysisService(forcedSettings), null, null);
+        MapperService mapperService = new MapperService(new Index("test"), forcedSettings, newAnalysisService(forcedSettings), null, newSimilarityLookupService(forcedSettings), null);
+        return new DocumentMapperParser(new Index("test"), forcedSettings, mapperService, MapperTestUtils.newAnalysisService(forcedSettings), null, null);
     }
 
     /**

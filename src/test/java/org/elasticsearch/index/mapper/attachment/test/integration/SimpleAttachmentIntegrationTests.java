@@ -73,7 +73,7 @@ public class SimpleAttachmentIntegrationTests extends AttachmentIntegrationTestC
         CountResponse countResponse = client().prepareCount("test").setQuery(queryStringQuery("test document").defaultField("file.title")).execute().get();
         assertThatWithError(countResponse.getCount(), equalTo(1l));
 
-        countResponse = client().prepareCount("test").setQuery(queryStringQuery("tests the ability").defaultField("file")).execute().get();
+        countResponse = client().prepareCount("test").setQuery(queryStringQuery("tests the ability").defaultField("file.content")).execute().get();
         assertThatWithError(countResponse.getCount(), equalTo(1l));
     }
 
@@ -88,10 +88,10 @@ public class SimpleAttachmentIntegrationTests extends AttachmentIntegrationTestC
         index("test", "person", jsonBuilder().startObject().field("file").startObject().field("_content", txt).field("_indexed_chars", CONTENT_LENGTH_LIMIT).endObject());
         refresh();
 
-        CountResponse countResponse = client().prepareCount("test").setQuery(queryStringQuery("BeforeLimit").defaultField("file")).execute().get();
+        CountResponse countResponse = client().prepareCount("test").setQuery(queryStringQuery("BeforeLimit").defaultField("file.content")).execute().get();
         assertThatWithError(countResponse.getCount(), equalTo(1l));
 
-        countResponse = client().prepareCount("test").setQuery(queryStringQuery("AfterLimit").defaultField("file")).execute().get();
+        countResponse = client().prepareCount("test").setQuery(queryStringQuery("AfterLimit").defaultField("file.content")).execute().get();
         assertThat(countResponse.getCount(), equalTo(0l));
     }
 
@@ -106,10 +106,10 @@ public class SimpleAttachmentIntegrationTests extends AttachmentIntegrationTestC
         index("test", "person", jsonBuilder().startObject().field("file").startObject().field("_content", txt).field("_indexed_chars", CONTENT_LENGTH_LIMIT).endObject());
         refresh();
 
-        CountResponse countResponse = client().prepareCount("test").setQuery(queryStringQuery("Begin").defaultField("file")).execute().get();
+        CountResponse countResponse = client().prepareCount("test").setQuery(queryStringQuery("Begin").defaultField("file.content")).execute().get();
         assertThatWithError(countResponse.getCount(), equalTo(1l));
 
-        countResponse = client().prepareCount("test").setQuery(queryStringQuery("End").defaultField("file")).execute().get();
+        countResponse = client().prepareCount("test").setQuery(queryStringQuery("End").defaultField("file.content")).execute().get();
         assertThatWithError(countResponse.getCount(), equalTo(1l));
     }
 
@@ -174,24 +174,7 @@ public class SimpleAttachmentIntegrationTests extends AttachmentIntegrationTestC
         index("test", "person", jsonBuilder().startObject().field("file", txt).endObject());
         refresh();
 
-        CountResponse countResponse = client().prepareCount("test").setQuery(queryStringQuery("Queen").defaultField("file")).execute().get();
-        assertThatWithError(countResponse.getCount(), equalTo(1l));
-
-        countResponse = client().prepareCount("test").setQuery(queryStringQuery("Queen").defaultField("copy")).execute().get();
-        assertThatWithError(countResponse.getCount(), equalTo(1l));
-    }
-
-    @Test @AwaitsFix(bugUrl = "rjernst please fix me")
-    public void testCopyToSubField() throws Exception {
-        String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/attachment/test/integration/simple/copy-to-subfield.json");
-        byte[] txt = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/attachment/test/sample-files/text-in-english.txt");
-
-        client().admin().indices().putMapping(putMappingRequest("test").type("person").source(mapping)).actionGet();
-
-        index("test", "person", jsonBuilder().startObject().field("file", txt).endObject());
-        refresh();
-
-        CountResponse countResponse = client().prepareCount("test").setQuery(queryStringQuery("Queen").defaultField("file")).execute().get();
+        CountResponse countResponse = client().prepareCount("test").setQuery(queryStringQuery("Queen").defaultField("file.content")).execute().get();
         assertThatWithError(countResponse.getCount(), equalTo(1l));
 
         countResponse = client().prepareCount("test").setQuery(queryStringQuery("Queen").defaultField("copy")).execute().get();
@@ -209,14 +192,14 @@ public class SimpleAttachmentIntegrationTests extends AttachmentIntegrationTestC
         refresh();
 
         SearchResponse searchResponse = client().prepareSearch("test")
-                .setQuery(matchQuery("file", "apache tika"))
-                .addHighlightedField("file")
+                .setQuery(matchQuery("file.content", "apache tika"))
+                .addHighlightedField("file.content")
                 .setNoFields().get();
 
         logger.info("{}", searchResponse);
         if (assertThatWithError(searchResponse.getHits().getTotalHits(), equalTo(1l))) {
             assertThat(searchResponse.getHits().getAt(0).getHighlightFields(), notNullValue());
-            assertThat(searchResponse.getHits().getAt(0).getHighlightFields().keySet(), contains("file"));
+            assertThat(searchResponse.getHits().getAt(0).getHighlightFields().keySet(), contains("file.content"));
             searchResponse.getHits().getAt(0).getHighlightFields();
             for (HighlightField highlightField : searchResponse.getHits().getAt(0).getHighlightFields().values()) {
                 for (Text fragment : highlightField.getFragments()) {

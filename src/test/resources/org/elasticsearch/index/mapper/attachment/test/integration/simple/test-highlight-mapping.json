@@ -4,7 +4,7 @@
       "file":{
         "type":"attachment",
         "fields": {
-          "file" : {
+          "content" : {
             "type": "string",
             "store" : "yes",
             "term_vector": "with_positions_offsets"

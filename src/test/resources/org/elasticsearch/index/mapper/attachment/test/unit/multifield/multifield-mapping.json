@@ -3,9 +3,8 @@
         "properties": {
             "file": {
                 "type": "attachment",
-                "path": "full",
                 "fields": {
-                    "file": {
+                    "content": {
                         "type": "string",
                         "fields": {
                             "suggest": { "type": "string" }

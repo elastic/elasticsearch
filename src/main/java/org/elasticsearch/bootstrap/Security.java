@@ -23,7 +23,10 @@ import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.env.Environment;
 
 import java.io.*;
+import java.nio.file.AccessMode;
+import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
+import java.nio.file.NotDirectoryException;
 import java.nio.file.Path;
 import java.security.Permissions;
 import java.security.Policy;
@@ -76,20 +79,47 @@ public class Security {
     /** Add access to path (and all files underneath it */
     public static void addPath(Permissions policy, Path path, String permissions) throws IOException {
         // paths may not exist yet
-        Files.createDirectories(path);
+        ensureDirectoryExists(path);
+
         // add each path twice: once for itself, again for files underneath it
         policy.add(new FilePermission(path.toString(), permissions));
         policy.add(new FilePermission(path.toString() + path.getFileSystem().getSeparator() + "-", permissions));
     }
+    
+    /**
+     * Ensures configured directory {@code path} exists.
+     * @throws IOException if {@code path} exists, but is not a directory, not accessible, or broken symbolic link.
+     */
+    static void ensureDirectoryExists(Path path) throws IOException {
+        // this isn't atomic, but neither is createDirectories.
+        if (Files.isDirectory(path)) {
+            // verify access, following links (throws exception if something is wrong)
+            // we only check READ as a sanity test
+            path.getFileSystem().provider().checkAccess(path.toRealPath(), AccessMode.READ);
+        } else {
+            // doesn't exist, or not a directory
+            try {
+                Files.createDirectories(path);
+            } catch (FileAlreadyExistsException e) {
+                // convert optional specific exception so the context is clear
+                IOException e2 = new NotDirectoryException(path.toString());
+                e2.addSuppressed(e);
+                throw e2;
+            }
+        }
+    }
 
     /** Simple checks that everything is ok */
     @SuppressForbidden(reason = "accesses jvm default tempdir as a self-test")
-    public static void selfTest() {
+    public static void selfTest() throws IOException {
         // check we can manipulate temporary files
         try {
-            Files.delete(Files.createTempFile(null, null));
-        } catch (IOException ignored) {
-            // potentially virus scanner
+            Path p = Files.createTempFile(null, null);
+            try {
+                Files.delete(p);
+            } catch (IOException ignored) {
+                // potentially virus scanner
+            }
         } catch (SecurityException problem) {
             throw new SecurityException("Security misconfiguration: cannot access java.io.tmpdir", problem);
         }

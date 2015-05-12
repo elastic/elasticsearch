@@ -162,14 +162,15 @@ follows a similar syntax to the `per_field_analyzer` parameter of the
 Additionally, to provide documents not necessarily present in the index,
 <<docs-termvectors-artificial-doc,artificial documents>> are also supported.
 
+`unlike`:: coming[2.0] 
+The `unlike` parameter is used in conjunction with `like` in order not to
+select terms found in a chosen set of documents. In other words, we could ask
+for documents `like: "Apple"`, but `unlike: "cake crumble tree"`. The syntax
+is the same as `like`.
+
 `fields`::
 A list of fields to fetch and analyze the text from. Defaults to the `_all`
 field for free text and to all possible fields for document inputs.
-
-`ignore_like`:: coming[2.0]
-The `ignore_like` parameter is used to skip the terms found in a chosen set of
-documents. In other words, we could ask for documents `like: "Apple"`, but
-`ignore_like: "cake crumble tree"`. The syntax is the same as `like`.
 
 `like_text`:: deprecated[2.0,Replaced by `like`]
 The text to find documents like it.

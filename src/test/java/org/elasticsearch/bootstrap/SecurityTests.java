@@ -25,6 +25,8 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ElasticsearchTestCase;
 
 import java.io.FilePermission;
+import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.Permissions;
 
@@ -109,5 +111,69 @@ public class SecurityTests extends ElasticsearchTestCase {
         assertFalse(permissions.implies(new FilePermission(realTmpDir.toString(), "read")));
         // PID file: r/w
         assertTrue(permissions.implies(new FilePermission(environment.pidFile().toString(), "read,readlink,write,delete")));
+    }
+    
+    public void testEnsureExists() throws IOException {
+        Path p = createTempDir();
+
+        // directory exists
+        Path exists = p.resolve("exists");
+        Files.createDirectory(exists);
+        Security.ensureDirectoryExists(exists);
+        Files.createTempFile(exists, null, null);
+    }
+    
+    public void testEnsureNotExists() throws IOException { 
+        Path p = createTempDir();
+
+        // directory does not exist: create it
+        Path notExists = p.resolve("notexists");
+        Security.ensureDirectoryExists(notExists);
+        Files.createTempFile(notExists, null, null);
+    }
+    
+    public void testEnsureRegularFile() throws IOException {
+        Path p = createTempDir();
+
+        // regular file
+        Path regularFile = p.resolve("regular");
+        Files.createFile(regularFile);
+        try {
+            Security.ensureDirectoryExists(regularFile);
+            fail("didn't get expected exception");
+        } catch (IOException expected) {}
+    }
+    
+    public void testEnsureSymlink() throws IOException {
+        Path p = createTempDir();
+        
+        Path exists = p.resolve("exists");
+        Files.createDirectory(exists);
+
+        // symlink
+        Path linkExists = p.resolve("linkExists");
+        try {
+            Files.createSymbolicLink(linkExists, exists);
+        } catch (UnsupportedOperationException | IOException e) {
+            assumeNoException("test requires filesystem that supports symbolic links", e);
+        }
+        Security.ensureDirectoryExists(linkExists);
+        Files.createTempFile(linkExists, null, null);
+    }
+    
+    public void testEnsureBrokenSymlink() throws IOException {
+        Path p = createTempDir();
+
+        // broken symlink
+        Path brokenLink = p.resolve("brokenLink");
+        try {
+            Files.createSymbolicLink(brokenLink, p.resolve("nonexistent"));
+        } catch (UnsupportedOperationException | IOException e) {
+            assumeNoException("test requires filesystem that supports symbolic links", e);
+        }
+        try {
+            Security.ensureDirectoryExists(brokenLink);
+            fail("didn't get expected exception");
+        } catch (IOException expected) {}
     }
 }

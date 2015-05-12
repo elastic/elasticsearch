@@ -69,8 +69,9 @@ public class IdsQueryBuilderTest extends BaseQueryTestCase<IdsQueryBuilder> {
         }
     }
 
-    public IdsQueryBuilder createTestQueryBuilder() {
-        IdsQueryBuilder query = new IdsQueryBuilder();
+    @Override
+    protected IdsQueryBuilder createTestQueryBuilder() {
+        IdsQueryBuilder query;
         int numberOfTypes = randomIntBetween(1, 10);
         String[] types = new String[numberOfTypes];
         for (int i = 0; i < numberOfTypes; i++) {

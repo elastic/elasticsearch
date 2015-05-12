@@ -38,6 +38,7 @@ public class TermQueryBuilderTest extends BaseQueryTestCase<TermQueryBuilder> {
     /**
      * @return a TermQuery with random field name and value, optional random boost and queryname
      */
+    @Override
     protected TermQueryBuilder createTestQueryBuilder() {
         Object value = null;
         switch (randomIntBetween(0, 3)) {

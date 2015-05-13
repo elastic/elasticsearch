@@ -55,14 +55,14 @@ class Checkpoint {
         generation = in.readLong();
     }
 
-    void write(FileChannel channel) throws IOException {
+    private void write(FileChannel channel) throws IOException {
         byte[] buffer = new byte[BUFFER_SIZE];
         final ByteArrayDataOutput out = new ByteArrayDataOutput(buffer);
         write(out);
         Channels.writeToChannel(buffer, channel);
     }
 
-    public void write(DataOutput out) throws IOException {
+    private void write(DataOutput out) throws IOException {
         out.writeLong(offset);
         out.writeInt(numOps);
         out.writeLong(generation);
@@ -70,7 +70,7 @@ class Checkpoint {
 
     @Override
     public String toString() {
-        return "TranslogInfo{" +
+        return "Checkpoint{" +
                 "offset=" + offset +
                 ", numOps=" + numOps +
                 ", translogFileGeneration= " + generation +

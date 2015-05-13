@@ -47,7 +47,11 @@ class LegacyTranslogReaderBase extends ImmutableTranslogReader {
                 if (position >= sizeInBytes()) { // this is the legacy case....
                     return null;
                 }
-                return readOperation();
+                try {
+                    return readOperation();
+                } catch (TruncatedTranslogException ex) {
+                    return null; // legacy case
+                }
             }
         };
     }

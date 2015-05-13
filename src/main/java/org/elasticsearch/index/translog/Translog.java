@@ -433,7 +433,12 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     }
 
     /**
-     * Adds a create operation to the transaction log.
+     * Adds a created / delete / index operations to the transaction log.
+     *
+     * @see org.elasticsearch.index.translog.Translog.Operation
+     * @see org.elasticsearch.index.translog.Translog.Create
+     * @see org.elasticsearch.index.translog.Translog.Index
+     * @see org.elasticsearch.index.translog.Translog.Delete
      */
     public Location add(Operation operation) throws TranslogException {
         ReleasableBytesStreamOutput out = new ReleasableBytesStreamOutput(bigArrays);
@@ -467,23 +472,24 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 toOpen.add(currentCommittingTranslog);
             }
             toOpen.add(current);
-            return createdSnapshot(toOpen.toArray(new TranslogReader[toOpen.size()]));
+            return createSnapshot(toOpen.toArray(new TranslogReader[toOpen.size()]));
         }
     }
 
-    private Snapshot createdSnapshot(TranslogReader... translogs) {
-        ArrayList<Translog.Snapshot> channelSnapshots = new ArrayList<>();
+    private Snapshot createSnapshot(TranslogReader... translogs) {
+        Snapshot[] snapshots = new Snapshot[translogs.length];
         boolean success = false;
         try {
-            for (TranslogReader translog : translogs) {
-                channelSnapshots.add(translog.newSnapshot());
+            for (int i = 0; i < translogs.length; i++) {
+                snapshots[i] = translogs[i].newSnapshot();
             }
-            Snapshot snapshot = new TranslogSnapshot(channelSnapshots);
+
+            Snapshot snapshot = new MultiSnapshot(snapshots);
             success = true;
             return snapshot;
         } finally {
             if (success == false) {
-                Releasables.close(channelSnapshots);
+                Releasables.close(snapshots);
             }
         }
     }
@@ -672,7 +678,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
         public synchronized Snapshot snapshot() {
             ensureOpen();
-            return createdSnapshot(orderedTranslogs.toArray(new TranslogReader[orderedTranslogs.size()]));
+            return createSnapshot(orderedTranslogs.toArray(new TranslogReader[orderedTranslogs.size()]));
         }
 
 
@@ -1568,15 +1574,18 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     }
 
     static Translog.Operation readOperation(BufferedChecksumStreamInput in) throws IOException {
-        int opSize = in.readInt();
+        final int opSize = in.readInt();
+        if (opSize < 4) { // 4byte for the checksum
+            throw new TranslogCorruptedException("operation size must be at least 4 but was: " + opSize);
+        }
         Translog.Operation operation;
         try {
-            in.resetDigest(); // size is not part of the checksum?
+            in.resetDigest(); // size is not part of the checksum!
             if (in.markSupported()) { // if we can we validate the checksum first
+                // we are sometimes called when mark is not supported this is the case when
+                // we are sending translogs across the network - currently there is no way to prevent this unfortunately.
                 in.mark(opSize);
-                if (opSize < 4) { // 4byte for the checksum
-                    throw new TranslogCorruptedException("operation size must be at least 4 but was: " + opSize);
-                }
+
                 in.skip(opSize-4);
                 verifyChecksum(in);
                 in.reset();
@@ -1594,6 +1603,8 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     }
 
     public static void writeOperation(StreamOutput outStream, Translog.Operation op) throws IOException {
+        //TODO lets get rid of this crazy double writing here.
+
         // We first write to a NoopStreamOutput to get the size of the
         // operation. We could write to a byte array and then send that as an
         // alternative, but here we choose to use CPU over allocating new
@@ -1637,12 +1648,11 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     @Override
     public void prepareCommit() throws IOException {
         ensureOpen();
-        TranslogWriter writer = null;
         try (ReleasableLock lock = writeLock.acquire()) {
             if (currentCommittingTranslog != null) {
                 throw new IllegalStateException("already committing a translog with generation: " + currentCommittingTranslog.getGeneration());
             }
-            writer = current;
+            final TranslogWriter writer = current;
             writer.sync();
             currentCommittingTranslog = current.immutableReader();
             Path checkpoint = location.resolve(CHECKPOINT_FILE_NAME);
@@ -1664,7 +1674,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             assert writer.syncNeeded() == false : "old translog writer must not need a sync";
 
         } catch (Throwable t) {
-            close(); // tragic event
+            IOUtils.closeWhileHandlingException(this); // tragic event
             throw t;
         }
     }

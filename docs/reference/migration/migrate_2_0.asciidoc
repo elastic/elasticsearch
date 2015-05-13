@@ -511,6 +511,11 @@ Client client = TransportClient.builder().settings(settings).build();
 
 === Highlighting
 
-The default value for the `require_field_match` option is `false` rather than
-`true`, meaning that the highlighters will take the fields that were queried
-into account by default, unless `require_field_match` is disabled.
+The default value for the `require_field_match` option is `true` rather than
+`false`, meaning that the highlighters will take the fields that were queried
+into account by default. That means for instance that highlighting any field
+when querying the `_all` field will produce no highlighted snippets by default,
+given that the match was on the `_all` field only. Querying the same fields
+that need to be highlighted is the cleaner solution to get back highlighted
+snippets. Otherwise `require_field_match` option can be set to `false` to
+ignore field names completely when highlighting.

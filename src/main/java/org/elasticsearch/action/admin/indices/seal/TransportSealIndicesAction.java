@@ -48,118 +48,38 @@ public class TransportSealIndicesAction extends HandledTransportAction<SealIndic
 
     final private SyncedFlushService syncedFlushService;
     final private ClusterService clusterService;
-    private final TransportService transportService;
 
     @Inject
     public TransportSealIndicesAction(Settings settings, ThreadPool threadPool, TransportService transportService, ActionFilters actionFilters, SyncedFlushService syncedFlushService, ClusterService clusterService) {
         super(settings, SealIndicesAction.NAME, threadPool, transportService, actionFilters, SealIndicesRequest.class);
         this.syncedFlushService = syncedFlushService;
         this.clusterService = clusterService;
-        this.transportService = transportService;
-        transportService.registerRequestHandler(SealIndicesAction.NAME, ShardSyncedFlushRequest.class, ThreadPool.Names.GENERIC, new ShardSyncedFlushHandler());
     }
-
 
     @Override
     protected void doExecute(final SealIndicesRequest request, final ActionListener<SealIndicesResponse> listener) {
-        // we need to execute in a thread here because getSyncedFlushResults(request, state) blocks
         ClusterState state = clusterService.state();
         String[] concreteIndices = state.metaData().concreteIndices(request.indicesOptions(), request.indices());
         GroupShardsIterator primaries = state.routingTable().activePrimaryShardsGrouped(concreteIndices, false);
         final CountDown countDown = new CountDown(primaries.size());
-        DiscoveryNode localNode = state.getNodes().localNode();
         final Set<SyncedFlushService.SyncedFlushResult> results = ConcurrentCollections.newConcurrentSet();
-        for (ShardIterator shard : primaries) {
+        for (final ShardIterator shard : primaries) {
             final ShardId shardId = shard.shardId();
-            transportService.sendRequest(localNode, SealIndicesAction.NAME, new ShardSyncedFlushRequest(shardId),
-                    new BaseTransportResponseHandler<SyncedFlushService.SyncedFlushResult>() {
-                        @Override
-                        public SyncedFlushService.SyncedFlushResult newInstance() {
-                            return new SyncedFlushService.SyncedFlushResult();
-                        }
-
-                        @Override
-                        public void handleResponse(SyncedFlushService.SyncedFlushResult response) {
-                            results.add(response);
-                            if (countDown.countDown()) {
-                                listener.onResponse(new SealIndicesResponse(results));
-                            }
-                        }
-
-                        @Override
-                        public void handleException(TransportException exp) {
-                            logger.debug("{} unexpected error while executing synced flush", shardId);
-                            results.add(new SyncedFlushService.SyncedFlushResult(shardId, exp.getMessage()));
-                            if (countDown.countDown()) {
-                                listener.onResponse(new SealIndicesResponse(results));
-                            }
-                        }
-
-                        @Override
-                        public String executor() {
-                            return ThreadPool.Names.SAME;
-                        }
-                    });
-        }
-    }
-
-    final static class ShardSyncedFlushRequest extends TransportRequest {
-        private ShardId shardId;
-
-        @Override
-        public String toString() {
-            return "ShardSyncedFlushRequest{" +
-                    "shardId=" + shardId +
-                    '}';
-        }
-
-        ShardSyncedFlushRequest() {
-        }
-
-        public ShardSyncedFlushRequest(ShardId shardId) {
-            this.shardId = shardId;
-        }
-
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            shardId.writeTo(out);
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            this.shardId = ShardId.readShardId(in);
-        }
-
-        public ShardId shardId() {
-            return shardId;
-        }
-    }
-
-
-    private class ShardSyncedFlushHandler implements TransportRequestHandler<ShardSyncedFlushRequest> {
-
-        @Override
-        public void messageReceived(final ShardSyncedFlushRequest request, final TransportChannel channel) throws Exception {
-            syncedFlushService.attemptSyncedFlush(request.shardId(), new ActionListener<SyncedFlushService.SyncedFlushResult>() {
-
+            syncedFlushService.attemptSyncedFlush(shardId, new ActionListener<SyncedFlushService.SyncedFlushResult>() {
                 @Override
                 public void onResponse(SyncedFlushService.SyncedFlushResult syncedFlushResult) {
-                    try {
-                        channel.sendResponse(syncedFlushResult);
-                    } catch (IOException e) {
-                        logger.warn("failed to send response for synced flush on shard {}, cause: {}", request.shardId(), e.getMessage());
+                    results.add(syncedFlushResult);
+                    if (countDown.countDown()) {
+                        listener.onResponse(new SealIndicesResponse(results));
                     }
                 }
 
                 @Override
                 public void onFailure(Throwable e) {
-                    try {
-                        channel.sendResponse(new SyncedFlushService.SyncedFlushResult(request.shardId(), e.getMessage()));
-                    } catch (IOException e1) {
-                        logger.warn("failed to send failure for synced flush on shard {}, cause: {}", request.shardId(), e.getMessage());
+                    logger.debug("{} unexpected error while executing synced flush", shardId);
+                    results.add(new SyncedFlushService.SyncedFlushResult(shardId, e.getMessage()));
+                    if (countDown.countDown()) {
+                        listener.onResponse(new SealIndicesResponse(results));
                     }
                 }
             });

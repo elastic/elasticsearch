@@ -27,11 +27,9 @@ import org.apache.lucene.index.*;
 import org.apache.lucene.search.*;
 import org.apache.lucene.search.highlight.DefaultEncoder;
 import org.apache.lucene.store.Directory;
+import org.elasticsearch.search.highlight.HighlightUtils;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
-
-import java.util.ArrayList;
-import java.util.List;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 
@@ -91,13 +89,9 @@ public class CustomPostingsHighlighterTests extends ElasticsearchTestCase {
 
         int docId = topDocs.scoreDocs[0].doc;
 
-        List<Object> fieldValues = new ArrayList<>();
-        fieldValues.add(firstValue);
-        fieldValues.add(secondValue);
-        fieldValues.add(thirdValue);
-        fieldValues.add(fourthValue);
+        String fieldValue = firstValue + HighlightUtils.PARAGRAPH_SEPARATOR + secondValue + HighlightUtils.PARAGRAPH_SEPARATOR + thirdValue + HighlightUtils.PARAGRAPH_SEPARATOR + fourthValue;
 
-        CustomPostingsHighlighter highlighter = new CustomPostingsHighlighter(null, new CustomPassageFormatter("<b>", "</b>", new DefaultEncoder()), fieldValues, Integer.MAX_VALUE-1, false);
+        CustomPostingsHighlighter highlighter = new CustomPostingsHighlighter(null, new CustomPassageFormatter("<b>", "</b>", new DefaultEncoder()), fieldValue, false);
         Snippet[] snippets = highlighter.highlightField("body", query, searcher, docId, 5);
 
         assertThat(snippets.length, equalTo(4));
@@ -141,16 +135,13 @@ public class CustomPostingsHighlighterTests extends ElasticsearchTestCase {
         assertThat(topDocs.totalHits, equalTo(1));
         int docId = topDocs.scoreDocs[0].doc;
 
-        List<Object> values = new ArrayList<>();
-        values.add(firstValue);
-
         CustomPassageFormatter passageFormatter = new CustomPassageFormatter("<b>", "</b>", new DefaultEncoder());
 
-        CustomPostingsHighlighter highlighter = new CustomPostingsHighlighter(null, passageFormatter, values, Integer.MAX_VALUE - 1, false);
+        CustomPostingsHighlighter highlighter = new CustomPostingsHighlighter(null, passageFormatter, firstValue, false);
         Snippet[] snippets = highlighter.highlightField("body", query, searcher, docId, 5);
         assertThat(snippets.length, equalTo(0));
 
-        highlighter = new CustomPostingsHighlighter(null, passageFormatter, values, Integer.MAX_VALUE - 1, true);
+        highlighter = new CustomPostingsHighlighter(null, passageFormatter, firstValue, true);
         snippets = highlighter.highlightField("body", query, searcher, docId, 5);
         assertThat(snippets.length, equalTo(1));
         assertThat(snippets[0].getText(), equalTo("This is a test."));

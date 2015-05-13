@@ -23,10 +23,7 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.highlight.Encoder;
-import org.apache.lucene.search.postingshighlight.CustomPassageFormatter;
-import org.apache.lucene.search.postingshighlight.CustomPostingsHighlighter;
-import org.apache.lucene.search.postingshighlight.Snippet;
-import org.apache.lucene.search.postingshighlight.WholeBreakIterator;
+import org.apache.lucene.search.postingshighlight.*;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.text.StringText;
@@ -80,10 +77,16 @@ public class PostingsHighlighter implements Highlighter {
             List<Object> fieldValues = HighlightUtils.loadFieldValues(field, fieldMapper, context, hitContext);
             CustomPostingsHighlighter highlighter;
             if (field.fieldOptions().numberOfFragments() == 0) {
-                highlighter = new CustomPostingsHighlighter(analyzer, mapperHighlighterEntry.passageFormatter, new WholeBreakIterator(), fieldValues, Integer.MAX_VALUE-1, field.fieldOptions().noMatchSize() > 0);
-                numberOfFragments = 1; //we are highlighting the whole content, will get back a single fragment for it
+                //we use a control char to separate values, which is the only char that the custom break iterator breaks the text on,
+                //so we don't lose the distinction between the different values of a field and we get back a snippet per value
+                String fieldValue = mergeFieldValues(fieldValues, HighlightUtils.NULL_SEPARATOR);
+                CustomSeparatorBreakIterator breakIterator = new CustomSeparatorBreakIterator(HighlightUtils.NULL_SEPARATOR);
+                highlighter = new CustomPostingsHighlighter(analyzer, mapperHighlighterEntry.passageFormatter, breakIterator, fieldValue, field.fieldOptions().noMatchSize() > 0);
+                numberOfFragments = fieldValues.size(); //we are highlighting the whole content, one snippet per value
             } else {
-                highlighter = new CustomPostingsHighlighter(analyzer, mapperHighlighterEntry.passageFormatter, fieldValues, Integer.MAX_VALUE-1, field.fieldOptions().noMatchSize() > 0);
+                //using paragraph separator we make sure that each field value holds a discrete passage for highlighting
+                String fieldValue = mergeFieldValues(fieldValues, HighlightUtils.PARAGRAPH_SEPARATOR);
+                highlighter = new CustomPostingsHighlighter(analyzer, mapperHighlighterEntry.passageFormatter, fieldValue, field.fieldOptions().noMatchSize() > 0);
                 numberOfFragments = field.fieldOptions().numberOfFragments();
             }
 
@@ -121,6 +124,13 @@ public class PostingsHighlighter implements Highlighter {
         }
 
         return null;
+    }
+
+    private static String mergeFieldValues(List<Object> fieldValues, char valuesSeparator) {
+        //postings highlighter accepts all values in a single string, as offsets etc. need to match with content
+        //loaded from stored fields, we merge all values using a proper separator
+        String rawValue = Strings.collectionToDelimitedString(fieldValues, String.valueOf(valuesSeparator));
+        return rawValue.substring(0, Math.min(rawValue.length(), Integer.MAX_VALUE - 1));
     }
 
     private static List<Snippet> filterSnippets(List<Snippet> snippets, int numberOfFragments) {

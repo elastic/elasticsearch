@@ -417,7 +417,8 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
                 .addHighlightedField("title", -1, 0).get();
 
         for (int i = 0; i < indexRequestBuilders.length; i++) {
-            assertHighlight(search, i, "title", 0, equalTo("This is a test on the highlighting <em>bug</em> present in elasticsearch. Hopefully it works." + HighlightUtils.PARAGRAPH_SEPARATOR + "This is the second <em>bug</em> to perform highlighting on."));
+            assertHighlight(search, i, "title", 0, equalTo("This is a test on the highlighting <em>bug</em> present in elasticsearch. Hopefully it works."));
+            assertHighlight(search, i, "title", 1, 2, equalTo("This is the second <em>bug</em> to perform highlighting on."));
         }
 
         search = client().prepareSearch()
@@ -1818,7 +1819,7 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
                 .addMapping("type1", "text", "type=string," + randomStoreField() + "term_vector=with_positions_offsets,index_options=offsets"));
         ensureGreen();
 
-        String text1 = "This is the first sentence. This is the second sentence.";
+        String text1 = "This is the first sentence. This is the second sentence." + HighlightUtils.PARAGRAPH_SEPARATOR;
         String text2 = "This is the third sentence. This is the fourth sentence.";
         String text3 = "This is the fifth sentence";
         index("test", "type1", "1", "text", new String[] {text1, text2, text3});
@@ -1856,9 +1857,8 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
 
         field.highlighterType("postings");
         response = client().prepareSearch("test").setQuery(queryBuilder).addHighlightedField(field).get();
-        assertHighlight(response, 0, "text", 0, 1, equalTo("This is the first sentence. This is the second sentence."
-                + HighlightUtils.PARAGRAPH_SEPARATOR + "This is the <em>third</em> sentence. This is the fourth sentence."
-                + HighlightUtils.PARAGRAPH_SEPARATOR + "This is the <em>fifth</em> sentence"));
+        assertHighlight(response, 0, "text", 0, 2, equalTo("This is the <em>third</em> sentence. This is the fourth sentence."));
+        assertHighlight(response, 0, "text", 1, 2, equalTo("This is the <em>fifth</em> sentence"));
     }
 
     @Test
@@ -1970,9 +1970,9 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
             if ("1".equals(searchHit.id())) {
                 assertHighlight(searchHit, "field1", 0, 1, equalTo("The quick brown <field1>fox</field1> jumps over the lazy dog. The lazy red <field1>fox</field1> jumps over the quick dog. The quick brown dog jumps over the lazy <field1>fox</field1>."));
             } else if ("2".equals(searchHit.id())) {
-                assertHighlight(searchHit, "field1", 0, equalTo("The quick brown <field1>fox</field1> jumps over the lazy dog. Second sentence not finished"
-                        + HighlightUtils.PARAGRAPH_SEPARATOR + "The lazy red <field1>fox</field1> jumps over the quick dog."
-                        + HighlightUtils.PARAGRAPH_SEPARATOR + "The quick brown dog jumps over the lazy <field1>fox</field1>."));
+                assertHighlight(searchHit, "field1", 0, 3, equalTo("The quick brown <field1>fox</field1> jumps over the lazy dog. Second sentence not finished"));
+                assertHighlight(searchHit, "field1", 1, 3, equalTo("The lazy red <field1>fox</field1> jumps over the quick dog."));
+                assertHighlight(searchHit, "field1", 2, 3, equalTo("The quick brown dog jumps over the lazy <field1>fox</field1>."));
             } else {
                 fail("Only hits with id 1 and 2 are returned");
             }

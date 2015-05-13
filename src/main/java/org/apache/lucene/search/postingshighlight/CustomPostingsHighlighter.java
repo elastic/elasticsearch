@@ -21,12 +21,9 @@ package org.apache.lucene.search.postingshighlight;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.search.highlight.HighlightUtils;
 
 import java.io.IOException;
 import java.text.BreakIterator;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -50,20 +47,19 @@ public final class CustomPostingsHighlighter extends PostingsHighlighter {
     private final CustomPassageFormatter passageFormatter;
     private final BreakIterator breakIterator;
     private final boolean returnNonHighlightedSnippets;
-    private final List<Object> fieldValues;
+    private final String fieldValue;
 
     /**
      * Creates a new instance of {@link CustomPostingsHighlighter}
      *
      * @param analyzer the analyzer used for the field at index time, used for multi term queries internally
      * @param passageFormatter our own {@link PassageFormatter} which generates snippets in forms of {@link Snippet} objects
-     * @param fieldValues the original field values as constructor argument, loaded from te _source field or the relevant stored field.
-     * @param maxLength the maximum length of the field content to be read for highlighting
+     * @param fieldValue the original field values as constructor argument, loaded from te _source field or the relevant stored field.
      * @param returnNonHighlightedSnippets whether non highlighted snippets should be returned rather than empty snippets when
      *                                     no highlighting can be performed
      */
-    public CustomPostingsHighlighter(Analyzer analyzer, CustomPassageFormatter passageFormatter, List<Object> fieldValues, int maxLength, boolean returnNonHighlightedSnippets) {
-        this(analyzer, passageFormatter, null, fieldValues, maxLength, returnNonHighlightedSnippets);
+    public CustomPostingsHighlighter(Analyzer analyzer, CustomPassageFormatter passageFormatter, String fieldValue, boolean returnNonHighlightedSnippets) {
+        this(analyzer, passageFormatter, null, fieldValue, returnNonHighlightedSnippets);
     }
 
     /**
@@ -72,18 +68,16 @@ public final class CustomPostingsHighlighter extends PostingsHighlighter {
      * @param analyzer the analyzer used for the field at index time, used for multi term queries internally
      * @param passageFormatter our own {@link PassageFormatter} which generates snippets in forms of {@link Snippet} objects
      * @param breakIterator an instance {@link BreakIterator} selected depending on the highlighting options
-     * @param fieldValues the original field values as constructor argument, loaded from te _source field or the relevant stored field.
-     * @param maxLength the maximum length of the field content to be read for highlighting
+     * @param fieldValue the original field values as constructor argument, loaded from te _source field or the relevant stored field.
      * @param returnNonHighlightedSnippets whether non highlighted snippets should be returned rather than empty snippets when
      *                                     no highlighting can be performed
      */
-    public CustomPostingsHighlighter(Analyzer analyzer, CustomPassageFormatter passageFormatter, BreakIterator breakIterator, List<Object> fieldValues, int maxLength, boolean returnNonHighlightedSnippets) {
-        super(maxLength);
+    public CustomPostingsHighlighter(Analyzer analyzer, CustomPassageFormatter passageFormatter, BreakIterator breakIterator, String fieldValue, boolean returnNonHighlightedSnippets) {
         this.analyzer = analyzer;
         this.passageFormatter = passageFormatter;
         this.breakIterator = breakIterator;
         this.returnNonHighlightedSnippets = returnNonHighlightedSnippets;
-        this.fieldValues = fieldValues;
+        this.fieldValue = fieldValue;
     }
 
     /**
@@ -116,12 +110,6 @@ public final class CustomPostingsHighlighter extends PostingsHighlighter {
         return breakIterator;
     }
 
-    @Override
-    protected char getMultiValuedSeparator(String field) {
-        //U+2029 PARAGRAPH SEPARATOR (PS): each value holds a discrete passage for highlighting
-        return HighlightUtils.PARAGRAPH_SEPARATOR;
-    }
-
     /*
     By default the postings highlighter returns non highlighted snippet when there are no matches.
     We want to return no snippets by default, unless no_match_size is greater than 0
@@ -143,10 +131,6 @@ public final class CustomPostingsHighlighter extends PostingsHighlighter {
     @Override
     protected String[][] loadFieldValues(IndexSearcher searcher, String[] fields, int[] docids, int maxLength) throws IOException {
         //we only highlight one field, one document at a time
-        assert fields.length == 1;
-        assert docids.length == 1;
-        String rawValue = Strings.collectionToDelimitedString(fieldValues, String.valueOf(getMultiValuedSeparator(fields[0])));
-        String fieldValue = rawValue.substring(0, Math.min(rawValue.length(), maxLength));
         return new String[][]{new String[]{fieldValue}};
     }
 }

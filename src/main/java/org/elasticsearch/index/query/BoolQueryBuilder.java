@@ -31,6 +31,8 @@ import java.util.List;
  */
 public class BoolQueryBuilder extends QueryBuilder implements BoostableQueryBuilder<BoolQueryBuilder> {
 
+    public static final String NAME = "bool";
+
     private final List<QueryBuilder> mustClauses = new ArrayList<>();
 
     private final List<QueryBuilder> mustNotClauses = new ArrayList<>();
@@ -160,7 +162,7 @@ public class BoolQueryBuilder extends QueryBuilder implements BoostableQueryBuil
 
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject("bool");
+        builder.startObject(NAME);
         doXArrayContent("must", mustClauses, builder, params);
         doXArrayContent("filter", filterClauses, builder, params);
         doXArrayContent("must_not", mustNotClauses, builder, params);
@@ -200,7 +202,7 @@ public class BoolQueryBuilder extends QueryBuilder implements BoostableQueryBuil
     }
 
     @Override
-    protected String parserName() {
-        return BoolQueryParser.NAME;
+    public String queryId() {
+        return NAME;
     }
 }

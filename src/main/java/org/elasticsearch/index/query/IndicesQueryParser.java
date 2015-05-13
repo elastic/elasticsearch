@@ -38,7 +38,6 @@ import java.util.Collection;
  */
 public class IndicesQueryParser extends BaseQueryParserTemp {
 
-    public static final String NAME = "indices";
     private static final ParseField QUERY_FIELD = new ParseField("query", "filter");
     private static final ParseField NO_MATCH_QUERY = new ParseField("no_match_query", "no_match_filter");
 
@@ -52,7 +51,7 @@ public class IndicesQueryParser extends BaseQueryParserTemp {
 
     @Override
     public String[] names() {
-        return new String[]{NAME};
+        return new String[]{IndicesQueryBuilder.NAME};
     }
 
     @Override

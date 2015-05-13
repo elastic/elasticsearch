@@ -30,15 +30,13 @@ import java.io.IOException;
  */
 public class MatchAllQueryParser extends BaseQueryParser {
 
-    public static final String NAME = "match_all";
-
     @Inject
     public MatchAllQueryParser() {
     }
 
     @Override
     public String[] names() {
-        return new String[]{NAME, Strings.toCamelCase(NAME)};
+        return new String[]{MatchAllQueryBuilder.NAME, Strings.toCamelCase(MatchAllQueryBuilder.NAME)};
     }
 
     @Override

@@ -42,6 +42,7 @@ import java.io.IOException;
  */
 public class WrapperQueryBuilder extends QueryBuilder {
 
+    public static final String NAME = "wrapper";
     private final byte[] source;
     private final int offset;
     private final int length;
@@ -75,13 +76,13 @@ public class WrapperQueryBuilder extends QueryBuilder {
 
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(WrapperQueryParser.NAME);
+        builder.startObject(NAME);
         builder.field("query", source, offset, length);
         builder.endObject();
     }
 
     @Override
-    protected String parserName() {
-        return WrapperQueryParser.NAME;
+    public String queryId() {
+        return NAME;
     }
 }

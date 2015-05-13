@@ -49,7 +49,6 @@ import java.util.List;
  */
 public class GeoPolygonQueryParser extends BaseQueryParserTemp {
 
-    public static final String NAME = "geo_polygon";
     public static final String POINTS = "points";
 
     @Inject
@@ -58,7 +57,7 @@ public class GeoPolygonQueryParser extends BaseQueryParserTemp {
 
     @Override
     public String[] names() {
-        return new String[]{NAME, "geoPolygon"};
+        return new String[]{GeoPolygonQueryBuilder.NAME, "geoPolygon"};
     }
 
     @Override

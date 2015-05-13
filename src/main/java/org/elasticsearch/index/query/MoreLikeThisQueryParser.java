@@ -55,7 +55,6 @@ import static org.elasticsearch.index.mapper.Uid.createUidAsBytes;
  */
 public class MoreLikeThisQueryParser extends BaseQueryParserTemp {
 
-    public static final String NAME = "mlt";
     private MoreLikeThisFetchService fetchService = null;
 
     public static class Fields {
@@ -88,7 +87,7 @@ public class MoreLikeThisQueryParser extends BaseQueryParserTemp {
 
     @Override
     public String[] names() {
-        return new String[]{NAME, "more_like_this", "moreLikeThis"};
+        return new String[]{MoreLikeThisQueryBuilder.NAME, "more_like_this", "moreLikeThis"};
     }
 
     @Override

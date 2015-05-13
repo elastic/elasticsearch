@@ -31,15 +31,13 @@ import java.io.IOException;
  */
 public class WrapperQueryParser extends BaseQueryParserTemp {
 
-    public static final String NAME = "wrapper";
-
     @Inject
     public WrapperQueryParser() {
     }
 
     @Override
     public String[] names() {
-        return new String[]{NAME};
+        return new String[]{WrapperQueryBuilder.NAME};
     }
 
     @Override

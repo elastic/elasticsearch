@@ -39,6 +39,8 @@ import java.util.*;
  */
 public class IdsQueryBuilder extends QueryBuilder<IdsQueryBuilder> implements BoostableQueryBuilder<IdsQueryBuilder> {
 
+    public static final String NAME = "ids";
+
     private final Set<String> ids = Sets.newHashSet();
 
     private final String[] types;
@@ -117,7 +119,7 @@ public class IdsQueryBuilder extends QueryBuilder<IdsQueryBuilder> implements Bo
 
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(IdsQueryParser.NAME);
+        builder.startObject(NAME);
         if (types != null) {
             if (types.length == 1) {
                 builder.field("type", types[0]);
@@ -140,10 +142,11 @@ public class IdsQueryBuilder extends QueryBuilder<IdsQueryBuilder> implements Bo
     }
 
     @Override
-    protected String parserName() {
-        return IdsQueryParser.NAME;
+    public String queryId() {
+        return NAME;
     }
 
+    @Override
     public Query toQuery(QueryParseContext parseContext) throws IOException, QueryParsingException {
         Query query;
         if (this.ids.isEmpty()) {

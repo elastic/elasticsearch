@@ -40,6 +40,8 @@ import java.util.Objects;
  */
 public class RangeQueryBuilder extends MultiTermQueryBuilder<RangeQueryBuilder> implements BoostableQueryBuilder<RangeQueryBuilder> {
 
+    public static final String NAME = "range";
+
     private final String fieldName;
 
     private Object from;
@@ -247,7 +249,7 @@ public class RangeQueryBuilder extends MultiTermQueryBuilder<RangeQueryBuilder> 
 
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(RangeQueryParser.NAME);
+        builder.startObject(NAME);
         builder.startObject(fieldName);
         builder.field("from", convertToStringIfBytesRef(this.from));
         builder.field("to", convertToStringIfBytesRef(this.to));
@@ -270,8 +272,8 @@ public class RangeQueryBuilder extends MultiTermQueryBuilder<RangeQueryBuilder> 
     }
 
     @Override
-    protected String parserName() {
-        return RangeQueryParser.NAME;
+    public String queryId() {
+        return NAME;
     }
 
     @Override

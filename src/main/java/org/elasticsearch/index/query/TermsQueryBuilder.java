@@ -24,9 +24,11 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
 
 /**
- * A filer for a field based on several terms matching on any of them.
+ * A filter for a field based on several terms matching on any of them.
  */
-public class TermsQueryBuilder extends QueryBuilder {
+public class TermsQueryBuilder extends QueryBuilder<TermsQueryBuilder> {
+
+    public static final String NAME = "terms";
 
     private final String name;
 
@@ -36,8 +38,15 @@ public class TermsQueryBuilder extends QueryBuilder {
 
     private String execution;
 
+    private String lookupIndex;
+    private String lookupType;
+    private String lookupId;
+    private String lookupRouting;
+    private String lookupPath;
+    private Boolean lookupCache;
+
     /**
-     * A filer for a field based on several terms matching on any of them.
+     * A filter for a field based on several terms matching on any of them.
      *
      * @param name   The field name
      * @param values The terms
@@ -47,7 +56,7 @@ public class TermsQueryBuilder extends QueryBuilder {
     }
 
     /**
-     * A filer for a field based on several terms matching on any of them.
+     * A filter for a field based on several terms matching on any of them.
      *
      * @param name   The field name
      * @param values The terms
@@ -58,7 +67,7 @@ public class TermsQueryBuilder extends QueryBuilder {
     }
 
     /**
-     * A filer for a field based on several terms matching on any of them.
+     * A filter for a field based on several terms matching on any of them.
      *
      * @param name   The field name
      * @param values The terms
@@ -69,7 +78,7 @@ public class TermsQueryBuilder extends QueryBuilder {
     }
 
     /**
-     * A filer for a field based on several terms matching on any of them.
+     * A filter for a field based on several terms matching on any of them.
      *
      * @param name   The field name
      * @param values The terms
@@ -80,7 +89,7 @@ public class TermsQueryBuilder extends QueryBuilder {
     }
 
     /**
-     * A filer for a field based on several terms matching on any of them.
+     * A filter for a field based on several terms matching on any of them.
      *
      * @param name   The field name
      * @param values The terms
@@ -91,7 +100,7 @@ public class TermsQueryBuilder extends QueryBuilder {
     }
 
     /**
-     * A filer for a field based on several terms matching on any of them.
+     * A filter for a field based on several terms matching on any of them.
      *
      * @param name   The field name
      * @param values The terms
@@ -102,7 +111,7 @@ public class TermsQueryBuilder extends QueryBuilder {
     }
 
     /**
-     * A filer for a field based on several terms matching on any of them.
+     * A filter for a field based on several terms matching on any of them.
      *
      * @param name   The field name
      * @param values The terms
@@ -131,24 +140,80 @@ public class TermsQueryBuilder extends QueryBuilder {
         return this;
     }
 
+    /**
+     * Sets the index name to lookup the terms from.
+     */
+    public TermsQueryBuilder lookupIndex(String lookupIndex) {
+        this.lookupIndex = lookupIndex;
+        return this;
+    }
+
+    /**
+     * Sets the index type to lookup the terms from.
+     */
+    public TermsQueryBuilder lookupType(String lookupType) {
+        this.lookupType = lookupType;
+        return this;
+    }
+
+    /**
+     * Sets the doc id to lookup the terms from.
+     */
+    public TermsQueryBuilder lookupId(String lookupId) {
+        this.lookupId = lookupId;
+        return this;
+    }
+
+    /**
+     * Sets the path within the document to lookup the terms from.
+     */
+    public TermsQueryBuilder lookupPath(String lookupPath) {
+        this.lookupPath = lookupPath;
+        return this;
+    }
+
+    public TermsQueryBuilder lookupRouting(String lookupRouting) {
+        this.lookupRouting = lookupRouting;
+        return this;
+    }
+
+    public TermsQueryBuilder lookupCache(boolean lookupCache) {
+        this.lookupCache = lookupCache;
+        return this;
+    }
+
     @Override
     public void doXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(TermsQueryParser.NAME);
-        builder.field(name, values);
-
+        builder.startObject(NAME);
+        if (values == null) {
+            builder.startObject(name);
+            if (lookupIndex != null) {
+                builder.field("index", lookupIndex);
+            }
+            builder.field("type", lookupType);
+            builder.field("id", lookupId);
+            if (lookupRouting != null) {
+                builder.field("routing", lookupRouting);
+            }
+            if (lookupCache != null) {
+                builder.field("cache", lookupCache);
+            }
+            builder.field("path", lookupPath);
+            builder.endObject();
+        } else {
+            builder.field(name, values);
+        }
         if (execution != null) {
             builder.field("execution", execution);
         }
-
         if (queryName != null) {
             builder.field("_name", queryName);
         }
-
         builder.endObject();
     }
 
     @Override
-    protected String parserName() {
-        return TermsQueryParser.NAME;
+    public String queryId() {
+        return NAME;
     }
 }

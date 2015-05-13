@@ -34,15 +34,13 @@ import java.io.IOException;
  */
 public class FieldMaskingSpanQueryParser extends BaseQueryParserTemp {
 
-    public static final String NAME = "field_masking_span";
-
     @Inject
     public FieldMaskingSpanQueryParser() {
     }
 
     @Override
     public String[] names() {
-        return new String[]{NAME, Strings.toCamelCase(NAME)};
+        return new String[]{FieldMaskingSpanQueryBuilder.NAME, Strings.toCamelCase(FieldMaskingSpanQueryBuilder.NAME)};
     }
 
     @Override

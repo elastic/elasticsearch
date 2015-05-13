@@ -44,15 +44,13 @@ import java.io.IOException;
  */
 public class GeoDistanceQueryParser extends BaseQueryParserTemp {
 
-    public static final String NAME = "geo_distance";
-
     @Inject
     public GeoDistanceQueryParser() {
     }
 
     @Override
     public String[] names() {
-        return new String[]{NAME, "geoDistance"};
+        return new String[]{GeoDistanceQueryBuilder.NAME, "geoDistance"};
     }
 
     @Override

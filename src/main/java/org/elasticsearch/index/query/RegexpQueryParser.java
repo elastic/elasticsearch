@@ -37,15 +37,13 @@ import java.io.IOException;
  */
 public class RegexpQueryParser extends BaseQueryParserTemp {
 
-    public static final String NAME = "regexp";
-
     @Inject
     public RegexpQueryParser() {
     }
 
     @Override
     public String[] names() {
-        return new String[]{NAME};
+        return new String[]{RegexpQueryBuilder.NAME};
     }
 
     @Override

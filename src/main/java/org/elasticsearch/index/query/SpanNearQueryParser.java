@@ -36,15 +36,13 @@ import static com.google.common.collect.Lists.newArrayList;
  */
 public class SpanNearQueryParser extends BaseQueryParserTemp {
 
-    public static final String NAME = "span_near";
-
     @Inject
     public SpanNearQueryParser() {
     }
 
     @Override
     public String[] names() {
-        return new String[]{NAME, Strings.toCamelCase(NAME)};
+        return new String[]{SpanNearQueryBuilder.NAME, Strings.toCamelCase(SpanNearQueryBuilder.NAME)};
     }
 
     @Override

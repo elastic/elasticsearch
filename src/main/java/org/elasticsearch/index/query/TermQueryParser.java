@@ -30,15 +30,13 @@ import java.io.IOException;
  */
 public class TermQueryParser extends BaseQueryParser {
 
-    public static final String NAME = "term";
-
     @Inject
     public TermQueryParser() {
     }
 
     @Override
     public String[] names() {
-        return new String[]{NAME};
+        return new String[]{TermQueryBuilder.NAME};
     }
 
     @Override

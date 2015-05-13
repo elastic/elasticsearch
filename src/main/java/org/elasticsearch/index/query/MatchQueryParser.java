@@ -37,8 +37,6 @@ import java.io.IOException;
  */
 public class MatchQueryParser extends BaseQueryParserTemp {
 
-    public static final String NAME = "match";
-
     @Inject
     public MatchQueryParser() {
     }
@@ -46,7 +44,7 @@ public class MatchQueryParser extends BaseQueryParserTemp {
     @Override
     public String[] names() {
         return new String[]{
-                NAME, "match_phrase", "matchPhrase", "match_phrase_prefix", "matchPhrasePrefix", "matchFuzzy", "match_fuzzy", "fuzzy_match"
+                MatchQueryBuilder.NAME, "match_phrase", "matchPhrase", "match_phrase_prefix", "matchPhrasePrefix", "matchFuzzy", "match_fuzzy", "fuzzy_match"
         };
     }
 

@@ -31,6 +31,8 @@ import java.util.Locale;
  */
 public class MatchQueryBuilder extends QueryBuilder implements BoostableQueryBuilder<MatchQueryBuilder> {
 
+    public static final String NAME = "match";
+
     public enum Operator {
         OR,
         AND
@@ -218,7 +220,7 @@ public class MatchQueryBuilder extends QueryBuilder implements BoostableQueryBui
 
     @Override
     public void doXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(MatchQueryParser.NAME);
+        builder.startObject(NAME);
         builder.startObject(name);
 
         builder.field("query", text);
@@ -278,7 +280,7 @@ public class MatchQueryBuilder extends QueryBuilder implements BoostableQueryBui
     }
 
     @Override
-    protected String parserName() {
-        return MatchQueryParser.NAME;
+    public String queryId() {
+        return NAME;
     }
 }

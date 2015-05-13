@@ -20,6 +20,7 @@
 package org.elasticsearch.index.query;
 
 import com.google.common.collect.Lists;
+
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -31,6 +32,8 @@ import java.util.ArrayList;
  */
 @Deprecated
 public class AndQueryBuilder extends QueryBuilder {
+
+    public static final String NAME = "and";
 
     private ArrayList<QueryBuilder> filters = Lists.newArrayList();
 
@@ -60,7 +63,7 @@ public class AndQueryBuilder extends QueryBuilder {
 
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(AndQueryParser.NAME);
+        builder.startObject(NAME);
         builder.startArray("filters");
         for (QueryBuilder filter : filters) {
             filter.toXContent(builder, params);
@@ -73,7 +76,7 @@ public class AndQueryBuilder extends QueryBuilder {
     }
 
     @Override
-    protected String parserName() {
-        return AndQueryParser.NAME;
+    public String queryId() {
+        return NAME;
     }
 }

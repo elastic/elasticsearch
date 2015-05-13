@@ -49,7 +49,6 @@ import static org.elasticsearch.common.lucene.search.Queries.fixNegativeQueryIfN
  */
 public class QueryStringQueryParser extends BaseQueryParserTemp {
 
-    public static final String NAME = "query_string";
     private static final ParseField FUZZINESS = Fuzziness.FIELD.withDeprecation("fuzzy_min_sim");
 
     private final boolean defaultAnalyzeWildcard;
@@ -63,7 +62,7 @@ public class QueryStringQueryParser extends BaseQueryParserTemp {
 
     @Override
     public String[] names() {
-        return new String[]{NAME, Strings.toCamelCase(NAME)};
+        return new String[]{QueryStringQueryBuilder.NAME, Strings.toCamelCase(QueryStringQueryBuilder.NAME)};
     }
 
     @Override

@@ -36,15 +36,13 @@ import static com.google.common.collect.Lists.newArrayList;
  */
 public class SpanOrQueryParser extends BaseQueryParserTemp {
 
-    public static final String NAME = "span_or";
-
     @Inject
     public SpanOrQueryParser() {
     }
 
     @Override
     public String[] names() {
-        return new String[]{NAME, Strings.toCamelCase(NAME)};
+        return new String[]{SpanOrQueryBuilder.NAME, Strings.toCamelCase(SpanOrQueryBuilder.NAME)};
     }
 
     @Override

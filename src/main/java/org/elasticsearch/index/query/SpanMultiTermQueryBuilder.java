@@ -24,6 +24,7 @@ import java.io.IOException;
 
 public class SpanMultiTermQueryBuilder extends QueryBuilder implements SpanQueryBuilder {
 
+    public static final String NAME = "span_multi";
     private MultiTermQueryBuilder multiTermQueryBuilder;
 
     public SpanMultiTermQueryBuilder(MultiTermQueryBuilder multiTermQueryBuilder) {
@@ -33,14 +34,14 @@ public class SpanMultiTermQueryBuilder extends QueryBuilder implements SpanQuery
     @Override
     protected void doXContent(XContentBuilder builder, Params params)
             throws IOException {
-        builder.startObject(SpanMultiTermQueryParser.NAME);
+        builder.startObject(NAME);
         builder.field(SpanMultiTermQueryParser.MATCH_NAME);
         multiTermQueryBuilder.toXContent(builder, params);
         builder.endObject();
     }
 
     @Override
-    protected String parserName() {
-        return SpanMultiTermQueryParser.NAME;
+    public String queryId() {
+        return NAME;
     }
 }

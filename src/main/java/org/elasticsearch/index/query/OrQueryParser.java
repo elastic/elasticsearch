@@ -36,15 +36,13 @@ import static com.google.common.collect.Lists.newArrayList;
 @Deprecated
 public class OrQueryParser extends BaseQueryParserTemp {
 
-    public static final String NAME = "or";
-
     @Inject
     public OrQueryParser() {
     }
 
     @Override
     public String[] names() {
-        return new String[]{NAME};
+        return new String[]{OrQueryBuilder.NAME};
     }
 
     @Override

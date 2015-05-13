@@ -31,15 +31,13 @@ import java.io.IOException;
  */
 public class SpanTermQueryParser extends BaseQueryParser {
 
-    public static final String NAME = "span_term";
-
     @Inject
     public SpanTermQueryParser() {
     }
 
     @Override
     public String[] names() {
-        return new String[]{NAME, Strings.toCamelCase(NAME)};
+        return new String[]{SpanTermQueryBuilder.NAME, Strings.toCamelCase(SpanTermQueryBuilder.NAME)};
     }
 
     @Override

@@ -26,6 +26,8 @@ import java.util.ArrayList;
 
 public class SpanNearQueryBuilder extends QueryBuilder implements SpanQueryBuilder, BoostableQueryBuilder<SpanNearQueryBuilder> {
 
+    public static final String NAME = "span_near";
+
     private ArrayList<SpanQueryBuilder> clauses = new ArrayList<>();
 
     private Integer slop = null;
@@ -80,7 +82,7 @@ public class SpanNearQueryBuilder extends QueryBuilder implements SpanQueryBuild
         if (slop == null) {
             throw new IllegalArgumentException("Must set the slop when building a spanNear query");
         }
-        builder.startObject(SpanNearQueryParser.NAME);
+        builder.startObject(NAME);
         builder.startArray("clauses");
         for (SpanQueryBuilder clause : clauses) {
             clause.toXContent(builder, params);
@@ -103,7 +105,7 @@ public class SpanNearQueryBuilder extends QueryBuilder implements SpanQueryBuild
     }
 
     @Override
-    protected String parserName() {
-        return SpanNearQueryParser.NAME;
+    public String queryId() {
+        return NAME;
     }
 }

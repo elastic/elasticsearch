@@ -33,7 +33,6 @@ import java.io.IOException;
  */
 public class SpanMultiTermQueryParser extends BaseQueryParserTemp {
 
-    public static final String NAME = "span_multi";
     public static final String MATCH_NAME = "match";
 
     @Inject
@@ -42,7 +41,7 @@ public class SpanMultiTermQueryParser extends BaseQueryParserTemp {
 
     @Override
     public String[] names() {
-        return new String[]{NAME, Strings.toCamelCase(NAME)};
+        return new String[]{SpanMultiTermQueryBuilder.NAME, Strings.toCamelCase(SpanMultiTermQueryBuilder.NAME)};
     }
 
     @Override

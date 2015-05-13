@@ -29,6 +29,9 @@ import java.util.Map;
  * */
 public class TemplateQueryBuilder extends QueryBuilder {
 
+    /** Name to reference this type of query. */
+    public static final String NAME = "template";
+
     /** Parameters to fill the template with. */
     private Map<String, Object> vars;
     /** Template to fill.*/
@@ -57,7 +60,7 @@ public class TemplateQueryBuilder extends QueryBuilder {
 
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(TemplateQueryParser.NAME);
+        builder.startObject(NAME);
         String fieldname;
         switch(templateType){
             case FILE:
@@ -78,7 +81,7 @@ public class TemplateQueryBuilder extends QueryBuilder {
     }
 
     @Override
-    protected String parserName() {
-        return TemplateQueryParser.NAME;
+    public String queryId() {
+        return NAME;
     }
 }

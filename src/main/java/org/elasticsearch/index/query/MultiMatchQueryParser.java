@@ -39,8 +39,6 @@ import java.util.Map;
  */
 public class MultiMatchQueryParser extends BaseQueryParserTemp {
 
-    public static final String NAME = "multi_match";
-
     @Inject
     public MultiMatchQueryParser() {
     }
@@ -48,7 +46,7 @@ public class MultiMatchQueryParser extends BaseQueryParserTemp {
     @Override
     public String[] names() {
         return new String[]{
-                NAME, "multiMatch"
+                MultiMatchQueryBuilder.NAME, "multiMatch"
         };
     }
 
@@ -78,7 +76,7 @@ public class MultiMatchQueryParser extends BaseQueryParserTemp {
                 } else if (token.isValue()) {
                     extractFieldAndBoost(parseContext, parser, fieldNameWithBoosts);
                 } else {
-                    throw new QueryParsingException(parseContext, "[" + NAME + "] query does not support [" + currentFieldName + "]");
+                    throw new QueryParsingException(parseContext, "[" + MultiMatchQueryBuilder.NAME + "] query does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
                 if ("query".equals(currentFieldName)) {
@@ -88,7 +86,7 @@ public class MultiMatchQueryParser extends BaseQueryParserTemp {
                 } else if ("analyzer".equals(currentFieldName)) {
                     String analyzer = parser.text();
                     if (parseContext.analysisService().analyzer(analyzer) == null) {
-                        throw new QueryParsingException(parseContext, "[" + NAME + "] analyzer [" + parser.text() + "] not found");
+                        throw new QueryParsingException(parseContext, "[" + MultiMatchQueryBuilder.NAME + "] analyzer [" + parser.text() + "] not found");
                     }
                     multiMatchQuery.setAnalyzer(analyzer);
                 } else if ("boost".equals(currentFieldName)) {

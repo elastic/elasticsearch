@@ -48,7 +48,7 @@ public class QueryWrappingQueryBuilder extends QueryBuilder {
     }
 
     @Override
-    protected final String parserName() {
+    public String queryId() {
         // this should not be called since we overwrite BaseQueryBuilder#toQuery() in this class
         throw new UnsupportedOperationException();
     }

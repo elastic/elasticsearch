@@ -32,15 +32,13 @@ import java.io.IOException;
 
 public class TypeQueryParser extends BaseQueryParserTemp {
 
-    public static final String NAME = "type";
-
     @Inject
     public TypeQueryParser() {
     }
 
     @Override
     public String[] names() {
-        return new String[]{NAME};
+        return new String[]{TypeQueryBuilder.NAME};
     }
 
     @Override

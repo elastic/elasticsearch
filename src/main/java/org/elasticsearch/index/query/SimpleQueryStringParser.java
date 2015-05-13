@@ -71,8 +71,6 @@ import java.util.Map;
  */
 public class SimpleQueryStringParser extends BaseQueryParserTemp {
 
-    public static final String NAME = "simple_query_string";
-
     @Inject
     public SimpleQueryStringParser(Settings settings) {
 
@@ -80,7 +78,7 @@ public class SimpleQueryStringParser extends BaseQueryParserTemp {
 
     @Override
     public String[] names() {
-        return new String[]{NAME, Strings.toCamelCase(NAME)};
+        return new String[]{SimpleQueryStringBuilder.NAME, Strings.toCamelCase(SimpleQueryStringBuilder.NAME)};
     }
 
     @Override
@@ -140,7 +138,7 @@ public class SimpleQueryStringParser extends BaseQueryParserTemp {
                     }
                 } else {
                     throw new QueryParsingException(parseContext,
- "[" + NAME + "] query does not support [" + currentFieldName
+ "[" + SimpleQueryStringBuilder.NAME + "] query does not support [" + currentFieldName
  + "]");
                 }
             } else if (token.isValue()) {
@@ -149,7 +147,7 @@ public class SimpleQueryStringParser extends BaseQueryParserTemp {
                 } else if ("analyzer".equals(currentFieldName)) {
                     analyzer = parseContext.analysisService().analyzer(parser.text());
                     if (analyzer == null) {
-                        throw new QueryParsingException(parseContext, "[" + NAME + "] analyzer [" + parser.text() + "] not found");
+                        throw new QueryParsingException(parseContext, "[" + SimpleQueryStringBuilder.NAME + "] analyzer [" + parser.text() + "] not found");
                     }
                 } else if ("field".equals(currentFieldName)) {
                     field = parser.text();
@@ -160,7 +158,7 @@ public class SimpleQueryStringParser extends BaseQueryParserTemp {
                     } else if ("and".equalsIgnoreCase(op)) {
                         defaultOperator = BooleanClause.Occur.MUST;
                     } else {
-                        throw new QueryParsingException(parseContext, "[" + NAME + "] default operator [" + op + "] is not allowed");
+                        throw new QueryParsingException(parseContext, "[" + SimpleQueryStringBuilder.NAME + "] default operator [" + op + "] is not allowed");
                     }
                 } else if ("flags".equals(currentFieldName)) {
                     if (parser.currentToken() != XContentParser.Token.VALUE_NUMBER) {
@@ -188,14 +186,14 @@ public class SimpleQueryStringParser extends BaseQueryParserTemp {
                 } else if ("minimum_should_match".equals(currentFieldName)) {
                     minimumShouldMatch = parser.textOrNull();
                 } else {
-                    throw new QueryParsingException(parseContext, "[" + NAME + "] unsupported field [" + parser.currentName() + "]");
+                    throw new QueryParsingException(parseContext, "[" + SimpleQueryStringBuilder.NAME + "] unsupported field [" + parser.currentName() + "]");
                 }
             }
         }
 
         // Query text is required
         if (queryBody == null) {
-            throw new QueryParsingException(parseContext, "[" + NAME + "] query text missing");
+            throw new QueryParsingException(parseContext, "[" + SimpleQueryStringBuilder.NAME + "] query text missing");
         }
 
         // Support specifying only a field instead of a map

@@ -30,8 +30,10 @@ import java.util.List;
 
 public class GeoPolygonQueryBuilder extends QueryBuilder {
 
+    public static final String NAME = "geo_polygon";
+
     public static final String POINTS = GeoPolygonQueryParser.POINTS;
-    
+
     private final String name;
 
     private final List<GeoPoint> shell = Lists.newArrayList();
@@ -61,7 +63,7 @@ public class GeoPolygonQueryBuilder extends QueryBuilder {
         shell.add(point);
         return this;
     }
-    
+
     /**
      * Sets the filter name for the filter that can be used when searching for matched_filters per hit.
      */
@@ -72,7 +74,7 @@ public class GeoPolygonQueryBuilder extends QueryBuilder {
 
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(GeoPolygonQueryParser.NAME);
+        builder.startObject(NAME);
 
         builder.startObject(name);
         builder.startArray(POINTS);
@@ -90,7 +92,7 @@ public class GeoPolygonQueryBuilder extends QueryBuilder {
     }
 
     @Override
-    protected String parserName() {
-        return GeoPolygonQueryParser.NAME;
+    public String queryId() {
+        return NAME;
     }
 }

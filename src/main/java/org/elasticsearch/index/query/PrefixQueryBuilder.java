@@ -28,6 +28,8 @@ import java.io.IOException;
  */
 public class PrefixQueryBuilder extends MultiTermQueryBuilder implements BoostableQueryBuilder<PrefixQueryBuilder> {
 
+    public static final String NAME = "prefix";
+
     private final String name;
 
     private final String prefix;
@@ -74,7 +76,7 @@ public class PrefixQueryBuilder extends MultiTermQueryBuilder implements Boostab
 
     @Override
     public void doXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(PrefixQueryParser.NAME);
+        builder.startObject(NAME);
         if (boost == -1 && rewrite == null && queryName != null) {
             builder.field(name, prefix);
         } else {
@@ -95,7 +97,7 @@ public class PrefixQueryBuilder extends MultiTermQueryBuilder implements Boostab
     }
 
     @Override
-    protected String parserName() {
-        return PrefixQueryParser.NAME;
+    public String queryId() {
+        return NAME;
     }
 }

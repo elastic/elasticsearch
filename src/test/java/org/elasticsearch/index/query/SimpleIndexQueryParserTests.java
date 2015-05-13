@@ -168,7 +168,7 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
 
     public static class DummyQueryParser extends AbstractIndexComponent implements QueryParser {
 
-        public static final String NAME = "dummy";
+
 
         @Inject
         public DummyQueryParser(Index index, Settings indexSettings) {
@@ -177,7 +177,7 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
 
         @Override
         public String[] names() {
-            return new String[] {NAME};
+            return new String[] {DummyQueryBuilder.NAME};
         }
 
         @Override
@@ -194,6 +194,9 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
     }
 
     private static class DummyQueryBuilder extends QueryBuilder {
+
+        public static final String NAME = "dummy";
+
         @Override
         protected void doXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject("dummy").endObject();
@@ -207,8 +210,8 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         }
 
         @Override
-        protected String parserName() {
-            return DummyQueryParser.NAME;
+        public String queryId() {
+            return NAME;
         }
     }
 

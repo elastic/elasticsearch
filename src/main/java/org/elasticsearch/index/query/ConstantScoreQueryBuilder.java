@@ -31,6 +31,8 @@ import java.util.Objects;
  */
 public class ConstantScoreQueryBuilder extends QueryBuilder implements BoostableQueryBuilder<ConstantScoreQueryBuilder> {
 
+    public static final String NAME = "constant_score";
+
     private final QueryBuilder filterBuilder;
 
     private float boost = -1;
@@ -57,7 +59,7 @@ public class ConstantScoreQueryBuilder extends QueryBuilder implements Boostable
 
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(ConstantScoreQueryParser.NAME);
+        builder.startObject(NAME);
         builder.field("filter");
         filterBuilder.toXContent(builder, params);
 
@@ -68,7 +70,7 @@ public class ConstantScoreQueryBuilder extends QueryBuilder implements Boostable
     }
 
     @Override
-    protected String parserName() {
-        return ConstantScoreQueryParser.NAME;
+    public String queryId() {
+        return NAME;
     }
 }

@@ -39,8 +39,6 @@ import java.io.IOException;
  */
 public class CommonTermsQueryParser extends BaseQueryParserTemp {
 
-    public static final String NAME = "common";
-
     static final float DEFAULT_MAX_TERM_DOC_FREQ = 0.01f;
 
     static final Occur DEFAULT_HIGH_FREQ_OCCUR = Occur.SHOULD;
@@ -56,7 +54,7 @@ public class CommonTermsQueryParser extends BaseQueryParserTemp {
 
     @Override
     public String[] names() {
-        return new String[] { NAME };
+        return new String[] { CommonTermsQueryBuilder.NAME };
     }
 
     @Override

@@ -25,6 +25,8 @@ import java.io.IOException;
 
 public class SpanNotQueryBuilder extends QueryBuilder implements SpanQueryBuilder, BoostableQueryBuilder<SpanNotQueryBuilder> {
 
+    public static final String NAME = "span_not";
+
     private SpanQueryBuilder include;
 
     private SpanQueryBuilder exclude;
@@ -93,7 +95,7 @@ public class SpanNotQueryBuilder extends QueryBuilder implements SpanQueryBuilde
              throw new IllegalArgumentException("spanNot can either use [dist] or [pre] & [post] (or none)");
         }
 
-        builder.startObject(SpanNotQueryParser.NAME);
+        builder.startObject(NAME);
         builder.field("include");
         include.toXContent(builder, params);
         builder.field("exclude");
@@ -117,7 +119,7 @@ public class SpanNotQueryBuilder extends QueryBuilder implements SpanQueryBuilde
     }
 
     @Override
-    protected String parserName() {
-        return SpanNotQueryParser.NAME;
+    public String queryId() {
+        return NAME;
     }
 }

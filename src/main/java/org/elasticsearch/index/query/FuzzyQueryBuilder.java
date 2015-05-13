@@ -29,6 +29,8 @@ import java.io.IOException;
  */
 public class FuzzyQueryBuilder extends MultiTermQueryBuilder implements BoostableQueryBuilder<FuzzyQueryBuilder> {
 
+    public static final String NAME = "fuzzy";
+
     private final String name;
 
     private final Object value;
@@ -104,7 +106,7 @@ public class FuzzyQueryBuilder extends MultiTermQueryBuilder implements Boostabl
 
     @Override
     public void doXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(FuzzyQueryParser.NAME);
+        builder.startObject(NAME);
         if (boost == -1 && fuzziness == null && prefixLength == null && queryName != null) {
             builder.field(name, value);
         } else {
@@ -137,7 +139,7 @@ public class FuzzyQueryBuilder extends MultiTermQueryBuilder implements Boostabl
     }
 
     @Override
-    protected String parserName() {
-        return FuzzyQueryParser.NAME;
+    public String queryId() {
+        return NAME;
     }
 }

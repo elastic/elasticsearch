@@ -33,7 +33,6 @@ import java.io.IOException;
  */
 public class RangeQueryParser extends BaseQueryParser {
 
-    public static final String NAME = "range";
     private static final ParseField FIELDDATA_FIELD = new ParseField("fielddata").withAllDeprecated("[no replacement]");
 
     @Inject
@@ -42,7 +41,7 @@ public class RangeQueryParser extends BaseQueryParser {
 
     @Override
     public String[] names() {
-        return new String[] { NAME };
+        return new String[]{RangeQueryBuilder.NAME};
     }
 
     @Override

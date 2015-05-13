@@ -29,6 +29,8 @@ import java.io.IOException;
  */
 public class IndicesQueryBuilder extends QueryBuilder {
 
+    public static final String NAME = "indices";
+
     private final QueryBuilder queryBuilder;
 
     private final String[] indices;
@@ -69,7 +71,7 @@ public class IndicesQueryBuilder extends QueryBuilder {
 
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(IndicesQueryParser.NAME);
+        builder.startObject(NAME);
         builder.field("indices", indices);
         builder.field("query");
         queryBuilder.toXContent(builder, params);
@@ -86,7 +88,7 @@ public class IndicesQueryBuilder extends QueryBuilder {
     }
 
     @Override
-    protected String parserName() {
-        return IndicesQueryParser.NAME;
+    public String queryId() {
+        return NAME;
     }
 }

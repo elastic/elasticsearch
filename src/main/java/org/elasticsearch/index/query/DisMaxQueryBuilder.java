@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.Query;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -33,6 +32,8 @@ import static com.google.common.collect.Lists.newArrayList;
  * additional matching sub-queries.
  */
 public class DisMaxQueryBuilder extends QueryBuilder implements BoostableQueryBuilder<DisMaxQueryBuilder> {
+
+    public static final String NAME = "dis_max";
 
     private ArrayList<QueryBuilder> queries = newArrayList();
 
@@ -81,7 +82,7 @@ public class DisMaxQueryBuilder extends QueryBuilder implements BoostableQueryBu
 
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(DisMaxQueryParser.NAME);
+        builder.startObject(NAME);
         if (tieBreaker != -1) {
             builder.field("tie_breaker", tieBreaker);
         }
@@ -100,7 +101,7 @@ public class DisMaxQueryBuilder extends QueryBuilder implements BoostableQueryBu
     }
 
     @Override
-    protected String parserName() {
-        return DisMaxQueryParser.NAME;
+    public String queryId() {
+        return NAME;
     }
 }

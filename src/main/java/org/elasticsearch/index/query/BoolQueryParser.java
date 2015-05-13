@@ -39,8 +39,6 @@ import static org.elasticsearch.common.lucene.search.Queries.fixNegativeQueryIfN
  */
 public class BoolQueryParser extends BaseQueryParserTemp {
 
-    public static final String NAME = "bool";
-
     @Inject
     public BoolQueryParser(Settings settings) {
         BooleanQuery.setMaxClauseCount(settings.getAsInt("index.query.bool.max_clause_count", settings.getAsInt("indices.query.bool.max_clause_count", BooleanQuery.getMaxClauseCount())));
@@ -48,7 +46,7 @@ public class BoolQueryParser extends BaseQueryParserTemp {
 
     @Override
     public String[] names() {
-        return new String[]{NAME};
+        return new String[]{BoolQueryBuilder.NAME};
     }
 
     @Override

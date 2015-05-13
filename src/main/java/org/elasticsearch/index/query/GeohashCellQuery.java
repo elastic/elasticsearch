@@ -169,7 +169,7 @@ public class GeohashCellQuery {
         }
 
         @Override
-        protected String parserName() {
+        public String queryId() {
             return NAME;
         }
     }

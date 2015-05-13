@@ -28,6 +28,8 @@ import java.io.IOException;
  */
 public class MissingQueryBuilder extends QueryBuilder {
 
+    public static final String NAME = "missing";
+
     private String name;
 
     private String queryName;
@@ -68,7 +70,7 @@ public class MissingQueryBuilder extends QueryBuilder {
 
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(MissingQueryParser.NAME);
+        builder.startObject(NAME);
         builder.field("field", name);
         if (nullValue != null) {
             builder.field("null_value", nullValue);
@@ -83,7 +85,7 @@ public class MissingQueryBuilder extends QueryBuilder {
     }
 
     @Override
-    protected String parserName() {
-        return MissingQueryParser.NAME;
+    public String queryId() {
+        return NAME;
     }
 }

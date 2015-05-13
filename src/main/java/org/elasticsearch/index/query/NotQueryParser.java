@@ -32,7 +32,6 @@ import java.io.IOException;
  */
 public class NotQueryParser extends BaseQueryParserTemp {
 
-    public static final String NAME = "not";
     private static final ParseField QUERY_FIELD = new ParseField("filter", "query");
 
     @Inject
@@ -41,7 +40,7 @@ public class NotQueryParser extends BaseQueryParserTemp {
 
     @Override
     public String[] names() {
-        return new String[]{NAME};
+        return new String[]{NotQueryBuilder.NAME};
     }
 
     @Override

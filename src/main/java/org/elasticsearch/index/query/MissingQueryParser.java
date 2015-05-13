@@ -39,7 +39,6 @@ import java.util.List;
  */
 public class MissingQueryParser extends BaseQueryParserTemp {
 
-    public static final String NAME = "missing";
     public static final boolean DEFAULT_NULL_VALUE = false;
     public static final boolean DEFAULT_EXISTENCE_VALUE = true;
 
@@ -49,7 +48,7 @@ public class MissingQueryParser extends BaseQueryParserTemp {
 
     @Override
     public String[] names() {
-        return new String[]{NAME};
+        return new String[]{MissingQueryBuilder.NAME};
     }
 
     @Override

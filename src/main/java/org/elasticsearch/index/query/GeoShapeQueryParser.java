@@ -40,8 +40,6 @@ import java.io.IOException;
 
 public class GeoShapeQueryParser extends BaseQueryParserTemp {
 
-    public static final String NAME = "geo_shape";
-
     private ShapeFetchService fetchService;
 
     public static class DEFAULTS {
@@ -51,7 +49,7 @@ public class GeoShapeQueryParser extends BaseQueryParserTemp {
 
     @Override
     public String[] names() {
-        return new String[]{NAME, Strings.toCamelCase(NAME)};
+        return new String[]{GeoShapeQueryBuilder.NAME, Strings.toCamelCase(GeoShapeQueryBuilder.NAME)};
     }
 
     @Override

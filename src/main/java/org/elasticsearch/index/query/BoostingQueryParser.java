@@ -31,15 +31,13 @@ import java.io.IOException;
  */
 public class BoostingQueryParser extends BaseQueryParserTemp {
 
-    public static final String NAME = "boosting";
-
     @Inject
     public BoostingQueryParser() {
     }
 
     @Override
     public String[] names() {
-        return new String[]{NAME};
+        return new String[]{BoostingQueryBuilder.NAME};
     }
 
     @Override

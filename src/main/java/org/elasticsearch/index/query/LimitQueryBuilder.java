@@ -30,6 +30,7 @@ import java.io.IOException;
 @Deprecated
 public class LimitQueryBuilder extends QueryBuilder {
 
+    public static final String NAME = "limit";
     private final int limit;
 
     public LimitQueryBuilder(int limit) {
@@ -38,13 +39,13 @@ public class LimitQueryBuilder extends QueryBuilder {
 
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(LimitQueryParser.NAME);
+        builder.startObject(NAME);
         builder.field("value", limit);
         builder.endObject();
     }
 
     @Override
-    protected String parserName() {
-        return LimitQueryParser.NAME;
+    public String queryId() {
+        return NAME;
     }
 }

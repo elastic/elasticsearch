@@ -31,6 +31,8 @@ import java.io.IOException;
 @Deprecated
 public class FilteredQueryBuilder extends QueryBuilder implements BoostableQueryBuilder<FilteredQueryBuilder> {
 
+    public static final String NAME = "filtered";
+
     private final QueryBuilder queryBuilder;
 
     private final QueryBuilder filterBuilder;
@@ -70,7 +72,7 @@ public class FilteredQueryBuilder extends QueryBuilder implements BoostableQuery
 
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(FilteredQueryParser.NAME);
+        builder.startObject(NAME);
         if (queryBuilder != null) {
             builder.field("query");
             queryBuilder.toXContent(builder, params);
@@ -89,7 +91,7 @@ public class FilteredQueryBuilder extends QueryBuilder implements BoostableQuery
     }
 
     @Override
-    protected String parserName() {
-        return FilteredQueryParser.NAME;
+    public String queryId() {
+        return NAME;
     }
 }

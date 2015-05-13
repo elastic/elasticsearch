@@ -28,7 +28,7 @@ import java.io.IOException;
 import java.util.Objects;
 
 public abstract class BaseTermQueryBuilder<QB extends BaseTermQueryBuilder<QB>> extends QueryBuilder<QB> implements BoostableQueryBuilder<QB> {
-    
+
     /** Name of field to match against. */
     protected final String fieldName;
 
@@ -158,7 +158,7 @@ public abstract class BaseTermQueryBuilder<QB extends BaseTermQueryBuilder<QB>> 
 
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(parserName());
+        builder.startObject(queryId());
         if (boost == 1.0f && queryName == null) {
             builder.field(fieldName, convertToStringIfBytesRef(this.value));
         } else {

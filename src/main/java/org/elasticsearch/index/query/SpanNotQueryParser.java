@@ -33,15 +33,13 @@ import java.io.IOException;
  */
 public class SpanNotQueryParser extends BaseQueryParserTemp {
 
-    public static final String NAME = "span_not";
-
     @Inject
     public SpanNotQueryParser() {
     }
 
     @Override
     public String[] names() {
-        return new String[]{NAME, Strings.toCamelCase(NAME)};
+        return new String[]{SpanNotQueryBuilder.NAME, Strings.toCamelCase(SpanNotQueryBuilder.NAME)};
     }
 
     @Override

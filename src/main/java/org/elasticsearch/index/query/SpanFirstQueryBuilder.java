@@ -25,6 +25,8 @@ import java.io.IOException;
 
 public class SpanFirstQueryBuilder extends QueryBuilder implements SpanQueryBuilder, BoostableQueryBuilder<SpanFirstQueryBuilder> {
 
+    public static final String NAME = "span_first";
+
     private final SpanQueryBuilder matchBuilder;
 
     private final int end;
@@ -54,7 +56,7 @@ public class SpanFirstQueryBuilder extends QueryBuilder implements SpanQueryBuil
 
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(SpanFirstQueryParser.NAME);
+        builder.startObject(NAME);
         builder.field("match");
         matchBuilder.toXContent(builder, params);
         builder.field("end", end);
@@ -68,7 +70,7 @@ public class SpanFirstQueryBuilder extends QueryBuilder implements SpanQueryBuil
     }
 
     @Override
-    protected String parserName() {
-        return SpanFirstQueryParser.NAME;
+    public String queryId() {
+        return NAME;
     }
 }

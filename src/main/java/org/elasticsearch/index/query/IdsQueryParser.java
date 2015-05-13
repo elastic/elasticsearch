@@ -32,15 +32,13 @@ import java.util.List;
  */
 public class IdsQueryParser extends BaseQueryParser {
 
-    public static final String NAME = "ids";
-
     @Inject
     public IdsQueryParser() {
     }
 
     @Override
     public String[] names() {
-        return new String[]{NAME};
+        return new String[]{IdsQueryBuilder.NAME};
     }
 
     /**

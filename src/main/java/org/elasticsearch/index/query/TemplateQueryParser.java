@@ -41,8 +41,6 @@ import java.util.Map;
  * */
 public class TemplateQueryParser extends BaseQueryParserTemp {
 
-    /** Name to reference this type of query. */
-    public static final String NAME = "template";
     /** Name of query parameter containing the template string. */
     public static final String QUERY = "query";
     /** Name of query parameter containing the template parameters. */
@@ -64,7 +62,7 @@ public class TemplateQueryParser extends BaseQueryParserTemp {
 
     @Override
     public String[] names() {
-        return new String[] {NAME};
+        return new String[] {TemplateQueryBuilder.NAME};
     }
 
     /**

@@ -35,15 +35,13 @@ import static com.google.common.collect.Lists.newArrayList;
  */
 public class DisMaxQueryParser extends BaseQueryParserTemp {
 
-    public static final String NAME = "dis_max";
-
     @Inject
     public DisMaxQueryParser() {
     }
 
     @Override
     public String[] names() {
-        return new String[]{NAME, Strings.toCamelCase(NAME)};
+        return new String[]{DisMaxQueryBuilder.NAME, Strings.toCamelCase(DisMaxQueryBuilder.NAME)};
     }
 
     @Override

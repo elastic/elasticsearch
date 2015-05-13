@@ -28,6 +28,8 @@ import static com.google.common.collect.Maps.newHashMap;
 
 public class ScriptQueryBuilder extends QueryBuilder {
 
+    public static final String NAME = "script";
+
     private final String script;
 
     private Map<String, Object> params;
@@ -75,7 +77,7 @@ public class ScriptQueryBuilder extends QueryBuilder {
 
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(ScriptQueryParser.NAME);
+        builder.startObject(NAME);
         builder.field("script", script);
         if (this.params != null) {
             builder.field("params", this.params);
@@ -90,7 +92,7 @@ public class ScriptQueryBuilder extends QueryBuilder {
     }
 
     @Override
-    protected String parserName() {
-        return ScriptQueryParser.NAME;
+    public String queryId() {
+        return NAME;
     }
 }

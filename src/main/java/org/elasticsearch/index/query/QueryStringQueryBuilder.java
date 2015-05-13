@@ -40,6 +40,8 @@ import static com.google.common.collect.Lists.newArrayList;
  */
 public class QueryStringQueryBuilder extends QueryBuilder implements BoostableQueryBuilder<QueryStringQueryBuilder> {
 
+    public static final String NAME = "query_string";
+
     public enum Operator {
         OR,
         AND
@@ -344,7 +346,7 @@ public class QueryStringQueryBuilder extends QueryBuilder implements BoostableQu
 
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(QueryStringQueryParser.NAME);
+        builder.startObject(NAME);
         builder.field("query", queryString);
         if (defaultField != null) {
             builder.field("default_field", defaultField);
@@ -435,7 +437,7 @@ public class QueryStringQueryBuilder extends QueryBuilder implements BoostableQu
     }
 
     @Override
-    protected String parserName() {
-        return QueryStringQueryParser.NAME;
+    public String queryId() {
+        return NAME;
     }
 }

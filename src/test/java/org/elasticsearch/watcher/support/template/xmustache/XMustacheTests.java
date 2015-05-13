@@ -10,12 +10,16 @@ import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.ImmutableSet;
+import org.elasticsearch.common.jackson.core.io.JsonStringEncoder;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.script.ScriptEngineService;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Before;
 import org.junit.Test;
 
+import java.io.IOException;
+import java.io.StringWriter;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -84,4 +88,76 @@ public class XMustacheTests extends ElasticsearchTestCase {
         BytesReference bytes = (BytesReference) output;
         assertThat(bytes.toUtf8(), equalTo("foo bar"));
     }
+
+    @Test @Repeat(iterations = 10)
+    public void testEscaping() throws Exception {
+        XContentType contentType = randomFrom(XContentType.values());
+        if (rarely()) {
+            contentType = null;
+        }
+        Character[] specialChars = new Character[]{'\f', '\n', '\r', '"', '\\', (char) 11, '\t', '\b' };
+        int iters = scaledRandomIntBetween(100, 1000);
+        for (int i = 0; i < iters; i++) {
+            int rounds = scaledRandomIntBetween(1, 20);
+            StringWriter escaped = new StringWriter(); //This will be escaped as it is constructed
+            StringWriter unescaped = new StringWriter(); //This will be escaped at the end
+
+            for (int j = 0; j < rounds; j++) {
+                String s = getChars();
+                unescaped.write(s);
+                if (contentType == XContentType.JSON) {
+                    escaped.write(JsonStringEncoder.getInstance().quoteAsString(s));
+                } else {
+                    escaped.write(s);
+                }
+
+                char c = randomFrom(specialChars);
+                unescaped.append(c);
+
+                if (contentType == XContentType.JSON) {
+                    escaped.write(JsonStringEncoder.getInstance().quoteAsString("" + c));
+                } else {
+                    escaped.append(c);
+                }
+            }
+
+            if (contentType == XContentType.JSON) {
+                assertThat(escaped.toString(), equalTo(new String(JsonStringEncoder.getInstance().quoteAsString(unescaped.toString()))));
+            }
+            else {
+                assertThat(escaped.toString(), equalTo(unescaped.toString()));
+            }
+
+            String template = XMustacheScriptEngineService.prepareTemplate("{{data}}", contentType);
+
+            Map<String, Object> dataMap = new HashMap<>();
+            dataMap.put("data", unescaped.toString());
+            Object mustache = engine.compile(template);
+            Object output = engine.execute(mustache, dataMap);
+
+            assertThat(output, notNullValue());
+            assertThat(output, instanceOf(BytesReference.class));
+            BytesReference bytes = (BytesReference) output;
+            String renderedTemplate = bytes.toUtf8();
+
+            if (contentType == XContentType.JSON) {
+                if (!escaped.toString().equals(renderedTemplate)) {
+                    String escapedString = escaped.toString();
+                    for (int l = 0; l < renderedTemplate.length() && l < escapedString.length(); ++l) {
+                        if (renderedTemplate.charAt(l) != escapedString.charAt(l)) {
+                            logger.error("at [{}] expected [{}] but got [{}]", l, renderedTemplate.charAt(l), escapedString.charAt(l));
+                        }
+                    }
+                }
+                assertThat(escaped.toString(), equalTo(renderedTemplate));
+            } else {
+                assertThat(unescaped.toString(), equalTo(renderedTemplate));
+            }
+        }
+    }
+
+    private String getChars() throws IOException {
+        return randomRealisticUnicodeOfCodepointLengthBetween(0, 10);
+    }
+
 }

@@ -12,6 +12,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.mustache.MustacheScriptEngineService;
 import org.elasticsearch.watcher.support.init.proxy.ScriptServiceProxy;
+import org.elasticsearch.watcher.support.template.xmustache.XMustacheScriptEngineService;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -34,7 +35,9 @@ public class MustacheTemplateEngine extends AbstractComponent implements Templat
         Map<String, Object> mergedModel = new HashMap<>();
         mergedModel.putAll(template.getParams());
         mergedModel.putAll(model);
-        ExecutableScript executable = service.executable(MustacheScriptEngineService.NAME, template.getTemplate(), template.getType(), mergedModel);
+        ExecutableScript executable = service.executable(MustacheScriptEngineService.NAME,
+                XMustacheScriptEngineService.prepareTemplate(template.getTemplate(), template.getContentType()),
+                template.getType(), mergedModel);
         Object result = executable.run();
         if (result instanceof BytesReference) {
             return ((BytesReference) result).toUtf8();

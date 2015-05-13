@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.UTF8StreamWriter;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.mustache.Mustache;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptEngineService;
@@ -22,6 +23,7 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import java.io.IOException;
 import java.lang.ref.SoftReference;
 import java.util.Collections;
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -50,7 +52,9 @@ public class XMustacheScriptEngineService extends AbstractComponent implements S
     @Override
     public Object compile(String template) {
         /** Factory to generate Mustache objects from. */
-        return (new XMustacheFactory()).compile(new FastStringReader(template), "query-template");
+        XContentType xContentType = detectContentType(template);
+        template = trimContentType(template);
+        return (new XMustacheFactory(xContentType)).compile(new FastStringReader(template), "query-template");
     }
 
     /**
@@ -125,6 +129,17 @@ public class XMustacheScriptEngineService extends AbstractComponent implements S
         // Nothing to do here
     }
 
+    public static String prepareTemplate(String template, @Nullable XContentType contentType) {
+        if (contentType == null) {
+            return template;
+        }
+        return new StringBuilder("__")
+                .append(contentType.shortName().toLowerCase(Locale.ROOT))
+                .append("__::")
+                .append(template)
+                .toString();
+    }
+
     /**
      * Used at query execution time by script service in order to execute a query template.
      * */
@@ -188,4 +203,30 @@ public class XMustacheScriptEngineService extends AbstractComponent implements S
         writer.reset();
         return writer;
     }
+
+    private String trimContentType(String template) {
+        if (!template.startsWith("__")){
+            return template; //Doesn't even start with __ so can't have a content type
+        }
+        int index = template.indexOf("__::", 3); //There must be a __<content_type__:: prefix so the minimum length before detecting '__::' is 3
+        if (index >= 0 && index < 12) { //Assume that the content type name is less than 10 characters long otherwise we may falsely detect strings that start with '__ and have '__::' somewhere in the content
+            if (template.length() == 6) {
+                template = "";
+            } else {
+                template = template.substring(index + 4);
+            }
+        }
+        return template;
+    }
+
+    private XContentType detectContentType(String template) {
+        if (template.startsWith("__")) {
+            int endOfContentName = template.indexOf("__::", 3); //There must be a __<content_type__:: prefix so the minimum length before detecting '__::' is 3
+            if (endOfContentName != -1) {
+                return XContentType.fromRestContentType(template.substring(2, endOfContentName));
+            }
+        }
+        return null;
+    }
+
 }

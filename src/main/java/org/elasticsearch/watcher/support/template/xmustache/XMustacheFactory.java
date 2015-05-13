@@ -6,9 +6,11 @@
 package org.elasticsearch.watcher.support.template.xmustache;
 
 import org.elasticsearch.common.collect.Iterables;
+import org.elasticsearch.common.jackson.core.io.JsonStringEncoder;
 import org.elasticsearch.common.mustache.DefaultMustacheFactory;
 import org.elasticsearch.common.mustache.MustacheException;
 import org.elasticsearch.common.mustache.reflect.ReflectionObjectHandler;
+import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.io.Writer;
@@ -22,7 +24,10 @@ import java.util.*;
  */
 public class XMustacheFactory extends DefaultMustacheFactory {
 
-    public XMustacheFactory() {
+    final XContentType contentType;
+
+    public XMustacheFactory(XContentType contentType) {
+        this.contentType = contentType;
         setObjectHandler(new ReflectionObjectHandler() {
             @Override
             public Object coerce(Object object) {
@@ -41,38 +46,15 @@ public class XMustacheFactory extends DefaultMustacheFactory {
     @Override
     public void encode(String value, Writer writer) {
         try {
-            escape(value, writer);
+            if (contentType == XContentType.JSON) {
+                writer.write(JsonStringEncoder.getInstance().quoteAsString(value));
+            } else {
+                writer.write(value);
+            }
         } catch (IOException e) {
             throw new MustacheException("Failed to encode value: " + value);
         }
     }
-
-    public static Writer escape(String value, Writer writer) throws IOException {
-        for (int i = 0; i < value.length(); i++) {
-            final char character = value.charAt(i);
-            if (isEscapeChar(character)) {
-                writer.write('\\');
-            }
-            writer.write(character);
-        }
-        return writer;
-    }
-
-    public static boolean isEscapeChar(char c) {
-        switch (c) {
-            case '\b':
-            case '\f':
-            case '\n':
-            case '\r':
-            case '"':
-            case '\\':
-            case '\u000B': // vertical tab
-            case '\t':
-                return true;
-        }
-        return false;
-    }
-
 
     static class ArrayMap extends AbstractMap<Object, Object> implements Iterable<Object> {
 

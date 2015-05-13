@@ -21,7 +21,7 @@ package org.elasticsearch.action.admin.cluster.state;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.common.io.stream.BytesStreamInput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.test.VersionUtils;
@@ -48,10 +48,10 @@ public class ClusterStateRequestTest extends ElasticsearchTestCase {
             output.setVersion(testVersion);
             clusterStateRequest.writeTo(output);
 
-            BytesStreamInput bytesStreamInput = new BytesStreamInput(output.bytes());
-            bytesStreamInput.setVersion(testVersion);
+            StreamInput streamInput = StreamInput.wrap(output.bytes());
+            streamInput.setVersion(testVersion);
             ClusterStateRequest deserializedCSRequest = new ClusterStateRequest();
-            deserializedCSRequest.readFrom(bytesStreamInput);
+            deserializedCSRequest.readFrom(streamInput);
 
             assertThat(deserializedCSRequest.routingTable(), equalTo(clusterStateRequest.routingTable()));
             assertThat(deserializedCSRequest.metaData(), equalTo(clusterStateRequest.metaData()));

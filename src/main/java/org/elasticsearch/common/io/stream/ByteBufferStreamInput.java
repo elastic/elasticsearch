@@ -72,7 +72,7 @@ public class ByteBufferStreamInput extends StreamInput {
 
     @Override
     public void readBytes(byte[] b, int offset, int len) throws IOException {
-        if (buffer.remaining() > len) {
+        if (buffer.remaining() < len) {
             throw new EOFException();
         }
         buffer.get(b, offset, len);

@@ -28,7 +28,7 @@ import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.BoostAttribute;
 import org.apache.lucene.util.*;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.BytesStreamInput;
+import org.elasticsearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -125,7 +125,7 @@ public final class TermVectorsFields extends Fields {
      * @param termVectors Stores the actual term vectors as a {@link BytesRef}.
      */
     public TermVectorsFields(BytesReference headerRef, BytesReference termVectors) throws IOException {
-        BytesStreamInput header = new BytesStreamInput(headerRef);
+        StreamInput header = StreamInput.wrap(headerRef.toBytesArray());
         fieldMap = new ObjectLongOpenHashMap<>();
 
         // here we read the header to fill the field offset map
@@ -184,7 +184,7 @@ public final class TermVectorsFields extends Fields {
 
     private final class TermVector extends Terms {
 
-        private final BytesStreamInput perFieldTermVectorInput;
+        private final StreamInput perFieldTermVectorInput;
         private final long readOffset;
 
         private long numTerms;
@@ -196,7 +196,7 @@ public final class TermVectorsFields extends Fields {
         private int docCount;
 
         public TermVector(BytesReference termVectors, long readOffset) throws IOException {
-            this.perFieldTermVectorInput = new BytesStreamInput(termVectors);
+            this.perFieldTermVectorInput = StreamInput.wrap(termVectors.toBytesArray());
             this.readOffset = readOffset;
             reset();
         }
@@ -269,7 +269,7 @@ public final class TermVectorsFields extends Fields {
                     }
                 }
 
-                private void writeInfos(final BytesStreamInput input) throws IOException {
+                private void writeInfos(final StreamInput input) throws IOException {
                     for (int i = 0; i < freq; i++) {
                         if (hasPositions) {
                             positions[i] = input.readVInt();
@@ -483,7 +483,7 @@ public final class TermVectorsFields extends Fields {
     // the writer writes a 0 for -1 or value +1 and accordingly we have to
     // substract 1 again
     // adds one to mock not existing term freq
-    int readPotentiallyNegativeVInt(BytesStreamInput stream) throws IOException {
+    int readPotentiallyNegativeVInt(StreamInput stream) throws IOException {
         return stream.readVInt() - 1;
     }
 
@@ -491,7 +491,7 @@ public final class TermVectorsFields extends Fields {
     // case, the writer writes a 0 for -1 or value +1 and accordingly we have to
     // substract 1 again
     // adds one to mock not existing term freq
-    long readPotentiallyNegativeVLong(BytesStreamInput stream) throws IOException {
+    long readPotentiallyNegativeVLong(StreamInput stream) throws IOException {
         return stream.readVLong() - 1;
     }
 }

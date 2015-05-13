@@ -21,7 +21,7 @@ package org.elasticsearch.common.settings.loader;
 
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.common.io.FastStringReader;
-import org.elasticsearch.common.io.stream.BytesStreamInput;
+import org.elasticsearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
 import java.util.Map;
@@ -53,7 +53,7 @@ public class PropertiesSettingsLoader implements SettingsLoader {
     @Override
     public Map<String, String> load(byte[] source) throws IOException {
         Properties props = new Properties();
-        BytesStreamInput stream = new BytesStreamInput(source);
+        StreamInput stream = StreamInput.wrap(source);
         try {
             props.load(stream);
             Map<String, String> result = newHashMap();

@@ -21,8 +21,8 @@ package org.elasticsearch;
 
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -225,7 +225,7 @@ public class ElasticsearchExceptionTests extends ElasticsearchTestCase {
         QueryParsingException ex = new TestQueryParsingException(new Index("foo"), 1, 2, "foobar", null);
         out.writeThrowable(ex);
 
-        BytesStreamInput in = new BytesStreamInput(out.bytes());
+        StreamInput in = StreamInput.wrap(out.bytes());
         QueryParsingException e = in.readThrowable();
         assertEquals(ex.index(), e.index());
         assertEquals(ex.getMessage(), e.getMessage());

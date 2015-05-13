@@ -106,6 +106,31 @@ public class SyncedFlushService extends AbstractComponent {
         });
     }
 
+    /*
+    * Tries to flush all copies of a shard and write a sync id to it.
+    * After a synced flush two shard copies may only contain the same sync id if they contain the same documents.
+    * To ensure this, synced flush works in three steps:
+    * 1. Flush all shard copies and gather the commit points for each copy after the flush
+    * 2. Ensure that there are no ongoing indexing operations on the primary
+    * 3. Perform an additional flush on each shard copy that writes the sync id
+    *
+    * Step 3 is only executed on a shard if
+    * a) the shard has no uncommitted changes since the last flush
+    * b) the last flush was the one executed in 1 (use the collected commit id to verify this)
+    *
+    * This alone is not enough to ensure that all copies contain the same documents. Without step 2 a sync id would be written for inconsistent copies in the following scenario:
+    *
+    * Write operation has completed on a primary and is being sent to replicas. The write request does not reach the replicas until sync flush is finished.
+    * Step 1 is executed. After the flush the commit points on primary contains a write operation that the replica does not have.
+    * Step 3 will be executed on primary and replica as well because there are no uncommitted changes on primary (the first flush committed them) and there are no uncommitted
+    * changes on the replica (the write operation has not reached the replica yet).
+    *
+    * Step 2 detects this scenario and fails the whole synced flush if a write operation is ongoing on the primary.
+    *
+    * Synced flush is a best effort operation. The sync id may be written on all, some or none of the copies. 
+    *
+    * **/
+
     public void attemptSyncedFlush(ShardId shardId, ActionListener<SyncedFlushResult> actionListener) {
         try {
             final ClusterState state = clusterService.state();

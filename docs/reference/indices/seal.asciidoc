@@ -1,0 +1,74 @@
+[[indices-seal]]
+== Seal
+
+The seal API allows to flush one or more indices and adds a marker to primaries and replicas if there are no pending write operations.
+The seal marker is used during recovery after a node restarts. If a replica is allocated on a node which already has a shard copy with the same seal as the primary then no files will be copied during recovery.
+Sealing is a best effort operation. If write operations are ongoing while the sealing is in progress then writing the seal might fail on some copies.
+
+[source,js]
+--------------------------------------------------
+$ curl -XPOST 'http://localhost:9200/twitter/_seal'
+--------------------------------------------------
+
+The response contains details about for which shards a seal was written and the reason in case of failure.
+Response in case all copies of a shard successfully wrote the seal:
+
+[source,js]
+--------------------------------------------------
+{
+   "twitter": [
+      {
+         "shard_id": 0,
+         "responses": {
+            "5wjOIntuRqy9F_7JRrrLwA": "success",
+            "M2iCBe-nS5yaInE8volfSg": "success"
+         },
+         "message": "success"
+      }
+}
+--------------------------------------------------
+
+
+Response in case some copies of a shard failed:
+[source,js]
+--------------------------------------------------
+{
+   "twitter": [
+      {
+         "shard_id": 0,
+         "responses": {
+            "M2iCBe-nS5yaInE8volfSg": "pending operations",
+            "5wjOIntuRqy9F_7JRrrLwA": "success"
+         },
+         "message": "failed on some copies"
+      }
+}
+--------------------------------------------------
+
+
+Response in case all copies of a shard failed:
+[source,js]
+--------------------------------------------------
+{
+   "twitter": [
+      {
+         "shard_id": 0,
+         "message": "operation counter on primary is non zero [2]"
+      }
+}
+--------------------------------------------------
+
+
+[float]
+[[seal-multi-index]]
+=== Multi Index
+
+The seal API can be applied to more than one index with a single call,
+or even on `_all` the indices.
+
+[source,js]
+--------------------------------------------------
+$ curl -XPOST 'http://localhost:9200/kimchy,elasticsearch/_seal'
+
+$ curl -XPOST 'http://localhost:9200/_seal'
+--------------------------------------------------

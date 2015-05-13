@@ -60,7 +60,7 @@ public class KuromojiTokenizerFactory extends AbstractTokenizerFactory {
                 return null;
             } else {
                 try {
-                    return new UserDictionary(reader);
+                    return UserDictionary.open(reader);
                 } finally {
                     reader.close();
                 }

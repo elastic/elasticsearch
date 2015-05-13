@@ -71,54 +71,49 @@ public class SealIndicesResponse extends ActionResponse implements ToXContent {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        Map<String, Map<Integer, List<Map.Entry<ShardRouting, SyncedFlushService.SyncedFlushResponse>>>> successfulShards = new HashMap<>();
-        Map<String, Map<Integer, String>> unsuccessfulShards = new HashMap<>();
+        Map<String, Map<Integer, Object>> allResults = new HashMap<>();
 
         // first, sort everything by index and shard id
         for (SyncedFlushService.SyncedFlushResult result : results) {
             String indexName = result.getShardId().index().name();
             int shardId = result.getShardId().getId();
+
+            if (allResults.get(indexName) == null) {
+                // no results yet for this index
+                allResults.put(indexName, new TreeMap<Integer, Object>());
+            }
             if (result.shardResponses().size() > 0) {
-                if (successfulShards.get(indexName) == null) {
-                    successfulShards.put(indexName, new HashMap<Integer, List<Map.Entry<ShardRouting, SyncedFlushService.SyncedFlushResponse>>>());
-                }
-                if (successfulShards.get(indexName).get(shardId) == null) {
-                    successfulShards.get(indexName).put(shardId, new ArrayList<Map.Entry<ShardRouting, SyncedFlushService.SyncedFlushResponse>>());
-                }
+                Map<ShardRouting, SyncedFlushService.SyncedFlushResponse> shardResponses = new HashMap<>();
                 for (Map.Entry<ShardRouting, SyncedFlushService.SyncedFlushResponse> shardResponse : result.shardResponses().entrySet()) {
-                    successfulShards.get(indexName).get(shardId).add(shardResponse);
+                    shardResponses.put(shardResponse.getKey(), shardResponse.getValue());
                 }
+                allResults.get(indexName).put(shardId, shardResponses);
             } else {
-                if (unsuccessfulShards.get(indexName) == null) {
-                    unsuccessfulShards.put(indexName, new HashMap<Integer, String>());
-                }
-                unsuccessfulShards.get(indexName).put(shardId, result.failureReason());
+                allResults.get(indexName).put(shardId, result.failureReason());
             }
         }
-        for (Map.Entry<String, Map<Integer, List<Map.Entry<ShardRouting, SyncedFlushService.SyncedFlushResponse>>>> result : successfulShards.entrySet()) {
+        for (Map.Entry<String, Map<Integer, Object>> result : allResults.entrySet()) {
             builder.startArray(result.getKey());
-            for (Map.Entry<Integer, List<Map.Entry<ShardRouting, SyncedFlushService.SyncedFlushResponse>>> shardResponse : result.getValue().entrySet()) {
+            for (Map.Entry<Integer, Object> shardResponse : result.getValue().entrySet()) {
                 builder.startObject();
                 builder.field("shard_id", shardResponse.getKey());
-                builder.startObject("responses");
-                boolean success = true;
-                for (Map.Entry<ShardRouting, SyncedFlushService.SyncedFlushResponse> shardCopy : shardResponse.getValue()) {
-                    builder.field(shardCopy.getKey().currentNodeId(), shardCopy.getValue().success() ? "success" : shardCopy.getValue().failureReason());
-                    if (shardCopy.getValue().success() == false) {
-                        success = false;
+                if (shardResponse.getValue() instanceof Map) {
+                    builder.startObject("responses");
+                    Map<ShardRouting, SyncedFlushService.SyncedFlushResponse> results = (Map<ShardRouting, SyncedFlushService.SyncedFlushResponse>) shardResponse.getValue();
+                    boolean success = true;
+                    for (Map.Entry<ShardRouting, SyncedFlushService.SyncedFlushResponse> shardCopy : results.entrySet()) {
+                        builder.field(shardCopy.getKey().currentNodeId(), shardCopy.getValue().success() ? "success" : shardCopy.getValue().failureReason());
+                        if (shardCopy.getValue().success() == false) {
+                            success = false;
+                        }
                     }
-                }
-                builder.endObject();
-                builder.field("message", success ? "success" : "failed on some copies");
-                builder.endObject();
-            }
-            if (unsuccessfulShards.get(result.getKey()) != null) {
-                for (Map.Entry<Integer, String> shardCopy : unsuccessfulShards.get(result.getKey()).entrySet()) {
-                    builder.startObject();
-                    builder.field("shard_id", shardCopy.getKey());
-                    builder.field("message", shardCopy.getValue());
                     builder.endObject();
+                    builder.field("message", success ? "success" : "failed on some copies");
+
+                } else {
+                    builder.field("message", shardResponse.getValue()); // must be a string
                 }
+                builder.endObject();
             }
             builder.endArray();
         }

@@ -38,14 +38,7 @@ public class SealIndicesTests extends ElasticsearchTestCase {
 
         Set<SyncedFlushService.SyncedFlushResult> shardResults = new HashSet<>();
         // add one result where one shard failed and one succeeded
-        Map<ShardRouting, SyncedFlushService.SyncedFlushResponse> responses = new HashMap<>();
-        ImmutableShardRouting shardRouting = new ImmutableShardRouting("test", 0, "node_1", false, ShardRoutingState.RELOCATING, 2);
-        SyncedFlushService.SyncedFlushResponse syncedFlushResponse = new SyncedFlushService.SyncedFlushResponse("failed for some reason");
-        responses.put(shardRouting, syncedFlushResponse);
-        shardRouting = new ImmutableShardRouting("test", 0, "node_2", false, ShardRoutingState.RELOCATING, 2);
-        syncedFlushResponse = new SyncedFlushService.SyncedFlushResponse();
-        responses.put(shardRouting, syncedFlushResponse);
-        SyncedFlushService.SyncedFlushResult syncedFlushResult = new SyncedFlushService.SyncedFlushResult(new ShardId("test", 0), "some_sync_id", responses);
+        SyncedFlushService.SyncedFlushResult syncedFlushResult = createSyncedFlushResult(0, "test");
         shardResults.add(syncedFlushResult);
         // add one result where all failed
         syncedFlushResult = new SyncedFlushService.SyncedFlushResult(new ShardId("test", 1), "all failed :(");
@@ -53,13 +46,45 @@ public class SealIndicesTests extends ElasticsearchTestCase {
         SealIndicesResponse sealIndicesResponse = new SealIndicesResponse(shardResults);
         Map<String, Object> asMap = convertToMap(sealIndicesResponse);
         assertNotNull(asMap.get("test"));
-        assertThat((Integer)(((HashMap)((ArrayList) asMap.get("test")).get(0)).get("shard_id")), equalTo(0));
-        assertThat((String)(((HashMap)((ArrayList) asMap.get("test")).get(0)).get("message")), equalTo("failed on some copies"));
-        HashMap<String, String> shardResponses  = (HashMap<String, String>)((HashMap)((ArrayList) asMap.get("test")).get(0)).get("responses");
+        assertThat((Integer) (((HashMap) ((ArrayList) asMap.get("test")).get(0)).get("shard_id")), equalTo(0));
+        assertThat((String) (((HashMap) ((ArrayList) asMap.get("test")).get(0)).get("message")), equalTo("failed on some copies"));
+        HashMap<String, String> shardResponses = (HashMap<String, String>) ((HashMap) ((ArrayList) asMap.get("test")).get(0)).get("responses");
         assertThat(shardResponses.get("node_1"), equalTo("failed for some reason"));
         assertThat(shardResponses.get("node_2"), equalTo("success"));
-        HashMap<String, Object> failedShard = (HashMap<String, Object>)(((ArrayList) asMap.get("test")).get(1));
-        assertThat((Integer)(failedShard.get("shard_id")), equalTo(1));
-        assertThat((String)(failedShard.get("message")), equalTo("all failed :("));
+        HashMap<String, Object> failedShard = (HashMap<String, Object>) (((ArrayList) asMap.get("test")).get(1));
+        assertThat((Integer) (failedShard.get("shard_id")), equalTo(1));
+        assertThat((String) (failedShard.get("message")), equalTo("all failed :("));
+    }
+
+    public void testXContentResponseSortsShards() throws IOException {
+        Set<SyncedFlushService.SyncedFlushResult> shardResults = new HashSet<>();
+        // add one result where one shard failed and one succeeded
+        SyncedFlushService.SyncedFlushResult syncedFlushResult;
+        for (int i = 100000; i >= 0; i--) {
+            if (randomBoolean()) {
+                syncedFlushResult = createSyncedFlushResult(i, "test");
+                shardResults.add(syncedFlushResult);
+            } else {
+                syncedFlushResult = new SyncedFlushService.SyncedFlushResult(new ShardId("test", i), "all failed :(");
+                shardResults.add(syncedFlushResult);
+            }
+        }
+        SealIndicesResponse sealIndicesResponse = new SealIndicesResponse(shardResults);
+        Map<String, Object> asMap = convertToMap(sealIndicesResponse);
+        assertNotNull(asMap.get("test"));
+        for (int i = 0; i < 100000; i++) {
+            assertThat((Integer) (((HashMap) ((ArrayList) asMap.get("test")).get(i)).get("shard_id")), equalTo(i));
+        }
+    }
+
+    protected SyncedFlushService.SyncedFlushResult createSyncedFlushResult(int shardId, String index) {
+        Map<ShardRouting, SyncedFlushService.SyncedFlushResponse> responses = new HashMap<>();
+        ImmutableShardRouting shardRouting = new ImmutableShardRouting(index, shardId, "node_1", false, ShardRoutingState.RELOCATING, 2);
+        SyncedFlushService.SyncedFlushResponse syncedFlushResponse = new SyncedFlushService.SyncedFlushResponse("failed for some reason");
+        responses.put(shardRouting, syncedFlushResponse);
+        shardRouting = new ImmutableShardRouting(index, shardId, "node_2", false, ShardRoutingState.RELOCATING, 2);
+        syncedFlushResponse = new SyncedFlushService.SyncedFlushResponse();
+        responses.put(shardRouting, syncedFlushResponse);
+        return new SyncedFlushService.SyncedFlushResult(new ShardId(index, shardId), "some_sync_id", responses);
     }
 }

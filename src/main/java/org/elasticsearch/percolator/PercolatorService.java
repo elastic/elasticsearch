@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.percolator;
 
-import com.carrotsearch.hppc.ByteObjectHashMap;
+import com.carrotsearch.hppc.IntObjectHashMap;
 import com.google.common.collect.Lists;
 
 import org.apache.lucene.index.LeafReaderContext;
@@ -109,7 +109,7 @@ public class PercolatorService extends AbstractComponent {
     public final static String TYPE_NAME = ".percolator";
 
     private final IndicesService indicesService;
-    private final ByteObjectHashMap<PercolatorType> percolatorTypes;
+    private final IntObjectHashMap<PercolatorType> percolatorTypes;
     private final PageCacheRecycler pageCacheRecycler;
     private final BigArrays bigArrays;
     private final ClusterService clusterService;
@@ -153,7 +153,7 @@ public class PercolatorService extends AbstractComponent {
         single = new SingleDocumentPercolatorIndex(cache);
         multi = new MultiDocumentPercolatorIndex(cache);
 
-        percolatorTypes = new ByteObjectHashMap<>(6);
+        percolatorTypes = new IntObjectHashMap<>(6);
         percolatorTypes.put(countPercolator.id(), countPercolator);
         percolatorTypes.put(queryCountPercolator.id(), queryCountPercolator);
         percolatorTypes.put(matchPercolator.id(), matchPercolator);

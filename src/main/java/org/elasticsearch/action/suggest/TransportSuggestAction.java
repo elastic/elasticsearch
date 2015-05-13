@@ -130,27 +130,26 @@ public class TransportSuggestAction extends TransportBroadcastOperationAction<Su
     protected ShardSuggestResponse shardOperation(ShardSuggestRequest request) {
         IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
         IndexShard indexShard = indexService.shardSafe(request.shardId().id());
-        final Engine.Searcher searcher = indexShard.acquireSearcher("suggest");
         ShardSuggestService shardSuggestService = indexShard.shardSuggestService();
         shardSuggestService.preSuggest();
         long startTime = System.nanoTime();
         XContentParser parser = null;
-        try {
+        try (Engine.Searcher searcher = indexShard.acquireSearcher("suggest")) {
             BytesReference suggest = request.suggest();
             if (suggest != null && suggest.length() > 0) {
                 parser = XContentFactory.xContent(suggest).createParser(suggest);
                 if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
                     throw new IllegalArgumentException("suggest content missing");
                 }
-                final SuggestionSearchContext context = suggestPhase.parseElement().parseInternal(parser, indexService.mapperService(), request.shardId().getIndex(), request.shardId().id());
-                final Suggest result = suggestPhase.execute(context, searcher.reader());
+                final SuggestionSearchContext context = suggestPhase.parseElement().parseInternal(parser, indexService.mapperService(),
+                        indexService.queryParserService(), request.shardId().getIndex(), request.shardId().id());
+                final Suggest result = suggestPhase.execute(context, searcher.searcher());
                 return new ShardSuggestResponse(request.shardId(), result);
             }
             return new ShardSuggestResponse(request.shardId(), new Suggest());
         } catch (Throwable ex) {
             throw new ElasticsearchException("failed to execute suggest", ex);
         } finally {
-            searcher.close();
             if (parser != null) {
                 parser.close();
             }

@@ -60,7 +60,7 @@ public final class NoisyChannelSpellChecker {
     }
 
     public Result getCorrections(TokenStream stream, final CandidateGenerator generator,
-            float maxErrors, int numCorrections, IndexReader reader, WordScorer wordScorer, BytesRef separator, float confidence, int gramSize) throws IOException {
+            float maxErrors, int numCorrections, WordScorer wordScorer, float confidence, int gramSize) throws IOException {
         
         final List<CandidateSet> candidateSetsList = new ArrayList<>();
         SuggestUtils.analyze(stream, new SuggestUtils.TokenConsumer() {
@@ -134,7 +134,7 @@ public final class NoisyChannelSpellChecker {
     public Result getCorrections(Analyzer analyzer, BytesRef query, CandidateGenerator generator,
             float maxErrors, int numCorrections, IndexReader reader, String analysisField, WordScorer scorer, float confidence, int gramSize) throws IOException {
        
-        return getCorrections(tokenStream(analyzer, query, new CharsRefBuilder(), analysisField), generator, maxErrors, numCorrections, reader, scorer, new BytesRef(" "), confidence, gramSize);
+        return getCorrections(tokenStream(analyzer, query, new CharsRefBuilder(), analysisField), generator, maxErrors, numCorrections, scorer, confidence, gramSize);
 
     }
 

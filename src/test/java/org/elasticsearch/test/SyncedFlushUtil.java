@@ -37,31 +37,35 @@ public class SyncedFlushUtil {
      * Blocking version of {@link SyncedFlushService#attemptSyncedFlush(ShardId, ActionListener)}
      */
     public static SyncedFlushService.SyncedFlushResult attemptSyncedFlush(SyncedFlushService service, ShardId shardId) {
-        final CountDownLatch countDown = new CountDownLatch(1);
-        final AtomicReference<SyncedFlushService.SyncedFlushResult> result = new AtomicReference<>();
-        final AtomicReference<Throwable> exception = new AtomicReference<>();
-        service.attemptSyncedFlush(shardId, new ActionListener<SyncedFlushService.SyncedFlushResult>() {
-            @Override
-            public void onResponse(SyncedFlushService.SyncedFlushResult syncedFlushResult) {
-                result.compareAndSet(null, syncedFlushResult);
-                countDown.countDown();
-            }
-
-            @Override
-            public void onFailure(Throwable e) {
-                exception.compareAndSet(null, e);
-                countDown.countDown();
-            }
-        });
+        SyncResultListener listener = new SyncResultListener();
+        service.attemptSyncedFlush(shardId, listener);
         try {
-            countDown.await();
+            listener.latch.await();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
-        if (exception.get() != null) {
-            throw ExceptionsHelper.convertToElastic(exception.get());
+        if (listener.error != null) {
+            throw ExceptionsHelper.convertToElastic(listener.error);
         }
-        return result.get();
+        return listener.result;
+    }
+
+    public static final class SyncResultListener implements ActionListener<SyncedFlushService.SyncedFlushResult> {
+        public volatile SyncedFlushService.SyncedFlushResult result;
+        public volatile Throwable error;
+        public final CountDownLatch latch = new CountDownLatch(1);
+
+        @Override
+        public void onResponse(SyncedFlushService.SyncedFlushResult syncedFlushResult) {
+            result = syncedFlushResult;
+            latch.countDown();
+        }
+
+        @Override
+        public void onFailure(Throwable e) {
+            error = e;
+            latch.countDown();
+        }
     }
 
 }

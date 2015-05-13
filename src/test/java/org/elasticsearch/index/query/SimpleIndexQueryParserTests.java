@@ -161,15 +161,17 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
     private static class DummyQuery extends Query {
 
         public boolean isFilter;
-        
+
         @Override
         public String toString(String field) {
             return getClass().getSimpleName();
         }
-        
+
     }
 
     public static class DummyQueryParser extends AbstractIndexComponent implements QueryParser {
+
+        public static final String NAME = "dummy";
 
         @Inject
         public DummyQueryParser(Index index, Settings indexSettings) {
@@ -178,23 +180,38 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
 
         @Override
         public String[] names() {
-            return new String[] {"dummy"};
+            return new String[] {NAME};
         }
 
         @Override
         public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
-            assertEquals(XContentParser.Token.END_OBJECT, parseContext.parser().nextToken());
-            DummyQuery query = new DummyQuery();
-            query.isFilter = parseContext.isFilter();
-            return query;
+            return fromXContent(parseContext).toQuery(parseContext);
+
         }
-        
+
+        @Override
+        public QueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
+            assertEquals(XContentParser.Token.END_OBJECT, parseContext.parser().nextToken());
+            return new DummyQueryBuilder();
+        }
     }
 
     private static class DummyQueryBuilder extends BaseQueryBuilder {
         @Override
         protected void doXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject("dummy").endObject();
+        }
+
+        @Override
+        public Query toQuery(QueryParseContext parseContext) throws QueryParsingException, IOException {
+            DummyQuery query = new DummyQuery();
+            query.isFilter = parseContext.isFilter();
+            return query;
+        }
+
+        @Override
+        protected String parserName() {
+            return DummyQueryParser.NAME;
         }
     }
 
@@ -2516,8 +2533,8 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         assertThat(((ConstantScoreQuery) parsedQuery).getQuery().toString(), equalTo("parent_filter[foo](+*:* #ConstantScore(_type:foo))"));
         SearchContext.removeCurrent();
     }
-    
-    /** 
+
+    /**
      * helper to extract term from TermQuery. */
     private Term getTerm(Query query) {
         while (query instanceof QueryWrapperFilter) {

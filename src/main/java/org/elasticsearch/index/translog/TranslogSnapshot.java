@@ -22,6 +22,8 @@ package org.elasticsearch.index.translog;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.logging.ESLogger;
 
 import java.io.IOException;
@@ -31,9 +33,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 public class TranslogSnapshot implements Translog.Snapshot {
 
-    private final List<ChannelSnapshot> orderedTranslogs;
-    private final ESLogger logger;
-    private final ByteBuffer cacheBuffer;
+    private final List<Translog.Snapshot> orderedTranslogs;
     private AtomicBoolean closed = new AtomicBoolean(false);
     private final int estimatedTotalOperations;
     private int currentTranslog;
@@ -42,21 +42,19 @@ public class TranslogSnapshot implements Translog.Snapshot {
      * Create a snapshot of translog file channel. The length parameter should be consistent with totalOperations and point
      * at the end of the last operation in this snapshot.
      */
-    public TranslogSnapshot(List<ChannelSnapshot> orderedTranslogs, ESLogger logger) {
+    public TranslogSnapshot(List<Translog.Snapshot> orderedTranslogs) {
         this.orderedTranslogs = orderedTranslogs;
-        this.logger = logger;
         int ops = 0;
-        for (ChannelSnapshot translog : orderedTranslogs) {
+        for (Translog.Snapshot translog : orderedTranslogs) {
 
             final int tops = translog.estimatedTotalOperations();
             if (tops < 0) {
-                ops = ChannelReader.UNKNOWN_OP_COUNT;
+                ops = TranslogReader.UNKNOWN_OP_COUNT;
                 break;
             }
             ops += tops;
         }
         estimatedTotalOperations = ops;
-        cacheBuffer = ByteBuffer.allocate(1024);
         currentTranslog = 0;
     }
 
@@ -70,13 +68,17 @@ public class TranslogSnapshot implements Translog.Snapshot {
     public Translog.Operation next() throws IOException {
         ensureOpen();
         for (; currentTranslog < orderedTranslogs.size(); currentTranslog++) {
-            final ChannelSnapshot current = orderedTranslogs.get(currentTranslog);
+            final Translog.Snapshot current = orderedTranslogs.get(currentTranslog);
             Translog.Operation op = null;
             try {
-                op = current.next(cacheBuffer);
+                op = current.next();
             } catch (TruncatedTranslogException e) {
-                // file is empty or header has been half-written and should be ignored
-                logger.trace("ignoring truncation exception, the translog [{}] is either empty or half-written", e, current.translogId());
+                if (estimatedTotalOperations == TranslogReader.UNKNOWN_OP_COUNT) {
+                    // legacy translog file - can have UNKNOWN_OP_COUNT
+                    // file is empty or header has been half-written and should be ignored
+                } else {
+                    throw e;
+                }
             }
             if (op != null) {
                 return op;
@@ -94,13 +96,7 @@ public class TranslogSnapshot implements Translog.Snapshot {
     @Override
     public void close() throws ElasticsearchException {
         if (closed.compareAndSet(false, true)) {
-            try {
-                IOUtils.close(orderedTranslogs);
-            } catch (IOException e) {
-                throw new ElasticsearchException("failed to close channel snapshots", e);
-            } finally {
-                orderedTranslogs.clear();
-            }
+            Releasables.close(orderedTranslogs);
         }
     }
 }

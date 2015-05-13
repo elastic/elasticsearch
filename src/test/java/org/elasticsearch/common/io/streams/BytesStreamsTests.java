@@ -20,8 +20,8 @@
 package org.elasticsearch.common.io.streams;
 
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.test.ElasticsearchTestCase;
@@ -286,7 +286,7 @@ public class BytesStreamsTests extends ElasticsearchTestCase {
         out.writeString("goodbye");
         out.writeStringList(Arrays.asList(new String[]{"Hello", "Again"}));
         out.writeGenericValue(BytesRefs.toBytesRef("bytesref"));
-        BytesStreamInput in = new BytesStreamInput(out.bytes().toBytes());
+        StreamInput in = StreamInput.wrap(out.bytes().toBytes());
         assertThat(in.readBoolean(), equalTo(false));
         assertThat(in.readByte(), equalTo((byte)1));
         assertThat(in.readShort(), equalTo((short)-1));

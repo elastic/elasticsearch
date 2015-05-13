@@ -27,8 +27,8 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
-import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ElasticsearchAllocationTestCase;
 import org.junit.Test;
 
@@ -82,7 +82,7 @@ public class ClusterSerializationTests extends ElasticsearchAllocationTestCase {
 
         BytesStreamOutput outStream = new BytesStreamOutput();
         source.writeTo(outStream);
-        BytesStreamInput inStream = new BytesStreamInput(outStream.bytes().toBytes());
+        StreamInput inStream = StreamInput.wrap(outStream.bytes().toBytes());
         RoutingTable target = RoutingTable.Builder.readFrom(inStream);
 
         assertThat(target.prettyPrint(), equalTo(source.prettyPrint()));

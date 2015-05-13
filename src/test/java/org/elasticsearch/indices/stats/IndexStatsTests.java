@@ -35,7 +35,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.BytesStreamInput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -615,7 +615,7 @@ public class IndexStatsTests extends ElasticsearchIntegrationTest {
             flags.writeTo(out);
             out.close();
             BytesReference bytes = out.bytes();
-            CommonStatsFlags readStats = CommonStatsFlags.readCommonStatsFlags(new BytesStreamInput(bytes));
+            CommonStatsFlags readStats = CommonStatsFlags.readCommonStatsFlags(StreamInput.wrap(bytes));
             for (Flag flag : values) {
                 assertThat(flags.isSet(flag), equalTo(readStats.isSet(flag)));
             }
@@ -629,7 +629,7 @@ public class IndexStatsTests extends ElasticsearchIntegrationTest {
             flags.writeTo(out);
             out.close();
             BytesReference bytes = out.bytes();
-            CommonStatsFlags readStats = CommonStatsFlags.readCommonStatsFlags(new BytesStreamInput(bytes));
+            CommonStatsFlags readStats = CommonStatsFlags.readCommonStatsFlags(StreamInput.wrap(bytes));
             for (Flag flag : values) {
                 assertThat(flags.isSet(flag), equalTo(readStats.isSet(flag)));
             }

@@ -20,7 +20,6 @@ package org.elasticsearch.threadpool;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
@@ -55,7 +54,7 @@ public class ThreadPoolSerializationTests extends ElasticsearchTestCase {
         output.setVersion(Version.CURRENT);
         info.writeTo(output);
 
-        StreamInput input = new BytesStreamInput(output.bytes());
+        StreamInput input = StreamInput.wrap(output.bytes());
         ThreadPool.Info newInfo = new ThreadPool.Info();
         newInfo.readFrom(input);
 
@@ -68,7 +67,7 @@ public class ThreadPoolSerializationTests extends ElasticsearchTestCase {
         output.setVersion(Version.CURRENT);
         info.writeTo(output);
 
-        StreamInput input = new BytesStreamInput(output.bytes());
+        StreamInput input = StreamInput.wrap(output.bytes());
         ThreadPool.Info newInfo = new ThreadPool.Info();
         newInfo.readFrom(input);
 

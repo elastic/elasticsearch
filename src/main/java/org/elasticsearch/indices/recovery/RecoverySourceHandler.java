@@ -135,7 +135,7 @@ public class RecoverySourceHandler {
         final Engine engine = shard.engine();
         assert engine.getTranslog() != null : "translog must not be null";
         try (Translog.View translogView = engine.getTranslog().newView()) {
-            logger.trace("captured translog id [{}] for recovery", translogView.minTranslogId());
+            logger.trace("captured translog id [{}] for recovery", translogView.minTranslogGeneration());
             final SnapshotIndexCommit phase1Snapshot;
             try {
                 phase1Snapshot = shard.snapshotIndex(false);

@@ -20,8 +20,8 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
@@ -43,7 +43,7 @@ public class TransportMessageTests extends ElasticsearchTestCase {
         BytesStreamOutput out = new BytesStreamOutput();
         out.setVersion(Version.CURRENT);
         message.writeTo(out);
-        BytesStreamInput in = new BytesStreamInput(out.bytes());
+        StreamInput in = StreamInput.wrap(out.bytes());
         in.setVersion(Version.CURRENT);
         message = new Message();
         message.readFrom(in);

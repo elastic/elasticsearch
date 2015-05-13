@@ -19,52 +19,38 @@
 
 package org.elasticsearch.index.translog;
 
-import com.google.common.collect.Iterables;
 import org.apache.lucene.util.IOUtils;
-import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.util.Callback;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
-import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.index.translog.TranslogStream;
-import org.elasticsearch.index.translog.TranslogStreams;
 
 import java.io.IOException;
 import java.nio.channels.FileChannel;
-import java.nio.file.OpenOption;
-import java.nio.file.Path;
-import java.util.Collections;
-import java.util.IdentityHashMap;
-import java.util.Map;
+import java.nio.file.*;
 
-class ChannelReference extends AbstractRefCounted {
-
+final class ChannelReference extends AbstractRefCounted {
     private final Path file;
-
     private final FileChannel channel;
+    protected final long generation;
+    private final Callback<ChannelReference> onClose;
 
-    private final TranslogStream stream;
-
-    public ChannelReference(Path file, OpenOption... openOptions) throws IOException {
+    ChannelReference(Path file, long generation, FileChannel channel, Callback<ChannelReference> onClose) throws IOException {
         super(file.toString());
+        this.generation = generation;
         this.file = file;
-        this.channel = FileChannel.open(file, openOptions);
-        try {
-            this.stream = TranslogStreams.translogStreamFor(file);
-        } catch (Throwable t) {
-            IOUtils.closeWhileHandlingException(channel);
-            throw t;
-        }
+        this.channel = channel;
+        this.onClose = onClose;
     }
 
-    public Path file() {
+    public long getGeneration() {
+        return generation;
+    }
+
+    public Path getPath() {
         return this.file;
     }
 
-    public FileChannel channel() {
+    public FileChannel getChannel() {
         return this.channel;
-    }
-
-    public TranslogStream stream() {
-        return this.stream;
     }
 
     @Override
@@ -74,6 +60,12 @@ class ChannelReference extends AbstractRefCounted {
 
     @Override
     protected void closeInternal() {
-        IOUtils.closeWhileHandlingException(channel);
+        try {
+            IOUtils.closeWhileHandlingException(channel);
+        } finally {
+            if (onClose != null) {
+                onClose.handle(this);
+            }
+        }
     }
 }

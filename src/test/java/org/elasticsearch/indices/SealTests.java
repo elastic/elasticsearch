@@ -19,20 +19,28 @@
 package org.elasticsearch.indices;
 
 import org.elasticsearch.action.admin.indices.seal.SealIndicesResponse;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
+import static java.lang.Thread.sleep;
 import static org.hamcrest.Matchers.equalTo;
 
-@ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.SUITE, numDataNodes = 1)
+@ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.TEST, numDataNodes = 0)
 public class SealTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testUnallocatedShardsDoesNotHang() throws InterruptedException {
-        // create an index but because no data nodes are available no shards will be allocated
+        ImmutableSettings.Builder settingsBuilder = ImmutableSettings.builder()
+                .put("node.data", false)
+                .put("node.master", true)
+                .put("path.data", createTempDir().toString());
+        internalCluster().startNode(settingsBuilder.build());
+        //  create an index but because no data nodes are available no shards will be allocated
         createIndex("test");
         // this should not hang but instead immediately return with empty result set
         SealIndicesResponse sealIndicesResponse = client().admin().indices().prepareSealIndices("test").get();
+        // just to make sure the test actually tests the right thing
         assertThat(sealIndicesResponse.results().size(), equalTo(0));
     }
 }

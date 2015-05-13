@@ -97,7 +97,7 @@ public class TransportSealIndicesAction extends HandledTransportAction<SealIndic
 
                         @Override
                         public String executor() {
-                            return ThreadPool.Names.GENERIC;
+                            return ThreadPool.Names.SAME;
                         }
                     });
         }

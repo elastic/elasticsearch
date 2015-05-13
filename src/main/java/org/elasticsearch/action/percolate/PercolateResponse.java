@@ -52,6 +52,9 @@ public class PercolateResponse extends BroadcastOperationResponse implements Ite
     PercolateResponse(int totalShards, int successfulShards, int failedShards, List<ShardOperationFailedException> shardFailures,
                              Match[] matches, long count, long tookInMillis, InternalAggregations aggregations) {
         super(totalShards, successfulShards, failedShards, shardFailures);
+        if (tookInMillis < 0) {
+            throw new IllegalArgumentException("tookInMillis must be positive but was: " + tookInMillis);
+        }
         this.tookInMillis = tookInMillis;
         this.matches = matches;
         this.count = count;
@@ -60,6 +63,9 @@ public class PercolateResponse extends BroadcastOperationResponse implements Ite
 
     PercolateResponse(int totalShards, int successfulShards, int failedShards, List<ShardOperationFailedException> shardFailures, long tookInMillis, Match[] matches) {
         super(totalShards, successfulShards, failedShards, shardFailures);
+        if (tookInMillis < 0) {
+            throw new IllegalArgumentException("tookInMillis must be positive but was: " + tookInMillis);
+        }
         this.tookInMillis = tookInMillis;
         this.matches = matches;
     }

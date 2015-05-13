@@ -1247,12 +1247,17 @@ public class SuggestSearchTests extends ElasticsearchIntegrationTest {
             // expected
         }
 
-        // collate request with prune set to true
+        // collate query request with prune set to true
         PhraseSuggestionBuilder phraseSuggestWithParamsAndReturn = suggest.collateFilter(null).collateQuery(collateWithParams).collateParams(params).collatePrune(true);
         searchSuggest = searchSuggest("united states house of representatives elections in washington 2006", phraseSuggestWithParamsAndReturn);
         assertSuggestionSize(searchSuggest, 0, 10, "title");
         assertSuggestionPhraseCollateMatchExists(searchSuggest, "title", 2);
 
+        // collate filter request with prune set to true
+        phraseSuggestWithParamsAndReturn = suggest.collateFilter(collateWithParams).collateQuery(null).collateParams(params).collatePrune(true);
+        searchSuggest = searchSuggest("united states house of representatives elections in washington 2006", phraseSuggestWithParamsAndReturn);
+        assertSuggestionSize(searchSuggest, 0, 10, "title");
+        assertSuggestionPhraseCollateMatchExists(searchSuggest, "title", 2);
     }
 
     protected Suggest searchSuggest(SuggestionBuilder<?>... suggestion) {

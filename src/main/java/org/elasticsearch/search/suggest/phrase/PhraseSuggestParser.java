@@ -28,6 +28,7 @@ import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.index.analysis.ShingleTokenFilterFactory;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
@@ -49,8 +50,9 @@ public final class PhraseSuggestParser implements SuggestContextParser {
     }
 
     @Override
-    public SuggestionSearchContext.SuggestionContext parse(XContentParser parser, MapperService mapperService) throws IOException {
+    public SuggestionSearchContext.SuggestionContext parse(XContentParser parser, MapperService mapperService, IndexQueryParserService queryParserService) throws IOException {
         PhraseSuggestionContext suggestion = new PhraseSuggestionContext(suggester);
+        suggestion.setQueryParserService(queryParserService);
         XContentParser.Token token;
         String fieldName = null;
         boolean gramSizeSet = false; 
@@ -159,8 +161,6 @@ public final class PhraseSuggestParser implements SuggestContextParser {
                             } else {
                                 suggestion.setCollateFilterScript(compiledScript);
                             }
-                        } else if ("preference".equals(fieldName)) {
-                            suggestion.setPreference(parser.text());
                         } else if ("params".equals(fieldName)) {
                             suggestion.setCollateScriptParams(parser.map());
                         } else if ("prune".equals(fieldName)) {

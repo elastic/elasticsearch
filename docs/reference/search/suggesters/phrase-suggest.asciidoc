@@ -163,20 +163,18 @@ can contain misspellings (See parameter descriptions below).
 
 `collate`::
     Checks each suggestion against the specified `query` or `filter` to
-    prune suggestions for which no matching docs exist in the index. Either
-    a `query` or a `filter` must be specified, and it is run as a
-    <<query-dsl-template-query,`template` query>>. The current suggestion is
-    automatically made available as the `{{suggestion}}`  variable, which
-    should be used in your query/filter.  You can still specify  your own
-    template `params` -- the `suggestion` value will be added to the
-    variables you specify. You can specify a `preference` to control
-    on which shards the query is executed (see <<search-request-preference>>).
-    The default value is `_only_local`. Additionally, you can specify
-    a `prune` to control if all phrase suggestions will be
-    returned, when set to `true` the suggestions will have an additional
-    option `collate_match`, which will be `true` if matching documents
-    for the phrase was found, `false` otherwise. The default value for
-    `prune` is `false`.
+    prune suggestions for which no matching docs exist in the index.
+    The collate query for a suggestion is run only on the local shard from which
+    the suggestion has been generated from. Either a `query` or a `filter` must
+    be specified, and it is run as a <<query-dsl-template-query,`template` query>>.
+    The current suggestion is automatically made available as the `{{suggestion}}`
+    variable, which should be used in your query/filter.  You can still specify
+    your own template `params` -- the `suggestion` value will be added to the
+    variables you specify. Additionally, you can specify a `prune` to control
+    if all phrase suggestions will be returned, when set to `true` the suggestions
+    will have an additional option `collate_match`, which will be `true` if
+    matching documents for the phrase was found, `false` otherwise.
+    The default value for `prune` is `false`.
 
 [source,js]
 --------------------------------------------------
@@ -199,8 +197,7 @@ curl -XPOST 'localhost:9200/_search' -d {
              }
            },
            "params": {"field_name" : "title"}, <3>
-           "preference": "_primary", <4>
-           "prune": true <5>
+           "prune": true <4>
          }
        }
      }
@@ -212,8 +209,7 @@ curl -XPOST 'localhost:9200/_search' -d {
     of each suggestion.
 <3> An additional `field_name` variable has been specified in
     `params` and is used by the `match` query.
-<4> The default `preference` has been changed to `_primary`.
-<5> All suggestions will be returned with an extra `collate_match`
+<4> All suggestions will be returned with an extra `collate_match`
     option indicating whether the generated phrase matched any
     document.
 

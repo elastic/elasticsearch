@@ -69,7 +69,7 @@ public class MultiFieldTests extends ElasticsearchSingleNodeTest {
     private void testMultiField(String mapping) throws Exception {
         DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
         BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/index/mapper/multifield/test-data.json"));
-        Document doc = docMapper.parse(json).rootDoc();
+        Document doc = docMapper.parse("person", "1", json).rootDoc();
 
         IndexableField f = doc.getField("name");
         assertThat(f.name(), equalTo("name"));
@@ -157,7 +157,7 @@ public class MultiFieldTests extends ElasticsearchSingleNodeTest {
 
 
         BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/index/mapper/multifield/test-data.json"));
-        Document doc = docMapper.parse(json).rootDoc();
+        Document doc = docMapper.parse("person", "1", json).rootDoc();
 
         IndexableField f = doc.getField("name");
         assertThat(f.name(), equalTo("name"));
@@ -184,7 +184,7 @@ public class MultiFieldTests extends ElasticsearchSingleNodeTest {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/multifield/test-multi-field-type-no-default-field.json");
         DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
         BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/index/mapper/multifield/test-data.json"));
-        Document doc = docMapper.parse(json).rootDoc();
+        Document doc = docMapper.parse("person", "1", json).rootDoc();
 
         assertNull(doc.getField("name"));
         IndexableField f = doc.getField("name.indexed");
@@ -267,10 +267,9 @@ public class MultiFieldTests extends ElasticsearchSingleNodeTest {
         assertThat(docMapper.mappers().getMapper("a.b").fieldType().tokenized(), equalTo(false));
 
         BytesReference json = jsonBuilder().startObject()
-                .field("_id", "1")
                 .field("a", "-1,-1")
                 .endObject().bytes();
-        Document doc = docMapper.parse(json).rootDoc();
+        Document doc = docMapper.parse("type", "1", json).rootDoc();
 
         IndexableField f = doc.getField("a");
         assertThat(f, notNullValue());
@@ -299,10 +298,9 @@ public class MultiFieldTests extends ElasticsearchSingleNodeTest {
         assertThat(docMapper.mappers().getMapper("b.a").fieldType().tokenized(), equalTo(false));
 
         json = jsonBuilder().startObject()
-                .field("_id", "1")
                 .field("b", "-1,-1")
                 .endObject().bytes();
-        doc = docMapper.parse(json).rootDoc();
+        doc = docMapper.parse("type", "1", json).rootDoc();
 
         f = doc.getField("b");
         assertThat(f, notNullValue());
@@ -319,10 +317,9 @@ public class MultiFieldTests extends ElasticsearchSingleNodeTest {
         assertNotSame(IndexOptions.NONE, f.fieldType().indexOptions());
 
         json = jsonBuilder().startObject()
-                .field("_id", "1")
                 .startArray("b").startArray().value(-1).value(-1).endArray().startArray().value(-2).value(-2).endArray().endArray()
                 .endObject().bytes();
-        doc = docMapper.parse(json).rootDoc();
+        doc = docMapper.parse("type", "1", json).rootDoc();
 
         f = doc.getFields("b")[0];
         assertThat(f, notNullValue());
@@ -367,10 +364,9 @@ public class MultiFieldTests extends ElasticsearchSingleNodeTest {
         assertThat(docMapper.mappers().getMapper("a.b").fieldType().tokenized(), equalTo(true));
 
         BytesReference json = jsonBuilder().startObject()
-                .field("_id", "1")
                 .field("a", "complete me")
                 .endObject().bytes();
-        Document doc = docMapper.parse(json).rootDoc();
+        Document doc = docMapper.parse("type", "1", json).rootDoc();
 
         IndexableField f = doc.getField("a");
         assertThat(f, notNullValue());
@@ -399,10 +395,9 @@ public class MultiFieldTests extends ElasticsearchSingleNodeTest {
         assertThat(docMapper.mappers().getMapper("b.a").fieldType().tokenized(), equalTo(false));
 
         json = jsonBuilder().startObject()
-                .field("_id", "1")
                 .field("b", "complete me")
                 .endObject().bytes();
-        doc = docMapper.parse(json).rootDoc();
+        doc = docMapper.parse("type", "1", json).rootDoc();
 
         f = doc.getField("b");
         assertThat(f, notNullValue());

@@ -23,6 +23,7 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.MergeResult;
@@ -51,13 +52,12 @@ public class JavaMultiFieldMergeTests extends ElasticsearchSingleNodeTest {
         assertNotSame(IndexOptions.NONE, docMapper.mappers().getMapper("name").fieldType().indexOptions());
         assertThat(docMapper.mappers().getMapper("name.indexed"), nullValue());
 
-        BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/index/mapper/multifield/merge/test-data.json"));
-        Document doc = docMapper.parse(json).rootDoc();
+        BytesReference json = XContentFactory.jsonBuilder().startObject().field("name", "some name").endObject().bytes();
+        Document doc = docMapper.parse("person", "1", json).rootDoc();
         IndexableField f = doc.getField("name");
         assertThat(f, notNullValue());
         f = doc.getField("name.indexed");
         assertThat(f, nullValue());
-
 
         mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/multifield/merge/test-mapping2.json");
         DocumentMapper docMapper2 = parser.parse(mapping);
@@ -75,8 +75,7 @@ public class JavaMultiFieldMergeTests extends ElasticsearchSingleNodeTest {
         assertThat(docMapper.mappers().getMapper("name.not_indexed2"), nullValue());
         assertThat(docMapper.mappers().getMapper("name.not_indexed3"), nullValue());
 
-        json = new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/index/mapper/multifield/merge/test-data.json"));
-        doc = docMapper.parse(json).rootDoc();
+        doc = docMapper.parse("person", "1", json).rootDoc();
         f = doc.getField("name");
         assertThat(f, notNullValue());
         f = doc.getField("name.indexed");
@@ -98,10 +97,8 @@ public class JavaMultiFieldMergeTests extends ElasticsearchSingleNodeTest {
         assertThat(docMapper.mappers().getMapper("name.not_indexed2"), notNullValue());
         assertThat(docMapper.mappers().getMapper("name.not_indexed3"), nullValue());
 
-
         mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/multifield/merge/test-mapping4.json");
         DocumentMapper docMapper4 = parser.parse(mapping);
-
 
         mergeResult = docMapper.merge(docMapper4.mapping(), true);
         assertThat(Arrays.toString(mergeResult.buildConflicts()), mergeResult.hasConflicts(), equalTo(false));
@@ -127,8 +124,8 @@ public class JavaMultiFieldMergeTests extends ElasticsearchSingleNodeTest {
         assertNotSame(IndexOptions.NONE, docMapper.mappers().getMapper("name").fieldType().indexOptions());
         assertThat(docMapper.mappers().getMapper("name.indexed"), nullValue());
 
-        BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/index/mapper/multifield/merge/test-data.json"));
-        Document doc = docMapper.parse(json).rootDoc();
+        BytesReference json = XContentFactory.jsonBuilder().startObject().field("name", "some name").endObject().bytes();
+        Document doc = docMapper.parse("person", "1", json).rootDoc();
         IndexableField f = doc.getField("name");
         assertThat(f, notNullValue());
         f = doc.getField("name.indexed");
@@ -151,8 +148,7 @@ public class JavaMultiFieldMergeTests extends ElasticsearchSingleNodeTest {
         assertThat(docMapper.mappers().getMapper("name.not_indexed2"), nullValue());
         assertThat(docMapper.mappers().getMapper("name.not_indexed3"), nullValue());
 
-        json = new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/index/mapper/multifield/merge/test-data.json"));
-        doc = docMapper.parse(json).rootDoc();
+        doc = docMapper.parse("person", "1", json).rootDoc();
         f = doc.getField("name");
         assertThat(f, notNullValue());
         f = doc.getField("name.indexed");

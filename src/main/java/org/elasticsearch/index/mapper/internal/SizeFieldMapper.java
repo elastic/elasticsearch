@@ -140,11 +140,6 @@ public class SizeFieldMapper extends IntegerFieldMapper implements RootMapper {
     }
 
     @Override
-    public boolean includeInObject() {
-        return false;
-    }
-
-    @Override
     protected void innerParseCreateField(ParseContext context, List<Field> fields) throws IOException {
         if (!enabledState.enabled) {
             return;

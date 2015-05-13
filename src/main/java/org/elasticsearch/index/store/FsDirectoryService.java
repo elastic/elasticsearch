@@ -19,12 +19,6 @@
 
 package org.elasticsearch.index.store;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.Collections;
-import java.util.Set;
-
 import com.google.common.collect.Sets;
 import org.apache.lucene.store.*;
 import org.apache.lucene.util.Constants;
@@ -32,12 +26,13 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.settings.IndexSettings;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
-import org.elasticsearch.index.store.DirectoryService;
-import org.elasticsearch.index.store.IndexStore;
-import org.elasticsearch.index.store.IndexStoreModule;
-import org.elasticsearch.index.store.StoreException;
+
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Collections;
+import java.util.Set;
 
 /**
  */
@@ -65,7 +60,7 @@ public class FsDirectoryService extends DirectoryService implements StoreRateLim
         return indexStore.rateLimiting();
     }
 
-    protected final LockFactory buildLockFactory() throws IOException {
+    public static LockFactory buildLockFactory(@IndexSettings Settings indexSettings) {
         String fsLock = indexSettings.get("index.store.fs.lock", indexSettings.get("index.store.fs.fs_lock", "native"));
         LockFactory lockFactory;
         if (fsLock.equals("native")) {
@@ -73,9 +68,17 @@ public class FsDirectoryService extends DirectoryService implements StoreRateLim
         } else if (fsLock.equals("simple")) {
             lockFactory = SimpleFSLockFactory.INSTANCE;
         } else {
-            throw new StoreException(shardId, "unrecognized fs_lock \"" + fsLock + "\": must be native or simple");
+            throw new IllegalArgumentException("unrecognized fs_lock \"" + fsLock + "\": must be native or simple");
         }
         return lockFactory;
+    }
+
+    protected final LockFactory buildLockFactory() throws IOException {
+        try {
+            return buildLockFactory(indexSettings);
+        } catch (IllegalArgumentException e) {
+            throw new StoreException(shardId, "unable to build lock factory", e);
+        }
     }
 
     @Override

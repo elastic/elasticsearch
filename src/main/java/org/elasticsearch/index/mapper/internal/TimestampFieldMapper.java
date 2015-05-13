@@ -32,11 +32,10 @@ import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.mapper.InternalMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.MergeMappingException;
+import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.RootMapper;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
@@ -54,7 +53,7 @@ import static org.elasticsearch.index.mapper.MapperBuilders.timestamp;
 import static org.elasticsearch.index.mapper.core.TypeParsers.parseDateTimeFormatter;
 import static org.elasticsearch.index.mapper.core.TypeParsers.parseField;
 
-public class TimestampFieldMapper extends DateFieldMapper implements InternalMapper, RootMapper {
+public class TimestampFieldMapper extends DateFieldMapper implements RootMapper {
 
     public static final String NAME = "_timestamp";
     public static final String CONTENT_TYPE = "_timestamp";
@@ -215,7 +214,7 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
         super(new Names(Defaults.NAME, Defaults.NAME, Defaults.NAME, Defaults.NAME), dateTimeFormatter,
                 Defaults.PRECISION_STEP_64_BIT, Defaults.BOOST, fieldType, docValues,
                 Defaults.NULL_VALUE, TimeUnit.MILLISECONDS /*always milliseconds*/,
-                ignoreMalformed, coerce, null, normsLoading, fieldDataSettings, 
+                ignoreMalformed, coerce, null, normsLoading, fieldDataSettings,
                 indexSettings, MultiFields.empty(), null);
         this.enabledState = enabledState;
         this.path = path;
@@ -276,11 +275,6 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
     public Mapper parse(ParseContext context) throws IOException {
         // nothing to do here, we call the parent in preParse
         return null;
-    }
-
-    @Override
-    public boolean includeInObject() {
-        return true;
     }
 
     @Override

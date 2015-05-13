@@ -77,12 +77,12 @@ public class BoolQueryParser extends BaseQueryParserTemp {
                         clauses.add(new BooleanClause(query, BooleanClause.Occur.MUST));
                     }
                 } else if ("must_not".equals(currentFieldName) || "mustNot".equals(currentFieldName)) {
-                    Query query = parseContext.parseInnerQuery();
+                    Query query = parseContext.parseInnerFilter();
                     if (query != null) {
                         clauses.add(new BooleanClause(query, BooleanClause.Occur.MUST_NOT));
                     }
                 } else if ("should".equals(currentFieldName)) {
-                    Query query = parseContext.parseInnerFilter();
+                    Query query = parseContext.parseInnerQuery();
                     if (query != null) {
                         clauses.add(new BooleanClause(query, BooleanClause.Occur.SHOULD));
                         if (parseContext.isFilter() && minimumShouldMatch == null) {
@@ -102,7 +102,7 @@ public class BoolQueryParser extends BaseQueryParserTemp {
                     }
                 } else if ("must_not".equals(currentFieldName) || "mustNot".equals(currentFieldName)) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        Query query = parseContext.parseInnerQuery();
+                        Query query = parseContext.parseInnerFilter();
                         if (query != null) {
                             clauses.add(new BooleanClause(query, BooleanClause.Occur.MUST_NOT));
                         }

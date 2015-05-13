@@ -73,6 +73,7 @@ import org.elasticsearch.action.termvectors.TermVectorsResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressedString;
+import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.MoreLikeThisQuery;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.search.function.BoostScoreFunction;
@@ -82,9 +83,12 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.AbstractIndexComponent;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -134,7 +138,6 @@ import static org.elasticsearch.index.query.QueryBuilders.spanTermQuery;
 import static org.elasticsearch.index.query.QueryBuilders.spanWithinQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termsQuery;
-import static org.elasticsearch.index.query.QueryBuilders.termsQuery;
 import static org.elasticsearch.index.query.QueryBuilders.wildcardQuery;
 import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.factorFunction;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBooleanSubQuery;
@@ -155,9 +158,54 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
 
     private IndexQueryParserService queryParser;
 
+    private static class DummyQuery extends Query {
+
+        public boolean isFilter;
+        
+        @Override
+        public String toString(String field) {
+            return getClass().getSimpleName();
+        }
+        
+    }
+
+    public static class DummyQueryParser extends AbstractIndexComponent implements QueryParser {
+
+        @Inject
+        public DummyQueryParser(Index index, Settings indexSettings) {
+            super(index, indexSettings);
+        }
+
+        @Override
+        public String[] names() {
+            return new String[] {"dummy"};
+        }
+
+        @Override
+        public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
+            assertEquals(XContentParser.Token.END_OBJECT, parseContext.parser().nextToken());
+            DummyQuery query = new DummyQuery();
+            query.isFilter = parseContext.isFilter();
+            return query;
+        }
+        
+    }
+
+    private static class DummyQueryBuilder extends BaseQueryBuilder {
+        @Override
+        protected void doXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject("dummy").endObject();
+        }
+    }
+
+    private static DummyQueryBuilder dummyQuery() {
+        return new DummyQueryBuilder();
+    }
+
     @Before
     public void setup() throws IOException {
         Settings settings = ImmutableSettings.settingsBuilder()
+                .put("index.queryparser.query.dummy.type", DummyQueryParser.class)
                 .put("index.cache.filter.type", "none")
                 .put("name", "SimpleIndexQueryParserTests")
                 .build();
@@ -166,7 +214,7 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
 
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/query/mapping.json");
         mapperService.merge("person", new CompressedString(mapping), true);
-        ParsedDocument doc = mapperService.documentMapper("person").parse(new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/index/query/data.json")));
+        ParsedDocument doc = mapperService.documentMapper("person").parse("person", "1", new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/index/query/data.json")));
         assertNotNull(doc.dynamicMappingsUpdate());
         client().admin().indices().preparePutMapping("test").setType("person").setSource(doc.dynamicMappingsUpdate().toString()).get();
 
@@ -2508,5 +2556,61 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         ConstantScoreQuery csq = (ConstantScoreQuery) queryParser.parse(constantScoreQuery(termsQuery("foo", Arrays.asList("bar")))).query();
         q = csq.getQuery();
         assertThat(q, instanceOf(TermsQuery.class));
+    }
+
+    public void testConstantScoreParsesFilter() throws Exception {
+        IndexQueryParserService queryParser = queryParser();
+        Query q = queryParser.parse(constantScoreQuery(dummyQuery())).query();
+        Query inner = ((ConstantScoreQuery) q).getQuery();
+        assertThat(inner, instanceOf(DummyQuery.class));
+        assertEquals(true, ((DummyQuery) inner).isFilter);
+    }
+
+    public void testBooleanParsesFilter() throws Exception {
+        IndexQueryParserService queryParser = queryParser();
+        // single clause, serialized as inner object
+        Query q = queryParser.parse(boolQuery().should(dummyQuery()).must(dummyQuery()).mustNot(dummyQuery())).query();
+        assertThat(q, instanceOf(BooleanQuery.class));
+        BooleanQuery bq = (BooleanQuery) q;
+        assertEquals(3, bq.clauses().size());
+        for (BooleanClause clause : bq.clauses()) {
+            DummyQuery dummy = (DummyQuery) clause.getQuery();
+            switch (clause.getOccur()) {
+            case FILTER:
+            case MUST_NOT:
+                assertEquals(true, dummy.isFilter);
+                break;
+            case MUST:
+            case SHOULD:
+                assertEquals(false, dummy.isFilter);
+                break;
+            default:
+                throw new AssertionError();
+            }
+        }
+
+        // multiple clauses, serialized as inner arrays
+        q = queryParser.parse(boolQuery()
+                .should(dummyQuery()).should(dummyQuery())
+                .must(dummyQuery()).must(dummyQuery())
+                .mustNot(dummyQuery()).mustNot(dummyQuery())).query();
+        assertThat(q, instanceOf(BooleanQuery.class));
+        bq = (BooleanQuery) q;
+        assertEquals(6, bq.clauses().size());
+        for (BooleanClause clause : bq.clauses()) {
+            DummyQuery dummy = (DummyQuery) clause.getQuery();
+            switch (clause.getOccur()) {
+            case FILTER:
+            case MUST_NOT:
+                assertEquals(true, dummy.isFilter);
+                break;
+            case MUST:
+            case SHOULD:
+                assertEquals(false, dummy.isFilter);
+                break;
+            default:
+                throw new AssertionError();
+            }
+        }
     }
 }

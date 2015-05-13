@@ -36,7 +36,6 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.fielddata.FieldDataType;
-import org.elasticsearch.index.mapper.InternalMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MergeMappingException;
@@ -57,7 +56,7 @@ import static org.elasticsearch.index.mapper.core.TypeParsers.parseField;
 /**
  *
  */
-public class TypeFieldMapper extends AbstractFieldMapper<String> implements InternalMapper, RootMapper {
+public class TypeFieldMapper extends AbstractFieldMapper<String> implements RootMapper {
 
     public static final String NAME = "_type";
 
@@ -155,11 +154,6 @@ public class TypeFieldMapper extends AbstractFieldMapper<String> implements Inte
     public Mapper parse(ParseContext context) throws IOException {
         // we parse in pre parse
         return null;
-    }
-
-    @Override
-    public boolean includeInObject() {
-        return false;
     }
 
     @Override

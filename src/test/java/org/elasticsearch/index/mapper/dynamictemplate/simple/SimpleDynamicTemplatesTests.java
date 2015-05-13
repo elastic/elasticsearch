@@ -51,8 +51,8 @@ public class SimpleDynamicTemplatesTests extends ElasticsearchSingleNodeTest {
         client().admin().indices().preparePutMapping("test").setType("person").setSource(builder.string()).get();
         DocumentMapper docMapper = index.mapperService().documentMapper("person");
         builder = JsonXContent.contentBuilder();
-        builder.startObject().field("_id", "1").field("s", "hello").field("l", 1).endObject();
-        ParsedDocument parsedDoc = docMapper.parse(builder.bytes());
+        builder.startObject().field("s", "hello").field("l", 1).endObject();
+        ParsedDocument parsedDoc = docMapper.parse("person", "1", builder.bytes());
         client().admin().indices().preparePutMapping("test").setType("person").setSource(parsedDoc.dynamicMappingsUpdate().toString()).get();
 
         DocumentFieldMappers mappers = docMapper.mappers();
@@ -74,7 +74,7 @@ public class SimpleDynamicTemplatesTests extends ElasticsearchSingleNodeTest {
         client().admin().indices().preparePutMapping("test").setType("person").setSource(mapping).get();
         DocumentMapper docMapper = index.mapperService().documentMapper("person");
         byte[] json = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/dynamictemplate/simple/test-data.json");
-        ParsedDocument parsedDoc = docMapper.parse(new BytesArray(json));
+        ParsedDocument parsedDoc = docMapper.parse("person", "1", new BytesArray(json));
         client().admin().indices().preparePutMapping("test").setType("person").setSource(parsedDoc.dynamicMappingsUpdate().toString()).get();
         Document doc = parsedDoc.rootDoc();
 
@@ -131,7 +131,7 @@ public class SimpleDynamicTemplatesTests extends ElasticsearchSingleNodeTest {
         client().admin().indices().preparePutMapping("test").setType("person").setSource(mapping).get();
         DocumentMapper docMapper = index.mapperService().documentMapper("person");
         byte[] json = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/dynamictemplate/simple/test-data.json");
-        ParsedDocument parsedDoc = docMapper.parse(new BytesArray(json));
+        ParsedDocument parsedDoc = docMapper.parse("person", "1", new BytesArray(json));
         client().admin().indices().preparePutMapping("test").setType("person").setSource(parsedDoc.dynamicMappingsUpdate().toString()).get();
         Document doc = parsedDoc.rootDoc();
 

@@ -21,6 +21,7 @@ package org.elasticsearch.index.mapper;
 
 import com.google.common.collect.ImmutableMap;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -28,7 +29,8 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.object.RootObjectMapper;
 
 import java.io.IOException;
-import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 
@@ -37,6 +39,8 @@ import java.util.Map;
  * utility classes like MapperService, ...
  */
 public final class Mapping implements ToXContent {
+
+    public static final List<String> LEGACY_INCLUDE_IN_OBJECT = Arrays.asList("_all", "_id", "_parent", "_routing", "_timestamp", "_ttl");
 
     /**
      * Transformations to be applied to the source before indexing and/or after loading.
@@ -50,27 +54,31 @@ public final class Mapping implements ToXContent {
         Map<String, Object> transformSourceAsMap(Map<String, Object> sourceAsMap);
     }
 
+    final Version indexCreated;
     final RootObjectMapper root;
     final RootMapper[] rootMappers;
-    final RootMapper[] rootMappersNotIncludedInObject;
     final ImmutableMap<Class<? extends RootMapper>, RootMapper> rootMappersMap;
     final SourceTransform[] sourceTransforms;
     volatile ImmutableMap<String, Object> meta;
 
-    public Mapping(RootObjectMapper rootObjectMapper, RootMapper[] rootMappers, SourceTransform[] sourceTransforms, ImmutableMap<String, Object> meta) {
+    public Mapping(Version indexCreated, RootObjectMapper rootObjectMapper, RootMapper[] rootMappers, SourceTransform[] sourceTransforms, ImmutableMap<String, Object> meta) {
+        this.indexCreated = indexCreated;
         this.root = rootObjectMapper;
         this.rootMappers = rootMappers;
-        List<RootMapper> rootMappersNotIncludedInObject = new ArrayList<>();
         ImmutableMap.Builder<Class<? extends RootMapper>, RootMapper> builder = ImmutableMap.builder();
         for (RootMapper rootMapper : rootMappers) {
-            if (rootMapper.includeInObject()) {
+            if (indexCreated.before(Version.V_2_0_0) && LEGACY_INCLUDE_IN_OBJECT.contains(rootMapper.name())) {
                 root.putMapper(rootMapper);
-            } else {
-                rootMappersNotIncludedInObject.add(rootMapper);
             }
             builder.put(rootMapper.getClass(), rootMapper);
         }
-        this.rootMappersNotIncludedInObject = rootMappersNotIncludedInObject.toArray(new RootMapper[rootMappersNotIncludedInObject.size()]);
+        // keep root mappers sorted for consistent serialization
+        Arrays.sort(rootMappers, new Comparator<Mapper>() {
+            @Override
+            public int compare(Mapper o1, Mapper o2) {
+                return o1.name().compareTo(o2.name());
+            }
+        });
         this.rootMappersMap = builder.build();
         this.sourceTransforms = sourceTransforms;
         this.meta = meta;
@@ -85,7 +93,7 @@ public final class Mapping implements ToXContent {
      * Generate a mapping update for the given root object mapper.
      */
     public Mapping mappingUpdate(Mapper rootObjectMapper) {
-        return new Mapping((RootObjectMapper) rootObjectMapper, rootMappers, sourceTransforms, meta);
+        return new Mapping(indexCreated, (RootObjectMapper) rootObjectMapper, rootMappers, sourceTransforms, meta);
     }
 
     /** Get the root mapper with the given class. */
@@ -100,10 +108,6 @@ public final class Mapping implements ToXContent {
 
         root.merge(mergeWith.root, mergeResult);
         for (RootMapper rootMapper : rootMappers) {
-            // root mappers included in root object will get merge in the rootObjectMapper
-            if (rootMapper.includeInObject()) {
-                continue;
-            }
             RootMapper mergeWithRootMapper = mergeWith.rootMapper(rootMapper.getClass());
             if (mergeWithRootMapper != null) {
                 rootMapper.merge(mergeWithRootMapper, mergeResult);
@@ -137,11 +141,12 @@ public final class Mapping implements ToXContent {
                 if (meta != null && !meta.isEmpty()) {
                     builder.field("_meta", meta);
                 }
+                for (Mapper mapper : rootMappers) {
+                    mapper.toXContent(builder, params);
+                }
                 return builder;
             }
-            // no need to pass here id and boost, since they are added to the root object mapper
-            // in the constructor
-        }, rootMappersNotIncludedInObject);
+        });
         return builder;
     }
 

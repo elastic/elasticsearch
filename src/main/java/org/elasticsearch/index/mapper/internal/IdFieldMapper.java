@@ -20,7 +20,6 @@
 package org.elasticsearch.index.mapper.internal;
 
 import com.google.common.collect.Iterables;
-
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
@@ -44,7 +43,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.FieldDataType;
-import org.elasticsearch.index.mapper.InternalMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MergeMappingException;
@@ -57,7 +55,6 @@ import org.elasticsearch.index.query.QueryParseContext;
 
 import java.io.IOException;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -68,7 +65,7 @@ import static org.elasticsearch.index.mapper.core.TypeParsers.parseField;
 /**
  * 
  */
-public class IdFieldMapper extends AbstractFieldMapper<String> implements InternalMapper, RootMapper {
+public class IdFieldMapper extends AbstractFieldMapper<String> implements RootMapper {
 
     public static final String NAME = "_id";
 
@@ -262,11 +259,6 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
             throw new MapperParsingException("No id found while parsing the content source");
         }
         // it either get built in the preParse phase, or get parsed...
-    }
-
-    @Override
-    public boolean includeInObject() {
-        return true;
     }
 
     @Override

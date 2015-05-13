@@ -29,8 +29,8 @@ import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
-import org.elasticsearch.index.search.geo.InMemoryGeoBoundingBoxFilter;
-import org.elasticsearch.index.search.geo.IndexedGeoBoundingBoxFilter;
+import org.elasticsearch.index.search.geo.InMemoryGeoBoundingBoxQuery;
+import org.elasticsearch.index.search.geo.IndexedGeoBoundingBoxQuery;
 
 import java.io.IOException;
 
@@ -173,10 +173,10 @@ public class GeoBoundingBoxQueryParser extends BaseQueryParserTemp {
 
         Query filter;
         if ("indexed".equals(type)) {
-            filter = IndexedGeoBoundingBoxFilter.create(topLeft, bottomRight, geoMapper);
+            filter = IndexedGeoBoundingBoxQuery.create(topLeft, bottomRight, geoMapper);
         } else if ("memory".equals(type)) {
             IndexGeoPointFieldData indexFieldData = parseContext.getForField(mapper);
-            filter = new InMemoryGeoBoundingBoxFilter(topLeft, bottomRight, indexFieldData);
+            filter = new InMemoryGeoBoundingBoxQuery(topLeft, bottomRight, indexFieldData);
         } else {
             throw new QueryParsingException(parseContext, "geo bounding box type [" + type
                     + "] not supported, either 'indexed' or 'memory' are allowed");

@@ -62,7 +62,7 @@ import java.io.IOException;
 import static org.hamcrest.Matchers.*;
 
 @Ignore
-public abstract class BaseQueryTestCase<QB extends BaseQueryBuilder & Streamable> extends ElasticsearchTestCase {
+public abstract class BaseQueryTestCase<QB extends QueryBuilder & Streamable> extends ElasticsearchTestCase {
 
     private static Injector injector;
     private static IndexQueryParserService queryParserService;

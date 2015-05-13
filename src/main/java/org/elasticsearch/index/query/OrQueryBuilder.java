@@ -24,22 +24,21 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 
 /**
  * A filter that matches documents matching boolean combinations of other filters.
  * @deprecated Use {@link BoolQueryBuilder} instead
  */
 @Deprecated
-public class OrQueryBuilder extends BaseQueryBuilder {
+public class OrQueryBuilder extends QueryBuilder {
 
     private ArrayList<QueryBuilder> filters = Lists.newArrayList();
 
     private String queryName;
 
     public OrQueryBuilder(QueryBuilder... filters) {
-        for (QueryBuilder filter : filters) {
-            this.filters.add(filter);
-        }
+        Collections.addAll(this.filters, filters);
     }
 
     /**

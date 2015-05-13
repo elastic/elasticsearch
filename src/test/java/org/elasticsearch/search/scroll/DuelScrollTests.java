@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.scroll;
 
-import com.carrotsearch.hppc.IntOpenHashSet;
+import com.carrotsearch.hppc.IntHashSet;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -159,7 +159,7 @@ public class DuelScrollTests extends ElasticsearchIntegrationTest {
         boolean unevenRouting = randomBoolean();
 
         int numMissingDocs = scaledRandomIntBetween(0, numDocs / 100);
-        IntOpenHashSet missingDocs = new IntOpenHashSet(numMissingDocs);
+        IntHashSet missingDocs = new IntHashSet(numMissingDocs);
         for (int i = 0; i < numMissingDocs; i++) {
             while (!missingDocs.add(randomInt(numDocs))) {}
         }

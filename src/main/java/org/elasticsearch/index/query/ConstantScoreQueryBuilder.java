@@ -28,10 +28,8 @@ import java.util.Objects;
 /**
  * A query that wraps a filter and simply returns a constant score equal to the
  * query boost for every document in the filter.
- *
- *
  */
-public class ConstantScoreQueryBuilder extends BaseQueryBuilder implements BoostableQueryBuilder<ConstantScoreQueryBuilder> {
+public class ConstantScoreQueryBuilder extends QueryBuilder implements BoostableQueryBuilder<ConstantScoreQueryBuilder> {
 
     private final QueryBuilder filterBuilder;
 

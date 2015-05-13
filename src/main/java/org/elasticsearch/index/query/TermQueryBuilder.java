@@ -36,7 +36,7 @@ import java.util.Objects;
 /**
  * A Query that matches documents containing a term.
  */
-public class TermQueryBuilder extends BaseQueryBuilder implements Streamable, BoostableQueryBuilder<TermQueryBuilder> {
+public class TermQueryBuilder extends QueryBuilder implements Streamable, BoostableQueryBuilder<TermQueryBuilder> {
 
     private String fieldName;
 

@@ -26,7 +26,7 @@ import java.io.IOException;
 /**
  * A filer for a field based on several terms matching on any of them.
  */
-public class TermsQueryBuilder extends BaseQueryBuilder {
+public class TermsQueryBuilder extends QueryBuilder {
 
     private final String name;
 

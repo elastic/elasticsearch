@@ -25,10 +25,8 @@ import java.io.IOException;
 
 /**
  * A Query that matches documents within an range of terms.
- *
- *
  */
-public class RangeQueryBuilder extends BaseQueryBuilder implements MultiTermQueryBuilder, BoostableQueryBuilder<RangeQueryBuilder> {
+public class RangeQueryBuilder extends MultiTermQueryBuilder implements BoostableQueryBuilder<RangeQueryBuilder> {
 
     private final String name;
 

@@ -40,7 +40,7 @@ import java.io.IOException;
  * }
  * </pre>
  */
-public class WrapperQueryBuilder extends BaseQueryBuilder {
+public class WrapperQueryBuilder extends QueryBuilder {
 
     private final byte[] source;
     private final int offset;

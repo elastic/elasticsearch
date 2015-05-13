@@ -26,10 +26,8 @@ import java.io.IOException;
 
 /**
  * A Query that does fuzzy matching for a specific value.
- *
- *
  */
-public class RegexpQueryBuilder extends BaseQueryBuilder implements BoostableQueryBuilder<RegexpQueryBuilder>, MultiTermQueryBuilder {
+public class RegexpQueryBuilder extends MultiTermQueryBuilder implements BoostableQueryBuilder<RegexpQueryBuilder> {
 
     private final String name;
     private final String regexp;

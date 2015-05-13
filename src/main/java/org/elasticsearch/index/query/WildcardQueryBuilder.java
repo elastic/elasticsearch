@@ -30,10 +30,8 @@ import java.io.IOException;
  * needs to iterate over many terms. In order to prevent extremely slow WildcardQueries,
  * a Wildcard term should not start with one of the wildcards <tt>*</tt> or
  * <tt>?</tt>.
- *
- *
  */
-public class WildcardQueryBuilder extends BaseQueryBuilder implements MultiTermQueryBuilder, BoostableQueryBuilder<WildcardQueryBuilder> {
+public class WildcardQueryBuilder extends MultiTermQueryBuilder implements BoostableQueryBuilder<WildcardQueryBuilder> {
 
     private final String name;
 

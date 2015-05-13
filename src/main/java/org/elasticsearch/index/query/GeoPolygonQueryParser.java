@@ -31,7 +31,7 @@ import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
-import org.elasticsearch.index.search.geo.GeoPolygonFilter;
+import org.elasticsearch.index.search.geo.GeoPolygonQuery;
 
 import java.io.IOException;
 import java.util.List;
@@ -147,7 +147,7 @@ public class GeoPolygonQueryParser extends BaseQueryParserTemp {
         }
 
         IndexGeoPointFieldData indexFieldData = parseContext.getForField(mapper);
-        Query query = new GeoPolygonFilter(indexFieldData, shell.toArray(new GeoPoint[shell.size()]));
+        Query query = new GeoPolygonQuery(indexFieldData, shell.toArray(new GeoPoint[shell.size()]));
         if (queryName != null) {
             parseContext.addNamedQuery(queryName, query);
         }

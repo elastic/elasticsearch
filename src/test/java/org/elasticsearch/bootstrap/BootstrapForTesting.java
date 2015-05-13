@@ -23,8 +23,10 @@ import org.apache.lucene.util.TestSecurityManager;
 import org.elasticsearch.bootstrap.Bootstrap;
 import org.elasticsearch.bootstrap.ESPolicy;
 import org.elasticsearch.bootstrap.Security;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.PathUtils;
 
+import java.io.FilePermission;
 import java.nio.file.Path;
 import java.security.Permissions;
 import java.security.Policy;
@@ -68,6 +70,10 @@ public class BootstrapForTesting {
                 Path javaTmpDir = PathUtils.get(Objects.requireNonNull(System.getProperty("java.io.tmpdir"), 
                                                                       "please set ${java.io.tmpdir} in pom.xml"));
                 Security.addPath(perms, javaTmpDir, "read,readlink,write,delete");
+                // custom test config file
+                if (Strings.hasLength(System.getProperty("tests.config"))) {
+                    perms.add(new FilePermission(System.getProperty("tests.config"), "read,readlink"));
+                }
                 Policy.setPolicy(new ESPolicy(perms));
                 System.setSecurityManager(new TestSecurityManager());
                 Security.selfTest();

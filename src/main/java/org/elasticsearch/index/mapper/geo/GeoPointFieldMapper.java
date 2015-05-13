@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.mapper.geo;
 
-import com.carrotsearch.hppc.ObjectOpenHashSet;
+import com.carrotsearch.hppc.ObjectHashSet;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.google.common.base.Objects;
 import com.google.common.collect.Iterators;
@@ -748,11 +748,11 @@ public class GeoPointFieldMapper extends AbstractFieldMapper<GeoPoint> implement
           TYPE.freeze();
         }
 
-        private final ObjectOpenHashSet<GeoPoint> points;
+        private final ObjectHashSet<GeoPoint> points;
 
         public CustomGeoPointDocValuesField(String  name, double lat, double lon) {
             super(name);
-            points = new ObjectOpenHashSet<>(2);
+            points = new ObjectHashSet<>(2);
             points.add(new GeoPoint(lat, lon));
         }
 

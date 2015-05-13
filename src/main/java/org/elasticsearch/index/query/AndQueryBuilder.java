@@ -30,7 +30,7 @@ import java.util.ArrayList;
  * @deprecated Use {@link BoolQueryBuilder} instead
  */
 @Deprecated
-public class AndQueryBuilder extends BaseQueryBuilder {
+public class AndQueryBuilder extends QueryBuilder {
 
     private ArrayList<QueryBuilder> filters = Lists.newArrayList();
 

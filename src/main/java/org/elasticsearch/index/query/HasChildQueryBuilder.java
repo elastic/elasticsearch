@@ -23,10 +23,7 @@ import org.elasticsearch.index.query.support.QueryInnerHitBuilder;
 
 import java.io.IOException;
 
-/**
- *
- */
-public class HasChildQueryBuilder extends BaseQueryBuilder implements BoostableQueryBuilder<HasChildQueryBuilder> {
+public class HasChildQueryBuilder extends QueryBuilder implements BoostableQueryBuilder<HasChildQueryBuilder> {
 
     private final QueryBuilder queryBuilder;
 

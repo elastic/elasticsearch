@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.fielddata;
 
-import com.carrotsearch.hppc.ObjectLongOpenHashMap;
+import com.carrotsearch.hppc.ObjectLongHashMap;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -38,13 +38,13 @@ public class FieldDataStats implements Streamable, ToXContent {
     long memorySize;
     long evictions;
     @Nullable
-    ObjectLongOpenHashMap<String> fields;
+    ObjectLongHashMap<String> fields;
 
     public FieldDataStats() {
 
     }
 
-    public FieldDataStats(long memorySize, long evictions, @Nullable ObjectLongOpenHashMap<String> fields) {
+    public FieldDataStats(long memorySize, long evictions, @Nullable ObjectLongHashMap<String> fields) {
         this.memorySize = memorySize;
         this.evictions = evictions;
         this.fields = fields;
@@ -54,13 +54,16 @@ public class FieldDataStats implements Streamable, ToXContent {
         this.memorySize += stats.memorySize;
         this.evictions += stats.evictions;
         if (stats.fields != null) {
-            if (fields == null) fields = new ObjectLongOpenHashMap<>();
-            final boolean[] states = stats.fields.allocated;
-            final Object[] keys = stats.fields.keys;
-            final long[] values = stats.fields.values;
-            for (int i = 0; i < states.length; i++) {
-                if (states[i]) {
-                    fields.addTo((String) keys[i], values[i]);
+            if (fields == null) { 
+                fields = stats.fields.clone();
+            } else {
+                assert !stats.fields.containsKey(null);
+                final Object[] keys = stats.fields.keys;
+                final long[] values = stats.fields.values;
+                for (int i = 0; i < keys.length; i++) {
+                    if (keys[i] != null) {
+                        fields.addTo((String) keys[i], values[i]);
+                    }
                 }
             }
         }
@@ -79,7 +82,7 @@ public class FieldDataStats implements Streamable, ToXContent {
     }
 
     @Nullable
-    public ObjectLongOpenHashMap<String> getFields() {
+    public ObjectLongHashMap<String> getFields() {
         return fields;
     }
 
@@ -95,7 +98,7 @@ public class FieldDataStats implements Streamable, ToXContent {
         evictions = in.readVLong();
         if (in.readBoolean()) {
             int size = in.readVInt();
-            fields = new ObjectLongOpenHashMap<>(size);
+            fields = new ObjectLongHashMap<>(size);
             for (int i = 0; i < size; i++) {
                 fields.put(in.readString(), in.readVLong());
             }
@@ -111,11 +114,11 @@ public class FieldDataStats implements Streamable, ToXContent {
         } else {
             out.writeBoolean(true);
             out.writeVInt(fields.size());
-            final boolean[] states = fields.allocated;
+            assert !fields.containsKey(null);
             final Object[] keys = fields.keys;
             final long[] values = fields.values;
-            for (int i = 0; i < states.length; i++) {
-                if (states[i]) {
+            for (int i = 0; i < keys.length; i++) {
+                if (keys[i] != null) {
                     out.writeString((String) keys[i]);
                     out.writeVLong(values[i]);
                 }
@@ -130,11 +133,11 @@ public class FieldDataStats implements Streamable, ToXContent {
         builder.field(Fields.EVICTIONS, getEvictions());
         if (fields != null) {
             builder.startObject(Fields.FIELDS);
-            final boolean[] states = fields.allocated;
+            assert !fields.containsKey(null);
             final Object[] keys = fields.keys;
             final long[] values = fields.values;
-            for (int i = 0; i < states.length; i++) {
-                if (states[i]) {
+            for (int i = 0; i < keys.length; i++) {
+                if (keys[i] != null) {
                     builder.startObject((String) keys[i], XContentBuilder.FieldCaseConversion.NONE);
                     builder.byteSizeField(Fields.MEMORY_SIZE_IN_BYTES, Fields.MEMORY_SIZE, values[i]);
                     builder.endObject();

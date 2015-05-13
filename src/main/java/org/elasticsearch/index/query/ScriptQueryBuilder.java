@@ -26,10 +26,7 @@ import java.util.Map;
 
 import static com.google.common.collect.Maps.newHashMap;
 
-/**
- *
- */
-public class ScriptQueryBuilder extends BaseQueryBuilder {
+public class ScriptQueryBuilder extends QueryBuilder {
 
     private final String script;
 

@@ -30,6 +30,7 @@ import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
+import java.util.Arrays;
 import java.util.HashSet;
 
 import static com.google.common.collect.Sets.newHashSet;
@@ -67,9 +68,8 @@ public class MetaDataTests extends ElasticsearchTestCase {
             assertThat(results, arrayContainingInAnyOrder("foofoo", "foobar"));
 
             results = md.concreteIndices(options, "foofoobar");
-            assertEquals(2, results.length);
-            assertEquals("foo", results[0]);
-            assertEquals("foobar", results[1]);
+            assertEquals(new HashSet<>(Arrays.asList("foo", "foobar")), 
+                         new HashSet<>(Arrays.asList(results)));
 
             try {
                 md.concreteIndices(options, "bar");
@@ -151,8 +151,8 @@ public class MetaDataTests extends ElasticsearchTestCase {
 
             results = md.concreteIndices(options, "foofoobar");
             assertEquals(2, results.length);
-            assertEquals("foo", results[0]);
-            assertEquals("foobar", results[1]);
+            assertEquals(new HashSet<>(Arrays.asList("foo", "foobar")), 
+                         new HashSet<>(Arrays.asList(results)));
 
             results = md.concreteIndices(options, "foo", "bar");
             assertEquals(1, results.length);

@@ -29,14 +29,14 @@ import java.util.Locale;
  * Match query is a query that analyzes the text and constructs a query as the result of the analysis. It
  * can construct different queries based on the type provided.
  */
-public class MatchQueryBuilder extends BaseQueryBuilder implements BoostableQueryBuilder<MatchQueryBuilder> {
+public class MatchQueryBuilder extends QueryBuilder implements BoostableQueryBuilder<MatchQueryBuilder> {
 
-    public static enum Operator {
+    public enum Operator {
         OR,
         AND
     }
 
-    public static enum Type {
+    public enum Type {
         /**
          * The text is analyzed and terms are added to a boolean query.
          */
@@ -51,7 +51,7 @@ public class MatchQueryBuilder extends BaseQueryBuilder implements BoostableQuer
         PHRASE_PREFIX
     }
 
-    public static enum ZeroTermsQuery {
+    public enum ZeroTermsQuery {
         NONE,
         ALL
     }

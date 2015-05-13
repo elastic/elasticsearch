@@ -41,7 +41,7 @@ import java.util.Objects;
 /**
  * A query that will return only documents matching specific ids (and a type).
  */
-public class IdsQueryBuilder extends BaseQueryBuilder implements Streamable, BoostableQueryBuilder<IdsQueryBuilder> {
+public class IdsQueryBuilder extends QueryBuilder implements Streamable, BoostableQueryBuilder<IdsQueryBuilder> {
 
     private List<String> types = new ArrayList<>();
 

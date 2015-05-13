@@ -19,28 +19,30 @@
 
 package org.elasticsearch.index.search.geo;
 
-import java.io.IOException;
-
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.DocIdSet;
-import org.apache.lucene.search.DocValuesDocIdSet;
-import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.ConstantScoreScorer;
+import org.apache.lucene.search.ConstantScoreWeight;
+import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.TwoPhaseIterator;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.NumericUtils;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.lucene.docset.AndDocIdSet;
-import org.elasticsearch.common.lucene.docset.DocIdSets;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
 
+import java.io.IOException;
+
 /**
  *
  */
-public class GeoDistanceRangeFilter extends Filter {
+public class GeoDistanceRangeQuery extends Query {
 
     private final double lat;
     private final double lon;
@@ -51,11 +53,11 @@ public class GeoDistanceRangeFilter extends Filter {
     private final GeoDistance geoDistance;
     private final GeoDistance.FixedSourceDistance fixedSourceDistance;
     private GeoDistance.DistanceBoundingCheck distanceBoundingCheck;
-    private final Filter boundingBoxFilter;
+    private final Query boundingBoxFilter;
 
     private final IndexGeoPointFieldData indexFieldData;
 
-    public GeoDistanceRangeFilter(GeoPoint point, Double lowerVal, Double upperVal, boolean includeLower, boolean includeUpper, GeoDistance geoDistance, GeoPointFieldMapper mapper, IndexGeoPointFieldData indexFieldData,
+    public GeoDistanceRangeQuery(GeoPoint point, Double lowerVal, Double upperVal, boolean includeLower, boolean includeUpper, GeoDistance geoDistance, GeoPointFieldMapper mapper, IndexGeoPointFieldData indexFieldData,
                                   String optimizeBbox) {
         this.lat = point.lat();
         this.lon = point.lon();
@@ -88,7 +90,7 @@ public class GeoDistanceRangeFilter extends Filter {
             if ("memory".equals(optimizeBbox)) {
                 boundingBoxFilter = null;
             } else if ("indexed".equals(optimizeBbox)) {
-                boundingBoxFilter = IndexedGeoBoundingBoxFilter.create(distanceBoundingCheck.topLeft(), distanceBoundingCheck.bottomRight(), mapper);
+                boundingBoxFilter = IndexedGeoBoundingBoxQuery.create(distanceBoundingCheck.topLeft(), distanceBoundingCheck.bottomRight(), mapper);
                 distanceBoundingCheck = GeoDistance.ALWAYS_INSTANCE; // fine, we do the bounding box check using the filter
             } else {
                 throw new IllegalArgumentException("type [" + optimizeBbox + "] for bounding box optimization not supported");
@@ -111,22 +113,64 @@ public class GeoDistanceRangeFilter extends Filter {
         return geoDistance;
     }
 
+    public double minInclusiveDistance() {
+        return inclusiveLowerPoint;
+    }
+
+    public double maxInclusiveDistance() {
+        return inclusiveUpperPoint;
+    }
+
+    public String fieldName() {
+        return indexFieldData.getFieldNames().indexName();
+    }
+
     @Override
-    public DocIdSet getDocIdSet(LeafReaderContext context, Bits acceptedDocs) throws IOException {
-        DocIdSet boundingBoxDocSet = null;
+    public Weight createWeight(IndexSearcher searcher, boolean needsScores) throws IOException {
+        final Weight boundingBoxWeight;
         if (boundingBoxFilter != null) {
-            boundingBoxDocSet = boundingBoxFilter.getDocIdSet(context, null);
-            if (DocIdSets.isEmpty(boundingBoxDocSet)) {
-                return null;
-            }
-        }
-        MultiGeoPointValues values = indexFieldData.load(context).getGeoPointValues();
-        GeoDistanceRangeDocSet distDocSet = new GeoDistanceRangeDocSet(context.reader().maxDoc(), acceptedDocs, values, fixedSourceDistance, distanceBoundingCheck, inclusiveLowerPoint, inclusiveUpperPoint);
-        if (boundingBoxDocSet == null) {
-            return distDocSet;
+            boundingBoxWeight = boundingBoxFilter.createWeight(searcher, false);
         } else {
-            return new AndDocIdSet(new DocIdSet[]{boundingBoxDocSet, distDocSet});
+            boundingBoxWeight = null;
         }
+        return new ConstantScoreWeight(this) {
+            @Override
+            public Scorer scorer(LeafReaderContext context, final Bits acceptDocs) throws IOException {
+                final DocIdSetIterator approximation;
+                if (boundingBoxWeight != null) {
+                    approximation = boundingBoxWeight.scorer(context, null);
+                } else {
+                    approximation = DocIdSetIterator.all(context.reader().maxDoc());
+                }
+                if (approximation == null) {
+                    // if the approximation does not match anything, we're done
+                    return null;
+                }
+                final MultiGeoPointValues values = indexFieldData.load(context).getGeoPointValues();
+                final TwoPhaseIterator twoPhaseIterator = new TwoPhaseIterator(approximation) {
+                    @Override
+                    public boolean matches() throws IOException {
+                        final int doc = approximation.docID();
+                        if (acceptDocs != null && acceptDocs.get(doc) == false) {
+                            return false;
+                        }
+                        values.setDocument(doc);
+                        final int length = values.count();
+                        for (int i = 0; i < length; i++) {
+                            GeoPoint point = values.valueAt(i);
+                            if (distanceBoundingCheck.isWithin(point.lat(), point.lon())) {
+                                double d = fixedSourceDistance.calculate(point.lat(), point.lon());
+                                if (d >= inclusiveLowerPoint && d <= inclusiveUpperPoint) {
+                                    return true;
+                                }
+                            }
+                        }
+                        return false;
+                    }
+                };
+                return new ConstantScoreScorer(this, score(), twoPhaseIterator);
+            }
+        };
     }
 
     @Override
@@ -134,7 +178,7 @@ public class GeoDistanceRangeFilter extends Filter {
         if (this == o) return true;
         if (super.equals(o) == false) return false;
 
-        GeoDistanceRangeFilter filter = (GeoDistanceRangeFilter) o;
+        GeoDistanceRangeQuery filter = (GeoDistanceRangeQuery) o;
 
         if (Double.compare(filter.inclusiveLowerPoint, inclusiveLowerPoint) != 0) return false;
         if (Double.compare(filter.inclusiveUpperPoint, inclusiveUpperPoint) != 0) return false;
@@ -169,38 +213,4 @@ public class GeoDistanceRangeFilter extends Filter {
         return result;
     }
 
-    public static class GeoDistanceRangeDocSet extends DocValuesDocIdSet {
-
-        private final MultiGeoPointValues values;
-        private final GeoDistance.FixedSourceDistance fixedSourceDistance;
-        private final GeoDistance.DistanceBoundingCheck distanceBoundingCheck;
-        private final double inclusiveLowerPoint; // in miles
-        private final double inclusiveUpperPoint; // in miles
-
-        public GeoDistanceRangeDocSet(int maxDoc, @Nullable Bits acceptDocs, MultiGeoPointValues values, GeoDistance.FixedSourceDistance fixedSourceDistance, GeoDistance.DistanceBoundingCheck distanceBoundingCheck,
-                                      double inclusiveLowerPoint, double inclusiveUpperPoint) {
-            super(maxDoc, acceptDocs);
-            this.values = values;
-            this.fixedSourceDistance = fixedSourceDistance;
-            this.distanceBoundingCheck = distanceBoundingCheck;
-            this.inclusiveLowerPoint = inclusiveLowerPoint;
-            this.inclusiveUpperPoint = inclusiveUpperPoint;
-        }
-
-        @Override
-        protected boolean matchDoc(int doc) {
-            values.setDocument(doc);
-            final int length = values.count();
-            for (int i = 0; i < length; i++) {
-                GeoPoint point = values.valueAt(i);
-                if (distanceBoundingCheck.isWithin(point.lat(), point.lon())) {
-                    double d = fixedSourceDistance.calculate(point.lat(), point.lon());
-                    if (d >= inclusiveLowerPoint && d <= inclusiveUpperPoint) {
-                        return true;
-                    }
-                }
-            }
-            return false;
-        }
-    }
 }

@@ -29,7 +29,7 @@ import java.io.IOException;
 /**
  * {@link QueryBuilder} that builds a GeoShape Filter
  */
-public class GeoShapeQueryBuilder extends BaseQueryBuilder {
+public class GeoShapeQueryBuilder extends QueryBuilder {
 
     private final String name;
 

@@ -24,9 +24,9 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
 
 /**
- * Builder for {@link SpanWithinQuery}.
+ * Builder for {@link org.apache.lucene.search.spans.SpanWithinQuery}.
  */
-public class SpanWithinQueryBuilder extends BaseQueryBuilder implements SpanQueryBuilder, BoostableQueryBuilder<SpanWithinQueryBuilder> {
+public class SpanWithinQueryBuilder extends SpanQueryBuilder implements BoostableQueryBuilder<SpanWithinQueryBuilder> {
 
     private SpanQueryBuilder big;
     private SpanQueryBuilder little;

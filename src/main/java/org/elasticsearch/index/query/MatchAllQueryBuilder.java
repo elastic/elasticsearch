@@ -32,7 +32,7 @@ import java.io.IOException;
 /**
  * A query that matches on all documents.
  */
-public class MatchAllQueryBuilder extends BaseQueryBuilder implements Streamable, BoostableQueryBuilder<MatchAllQueryBuilder> {
+public class MatchAllQueryBuilder extends QueryBuilder implements Streamable, BoostableQueryBuilder<MatchAllQueryBuilder> {
 
     private float boost = 1.0f;
 

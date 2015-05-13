@@ -19,11 +19,9 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.FilteredQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.QueryWrapperFilter;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -33,6 +31,7 @@ import java.io.IOException;
 /**
  *
  */
+@Deprecated
 public class FilteredQueryParser extends BaseQueryParserTemp {
 
     public static final String NAME = "filtered";
@@ -58,7 +57,6 @@ public class FilteredQueryParser extends BaseQueryParserTemp {
 
         String currentFieldName = null;
         XContentParser.Token token;
-        FilteredQuery.FilterStrategy filterStrategy = FilteredQuery.RANDOM_ACCESS_FILTER_STRATEGY;
 
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
@@ -76,24 +74,7 @@ public class FilteredQueryParser extends BaseQueryParserTemp {
                 }
             } else if (token.isValue()) {
                 if ("strategy".equals(currentFieldName)) {
-                    String value = parser.text();
-                    if ("query_first".equals(value) || "queryFirst".equals(value)) {
-                        filterStrategy = FilteredQuery.QUERY_FIRST_FILTER_STRATEGY;
-                    } else if ("random_access_always".equals(value) || "randomAccessAlways".equals(value)) {
-                        filterStrategy = FilteredQuery.RANDOM_ACCESS_FILTER_STRATEGY;
-                    } else if ("leap_frog".equals(value) || "leapFrog".equals(value)) {
-                        filterStrategy = FilteredQuery.LEAP_FROG_QUERY_FIRST_STRATEGY;
-                    } else if (value.startsWith("random_access_")) {
-                        filterStrategy = FilteredQuery.RANDOM_ACCESS_FILTER_STRATEGY;
-                    } else if (value.startsWith("randomAccess")) {
-                        filterStrategy = FilteredQuery.RANDOM_ACCESS_FILTER_STRATEGY;
-                    } else if ("leap_frog_query_first".equals(value) || "leapFrogQueryFirst".equals(value)) {
-                        filterStrategy = FilteredQuery.LEAP_FROG_QUERY_FIRST_STRATEGY;
-                    } else if ("leap_frog_filter_first".equals(value) || "leapFrogFilterFirst".equals(value)) {
-                        filterStrategy = FilteredQuery.LEAP_FROG_FILTER_FIRST_STRATEGY;
-                    } else {
-                        throw new QueryParsingException(parseContext, "[filtered] strategy value not supported [" + value + "]");
-                    }
+                    // ignore
                 } else if ("_name".equals(currentFieldName)) {
                     queryName = parser.text();
                 } else if ("boost".equals(currentFieldName)) {
@@ -131,10 +112,8 @@ public class FilteredQueryParser extends BaseQueryParserTemp {
             return q;
         }
 
-        if (filter instanceof Filter == false) {
-            filter = new QueryWrapperFilter(filter);
-        }
-        FilteredQuery filteredQuery = new FilteredQuery(query, (Filter) filter, filterStrategy);
+        BooleanQuery filteredQuery = Queries.filtered(query, filter);
+
         filteredQuery.setBoost(boost);
         if (queryName != null) {
             parseContext.addNamedQuery(queryName, filteredQuery);

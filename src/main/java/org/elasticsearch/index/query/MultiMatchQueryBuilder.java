@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.query;
 
-import com.carrotsearch.hppc.ObjectFloatOpenHashMap;
+import com.carrotsearch.hppc.ObjectFloatHashMap;
 import com.google.common.collect.Lists;
 
 import org.elasticsearch.ElasticsearchParseException;
@@ -37,12 +37,12 @@ import java.util.Locale;
 /**
  * Same as {@link MatchQueryBuilder} but supports multiple fields.
  */
-public class MultiMatchQueryBuilder extends BaseQueryBuilder implements BoostableQueryBuilder<MultiMatchQueryBuilder> {
+public class MultiMatchQueryBuilder extends QueryBuilder implements BoostableQueryBuilder<MultiMatchQueryBuilder> {
 
     private final Object text;
 
     private final List<String> fields;
-    private ObjectFloatOpenHashMap<String> fieldsBoosts;
+    private ObjectFloatHashMap<String> fieldsBoosts;
 
     private MultiMatchQueryBuilder.Type type;
 
@@ -177,7 +177,7 @@ public class MultiMatchQueryBuilder extends BaseQueryBuilder implements Boostabl
     public MultiMatchQueryBuilder field(String field, float boost) {
         fields.add(field);
         if (fieldsBoosts == null) {
-            fieldsBoosts = new ObjectFloatOpenHashMap<>();
+            fieldsBoosts = new ObjectFloatHashMap<>();
         }
         fieldsBoosts.put(field, boost);
         return this;
@@ -337,8 +337,9 @@ public class MultiMatchQueryBuilder extends BaseQueryBuilder implements Boostabl
         builder.field("query", text);
         builder.startArray("fields");
         for (String field : fields) {
-            if (fieldsBoosts != null && fieldsBoosts.containsKey(field)) {
-                field += "^" + fieldsBoosts.lget();
+            final int keySlot;
+            if (fieldsBoosts != null && ((keySlot = fieldsBoosts.indexOf(field)) >= 0)) {
+                field += "^" + fieldsBoosts.indexGet(keySlot);
             }
             builder.value(field);
         }

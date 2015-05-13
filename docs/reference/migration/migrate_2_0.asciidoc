@@ -425,6 +425,38 @@ Change to ranking behaviour: single-term queries on numeric fields now score in 
 Previously, term queries on numeric fields were deliberately prevented from using the usual Lucene scoring logic and this behaviour was undocumented and, to some, unexpected.
 If the introduction of scoring to numeric fields is undesirable for your query clauses the fix is simple: wrap them in a `constant_score` or use a `filter` expression instead.
 
+The `filtered` query is deprecated. Instead you should use a `bool` query with
+a `must` clause for the query and a `filter` clause for the filter. For instance
+the below query:
+
+[source,json]
+---------------
+{
+  "filtered": {
+    "query": {
+      // query
+    },
+    "filter": {
+      // filter
+    }
+  }
+}
+---------------
+can be replaced with
+[source,json]
+---------------
+{
+  "bool": {
+    "must": {
+      // query
+    },
+    "filter": {
+      // filter
+    }
+  }
+}
+---------------
+and will produce the same scores.
 
 The `fuzzy_like_this` and `fuzzy_like_this_field` queries have been removed.
 

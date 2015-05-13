@@ -29,7 +29,7 @@ import java.io.IOException;
  *             query as a filter directly.
  */
 @Deprecated
-public class QueryFilterBuilder extends BaseQueryBuilder {
+public class QueryFilterBuilder extends QueryBuilder {
 
     private final QueryBuilder queryBuilder;
 

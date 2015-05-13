@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.util;
 
-import com.carrotsearch.hppc.hash.MurmurHash3;
+import com.carrotsearch.hppc.BitMixer;
 import com.google.common.base.Preconditions;
 import org.elasticsearch.common.lease.Releasable;
 
@@ -35,7 +35,7 @@ abstract class AbstractPagedHashMap implements Releasable {
     static long hash(long value) {
         // Don't use the value directly. Under some cases eg dates, it could be that the low bits don't carry much value and we would like
         // all bits of the hash to carry as much value
-        return MurmurHash3.hash(value);
+        return BitMixer.mix64(value);
     }
 
     static long hash(double value) {

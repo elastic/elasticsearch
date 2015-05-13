@@ -31,7 +31,7 @@ import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
-import org.elasticsearch.index.search.geo.GeoDistanceFilter;
+import org.elasticsearch.index.search.geo.GeoDistanceRangeQuery;
 
 import java.io.IOException;
 
@@ -160,7 +160,7 @@ public class GeoDistanceQueryParser extends BaseQueryParserTemp {
 
 
         IndexGeoPointFieldData indexFieldData = parseContext.getForField(mapper);
-        Query query = new GeoDistanceFilter(point.lat(), point.lon(), distance, geoDistance, indexFieldData, geoMapper, optimizeBbox);
+        Query query = new GeoDistanceRangeQuery(point, null, distance, true, false, geoDistance, geoMapper, indexFieldData, optimizeBbox);
         if (queryName != null) {
             parseContext.addNamedQuery(queryName, query);
         }

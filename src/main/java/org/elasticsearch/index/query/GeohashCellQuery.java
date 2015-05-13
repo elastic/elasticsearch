@@ -90,7 +90,7 @@ public class GeohashCellQuery {
      * <code>geohash</code> to be set. the default for a neighbor filteing is
      * <code>false</code>.
      */
-    public static class Builder extends BaseQueryBuilder {
+    public static class Builder extends QueryBuilder {
         // we need to store the geohash rather than the corresponding point,
         // because a transformation from a geohash to a point an back to the
         // geohash will extend the accuracy of the hash to max precision

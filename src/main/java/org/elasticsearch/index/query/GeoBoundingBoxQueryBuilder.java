@@ -25,10 +25,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
-/**
- *
- */
-public class GeoBoundingBoxQueryBuilder extends BaseQueryBuilder {
+public class GeoBoundingBoxQueryBuilder extends QueryBuilder {
 
     public static final String TOP_LEFT = GeoBoundingBoxQueryParser.TOP_LEFT;
     public static final String BOTTOM_RIGHT = GeoBoundingBoxQueryParser.BOTTOM_RIGHT;

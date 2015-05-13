@@ -42,7 +42,7 @@ import java.io.IOException;
  * execution times significantly if applicable.
  * <p>
  */
-public class CommonTermsQueryBuilder extends BaseQueryBuilder implements BoostableQueryBuilder<CommonTermsQueryBuilder> {
+public class CommonTermsQueryBuilder extends QueryBuilder implements BoostableQueryBuilder<CommonTermsQueryBuilder> {
 
     public static enum Operator {
         OR, AND

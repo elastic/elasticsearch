@@ -33,8 +33,6 @@
 
     <properties>
         <amazonaws.version>1.9.34</amazonaws.version>
-        <!-- see https://github.com/elastic/elasticsearch-cloud-aws/issues/210 -->
-        <tests.security.manager>false</tests.security.manager>
     </properties>
 
     <dependencies>

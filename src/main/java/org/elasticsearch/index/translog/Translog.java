@@ -1574,16 +1574,17 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     }
 
     static Translog.Operation readOperation(BufferedChecksumStreamInput in) throws IOException {
-        final int opSize = in.readInt();
-        if (opSize < 4) { // 4byte for the checksum
-            throw new TranslogCorruptedException("operation size must be at least 4 but was: " + opSize);
-        }
         Translog.Operation operation;
         try {
+            final int opSize = in.readInt();
+            if (opSize < 4) { // 4byte for the checksum
+                throw new AssertionError("operation size must be at least 4 but was: " + opSize);
+            }
             in.resetDigest(); // size is not part of the checksum!
             if (in.markSupported()) { // if we can we validate the checksum first
                 // we are sometimes called when mark is not supported this is the case when
-                // we are sending translogs across the network - currently there is no way to prevent this unfortunately.
+                // we are sending translogs across the network with LZ4 compression enabled - currently there is no way s
+                // to prevent this unfortunately.
                 in.mark(opSize);
 
                 in.skip(opSize-4);
@@ -1596,7 +1597,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             verifyChecksum(in);
         } catch (EOFException e) {
             throw new TruncatedTranslogException("reached premature end of file, translog is truncated", e);
-        } catch (AssertionError|Exception e) {
+        } catch (AssertionError | Exception e) {
             throw new TranslogCorruptedException("translog corruption while reading from stream", e);
         }
         return operation;

@@ -61,8 +61,13 @@ public class TransportSealIndicesAction extends HandledTransportAction<SealIndic
         ClusterState state = clusterService.state();
         String[] concreteIndices = state.metaData().concreteIndices(request.indicesOptions(), request.indices());
         GroupShardsIterator primaries = state.routingTable().activePrimaryShardsGrouped(concreteIndices, false);
-        final CountDown countDown = new CountDown(primaries.size());
         final Set<SyncedFlushService.SyncedFlushResult> results = ConcurrentCollections.newConcurrentSet();
+        if (primaries.size() == 0) {
+            // no active primary available
+            listener.onResponse(new SealIndicesResponse(results));
+            return;
+        }
+        final CountDown countDown = new CountDown(primaries.size());
         for (final ShardIterator shard : primaries) {
             final ShardId shardId = shard.shardId();
             syncedFlushService.attemptSyncedFlush(shardId, new ActionListener<SyncedFlushService.SyncedFlushResult>() {

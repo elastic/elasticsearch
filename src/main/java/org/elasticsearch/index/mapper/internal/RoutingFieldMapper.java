@@ -30,11 +30,10 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.fielddata.FieldDataType;
-import org.elasticsearch.index.mapper.InternalMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.MergeMappingException;
+import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.RootMapper;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
@@ -51,7 +50,7 @@ import static org.elasticsearch.index.mapper.core.TypeParsers.parseField;
 /**
  *
  */
-public class RoutingFieldMapper extends AbstractFieldMapper<String> implements InternalMapper, RootMapper {
+public class RoutingFieldMapper extends AbstractFieldMapper<String> implements RootMapper {
 
     public static final String NAME = "_routing";
     public static final String CONTENT_TYPE = "_routing";
@@ -187,11 +186,6 @@ public class RoutingFieldMapper extends AbstractFieldMapper<String> implements I
         // or we don't have routing, if we get it in sourceToParse, we process it in preParse
         // which will always be called
         return null;
-    }
-
-    @Override
-    public boolean includeInObject() {
-        return true;
     }
 
     @Override

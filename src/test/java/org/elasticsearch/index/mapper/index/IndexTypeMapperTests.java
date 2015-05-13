@@ -40,9 +40,8 @@ public class IndexTypeMapperTests extends ElasticsearchSingleNodeTest {
                 .startObject("_index").field("enabled", true).endObject()
                 .endObject().endObject().string();
         DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
-        IndexFieldMapper indexMapper = docMapper.rootMapper(IndexFieldMapper.class);
+        IndexFieldMapper indexMapper = docMapper.indexMapper();
         assertThat(indexMapper.enabled(), equalTo(true));
-        assertThat(docMapper.mappers().getMapper("_index"), instanceOf(IndexFieldMapper.class));
 
         ParsedDocument doc = docMapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject()

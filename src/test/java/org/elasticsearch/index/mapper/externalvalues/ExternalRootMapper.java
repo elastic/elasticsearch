@@ -70,11 +70,6 @@ public class ExternalRootMapper implements RootMapper {
         context.doc().add(new StringField(FIELD_NAME, FIELD_VALUE, Store.YES));
     }
 
-    @Override
-    public boolean includeInObject() {
-        return false;
-    }
-
     public static class Builder extends Mapper.Builder<Builder, ExternalRootMapper> {
 
         protected Builder() {

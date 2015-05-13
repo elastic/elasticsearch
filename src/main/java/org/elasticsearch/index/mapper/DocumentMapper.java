@@ -30,6 +30,7 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchGenerationException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -194,6 +195,7 @@ public class DocumentMapper implements ToXContent {
         this.type = rootObjectMapper.name();
         this.typeText = new StringAndBytesText(this.type);
         this.mapping = new Mapping(
+                Version.indexCreated(indexSettings),
                 rootObjectMapper,
                 rootMappers.values().toArray(new RootMapper[rootMappers.values().size()]),
                 sourceTransforms.toArray(new SourceTransform[sourceTransforms.size()]),
@@ -210,7 +212,7 @@ public class DocumentMapper implements ToXContent {
         // collect all the mappers for this type
         List<ObjectMapper> newObjectMappers = new ArrayList<>();
         List<FieldMapper<?>> newFieldMappers = new ArrayList<>();
-        for (RootMapper rootMapper : this.mapping.rootMappersNotIncludedInObject) {
+        for (RootMapper rootMapper : this.mapping.rootMappers) {
             if (rootMapper instanceof FieldMapper) {
                 newFieldMappers.add((FieldMapper) rootMapper);
             }

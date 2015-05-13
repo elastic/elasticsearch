@@ -22,10 +22,8 @@ package org.elasticsearch.index.mapper.internal;
 import com.google.common.collect.UnmodifiableIterator;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
-import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -33,11 +31,10 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.fielddata.FieldDataType;
-import org.elasticsearch.index.mapper.InternalMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.MergeMappingException;
+import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.RootMapper;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
@@ -58,7 +55,7 @@ import static org.elasticsearch.index.mapper.core.TypeParsers.parseField;
  *
  * Added in Elasticsearch 1.3.
  */
-public class FieldNamesFieldMapper extends AbstractFieldMapper<String> implements InternalMapper, RootMapper {
+public class FieldNamesFieldMapper extends AbstractFieldMapper<String> implements RootMapper {
 
     public static final String NAME = "_field_names";
 
@@ -186,11 +183,6 @@ public class FieldNamesFieldMapper extends AbstractFieldMapper<String> implement
     public Mapper parse(ParseContext context) throws IOException {
         // we parse in post parse
         return null;
-    }
-
-    @Override
-    public boolean includeInObject() {
-        return false;
     }
 
     static Iterable<String> extractFieldNames(final String fullPath) {

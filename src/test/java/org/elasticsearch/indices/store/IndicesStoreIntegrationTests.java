@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.*;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
+import org.elasticsearch.cluster.routing.allocation.decider.ConcurrentRebalanceAllocationDecider;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -229,6 +230,9 @@ public class IndicesStoreIntegrationTests extends ElasticsearchIntegrationTest {
             shardIds[i] = shardRouting.getId();
             i++;
         }
+        // disable relocations when we do this, to make sure the shards are not relocated from node2
+        // due to rebalancing, and delete its content
+        client().admin().cluster().prepareUpdateSettings().setTransientSettings(settingsBuilder().put(ConcurrentRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_REBALANCE, 0)).get();
         internalCluster().getInstance(ClusterService.class, node_2).submitStateUpdateTask("test", Priority.IMMEDIATE, new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {

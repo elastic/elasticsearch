@@ -481,13 +481,8 @@ public abstract class AbstractIndicesAdminClient implements IndicesAdminClient {
     }
 
     @Override
-    public AnalyzeRequestBuilder prepareAnalyzeWithIndexAndMultiValued(@Nullable String index, String... text) {
-        return new AnalyzeRequestBuilder(this, index, text);
-    }
-
-    @Override
-    public AnalyzeRequestBuilder prepareAnalyzeWithMultiValued(String... text) {
-        return new AnalyzeRequestBuilder(this, null, text);
+    public AnalyzeRequestBuilder prepareAnalyze() {
+        return new AnalyzeRequestBuilder(this);
     }
 
     @Override

@@ -88,6 +88,14 @@ public class AnalyzeRequestBuilder extends SingleCustomOperationRequestBuilder<A
         return this;
     }
 
+    /**
+     * Sets texts to analyze
+     */
+    public AnalyzeRequestBuilder setText(String... texts) {
+        request.text(texts);
+        return this;
+    }
+
     @Override
     protected void doExecute(ActionListener<AnalyzeResponse> listener) {
         client.analyze(request, listener);

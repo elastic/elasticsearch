@@ -22,6 +22,9 @@ package org.elasticsearch.action.admin.indices.seal;
 import org.elasticsearch.cluster.routing.ImmutableShardRouting;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.common.io.stream.BytesStreamInput;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.SyncedFlushService;
 import org.elasticsearch.test.ElasticsearchTestCase;
@@ -34,6 +37,26 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class SealIndicesTests extends ElasticsearchTestCase {
 
+    public void testSealIndicesResponseStreaming() throws IOException {
+
+        Set<SyncedFlushService.SyncedFlushResult> shardResults = new HashSet<>();
+        // add one result where one shard failed and one succeeded
+        SyncedFlushService.SyncedFlushResult syncedFlushResult = createSyncedFlushResult(0, "test");
+        shardResults.add(syncedFlushResult);
+        // add one result where all failed
+        syncedFlushResult = new SyncedFlushService.SyncedFlushResult(new ShardId("test", 1), "all failed :(");
+        shardResults.add(syncedFlushResult);
+        SealIndicesResponse sealIndicesResponse = new SealIndicesResponse(shardResults);
+        BytesStreamOutput out = new BytesStreamOutput();
+        sealIndicesResponse.writeTo(out);
+        out.close();
+        StreamInput in = new BytesStreamInput(out.bytes());
+        SealIndicesResponse readResponse = new SealIndicesResponse();
+        readResponse.readFrom(in);
+        Map<String, Object> asMap = convertToMap(readResponse);
+        assertResponse(asMap);
+    }
+
     public void testXContentResponse() throws IOException {
 
         Set<SyncedFlushService.SyncedFlushResult> shardResults = new HashSet<>();
@@ -45,6 +68,10 @@ public class SealIndicesTests extends ElasticsearchTestCase {
         shardResults.add(syncedFlushResult);
         SealIndicesResponse sealIndicesResponse = new SealIndicesResponse(shardResults);
         Map<String, Object> asMap = convertToMap(sealIndicesResponse);
+        assertResponse(asMap);
+    }
+
+    protected void assertResponse(Map<String, Object> asMap) {
         assertNotNull(asMap.get("test"));
         assertThat((Integer) (((HashMap) ((ArrayList) asMap.get("test")).get(0)).get("shard_id")), equalTo(0));
         assertThat((String) (((HashMap) ((ArrayList) asMap.get("test")).get(0)).get("message")), equalTo("failed on some copies"));

@@ -35,8 +35,10 @@ public class TransportWatcherServiceAction extends WatcherTransportAction<Watche
 
     @Override
     protected String executor() {
-        // We should always be able to stop or restart the watcher service, even if the a TP is exhausted, so don't fork into another thread:
-        return ThreadPool.Names.SAME;
+        // Ideally we should use SAME TP here, because we should always be able to stop Watcher even if management TP has been exhausted,
+        // but we can't use SAME TP here, because certain parts of the start process can't be executed on a transport thread.
+        // ( put template, or anything client related with #actionGet() )
+        return ThreadPool.Names.MANAGEMENT;
     }
 
     @Override

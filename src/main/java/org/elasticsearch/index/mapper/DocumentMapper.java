@@ -29,7 +29,6 @@ import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -75,7 +74,6 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  *
@@ -171,8 +169,6 @@ public class DocumentMapper implements ToXContent {
     private final String type;
     private final StringAndBytesText typeText;
 
-    private volatile CompressedString mappingSource;
-
     private final Mapping mapping;
 
     private final DocumentParser documentParser;
@@ -231,8 +227,6 @@ public class DocumentMapper implements ToXContent {
                 hasNestedObjects = true;
             }
         }
-
-        refreshSource();
     }
 
     public Mapping mapping() {
@@ -251,8 +245,21 @@ public class DocumentMapper implements ToXContent {
         return mapping.meta;
     }
 
+    /** Return a serialized mapping. This is mostly useful to check that two
+     *  mappings are equal. */
     public CompressedString mappingSource() {
-        return this.mappingSource;
+        try {
+            BytesStreamOutput bStream = new BytesStreamOutput();
+            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON, CompressorFactory.defaultCompressor().streamOutput(bStream));
+            builder.startObject();
+            toXContent(builder, ToXContent.EMPTY_PARAMS);
+            builder.endObject();
+            builder.close();
+            return new CompressedString(bStream.bytes());
+        } catch (IOException bogus) {
+            // we write to memory, this can not happen
+            throw new IllegalStateException(bogus);
+        }
     }
 
     public RootObjectMapper root() {
@@ -486,23 +493,8 @@ public class DocumentMapper implements ToXContent {
         if (simulate == false) {
             addFieldMappers(mergeResult.getNewFieldMappers());
             addObjectMappers(mergeResult.getNewObjectMappers());
-            refreshSource();
         }
         return mergeResult;
-    }
-
-    public CompressedString refreshSource() throws ElasticsearchGenerationException {
-        try {
-            BytesStreamOutput bStream = new BytesStreamOutput();
-            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON, CompressorFactory.defaultCompressor().streamOutput(bStream));
-            builder.startObject();
-            toXContent(builder, ToXContent.EMPTY_PARAMS);
-            builder.endObject();
-            builder.close();
-            return mappingSource = new CompressedString(bStream.bytes());
-        } catch (Exception e) {
-            throw new ElasticsearchGenerationException("failed to serialize source for type [" + type + "]", e);
-        }
     }
 
     public void close() {

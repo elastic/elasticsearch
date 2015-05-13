@@ -775,7 +775,7 @@ public class RecoverySourceHandler {
                 for (DocumentMapper documentMapper : indexService.mapperService().docMappers(false)) {
 
                     MappingMetaData mappingMetaData = metaDataMappings == null ? null : metaDataMappings.get(documentMapper.type());
-                    if (mappingMetaData == null || !documentMapper.refreshSource().equals(mappingMetaData.source())) {
+                    if (mappingMetaData == null || !documentMapper.mappingSource().equals(mappingMetaData.source())) {
                         // not on master yet in the right form
                         documentMappersToUpdate.add(documentMapper);
                     }

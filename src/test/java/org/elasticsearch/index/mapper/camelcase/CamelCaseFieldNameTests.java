@@ -26,9 +26,6 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.junit.Test;
 
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.nullValue;
-
 /**
  *
  */
@@ -53,7 +50,6 @@ public class CamelCaseFieldNameTests extends ElasticsearchSingleNodeTest {
         assertNotNull(documentMapper.mappers().getMapper("thisIsCamelCase"));
         assertNull(documentMapper.mappers().getMapper("this_is_camel_case"));
 
-        documentMapper.refreshSource();
         documentMapper = index.mapperService().documentMapperParser().parse(documentMapper.mappingSource().string());
 
         assertNotNull(documentMapper.mappers().getMapper("thisIsCamelCase"));

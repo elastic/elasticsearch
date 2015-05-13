@@ -182,7 +182,7 @@ public class ActionWrapper implements ToXContent {
             builder.startObject();
             builder.field(Field.ID.getPreferredName(), id);
             if (transform != null) {
-                builder.startObject(Transform.Field.TRANSFORM_RESULT.getPreferredName())
+                builder.startObject(Transform.Field.TRANSFORM.getPreferredName())
                         .field(transform.type(), transform, params)
                         .endObject();
             }

@@ -57,6 +57,5 @@ public interface Transform extends ToXContent {
     interface Field {
         ParseField PAYLOAD = new ParseField("payload");
         ParseField TRANSFORM = new ParseField("transform");
-        ParseField TRANSFORM_RESULT = new ParseField("transform_result");
     }
 }

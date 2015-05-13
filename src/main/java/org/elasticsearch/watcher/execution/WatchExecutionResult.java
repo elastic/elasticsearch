@@ -97,7 +97,7 @@ public class WatchExecutionResult implements ToXContent {
             }
         }
         if (transformResult != null) {
-            builder.startObject(Transform.Field.TRANSFORM_RESULT.getPreferredName())
+            builder.startObject(Transform.Field.TRANSFORM.getPreferredName())
                     .field(transformResult.type(), transformResult, params)
                     .endObject();
         }
@@ -148,7 +148,7 @@ public class WatchExecutionResult implements ToXContent {
                         inputResult = inputRegistry.parseResult(wid.watchId(), parser);
                     } else if (Field.CONDITION.match(currentFieldName)) {
                         conditionResult = conditionRegistry.parseResult(wid.watchId(), parser);
-                    } else if (Transform.Field.TRANSFORM_RESULT.match(currentFieldName)) {
+                    } else if (Transform.Field.TRANSFORM.match(currentFieldName)) {
                         transformResult = transformRegistry.parseResult(wid.watchId(), parser);
                     } else {
                         throw new WatcherException("could not parse watch execution [{}]. unexpected field [{}]", wid, currentFieldName);

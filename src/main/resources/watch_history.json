@@ -10,7 +10,7 @@
       "dynamic_templates": [
         {
           "disabled_fields": {
-            "path_match": "execution_result\\.input\\..+\\.payload",
+            "path_match": "execution_result\\.((input\\..+)|(actions\\.transform))\\.payload",
             "match_pattern": "regex",
             "mapping": {
               "type": "object",
@@ -118,6 +118,10 @@
                 }
               }
             },
+            "transform" : {
+              "type" : "object",
+              "enabled" : false
+            },
             "actions": {
               "type": "nested",
               "include_in_parent": true,
@@ -202,6 +206,10 @@
                       }
                     }
                   }
+                },
+                "transform" : {
+                  "type" : "object",
+                  "enabled" : false
                 }
               }
             }

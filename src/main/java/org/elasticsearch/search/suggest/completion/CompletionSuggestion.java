@@ -114,7 +114,7 @@ public class CompletionSuggestion extends Suggest.Suggestion<CompletionSuggestio
             protected XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
                 super.innerToXContent(builder, params);
                 if (payload != null && payload.length() > 0) {
-                    builder.rawField("payload", payload);
+                    XContentHelper.writeXContent("payload", payload, builder);
                 }
                 return builder;
             }

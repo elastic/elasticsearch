@@ -28,7 +28,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
@@ -238,16 +238,7 @@ public class PercolateSourceBuilder implements ToXContent {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            XContentType contentType = XContentFactory.xContentType(doc);
-            if (contentType == builder.contentType()) {
-                builder.rawField("doc", doc);
-            } else {
-                try (XContentParser parser = XContentFactory.xContent(contentType).createParser(doc)) {
-                    parser.nextToken();
-                    builder.field("doc");
-                    builder.copyCurrentStructure(parser);
-                }
-            }
+            XContentHelper.writeXContent("doc", doc, builder);
             return builder;
         }
     }

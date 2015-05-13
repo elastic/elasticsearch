@@ -89,7 +89,7 @@ public class SearchRequestBuilderTests extends ElasticsearchTestCase {
         SearchRequestBuilder searchRequestBuilder = client.prepareSearch();
         String query = "{ \"match_all\" : {} }";
         searchRequestBuilder.setQuery(query);
-        assertThat(searchRequestBuilder.toString(), containsString("\"query\":{ \"match_all\" : {} }"));
+        assertThat(searchRequestBuilder.toString(), containsString("\"query\" : {\n    \"match_all\" : { }\n  }"));
     }
 
     @Test

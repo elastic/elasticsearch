@@ -163,7 +163,6 @@ public class GetResult implements Streamable, Iterable<GetField>, ToXContent {
     /**
      * The source of the document (As a map).
      */
-    @SuppressWarnings({"unchecked"})
     public Map<String, Object> sourceAsMap() throws ElasticsearchParseException {
         if (source == null) {
             return null;
@@ -209,7 +208,7 @@ public class GetResult implements Streamable, Iterable<GetField>, ToXContent {
         builder.field(Fields.FOUND, exists);
 
         if (source != null) {
-            XContentHelper.writeRawField("_source", source, builder, params);
+            XContentHelper.writeXContent("_source", source, builder);
         }
 
         if (fields != null && !fields.isEmpty()) {

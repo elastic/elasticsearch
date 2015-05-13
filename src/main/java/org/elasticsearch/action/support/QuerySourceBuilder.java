@@ -24,6 +24,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilderException;
@@ -61,11 +62,7 @@ public class QuerySourceBuilder implements ToXContent {
         }
 
         if (queryBinary != null) {
-            if (XContentFactory.xContentType(queryBinary) == builder.contentType()) {
-                builder.rawField("query", queryBinary);
-            } else {
-                builder.field("query_binary", queryBinary);
-            }
+            XContentHelper.writeXContent("query", queryBinary, builder);
         }
     }
 

@@ -77,7 +77,7 @@ public class RestGetSourceAction extends BaseRestHandler {
                 if (!response.isExists()) {
                     return new BytesRestResponse(NOT_FOUND, builder);
                 } else {
-                    XContentHelper.writeDirect(response.getSourceInternal(), builder, request);
+                    XContentHelper.writeXContent(response.getSourceInternal(), builder);
                     return new BytesRestResponse(OK, builder);
                 }
             }

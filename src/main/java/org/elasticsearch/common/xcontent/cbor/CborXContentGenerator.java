@@ -20,14 +20,9 @@
 package org.elasticsearch.common.xcontent.cbor;
 
 import com.fasterxml.jackson.core.JsonGenerator;
-import com.fasterxml.jackson.dataformat.cbor.CBORParser;
-import org.elasticsearch.common.bytes.BytesReference;
+
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContentGenerator;
-
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
 
 /**
  *
@@ -48,47 +43,4 @@ public class CborXContentGenerator extends JsonXContentGenerator {
         // nothing here
     }
 
-    @Override
-    public void writeRawField(String fieldName, InputStream content, OutputStream bos) throws IOException {
-        writeFieldName(fieldName);
-        try (CBORParser parser = CborXContent.cborFactory.createParser(content)) {
-            parser.nextToken();
-            generator.copyCurrentStructure(parser);
-        }
-    }
-
-    @Override
-    public void writeRawField(String fieldName, byte[] content, OutputStream bos) throws IOException {
-        writeFieldName(fieldName);
-        try (CBORParser parser = CborXContent.cborFactory.createParser(content)) {
-            parser.nextToken();
-            generator.copyCurrentStructure(parser);
-        }
-    }
-
-    @Override
-    protected void writeObjectRaw(String fieldName, BytesReference content, OutputStream bos) throws IOException {
-        writeFieldName(fieldName);
-        CBORParser parser;
-        if (content.hasArray()) {
-            parser = CborXContent.cborFactory.createParser(content.array(), content.arrayOffset(), content.length());
-        } else {
-            parser = CborXContent.cborFactory.createParser(content.streamInput());
-        }
-        try {
-            parser.nextToken();
-            generator.copyCurrentStructure(parser);
-        } finally {
-            parser.close();
-        }
-    }
-
-    @Override
-    public void writeRawField(String fieldName, byte[] content, int offset, int length, OutputStream bos) throws IOException {
-        writeFieldName(fieldName);
-        try (CBORParser parser = CborXContent.cborFactory.createParser(content, offset, length)) {
-            parser.nextToken();
-            generator.copyCurrentStructure(parser);
-        }
-    }
 }

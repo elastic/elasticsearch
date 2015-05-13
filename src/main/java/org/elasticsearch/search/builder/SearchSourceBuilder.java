@@ -23,6 +23,7 @@ import com.carrotsearch.hppc.ObjectFloatHashMap;
 import com.google.common.base.Charsets;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
+
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.support.QuerySourceBuilder;
@@ -35,6 +36,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
@@ -726,11 +728,7 @@ public class SearchSourceBuilder implements ToXContent {
         }
 
         if (filterBinary != null) {
-            if (XContentFactory.xContentType(filterBinary) == builder.contentType()) {
-                builder.rawField("filter", filterBinary);
-            } else {
-                builder.field("filter_binary", filterBinary);
-            }
+            XContentHelper.writeXContent("filter", filterBinary, builder);
         }
 
         if (minScore != null) {
@@ -830,11 +828,7 @@ public class SearchSourceBuilder implements ToXContent {
         }
 
         if (aggregationsBinary != null) {
-            if (XContentFactory.xContentType(aggregationsBinary) == builder.contentType()) {
-                builder.rawField("aggregations", aggregationsBinary);
-            } else {
-                builder.field("aggregations_binary", aggregationsBinary);
-            }
+            XContentHelper.writeXContent("aggregations", aggregationsBinary, builder);
         }
 
         if (highlightBuilder != null) {

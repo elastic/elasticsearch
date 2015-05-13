@@ -27,6 +27,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
 
 import java.io.IOException;
 import java.util.List;
@@ -131,11 +132,7 @@ public abstract class AggregationBuilder<B extends AggregationBuilder<B>> extend
             }
 
             if (aggregationsBinary != null) {
-                if (XContentFactory.xContentType(aggregationsBinary) == builder.contentType()) {
-                    builder.rawField("aggregations", aggregationsBinary);
-                } else {
-                    builder.field("aggregations_binary", aggregationsBinary);
-                }
+                XContentHelper.writeXContent("aggregations", aggregationsBinary, builder);
             }
 
             builder.endObject();

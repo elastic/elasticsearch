@@ -78,7 +78,7 @@ public class CountRequestBuilderTests extends ElasticsearchTestCase {
         CountRequestBuilder countRequestBuilder = client.prepareCount();
         String query = "{ \"match_all\" : {} }";
         countRequestBuilder.setQuery(new BytesArray(query));
-        assertThat(countRequestBuilder.toString(), containsString("\"query\":{ \"match_all\" : {} }"));
+        assertThat(countRequestBuilder.toString(), containsString("\"query\" : {\n    \"match_all\" : { }\n  }"));
     }
 
     @Test

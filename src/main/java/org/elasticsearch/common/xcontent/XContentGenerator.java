@@ -19,11 +19,7 @@
 
 package org.elasticsearch.common.xcontent;
 
-import org.elasticsearch.common.bytes.BytesReference;
-
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
 
 /**
  *
@@ -110,14 +106,6 @@ public interface XContentGenerator {
     void writeObjectFieldStart(String fieldName) throws IOException;
 
     void writeObjectFieldStart(XContentString fieldName) throws IOException;
-
-    void writeRawField(String fieldName, byte[] content, OutputStream bos) throws IOException;
-
-    void writeRawField(String fieldName, byte[] content, int offset, int length, OutputStream bos) throws IOException;
-
-    void writeRawField(String fieldName, InputStream content, OutputStream bos) throws IOException;
-
-    void writeRawField(String fieldName, BytesReference content, OutputStream bos) throws IOException;
 
     void copyCurrentStructure(XContentParser parser) throws IOException;
 

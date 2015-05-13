@@ -454,7 +454,7 @@ public class InternalSearchHit implements SearchHit {
             builder.field(Fields._SCORE, score);
         }
         if (source != null) {
-            XContentHelper.writeRawField("_source", source, builder, params);
+            XContentHelper.writeXContent("_source", source, builder);
         }
         if (fields != null && !fields.isEmpty()) {
             builder.startObject(Fields.FIELDS);

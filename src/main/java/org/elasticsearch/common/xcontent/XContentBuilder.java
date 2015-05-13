@@ -20,6 +20,7 @@
 package org.elasticsearch.common.xcontent;
 
 import com.google.common.base.Charsets;
+
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -37,7 +38,6 @@ import org.joda.time.format.DateTimeFormatter;
 import org.joda.time.format.ISODateTimeFormat;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.OutputStream;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -881,26 +881,6 @@ public final class XContentBuilder implements BytesStream, Releasable {
 
     public XContentBuilder nullValue() throws IOException {
         generator.writeNull();
-        return this;
-    }
-
-    public XContentBuilder rawField(String fieldName, byte[] content) throws IOException {
-        generator.writeRawField(fieldName, content, bos);
-        return this;
-    }
-
-    public XContentBuilder rawField(String fieldName, byte[] content, int offset, int length) throws IOException {
-        generator.writeRawField(fieldName, content, offset, length, bos);
-        return this;
-    }
-
-    public XContentBuilder rawField(String fieldName, InputStream content) throws IOException {
-        generator.writeRawField(fieldName, content, bos);
-        return this;
-    }
-
-    public XContentBuilder rawField(String fieldName, BytesReference content) throws IOException {
-        generator.writeRawField(fieldName, content, bos);
         return this;
     }
 

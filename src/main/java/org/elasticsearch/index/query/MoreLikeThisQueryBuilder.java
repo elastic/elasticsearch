@@ -85,15 +85,7 @@ public class MoreLikeThisQueryBuilder extends BaseQueryBuilder implements Boosta
                 builder.field("_id", this.id());
             }
             if (this.doc() != null) {
-                XContentType contentType = XContentFactory.xContentType(doc);
-                if (contentType == builder.contentType()) {
-                    builder.rawField("doc", doc);
-                } else {
-                    XContentParser parser = XContentFactory.xContent(contentType).createParser(doc);
-                    parser.nextToken();
-                    builder.field("doc");
-                    builder.copyCurrentStructure(parser);
-                }
+                XContentHelper.writeXContent("doc", doc, builder);
             }
             if (this.fields() != null) {
                 builder.array("fields", this.fields());

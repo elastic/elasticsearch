@@ -21,6 +21,7 @@ package org.elasticsearch.common.xcontent;
 
 import com.google.common.base.Charsets;
 import com.google.common.collect.Maps;
+
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -29,7 +30,6 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.compress.CompressedStreamInput;
 import org.elasticsearch.common.compress.Compressor;
 import org.elasticsearch.common.compress.CompressorFactory;
-import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.xcontent.ToXContent.Params;
 
@@ -419,65 +419,32 @@ public class XContentHelper {
     }
 
     /**
-     * Directly writes the source to the output builder
+     * Append a serialized XContent to the provided builder.
      */
-    public static void writeDirect(BytesReference source, XContentBuilder rawBuilder, ToXContent.Params params) throws IOException {
+    public static void writeXContent(BytesReference source, XContentBuilder builder) throws IOException {
         Compressor compressor = CompressorFactory.compressor(source);
         if (compressor != null) {
             CompressedStreamInput compressedStreamInput = compressor.streamInput(source.streamInput());
             XContentType contentType = XContentFactory.xContentType(compressedStreamInput);
             compressedStreamInput.resetToBufferStart();
-            if (contentType == rawBuilder.contentType()) {
-                Streams.copy(compressedStreamInput, rawBuilder.stream());
-            } else {
-                try (XContentParser parser = XContentFactory.xContent(contentType).createParser(compressedStreamInput)) {
-                    parser.nextToken();
-                    rawBuilder.copyCurrentStructure(parser);
-                }
+            try (XContentParser parser = XContentFactory.xContent(contentType).createParser(compressedStreamInput)) {
+                parser.nextToken();
+                builder.copyCurrentStructure(parser);
             }
         } else {
             XContentType contentType = XContentFactory.xContentType(source);
-            if (contentType == rawBuilder.contentType()) {
-                source.writeTo(rawBuilder.stream());
-            } else {
-                try (XContentParser parser = XContentFactory.xContent(contentType).createParser(source)) {
-                    parser.nextToken();
-                    rawBuilder.copyCurrentStructure(parser);
-                }
+            try (XContentParser parser = XContentFactory.xContent(contentType).createParser(source)) {
+                parser.nextToken();
+                builder.copyCurrentStructure(parser);
             }
         }
     }
 
     /**
-     * Writes a "raw" (bytes) field, handling cases where the bytes are compressed, and tries to optimize writing using
-     * {@link XContentBuilder#rawField(String, org.elasticsearch.common.bytes.BytesReference)}.
+     * Append a serialized XContent to the provided builder under the given field name.
      */
-    public static void writeRawField(String field, BytesReference source, XContentBuilder builder, ToXContent.Params params) throws IOException {
-        Compressor compressor = CompressorFactory.compressor(source);
-        if (compressor != null) {
-            CompressedStreamInput compressedStreamInput = compressor.streamInput(source.streamInput());
-            XContentType contentType = XContentFactory.xContentType(compressedStreamInput);
-            compressedStreamInput.resetToBufferStart();
-            if (contentType == builder.contentType()) {
-                builder.rawField(field, compressedStreamInput);
-            } else {
-                try (XContentParser parser = XContentFactory.xContent(contentType).createParser(compressedStreamInput)) {
-                    parser.nextToken();
-                    builder.field(field);
-                    builder.copyCurrentStructure(parser);
-                }
-            }
-        } else {
-            XContentType contentType = XContentFactory.xContentType(source);
-            if (contentType == builder.contentType()) {
-                builder.rawField(field, source);
-            } else {
-                try (XContentParser parser = XContentFactory.xContent(contentType).createParser(source)) {
-                    parser.nextToken();
-                    builder.field(field);
-                    builder.copyCurrentStructure(parser);
-                }
-            }
-        }
+    public static void writeXContent(String field, BytesReference source, XContentBuilder builder) throws IOException {
+        builder.field(field);
+        writeXContent(source, builder);
     }
 }

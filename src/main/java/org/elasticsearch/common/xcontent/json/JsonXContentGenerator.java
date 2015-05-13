@@ -22,13 +22,14 @@ package org.elasticsearch.common.xcontent.json;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.base.GeneratorBase;
 import com.fasterxml.jackson.core.io.SerializedString;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.common.xcontent.*;
+
+import org.elasticsearch.common.xcontent.XContentGenerator;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentString;
+import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
 
 /**
  *
@@ -257,69 +258,6 @@ public class JsonXContentGenerator implements XContentGenerator {
     public void writeObjectFieldStart(XContentString fieldName) throws IOException {
         generator.writeFieldName(fieldName);
         generator.writeStartObject();
-    }
-
-    @Override
-    public void writeRawField(String fieldName, byte[] content, OutputStream bos) throws IOException {
-        generator.writeFieldName(fieldName);
-        generator.writeRaw(':');
-        flush();
-        bos.write(content);
-        finishWriteRaw();
-    }
-
-    @Override
-    public void writeRawField(String fieldName, byte[] content, int offset, int length, OutputStream bos) throws IOException {
-        generator.writeFieldName(fieldName);
-        generator.writeRaw(':');
-        flush();
-        bos.write(content, offset, length);
-        finishWriteRaw();
-    }
-
-    @Override
-    public void writeRawField(String fieldName, InputStream content, OutputStream bos) throws IOException {
-        generator.writeFieldName(fieldName);
-        generator.writeRaw(':');
-        flush();
-        Streams.copy(content, bos);
-        finishWriteRaw();
-    }
-
-    @Override
-    public final void writeRawField(String fieldName, BytesReference content, OutputStream bos) throws IOException {
-        XContentType contentType = XContentFactory.xContentType(content);
-        if (contentType != null) {
-            writeObjectRaw(fieldName, content, bos);
-        } else {
-            writeFieldName(fieldName);
-            // we could potentially optimize this to not rely on exception logic...
-            String sValue = content.toUtf8();
-            try {
-                writeNumber(Long.parseLong(sValue));
-            } catch (NumberFormatException e) {
-                try {
-                    writeNumber(Double.parseDouble(sValue));
-                } catch (NumberFormatException e1) {
-                    writeString(sValue);
-                }
-            }
-        }
-    }
-
-    protected void writeObjectRaw(String fieldName, BytesReference content, OutputStream bos) throws IOException {
-        generator.writeFieldName(fieldName);
-        generator.writeRaw(':');
-        flush();
-        content.writeTo(bos);
-        finishWriteRaw();
-    }
-
-    private void finishWriteRaw() {
-        assert base != null : "JsonGenerator should be of instance GeneratorBase but was: " + generator.getClass();
-        if (base != null) {
-            base.getOutputContext().writeValue();
-        }
     }
 
     @Override

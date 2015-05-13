@@ -37,8 +37,6 @@ import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
-import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.FilteredQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MultiTermQuery;
@@ -105,7 +103,6 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.lang.reflect.Field;
 import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.List;
@@ -645,11 +642,10 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
     public void testPrefiFilteredQueryBuilder() throws IOException {
         IndexQueryParserService queryParser = queryParser();
         Query parsedQuery = queryParser.parse(filteredQuery(termQuery("name.first", "shay"), prefixQuery("name.first", "sh"))).query();
-        assertThat(parsedQuery, instanceOf(FilteredQuery.class));
-        FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
-        QueryWrapperFilter filter = (QueryWrapperFilter) filteredQuery.getFilter();
-        PrefixQuery prefixQuery = (PrefixQuery) filter.getQuery();
-        assertThat(prefixQuery.getPrefix(), equalTo(new Term("name.first", "sh")));
+        Query expected = Queries.filtered(
+                new TermQuery(new Term("name.first", "shay")),
+                new PrefixQuery(new Term("name.first", "sh")));
+        assertEquals(expected, parsedQuery);
     }
 
     @Test
@@ -657,11 +653,10 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         IndexQueryParserService queryParser = queryParser();
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/prefix-filter.json");
         Query parsedQuery = queryParser.parse(query).query();
-        assertThat(parsedQuery, instanceOf(FilteredQuery.class));
-        FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
-        QueryWrapperFilter filter = (QueryWrapperFilter) filteredQuery.getFilter();
-        PrefixQuery prefixQuery = (PrefixQuery) filter.getQuery();
-        assertThat(prefixQuery.getPrefix(), equalTo(new Term("name.first", "sh")));
+        Query expected = Queries.filtered(
+                new TermQuery(new Term("name.first", "shay")),
+                new PrefixQuery(new Term("name.first", "sh")));
+        assertEquals(expected, parsedQuery);
     }
 
     @Test
@@ -670,11 +665,10 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/prefix-filter-named.json");
         ParsedQuery parsedQuery = queryParser.parse(query);
         assertThat(parsedQuery.namedFilters().containsKey("test"), equalTo(true));
-        assertThat(parsedQuery.query(), instanceOf(FilteredQuery.class));
-        FilteredQuery filteredQuery = (FilteredQuery) parsedQuery.query();
-        QueryWrapperFilter filter = (QueryWrapperFilter) filteredQuery.getFilter();
-        PrefixQuery prefixQuery = (PrefixQuery) filter.getQuery();
-        assertThat(prefixQuery.getPrefix(), equalTo(new Term("name.first", "sh")));
+        Query expected = Queries.filtered(
+                new TermQuery(new Term("name.first", "shay")),
+                new PrefixQuery(new Term("name.first", "sh")));
+        assertEquals(expected, parsedQuery.query());
     }
 
     @Test
@@ -742,14 +736,10 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         IndexQueryParserService queryParser = queryParser();
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/regexp-filter.json");
         Query parsedQuery = queryParser.parse(query).query();
-        assertThat(parsedQuery, instanceOf(FilteredQuery.class));
-        Filter filter = ((FilteredQuery) parsedQuery).getFilter();
-        assertThat(filter, instanceOf(QueryWrapperFilter.class));
-        Query q = ((QueryWrapperFilter) filter).getQuery();
-        assertThat(q, instanceOf(RegexpQuery.class));
-        RegexpQuery regexpQuery = (RegexpQuery) q;
-        assertThat(regexpQuery.getField(), equalTo("name.first"));
-        assertThat(regexpQuery.toString(), containsString("s.*y"));
+        Query expected = Queries.filtered(
+                new TermQuery(new Term("name.first", "shay")),
+                new RegexpQuery(new Term("name.first", "s.*y")));
+        assertEquals(expected, parsedQuery);
     }
 
     @Test
@@ -757,14 +747,10 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         IndexQueryParserService queryParser = queryParser();
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/regexp-filter-max-determinized-states.json");
         Query parsedQuery = queryParser.parse(query).query();
-        assertThat(parsedQuery, instanceOf(FilteredQuery.class));
-        Filter filter = ((FilteredQuery) parsedQuery).getFilter();
-        assertThat(filter, instanceOf(QueryWrapperFilter.class));
-        Query q = ((QueryWrapperFilter) filter).getQuery();
-        assertThat(q, instanceOf(RegexpQuery.class));
-        RegexpQuery regexpQuery = (RegexpQuery) q;
-        assertThat(regexpQuery.getField(), equalTo("name.first"));
-        assertThat(regexpQuery.toString(), containsString("s.*y"));
+        Query expected = Queries.filtered(
+                new TermQuery(new Term("name.first", "shay")),
+                new RegexpQuery(new Term("name.first", "s.*y")));
+        assertEquals(expected, parsedQuery);
     }
 
     @Test
@@ -773,14 +759,10 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/regexp-filter-named.json");
         ParsedQuery parsedQuery = queryParser.parse(query);
         assertThat(parsedQuery.namedFilters().containsKey("test"), equalTo(true));
-        assertThat(parsedQuery.query(), instanceOf(FilteredQuery.class));
-        Filter filter = ((FilteredQuery) parsedQuery.query()).getFilter();
-        assertThat(filter, instanceOf(QueryWrapperFilter.class));
-        Query q = ((QueryWrapperFilter) filter).getQuery();
-        assertThat(q, instanceOf(RegexpQuery.class));
-        RegexpQuery regexpQuery = (RegexpQuery) q;
-        assertThat(regexpQuery.getField(), equalTo("name.first"));
-        assertThat(regexpQuery.toString(), containsString("s.*y"));
+        Query expected = Queries.filtered(
+                new TermQuery(new Term("name.first", "shay")),
+                new RegexpQuery(new Term("name.first", "s.*y")));
+        assertEquals(expected, parsedQuery.query());
     }
 
     @Test
@@ -788,13 +770,10 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         IndexQueryParserService queryParser = queryParser();
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/regexp-filter-flags.json");
         ParsedQuery parsedQuery = queryParser.parse(query);
-        assertThat(parsedQuery.query(), instanceOf(FilteredQuery.class));
-        Filter filter = ((FilteredQuery) parsedQuery.query()).getFilter();
-        assertThat(filter, instanceOf(QueryWrapperFilter.class));
-        Query q = ((QueryWrapperFilter) filter).getQuery();
-        assertThat(q, instanceOf(RegexpQuery.class));
-        RegexpQuery regexpQuery = (RegexpQuery) q;
-        assertThat(regexpQuery.toString(), equalTo("name.first:/s.*y/"));
+        Query expected = Queries.filtered(
+                new TermQuery(new Term("name.first", "shay")),
+                new RegexpQuery(new Term("name.first", "s.*y")));
+        assertEquals(expected, parsedQuery.query());
     }
 
     @Test
@@ -802,13 +781,10 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         IndexQueryParserService queryParser = queryParser();
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/regexp-filter-flags-named-cached.json");
         ParsedQuery parsedQuery = queryParser.parse(query);
-        assertThat(parsedQuery.query(), instanceOf(FilteredQuery.class));
-        Filter filter = ((FilteredQuery) parsedQuery.query()).getFilter();
-        assertThat(filter, instanceOf(QueryWrapperFilter.class));
-        Query q = ((QueryWrapperFilter) filter).getQuery();
-        assertThat(q, instanceOf(RegexpQuery.class));
-        RegexpQuery regexpQuery = (RegexpQuery) q;
-        assertThat(regexpQuery.toString(), equalTo("name.first:/s.*y/"));
+        Query expected = Queries.filtered(
+                new TermQuery(new Term("name.first", "shay")),
+                new RegexpQuery(new Term("name.first", "s.*y")));
+        assertEquals(expected, parsedQuery.query());
     }
 
     @Test
@@ -900,9 +876,9 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
     public void testRangeFilteredQueryBuilder() throws IOException {
         IndexQueryParserService queryParser = queryParser();
         Query parsedQuery = queryParser.parse(filteredQuery(termQuery("name.first", "shay"), rangeQuery("age").from(23).to(54).includeLower(true).includeUpper(false))).query();
-        FilteredQuery expected = new FilteredQuery(
+        Query expected = Queries.filtered(
                 new TermQuery(new Term("name.first", "shay")),
-                new QueryWrapperFilter(NumericRangeQuery.newLongRange("age", 23L, 54L, true, false)));
+                NumericRangeQuery.newLongRange("age", 23L, 54L, true, false));
         assertEquals(expected, parsedQuery);
     }
 
@@ -911,9 +887,9 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         IndexQueryParserService queryParser = queryParser();
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/range-filter.json");
         Query parsedQuery = queryParser.parse(query).query();
-        FilteredQuery expected = new FilteredQuery(
+        Query expected = Queries.filtered(
                 new TermQuery(new Term("name.first", "shay")),
-                new QueryWrapperFilter(NumericRangeQuery.newLongRange("age", 23L, 54L, true, false)));
+                NumericRangeQuery.newLongRange("age", 23L, 54L, true, false));
         assertEquals(expected, parsedQuery);
     }
 
@@ -922,9 +898,9 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         IndexQueryParserService queryParser = queryParser();
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/range-filter-named.json");
         Query parsedQuery = queryParser.parse(query).query();
-        FilteredQuery expected = new FilteredQuery(
+        Query expected = Queries.filtered(
                 new TermQuery(new Term("name.first", "shay")),
-                new QueryWrapperFilter(NumericRangeQuery.newLongRange("age", 23L, 54L, true, false)));
+                NumericRangeQuery.newLongRange("age", 23L, 54L, true, false));
         assertEquals(expected, parsedQuery);
     }
 
@@ -939,9 +915,9 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         filter.add(new TermQuery(new Term("name.first", "shay2")), Occur.MUST_NOT);
         filter.add(new TermQuery(new Term("name.first", "shay3")), Occur.SHOULD);
         filter.setMinimumNumberShouldMatch(1);
-        FilteredQuery expected = new FilteredQuery(
+        Query expected = Queries.filtered(
                 new TermQuery(new Term("name.first", "shay")),
-                new QueryWrapperFilter(filter));
+                filter);
         assertEquals(expected, parsedQuery);
     }
 
@@ -957,9 +933,9 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         filter.add(new TermQuery(new Term("name.first", "shay2")), Occur.MUST_NOT);
         filter.add(new TermQuery(new Term("name.first", "shay3")), Occur.SHOULD);
         filter.setMinimumNumberShouldMatch(1);
-        FilteredQuery expected = new FilteredQuery(
+        Query expected = Queries.filtered(
                 new TermQuery(new Term("name.first", "shay")),
-                new QueryWrapperFilter(filter));
+                filter);
         assertEquals(expected, parsedQuery);
     }
 
@@ -982,9 +958,9 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         BooleanQuery and = new BooleanQuery();
         and.add(new TermQuery(new Term("name.first", "shay1")), Occur.MUST);
         and.add(new TermQuery(new Term("name.first", "shay4")), Occur.MUST);
-        FilteredQuery expected = new FilteredQuery(
+        Query expected = Queries.filtered(
                 new TermQuery(new Term("name.first", "shay")),
-                new QueryWrapperFilter(and));
+                and);
         assertEquals(expected, parsedQuery);
     }
 
@@ -996,9 +972,9 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         BooleanQuery and = new BooleanQuery();
         and.add(new TermQuery(new Term("name.first", "shay1")), Occur.MUST);
         and.add(new TermQuery(new Term("name.first", "shay4")), Occur.MUST);
-        FilteredQuery expected = new FilteredQuery(
+        Query expected = Queries.filtered(
                 new TermQuery(new Term("name.first", "shay")),
-                new QueryWrapperFilter(and));
+                and);
         assertEquals(expected, parsedQuery);
     }
 
@@ -1010,9 +986,9 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         BooleanQuery and = new BooleanQuery();
         and.add(new TermQuery(new Term("name.first", "shay1")), Occur.MUST);
         and.add(new TermQuery(new Term("name.first", "shay4")), Occur.MUST);
-        FilteredQuery expected = new FilteredQuery(
+        Query expected = Queries.filtered(
                 new TermQuery(new Term("name.first", "shay")),
-                new QueryWrapperFilter(and));
+                and);
         assertEquals(expected, parsedQuery);
     }
 
@@ -1035,9 +1011,9 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         BooleanQuery or = new BooleanQuery();
         or.add(new TermQuery(new Term("name.first", "shay1")), Occur.SHOULD);
         or.add(new TermQuery(new Term("name.first", "shay4")), Occur.SHOULD);
-        FilteredQuery expected = new FilteredQuery(
+        Query expected = Queries.filtered(
                 new TermQuery(new Term("name.first", "shay")),
-                new QueryWrapperFilter(or));
+                or);
         assertEquals(expected, parsedQuery);
     }
 
@@ -1049,9 +1025,9 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         BooleanQuery or = new BooleanQuery();
         or.add(new TermQuery(new Term("name.first", "shay1")), Occur.SHOULD);
         or.add(new TermQuery(new Term("name.first", "shay4")), Occur.SHOULD);
-        FilteredQuery expected = new FilteredQuery(
+        Query expected = Queries.filtered(
                 new TermQuery(new Term("name.first", "shay")),
-                new QueryWrapperFilter(or));
+                or);
         assertEquals(expected, parsedQuery);
     }
 
@@ -1068,10 +1044,9 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         IndexQueryParserService queryParser = queryParser();
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/not-filter.json");
         Query parsedQuery = queryParser.parse(query).query();
-        assertThat(parsedQuery, instanceOf(FilteredQuery.class));
-        FilteredQuery expected = new FilteredQuery(
+        Query expected = Queries.filtered(
                 new TermQuery(new Term("name.first", "shay")),
-                new QueryWrapperFilter(Queries.not(new TermQuery(new Term("name.first", "shay1")))));
+                Queries.not(new TermQuery(new Term("name.first", "shay1"))));
         assertEquals(expected, parsedQuery);
     }
 
@@ -1080,9 +1055,9 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         IndexQueryParserService queryParser = queryParser();
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/not-filter2.json");
         Query parsedQuery = queryParser.parse(query).query();
-        FilteredQuery expected = new FilteredQuery(
+        Query expected = Queries.filtered(
                 new TermQuery(new Term("name.first", "shay")),
-                new QueryWrapperFilter(Queries.not(new TermQuery(new Term("name.first", "shay1")))));
+                Queries.not(new TermQuery(new Term("name.first", "shay1"))));
         assertEquals(expected, parsedQuery);
     }
 
@@ -1091,9 +1066,9 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         IndexQueryParserService queryParser = queryParser();
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/not-filter3.json");
         Query parsedQuery = queryParser.parse(query).query();
-        FilteredQuery expected = new FilteredQuery(
+        Query expected = Queries.filtered(
                 new TermQuery(new Term("name.first", "shay")),
-                new QueryWrapperFilter(Queries.not(new TermQuery(new Term("name.first", "shay1")))));
+                Queries.not(new TermQuery(new Term("name.first", "shay1"))));
         assertEquals(expected, parsedQuery);
     }
 
@@ -1262,10 +1237,10 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
     public void testFilteredQueryBuilder() throws IOException {
         IndexQueryParserService queryParser = queryParser();
         Query parsedQuery = queryParser.parse(filteredQuery(termQuery("name.first", "shay"), termQuery("name.last", "banon"))).query();
-        assertThat(parsedQuery, instanceOf(FilteredQuery.class));
-        FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
-        assertThat(((TermQuery) filteredQuery.getQuery()).getTerm(), equalTo(new Term("name.first", "shay")));
-        assertThat(getTerm(filteredQuery.getFilter()), equalTo(new Term("name.last", "banon")));
+        Query expected = Queries.filtered(
+                new TermQuery(new Term("name.first", "shay")),
+                new TermQuery(new Term("name.last", "banon")));
+        assertEquals(expected, parsedQuery);
     }
 
     @Test
@@ -1273,10 +1248,10 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         IndexQueryParserService queryParser = queryParser();
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/filtered-query.json");
         Query parsedQuery = queryParser.parse(query).query();
-        assertThat(parsedQuery, instanceOf(FilteredQuery.class));
-        FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
-        assertThat(((TermQuery) filteredQuery.getQuery()).getTerm(), equalTo(new Term("name.first", "shay")));
-        assertThat(getTerm(filteredQuery.getFilter()), equalTo(new Term("name.last", "banon")));
+        Query expected = Queries.filtered(
+                new TermQuery(new Term("name.first", "shay")),
+                new TermQuery(new Term("name.last", "banon")));
+        assertEquals(expected, parsedQuery);
     }
 
     @Test
@@ -1284,10 +1259,10 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         IndexQueryParserService queryParser = queryParser();
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/filtered-query2.json");
         Query parsedQuery = queryParser.parse(query).query();
-        assertThat(parsedQuery, instanceOf(FilteredQuery.class));
-        FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
-        assertThat(((TermQuery) filteredQuery.getQuery()).getTerm(), equalTo(new Term("name.first", "shay")));
-        assertThat(getTerm(filteredQuery.getFilter()), equalTo(new Term("name.last", "banon")));
+        Query expected = Queries.filtered(
+                new TermQuery(new Term("name.first", "shay")),
+                new TermQuery(new Term("name.last", "banon")));
+        assertEquals(expected, parsedQuery);
     }
 
     @Test
@@ -1295,15 +1270,10 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         IndexQueryParserService queryParser = queryParser();
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/filtered-query3.json");
         Query parsedQuery = queryParser.parse(query).query();
-        assertThat(parsedQuery, instanceOf(FilteredQuery.class));
-        FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
-        assertThat(((TermQuery) filteredQuery.getQuery()).getTerm(), equalTo(new Term("name.first", "shay")));
-
-        QueryWrapperFilter filter = (QueryWrapperFilter) filteredQuery.getFilter();
-        NumericRangeQuery<?> rangeQuery = (NumericRangeQuery<?>) filter.getQuery();
-        assertThat(rangeQuery.getField(), equalTo("age"));
-        assertThat(rangeQuery.getMin().intValue(), equalTo(23));
-        assertThat(rangeQuery.getMax().intValue(), equalTo(54));
+        Query expected = Queries.filtered(
+                new TermQuery(new Term("name.first", "shay")),
+                NumericRangeQuery.newLongRange("age", 23L, 54L, true, false));
+        assertEquals(expected, parsedQuery);
     }
 
     @Test
@@ -1311,13 +1281,12 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         IndexQueryParserService queryParser = queryParser();
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/filtered-query4.json");
         Query parsedQuery = queryParser.parse(query).query();
-        assertThat(parsedQuery, instanceOf(FilteredQuery.class));
-        FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
-        WildcardQuery wildcardQuery = (WildcardQuery) filteredQuery.getQuery();
-        assertThat(wildcardQuery.getTerm(), equalTo(new Term("name.first", "sh*")));
-        assertThat((double) wildcardQuery.getBoost(), closeTo(1.1, 0.001));
-
-        assertThat(getTerm(filteredQuery.getFilter()), equalTo(new Term("name.last", "banon")));
+        Query expectedQuery = new WildcardQuery(new Term("name.first", "sh*"));
+        expectedQuery.setBoost(1.1f);
+        Query expected = Queries.filtered(
+                expectedQuery,
+                new TermQuery(new Term("name.last", "banon")));
+        assertEquals(expected, parsedQuery);
     }
 
     @Test
@@ -1325,12 +1294,10 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         IndexQueryParserService queryParser = queryParser();
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/term-filter.json");
         Query parsedQuery = queryParser.parse(query).query();
-        assertThat(parsedQuery, instanceOf(FilteredQuery.class));
-        FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
-        QueryWrapperFilter filter = (QueryWrapperFilter) filteredQuery.getFilter();
-        TermQuery termQuery = (TermQuery) filter.getQuery();
-        assertThat(termQuery.getTerm().field(), equalTo("name.last"));
-        assertThat(termQuery.getTerm().text(), equalTo("banon"));
+        Query expected = Queries.filtered(
+                new TermQuery(new Term("name.first", "shay")),
+                new TermQuery(new Term("name.last", "banon")));
+        assertEquals(expected, parsedQuery);
     }
 
     @Test
@@ -1339,22 +1306,20 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/term-filter-named.json");
         ParsedQuery parsedQuery = queryParser.parse(query);
         assertThat(parsedQuery.namedFilters().containsKey("test"), equalTo(true));
-        assertThat(parsedQuery.query(), instanceOf(FilteredQuery.class));
-        FilteredQuery filteredQuery = (FilteredQuery) parsedQuery.query();
-        QueryWrapperFilter filter = (QueryWrapperFilter) filteredQuery.getFilter();
-        TermQuery termQuery = (TermQuery) filter.getQuery();
-        assertThat(termQuery.getTerm().field(), equalTo("name.last"));
-        assertThat(termQuery.getTerm().text(), equalTo("banon"));
+        Query expected = Queries.filtered(
+                new TermQuery(new Term("name.first", "shay")),
+                new TermQuery(new Term("name.last", "banon")));
+        assertEquals(expected, parsedQuery.query());
     }
 
     @Test
     public void testTermsFilterQueryBuilder() throws Exception {
         IndexQueryParserService queryParser = queryParser();
         Query parsedQuery = queryParser.parse(filteredQuery(termQuery("name.first", "shay"), termsQuery("name.last", "banon", "kimchy"))).query();
-        assertThat(parsedQuery, instanceOf(FilteredQuery.class));
-        FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
-        QueryWrapperFilter filter = (QueryWrapperFilter) filteredQuery.getFilter();
-        assertThat(filter.getQuery(), instanceOf(TermsQuery.class));
+        Query expected = Queries.filtered(
+                new TermQuery(new Term("name.first", "shay")),
+                new TermsQuery("name.last", new BytesRef("banon"), new BytesRef("kimchy")));
+        assertEquals(expected, parsedQuery);
     }
 
 
@@ -1363,10 +1328,10 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         IndexQueryParserService queryParser = queryParser();
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/terms-filter.json");
         Query parsedQuery = queryParser.parse(query).query();
-        assertThat(parsedQuery, instanceOf(FilteredQuery.class));
-        FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
-        QueryWrapperFilter filter = (QueryWrapperFilter) filteredQuery.getFilter();
-        assertThat(filter.getQuery(), instanceOf(TermsQuery.class));
+        Query expected = Queries.filtered(
+                new TermQuery(new Term("name.first", "shay")),
+                new TermsQuery("name.last", new BytesRef("banon"), new BytesRef("kimchy")));
+        assertEquals(expected, parsedQuery);
     }
 
     @Test
@@ -1375,10 +1340,10 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/terms-filter-named.json");
         ParsedQuery parsedQuery = queryParser.parse(query);
         assertThat(parsedQuery.namedFilters().containsKey("test"), equalTo(true));
-        assertThat(parsedQuery.query(), instanceOf(FilteredQuery.class));
-        FilteredQuery filteredQuery = (FilteredQuery) parsedQuery.query();
-        QueryWrapperFilter filter = (QueryWrapperFilter) filteredQuery.getFilter();
-        assertThat(filter.getQuery(), instanceOf(TermsQuery.class));
+        Query expected = Queries.filtered(
+                new TermQuery(new Term("name.first", "shay")),
+                new TermsQuery("name.last", new BytesRef("banon"), new BytesRef("kimchy")));
+        assertEquals(expected, parsedQuery.query());
     }
 
     @Test
@@ -1685,14 +1650,10 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
     public void testQueryQueryBuilder() throws Exception {
         IndexQueryParserService queryParser = queryParser();
         Query parsedQuery = queryParser.parse(filteredQuery(termQuery("name.first", "shay"), termQuery("name.last", "banon"))).query();
-        assertThat(parsedQuery, instanceOf(FilteredQuery.class));
-        FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
-        QueryWrapperFilter queryWrapperFilter = (QueryWrapperFilter) filteredQuery.getFilter();
-        Field field = QueryWrapperFilter.class.getDeclaredField("query");
-        field.setAccessible(true);
-        Query wrappedQuery = (Query) field.get(queryWrapperFilter);
-        assertThat(wrappedQuery, instanceOf(TermQuery.class));
-        assertThat(((TermQuery) wrappedQuery).getTerm(), equalTo(new Term("name.last", "banon")));
+        Query expected = Queries.filtered(
+                new TermQuery(new Term("name.first", "shay")),
+                new TermQuery(new Term("name.last", "banon")));
+        assertEquals(expected, parsedQuery);
     }
 
     @Test
@@ -1700,10 +1661,10 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         IndexQueryParserService queryParser = queryParser();
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/query-filter.json");
         Query parsedQuery = queryParser.parse(query).query();
-        assertThat(parsedQuery, instanceOf(FilteredQuery.class));
-        FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
-        QueryWrapperFilter queryWrapperFilter = (QueryWrapperFilter) filteredQuery.getFilter();
-        assertEquals(new ConstantScoreQuery(new TermQuery(new Term("name.last", "banon"))), queryWrapperFilter.getQuery());
+        Query expected = Queries.filtered(
+                new TermQuery(new Term("name.first", "shay")),
+                new ConstantScoreQuery(new TermQuery(new Term("name.last", "banon"))));
+        assertEquals(expected, parsedQuery);
     }
 
     @Test
@@ -1712,11 +1673,10 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/fquery-filter.json");
         ParsedQuery parsedQuery = queryParser.parse(query);
         assertThat(parsedQuery.namedFilters().containsKey("test"), equalTo(true));
-        assertThat(parsedQuery.query(), instanceOf(FilteredQuery.class));
-        FilteredQuery filteredQuery = (FilteredQuery) parsedQuery.query();
-        QueryWrapperFilter queryWrapperFilter = (QueryWrapperFilter) filteredQuery.getFilter();
-        Query wrappedQuery = queryWrapperFilter.getQuery();
-        assertEquals(new ConstantScoreQuery(new TermQuery(new Term("name.last", "banon"))), wrappedQuery);
+        Query expected = Queries.filtered(
+                new TermQuery(new Term("name.first", "shay")),
+                new ConstantScoreQuery(new TermQuery(new Term("name.last", "banon"))));
+        assertEquals(expected, parsedQuery.query());
     }
 
     @Test
@@ -2413,7 +2373,7 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/fquery-with-empty-bool-query.json");
         XContentParser parser = XContentHelper.createParser(new BytesArray(query));
         ParsedQuery parsedQuery = queryParser.parseInnerFilter(parser);
-        assertEquals(new ConstantScoreQuery(new FilteredQuery(new TermQuery(new Term("text", "apache")), new QueryWrapperFilter(new TermQuery(new Term("text", "apache"))))), parsedQuery.query());
+        assertEquals(new ConstantScoreQuery(Queries.filtered(new TermQuery(new Term("text", "apache")), new TermQuery(new Term("text", "apache")))), parsedQuery.query());
     }
 
     @Test
@@ -2569,10 +2529,14 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
     public void testBooleanParsesFilter() throws Exception {
         IndexQueryParserService queryParser = queryParser();
         // single clause, serialized as inner object
-        Query q = queryParser.parse(boolQuery().should(dummyQuery()).must(dummyQuery()).mustNot(dummyQuery())).query();
+        Query q = queryParser.parse(boolQuery()
+                .should(dummyQuery())
+                .must(dummyQuery())
+                .filter(dummyQuery())
+                .mustNot(dummyQuery())).query();
         assertThat(q, instanceOf(BooleanQuery.class));
         BooleanQuery bq = (BooleanQuery) q;
-        assertEquals(3, bq.clauses().size());
+        assertEquals(4, bq.clauses().size());
         for (BooleanClause clause : bq.clauses()) {
             DummyQuery dummy = (DummyQuery) clause.getQuery();
             switch (clause.getOccur()) {
@@ -2593,10 +2557,11 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         q = queryParser.parse(boolQuery()
                 .should(dummyQuery()).should(dummyQuery())
                 .must(dummyQuery()).must(dummyQuery())
+                .filter(dummyQuery()).filter(dummyQuery())
                 .mustNot(dummyQuery()).mustNot(dummyQuery())).query();
         assertThat(q, instanceOf(BooleanQuery.class));
         bq = (BooleanQuery) q;
-        assertEquals(6, bq.clauses().size());
+        assertEquals(8, bq.clauses().size());
         for (BooleanClause clause : bq.clauses()) {
             DummyQuery dummy = (DummyQuery) clause.getQuery();
             switch (clause.getOccur()) {

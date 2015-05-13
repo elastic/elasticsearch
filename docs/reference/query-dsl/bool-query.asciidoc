@@ -9,7 +9,11 @@ occurrence types are:
 [cols="<,<",options="header",]
 |=======================================================================
 |Occur |Description
-|`must` |The clause (query) must appear in matching documents.
+|`must` |The clause (query) must appear in matching documents and will
+contribute to the score.
+
+|`filter` |The clause (query) must appear in matching documents. However unlike
+`must` the score of the query will be ignored.
 
 |`should` |The clause (query) should appear in the matching document. In
 a boolean query with no `must` clauses, one or more `should` clauses
@@ -41,6 +45,9 @@ final `_score` for each document.
         "must" : {
             "term" : { "user" : "kimchy" }
         },
+        "filter": {
+            "term" : { "tag" : "tech" }
+        }
         "must_not" : {
             "range" : {
                 "age" : { "from" : 10, "to" : 20 }

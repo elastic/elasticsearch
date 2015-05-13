@@ -25,7 +25,7 @@ import java.util.concurrent.CountDownLatch;
  * An action listener that allows passing in a {@link CountDownLatch} that
  * will be counted down after onResponse or onFailure is called
  */
-public final class LatchedActionListener<T> implements ActionListener<T> {
+public class LatchedActionListener<T> implements ActionListener<T> {
 
     private final ActionListener<T> delegate;
     private final CountDownLatch latch;

@@ -23,6 +23,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ImmutableShardRouting;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -134,14 +135,7 @@ public class SyncedFlushService extends AbstractComponent {
     public void attemptSyncedFlush(ShardId shardId, ActionListener<SyncedFlushResult> actionListener) {
         try {
             final ClusterState state = clusterService.state();
-            final IndexRoutingTable indexRoutingTable = state.routingTable().index(shardId.index().name());
-            if (indexRoutingTable == null) {
-                throw new IndexMissingException(shardId.index());
-            }
-            final IndexShardRoutingTable shardRoutingTable = indexRoutingTable.shard(shardId.id());
-            if (shardRoutingTable == null) {
-                throw new IndexShardMissingException(shardId);
-            }
+            final IndexShardRoutingTable shardRoutingTable = getActiveShardRoutings(shardId, state);
             final List<ShardRouting> activeShards = shardRoutingTable.activeShards();
             Map<String, byte[]> commitIds = sendPreSyncRequests(activeShards, state, shardId);
 
@@ -158,6 +152,22 @@ public class SyncedFlushService extends AbstractComponent {
         } catch (Throwable t) {
             actionListener.onFailure(t);
         }
+    }
+
+    final IndexShardRoutingTable getActiveShardRoutings(ShardId shardId, ClusterState state) {
+        final IndexRoutingTable indexRoutingTable = state.routingTable().index(shardId.index().name());
+        if (indexRoutingTable == null) {
+            IndexMetaData index = state.getMetaData().index(shardId.index().getName());
+            if (index != null && index.state() == IndexMetaData.State.CLOSE) {
+                throw new IndexClosedException(shardId.index());
+            }
+            throw new IndexMissingException(shardId.index());
+        }
+        final IndexShardRoutingTable shardRoutingTable = indexRoutingTable.shard(shardId.id());
+        if (shardRoutingTable == null) {
+            throw new IndexShardMissingException(shardId);
+        }
+        return shardRoutingTable;
     }
 
     /**
@@ -211,7 +221,7 @@ public class SyncedFlushService extends AbstractComponent {
     }
 
 
-    private void sendSyncRequests(final String syncId, List<ShardRouting> shards, ClusterState state, Map<String, byte[]> expectedCommitIds, final ShardId shardId, final ActionListener<SyncedFlushResult> listener) {
+    void sendSyncRequests(final String syncId, List<ShardRouting> shards, ClusterState state, Map<String, byte[]> expectedCommitIds, final ShardId shardId, final ActionListener<SyncedFlushResult> listener) {
         final CountDown countDownLatch = new CountDown(shards.size());
         final Map<ShardRouting, SyncedFlushResponse> results = ConcurrentCollections.newConcurrentMap();
         for (final ShardRouting shard : shards) {
@@ -582,7 +592,6 @@ public class SyncedFlushService extends AbstractComponent {
          * a non null value indicates a failure to sync flush. null means success
          */
         String failureReason;
-
 
         public SyncedFlushResponse() {
             failureReason = null;

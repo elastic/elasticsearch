@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.search.suggest;
 
-import com.carrotsearch.hppc.ObjectLongOpenHashMap;
+import com.carrotsearch.hppc.ObjectLongHashMap;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import com.google.common.collect.Lists;
 
@@ -751,7 +751,7 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
 
         // regexes
         IndicesStatsResponse regexFieldStats = client().admin().indices().prepareStats(INDEX).setIndices(INDEX).setCompletion(true).setCompletionFields("*").get();
-        ObjectLongOpenHashMap<String> fields = regexFieldStats.getIndex(INDEX).getPrimaries().completion.getFields();
+        ObjectLongHashMap<String> fields = regexFieldStats.getIndex(INDEX).getPrimaries().completion.getFields();
         long regexSizeInBytes = fields.get(FIELD) + fields.get(otherField);
         assertThat(regexSizeInBytes, is(totalSizeInBytes));
     }

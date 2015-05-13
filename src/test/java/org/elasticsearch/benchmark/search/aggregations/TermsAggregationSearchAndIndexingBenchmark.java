@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.benchmark.search.aggregations;
 
-import com.carrotsearch.hppc.ObjectOpenHashSet;
+import com.carrotsearch.hppc.ObjectScatterSet;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
@@ -96,7 +96,7 @@ public class TermsAggregationSearchAndIndexingBenchmark {
             Thread.sleep(5000);
 
             long startTime = System.currentTimeMillis();
-            ObjectOpenHashSet<String> uniqueTerms = ObjectOpenHashSet.newInstance();
+            ObjectScatterSet<String> uniqueTerms = new ObjectScatterSet<>();
             for (int i = 0; i < NUMBER_OF_TERMS; i++) {
                 boolean added;
                 do {

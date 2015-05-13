@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.suggest.completion;
 
-import com.carrotsearch.hppc.ObjectLongOpenHashMap;
+import com.carrotsearch.hppc.ObjectLongHashMap;
 
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.codecs.CodecUtil;
@@ -261,9 +261,9 @@ public class AnalyzingCompletionLookupProviderV1 extends CompletionLookupProvide
             @Override
             public CompletionStats stats(String... fields) {
                 long sizeInBytes = 0;
-                ObjectLongOpenHashMap<String> completionFields = null;
+                ObjectLongHashMap<String> completionFields = null;
                 if (fields != null && fields.length > 0) {
-                    completionFields = new ObjectLongOpenHashMap<>(fields.length);
+                    completionFields = new ObjectLongHashMap<>(fields.length);
                 }
 
                 for (Map.Entry<String, AnalyzingSuggestHolder> entry : lookupMap.entrySet()) {

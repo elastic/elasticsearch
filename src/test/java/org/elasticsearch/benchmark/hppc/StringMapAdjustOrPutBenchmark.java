@@ -19,10 +19,10 @@
 
 package org.elasticsearch.benchmark.hppc;
 
-import com.carrotsearch.hppc.IntIntOpenHashMap;
-import com.carrotsearch.hppc.IntObjectOpenHashMap;
-import com.carrotsearch.hppc.ObjectIntOpenHashMap;
-import com.carrotsearch.hppc.ObjectObjectOpenHashMap;
+import com.carrotsearch.hppc.IntIntHashMap;
+import com.carrotsearch.hppc.IntObjectHashMap;
+import com.carrotsearch.hppc.ObjectIntHashMap;
+import com.carrotsearch.hppc.ObjectObjectHashMap;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.unit.SizeValue;
@@ -30,6 +30,12 @@ import org.elasticsearch.common.unit.SizeValue;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.concurrent.ThreadLocalRandom;
+
+// TODO: these benchmarks aren't too good and may be easily skewed by jit doing 
+// escape analysis/ side-effects/ local
+// optimisations. Proper benchmarks with JMH (bulk ops, single-shot mode) 
+// should be better here.
+// https://github.com/carrotsearch/hppc/blob/master/hppc-benchmarks/src/main/java/com/carrotsearch/hppc/benchmarks/B003_HashSet_Contains.java
 
 public class StringMapAdjustOrPutBenchmark {
 
@@ -50,12 +56,12 @@ public class StringMapAdjustOrPutBenchmark {
         StopWatch stopWatch;
 
         stopWatch = new StopWatch().start();
-        ObjectIntOpenHashMap<String> map = new ObjectIntOpenHashMap<>();
+        ObjectIntHashMap<String> map = new ObjectIntHashMap<>();
         for (long iter = 0; iter < ITERATIONS; iter++) {
             if (REUSE) {
                 map.clear();
             } else {
-                map = new ObjectIntOpenHashMap<>();
+                map = new ObjectIntHashMap<>();
             }
             for (long i = 0; i < PUT_OPERATIONS; i++) {
                 map.addTo(values[(int) (i % NUMBER_OF_KEYS)], 1);
@@ -69,12 +75,12 @@ public class StringMapAdjustOrPutBenchmark {
 
         stopWatch = new StopWatch().start();
 //        TObjectIntCustomHashMap<String> iMap = new TObjectIntCustomHashMap<String>(new StringIdentityHashingStrategy());
-        ObjectIntOpenHashMap<String> iMap = new ObjectIntOpenHashMap<>();
+        ObjectIntHashMap<String> iMap = new ObjectIntHashMap<>();
         for (long iter = 0; iter < ITERATIONS; iter++) {
             if (REUSE) {
                 iMap.clear();
             } else {
-                iMap = new ObjectIntOpenHashMap<>();
+                iMap = new ObjectIntHashMap<>();
             }
             for (long i = 0; i < PUT_OPERATIONS; i++) {
                 iMap.addTo(values[(int) (i % NUMBER_OF_KEYS)], 1);
@@ -86,12 +92,12 @@ public class StringMapAdjustOrPutBenchmark {
         iMap = null;
 
         stopWatch = new StopWatch().start();
-        iMap = new ObjectIntOpenHashMap<>();
+        iMap = new ObjectIntHashMap<>();
         for (long iter = 0; iter < ITERATIONS; iter++) {
             if (REUSE) {
                 iMap.clear();
             } else {
-                iMap = new ObjectIntOpenHashMap<>();
+                iMap = new ObjectIntHashMap<>();
             }
             for (long i = 0; i < PUT_OPERATIONS; i++) {
                 iMap.addTo(values[(int) (i % NUMBER_OF_KEYS)], 1);
@@ -104,12 +110,12 @@ public class StringMapAdjustOrPutBenchmark {
 
         // now test with THashMap
         stopWatch = new StopWatch().start();
-        ObjectObjectOpenHashMap<String, StringEntry> tMap = new ObjectObjectOpenHashMap<>();
+        ObjectObjectHashMap<String, StringEntry> tMap = new ObjectObjectHashMap<>();
         for (long iter = 0; iter < ITERATIONS; iter++) {
             if (REUSE) {
                 tMap.clear();
             } else {
-                tMap = new ObjectObjectOpenHashMap<>();
+                tMap = new ObjectObjectHashMap<>();
             }
             for (long i = 0; i < PUT_OPERATIONS; i++) {
                 String key = values[(int) (i % NUMBER_OF_KEYS)];
@@ -187,12 +193,12 @@ public class StringMapAdjustOrPutBenchmark {
         }
 
         stopWatch = new StopWatch().start();
-        IntIntOpenHashMap intMap = new IntIntOpenHashMap();
+        IntIntHashMap intMap = new IntIntHashMap();
         for (long iter = 0; iter < ITERATIONS; iter++) {
             if (REUSE) {
                 intMap.clear();
             } else {
-                intMap = new IntIntOpenHashMap();
+                intMap = new IntIntHashMap();
             }
             for (long i = 0; i < PUT_OPERATIONS; i++) {
                 int key = iValues[(int) (i % NUMBER_OF_KEYS)];
@@ -207,12 +213,12 @@ public class StringMapAdjustOrPutBenchmark {
 
         // now test with THashMap
         stopWatch = new StopWatch().start();
-        IntObjectOpenHashMap<IntEntry> tIntMap = new IntObjectOpenHashMap<>();
+        IntObjectHashMap<IntEntry> tIntMap = new IntObjectHashMap<>();
         for (long iter = 0; iter < ITERATIONS; iter++) {
             if (REUSE) {
                 tIntMap.clear();
             } else {
-                tIntMap = new IntObjectOpenHashMap<>();
+                tIntMap = new IntObjectHashMap<>();
             }
             for (long i = 0; i < PUT_OPERATIONS; i++) {
                 int key = iValues[(int) (i % NUMBER_OF_KEYS)];

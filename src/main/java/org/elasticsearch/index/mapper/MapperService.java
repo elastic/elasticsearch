@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.mapper;
 
-import com.carrotsearch.hppc.ObjectOpenHashSet;
+import com.carrotsearch.hppc.ObjectHashSet;
 import com.google.common.base.Predicate;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
@@ -79,7 +79,7 @@ import static org.elasticsearch.common.collect.MapBuilder.newMapBuilder;
 public class MapperService extends AbstractIndexComponent  {
 
     public static final String DEFAULT_MAPPING = "_default_";
-    private static ObjectOpenHashSet<String> META_FIELDS = ObjectOpenHashSet.from(
+    private static ObjectHashSet<String> META_FIELDS = ObjectHashSet.from(
             "_uid", "_id", "_type", "_all", "_parent", "_routing", "_index",
             "_size", "_timestamp", "_ttl"
     );
@@ -267,8 +267,8 @@ public class MapperService extends AbstractIndexComponent  {
                 List<ObjectMapper> newObjectMappers = new ArrayList<>();
                 List<FieldMapper<?>> newFieldMappers = new ArrayList<>();
                 for (RootMapper rootMapper : mapper.mapping().rootMappers) {
-                    if (!rootMapper.includeInObject() && rootMapper instanceof FieldMapper) {
-                        newFieldMappers.add((FieldMapper<?>) rootMapper);
+                    if (rootMapper instanceof FieldMapper<?>) {
+                        newFieldMappers.add((FieldMapper<?>)rootMapper);
                     }
                 }
                 MapperUtils.collect(mapper.mapping().root, newObjectMappers, newFieldMappers);

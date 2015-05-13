@@ -20,7 +20,9 @@
 package org.elasticsearch.search.dfs;
 
 
-import com.carrotsearch.hppc.ObjectObjectOpenHashMap;
+import com.carrotsearch.hppc.ObjectObjectHashMap;
+import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.TermStatistics;
@@ -33,24 +35,24 @@ import java.io.IOException;
 
 public class AggregatedDfs implements Streamable {
 
-    private ObjectObjectOpenHashMap<Term, TermStatistics> termStatistics;
-    private ObjectObjectOpenHashMap<String, CollectionStatistics> fieldStatistics;
+    private ObjectObjectHashMap<Term, TermStatistics> termStatistics;
+    private ObjectObjectHashMap<String, CollectionStatistics> fieldStatistics;
     private long maxDoc;
 
     private AggregatedDfs() {
     }
 
-    public AggregatedDfs(ObjectObjectOpenHashMap<Term, TermStatistics> termStatistics, ObjectObjectOpenHashMap<String, CollectionStatistics> fieldStatistics, long maxDoc) {
+    public AggregatedDfs(ObjectObjectHashMap<Term, TermStatistics> termStatistics, ObjectObjectHashMap<String, CollectionStatistics> fieldStatistics, long maxDoc) {
         this.termStatistics = termStatistics;
         this.fieldStatistics = fieldStatistics;
         this.maxDoc = maxDoc;
     }
 
-    public ObjectObjectOpenHashMap<Term, TermStatistics> termStatistics() {
+    public ObjectObjectHashMap<Term, TermStatistics> termStatistics() {
         return termStatistics;
     }
 
-    public ObjectObjectOpenHashMap<String, CollectionStatistics> fieldStatistics() {
+    public ObjectObjectHashMap<String, CollectionStatistics> fieldStatistics() {
         return fieldStatistics;
     }
 
@@ -82,20 +84,17 @@ public class AggregatedDfs implements Streamable {
     @Override
     public void writeTo(final StreamOutput out) throws IOException {
         out.writeVInt(termStatistics.size());
-        final boolean[] states = termStatistics.allocated;
-        final Object[] keys = termStatistics.keys;
-        final Object[] values = termStatistics.values;
-        for (int i = 0; i < states.length; i++) {
-            if (states[i]) {
-                Term term = (Term) keys[i];
-                out.writeString(term.field());
-                out.writeBytesRef(term.bytes());
-                TermStatistics stats = (TermStatistics) values[i];
-                out.writeBytesRef(stats.term());
-                out.writeVLong(stats.docFreq());
-                out.writeVLong(DfsSearchResult.addOne(stats.totalTermFreq()));
-            }
+        
+        for (ObjectObjectCursor<Term, TermStatistics> c : termStatistics()) {
+            Term term = (Term) c.key;
+            out.writeString(term.field());
+            out.writeBytesRef(term.bytes());
+            TermStatistics stats = (TermStatistics) c.value;
+            out.writeBytesRef(stats.term());
+            out.writeVLong(stats.docFreq());
+            out.writeVLong(DfsSearchResult.addOne(stats.totalTermFreq()));
         }
+
         DfsSearchResult.writeFieldStats(out, fieldStatistics);
         out.writeVLong(maxDoc);
     }

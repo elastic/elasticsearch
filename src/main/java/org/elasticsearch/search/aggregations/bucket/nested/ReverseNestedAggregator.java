@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.bucket.nested;
 
-import com.carrotsearch.hppc.LongIntOpenHashMap;
+import com.carrotsearch.hppc.LongIntHashMap;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DocIdSetIterator;
@@ -77,22 +77,24 @@ public class ReverseNestedAggregator extends SingleBucketAggregator {
         } else {
             parentDocs = docIdSet.bits();
         }
-        final LongIntOpenHashMap bucketOrdToLastCollectedParentDoc = new LongIntOpenHashMap(32);
+        final LongIntHashMap bucketOrdToLastCollectedParentDoc = new LongIntHashMap(32);
         return new LeafBucketCollectorBase(sub, null) {
             @Override
             public void collect(int childDoc, long bucket) throws IOException {
                 // fast forward to retrieve the parentDoc this childDoc belongs to
                 final int parentDoc = parentDocs.nextSetBit(childDoc);
                 assert childDoc <= parentDoc && parentDoc != DocIdSetIterator.NO_MORE_DOCS;
-                if (bucketOrdToLastCollectedParentDoc.containsKey(bucket)) {
-                    int lastCollectedParentDoc = bucketOrdToLastCollectedParentDoc.lget();
+                
+                int keySlot = bucketOrdToLastCollectedParentDoc.indexOf(bucket); 
+                if (bucketOrdToLastCollectedParentDoc.indexExists(keySlot)) {
+                    int lastCollectedParentDoc = bucketOrdToLastCollectedParentDoc.indexGet(keySlot);
                     if (parentDoc > lastCollectedParentDoc) {
                         collectBucket(sub, parentDoc, bucket);
-                        bucketOrdToLastCollectedParentDoc.lset(parentDoc);
+                        bucketOrdToLastCollectedParentDoc.indexReplace(keySlot, parentDoc);
                     }
                 } else {
                     collectBucket(sub, parentDoc, bucket);
-                    bucketOrdToLastCollectedParentDoc.put(bucket, parentDoc);
+                    bucketOrdToLastCollectedParentDoc.indexInsert(keySlot, bucket, parentDoc);
                 }
             }
         };

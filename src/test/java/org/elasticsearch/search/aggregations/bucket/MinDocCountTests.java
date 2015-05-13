@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.aggregations.bucket;
 
-import com.carrotsearch.hppc.LongOpenHashSet;
+import com.carrotsearch.hppc.LongHashSet;
 import com.carrotsearch.hppc.LongSet;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 
@@ -67,7 +67,7 @@ public class MinDocCountTests extends AbstractTermsTests {
         cardinality = randomIntBetween(8, 30);
         final List<IndexRequestBuilder> indexRequests = new ArrayList<>();
         final Set<String> stringTerms = new HashSet<>();
-        final LongSet longTerms = new LongOpenHashSet();
+        final LongSet longTerms = new LongHashSet();
         final Set<String> dateTerms = new HashSet<>();
         for (int i = 0; i < cardinality; ++i) {
             String stringTerm;

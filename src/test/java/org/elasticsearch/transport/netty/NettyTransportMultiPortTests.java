@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.transport.netty;
 
-import com.carrotsearch.hppc.IntOpenHashSet;
+import com.carrotsearch.hppc.IntHashSet;
 import com.google.common.base.Charsets;
 import org.elasticsearch.Version;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
@@ -156,7 +156,7 @@ public class NettyTransportMultiPortTests extends ElasticsearchTestCase {
     }
 
     private int[] getRandomPorts(int numberOfPorts) {
-        IntOpenHashSet ports = new IntOpenHashSet();
+        IntHashSet ports = new IntHashSet();
 
         for (int i = 0; i < numberOfPorts; i++) {
             int port = randomIntBetween(49152, 65535);

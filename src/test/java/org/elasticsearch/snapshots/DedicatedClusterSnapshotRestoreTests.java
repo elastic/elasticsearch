@@ -19,7 +19,7 @@
 
 package org.elasticsearch.snapshots;
 
-import com.carrotsearch.hppc.IntOpenHashSet;
+import com.carrotsearch.hppc.IntHashSet;
 import com.carrotsearch.hppc.IntSet;
 import com.google.common.base.Predicate;
 import com.google.common.collect.ImmutableList;
@@ -581,7 +581,7 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
         ensureGreen("test-idx");
         assertThat(client().prepareCount("test-idx").get().getCount(), equalTo(100L));
 
-        IntSet reusedShards = IntOpenHashSet.newInstance();
+        IntSet reusedShards = new IntHashSet();
         for (ShardRecoveryResponse response : client().admin().indices().prepareRecoveries("test-idx").get().shardResponses().get("test-idx")) {
             if (response.recoveryState().getIndex().reusedBytes() > 0) {
                 reusedShards.add(response.getShardId());

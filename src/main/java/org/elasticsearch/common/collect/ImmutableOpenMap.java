@@ -22,6 +22,7 @@ package org.elasticsearch.common.collect;
 import com.carrotsearch.hppc.*;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+import com.carrotsearch.hppc.predicates.ObjectObjectPredicate;
 import com.carrotsearch.hppc.predicates.ObjectPredicate;
 import com.carrotsearch.hppc.procedures.ObjectObjectProcedure;
 import com.google.common.collect.UnmodifiableIterator;
@@ -37,9 +38,9 @@ import java.util.Map;
  */
 public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObjectCursor<KType, VType>> {
 
-    private final ObjectObjectOpenHashMap<KType, VType> map;
+    private final ObjectObjectHashMap<KType, VType> map;
 
-    private ImmutableOpenMap(ObjectObjectOpenHashMap<KType, VType> map) {
+    private ImmutableOpenMap(ObjectObjectHashMap<KType, VType> map) {
         this.map = map;
     }
 
@@ -182,7 +183,7 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
     }
 
     @SuppressWarnings("unchecked")
-    private static final ImmutableOpenMap EMPTY = new ImmutableOpenMap(new ObjectObjectOpenHashMap());
+    private static final ImmutableOpenMap EMPTY = new ImmutableOpenMap(new ObjectObjectHashMap());
 
     @SuppressWarnings("unchecked")
     public static <KType, VType> ImmutableOpenMap<KType, VType> of() {
@@ -211,8 +212,7 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
     }
 
     public static class Builder<KType, VType> implements ObjectObjectMap<KType, VType> {
-
-        private ObjectObjectOpenHashMap<KType, VType> map;
+        private ObjectObjectHashMap<KType, VType> map;
 
         public Builder() {
             //noinspection unchecked
@@ -220,7 +220,7 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
         }
 
         public Builder(int size) {
-            this.map = new ObjectObjectOpenHashMap<>(size);
+            this.map = new ObjectObjectHashMap<>(size);
         }
 
         public Builder(ImmutableOpenMap<KType, VType> map) {
@@ -231,11 +231,13 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
          * Builds a new instance of the
          */
         public ImmutableOpenMap<KType, VType> build() {
-            ObjectObjectOpenHashMap<KType, VType> map = this.map;
+            ObjectObjectHashMap<KType, VType> map = this.map;
             this.map = null; // nullify the map, so any operation post build will fail! (hackish, but safest)
             return new ImmutableOpenMap<>(map);
         }
 
+        
+        
         /**
          * Puts all the entries in the map to the builder.
          */
@@ -313,7 +315,7 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
         }
 
         @Override
-        public int removeAll(ObjectContainer<? extends KType> container) {
+        public int removeAll(ObjectContainer<? super KType> container) {
             return map.removeAll(container);
         }
 
@@ -347,5 +349,49 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
             return (Builder) this;
         }
 
+        @Override
+        public int removeAll(ObjectObjectPredicate<? super KType, ? super VType> predicate) {
+            return map.removeAll(predicate);
+        }
+
+        @Override
+        public <T extends ObjectObjectPredicate<? super KType, ? super VType>> T forEach(T predicate) {
+            return map.forEach(predicate);
+        }
+
+        @Override
+        public int indexOf(KType key) {
+            return map.indexOf(key);
+        }
+
+        @Override
+        public boolean indexExists(int index) {
+            return map.indexExists(index);
+        }
+
+        @Override
+        public VType indexGet(int index) {
+            return map.indexGet(index);
+        }
+
+        @Override
+        public VType indexReplace(int index, VType newValue) {
+            return map.indexReplace(index, newValue);
+        }
+
+        @Override
+        public void indexInsert(int index, KType key, VType value) {
+            map.indexInsert(index, key, value);
+        }
+
+        @Override
+        public void release() {
+            map.release();
+        }
+
+        @Override
+        public String visualizeKeyDistribution(int characters) {
+            return map.visualizeKeyDistribution(characters);
+        }
     }
 }

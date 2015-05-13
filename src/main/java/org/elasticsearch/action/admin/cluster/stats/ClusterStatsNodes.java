@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.admin.cluster.stats;
 
-import com.carrotsearch.hppc.ObjectIntOpenHashMap;
+import com.carrotsearch.hppc.ObjectIntHashMap;
 import com.carrotsearch.hppc.cursors.ObjectIntCursor;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
@@ -303,10 +303,10 @@ public class ClusterStatsNodes implements ToXContent, Streamable {
 
         int availableProcessors;
         long availableMemory;
-        ObjectIntOpenHashMap<OsInfo.Cpu> cpus;
+        ObjectIntHashMap<OsInfo.Cpu> cpus;
 
         public OsStats() {
-            cpus = new ObjectIntOpenHashMap<>();
+            cpus = new ObjectIntHashMap<>();
         }
 
         public void addNodeInfo(NodeInfo nodeInfo) {
@@ -330,7 +330,7 @@ public class ClusterStatsNodes implements ToXContent, Streamable {
             return new ByteSizeValue(availableMemory);
         }
 
-        public ObjectIntOpenHashMap<OsInfo.Cpu> getCpus() {
+        public ObjectIntHashMap<OsInfo.Cpu> getCpus() {
             return cpus;
         }
 
@@ -339,7 +339,7 @@ public class ClusterStatsNodes implements ToXContent, Streamable {
             availableProcessors = in.readVInt();
             availableMemory = in.readLong();
             int size = in.readVInt();
-            cpus = new ObjectIntOpenHashMap<>(size);
+            cpus = new ObjectIntHashMap<>(size);
             for (; size > 0; size--) {
                 cpus.addTo(OsInfo.Cpu.readCpu(in), in.readVInt());
             }
@@ -496,21 +496,21 @@ public class ClusterStatsNodes implements ToXContent, Streamable {
 
     public static class JvmStats implements Streamable, ToXContent {
 
-        ObjectIntOpenHashMap<JvmVersion> versions;
+        ObjectIntHashMap<JvmVersion> versions;
         long threads;
         long maxUptime;
         long heapUsed;
         long heapMax;
 
         JvmStats() {
-            versions = new ObjectIntOpenHashMap<>();
+            versions = new ObjectIntHashMap<>();
             threads = 0;
             maxUptime = 0;
             heapMax = 0;
             heapUsed = 0;
         }
 
-        public ObjectIntOpenHashMap<JvmVersion> getVersions() {
+        public ObjectIntHashMap<JvmVersion> getVersions() {
             return versions;
         }
 
@@ -561,7 +561,7 @@ public class ClusterStatsNodes implements ToXContent, Streamable {
         @Override
         public void readFrom(StreamInput in) throws IOException {
             int size = in.readVInt();
-            versions = new ObjectIntOpenHashMap<>(size);
+            versions = new ObjectIntHashMap<>(size);
             for (; size > 0; size--) {
                 versions.addTo(JvmVersion.readJvmVersion(in), in.readVInt());
             }

@@ -149,7 +149,7 @@ public class RecoveryTarget extends AbstractComponent {
         logger.trace("will retrying recovery with id [{}] in [{}] (reason [{}])", recoveryStatus.recoveryId(), retryAfter, reason);
         try {
             recoveryStatus.resetRecovery();
-        } catch (IOException e) {
+        } catch (Throwable e) {
             onGoingRecoveries.failRecovery(recoveryStatus.recoveryId(), new RecoveryFailedException(currentRequest, e), true);
         }
         threadPool.schedule(retryAfter, ThreadPool.Names.GENERIC, new RecoveryRunner(recoveryStatus.recoveryId()));

@@ -711,27 +711,27 @@ public class IndexStatsTests extends ElasticsearchIntegrationTest {
         stats = builder.setFieldDataFields("bar").execute().actionGet();
         assertThat(stats.getTotal().fieldData.getMemorySizeInBytes(), greaterThan(0l));
         assertThat(stats.getTotal().fieldData.getFields().containsKey("bar"), is(true));
-        assertThat(stats.getTotal().fieldData.getFields().lget(), greaterThan(0l));
+        assertThat(stats.getTotal().fieldData.getFields().get("bar"), greaterThan(0l));
         assertThat(stats.getTotal().fieldData.getFields().containsKey("baz"), is(false));
 
         stats = builder.setFieldDataFields("bar", "baz").execute().actionGet();
         assertThat(stats.getTotal().fieldData.getMemorySizeInBytes(), greaterThan(0l));
         assertThat(stats.getTotal().fieldData.getFields().containsKey("bar"), is(true));
-        assertThat(stats.getTotal().fieldData.getFields().lget(), greaterThan(0l));
+        assertThat(stats.getTotal().fieldData.getFields().get("bar"), greaterThan(0l));
         assertThat(stats.getTotal().fieldData.getFields().containsKey("baz"), is(true));
-        assertThat(stats.getTotal().fieldData.getFields().lget(), greaterThan(0l));
+        assertThat(stats.getTotal().fieldData.getFields().get("baz"), greaterThan(0l));
 
         stats = builder.setFieldDataFields("*").execute().actionGet();
         assertThat(stats.getTotal().fieldData.getMemorySizeInBytes(), greaterThan(0l));
         assertThat(stats.getTotal().fieldData.getFields().containsKey("bar"), is(true));
-        assertThat(stats.getTotal().fieldData.getFields().lget(), greaterThan(0l));
+        assertThat(stats.getTotal().fieldData.getFields().get("bar"), greaterThan(0l));
         assertThat(stats.getTotal().fieldData.getFields().containsKey("baz"), is(true));
-        assertThat(stats.getTotal().fieldData.getFields().lget(), greaterThan(0l));
+        assertThat(stats.getTotal().fieldData.getFields().get("baz"), greaterThan(0l));
 
         stats = builder.setFieldDataFields("*r").execute().actionGet();
         assertThat(stats.getTotal().fieldData.getMemorySizeInBytes(), greaterThan(0l));
         assertThat(stats.getTotal().fieldData.getFields().containsKey("bar"), is(true));
-        assertThat(stats.getTotal().fieldData.getFields().lget(), greaterThan(0l));
+        assertThat(stats.getTotal().fieldData.getFields().get("bar"), greaterThan(0l));
         assertThat(stats.getTotal().fieldData.getFields().containsKey("baz"), is(false));
 
     }
@@ -758,27 +758,27 @@ public class IndexStatsTests extends ElasticsearchIntegrationTest {
         stats = builder.setCompletionFields("bar.completion").execute().actionGet();
         assertThat(stats.getTotal().completion.getSizeInBytes(), greaterThan(0l));
         assertThat(stats.getTotal().completion.getFields().containsKey("bar.completion"), is(true));
-        assertThat(stats.getTotal().completion.getFields().lget(), greaterThan(0l));
+        assertThat(stats.getTotal().completion.getFields().get("bar.completion"), greaterThan(0l));
         assertThat(stats.getTotal().completion.getFields().containsKey("baz.completion"), is(false));
 
         stats = builder.setCompletionFields("bar.completion", "baz.completion").execute().actionGet();
         assertThat(stats.getTotal().completion.getSizeInBytes(), greaterThan(0l));
         assertThat(stats.getTotal().completion.getFields().containsKey("bar.completion"), is(true));
-        assertThat(stats.getTotal().completion.getFields().lget(), greaterThan(0l));
+        assertThat(stats.getTotal().completion.getFields().get("bar.completion"), greaterThan(0l));
         assertThat(stats.getTotal().completion.getFields().containsKey("baz.completion"), is(true));
-        assertThat(stats.getTotal().completion.getFields().lget(), greaterThan(0l));
+        assertThat(stats.getTotal().completion.getFields().get("baz.completion"), greaterThan(0l));
 
         stats = builder.setCompletionFields("*").execute().actionGet();
         assertThat(stats.getTotal().completion.getSizeInBytes(), greaterThan(0l));
         assertThat(stats.getTotal().completion.getFields().containsKey("bar.completion"), is(true));
-        assertThat(stats.getTotal().completion.getFields().lget(), greaterThan(0l));
+        assertThat(stats.getTotal().completion.getFields().get("bar.completion"), greaterThan(0l));
         assertThat(stats.getTotal().completion.getFields().containsKey("baz.completion"), is(true));
-        assertThat(stats.getTotal().completion.getFields().lget(), greaterThan(0l));
+        assertThat(stats.getTotal().completion.getFields().get("baz.completion"), greaterThan(0l));
 
         stats = builder.setCompletionFields("*r*").execute().actionGet();
         assertThat(stats.getTotal().completion.getSizeInBytes(), greaterThan(0l));
         assertThat(stats.getTotal().completion.getFields().containsKey("bar.completion"), is(true));
-        assertThat(stats.getTotal().completion.getFields().lget(), greaterThan(0l));
+        assertThat(stats.getTotal().completion.getFields().get("bar.completion"), greaterThan(0l));
         assertThat(stats.getTotal().completion.getFields().containsKey("baz.completion"), is(false));
 
     }

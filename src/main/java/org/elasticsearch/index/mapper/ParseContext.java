@@ -20,7 +20,7 @@
 package org.elasticsearch.index.mapper;
 
 import com.carrotsearch.hppc.ObjectObjectMap;
-import com.carrotsearch.hppc.ObjectObjectOpenHashMap;
+import com.carrotsearch.hppc.ObjectObjectHashMap;
 import com.google.common.collect.Lists;
 
 import org.apache.lucene.document.Field;
@@ -106,7 +106,7 @@ public abstract class ParseContext {
         /** Add fields so that they can later be fetched using {@link #getByKey(Object)}. */
         public void addWithKey(Object key, IndexableField field) {
             if (keyedFields == null) {
-                keyedFields = new ObjectObjectOpenHashMap<>();
+                keyedFields = new ObjectObjectHashMap<>();
             } else if (keyedFields.containsKey(key)) {
                 throw new IllegalStateException("Only one field can be stored per key");
             }

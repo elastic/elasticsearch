@@ -26,8 +26,10 @@ import java.io.IOException;
 
 /**
  * A query that applies a filter to the results of another query.
+ * @deprecated Use {@link BoolQueryBuilder} instead.
  */
-public class FilteredQueryBuilder extends BaseQueryBuilder implements BoostableQueryBuilder<FilteredQueryBuilder> {
+@Deprecated
+public class FilteredQueryBuilder extends QueryBuilder implements BoostableQueryBuilder<FilteredQueryBuilder> {
 
     private final QueryBuilder queryBuilder;
 

@@ -41,7 +41,7 @@ import static org.hamcrest.Matchers.equalTo;
  *
  */
 @ElasticsearchIntegrationTest.ClusterScope(scope=ElasticsearchIntegrationTest.Scope.SUITE)
-public class ScriptFilterSearchTests extends ElasticsearchIntegrationTest {
+public class ScriptQuerySearchTests extends ElasticsearchIntegrationTest {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {

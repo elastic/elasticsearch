@@ -26,10 +26,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Locale;
 
-/**
- *
- */
-public class GeoDistanceQueryBuilder extends BaseQueryBuilder {
+public class GeoDistanceQueryBuilder extends QueryBuilder {
 
     private final String name;
 

@@ -32,7 +32,7 @@
 
     <properties>
         <lucene.version>5.2.0</lucene.version>
-        <lucene.snapshot.revision>1677039</lucene.snapshot.revision>
+        <lucene.snapshot.revision>1678978</lucene.snapshot.revision>
         <lucene.maven.version>5.2.0-snapshot-${lucene.snapshot.revision}</lucene.maven.version>
         <testframework.version>2.1.14</testframework.version>
         <tests.jvms>auto</tests.jvms>
@@ -226,7 +226,14 @@
         <dependency>
             <groupId>com.carrotsearch</groupId>
             <artifactId>hppc</artifactId>
-            <version>0.6.0</version>
+            <version>0.7.1</version>
+        </dependency>
+
+        <dependency> <!-- ES uses byte* hashes -->
+            <groupId>com.carrotsearch</groupId>
+            <artifactId>hppc</artifactId>
+            <version>0.7.1</version>
+            <classifier>esoteric</classifier>
         </dependency>
 
         <dependency>
@@ -774,7 +781,9 @@
                         <configuration>
                             <includes>
                                 <include>org/elasticsearch/test/**/*</include>
-                                <include>org/apache/lucene/util/AbstractRandomizedTest.java</include>
+                                <include>org/elasticsearch/bootstrap/BootstrapForTesting.class</include>
+                                <include>org/elasticsearch/common/cli/CliToolTestCase.class</include>
+                                <include>org/elasticsearch/common/cli/CliToolTestCase$*.class</include>
                             </includes>
                             <excludes>
                                 <!-- unit tests for yaml suite parser & rest spec parser need to be excluded -->
@@ -1535,9 +1544,7 @@
                         <configuration>
                             <includes>
                                 <include>org/elasticsearch/test/**/*</include>
-                                <include>org/elasticsearch/cache/recycler/MockPageCacheRecycler.class</include>
-                                <include>org/apache/lucene/util/AbstractRandomizedTest.class</include>
-                                <include>org/apache/lucene/util/AbstractRandomizedTest$*.class</include>
+                                <include>org/elasticsearch/bootstrap/BootstrapForTesting.class</include>
                                 <include>org/elasticsearch/common/cli/CliToolTestCase.class</include>
                                 <include>org/elasticsearch/common/cli/CliToolTestCase$*.class</include>
                             </includes>

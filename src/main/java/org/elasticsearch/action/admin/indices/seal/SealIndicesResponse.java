@@ -73,23 +73,26 @@ public class SealIndicesResponse extends ActionResponse implements ToXContent {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         Map<String, Map<Integer, List<Map.Entry<ShardRouting, SyncedFlushService.SyncedFlushResponse>>>> successfulShards = new HashMap<>();
         Map<String, Map<Integer, String>> unsuccessfulShards = new HashMap<>();
+
         // first, sort everything by index and shard id
         for (SyncedFlushService.SyncedFlushResult result : results) {
+            String indexName = result.getShardId().index().name();
+            int shardId = result.getShardId().getId();
             if (result.shardResponses().size() > 0) {
-                if (successfulShards.get(result.getShardId().index().name()) == null) {
-                    successfulShards.put(result.getShardId().index().name(), new HashMap<Integer, List<Map.Entry<ShardRouting, SyncedFlushService.SyncedFlushResponse>>>());
+                if (successfulShards.get(indexName) == null) {
+                    successfulShards.put(indexName, new HashMap<Integer, List<Map.Entry<ShardRouting, SyncedFlushService.SyncedFlushResponse>>>());
                 }
-                if (successfulShards.get(result.getShardId().index().name()).get(result.getShardId().getId()) == null) {
-                    successfulShards.get(result.getShardId().index().name()).put(result.getShardId().getId(), new ArrayList<Map.Entry<ShardRouting, SyncedFlushService.SyncedFlushResponse>>());
+                if (successfulShards.get(indexName).get(shardId) == null) {
+                    successfulShards.get(indexName).put(shardId, new ArrayList<Map.Entry<ShardRouting, SyncedFlushService.SyncedFlushResponse>>());
                 }
                 for (Map.Entry<ShardRouting, SyncedFlushService.SyncedFlushResponse> shardResponse : result.shardResponses().entrySet()) {
-                    successfulShards.get(result.getShardId().index().name()).get(result.getShardId().getId()).add(shardResponse);
+                    successfulShards.get(indexName).get(shardId).add(shardResponse);
                 }
             } else {
-                if (unsuccessfulShards.get(result.getShardId().index().name()) == null) {
-                    unsuccessfulShards.put(result.getShardId().index().name(), new HashMap<Integer, String>());
+                if (unsuccessfulShards.get(indexName) == null) {
+                    unsuccessfulShards.put(indexName, new HashMap<Integer, String>());
                 }
-                unsuccessfulShards.get(result.getShardId().index().name()).put(result.getShardId().getId(), result.failureReason());
+                unsuccessfulShards.get(indexName).put(shardId, result.failureReason());
             }
         }
         for (Map.Entry<String, Map<Integer, List<Map.Entry<ShardRouting, SyncedFlushService.SyncedFlushResponse>>>> result : successfulShards.entrySet()) {

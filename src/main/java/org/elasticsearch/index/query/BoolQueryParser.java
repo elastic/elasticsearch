@@ -71,54 +71,72 @@ public class BoolQueryParser implements QueryParser {
             } else if (parseContext.isDeprecatedSetting(currentFieldName)) {
                 // skip
             } else if (token == XContentParser.Token.START_OBJECT) {
-                if ("must".equals(currentFieldName)) {
+                switch (currentFieldName) {
+                case "must":
                     Query query = parseContext.parseInnerQuery();
                     if (query != null) {
                         clauses.add(new BooleanClause(query, BooleanClause.Occur.MUST));
                     }
-                } else if ("must_not".equals(currentFieldName) || "mustNot".equals(currentFieldName)) {
-                    Query query = parseContext.parseInnerFilter();
-                    if (query != null) {
-                        clauses.add(new BooleanClause(query, BooleanClause.Occur.MUST_NOT));
-                    }
-                } else if ("should".equals(currentFieldName)) {
-                    Query query = parseContext.parseInnerQuery();
+                    break;
+                case "should":
+                    query = parseContext.parseInnerQuery();
                     if (query != null) {
                         clauses.add(new BooleanClause(query, BooleanClause.Occur.SHOULD));
                         if (parseContext.isFilter() && minimumShouldMatch == null) {
                             minimumShouldMatch = "1";
                         }
                     }
-                } else {
+                    break;
+                case "filter":
+                    query = parseContext.parseInnerFilter();
+                    if (query != null) {
+                        clauses.add(new BooleanClause(query, BooleanClause.Occur.FILTER));
+                    }
+                    break;
+                case "must_not":
+                case "mustNot":
+                    query = parseContext.parseInnerFilter();
+                    if (query != null) {
+                        clauses.add(new BooleanClause(query, BooleanClause.Occur.MUST_NOT));
+                    }
+                    break;
+                default:
                     throw new QueryParsingException(parseContext, "[bool] query does not support [" + currentFieldName + "]");
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
-                if ("must".equals(currentFieldName)) {
-                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                    switch (currentFieldName) {
+                    case "must":
                         Query query = parseContext.parseInnerQuery();
                         if (query != null) {
                             clauses.add(new BooleanClause(query, BooleanClause.Occur.MUST));
                         }
-                    }
-                } else if ("must_not".equals(currentFieldName) || "mustNot".equals(currentFieldName)) {
-                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        Query query = parseContext.parseInnerFilter();
-                        if (query != null) {
-                            clauses.add(new BooleanClause(query, BooleanClause.Occur.MUST_NOT));
-                        }
-                    }
-                } else if ("should".equals(currentFieldName)) {
-                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        Query query = parseContext.parseInnerQuery();
+                        break;
+                    case "should":
+                        query = parseContext.parseInnerQuery();
                         if (query != null) {
                             clauses.add(new BooleanClause(query, BooleanClause.Occur.SHOULD));
                             if (parseContext.isFilter() && minimumShouldMatch == null) {
                                 minimumShouldMatch = "1";
                             }
                         }
+                        break;
+                    case "filter":
+                        query = parseContext.parseInnerFilter();
+                        if (query != null) {
+                            clauses.add(new BooleanClause(query, BooleanClause.Occur.FILTER));
+                        }
+                        break;
+                    case "must_not":
+                    case "mustNot":
+                        query = parseContext.parseInnerFilter();
+                        if (query != null) {
+                            clauses.add(new BooleanClause(query, BooleanClause.Occur.MUST_NOT));
+                        }
+                        break;
+                    default:
+                        throw new QueryParsingException(parseContext, "bool query does not support [" + currentFieldName + "]");
                     }
-                } else {
-                    throw new QueryParsingException(parseContext, "bool query does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
                 if ("disable_coord".equals(currentFieldName) || "disableCoord".equals(currentFieldName)) {

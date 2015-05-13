@@ -31,11 +31,13 @@ import java.util.List;
  */
 public class BoolQueryBuilder extends BaseQueryBuilder implements BoostableQueryBuilder<BoolQueryBuilder> {
 
-    private ArrayList<QueryBuilder> mustClauses = new ArrayList<>();
+    private final List<QueryBuilder> mustClauses = new ArrayList<>();
 
-    private ArrayList<QueryBuilder> mustNotClauses = new ArrayList<>();
+    private final List<QueryBuilder> mustNotClauses = new ArrayList<>();
 
-    private ArrayList<QueryBuilder> shouldClauses = new ArrayList<>();
+    private final List<QueryBuilder> filterClauses = new ArrayList<>();
+
+    private final List<QueryBuilder> shouldClauses = new ArrayList<>();
 
     private float boost = -1;
 
@@ -48,7 +50,8 @@ public class BoolQueryBuilder extends BaseQueryBuilder implements BoostableQuery
     private String queryName;
 
     /**
-     * Adds a query that <b>must</b> appear in the matching documents.
+     * Adds a query that <b>must</b> appear in the matching documents and will
+     * contribute to scoring.
      */
     public BoolQueryBuilder must(QueryBuilder queryBuilder) {
         mustClauses.add(queryBuilder);
@@ -56,7 +59,17 @@ public class BoolQueryBuilder extends BaseQueryBuilder implements BoostableQuery
     }
 
     /**
-     * Adds a query that <b>must not</b> appear in the matching documents.
+     * Adds a query that <b>must</b> appear in the matching documents but will
+     * not contribute to scoring.
+     */
+    public BoolQueryBuilder filter(QueryBuilder queryBuilder) {
+        filterClauses.add(queryBuilder);
+        return this;
+    }
+
+    /**
+     * Adds a query that <b>must not</b> appear in the matching documents and
+     * will not contribute to scoring.
      */
     public BoolQueryBuilder mustNot(QueryBuilder queryBuilder) {
         mustNotClauses.add(queryBuilder);
@@ -149,6 +162,7 @@ public class BoolQueryBuilder extends BaseQueryBuilder implements BoostableQuery
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject("bool");
         doXArrayContent("must", mustClauses, builder, params);
+        doXArrayContent("filter", filterClauses, builder, params);
         doXArrayContent("must_not", mustNotClauses, builder, params);
         doXArrayContent("should", shouldClauses, builder, params);
         if (boost != -1) {

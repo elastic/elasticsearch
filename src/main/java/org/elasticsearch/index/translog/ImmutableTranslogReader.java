@@ -37,8 +37,8 @@ public class ImmutableTranslogReader extends TranslogReader {
      * Create a snapshot of translog file channel. The length parameter should be consistent with totalOperations and point
      * at the end of the last operation in this snapshot.
      */
-    public ImmutableTranslogReader(long generation, ChannelReference channelReference, long offset, long length, int totalOperations) {
-        super(generation, channelReference, offset);
+    public ImmutableTranslogReader(long generation, ChannelReference channelReference, long firstOperationOffset, long length, int totalOperations) {
+        super(generation, channelReference, firstOperationOffset);
         this.length = length;
         this.totalOperations = totalOperations;
     }

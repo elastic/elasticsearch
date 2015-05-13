@@ -66,27 +66,18 @@ public class TranslogWriter extends TranslogReader {
     }
 
     public static TranslogWriter create(Type type, ShardId shardId, String translogUUID, long fileGeneration, Path file, Callback<ChannelReference> onClose, int bufferSize) throws IOException {
-        Path pendingFile = file.resolveSibling("pending_" + file.getFileName());
         final BytesRef ref = new BytesRef(translogUUID);
         final int headerLength = CodecUtil.headerLength(TRANSLOG_CODEC) + ref.length + RamUsageEstimator.NUM_BYTES_INT;
-        /**
-         * We first create pending_translog, write the header, fsync it and write a checkpoint. Then we rename the pending file into
-         * the actual file such that there is never a file without valid header. If the header is missing it's corrupted
-         */
-        try (FileChannel channel = FileChannel.open(pendingFile, StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW)) {
+        final FileChannel channel = FileChannel.open(file, StandardOpenOption.WRITE, StandardOpenOption.READ, StandardOpenOption.CREATE_NEW);
+        try {
             // This OutputStreamDataOutput is intentionally not closed because
             // closing it will close the FileChannel
-            OutputStreamDataOutput out = new OutputStreamDataOutput(java.nio.channels.Channels.newOutputStream(channel));
+            final OutputStreamDataOutput out = new OutputStreamDataOutput(java.nio.channels.Channels.newOutputStream(channel));
             CodecUtil.writeHeader(out, TRANSLOG_CODEC, VERSION);
             out.writeInt(ref.length);
             out.writeBytes(ref.bytes, ref.offset, ref.length);
             channel.force(false);
             writeCheckpoint(headerLength, 0, file.getParent(), fileGeneration, StandardOpenOption.WRITE);
-        }
-        Files.move(pendingFile, file, StandardCopyOption.ATOMIC_MOVE);
-        FileChannel channel = FileChannel.open(file, StandardOpenOption.READ, StandardOpenOption.WRITE);
-        try {
-            channel.position(headerLength);
             final TranslogWriter writer = type.create(shardId, fileGeneration, new ChannelReference(file, fileGeneration, channel, onClose), bufferSize);
             return writer;
         } catch (Throwable throwable){
@@ -204,7 +195,6 @@ public class TranslogWriter extends TranslogReader {
             }
         }
     }
-
 
     /**
      * returns a new immutable reader which only exposes the current written operation *

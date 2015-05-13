@@ -26,7 +26,7 @@ import java.util.Map;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.cluster.routing.operation.plain.Preference;
+import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.search.suggest.DirectSpellcheckerSettings;
 import org.elasticsearch.search.suggest.Suggester;
@@ -34,7 +34,7 @@ import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContex
 
 class PhraseSuggestionContext extends SuggestionContext {
     private final BytesRef SEPARATOR = new BytesRef(" ");
-
+    private IndexQueryParserService queryParserService;
     private float maxErrors = 0.5f;
     private BytesRef separator = SEPARATOR;
     private float realworldErrorLikelihood = 0.95f;
@@ -46,7 +46,6 @@ class PhraseSuggestionContext extends SuggestionContext {
     private BytesRef postTag;
     private CompiledScript collateQueryScript;
     private CompiledScript collateFilterScript;
-    private String preference = Preference.ONLY_LOCAL.type();
     private Map<String, Object> collateScriptParams = new HashMap<>(1);
 
     private WordScorer.WordScorerFactory scorer;
@@ -113,7 +112,15 @@ class PhraseSuggestionContext extends SuggestionContext {
     public WordScorer.WordScorerFactory model() {
         return scorer;
     }
-    
+
+    public void setQueryParserService(IndexQueryParserService queryParserService) {
+        this.queryParserService = queryParserService;
+    }
+
+    public IndexQueryParserService getQueryParserService() {
+        return queryParserService;
+    }
+
     static class DirectCandidateGenerator extends DirectSpellcheckerSettings {
         private Analyzer preFilter;
         private Analyzer postFilter;
@@ -204,14 +211,6 @@ class PhraseSuggestionContext extends SuggestionContext {
 
     void setCollateFilterScript(CompiledScript collateFilterScript) {
         this.collateFilterScript = collateFilterScript;
-    }
-
-    String getPreference() {
-        return preference;
-    }
-
-    void setPreference(String preference) {
-        this.preference = preference;
     }
 
     Map<String, Object> getCollateScriptParams() {

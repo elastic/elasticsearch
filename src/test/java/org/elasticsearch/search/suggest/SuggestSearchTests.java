@@ -310,7 +310,7 @@ public class SuggestSearchTests extends ElasticsearchIntegrationTest {
         assertThat(suggest.getSuggestion("test").getEntries().get(0).getText().string(), equalTo("abcd"));
 
         suggest = searchSuggest( termSuggest);
-        assertSuggestion(suggest, 0, "test", "aacd","abbd", "abcc");
+        assertSuggestion(suggest, 0, "test", "aacd", "abbd", "abcc");
         assertThat(suggest.getSuggestion("test").getEntries().get(0).getText().string(), equalTo("abcd"));
     }
 
@@ -1254,12 +1254,29 @@ public class SuggestSearchTests extends ElasticsearchIntegrationTest {
             // expected
         }
 
-        // collate request with prune set to true
+        // collate query request with prune set to true
         PhraseSuggestionBuilder phraseSuggestWithParamsAndReturn = suggest.collateFilter(null).collateQuery(collateWithParams).collateParams(params).collatePrune(true);
         searchSuggest = searchSuggest("united states house of representatives elections in washington 2006", phraseSuggestWithParamsAndReturn);
         assertSuggestionSize(searchSuggest, 0, 10, "title");
         assertSuggestionPhraseCollateMatchExists(searchSuggest, "title", 2);
 
+        collateWithParams = XContentFactory.jsonBuilder()
+                .startObject()
+                    .startObject("query")
+                        .startObject("{{query_type}}")
+                            .field("{{query_field}}", "{{suggestion}}")
+                        .endObject()
+                    .endObject()
+                .endObject().string();
+
+        params.clear();
+        params.put("query_type", "match_phrase");
+        params.put("query_field", "title");
+        // collate filter request with prune set to true
+        phraseSuggestWithParamsAndReturn = suggest.collateFilter(collateWithParams).collateQuery(null).collateParams(params).collatePrune(true);
+        searchSuggest = searchSuggest("united states house of representatives elections in washington 2006", phraseSuggestWithParamsAndReturn);
+        assertSuggestionSize(searchSuggest, 0, 10, "title");
+        assertSuggestionPhraseCollateMatchExists(searchSuggest, "title", 2);
     }
 
     protected Suggest searchSuggest(SuggestionBuilder<?>... suggestion) {

@@ -27,7 +27,7 @@ import org.elasticsearch.client.ElasticsearchClient;
 public class SealIndicesAction extends Action<SealIndicesRequest, SealIndicesResponse, SealIndicesRequestBuilder> {
 
     public static final SealIndicesAction INSTANCE = new SealIndicesAction();
-    public static final String NAME = "indices:admin/sealindices";
+    public static final String NAME = "indices:admin/seal";
 
     private SealIndicesAction() {
         super(NAME);

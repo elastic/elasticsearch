@@ -84,7 +84,7 @@ abstract public class AbstractS3SnapshotRestoreTest extends AbstractAwsTest {
         cleanRepositoryFiles(basePath);
     }
 
-    @Test
+    @Test @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-cloud-aws/issues/211")
     public void testSimpleWorkflow() {
         Client client = client();
         logger.info("-->  creating s3 repository with bucket[{}] and path [{}]", internalCluster().getInstance(Settings.class).get("repositories.s3.bucket"), basePath);
@@ -156,7 +156,7 @@ abstract public class AbstractS3SnapshotRestoreTest extends AbstractAwsTest {
         assertThat(clusterState.getMetaData().hasIndex("test-idx-2"), equalTo(false));
     }
     
-    @Test
+    @Test @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-cloud-aws/issues/211")
     public void testEncryption() {
 	Client client = client();
 	logger.info("-->  creating s3 repository with bucket[{}] and path [{}]", internalCluster().getInstance(Settings.class).get("repositories.s3.bucket"), basePath);
@@ -280,7 +280,7 @@ abstract public class AbstractS3SnapshotRestoreTest extends AbstractAwsTest {
         assertRepositoryIsOperational(client, "test-repo");
     }
 
-    @Test
+    @Test @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-cloud-aws/issues/211")
     public void testRepositoryWithCustomEndpointProtocol() {
         Client client = client();
         Settings bucketSettings = internalCluster().getInstance(Settings.class).getByPrefix("repositories.s3.external-bucket.");
@@ -317,7 +317,7 @@ abstract public class AbstractS3SnapshotRestoreTest extends AbstractAwsTest {
         fail("repository verification should have raise an exception!");
     }
 
-    @Test
+    @Test @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-cloud-aws/issues/211")
     public void testRepositoryInRemoteRegion() {
         Client client = client();
         Settings settings = internalCluster().getInstance(Settings.class);

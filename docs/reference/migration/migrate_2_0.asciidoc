@@ -516,11 +516,8 @@ Log messages are now truncated at 10,000 characters. This can be changed in the
 
 === Highlighting
 
-The Postings highlighter doesn't support the `require_field_match` option
+The postings highlighter doesn't support the `require_field_match` option
 anymore, it will only highlight fields that were queried.
 
-The output returned from the Postings highlighter has changed compared to the
-other highlighters when highlighting a field with multiple values in
-combination with `fragments_size` set to `0`. One single highlighted snippet
-will get returned rather than one snippet per value.
-
+The `match` query with type set to `phrase_prefix` is not supported by the
+postings highlighter. No highlighted snippets will be returned.

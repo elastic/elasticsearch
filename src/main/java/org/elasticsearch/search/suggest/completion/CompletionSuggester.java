@@ -23,6 +23,7 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Terms;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.suggest.Lookup;
 import org.apache.lucene.util.CharsRefBuilder;
 import org.apache.lucene.util.CollectionUtil;
@@ -48,11 +49,11 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
 
     @Override
     protected Suggest.Suggestion<? extends Suggest.Suggestion.Entry<? extends Suggest.Suggestion.Entry.Option>> innerExecute(String name,
-            CompletionSuggestionContext suggestionContext, IndexReader indexReader, CharsRefBuilder spare) throws IOException {
+            CompletionSuggestionContext suggestionContext, IndexSearcher searcher, CharsRefBuilder spare) throws IOException {
         if (suggestionContext.mapper() == null || !(suggestionContext.mapper() instanceof CompletionFieldMapper)) {
             throw new ElasticsearchException("Field [" + suggestionContext.getField() + "] is not a completion suggest field");
         }
-
+        final IndexReader indexReader = searcher.getIndexReader();
         CompletionSuggestion completionSuggestion = new CompletionSuggestion(name, suggestionContext.getSize());
         spare.copyUTF8Bytes(suggestionContext.getText());
 

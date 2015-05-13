@@ -54,8 +54,8 @@ public class RangeQueryBuilderTest extends BaseQueryTestCase<RangeQueryBuilder> 
             query.from(randomIntBetween(1, 100));
             query.to(randomIntBetween(101, 200));
         } else {
-            query.from(new DateTime(System.currentTimeMillis() - randomIntBetween(0, 100000)).toString());
-            query.from(new DateTime(System.currentTimeMillis() + randomIntBetween(0, 100000)).toString());
+            query.from(new DateTime(System.currentTimeMillis() - randomIntBetween(0, 1000000)).toString());
+            query.to(new DateTime(System.currentTimeMillis() + randomIntBetween(0, 1000000)).toString());
             if (randomBoolean()) {
                 query.timeZone(TIMEZONE_IDS.get(randomIntBetween(0, TIMEZONE_IDS.size())));
             }
@@ -90,7 +90,7 @@ public class RangeQueryBuilderTest extends BaseQueryTestCase<RangeQueryBuilder> 
     }
 
     @Test
-    public void testValidation() {
+    public void testValidate() {
         RangeQueryBuilder rangeQueryBuilder = new RangeQueryBuilder("");
         assertThat(rangeQueryBuilder.validate().validationErrors().size(), is(1));
 

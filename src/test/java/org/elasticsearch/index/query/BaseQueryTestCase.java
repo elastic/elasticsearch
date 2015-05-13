@@ -142,6 +142,7 @@ public abstract class BaseQueryTestCase<QB extends QueryBuilder & Streamable> ex
         testQuery = createTestQueryBuilder();
         QueryParseContext context = createContext();
         String contentString = testQuery.toString();
+        System.out.println(contentString);
         XContentParser parser = XContentFactory.xContent(contentString).createParser(contentString);
         context.reset(parser);
         assertQueryHeader(parser, testQuery.parserName());

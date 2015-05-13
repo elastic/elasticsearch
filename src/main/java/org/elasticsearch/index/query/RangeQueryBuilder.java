@@ -21,7 +21,6 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermRangeQuery;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -83,11 +82,7 @@ public class RangeQueryBuilder extends MultiTermQueryBuilder implements Streamab
      * The from part of the range query. Null indicates unbounded.
      */
     public RangeQueryBuilder from(Object from, boolean includeLower) {
-        if (from instanceof String) {
-            this.from = BytesRefs.toBytesRef(from);
-        } else {
-            this.from = from;
-        }
+        this.from = convertToBytesRefIfString(from);
         this.includeLower = includeLower;
         return this;
     }
@@ -124,11 +119,7 @@ public class RangeQueryBuilder extends MultiTermQueryBuilder implements Streamab
      * The to part of the range query. Null indicates unbounded.
      */
     public RangeQueryBuilder to(Object to, boolean includeUpper) {
-        if (to instanceof String) {
-            this.to = BytesRefs.toBytesRef(to);
-        } else {
-            this.to = to;
-        }
+        this.to = convertToBytesRefIfString(to);
         this.includeUpper = includeUpper;
         return this;
     }
@@ -188,7 +179,7 @@ public class RangeQueryBuilder extends MultiTermQueryBuilder implements Streamab
      * Gets the includeUpper flag for this query.
      */
     public boolean includeUpper() {
-        return this.includeLower;
+        return this.includeUpper;
     }
 
     /**
@@ -243,16 +234,8 @@ public class RangeQueryBuilder extends MultiTermQueryBuilder implements Streamab
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(RangeQueryParser.NAME);
         builder.startObject(fieldname);
-        if (this.from instanceof BytesRef) {
-            builder.field("from", ((BytesRef) this.from).utf8ToString());
-        } else {
-            builder.field("from", from);
-        }
-        if (this.to instanceof BytesRef) {
-            builder.field("to", ((BytesRef) this.to).utf8ToString());
-        } else {
-            builder.field("to", to);
-        }
+        builder.field("from", convertToStringIfBytesRef(this.from));
+        builder.field("to", convertToStringIfBytesRef(this.to));
         if (timeZone != null) {
             builder.field("time_zone", timeZone);
         }
@@ -282,7 +265,7 @@ public class RangeQueryBuilder extends MultiTermQueryBuilder implements Streamab
         MapperService.SmartNameFieldMappers smartNameFieldMappers = parseContext.smartFieldMappers(this.fieldname);
         if (smartNameFieldMappers != null) {
             if (smartNameFieldMappers.hasMapper()) {
-                FieldMapper mapper = smartNameFieldMappers.mapper();
+                FieldMapper<?> mapper = smartNameFieldMappers.mapper();
                 if (mapper instanceof DateFieldMapper) {
                     if ((from instanceof Number || to instanceof Number) && timeZone != null) {
                         throw new QueryParsingException(parseContext,
@@ -350,7 +333,7 @@ public class RangeQueryBuilder extends MultiTermQueryBuilder implements Streamab
         this.from = in.readGenericValue();
         this.to = in.readGenericValue();
         this.includeLower = in.readBoolean();
-        this.includeLower = in.readBoolean();
+        this.includeUpper = in.readBoolean();
         this.timeZone = in.readOptionalString();
         this.format = in.readOptionalString();
         this.boost = in.readFloat();

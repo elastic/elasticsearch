@@ -19,7 +19,7 @@
 
 package org.elasticsearch.recovery;
 
-import com.carrotsearch.hppc.IntOpenHashSet;
+import com.carrotsearch.hppc.IntHashSet;
 import com.carrotsearch.hppc.procedures.IntProcedure;
 import com.google.common.base.Predicate;
 import com.google.common.util.concurrent.ListenableFuture;
@@ -229,7 +229,7 @@ public class RelocationTests extends ElasticsearchIntegrationTest {
                         for (int hit = 0; hit < indexer.totalIndexedDocs(); hit++) {
                             hitIds[hit] = hit + 1;
                         }
-                        IntOpenHashSet set = IntOpenHashSet.from(hitIds);
+                        IntHashSet set = IntHashSet.from(hitIds);
                         for (SearchHit hit : hits.hits()) {
                             int id = Integer.parseInt(hit.id());
                             if (!set.remove(id)) {

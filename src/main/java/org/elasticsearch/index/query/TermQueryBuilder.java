@@ -25,10 +25,8 @@ import java.io.IOException;
 
 /**
  * A Query that matches documents containing a term.
- *
- *
  */
-public class TermQueryBuilder extends BaseQueryBuilder implements BoostableQueryBuilder<TermQueryBuilder> {
+public class TermQueryBuilder extends QueryBuilder implements BoostableQueryBuilder<TermQueryBuilder> {
 
     private final String name;
 

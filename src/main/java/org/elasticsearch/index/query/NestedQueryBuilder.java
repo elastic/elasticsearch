@@ -25,7 +25,7 @@ import org.elasticsearch.index.query.support.QueryInnerHitBuilder;
 import java.io.IOException;
 import java.util.Objects;
 
-public class NestedQueryBuilder extends BaseQueryBuilder implements BoostableQueryBuilder<NestedQueryBuilder> {
+public class NestedQueryBuilder extends QueryBuilder implements BoostableQueryBuilder<NestedQueryBuilder> {
 
     private final QueryBuilder queryBuilder;
 

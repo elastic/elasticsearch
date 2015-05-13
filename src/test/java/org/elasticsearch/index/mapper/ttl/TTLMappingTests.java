@@ -22,7 +22,10 @@ package org.elasticsearch.index.mapper.ttl;
 import org.apache.lucene.index.IndexOptions;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -289,6 +292,23 @@ public class TTLMappingTests extends ElasticsearchSingleNodeTest {
         mappingAfterMerge = indexService.mapperService().documentMapper("type").refreshSource();
         assertThat(mappingAfterMerge, equalTo(new CompressedString("{\"type\":{\"_ttl\":{\"enabled\":true,\"default\":604800000},\"properties\":{\"field\":{\"type\":\"string\"}}}}")));
 
+    }
+
+    public void testIncludeInObjectBackcompat() throws Exception {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+            .startObject("_ttl").field("enabled", true).endObject()
+            .endObject().endObject().string();
+        Settings settings = ImmutableSettings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build();
+        DocumentMapper docMapper = createIndex("test", settings).mapperService().documentMapperParser().parse(mapping);
+
+        XContentBuilder doc = XContentFactory.jsonBuilder().startObject().field("_ttl", "2d").endObject();
+        MappingMetaData mappingMetaData = new MappingMetaData(docMapper);
+        IndexRequest request = new IndexRequest("test", "type", "1").source(doc);
+        request.process(MetaData.builder().build(), mappingMetaData, true, "test");
+
+        // _ttl in a document never worked, so backcompat is ignoring the field
+        assertEquals(-1, request.ttl());
+        assertNull(docMapper.parse("type", "1", doc.bytes()).rootDoc().get("_ttl"));
     }
 
     private org.elasticsearch.common.xcontent.XContentBuilder getMappingWithTtlEnabled() throws IOException {

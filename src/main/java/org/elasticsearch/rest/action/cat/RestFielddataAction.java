@@ -20,7 +20,7 @@
 package org.elasticsearch.rest.action.cat;
 
 import com.carrotsearch.hppc.ObjectLongMap;
-import com.carrotsearch.hppc.ObjectLongOpenHashMap;
+import com.carrotsearch.hppc.ObjectLongHashMap;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
@@ -94,7 +94,7 @@ public class RestFielddataAction extends AbstractCatAction {
 
         // Collect all the field names so a new table can be built
         for (NodeStats ns : nodeStatses.getNodes()) {
-            ObjectLongOpenHashMap<String> fields = ns.getIndices().getFieldData().getFields();
+            ObjectLongHashMap<String> fields = ns.getIndices().getFieldData().getFields();
             nodesFields.put(ns, fields);
             if (fields != null) {
                 for (String key : fields.keys().toArray(String.class)) {

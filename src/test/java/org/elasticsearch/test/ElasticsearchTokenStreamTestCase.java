@@ -26,6 +26,7 @@ import org.apache.lucene.analysis.BaseTokenStreamTestCase;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.Version;
+import org.elasticsearch.bootstrap.BootstrapForTesting;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
@@ -43,7 +44,7 @@ import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
 public abstract class ElasticsearchTokenStreamTestCase extends BaseTokenStreamTestCase {
 
     static {
-        SecurityBootstrap.ensureInitialized();
+        BootstrapForTesting.ensureInitialized();
     }
     
     public static Version randomVersion() {

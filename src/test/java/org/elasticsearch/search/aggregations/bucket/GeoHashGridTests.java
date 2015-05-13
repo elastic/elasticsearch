@@ -18,8 +18,8 @@
  */
 package org.elasticsearch.search.aggregations.bucket;
 
+import com.carrotsearch.hppc.ObjectIntHashMap;
 import com.carrotsearch.hppc.ObjectIntMap;
-import com.carrotsearch.hppc.ObjectIntOpenHashMap;
 import com.carrotsearch.hppc.cursors.ObjectIntCursor;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -81,7 +81,7 @@ public class GeoHashGridTests extends ElasticsearchIntegrationTest {
 
         List<IndexRequestBuilder> cities = new ArrayList<>();
         Random random = getRandom();
-        expectedDocCountsForGeoHash = new ObjectIntOpenHashMap<>(numDocs * 2);
+        expectedDocCountsForGeoHash = new ObjectIntHashMap<>(numDocs * 2);
         for (int i = 0; i < numDocs; i++) {
             //generate random point
             double lat = (180d * random.nextDouble()) - 90d;
@@ -105,7 +105,7 @@ public class GeoHashGridTests extends ElasticsearchIntegrationTest {
                 .addMapping("type", "location", "type=geo_point", "city", "type=string,index=not_analyzed"));
 
         cities = new ArrayList<>();
-        multiValuedExpectedDocCountsForGeoHash = new ObjectIntOpenHashMap<>(numDocs * 2);
+        multiValuedExpectedDocCountsForGeoHash = new ObjectIntHashMap<>(numDocs * 2);
         for (int i = 0; i < numDocs; i++) {
             final int numPoints = random.nextInt(4);
             List<String> points = new ArrayList<>();

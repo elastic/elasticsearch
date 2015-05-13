@@ -32,13 +32,13 @@ grant codeBase "file:${{java.ext.dirs}}/*" {
 
 grant {
 
-  permission java.nio.file.LinkPermission "symbolic";
+  // Allow executing groovy scripts with codesource of /groovy/script
   permission groovy.security.GroovyCodeSourcePermission "/groovy/script";
 
   // Allow connecting to the internet anywhere
   permission java.net.SocketPermission "*", "accept,listen,connect,resolve";
 
-  // Basic permissions needed for Lucene / Elasticsearch to work:
+  // Allow read/write to all system properties
   permission java.util.PropertyPermission "*", "read,write";
 
   // needed by junit4's gson usage 
@@ -73,14 +73,16 @@ grant {
   permission java.lang.RuntimePermission "accessClassInPackage.sun.nio.ch";
   // needed by groovy engine
   permission java.lang.RuntimePermission "accessClassInPackage.sun.reflect";
+  // needed by aws core sdk (TODO: look into this)
+  permission java.lang.RuntimePermission "accessClassInPackage.sun.security.ssl";
 
+  // needed by RandomizedRunner
   permission java.lang.RuntimePermission "accessDeclaredMembers";
+  // needed by RandomizedRunner
   permission java.lang.RuntimePermission "getStackTrace";
 
   // needed by RandomizedRunner
   permission java.lang.RuntimePermission "setDefaultUncaughtExceptionHandler";
-
-  permission java.lang.RuntimePermission "usePolicy";
 
   // needed by JMX instead of getFileSystemAttributes, seems like a bug...
   permission java.lang.RuntimePermission "getFileStoreAttributes";
@@ -91,18 +93,9 @@ grant {
   // needed by plugin manager to set unix permissions
   permission java.lang.RuntimePermission "accessUserInformation";
 
-  // These two *have* to be spelled out a separate
-  permission java.lang.management.ManagementPermission "control";
+  // needed by jvminfo for monitoring the jvm
   permission java.lang.management.ManagementPermission "monitor";
 
-  permission java.net.NetPermission "*";
+  // needed by JDKESLoggerTests
   permission java.util.logging.LoggingPermission "control";
-  permission javax.management.MBeanPermission "*", "*";
-  permission javax.management.MBeanServerPermission "*";
-  permission javax.management.MBeanTrustPermission "*";
-
-  // Needed for some things in DNS caching in the JVM
-  permission java.security.SecurityPermission "getProperty.networkaddress.cache.ttl";
-  permission java.security.SecurityPermission "getProperty.networkaddress.cache.negative.ttl";
-
 };

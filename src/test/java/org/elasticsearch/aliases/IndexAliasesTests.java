@@ -601,12 +601,12 @@ public class IndexAliasesTests extends ElasticsearchIntegrationTest {
         assertThat(getResponse.getAliases().size(), equalTo(1));
         assertThat(getResponse.getAliases().get("foobar").size(), equalTo(2));
         assertThat(getResponse.getAliases().get("foobar").get(0), notNullValue());
-        assertThat(getResponse.getAliases().get("foobar").get(0).alias(), equalTo("alias2"));
+        assertThat(getResponse.getAliases().get("foobar").get(0).alias(), equalTo("alias1"));
         assertThat(getResponse.getAliases().get("foobar").get(0).getFilter(), nullValue());
         assertThat(getResponse.getAliases().get("foobar").get(0).getIndexRouting(), nullValue());
         assertThat(getResponse.getAliases().get("foobar").get(0).getSearchRouting(), nullValue());
         assertThat(getResponse.getAliases().get("foobar").get(1), notNullValue());
-        assertThat(getResponse.getAliases().get("foobar").get(1).alias(), equalTo("alias1"));
+        assertThat(getResponse.getAliases().get("foobar").get(1).alias(), equalTo("alias2"));
         assertThat(getResponse.getAliases().get("foobar").get(1).getFilter(), nullValue());
         assertThat(getResponse.getAliases().get("foobar").get(1).getIndexRouting(), nullValue());
         assertThat(getResponse.getAliases().get("foobar").get(1).getSearchRouting(), nullValue());

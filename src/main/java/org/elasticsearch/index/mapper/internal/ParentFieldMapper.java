@@ -19,7 +19,6 @@
 package org.elasticsearch.index.mapper.internal;
 
 import com.google.common.base.Objects;
-
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
@@ -36,7 +35,6 @@ import org.elasticsearch.common.settings.loader.SettingsLoader;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.InternalMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MergeMappingException;
@@ -62,7 +60,7 @@ import static org.elasticsearch.index.mapper.MapperBuilders.parent;
 /**
  *
  */
-public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements InternalMapper, RootMapper {
+public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements RootMapper {
 
     public static final String NAME = "_parent";
 
@@ -179,11 +177,6 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
     @Override
     public void postParse(ParseContext context) throws IOException {
         parse(context);
-    }
-
-    @Override
-    public boolean includeInObject() {
-        return true;
     }
 
     @Override

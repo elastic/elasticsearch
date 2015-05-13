@@ -34,6 +34,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
@@ -977,11 +978,8 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
                 "}";
         assertAcked(prepareCreate("test").addAlias(new Alias("alias")).setSource(createIndexSource));
         ensureGreen();
-        String doc = "{\n" +
-                "  \"_ttl\": \"1h\"\n" +
-                "}";
 
-        client().prepareIndex("test", "doc").setId("1").setSource(doc).setParent("1").get();
+        client().prepareIndex("test", "doc").setId("1").setSource("{}").setParent("1").setTTL(TimeValue.timeValueHours(1).getMillis()).get();
 
         String[] fieldsList = {"_ttl", "_parent"};
         // before refresh - document is only in translog

@@ -19,7 +19,7 @@
 
 package org.apache.lucene.queryparser.classic;
 
-import com.carrotsearch.hppc.ObjectFloatOpenHashMap;
+import com.carrotsearch.hppc.ObjectFloatHashMap;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.search.FuzzyQuery;
@@ -69,7 +69,7 @@ public class QueryParserSettings {
 
     List<String> fields = null;
     Collection<String> queryTypes = null;
-    ObjectFloatOpenHashMap<String> boosts = null;
+    ObjectFloatHashMap<String> boosts = null;
     float tieBreaker = 0.0f;
     boolean useDisMax = true;
 
@@ -286,11 +286,11 @@ public class QueryParserSettings {
         this.queryTypes = queryTypes;
     }
 
-    public ObjectFloatOpenHashMap<String> boosts() {
+    public ObjectFloatHashMap<String> boosts() {
         return boosts;
     }
 
-    public void boosts(ObjectFloatOpenHashMap<String> boosts) {
+    public void boosts(ObjectFloatHashMap<String> boosts) {
         this.boosts = boosts;
     }
 

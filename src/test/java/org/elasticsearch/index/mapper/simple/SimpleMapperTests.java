@@ -56,7 +56,7 @@ public class SimpleMapperTests extends ElasticsearchSingleNodeTest {
         assertThat(doc.get(docMapper.mappers().getMapper("name.first").names().indexName()), equalTo("shay"));
 //        System.out.println("Document: " + doc);
 //        System.out.println("Json: " + docMapper.sourceMapper().value(doc));
-        doc = docMapper.parse(json).rootDoc();
+        doc = docMapper.parse("person", "1", json).rootDoc();
 //        System.out.println("Document: " + doc);
 //        System.out.println("Json: " + docMapper.sourceMapper().value(doc));
     }
@@ -71,7 +71,7 @@ public class SimpleMapperTests extends ElasticsearchSingleNodeTest {
         // reparse it
         DocumentMapper builtDocMapper = parser.parse(builtMapping);
         BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/index/mapper/simple/test1.json"));
-        Document doc = builtDocMapper.parse(json).rootDoc();
+        Document doc = builtDocMapper.parse("person", "1", json).rootDoc();
         assertThat(doc.get(docMapper.uidMapper().names().indexName()), equalTo(Uid.createUid("person", "1")));
         assertThat(doc.get(docMapper.mappers().getMapper("name.first").names().indexName()), equalTo("shay"));
 //        System.out.println("Document: " + doc);
@@ -86,7 +86,7 @@ public class SimpleMapperTests extends ElasticsearchSingleNodeTest {
         assertThat((String) docMapper.meta().get("param1"), equalTo("value1"));
 
         BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/index/mapper/simple/test1.json"));
-        Document doc = docMapper.parse(json).rootDoc();
+        Document doc = docMapper.parse("person", "1", json).rootDoc();
         assertThat(doc.get(docMapper.uidMapper().names().indexName()), equalTo(Uid.createUid("person", "1")));
         assertThat(doc.get(docMapper.mappers().getMapper("name.first").names().indexName()), equalTo("shay"));
 //        System.out.println("Document: " + doc);

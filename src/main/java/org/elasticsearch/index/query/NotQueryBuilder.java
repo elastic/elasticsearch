@@ -26,10 +26,8 @@ import java.util.Objects;
 
 /**
  * A filter that matches documents matching boolean combinations of other filters.
- *
- *
  */
-public class NotQueryBuilder extends BaseQueryBuilder {
+public class NotQueryBuilder extends QueryBuilder {
 
     private final QueryBuilder filter;
 

@@ -37,12 +37,12 @@ import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.InternalMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperUtils;
 import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.index.mapper.MergeResult;
+import org.elasticsearch.index.mapper.RootMapper;
 import org.elasticsearch.index.mapper.internal.AllFieldMapper;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 import org.elasticsearch.index.settings.IndexSettings;
@@ -57,7 +57,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.TreeMap;
 
 import static com.google.common.collect.Lists.newArrayList;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
@@ -524,7 +523,8 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll, Clonea
                     mappersToPut.add(mergeWithMapper);
                     MapperUtils.collect(mergeWithMapper, newObjectMappers, newFieldMappers);
                 }
-            } else {
+            } else if (mergeIntoMapper instanceof RootMapper == false) {
+                // root mappers can only exist here for backcompat, and are merged in Mapping
                 mergeIntoMapper.merge(mergeWithMapper, mergeResult);
             }
         }
@@ -553,11 +553,11 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll, Clonea
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        toXContent(builder, params, null, Mapper.EMPTY_ARRAY);
+        toXContent(builder, params, null);
         return builder;
     }
 
-    public void toXContent(XContentBuilder builder, Params params, ToXContent custom, Mapper... additionalMappers) throws IOException {
+    public void toXContent(XContentBuilder builder, Params params, ToXContent custom) throws IOException {
         builder.startObject(name);
         if (nested.isNested()) {
             builder.field("type", NESTED_CONTENT_TYPE);
@@ -567,7 +567,7 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll, Clonea
             if (nested.isIncludeInRoot()) {
                 builder.field("include_in_root", true);
             }
-        } else if (mappers.isEmpty()) { // only write the object content type if there are no properties, otherwise, it is automatically detected
+        } else if (mappers.isEmpty() && custom == null) { // only write the object content type if there are no properties, otherwise, it is automatically detected
             builder.field("type", CONTENT_TYPE);
         }
         if (dynamic != null) {
@@ -598,26 +598,9 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll, Clonea
             }
         });
 
-        // check internal mappers first (this is only relevant for root object)
-        for (Mapper mapper : sortedMappers) {
-            if (mapper instanceof InternalMapper) {
-                mapper.toXContent(builder, params);
-            }
-        }
-        if (additionalMappers != null && additionalMappers.length > 0) {
-            TreeMap<String, Mapper> additionalSortedMappers = new TreeMap<>();
-            for (Mapper mapper : additionalMappers) {
-                additionalSortedMappers.put(mapper.name(), mapper);
-            }
-
-            for (Mapper mapper : additionalSortedMappers.values()) {
-                mapper.toXContent(builder, params);
-            }
-        }
-
         int count = 0;
         for (Mapper mapper : sortedMappers) {
-            if (!(mapper instanceof InternalMapper)) {
+            if (!(mapper instanceof RootMapper)) {
                 if (count++ == 0) {
                     builder.startObject("properties");
                 }

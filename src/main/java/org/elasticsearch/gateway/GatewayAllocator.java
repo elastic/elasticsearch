@@ -19,8 +19,8 @@
 
 package org.elasticsearch.gateway;
 
-import com.carrotsearch.hppc.ObjectLongOpenHashMap;
-import com.carrotsearch.hppc.ObjectOpenHashSet;
+import com.carrotsearch.hppc.ObjectLongHashMap;
+import com.carrotsearch.hppc.ObjectHashSet;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.predicates.ObjectPredicate;
 import com.google.common.collect.Maps;
@@ -68,7 +68,7 @@ public class GatewayAllocator extends AbstractComponent {
 
     private final ConcurrentMap<ShardId, Map<DiscoveryNode, TransportNodesListShardStoreMetaData.StoreFilesMetaData>> cachedStores = ConcurrentCollections.newConcurrentMap();
 
-    private final ConcurrentMap<ShardId, ObjectLongOpenHashMap<DiscoveryNode>> cachedShardsState = ConcurrentCollections.newConcurrentMap();
+    private final ConcurrentMap<ShardId, ObjectLongHashMap<DiscoveryNode>> cachedShardsState = ConcurrentCollections.newConcurrentMap();
 
     private final TimeValue listTimeout;
 
@@ -121,16 +121,17 @@ public class GatewayAllocator extends AbstractComponent {
                 continue;
             }
 
-            ObjectLongOpenHashMap<DiscoveryNode> nodesState = buildShardStates(nodes, shard, metaData.index(shard.index()));
+            ObjectLongHashMap<DiscoveryNode> nodesState = buildShardStates(nodes, shard, metaData.index(shard.index()));
 
             int numberOfAllocationsFound = 0;
             long highestVersion = -1;
             Set<DiscoveryNode> nodesWithHighestVersion = Sets.newHashSet();
-            final boolean[] states = nodesState.allocated;
+
+            assert !nodesState.containsKey(null);
             final Object[] keys = nodesState.keys;
             final long[] values = nodesState.values;
-            for (int i = 0; i < states.length; i++) {
-                if (!states[i]) {
+            for (int i = 0; i < keys.length; i++) {
+                if (keys[i] == null) {
                     continue;
                 }
 
@@ -390,13 +391,13 @@ public class GatewayAllocator extends AbstractComponent {
      * A shard on shared storage will return at least shard state 0 for all
      * nodes, indicating that the shard can be allocated to any node.
      */
-    private ObjectLongOpenHashMap<DiscoveryNode> buildShardStates(final DiscoveryNodes nodes, MutableShardRouting shard, IndexMetaData indexMetaData) {
-        ObjectLongOpenHashMap<DiscoveryNode> shardStates = cachedShardsState.get(shard.shardId());
-        ObjectOpenHashSet<String> nodeIds;
+    private ObjectLongHashMap<DiscoveryNode> buildShardStates(final DiscoveryNodes nodes, MutableShardRouting shard, IndexMetaData indexMetaData) {
+        ObjectLongHashMap<DiscoveryNode> shardStates = cachedShardsState.get(shard.shardId());
+        ObjectHashSet<String> nodeIds;
         if (shardStates == null) {
-            shardStates = new ObjectLongOpenHashMap<>();
+            shardStates = new ObjectLongHashMap<>();
             cachedShardsState.put(shard.shardId(), shardStates);
-            nodeIds = ObjectOpenHashSet.from(nodes.dataNodes().keys());
+            nodeIds = new ObjectHashSet<>(nodes.dataNodes().keys());
         } else {
             // clean nodes that have failed
             shardStates.keys().removeAll(new ObjectPredicate<DiscoveryNode>() {
@@ -405,7 +406,7 @@ public class GatewayAllocator extends AbstractComponent {
                     return !nodes.nodeExists(node.id());
                 }
             });
-            nodeIds = ObjectOpenHashSet.newInstance();
+            nodeIds = new ObjectHashSet<>();
             // we have stored cached from before, see if the nodes changed, if they have, go fetch again
             for (ObjectCursor<DiscoveryNode> cursor : nodes.dataNodes().values()) {
                 DiscoveryNode node = cursor.value;
@@ -452,13 +453,13 @@ public class GatewayAllocator extends AbstractComponent {
 
     private Map<DiscoveryNode, TransportNodesListShardStoreMetaData.StoreFilesMetaData> buildShardStores(DiscoveryNodes nodes, MutableShardRouting shard) {
         Map<DiscoveryNode, TransportNodesListShardStoreMetaData.StoreFilesMetaData> shardStores = cachedStores.get(shard.shardId());
-        ObjectOpenHashSet<String> nodesIds;
+        ObjectHashSet<String> nodesIds;
         if (shardStores == null) {
             shardStores = Maps.newHashMap();
             cachedStores.put(shard.shardId(), shardStores);
-            nodesIds = ObjectOpenHashSet.from(nodes.dataNodes().keys());
+            nodesIds = new ObjectHashSet<>(nodes.dataNodes().keys());
         } else {
-            nodesIds = ObjectOpenHashSet.newInstance();
+            nodesIds = new ObjectHashSet<>();
             // clean nodes that have failed
             for (Iterator<DiscoveryNode> it = shardStores.keySet().iterator(); it.hasNext(); ) {
                 DiscoveryNode node = it.next();

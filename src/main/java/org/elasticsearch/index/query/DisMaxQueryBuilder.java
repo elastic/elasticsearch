@@ -30,10 +30,8 @@ import static com.google.common.collect.Lists.newArrayList;
  * A query that generates the union of documents produced by its sub-queries, and that scores each document
  * with the maximum score for that document as produced by any sub-query, plus a tie breaking increment for any
  * additional matching sub-queries.
- *
- *
  */
-public class DisMaxQueryBuilder extends BaseQueryBuilder implements BoostableQueryBuilder<DisMaxQueryBuilder> {
+public class DisMaxQueryBuilder extends QueryBuilder implements BoostableQueryBuilder<DisMaxQueryBuilder> {
 
     private ArrayList<QueryBuilder> queries = newArrayList();
 

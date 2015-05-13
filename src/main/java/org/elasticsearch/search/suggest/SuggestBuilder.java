@@ -18,19 +18,15 @@
  */
 package org.elasticsearch.search.suggest;
 
+import org.elasticsearch.action.support.ToXContentToBytes;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.search.suggest.context.CategoryContextMapping;
+import org.elasticsearch.search.suggest.context.ContextMapping.ContextQuery;
+import org.elasticsearch.search.suggest.context.GeolocationContextMapping;
+
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-
-import org.elasticsearch.client.Requests;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.search.suggest.context.ContextMapping.ContextQuery;
-import org.elasticsearch.search.suggest.context.CategoryContextMapping;
-import org.elasticsearch.search.suggest.context.GeolocationContextMapping;
 
 /**
  * Defines how to perform suggesting. This builders allows a number of global options to be specified and
@@ -39,7 +35,7 @@ import org.elasticsearch.search.suggest.context.GeolocationContextMapping;
  * Suggesting works by suggesting terms that appear in the suggest text that are similar compared to the terms in
  * provided text. These spelling suggestions are based on several options described in this class.
  */
-public class SuggestBuilder implements ToXContent {
+public class SuggestBuilder extends ToXContentToBytes {
 
     private final String name;
     private String globalText;
@@ -100,31 +96,7 @@ public class SuggestBuilder implements ToXContent {
         return builder;
     }
 
-    /**
-     * Returns a {@link org.elasticsearch.common.bytes.BytesReference}
-     * representing the suggest lookup request.
-     * Builds the request as {@link org.elasticsearch.client.Requests#CONTENT_TYPE}
-     */
-    public BytesReference buildAsBytes() {
-        return this.buildAsBytes(Requests.CONTENT_TYPE);
-    }
-
-    /**
-     * Returns a {@link org.elasticsearch.common.bytes.BytesReference}
-     * representing the suggest lookup request.
-     * Builds the request as the provided <code>contentType</code>
-     */
-    public BytesReference buildAsBytes(XContentType contentType) {
-        try {
-            XContentBuilder builder = XContentFactory.contentBuilder(contentType);
-            toXContent(builder, ToXContent.EMPTY_PARAMS);
-            return builder.bytes();
-        } catch (Exception e) {
-            throw new SuggestBuilderException("Failed to build suggest query", e);
-        }
-    }
-
-    public static abstract class SuggestionBuilder<T> implements ToXContent {
+    public static abstract class SuggestionBuilder<T> extends ToXContentToBytes {
 
         private String name;
         private String suggester;
@@ -307,20 +279,6 @@ public class SuggestBuilder implements ToXContent {
         public T shardSize(Integer shardSize) {
             this.shardSize = shardSize;
             return (T)this;
-        }
-
-        public BytesReference buildAsBytes() {
-            return this.buildAsBytes(Requests.CONTENT_TYPE);
-        }
-
-        public BytesReference buildAsBytes(XContentType contentType) {
-            try {
-                XContentBuilder builder = XContentFactory.contentBuilder(contentType);
-                toXContent(builder, ToXContent.EMPTY_PARAMS);
-                return builder.bytes();
-            } catch (Exception e) {
-                throw new SuggestBuilderException("Failed to build suggest", e);
-            }
         }
     }
 }

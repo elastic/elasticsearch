@@ -25,6 +25,8 @@ import com.carrotsearch.hppc.cursors.IntObjectCursor;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Sets;
 import com.google.common.collect.UnmodifiableIterator;
+
+import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -35,11 +37,13 @@ import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
 
-import static com.google.common.collect.Lists.newArrayList;
+import static com.google.common.collect.Lists.*;
 
 /**
  * The {@link IndexRoutingTable} represents routing information for a single
@@ -540,7 +544,26 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
 
     public String prettyPrint() {
         StringBuilder sb = new StringBuilder("-- index [" + index + "]\n");
+
+        List<IndexShardRoutingTable> ordered = new ArrayList<>();
         for (IndexShardRoutingTable indexShard : this) {
+            ordered.add(indexShard);
+        }
+
+        CollectionUtil.timSort(ordered, new Comparator<IndexShardRoutingTable>() {
+            @Override
+            public int compare(IndexShardRoutingTable o1, IndexShardRoutingTable o2) {
+                int v = o1.shardId().index().name().compareTo(
+                        o2.shardId().index().name());
+                if (v == 0) {
+                    v = Integer.compare(o1.shardId().id(),
+                                        o2.shardId().id());
+                }
+                return v;
+            }
+        });
+
+        for (IndexShardRoutingTable indexShard : ordered) {
             sb.append("----shard_id [").append(indexShard.shardId().index().name()).append("][").append(indexShard.shardId().id()).append("]\n");
             for (ShardRouting shard : indexShard) {
                 sb.append("--------").append(shard.shortSummary()).append("\n");

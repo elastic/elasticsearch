@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.bucket.terms.support;
 
-import com.carrotsearch.hppc.LongOpenHashSet;
+import com.carrotsearch.hppc.LongHashSet;
 import com.carrotsearch.hppc.LongSet;
 
 import org.apache.lucene.index.RandomAccessOrds;
@@ -59,10 +59,10 @@ public class IncludeExclude {
 
         private LongFilter(int numValids, int numInvalids) {
             if (numValids > 0) {
-                valids = new LongOpenHashSet(numValids);
+                valids = new LongHashSet(numValids);
             }
             if (numInvalids > 0) {
-                invalids = new LongOpenHashSet(numInvalids);
+                invalids = new LongHashSet(numInvalids);
             }
         }
 

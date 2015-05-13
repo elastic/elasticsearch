@@ -355,7 +355,10 @@ public abstract class QueryBuilders {
      *
      * @param queryBuilder  The query to apply the filter to
      * @param filterBuilder The filter to apply on the query
+     * @deprecated Use {@link #boolQuery()} instead with a {@code must} clause
+     *             for the query and a {@code filter} clause for the filter.
      */
+    @Deprecated
     public static FilteredQueryBuilder filteredQuery(@Nullable QueryBuilder queryBuilder, @Nullable QueryBuilder filterBuilder) {
         return new FilteredQueryBuilder(queryBuilder, filterBuilder);
     }

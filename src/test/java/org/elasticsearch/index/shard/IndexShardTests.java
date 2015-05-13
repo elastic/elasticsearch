@@ -19,6 +19,7 @@
 package org.elasticsearch.index.shard;
 
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.MutableShardRouting;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -26,10 +27,12 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.junit.Test;
 
@@ -93,6 +96,33 @@ public class IndexShardTests extends ElasticsearchSingleNodeTest {
             shardStateMetaData = load(logger, env.availableShardPaths(id));
             assertEquals(shardStateMetaData, state3);
             assertEquals("foo", state3.indexUUID);
+        }
+    }
+
+    @Test
+    public void testLockTryingToDelete() throws Exception {
+        createIndex("test");
+        ensureGreen();
+        //IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        NodeEnvironment env = getInstanceFromNode(NodeEnvironment.class);
+        Path[] shardPaths = env.availableShardPaths(new ShardId("test", 0));
+        logger.info("--> paths: [{}]", shardPaths);
+        // Should not be able to acquire the lock because it's already open
+        try {
+            NodeEnvironment.acquireFSLockForPaths(ImmutableSettings.EMPTY, shardPaths);
+            fail("should not have been able to acquire the lock");
+        } catch (ElasticsearchException e) {
+            assertTrue("msg: " + e.getMessage(), e.getMessage().contains("unable to acquire write.lock"));
+        }
+        // Test without the regular shard lock to assume we can acquire it
+        // (worst case, meaning that the shard lock could be acquired and
+        // we're green to delete the shard's directory)
+        ShardLock sLock = new DummyShardLock(new ShardId("test", 0));
+        try {
+            env.deleteShardDirectoryUnderLock(sLock, ImmutableSettings.builder().build());
+            fail("should not have been able to delete the directory");
+        } catch (ElasticsearchException e) {
+            assertTrue("msg: " + e.getMessage(), e.getMessage().contains("unable to acquire write.lock"));
         }
     }
 

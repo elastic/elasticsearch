@@ -58,14 +58,13 @@ public class MetadataMapperTest extends AttachmentUnitTestCase {
 
         BytesReference json = jsonBuilder()
                 .startObject()
-                    .field("_id", 1)
                     .startObject("file")
                         .field("_name", filename)
                         .field("_content", html)
                     .endObject()
                 .endObject().bytes();
 
-        ParseContext.Document doc =  docMapper.parse(json).rootDoc();
+        ParseContext.Document doc =  docMapper.parse("person", "1", json).rootDoc();
         assertThat(doc.get(docMapper.mappers().getMapper("file.content").names().indexName()), containsString("World"));
         assertThat(doc.get(docMapper.mappers().getMapper("file.name").names().indexName()), equalTo(filename));
         if (expectedDate == null) {

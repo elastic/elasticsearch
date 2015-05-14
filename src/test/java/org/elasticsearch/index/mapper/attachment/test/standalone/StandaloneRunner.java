@@ -92,7 +92,7 @@ public class StandaloneRunner extends CliTool {
 
         @Override
         public ExitStatus execute(Settings settings, Environment env) throws Exception {
-            XContentBuilder builder = jsonBuilder().startObject().field("_id", 1).field("file").startObject();
+            XContentBuilder builder = jsonBuilder().startObject().field("file").startObject();
 
             if (base64text != null) {
                 // If base64 is provided
@@ -109,7 +109,7 @@ public class StandaloneRunner extends CliTool {
 
             BytesReference json = builder.endObject().endObject().bytes();
 
-            ParseContext.Document doc = docMapper.parse(json).rootDoc();
+            ParseContext.Document doc = docMapper.parse("person", "1", json).rootDoc();
 
             terminal.println("## Extracted text");
             terminal.println("--------------------- BEGIN -----------------------");

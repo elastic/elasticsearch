@@ -68,7 +68,6 @@ public class LanguageDetectionAttachmentMapperTests extends AttachmentUnitTestCa
 
         XContentBuilder xcb = jsonBuilder()
                 .startObject()
-                    .field("_id", 1)
                     .startObject("file")
                         .field("_name", filename)
                         .field("_content", html);
@@ -79,7 +78,7 @@ public class LanguageDetectionAttachmentMapperTests extends AttachmentUnitTestCa
 
         xcb.endObject().endObject();
 
-        ParseContext.Document doc =  docMapper.parse(xcb.bytes()).rootDoc();
+        ParseContext.Document doc =  docMapper.parse("person", "1", xcb.bytes()).rootDoc();
 
         // Our mapping should be kept as a String
         assertThat(doc.get(docMapper.mappers().getMapper("file.language").names().indexName()), equalTo(expected));
@@ -125,14 +124,13 @@ public class LanguageDetectionAttachmentMapperTests extends AttachmentUnitTestCa
 
         XContentBuilder xcb = jsonBuilder()
                 .startObject()
-                .field("_id", 1)
                 .startObject("file")
                     .field("_name", "text-in-english.txt")
                     .field("_content", html)
                     .field("_detect_language", true)
                 .endObject().endObject();
 
-        ParseContext.Document doc =  docMapper.parse(xcb.bytes()).rootDoc();
+        ParseContext.Document doc =  docMapper.parse("person", "1", xcb.bytes()).rootDoc();
 
         // Our mapping should be kept as a String
         assertThat(doc.get(docMapper.mappers().getMapper("file.language").names().indexName()), equalTo("en"));

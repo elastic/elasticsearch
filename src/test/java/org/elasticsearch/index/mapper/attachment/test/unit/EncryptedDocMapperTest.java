@@ -55,12 +55,11 @@ public class EncryptedDocMapperTest extends AttachmentUnitTestCase {
 
         BytesReference json = jsonBuilder()
                 .startObject()
-                    .field("_id", 1)
                     .field("file1", html)
                     .field("file2", pdf)
                 .endObject().bytes();
 
-        ParseContext.Document doc =  docMapper.parse(json).rootDoc();
+        ParseContext.Document doc =  docMapper.parse("person", "1", json).rootDoc();
         assertThat(doc.get(docMapper.mappers().getMapper("file1.content").names().indexName()), containsString("World"));
         assertThat(doc.get(docMapper.mappers().getMapper("file1.title").names().indexName()), equalTo("Hello"));
         assertThat(doc.get(docMapper.mappers().getMapper("file1.author").names().indexName()), equalTo("kimchy"));
@@ -88,12 +87,11 @@ public class EncryptedDocMapperTest extends AttachmentUnitTestCase {
 
         BytesReference json = jsonBuilder()
                 .startObject()
-                .field("_id", 1)
                 .field("file1", pdf)
                 .field("file2", html)
                 .endObject().bytes();
 
-        ParseContext.Document doc =  docMapper.parse(json).rootDoc();
+        ParseContext.Document doc =  docMapper.parse("person", "1", json).rootDoc();
         assertThat(doc.get(docMapper.mappers().getMapper("file1").names().indexName()), nullValue());
         assertThat(doc.get(docMapper.mappers().getMapper("file1.title").names().indexName()), nullValue());
         assertThat(doc.get(docMapper.mappers().getMapper("file1.author").names().indexName()), nullValue());
@@ -125,12 +123,11 @@ public class EncryptedDocMapperTest extends AttachmentUnitTestCase {
 
         BytesReference json = jsonBuilder()
                 .startObject()
-                .field("_id", 1)
                 .field("file1", pdf)
                 .field("file2", html)
                 .endObject().bytes();
 
-        ParseContext.Document doc =  docMapper.parse(json).rootDoc();
+        ParseContext.Document doc =  docMapper.parse("person", "1", json).rootDoc();
         assertThat(doc.get(docMapper.mappers().getMapper("file1").names().indexName()), nullValue());
         assertThat(doc.get(docMapper.mappers().getMapper("file1.title").names().indexName()), nullValue());
         assertThat(doc.get(docMapper.mappers().getMapper("file1.author").names().indexName()), nullValue());

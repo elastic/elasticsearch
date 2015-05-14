@@ -50,6 +50,8 @@ public class Environment {
 
     private final Path[] dataWithClusterFiles;
 
+    private final Path[] repoFiles;
+
     private final Path configFile;
 
     private final Path pluginsFile;
@@ -110,7 +112,15 @@ public class Environment {
             dataFiles = new Path[]{homeFile.resolve("data")};
             dataWithClusterFiles = new Path[]{homeFile.resolve("data").resolve(ClusterName.clusterNameFromSettings(settings).value())};
         }
-
+        String[] repoPaths = settings.getAsArray("path.repo");
+        if (repoPaths.length > 0) {
+            repoFiles = new Path[repoPaths.length];
+            for (int i = 0; i < repoPaths.length; i++) {
+                repoFiles[i] = PathUtils.get(repoPaths[i]);
+            }
+        } else {
+            repoFiles = new Path[0];
+        }
         if (settings.get("path.logs") != null) {
             logsFile = PathUtils.get(cleanPath(settings.get("path.logs")));
         } else {
@@ -150,6 +160,22 @@ public class Environment {
      */
     public Path[] dataWithClusterFiles() {
         return dataWithClusterFiles;
+    }
+
+    /**
+     * The shared filesystem repo locations.
+     */
+    public Path[] repoFiles() {
+        return repoFiles;
+    }
+
+    /**
+     * Resolves the specified location against the list of configured repository roots
+     *
+     * If the specified location doesn't match any of the roots, returns null.
+     */
+    public Path resolveRepoFile(String location) {
+        return PathUtils.get(repoFiles, location);
     }
 
     /**

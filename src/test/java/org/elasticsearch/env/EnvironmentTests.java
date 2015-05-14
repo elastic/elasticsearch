@@ -30,6 +30,10 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.net.URL;
 
+import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.hamcrest.CoreMatchers.notNullValue;
+import static org.hamcrest.CoreMatchers.nullValue;
+
 /**
  * Simple unit-tests for Environment.java
  */
@@ -68,4 +72,19 @@ public class EnvironmentTests extends ElasticsearchTestCase {
             assertEquals(string, "tool help");
         }
     }
+
+    @Test
+    public void testRepositoryResolution() throws IOException {
+        Environment environment = newEnvironment();
+        assertThat(environment.resolveRepoFile("/test/repos/repo1"), nullValue());
+        assertThat(environment.resolveRepoFile("test/repos/repo1"), nullValue());
+        environment = newEnvironment(settingsBuilder().putArray("path.repo", "/test/repos", "/another/repos").build());
+        assertThat(environment.resolveRepoFile("/test/repos/repo1"), notNullValue());
+        assertThat(environment.resolveRepoFile("test/repos/repo1"), notNullValue());
+        assertThat(environment.resolveRepoFile("/another/repos/repo1"), notNullValue());
+        assertThat(environment.resolveRepoFile("/test/repos/../repo1"), nullValue());
+        assertThat(environment.resolveRepoFile("/test/repos/../repos/repo1"), notNullValue());
+        assertThat(environment.resolveRepoFile("/somethingeles/repos/repo1"), nullValue());
+    }
+
 }

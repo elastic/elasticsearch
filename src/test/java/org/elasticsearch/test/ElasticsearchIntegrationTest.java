@@ -93,6 +93,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.discovery.zen.elect.ElectMasterService;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.fielddata.FieldDataType;
@@ -1844,6 +1845,27 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         }
 
         return timeZone;
+    }
+
+    /**
+     * Returns path to a random directory that can be used to create a temporary file system repo
+     */
+    public Path randomRepoPath() {
+        return randomRepoPath(internalCluster().getDefaultSettings());
+    }
+
+    /**
+     * Returns path to a random directory that can be used to create a temporary file system repo
+     */
+    public static Path randomRepoPath(Settings settings) {
+        Environment environment = new Environment(settings);
+        Path[] repoFiles = environment.repoFiles();
+        assert repoFiles.length > 0;
+        Path path;
+        do {
+            path = repoFiles[0].resolve(randomAsciiOfLength(10));
+        } while (Files.exists(path));
+        return path;
     }
 
     protected NumShards getNumShards(String index) {

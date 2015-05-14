@@ -44,6 +44,7 @@ governing permissions and limitations under the License. -->
 
     <properties>
         <!-- You can add any specific project property here -->
+        <tests.jvms>1</tests.jvms>
     </properties>
 
     <dependencies>

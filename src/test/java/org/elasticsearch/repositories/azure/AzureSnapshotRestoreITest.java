@@ -52,11 +52,10 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
 /**
- * This test needs Azure to run and -Dtests.azure=true to be set
+ * This test needs Azure to run and -Dtests.thirdparty=true to be set
  * and -Dtests.config=/path/to/elasticsearch.yml
  * @see org.elasticsearch.cloud.azure.AbstractAzureTest
  */
-@AbstractAzureTest.AzureTest
 @ElasticsearchIntegrationTest.ClusterScope(
         scope = ElasticsearchIntegrationTest.Scope.SUITE,
         numDataNodes = 1,

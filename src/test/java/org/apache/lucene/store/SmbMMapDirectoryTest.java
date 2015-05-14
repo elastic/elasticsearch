@@ -22,7 +22,7 @@ package org.apache.lucene.store;
 import java.io.IOException;
 import java.nio.file.Path;
 
-public class SmbMMapDirectoryTest extends BaseDirectoryTestCase {
+public class SmbMMapDirectoryTest extends ElasticSearchBaseDirectoryTestCase {
 
     @Override
     protected Directory getDirectory(Path file) throws IOException {

@@ -28,11 +28,10 @@ import org.hamcrest.Matchers;
 import org.junit.Test;
 
 /**
- * This test needs Azure to run and -Dtests.azure=true to be set
+ * This test needs Azure to run and -Dtests.thirdparty=true to be set
  * and -Des.config=/path/to/elasticsearch.yml
  * @see org.elasticsearch.cloud.azure.AbstractAzureTest
  */
-@AbstractAzureTest.AzureTest
 @ElasticsearchIntegrationTest.ClusterScope(
         scope = ElasticsearchIntegrationTest.Scope.TEST,
         numDataNodes = 1,

@@ -53,6 +53,7 @@ governing permissions and limitations under the License. -->
         <es.plugin.port>9300</es.plugin.port>
         <!-- currently has no unit tests -->
         <tests.ifNoTests>warn</tests.ifNoTests>
+        <tests.jvms>1</tests.jvms>
     </properties>
 
     <dependencies>

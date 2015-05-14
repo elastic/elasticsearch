@@ -68,3 +68,6 @@ JAVA_OPTS="$JAVA_OPTS -XX:+DisableExplicitGC"
 
 # Ensure UTF-8 encoding by default (e.g. filenames)
 JAVA_OPTS="$JAVA_OPTS -Dfile.encoding=UTF-8"
+
+# Use our provided JNA always versus the system one
+JAVA_OPTS="$JAVA_OPTS -Djna.nosys=true"

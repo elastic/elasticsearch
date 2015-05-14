@@ -69,6 +69,7 @@ fi
 checkJava() {
     if [ -x "$JAVA_HOME/bin/java" ]; then
         JAVA="$JAVA_HOME/bin/java"
+        export JAVA_HOME
     else
         JAVA=`which java`
     fi

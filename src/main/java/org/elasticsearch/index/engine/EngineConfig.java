@@ -200,7 +200,7 @@ public final class EngineConfig {
     }
 
     /** if true the engine will start even if the translog id in the commit point can not be found */
-    public boolean forceNewTranlog() {
+    public boolean forceNewTranslog() {
         return forceNewTranslog;
     }
 

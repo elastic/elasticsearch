@@ -75,7 +75,22 @@ public final class PathUtils {
             return Paths.get(uri);
         }
     }
-    
+
+    /**
+     * Tries to resolve the given path against the list of available roots.
+     *
+     * If path starts with one of the listed roots, it returned back by this method, otherwise null is returned.
+     */
+    public static Path get(Path[] roots, String path) {
+        for (Path root : roots) {
+            Path normalizedPath = root.resolve(path).normalize();
+            if(normalizedPath.startsWith(root)) {
+                return normalizedPath;
+            }
+        }
+        return null;
+    }
+
     /**
      * Returns the default FileSystem.
      */

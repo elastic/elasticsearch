@@ -489,7 +489,7 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
         logger.info("-->  creating repository");
         assertAcked(client().admin().cluster().preparePutRepository("test-repo")
                 .setType("fs").setSettings(settingsBuilder()
-                        .put("location", createTempDir().toAbsolutePath())
+                        .put("location", randomRepoPath().toAbsolutePath())
                         .put("compress", randomBoolean())
                         .put("chunk_size", randomIntBetween(100, 1000))));
         logger.info("--> snapshot");

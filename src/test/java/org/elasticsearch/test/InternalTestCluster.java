@@ -278,6 +278,7 @@ public final class InternalTestCluster extends TestCluster {
             }
         }
         builder.put("path.home", baseDir);
+        builder.put("path.repo", baseDir.resolve("repos"));
         builder.put("transport.tcp.port", BASE_PORT + "-" + (BASE_PORT+100));
         builder.put("http.port", BASE_PORT+101 + "-" + (BASE_PORT+200));
         builder.put("config.ignore_system_properties", true);

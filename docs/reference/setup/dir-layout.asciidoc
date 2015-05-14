@@ -16,6 +16,9 @@ on the node. Can hold multiple locations. | {path.home}/data| path.data
 | logs | Log files location. | {path.home}/logs | path.logs
 
 | plugins | Plugin files location. Each plugin will be contained in a subdirectory. | {path.home}/plugins | path.plugins
+
+| repo | Shared file system repository locations. Can hold multiple locations. A file system repository can be placed in to any subdirectory of any directory specified here. | empty | path.repo
+
 |=======================================================================
 
 Multiple `data` paths may be specified, in order to spread data across

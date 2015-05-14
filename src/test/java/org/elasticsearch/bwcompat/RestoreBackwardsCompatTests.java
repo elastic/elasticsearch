@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.AbstractSnapshotTests;
 import org.elasticsearch.snapshots.RestoreInfo;
@@ -47,12 +48,21 @@ import java.util.SortedSet;
 import java.util.TreeSet;
 
 import static com.google.common.collect.Lists.newArrayList;
+import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.*;
 
 @Slow
 @ClusterScope(scope = Scope.TEST)
 public class RestoreBackwardsCompatTests extends AbstractSnapshotTests {
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        return settingsBuilder()
+                .put(super.nodeSettings(nodeOrdinal))
+                .put("path.repo", reposRoot())
+                .build();
+    }
 
     @Test
     public void restoreOldSnapshots() throws Exception {
@@ -103,6 +113,10 @@ public class RestoreBackwardsCompatTests extends AbstractSnapshotTests {
         }
     }
 
+    private Path reposRoot() {
+        return getDataPath(".");
+    }
+
     private List<String> repoVersions() throws Exception {
         return listRepoVersions("repo");
     }
@@ -113,7 +127,7 @@ public class RestoreBackwardsCompatTests extends AbstractSnapshotTests {
 
     private List<String> listRepoVersions(String prefix) throws Exception {
         List<String> repoVersions = newArrayList();
-        Path repoFiles = getDataPath(".");
+        Path repoFiles = reposRoot();
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(repoFiles, prefix + "-*.zip")) {
             for (Path entry : stream) {
                 String fileName = entry.getFileName().toString();
@@ -131,7 +145,7 @@ public class RestoreBackwardsCompatTests extends AbstractSnapshotTests {
         URI repoJarUri = new URI("jar:" + repoFileUri.toString() + "!/repo/");
         logger.info("-->  creating repository [{}] for version [{}]", repo, version);
         assertAcked(client().admin().cluster().preparePutRepository(repo)
-                .setType("url").setSettings(ImmutableSettings.settingsBuilder()
+                .setType("url").setSettings(settingsBuilder()
                         .put("url", repoJarUri.toString())));
     }
 

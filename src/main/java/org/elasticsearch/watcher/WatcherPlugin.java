@@ -15,6 +15,7 @@ import org.elasticsearch.plugins.AbstractPlugin;
 import org.elasticsearch.watcher.actions.email.service.InternalEmailService;
 import org.elasticsearch.watcher.history.HistoryModule;
 import org.elasticsearch.watcher.license.LicenseService;
+import org.elasticsearch.watcher.support.http.HttpClient;
 import org.elasticsearch.watcher.support.init.InitializingService;
 
 import java.util.Collection;
@@ -65,7 +66,8 @@ public class WatcherPlugin extends AbstractPlugin {
                 // constructs
                 InitializingService.class,
                 LicenseService.class,
-                InternalEmailService.class);
+                InternalEmailService.class,
+                HttpClient.class);
     }
 
     @Override

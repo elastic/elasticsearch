@@ -59,7 +59,7 @@ public class IndexActionTests extends ElasticsearchIntegrationTest {
         Watch watch = WatcherTestUtils.createTestWatch("test_watch",
                 ClientProxy.of(client()),
                 ScriptServiceProxy.of(internalCluster().getInstance(ScriptService.class)),
-                new HttpClient(ImmutableSettings.EMPTY, mock(HttpAuthRegistry.class)),
+                new HttpClient(ImmutableSettings.EMPTY, mock(HttpAuthRegistry.class)).start(),
                 new EmailService() {
                     @Override
                     public EmailService.EmailSent send(Email email, Authentication auth, Profile profile) {

@@ -5,10 +5,11 @@
  */
 package org.elasticsearch.watcher.support.http;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.base.Charsets;
-import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
@@ -29,7 +30,7 @@ import java.util.Map;
 /**
  * Client class to wrap http connections
  */
-public class HttpClient extends AbstractComponent {
+public class HttpClient extends AbstractLifecycleComponent<HttpClient> {
 
     private static final String SETTINGS_SSL_PREFIX = "watcher.http.ssl.";
     private static final String SETTINGS_SSL_SHIELD_PREFIX = "shield.ssl.";
@@ -43,13 +44,18 @@ public class HttpClient extends AbstractComponent {
     public static final String SETTINGS_SSL_TRUSTSTORE_ALGORITHM = SETTINGS_SSL_PREFIX + "truststore.algorithm";
     private static final String SETTINGS_SSL_SHIELD_TRUSTSTORE_ALGORITHM = SETTINGS_SSL_SHIELD_PREFIX + "truststore.algorithm";
 
-    private final SSLSocketFactory sslSocketFactory;
     private final HttpAuthRegistry httpAuthRegistry;
+
+    private SSLSocketFactory sslSocketFactory;
 
     @Inject
     public HttpClient(Settings settings, HttpAuthRegistry httpAuthRegistry) {
         super(settings);
         this.httpAuthRegistry = httpAuthRegistry;
+    }
+
+    @Override
+    protected void doStart() throws ElasticsearchException {
         if (!settings.getByPrefix(SETTINGS_SSL_PREFIX).getAsMap().isEmpty() ||
                 !settings.getByPrefix(SETTINGS_SSL_SHIELD_PREFIX).getAsMap().isEmpty()) {
             sslSocketFactory = createSSLSocketFactory(settings);
@@ -57,6 +63,14 @@ public class HttpClient extends AbstractComponent {
             logger.trace("no ssl context configured");
             sslSocketFactory = null;
         }
+    }
+
+    @Override
+    protected void doStop() throws ElasticsearchException {
+    }
+
+    @Override
+    protected void doClose() throws ElasticsearchException {
     }
 
     public HttpResponse execute(HttpRequest request) throws IOException {
@@ -135,7 +149,7 @@ public class HttpClient extends AbstractComponent {
             String trustStoreAlgorithm = settings.get(SETTINGS_SSL_TRUSTSTORE_ALGORITHM, settings.get(SETTINGS_SSL_SHIELD_TRUSTSTORE_ALGORITHM, System.getProperty("ssl.TrustManagerFactory.algorithm")));
 
             if (trustStore == null) {
-                throw new RuntimeException("truststore is not configured, use " + SETTINGS_SSL_TRUSTSTORE);
+                logger.debug("no truststore defined, using system default");
             }
 
             if (trustStoreAlgorithm == null) {
@@ -148,27 +162,9 @@ public class HttpClient extends AbstractComponent {
                 throw new ElasticsearchIllegalStateException("could not find truststore [" + trustStore + "]");
             }
 
-            KeyManager[] keyManagers;
-            TrustManager[] trustManagers;
-            try (InputStream trustStoreStream = Files.newInputStream(path)) {
-                // Load TrustStore
-                KeyStore ks = KeyStore.getInstance("jks");
-                ks.load(trustStoreStream, trustStorePassword == null ? null : trustStorePassword.toCharArray());
-
-                KeyManagerFactory factory = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
-                factory.init(ks, trustStorePassword == null ? null : trustStorePassword.toCharArray());
-                keyManagers = factory.getKeyManagers();
-
-                // Initialize a trust manager factory with the trusted store
-                TrustManagerFactory trustFactory = TrustManagerFactory.getInstance(trustStoreAlgorithm);
-                trustFactory.init(ks);
-
-                // Retrieve the trust managers from the factory
-                trustManagers = trustFactory.getTrustManagers();
-            } catch (Exception e) {
-                throw new RuntimeException("http client failed to initialize a TrustManagerFactory", e);
-            }
-
+            // FIXME a keystore should be configurable and key_password also needs to be allowed. The fallback to Shield settings can be problematic without this
+            KeyManager[] keyManagers = keyManagers(trustStore, trustStorePassword, trustStoreAlgorithm, trustStorePassword);
+            TrustManager[] trustManagers = trustManagers(trustStore, trustStorePassword, trustStoreAlgorithm);
             sslContext = SSLContext.getInstance(sslContextProtocol);
             sslContext.init(keyManagers, trustManagers, new SecureRandom());
         } catch (Exception e) {
@@ -179,5 +175,50 @@ public class HttpClient extends AbstractComponent {
 
     public SSLSocketFactory getSslSocketFactory() {
         return sslSocketFactory;
+    }
+
+    private static KeyManager[] keyManagers(String keyStore, String keyStorePassword, String keyStoreAlgorithm, String keyPassword) {
+        if (keyStore == null) {
+            return null;
+        }
+
+        try {
+            // Load KeyStore
+            KeyStore ks = readKeystore(keyStore, keyStorePassword);
+
+            // Initialize KeyManagerFactory
+            KeyManagerFactory kmf = KeyManagerFactory.getInstance(keyStoreAlgorithm);
+            kmf.init(ks, keyPassword.toCharArray());
+            return kmf.getKeyManagers();
+        } catch (Exception e) {
+            throw new RuntimeException("http client failed to initialize a KeyManagerFactory", e);
+        }
+    }
+
+    private static TrustManager[] trustManagers(String trustStorePath, String trustStorePassword, String trustStoreAlgorithm) {
+        try {
+            // Load TrustStore
+            KeyStore ks = null;
+            if (trustStorePath != null) {
+                ks = readKeystore(trustStorePath, trustStorePassword);
+            }
+
+            // Initialize a trust manager factory with the trusted store
+            TrustManagerFactory trustFactory = TrustManagerFactory.getInstance(trustStoreAlgorithm);
+            trustFactory.init(ks);
+            return trustFactory.getTrustManagers();
+        } catch (Exception e) {
+            throw new RuntimeException("http client failed to initialize a TrustManagerFactory", e);
+        }
+    }
+
+    private static KeyStore readKeystore(String path, String password) throws Exception {
+        try (InputStream in = Files.newInputStream(Paths.get(path))) {
+            // Load TrustStore
+            KeyStore ks = KeyStore.getInstance("jks");
+            assert password != null;
+            ks.load(in, password.toCharArray());
+            return ks;
+        }
     }
 }

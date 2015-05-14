@@ -33,6 +33,7 @@
 
     <properties>
         <amazonaws.version>1.9.34</amazonaws.version>
+        <tests.jvms>1</tests.jvms>
     </properties>
 
     <dependencies>

@@ -39,9 +39,16 @@
 
             "tokenizer" : {
                 "kuromoji" : {
-                   "type":"kuromoji_tokenizer"
+                    "type":"kuromoji_tokenizer"
+                },
+                "kuromoji_empty_user_dict" : {
+                    "type":"kuromoji_tokenizer",
+                    "user_dictionary":"org/elasticsearch/index/analysis/empty_user_dict.txt"
+                },
+                "kuromoji_user_dict" : {
+                    "type":"kuromoji_tokenizer",
+                    "user_dictionary":"org/elasticsearch/index/analysis/user_dict.txt"
                 }
-            
             },
             "analyzer" : {
                 "my_analyzer" : {

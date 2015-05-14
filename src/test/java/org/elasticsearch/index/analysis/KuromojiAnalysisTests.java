@@ -245,4 +245,24 @@ public class KuromojiAnalysisTests extends ElasticsearchTestCase {
         return buffer.toString();
     }
 
+    @Test
+    public void testKuromojiUserDict() throws IOException {
+        AnalysisService analysisService = createAnalysisService();
+        TokenizerFactory tokenizerFactory = analysisService.tokenizer("kuromoji_user_dict");
+        String source = "私は制限スピードを超える。";
+        String[] expected = new String[]{"私", "は", "制限スピード", "を", "超える"};
+
+        Tokenizer tokenizer = tokenizerFactory.create();
+        tokenizer.setReader(new StringReader(source));
+        assertSimpleTSOutput(tokenizer, expected);
+    }
+
+    // fix #59
+    @Test
+    public void testKuromojiEmptyUserDict() {
+        AnalysisService analysisService = createAnalysisService();
+        TokenizerFactory tokenizerFactory = analysisService.tokenizer("kuromoji_empty_user_dict");
+        assertThat(tokenizerFactory, instanceOf(KuromojiTokenizerFactory.class));
+    }
+
 }

@@ -88,7 +88,7 @@ The following are settings that can be set for a `kuromoji_tokenizer` tokenizer 
 |:--------------------|:--------------------------------------------------------------------------------------------------------------------------|:------------------|
 | mode                | Tokenization mode: this determines how the tokenizer handles compound and unknown words. `normal` and `search`, `extended`| `search`          |
 | discard_punctuation | `true` if punctuation tokens should be dropped from the output.                                                           | `true`            |
-| user_dict           | set User Dictionary file                                                                                                  |                   |
+| user_dictionary     | set User Dictionary file                                                                                                  |                   |
 
 ### Tokenization mode
 

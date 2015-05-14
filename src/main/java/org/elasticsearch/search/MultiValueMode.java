@@ -20,7 +20,6 @@
 
 package org.elasticsearch.search;
 
-import javafx.collections.transformation.SortedList;
 import org.apache.lucene.index.*;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocIdSetIterator;

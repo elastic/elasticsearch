@@ -380,6 +380,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             if (currentCommittingTranslog != null) {
                 int tops = currentCommittingTranslog.totalOperations();
                 assert tops != TranslogReader.UNKNOWN_OP_COUNT;
+                assert tops >= 0;
                 ops += tops;
             }
         }
@@ -499,7 +500,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      * while receiving future ones as well
      */
     public Translog.View newView() {
-        // we need to acquire the read lock to make sure new translog is created
+        // we need to acquire the read lock to make sure no new translog is created
         // and will be missed by the view we're making
         try (ReleasableLock lock = readLock.acquire()) {
             ArrayList<TranslogReader> translogs = new ArrayList<>();
@@ -571,7 +572,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         }
     }
 
-    private boolean isReferencedGeneration(long generation) { // pkg private for testing
+    private boolean isReferencedGeneration(long generation) { // used to make decisions if a file can be deleted
         return generation >= lastCommittedTranslogFileGeneration;
     }
 
@@ -662,6 +663,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 if (tops == TranslogReader.UNKNOWN_OP_COUNT) {
                     return -1;
                 }
+                assert tops >= 0;
                 ops += tops;
             }
             return ops;
@@ -812,7 +814,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         /**
          * Returns the next operation in the snapshot or <code>null</code> if we reached the end.
          */
-        public Translog.Operation next() throws IOException;
+        Translog.Operation next() throws IOException;
 
     }
 
@@ -1653,8 +1655,8 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             if (currentCommittingTranslog != null) {
                 throw new IllegalStateException("already committing a translog with generation: " + currentCommittingTranslog.getGeneration());
             }
-            final TranslogWriter writer = current;
-            writer.sync();
+            final TranslogWriter oldCurrent = current;
+            oldCurrent.sync();
             currentCommittingTranslog = current.immutableReader();
             Path checkpoint = location.resolve(CHECKPOINT_FILE_NAME);
             assert Checkpoint.read(checkpoint).generation == currentCommittingTranslog.getGeneration();
@@ -1663,16 +1665,15 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             IOUtils.fsync(commitCheckpoint, false);
             IOUtils.fsync(commitCheckpoint.getParent(), true);
             // create a new translog file - this will sync it and update the checkpoint data;
-            final TranslogWriter newFile = createWriter(current.getGeneration() + 1);
-            current = newFile;
+            current = createWriter(current.getGeneration() + 1);
             // notify all outstanding views of the new translog (no views are created now as
             // we hold a write lock).
             for (FsView view : outstandingViews) {
-                view.onNewTranslog(currentCommittingTranslog.clone(), newFile.newReaderFromWriter());
+                view.onNewTranslog(currentCommittingTranslog.clone(), current.newReaderFromWriter());
             }
-            IOUtils.close(writer);
+            IOUtils.close(oldCurrent);
             logger.trace("current translog set to [{}]", current.getGeneration());
-            assert writer.syncNeeded() == false : "old translog writer must not need a sync";
+            assert oldCurrent.syncNeeded() == false : "old translog oldCurrent must not need a sync";
 
         } catch (Throwable t) {
             IOUtils.closeWhileHandlingException(this); // tragic event
@@ -1688,7 +1689,6 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             if (currentCommittingTranslog == null) {
                 prepareCommit();
             }
-            current.sync();
             lastCommittedTranslogFileGeneration = current.getGeneration(); // this is important - otherwise old files will not be cleaned up
             if (recoveredTranslogs.isEmpty() == false) {
                 IOUtils.close(recoveredTranslogs);

@@ -222,8 +222,8 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements Ro
         this.enabled = enabled;
         this.compress = compress;
         this.compressThreshold = compressThreshold;
-        this.includes = includes == null ? Strings.EMPTY_ARRAY : includes;
-        this.excludes = excludes == null ? Strings.EMPTY_ARRAY : excludes;
+        this.includes = includes;
+        this.excludes = excludes;
         this.format = format;
         this.formatContentType = format == null ? null : XContentType.fromRestContentType(format);
         this.complete = enabled && includes == null && excludes == null;
@@ -234,12 +234,12 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements Ro
     }
 
     public String[] excludes() {
-        return excludes;
+        return this.excludes != null ? this.excludes : Strings.EMPTY_ARRAY;
 
     }
 
     public String[] includes() {
-        return includes;
+        return this.includes != null ? this.includes : Strings.EMPTY_ARRAY;
     }
 
     public boolean isComplete() {
@@ -433,10 +433,10 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements Ro
             if (this.enabled != sourceMergeWith.enabled) {
                 mergeResult.addConflict("Cannot update enabled setting for [_source]");
             }
-            if (Arrays.equals(includes, sourceMergeWith.includes) == false) {
+            if (Arrays.equals(includes(), sourceMergeWith.includes()) == false) {
                 mergeResult.addConflict("Cannot update includes setting for [_source]");
             }
-            if (Arrays.equals(excludes, sourceMergeWith.excludes) == false) {
+            if (Arrays.equals(excludes(), sourceMergeWith.excludes()) == false) {
                 mergeResult.addConflict("Cannot update excludes setting for [_source]");
             }
         } else {

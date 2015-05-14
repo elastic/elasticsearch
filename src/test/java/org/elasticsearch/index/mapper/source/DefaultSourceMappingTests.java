@@ -253,9 +253,13 @@ public class DefaultSourceMappingTests extends ElasticsearchSingleNodeTest {
 
     public void testIncludesNotUpdateable() throws Exception {
         DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
+        String defaultMapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject().string();
         String mapping1 = XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("_source").array("includes", "foo.*").endObject()
             .endObject().endObject().string();
+        assertConflicts(defaultMapping, mapping1, parser, "Cannot update includes setting for [_source]");
+        assertConflicts(mapping1, defaultMapping, parser, "Cannot update includes setting for [_source]");
+
         String mapping2 = XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("_source").array("includes", "foo.*", "bar.*").endObject()
             .endObject().endObject().string();
@@ -267,9 +271,13 @@ public class DefaultSourceMappingTests extends ElasticsearchSingleNodeTest {
 
     public void testExcludesNotUpdateable() throws Exception {
         DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
+        String defaultMapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject().string();
         String mapping1 = XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("_source").array("excludes", "foo.*").endObject()
             .endObject().endObject().string();
+        assertConflicts(defaultMapping, mapping1, parser, "Cannot update excludes setting for [_source]");
+        assertConflicts(mapping1, defaultMapping, parser, "Cannot update excludes setting for [_source]");
+
         String mapping2 = XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("_source").array("excludes", "foo.*", "bar.*").endObject()
             .endObject().endObject().string();

@@ -87,6 +87,7 @@
                 <directory>src/test/java</directory>
                 <includes>
                     <include>**/*.json</include>
+                    <include>**/*.txt</include>
                 </includes>
             </testResource>
             <testResource>

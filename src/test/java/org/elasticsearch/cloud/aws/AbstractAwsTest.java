@@ -20,6 +20,7 @@
 package org.elasticsearch.cloud.aws;
 
 import com.carrotsearch.randomizedtesting.annotations.TestGroup;
+
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -27,6 +28,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.FailedToResolveConfigException;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest.ThirdParty;
 import org.junit.After;
 import org.junit.Before;
 
@@ -38,8 +40,12 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- *
+ * Base class for AWS tests that require credentials.
+ * <p>
+ * You must specify {@code -Dtests.thirdparty=true -Dtests.config=/path/to/config}
+ * in order to run these tests.
  */
+@ThirdParty
 public abstract class AbstractAwsTest extends ElasticsearchIntegrationTest {
 
     /**
@@ -71,22 +77,6 @@ public abstract class AbstractAwsTest extends ElasticsearchIntegrationTest {
         }
     }
 
-
-    /**
-     * Annotation for tests that require AWS to run. AWS tests are disabled by default.
-     * Look at README file for details on how to run tests
-     */
-    @Documented
-    @Inherited
-    @Retention(RetentionPolicy.RUNTIME)
-    @TestGroup(enabled = false, sysProperty = SYSPROP_AWS)
-    public @interface AwsTest {
-    }
-
-    /**
-     */
-    public static final String SYSPROP_AWS = "tests.aws";
-
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
                 ImmutableSettings.Builder settings = ImmutableSettings.builder()
@@ -105,10 +95,10 @@ public abstract class AbstractAwsTest extends ElasticsearchIntegrationTest {
             if (Strings.hasText(System.getProperty("tests.config"))) {
                 settings.loadFromUrl(environment.resolveConfig(System.getProperty("tests.config")));
             } else {
-                fail("to run integration tests, you need to set -Dtest.aws=true and -Dtests.config=/path/to/elasticsearch.yml");
+                throw new IllegalStateException("to run integration tests, you need to set -Dtest.thirdparty=true and -Dtests.config=/path/to/elasticsearch.yml");
             }
         } catch (FailedToResolveConfigException exception) {
-            fail("your test configuration file is incorrect: " + System.getProperty("tests.config"));
+            throw new IllegalStateException("your test configuration file is incorrect: " + System.getProperty("tests.config"), exception);
         }
         return settings.build();
     }

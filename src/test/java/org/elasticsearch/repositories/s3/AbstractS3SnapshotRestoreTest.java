@@ -23,13 +23,13 @@ import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.model.DeleteObjectsRequest;
 import com.amazonaws.services.s3.model.ObjectListing;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
+
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ClusterAdminClient;
 import org.elasticsearch.cloud.aws.AbstractAwsTest;
-import org.elasticsearch.cloud.aws.AbstractAwsTest.AwsTest;
 import org.elasticsearch.cloud.aws.AwsS3Service;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -53,7 +53,6 @@ import static org.hamcrest.Matchers.*;
 
 /**
  */
-@AwsTest
 @ClusterScope(scope = Scope.SUITE, numDataNodes = 2, numClientNodes = 0, transportClientRatio = 0.0)
 abstract public class AbstractS3SnapshotRestoreTest extends AbstractAwsTest {
 

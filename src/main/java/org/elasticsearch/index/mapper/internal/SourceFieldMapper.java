@@ -54,6 +54,7 @@ import org.elasticsearch.index.mapper.RootMapper;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -150,7 +151,7 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements Ro
                 Map.Entry<String, Object> entry = iterator.next();
                 String fieldName = Strings.toUnderscoreCase(entry.getKey());
                 Object fieldNode = entry.getValue();
-                if (fieldName.equals("enabled") && parserContext.indexVersionCreated().before(Version.V_2_0_0)) {
+                if (fieldName.equals("enabled")) {
                     builder.enabled(nodeBooleanValue(fieldNode));
                     iterator.remove();
                 } else if (fieldName.equals("compress") && parserContext.indexVersionCreated().before(Version.V_2_0_0)) {
@@ -172,7 +173,7 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements Ro
                 } else if ("format".equals(fieldName)) {
                     builder.format(nodeStringValue(fieldNode, null));
                     iterator.remove();
-                } else if (fieldName.equals("includes") && parserContext.indexVersionCreated().before(Version.V_2_0_0)) {
+                } else if (fieldName.equals("includes")) {
                     List<Object> values = (List<Object>) fieldNode;
                     String[] includes = new String[values.size()];
                     for (int i = 0; i < includes.length; i++) {
@@ -180,7 +181,7 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements Ro
                     }
                     builder.includes(includes);
                     iterator.remove();
-                } else if (fieldName.equals("excludes") && parserContext.indexVersionCreated().before(Version.V_2_0_0)) {
+                } else if (fieldName.equals("excludes")) {
                     List<Object> values = (List<Object>) fieldNode;
                     String[] excludes = new String[values.size()];
                     for (int i = 0; i < excludes.length; i++) {
@@ -197,11 +198,14 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements Ro
 
     private final boolean enabled;
 
+    /** indicates whether the source will always exist and be complete, for use by features like the update API */
+    private final boolean complete;
+
     private Boolean compress;
     private long compressThreshold;
 
-    private String[] includes;
-    private String[] excludes;
+    private final String[] includes;
+    private final String[] excludes;
 
     private String format;
 
@@ -222,6 +226,7 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements Ro
         this.excludes = excludes;
         this.format = format;
         this.formatContentType = format == null ? null : XContentType.fromRestContentType(format);
+        this.complete = enabled && includes == null && excludes == null;
     }
 
     public boolean enabled() {
@@ -235,6 +240,10 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements Ro
 
     public String[] includes() {
         return this.includes != null ? this.includes : Strings.EMPTY_ARRAY;
+    }
+
+    public boolean isComplete() {
+        return complete;
     }
 
     @Override
@@ -420,18 +429,22 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements Ro
     @Override
     public void merge(Mapper mergeWith, MergeResult mergeResult) throws MergeMappingException {
         SourceFieldMapper sourceMergeWith = (SourceFieldMapper) mergeWith;
-        if (!mergeResult.simulate()) {
+        if (mergeResult.simulate()) {
+            if (this.enabled != sourceMergeWith.enabled) {
+                mergeResult.addConflict("Cannot update enabled setting for [_source]");
+            }
+            if (Arrays.equals(this.includes, sourceMergeWith.includes) == false) {
+                mergeResult.addConflict("Cannot update includes setting for [_source]");
+            }
+            if (Arrays.equals(this.excludes, sourceMergeWith.excludes) == false) {
+                mergeResult.addConflict("Cannot update excludes setting for [_source]");
+            }
+        } else {
             if (sourceMergeWith.compress != null) {
                 this.compress = sourceMergeWith.compress;
             }
             if (sourceMergeWith.compressThreshold != -1) {
                 this.compressThreshold = sourceMergeWith.compressThreshold;
-            }
-            if (sourceMergeWith.includes != null) {
-                this.includes = sourceMergeWith.includes;
-            }
-            if (sourceMergeWith.excludes != null) {
-                this.excludes = sourceMergeWith.excludes;
             }
         }
     }

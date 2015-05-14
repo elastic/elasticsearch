@@ -86,8 +86,8 @@ public class HighlightPhase extends AbstractComponent implements FetchSubPhase {
 
             if (context.highlight().forceSource(field)) {
                 SourceFieldMapper sourceFieldMapper = context.mapperService().documentMapper(hitContext.hit().type()).sourceMapper();
-                if (!sourceFieldMapper.enabled()) {
-                    throw new IllegalArgumentException("source is forced for fields " +  fieldNamesToHighlight + " but type [" + hitContext.hit().type() + "] has disabled _source");
+                if (!sourceFieldMapper.isComplete()) {
+                    throw new IllegalArgumentException("source is forced for fields " +  fieldNamesToHighlight + " but type [" + hitContext.hit().type() + "] has incomplete _source");
                 }
             }
 

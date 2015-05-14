@@ -35,7 +35,6 @@ import org.junit.Test;
  * See https://github.com/elasticsearch/elasticsearch-cloud-gce/issues/10
  * @see org.elasticsearch.cloud.gce.AbstractGceTest
  */
-@AbstractGceTest.GceTest
 @ElasticsearchIntegrationTest.ClusterScope(
         scope = ElasticsearchIntegrationTest.Scope.SUITE,
         numDataNodes = 1,

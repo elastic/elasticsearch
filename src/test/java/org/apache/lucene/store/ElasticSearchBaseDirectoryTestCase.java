@@ -1,3 +1,5 @@
+package org.apache.lucene.store;
+
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -17,15 +19,25 @@
  * under the License.
  */
 
-package org.apache.lucene.store;
+import org.apache.lucene.util.LuceneTestCase;
+import org.apache.lucene.util.TimeUnits;
+import org.elasticsearch.bootstrap.BootstrapForTesting;
+import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
 
-import java.io.IOException;
-import java.nio.file.Path;
+import com.carrotsearch.randomizedtesting.annotations.Listeners;
+import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 
-public class SmbSimpleFSDirectoryTest extends ElasticSearchBaseDirectoryTestCase {
-
-    @Override
-    protected Directory getDirectory(Path file) throws IOException {
-        return new SmbDirectoryWrapper(new SimpleFSDirectory(file));
+/**
+ * Extends Lucene's BaseDirectoryTestCase with ES test behavior.
+ */
+@Listeners({
+  ReproduceInfoPrinter.class
+})
+@TimeoutSuite(millis = TimeUnits.HOUR)
+@LuceneTestCase.SuppressReproduceLine
+@LuceneTestCase.SuppressSysoutChecks(bugUrl = "we log a lot on purpose")
+public abstract class ElasticSearchBaseDirectoryTestCase extends BaseDirectoryTestCase {
+    static {
+        BootstrapForTesting.ensureInitialized();
     }
 }

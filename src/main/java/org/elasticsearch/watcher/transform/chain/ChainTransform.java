@@ -79,10 +79,8 @@ public class ChainTransform implements Transform {
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
-                } else if (token == XContentParser.Token.START_OBJECT) {
-                    builder.add(transformRegistry.parseTransform(watchId, currentFieldName, parser));
                 } else {
-                    throw new ChainTransformException("could not parse [{}] transform for watch [{}]. expected a transform object, but found [{}] instead", TYPE, watchId, token);
+                    builder.add(transformRegistry.parseTransform(watchId, currentFieldName, parser));
                 }
             }
         }

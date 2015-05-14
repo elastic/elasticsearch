@@ -212,6 +212,7 @@ You can disable that check using `plugins.check_lucene: false`.
 
 .Supported by the community
 * https://github.com/shikhar/eskka[eskka Discovery Plugin] (by Shikhar Bhushan)
+* https://github.com/grantr/elasticsearch-srv-discovery[DNS SRV Discovery Plugin] (by Grant Rodgers)
 
 [float]
 [[river]]

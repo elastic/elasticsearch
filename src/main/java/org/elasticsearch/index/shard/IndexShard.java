@@ -65,7 +65,6 @@ import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.cache.bitset.ShardBitsetFilterCache;
 import org.elasticsearch.index.cache.filter.FilterCacheStats;
 import org.elasticsearch.index.cache.filter.ShardFilterCache;
-import org.elasticsearch.index.cache.id.IdCacheStats;
 import org.elasticsearch.index.cache.query.ShardQueryCache;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.deletionpolicy.SnapshotDeletionPolicy;
@@ -663,11 +662,6 @@ public class IndexShard extends AbstractIndexShardComponent {
 
     public ShardPercolateService shardPercolateService() {
         return shardPercolateService;
-    }
-
-    public IdCacheStats idCacheStats() {
-        long memorySizeInBytes = shardFieldData.stats(ParentFieldMapper.NAME).getFields().get(ParentFieldMapper.NAME);
-        return new IdCacheStats(memorySizeInBytes);
     }
 
     public TranslogStats translogStats() {

@@ -163,9 +163,6 @@ public class RestIndicesAction extends AbstractCatAction {
         table.addCell("get.missing_total", "sibling:pri;alias:gmto,getMissingTotal;default:false;text-align:right;desc:number of failed gets");
         table.addCell("pri.get.missing_total", "default:false;text-align:right;desc:number of failed gets");
 
-        table.addCell("id_cache.memory_size", "sibling:pri;alias:im,idCacheMemory;default:false;text-align:right;desc:used id cache");
-        table.addCell("pri.id_cache.memory_size", "default:false;text-align:right;desc:used id cache");
-
         table.addCell("indexing.delete_current", "sibling:pri;alias:idc,indexingDeleteCurrent;default:false;text-align:right;desc:number of current deletions");
         table.addCell("pri.indexing.delete_current", "default:false;text-align:right;desc:number of current deletions");
 
@@ -364,9 +361,6 @@ public class RestIndicesAction extends AbstractCatAction {
 
             table.addCell(indexStats == null ? null : indexStats.getTotal().getGet().getMissingCount());
             table.addCell(indexStats == null ? null : indexStats.getPrimaries().getGet().getMissingCount());
-
-            table.addCell(indexStats == null ? null : indexStats.getTotal().getIdCache().getMemorySize());
-            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getIdCache().getMemorySize());
 
             table.addCell(indexStats == null ? null : indexStats.getTotal().getIndexing().getTotal().getDeleteCurrent());
             table.addCell(indexStats == null ? null : indexStats.getPrimaries().getIndexing().getTotal().getDeleteCurrent());

@@ -79,9 +79,6 @@ public class RestClearIndicesCacheAction extends BaseRestHandler {
             if (Fields.FIELD_DATA.match(entry.getKey())) {
                 clearIndicesCacheRequest.fieldDataCache(request.paramAsBoolean(entry.getKey(), clearIndicesCacheRequest.fieldDataCache()));
             }
-            if (Fields.ID.match(entry.getKey())) {
-                clearIndicesCacheRequest.idCache(request.paramAsBoolean(entry.getKey(), clearIndicesCacheRequest.idCache()));
-            }
             if (Fields.RECYCLER.match(entry.getKey())) {
                 clearIndicesCacheRequest.recycler(request.paramAsBoolean(entry.getKey(), clearIndicesCacheRequest.recycler()));
             }
@@ -96,7 +93,6 @@ public class RestClearIndicesCacheAction extends BaseRestHandler {
     public static class Fields {
         public static final ParseField FILTER = new ParseField("filter", "filter_cache");
         public static final ParseField FIELD_DATA = new ParseField("field_data", "fielddata");
-        public static final ParseField ID = new ParseField("id", "id_cache");
         public static final ParseField RECYCLER = new ParseField("recycler");
         public static final ParseField FIELDS = new ParseField("fields");
     }

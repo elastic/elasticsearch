@@ -171,7 +171,7 @@ public class ChildSearchShortCircuitBenchmark {
         statsResponse = client.admin().cluster().prepareNodesStats()
                 .setJvm(true).setIndices(true).execute().actionGet();
 
-        System.out.println("--> Id cache size: " + statsResponse.getNodes()[0].getIndices().getIdCache().getMemorySize());
+        System.out.println("--> Field data size: " + statsResponse.getNodes()[0].getIndices().getFieldData().getMemorySize());
         System.out.println("--> Used heap size: " + statsResponse.getNodes()[0].getJvm().getMem().getHeapUsed());
 
         totalQueryTime = 0;
@@ -192,7 +192,7 @@ public class ChildSearchShortCircuitBenchmark {
         statsResponse = client.admin().cluster().prepareNodesStats()
                 .setJvm(true).setIndices(true).execute().actionGet();
 
-        System.out.println("--> Id cache size: " + statsResponse.getNodes()[0].getIndices().getIdCache().getMemorySize());
+        System.out.println("--> Field data size: " + statsResponse.getNodes()[0].getIndices().getFieldData().getMemorySize());
         System.out.println("--> Used heap size: " + statsResponse.getNodes()[0].getJvm().getMem().getHeapUsed());
 
         client.close();

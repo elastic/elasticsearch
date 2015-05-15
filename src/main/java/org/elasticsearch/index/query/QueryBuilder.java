@@ -22,8 +22,6 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.action.support.ToXContentToBytes;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -55,7 +53,7 @@ public abstract class QueryBuilder extends ToXContentToBytes {
      * @throws QueryParsingException
      * @throws IOException
      */
-    //norelease to be removed once all query builders override toQuery providing their own specific implementation.
+    //norelease to be made abstract once all query builders override toQuery providing their own specific implementation.
     public Query toQuery(QueryParseContext parseContext) throws QueryParsingException, IOException {
         return parseContext.indexQueryParserService().queryParser(parserName()).parse(parseContext);
     }
@@ -78,9 +76,8 @@ public abstract class QueryBuilder extends ToXContentToBytes {
         return null;
     }
 
-<<<<<<< HEAD:src/main/java/org/elasticsearch/index/query/QueryBuilder.java
     protected abstract void doXContent(XContentBuilder builder, Params params) throws IOException;
-=======
+
     /**
      * This helper method checks if the object passed in is a string, if so it
      * converts it to a {@link BytesRef}.
@@ -94,7 +91,6 @@ public abstract class QueryBuilder extends ToXContentToBytes {
         return obj;
     }
 
-
     /**
      * This helper method checks if the object passed in is a {@link BytesRef}, if so it
      * converts it to a utf8 string.
@@ -107,5 +103,4 @@ public abstract class QueryBuilder extends ToXContentToBytes {
         }
         return obj;
     }
->>>>>>> Fixed problems with lower/upper bounds and serialization, moved helper code for String/BytesRef conversion to base class:src/main/java/org/elasticsearch/index/query/BaseQueryBuilder.java
 }

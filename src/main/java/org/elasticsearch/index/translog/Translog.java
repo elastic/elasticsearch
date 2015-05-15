@@ -251,11 +251,9 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                     Checkpoint.write(translogPath.resolve(CHECKPOINT_FILE_NAME), checkpoint, StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW);
                 } else {
                     Checkpoint checkpoint = new Checkpoint(Files.size(target), -1, generation);
-                    Checkpoint.write(translogPath.resolve(getCommitFileName(generation)), checkpoint, StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW);
+                    Checkpoint.write(translogPath.resolve(getCommitCheckpointFileName(generation)), checkpoint, StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW);
                 }
             }
-
-
 
             IOUtils.fsync(translogPath, true);
 
@@ -275,12 +273,12 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 if (Files.exists(committedTranslogFile) == false) {
                     throw new IllegalStateException("translog file doesn't exist with generation: " + i + " lastCommitted: " + lastCommittedTranslogFileGeneration + " checkpoint: " + checkpoint.generation + " - translog ids must be consecutive");
                 }
-                final ImmutableTranslogReader reader = openReader(committedTranslogFile, Checkpoint.read(location.resolve(getCommitFileName(i))));
+                final ImmutableTranslogReader reader = openReader(committedTranslogFile, Checkpoint.read(location.resolve(getCommitCheckpointFileName(i))));
                 foundTranslogs.add(reader);
                 logger.debug("recovered local translog from checkpoint {}", checkpoint);
             }
             foundTranslogs.add(openReader(location.resolve(checkpointTranslogFile), checkpoint));
-            Path commitCheckpoint = location.resolve(getCommitFileName(checkpoint.generation));
+            Path commitCheckpoint = location.resolve(getCommitCheckpointFileName(checkpoint.generation));
             Files.copy(location.resolve(CHECKPOINT_FILE_NAME), commitCheckpoint);
             IOUtils.fsync(commitCheckpoint, false);
             IOUtils.fsync(commitCheckpoint.getParent(), true);
@@ -544,7 +542,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         return TRANSLOG_FILE_PREFIX + generation + TRANSLOG_FILE_SUFFIX;
     }
 
-    static String getCommitFileName(long generation) {
+    static String getCommitCheckpointFileName(long generation) {
         return TRANSLOG_FILE_PREFIX + generation + CHECKPOINT_SUFFIX;
     }
 
@@ -591,7 +589,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                     // if the given translogPath is not the current we can safely delete the file since all references are released
                     logger.trace("delete translog file - not referenced and not current anymore {}", translogPath);
                     IOUtils.deleteFilesIgnoringExceptions(translogPath);
-                    IOUtils.deleteFilesIgnoringExceptions(translogPath.resolveSibling(getCommitFileName(channelReference.getGeneration())));
+                    IOUtils.deleteFilesIgnoringExceptions(translogPath.resolveSibling(getCommitCheckpointFileName(channelReference.getGeneration())));
 
                 }
                 try (DirectoryStream<Path> stream = Files.newDirectoryStream(location)) {
@@ -602,7 +600,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                             if (isReferencedGeneration(generation) == false) {
                                 logger.trace("delete translog file - not referenced and not current anymore {}", path);
                                 IOUtils.deleteFilesIgnoringExceptions(path);
-                                IOUtils.deleteFilesIgnoringExceptions(path.resolveSibling(getCommitFileName(channelReference.getGeneration())));
+                                IOUtils.deleteFilesIgnoringExceptions(path.resolveSibling(getCommitCheckpointFileName(channelReference.getGeneration())));
                             }
                         }
                     }
@@ -1660,7 +1658,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             currentCommittingTranslog = current.immutableReader();
             Path checkpoint = location.resolve(CHECKPOINT_FILE_NAME);
             assert Checkpoint.read(checkpoint).generation == currentCommittingTranslog.getGeneration();
-            Path commitCheckpoint = location.resolve(getCommitFileName(currentCommittingTranslog.getGeneration()));
+            Path commitCheckpoint = location.resolve(getCommitCheckpointFileName(currentCommittingTranslog.getGeneration()));
             Files.copy(checkpoint, commitCheckpoint);
             IOUtils.fsync(commitCheckpoint, false);
             IOUtils.fsync(commitCheckpoint.getParent(), true);

@@ -23,11 +23,14 @@ import com.carrotsearch.randomizedtesting.RandomizedTest;
 import com.carrotsearch.randomizedtesting.annotations.TestGroup;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 import com.google.common.collect.Lists;
+
 import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
 import org.apache.lucene.util.LuceneTestCase.SuppressFsync;
+import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -48,9 +51,17 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.lang.annotation.*;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.net.URL;
+import java.nio.file.FileSystem;
+import java.nio.file.FileSystems;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.PathMatcher;
+import java.nio.file.StandardCopyOption;
 import java.util.*;
 
 /**
@@ -158,23 +169,29 @@ public abstract class ElasticsearchRestTestCase extends ElasticsearchIntegration
     }
 
     private static List<RestTestCandidate> collectTestCandidates(int id, int count) throws RestTestParseException, IOException {
-        String[] paths = resolvePathsProperty(REST_TESTS_SUITE, DEFAULT_TESTS_PATH);
-        Map<String, Set<Path>> yamlSuites = FileUtils.findYamlSuites(DEFAULT_TESTS_PATH, paths);
-
         List<RestTestCandidate> testCandidates = Lists.newArrayList();
-        RestTestSuiteParser restTestSuiteParser = new RestTestSuiteParser();
-        //yaml suites are grouped by directory (effectively by api)
-        for (String api : yamlSuites.keySet()) {
-            List<Path> yamlFiles = Lists.newArrayList(yamlSuites.get(api));
-            for (Path yamlFile : yamlFiles) {
-                String key = api + yamlFile.getFileName().toString();
-                if (mustExecute(key, id, count)) {
-                    RestTestSuite restTestSuite = restTestSuiteParser.parse(api, yamlFile);
-                    for (TestSection testSection : restTestSuite.getTestSections()) {
-                        testCandidates.add(new RestTestCandidate(restTestSuite, testSection));
+        FileSystem fileSystem = getFileSystem();
+        // don't make a try-with, getFileSystem returns null
+        // ... and you can't close() the default filesystem
+        try {
+            String[] paths = resolvePathsProperty(REST_TESTS_SUITE, DEFAULT_TESTS_PATH);
+            Map<String, Set<Path>> yamlSuites = FileUtils.findYamlSuites(fileSystem, DEFAULT_TESTS_PATH, paths);
+            RestTestSuiteParser restTestSuiteParser = new RestTestSuiteParser();
+            //yaml suites are grouped by directory (effectively by api)
+            for (String api : yamlSuites.keySet()) {
+                List<Path> yamlFiles = Lists.newArrayList(yamlSuites.get(api));
+                for (Path yamlFile : yamlFiles) {
+                    String key = api + yamlFile.getFileName().toString();
+                    if (mustExecute(key, id, count)) {
+                        RestTestSuite restTestSuite = restTestSuiteParser.parse(api, yamlFile);
+                        for (TestSection testSection : restTestSuite.getTestSections()) {
+                            testCandidates.add(new RestTestCandidate(restTestSuite, testSection));
+                        }
                     }
                 }
             }
+        } finally {
+            IOUtils.close(fileSystem);
         }
 
         //sort the candidates so they will always be in the same order before being shuffled, for repeatability
@@ -202,10 +219,46 @@ public abstract class ElasticsearchRestTestCase extends ElasticsearchIntegration
         }
     }
 
+    /**
+     * Returns a new FileSystem to read REST resources, or null if they
+     * are available from classpath.
+     */
+    @SuppressForbidden(reason = "proper use of URL, hack around a JDK bug")
+    static FileSystem getFileSystem() throws IOException {
+        // REST suite handling is currently complicated, with lots of filtering and so on
+        // For now, to work embedded in a jar, return a ZipFileSystem over the jar contents. 
+        URL codeLocation = FileUtils.class.getProtectionDomain().getCodeSource().getLocation();
+
+        if (codeLocation.getFile().endsWith(".jar")) {
+            try {
+                // hack around a bug in the zipfilesystem implementation before java 9,
+                // its checkWritable was incorrect and it won't work without write permissions. 
+                // if we add the permission, it will open jars r/w, which is too scary! so copy to a safe r-w location.
+                Path tmp = Files.createTempFile(null, ".jar");
+                try (InputStream in = codeLocation.openStream()) {
+                    Files.copy(in, tmp, StandardCopyOption.REPLACE_EXISTING);
+                }
+                return FileSystems.newFileSystem(new URI("jar:" + tmp.toUri()), Collections.<String,Object>emptyMap());
+            } catch (URISyntaxException e) {
+                throw new IOException("couldn't open zipfilesystem: ", e);
+            }
+        } else {
+            return null;
+        }
+    }
+
     @BeforeClass
     public static void initExecutionContext() throws IOException, RestException {
         String[] specPaths = resolvePathsProperty(REST_TESTS_SPEC, DEFAULT_SPEC_PATH);
-        RestSpec restSpec = RestSpec.parseFrom(DEFAULT_SPEC_PATH, specPaths);
+        RestSpec restSpec = null;
+        FileSystem fileSystem = getFileSystem();
+        // don't make a try-with, getFileSystem returns null
+        // ... and you can't close() the default filesystem
+        try {
+            restSpec = RestSpec.parseFrom(fileSystem, DEFAULT_SPEC_PATH, specPaths);
+        } finally {
+            IOUtils.close(fileSystem);
+        }
         validateSpec(restSpec);
         restTestExecutionContext = new RestTestExecutionContext(restSpec);
     }

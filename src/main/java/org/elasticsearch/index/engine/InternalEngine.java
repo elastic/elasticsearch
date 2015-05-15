@@ -131,9 +131,10 @@ public class InternalEngine extends Engine {
             this.searcherFactory = new SearchFactory(engineConfig);
             final Translog.TranslogGeneration translogGeneration;
             try {
-                writer = createWriter();
+                boolean create = !Lucene.indexExists(store.directory());
+                writer = createWriter(create);
                 indexWriter = writer;
-                translog = openTranslog(engineConfig, writer, skipInitialTranslogRecovery || engineConfig.forceNewTranslog());
+                translog = openTranslog(engineConfig, writer, create || skipInitialTranslogRecovery || engineConfig.forceNewTranslog());
                 translogGeneration = translog.getGeneration();
                 assert translogGeneration != null;
             } catch (IOException | TranslogCorruptedException e) {
@@ -183,8 +184,8 @@ public class InternalEngine extends Engine {
         }
         final Translog translog = new Translog(translogConfig);
         if (generation == null) {
-            if (createNew) {
-                throw new IllegalStateException("no tranlog generation present in commit data but tranlog is expected to exists");
+            if (createNew == false) {
+                throw new IllegalStateException("no tranlog generation present in commit data but translog is expected to exist");
             }
             logger.debug("no translog ID present in the current generation - creating one");
             commitIndexWriter(writer, translog);
@@ -986,9 +987,8 @@ public class InternalEngine extends Engine {
         }
     }
 
-    private IndexWriter createWriter() throws IOException {
+    private IndexWriter createWriter(boolean create) throws IOException {
         try {
-            boolean create = !Lucene.indexExists(store.directory());
             final IndexWriterConfig iwc = new IndexWriterConfig(engineConfig.getAnalyzer());
             iwc.setCommitOnClose(false); // we by default don't commit on close
             iwc.setOpenMode(create ? IndexWriterConfig.OpenMode.CREATE : IndexWriterConfig.OpenMode.APPEND);

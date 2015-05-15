@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.NumericRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermRangeQuery;
 import org.elasticsearch.common.joda.DateMathParser;
@@ -46,7 +47,7 @@ public class RangeQueryBuilderTest extends BaseQueryTestCase<RangeQueryBuilder> 
 
     @Override
     protected RangeQueryBuilder createTestQueryBuilder() {
-        RangeQueryBuilder query = new RangeQueryBuilder(randomAsciiOfLength(8));
+        RangeQueryBuilder query = new RangeQueryBuilder(randomAsciiOfLengthBetween(1, 10));
         // switch between numeric and date ranges
         if (randomBoolean()) {
             if (randomBoolean()) {
@@ -72,7 +73,7 @@ public class RangeQueryBuilderTest extends BaseQueryTestCase<RangeQueryBuilder> 
             query.boost(2.0f / randomIntBetween(1, 20));
         }
         if (randomBoolean()) {
-            query.queryName(randomAsciiOfLength(8));
+            query.queryName(randomAsciiOfLengthBetween(1, 10));
         }
 
         if (randomBoolean()) {
@@ -97,12 +98,10 @@ public class RangeQueryBuilderTest extends BaseQueryTestCase<RangeQueryBuilder> 
             assertThat(termRangeQuery.getField(), is(queryBuilder.fieldname()));
         } else {
             assertThat(query, instanceOf(LateParsingQuery.class));
-            String expectedFromDate = expectedDateString(queryBuilder.from(), queryBuilder, context);
-            String expectedToDate = expectedDateString(queryBuilder.to(), queryBuilder, context);
-            String expectedLowerBracket = queryBuilder.includeLower() ? "[" : "{";
-            String expectedUpperBracket = queryBuilder.includeUpper() ? "]" : "}";
-            String queryString = query.rewrite(null).toString();
-            assertThat(queryString, is(DATE_FIELD_NAME+":"+expectedLowerBracket+expectedFromDate+" TO "+expectedToDate+expectedUpperBracket));
+            Long min = expectedDateLong(queryBuilder.from(), queryBuilder, context);
+            Long max = expectedDateLong(queryBuilder.to(), queryBuilder, context);
+            Query expectedQuery = NumericRangeQuery.newLongRange(DATE_FIELD_NAME, min, max, queryBuilder.includeLower(), queryBuilder.includeUpper());
+            assertEquals(query.rewrite(null), expectedQuery.rewrite(null));
         }
         if (queryBuilder.queryName() != null) {
             Query namedQuery = context.copyNamedFilters().get(queryBuilder.queryName());
@@ -136,7 +135,7 @@ public class RangeQueryBuilderTest extends BaseQueryTestCase<RangeQueryBuilder> 
         return new RangeQueryBuilder();
     }
 
-    private String expectedDateString(Object value, RangeQueryBuilder queryBuilder, QueryParseContext context) {
+    private Long expectedDateLong(Object value, RangeQueryBuilder queryBuilder, QueryParseContext context) {
         SmartNameFieldMappers smartFieldMappers = context.smartFieldMappers(queryBuilder.fieldname());
         FieldMapper<?> mapper = smartFieldMappers.mapper();
         DateMathParser dateParser = null;
@@ -147,11 +146,11 @@ public class RangeQueryBuilderTest extends BaseQueryTestCase<RangeQueryBuilder> 
         if (queryBuilder.timeZone() != null) {
             dateTimeZone = DateTimeZone.forID(queryBuilder.timeZone());
         }
-        String expectedClause = "*";
+        Long expectedDate = null;
         if (value != null) {
-            expectedClause = Long.toString(((DateFieldMapper) mapper).parseToMilliseconds(value, queryBuilder.includeLower(), dateTimeZone, dateParser));
+            expectedDate = ((DateFieldMapper) mapper).parseToMilliseconds(value, queryBuilder.includeLower(), dateTimeZone, dateParser);
         }
-        return expectedClause;
+        return expectedDate;
     }
 
 }

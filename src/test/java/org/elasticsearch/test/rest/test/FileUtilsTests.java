@@ -35,29 +35,29 @@ public class FileUtilsTests extends ElasticsearchTestCase {
 
     @Test
     public void testLoadSingleYamlSuite() throws Exception {
-        Map<String,Set<Path>> yamlSuites = FileUtils.findYamlSuites("/rest-api-spec/test", "/rest-api-spec/test/get/10_basic");
+        Map<String,Set<Path>> yamlSuites = FileUtils.findYamlSuites(null, "/rest-api-spec/test", "/rest-api-spec/test/get/10_basic");
         assertSingleFile(yamlSuites, "get", "10_basic.yaml");
 
         //the path prefix is optional
-        yamlSuites = FileUtils.findYamlSuites("/rest-api-spec/test", "get/10_basic.yaml");
+        yamlSuites = FileUtils.findYamlSuites(null, "/rest-api-spec/test", "get/10_basic.yaml");
         assertSingleFile(yamlSuites, "get", "10_basic.yaml");
 
         //extension .yaml is optional
-        yamlSuites = FileUtils.findYamlSuites("/rest-api-spec/test", "get/10_basic");
+        yamlSuites = FileUtils.findYamlSuites(null, "/rest-api-spec/test", "get/10_basic");
         assertSingleFile(yamlSuites, "get", "10_basic.yaml");
     }
 
     @Test
     public void testLoadMultipleYamlSuites() throws Exception {
         //single directory
-        Map<String,Set<Path>> yamlSuites = FileUtils.findYamlSuites("/rest-api-spec/test", "get");
+        Map<String,Set<Path>> yamlSuites = FileUtils.findYamlSuites(null, "/rest-api-spec/test", "get");
         assertThat(yamlSuites, notNullValue());
         assertThat(yamlSuites.size(), equalTo(1));
         assertThat(yamlSuites.containsKey("get"), equalTo(true));
         assertThat(yamlSuites.get("get").size(), greaterThan(1));
 
         //multiple directories
-        yamlSuites = FileUtils.findYamlSuites("/rest-api-spec/test", "get", "index");
+        yamlSuites = FileUtils.findYamlSuites(null, "/rest-api-spec/test", "get", "index");
         assertThat(yamlSuites, notNullValue());
         assertThat(yamlSuites.size(), equalTo(2));
         assertThat(yamlSuites.containsKey("get"), equalTo(true));
@@ -66,7 +66,7 @@ public class FileUtilsTests extends ElasticsearchTestCase {
         assertThat(yamlSuites.get("index").size(), greaterThan(1));
 
         //multiple paths, which can be both directories or yaml test suites (with optional file extension)
-        yamlSuites = FileUtils.findYamlSuites("/rest-api-spec/test", "indices.optimize/10_basic", "index");
+        yamlSuites = FileUtils.findYamlSuites(null, "/rest-api-spec/test", "indices.optimize/10_basic", "index");
         assertThat(yamlSuites, notNullValue());
         assertThat(yamlSuites.size(), equalTo(2));
         assertThat(yamlSuites.containsKey("indices.optimize"), equalTo(true));
@@ -81,22 +81,16 @@ public class FileUtilsTests extends ElasticsearchTestCase {
         Files.createFile(file);
 
         //load from directory outside of the classpath
-        yamlSuites = FileUtils.findYamlSuites("/rest-api-spec/test", "get/10_basic", dir.toAbsolutePath().toString());
+        yamlSuites = FileUtils.findYamlSuites(dir.getFileSystem(), "/rest-api-spec/test", dir.toAbsolutePath().toString());
         assertThat(yamlSuites, notNullValue());
-        assertThat(yamlSuites.size(), equalTo(2));
-        assertThat(yamlSuites.containsKey("get"), equalTo(true));
-        assertThat(yamlSuites.get("get").size(), equalTo(1));
-        assertSingleFile(yamlSuites.get("get"), "get", "10_basic.yaml");
+        assertThat(yamlSuites.size(), equalTo(1));
         assertThat(yamlSuites.containsKey(dir.getFileName().toString()), equalTo(true));
         assertSingleFile(yamlSuites.get(dir.getFileName().toString()), dir.getFileName().toString(), file.getFileName().toString());
 
         //load from external file (optional extension)
-        yamlSuites = FileUtils.findYamlSuites("/rest-api-spec/test", "get/10_basic", dir.resolve("test_loading").toAbsolutePath().toString());
+        yamlSuites = FileUtils.findYamlSuites(dir.getFileSystem(), "/rest-api-spec/test", dir.resolve("test_loading").toAbsolutePath().toString());
         assertThat(yamlSuites, notNullValue());
-        assertThat(yamlSuites.size(), equalTo(2));
-        assertThat(yamlSuites.containsKey("get"), equalTo(true));
-        assertThat(yamlSuites.get("get").size(), equalTo(1));
-        assertSingleFile(yamlSuites.get("get"), "get", "10_basic.yaml");
+        assertThat(yamlSuites.size(), equalTo(1));
         assertThat(yamlSuites.containsKey(dir.getFileName().toString()), equalTo(true));
         assertSingleFile(yamlSuites.get(dir.getFileName().toString()), dir.getFileName().toString(), file.getFileName().toString());
     }

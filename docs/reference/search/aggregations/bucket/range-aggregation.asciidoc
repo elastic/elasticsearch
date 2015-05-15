@@ -55,7 +55,7 @@ Response:
 
 ==== Keyed Response
 
-Setting the `key` flag to `true` will associate a unique string key with each bucket and return the ranges as a hash rather than an array:
+Setting the `keyed` flag to `true` will associate a unique string key with each bucket and return the ranges as a hash rather than an array:
 
 [source,js]
 --------------------------------------------------

@@ -25,7 +25,7 @@ public class WatcherVersion implements Serializable {
     // the (internal) format of the id is there so we can easily do after/before checks on the id
 
     public static final int V_1_0_0_Beta1_ID = /*00*/1000001;
-    public static final WatcherVersion V_1_0_0_Beta1 = new WatcherVersion(V_1_0_0_Beta1_ID, true, Version.V_1_4_0, LicenseVersion.V_1_0_0);
+    public static final WatcherVersion V_1_0_0_Beta1 = new WatcherVersion(V_1_0_0_Beta1_ID, true, Version.V_1_5_0, LicenseVersion.V_1_0_0);
 
     public static final WatcherVersion CURRENT = V_1_0_0_Beta1;
 

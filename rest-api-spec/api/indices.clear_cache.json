@@ -32,14 +32,6 @@
           "type" : "boolean",
           "description" : "Clear filter caches"
         },
-        "id": {
-          "type" : "boolean",
-          "description" : "Clear ID caches for parent/child"
-        },
-        "id_cache": {
-          "type" : "boolean",
-          "description" : "Clear ID caches for parent/child"
-        },
         "ignore_unavailable": {
             "type" : "boolean",
             "description" : "Whether specified concrete indices should be ignored when unavailable (missing or closed)"

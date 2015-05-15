@@ -10,8 +10,7 @@ $ curl -XPOST 'http://localhost:9200/twitter/_cache/clear'
 --------------------------------------------------
 
 The API, by default, will clear all caches. Specific caches can be cleaned
-explicitly by setting `filter`, `fielddata`, `query_cache`,
-or `id_cache` to `true`.
+explicitly by setting `filter`, `fielddata` or `query_cache`.
 
 All caches relating to a specific field(s) can also be cleared by
 specifying `fields` parameter with a comma delimited list of the

@@ -77,7 +77,7 @@ public class DocumentActionsTests extends ElasticsearchIntegrationTest {
         assertThat(indexExists("test1234565"), equalTo(false));
 
         logger.info("Clearing cache");
-        ClearIndicesCacheResponse clearIndicesCacheResponse = client().admin().indices().clearCache(clearIndicesCacheRequest("test").recycler(true).fieldDataCache(true).filterCache(true).idCache(true)).actionGet();
+        ClearIndicesCacheResponse clearIndicesCacheResponse = client().admin().indices().clearCache(clearIndicesCacheRequest("test").recycler(true).fieldDataCache(true).filterCache(true)).actionGet();
         assertNoFailures(clearIndicesCacheResponse);
         assertThat(clearIndicesCacheResponse.getSuccessfulShards(), equalTo(numShards.totalNumShards));
 

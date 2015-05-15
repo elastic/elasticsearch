@@ -59,14 +59,7 @@ public class ShardFieldData extends AbstractIndexShardComponent implements Index
                 }
             }
         }
-
-        // Because we report _parent field used memory separately via id cache, we need to subtract it from the
-        // field data total memory used. This code should be removed for >= 2.0
-        long memorySize = totalMetric.count();
-        if (perFieldTotals.containsKey(ParentFieldMapper.NAME)) {
-            memorySize -= perFieldTotals.get(ParentFieldMapper.NAME).count();
-        }
-        return new FieldDataStats(memorySize, evictionsMetric.count(), fieldTotals);
+        return new FieldDataStats(totalMetric.count(), evictionsMetric.count(), fieldTotals);
     }
 
     @Override

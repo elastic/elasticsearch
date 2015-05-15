@@ -161,9 +161,6 @@ public class TransportIndicesStatsAction extends TransportBroadcastOperationActi
         if (request.request.filterCache()) {
             flags.set(CommonStatsFlags.Flag.FilterCache);
         }
-        if (request.request.idCache()) {
-            flags.set(CommonStatsFlags.Flag.IdCache);
-        }
         if (request.request.fieldData()) {
             flags.set(CommonStatsFlags.Flag.FieldData);
             flags.fieldDataFields(request.request.fieldDataFields());

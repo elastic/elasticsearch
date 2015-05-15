@@ -203,13 +203,19 @@
                   "type" : "object",
                   "dynamic" : true,
                   "properties" : {
-                    "indices" : {
-                      "type" : "string",
-                      "index" : "not_analyzed"
-                    },
-                    "types" : {
-                      "type" : "string",
-                      "index" : "not_analyzed"
+                    "request" : {
+                      "type" : "object",
+                      "dynamic" : true,
+                      "properties" : {
+                        "indices" : {
+                          "type" : "string",
+                          "index" : "not_analyzed"
+                        },
+                        "types" : {
+                          "type" : "string",
+                          "index" : "not_analyzed"
+                        }
+                      }
                     }
                   }
                 }

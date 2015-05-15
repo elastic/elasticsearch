@@ -8,8 +8,10 @@ package org.elasticsearch.watcher.transform.search;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
+import org.elasticsearch.watcher.support.DynamicIndexName;
 import org.elasticsearch.watcher.support.WatcherUtils;
 import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
 import org.elasticsearch.watcher.transform.ExecutableTransform;
@@ -23,17 +25,24 @@ public class ExecutableSearchTransform extends ExecutableTransform<SearchTransfo
     public static final SearchType DEFAULT_SEARCH_TYPE = SearchType.QUERY_THEN_FETCH;
 
     protected final ClientProxy client;
+    private final @Nullable DynamicIndexName[] indexNames;
 
-    public ExecutableSearchTransform(SearchTransform transform, ESLogger logger, ClientProxy client) {
+    public ExecutableSearchTransform(SearchTransform transform, ESLogger logger, ClientProxy client, DynamicIndexName.Parser indexNameParser) {
         super(transform, logger);
         this.client = client;
+        String[] indices = transform.request.indices();
+        this.indexNames = indices != null ? indexNameParser.parse(indices) : null;
+    }
+
+    DynamicIndexName[] indexNames() {
+        return indexNames;
     }
 
     @Override
     public SearchTransform.Result execute(WatchExecutionContext ctx, Payload payload) {
         SearchRequest request = null;
         try {
-            request = WatcherUtils.createSearchRequestFromPrototype(transform.request, ctx, payload);
+            request = WatcherUtils.createSearchRequestFromPrototype(transform.request, indexNames, ctx, payload);
             SearchResponse resp = client.search(request);
             return new SearchTransform.Result(request, new Payload.XContent(resp));
         } catch (Exception e) {
@@ -41,5 +50,4 @@ public class ExecutableSearchTransform extends ExecutableTransform<SearchTransfo
             return new SearchTransform.Result(request, e);
         }
     }
-
 }

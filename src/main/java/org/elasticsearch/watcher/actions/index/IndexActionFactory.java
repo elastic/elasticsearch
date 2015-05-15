@@ -11,6 +11,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.watcher.actions.ActionFactory;
 import org.elasticsearch.watcher.actions.email.ExecutableEmailAction;
+import org.elasticsearch.watcher.support.DynamicIndexName;
 import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
 
 import java.io.IOException;
@@ -21,11 +22,14 @@ import java.io.IOException;
 public class IndexActionFactory extends ActionFactory<IndexAction, ExecutableIndexAction> {
 
     private final ClientProxy client;
+    private final DynamicIndexName.Parser indexNamesParser;
 
     @Inject
-    public IndexActionFactory(Settings settings, ClientProxy client) {
+    public IndexActionFactory(Settings settings, ClientProxy client, DynamicIndexName.Parser indexNamesParser) {
         super(Loggers.getLogger(ExecutableEmailAction.class, settings));
         this.client = client;
+        String defaultDateFormat = DynamicIndexName.defaultDateFormat(settings, "watcher.actions.index");
+        this.indexNamesParser = new DynamicIndexName.Parser(defaultDateFormat);
     }
 
     @Override
@@ -40,6 +44,6 @@ public class IndexActionFactory extends ActionFactory<IndexAction, ExecutableInd
 
     @Override
     public ExecutableIndexAction createExecutable(IndexAction action) {
-        return new ExecutableIndexAction(action, actionLogger, client);
+        return new ExecutableIndexAction(action, actionLogger, client, indexNamesParser);
     }
 }

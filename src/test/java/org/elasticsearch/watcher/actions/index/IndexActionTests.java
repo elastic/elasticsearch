@@ -21,13 +21,14 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.watcher.actions.Action;
 import org.elasticsearch.watcher.actions.Action.Result.Status;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
+import org.elasticsearch.watcher.support.DynamicIndexName;
 import org.elasticsearch.watcher.support.WatcherDateTimeUtils;
 import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
 import org.elasticsearch.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.watcher.test.WatcherTestUtils;
 import org.elasticsearch.watcher.watch.Payload;
 import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
+import org.joda.time.format.DateTimeFormat;
 import org.junit.Test;
 
 import java.util.Map;
@@ -37,6 +38,7 @@ import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.hamcrest.Matchers.*;
+import static org.joda.time.DateTimeZone.UTC;
 
 /**
  */
@@ -71,8 +73,8 @@ public class IndexActionTests extends ElasticsearchIntegrationTest {
         }
 
         IndexAction action = new IndexAction("test-index", "test-type", timestampField);
-        ExecutableIndexAction executable = new ExecutableIndexAction(action, logger, ClientProxy.of(client()));
-        DateTime executionTime = DateTime.now(DateTimeZone.UTC);
+        ExecutableIndexAction executable = new ExecutableIndexAction(action, logger, ClientProxy.of(client()), new DynamicIndexName.Parser());
+        DateTime executionTime = DateTime.now(UTC);
         Payload payload = randomBoolean() ? new Payload.Simple("foo", "bar") : new Payload.Simple("_doc", ImmutableMap.of("foo", "bar"));
         WatchExecutionContext ctx = WatcherTestUtils.mockExecutionContext("_id", executionTime, payload);
 
@@ -134,8 +136,8 @@ public class IndexActionTests extends ElasticsearchIntegrationTest {
         );
 
         IndexAction action = new IndexAction("test-index", "test-type", timestampField);
-        ExecutableIndexAction executable = new ExecutableIndexAction(action, logger, ClientProxy.of(client()));
-        DateTime executionTime = DateTime.now(DateTimeZone.UTC);
+        ExecutableIndexAction executable = new ExecutableIndexAction(action, logger, ClientProxy.of(client()), new DynamicIndexName.Parser());
+        DateTime executionTime = DateTime.now(UTC);
         WatchExecutionContext ctx = WatcherTestUtils.mockExecutionContext("_id", executionTime, new Payload.Simple("_doc", list));
 
         Action.Result result = executable.execute("_id", ctx, ctx.payload());
@@ -197,7 +199,8 @@ public class IndexActionTests extends ElasticsearchIntegrationTest {
         }
         builder.endObject();
 
-        IndexActionFactory actionParser = new IndexActionFactory(Settings.EMPTY, ClientProxy.of(client()));
+        DynamicIndexName.Parser indexNameParser = new DynamicIndexName.Parser();
+        IndexActionFactory actionParser = new IndexActionFactory(Settings.EMPTY, ClientProxy.of(client()), indexNameParser);
         XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes());
         parser.nextToken();
 
@@ -208,6 +211,27 @@ public class IndexActionTests extends ElasticsearchIntegrationTest {
         if (timestampField != null) {
             assertThat(executable.action().executionTimeField, equalTo(timestampField));
         }
+    }
+
+    @Test
+    public void testParser_DynamicIndex() throws Exception {
+        XContentBuilder builder = jsonBuilder();
+        builder.startObject()
+                .field(IndexAction.Field.INDEX.getPreferredName(), "<idx-{now/d}>")
+                .field(IndexAction.Field.DOC_TYPE.getPreferredName(), "test-type")
+                .endObject();
+
+        DynamicIndexName.Parser indexNameParser = new DynamicIndexName.Parser();
+        IndexActionFactory actionParser = new IndexActionFactory(Settings.EMPTY, ClientProxy.of(client()), indexNameParser);
+        XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes());
+        parser.nextToken();
+
+        ExecutableIndexAction executable = actionParser.parseExecutable(randomAsciiOfLength(5), randomAsciiOfLength(3), parser);
+
+        DateTime now = DateTime.now(UTC);
+        assertThat(executable, notNullValue());
+        assertThat(executable.action().index, is("<idx-{now/d}>"));
+        assertThat(executable.indexName().name(now), is("idx-" + DateTimeFormat.forPattern("YYYY.MM.dd").print(now)));
     }
 
     @Test
@@ -225,7 +249,8 @@ public class IndexActionTests extends ElasticsearchIntegrationTest {
             }
         }
         builder.endObject();
-        IndexActionFactory actionParser = new IndexActionFactory(Settings.EMPTY, ClientProxy.of(client()));
+        DynamicIndexName.Parser indexNameParser = new DynamicIndexName.Parser();
+        IndexActionFactory actionParser = new IndexActionFactory(Settings.EMPTY, ClientProxy.of(client()), indexNameParser);
         XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes());
         parser.nextToken();
         try {
@@ -237,5 +262,4 @@ public class IndexActionTests extends ElasticsearchIntegrationTest {
             assertThat(useIndex && useType, equalTo(false));
         }
     }
-
 }

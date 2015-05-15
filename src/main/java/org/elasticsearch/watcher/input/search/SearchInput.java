@@ -116,7 +116,6 @@ public class SearchInput implements Input {
         if (request == null) {
             throw new SearchInputException("could not parse [{}] input for watch [{}]. missing required [{}] field", TYPE, watchId, Field.REQUEST.getPreferredName());
         }
-
         return new SearchInput(request, extract);
     }
 

@@ -6,10 +6,9 @@
 package org.elasticsearch.watcher.watch;
 
 import com.carrotsearch.ant.tasks.junit4.dependencies.com.google.common.collect.ImmutableSet;
-import org.elasticsearch.common.bytes.BytesReference;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-import org.joda.time.DateTime;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
@@ -59,6 +58,7 @@ import org.elasticsearch.watcher.input.simple.ExecutableSimpleInput;
 import org.elasticsearch.watcher.input.simple.SimpleInput;
 import org.elasticsearch.watcher.input.simple.SimpleInputFactory;
 import org.elasticsearch.watcher.license.LicenseService;
+import org.elasticsearch.watcher.support.DynamicIndexName;
 import org.elasticsearch.watcher.support.Script;
 import org.elasticsearch.watcher.support.WatcherUtils;
 import org.elasticsearch.watcher.support.clock.Clock;
@@ -94,22 +94,24 @@ import org.elasticsearch.watcher.trigger.TriggerEngine;
 import org.elasticsearch.watcher.trigger.TriggerService;
 import org.elasticsearch.watcher.trigger.schedule.*;
 import org.elasticsearch.watcher.trigger.schedule.support.*;
+import org.joda.time.DateTime;
 import org.junit.Before;
 import org.junit.Test;
 
 import java.util.Collection;
 import java.util.Map;
 
-import static org.joda.time.DateTimeZone.UTC;
 import static org.elasticsearch.watcher.input.InputBuilders.searchInput;
 import static org.elasticsearch.watcher.test.WatcherTestUtils.matchAllRequest;
 import static org.elasticsearch.watcher.trigger.TriggerBuilders.schedule;
 import static org.hamcrest.Matchers.*;
+import static org.joda.time.DateTimeZone.UTC;
 import static org.mockito.Mockito.mock;
 
 public class WatchTests extends ElasticsearchTestCase {
 
     private ScriptServiceProxy scriptService;
+    private DynamicIndexName.Parser indexNamesParser;
     private ClientProxy client;
     private HttpClient httpClient;
     private EmailService emailService;
@@ -119,11 +121,13 @@ public class WatchTests extends ElasticsearchTestCase {
     private SecretService secretService;
     private LicenseService licenseService;
     private ESLogger logger;
+    private DynamicIndexName.Parser indexNameParser;
     private Settings settings = Settings.EMPTY;
 
     @Before
     public void init() throws Exception {
         scriptService = mock(ScriptServiceProxy.class);
+        indexNamesParser = new DynamicIndexName.Parser();
         client = mock(ClientProxy.class);
         httpClient = mock(HttpClient.class);
         emailService = mock(EmailService.class);
@@ -133,9 +137,10 @@ public class WatchTests extends ElasticsearchTestCase {
         licenseService = mock(LicenseService.class);
         authRegistry = new HttpAuthRegistry(ImmutableMap.of("basic", (HttpAuthFactory) new BasicAuthFactory(secretService)));
         logger = Loggers.getLogger(WatchTests.class);
+        indexNameParser = new DynamicIndexName.Parser();
     }
 
-    @Test //@Repeat(iterations = 20)
+    @Test
     public void testParser_SelfGenerated() throws Exception {
         DateTime now = new DateTime(UTC);
         ClockMock clock = new ClockMock();
@@ -307,7 +312,7 @@ public class WatchTests extends ElasticsearchTestCase {
         switch (type) {
             case SearchInput.TYPE:
                 SearchInput searchInput = searchInput(WatcherTestUtils.newInputSearchRequest("idx")).build();
-                return new ExecutableSearchInput(searchInput, logger, client);
+                return new ExecutableSearchInput(searchInput, logger, client, indexNameParser);
             default:
                 SimpleInput simpleInput = InputBuilders.simpleInput(ImmutableMap.<String, Object>builder().put("_key", "_val")).build();
                 return new ExecutableSimpleInput(simpleInput, logger);
@@ -359,13 +364,13 @@ public class WatchTests extends ElasticsearchTestCase {
             case ScriptTransform.TYPE:
                 return new ExecutableScriptTransform(new ScriptTransform(Script.inline("_script").build()), logger, scriptService);
             case SearchTransform.TYPE:
-                return new ExecutableSearchTransform(new SearchTransform(matchAllRequest(WatcherUtils.DEFAULT_INDICES_OPTIONS)), logger, client);
+                return new ExecutableSearchTransform(new SearchTransform(matchAllRequest(WatcherUtils.DEFAULT_INDICES_OPTIONS)), logger, client, indexNameParser);
             default: // chain
                 ChainTransform chainTransform = new ChainTransform(ImmutableList.of(
                         new SearchTransform(matchAllRequest(WatcherUtils.DEFAULT_INDICES_OPTIONS)),
                         new ScriptTransform(Script.inline("_script").build())));
                 return new ExecutableChainTransform(chainTransform, logger, ImmutableList.<ExecutableTransform>of(
-                        new ExecutableSearchTransform(new SearchTransform(matchAllRequest(WatcherUtils.DEFAULT_INDICES_OPTIONS)), logger, client),
+                        new ExecutableSearchTransform(new SearchTransform(matchAllRequest(WatcherUtils.DEFAULT_INDICES_OPTIONS)), logger, client, indexNameParser),
                         new ExecutableScriptTransform(new ScriptTransform(Script.inline("_script").build()), logger, scriptService)));
         }
     }
@@ -389,8 +394,8 @@ public class WatchTests extends ElasticsearchTestCase {
             list.add(new ActionWrapper("_email_" + randomAsciiOfLength(8), randomThrottler(), transform, new ExecutableEmailAction(action, logger, emailService, templateEngine, htmlSanitizer)));
         }
         if (randomBoolean()) {
-            IndexAction aciton = new IndexAction("_index", "_type", null);
-            list.add(new ActionWrapper("_index_" + randomAsciiOfLength(8), randomThrottler(), randomTransform(), new ExecutableIndexAction(aciton, logger, client)));
+            IndexAction action = new IndexAction("_index", "_type", null);
+            list.add(new ActionWrapper("_index_" + randomAsciiOfLength(8), randomThrottler(), randomTransform(), new ExecutableIndexAction(action, logger, client, indexNameParser)));
         }
         if (randomBoolean()) {
             HttpRequestTemplate httpRequest = HttpRequestTemplate.builder("test.host", randomIntBetween(8000, 9000))
@@ -411,7 +416,7 @@ public class WatchTests extends ElasticsearchTestCase {
                     parsers.put(EmailAction.TYPE, new EmailActionFactory(settings, emailService, templateEngine, htmlSanitizer));
                     break;
                 case IndexAction.TYPE:
-                    parsers.put(IndexAction.TYPE, new IndexActionFactory(settings, client));
+                    parsers.put(IndexAction.TYPE, new IndexActionFactory(settings, client, indexNamesParser));
                     break;
                 case WebhookAction.TYPE:
                     parsers.put(WebhookAction.TYPE, new WebhookActionFactory(settings,  httpClient,

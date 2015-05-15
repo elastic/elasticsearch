@@ -261,6 +261,10 @@ public abstract class AbstractWatcherIntegrationTests extends ElasticsearchInteg
         return builder.get().getHits().getTotalHits();
     }
 
+    protected SearchResponse searchHistory(SearchSourceBuilder builder) {
+        return client().prepareSearch(HistoryStore.INDEX_PREFIX + "*").setSource(builder.buildAsBytes()).get();
+    }
+
     protected <T> T getInstanceFromMaster(Class<T> type) {
         return internalTestCluster().getInstance(type, internalTestCluster().getMasterName());
     }

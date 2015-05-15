@@ -18,6 +18,7 @@ import org.elasticsearch.watcher.actions.Action;
 import org.elasticsearch.watcher.actions.ExecutableAction;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.watcher.support.ArrayObjectIterator;
+import org.elasticsearch.watcher.support.DynamicIndexName;
 import org.elasticsearch.watcher.support.WatcherDateTimeUtils;
 import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
 import org.elasticsearch.watcher.support.xcontent.XContentSource;
@@ -32,10 +33,16 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 public class ExecutableIndexAction extends ExecutableAction<IndexAction> {
 
     private final ClientProxy client;
+    private final DynamicIndexName indexName;
 
-    public ExecutableIndexAction(IndexAction action, ESLogger logger, ClientProxy client) {
+    public ExecutableIndexAction(IndexAction action, ESLogger logger, ClientProxy client, DynamicIndexName.Parser indexNameParser) {
         super(action, logger);
         this.client = client;
+        this.indexName = indexNameParser.parse(action.index);
+    }
+
+    DynamicIndexName indexName() {
+        return indexName;
     }
 
     @Override
@@ -57,7 +64,8 @@ public class ExecutableIndexAction extends ExecutableAction<IndexAction> {
         }
 
         IndexRequest indexRequest = new IndexRequest();
-        indexRequest.index(action.index);
+
+        indexRequest.index(indexName.name(ctx.executionTime()));
         indexRequest.type(action.docType);
 
         if (action.executionTimeField != null && !TimestampFieldMapper.NAME.equals(action.executionTimeField)) {
@@ -72,7 +80,7 @@ public class ExecutableIndexAction extends ExecutableAction<IndexAction> {
         indexRequest.source(jsonBuilder().prettyPrint().map(data));
 
         if (ctx.simulateAction(actionId)) {
-            return new IndexAction.Result.Simulated(action.index, action.docType, new XContentSource(indexRequest.source(), XContentType.JSON));
+            return new IndexAction.Result.Simulated(indexRequest.index(), action.docType, new XContentSource(indexRequest.source(), XContentType.JSON));
         }
 
         IndexResponse response = client.index(indexRequest);
@@ -89,7 +97,7 @@ public class ExecutableIndexAction extends ExecutableAction<IndexAction> {
             }
             Map<String, Object> doc = (Map<String, Object>) item;
             IndexRequest indexRequest = new IndexRequest();
-            indexRequest.index(action.index);
+            indexRequest.index(indexName.name(ctx.executionTime()));
             indexRequest.type(action.docType);
             if (action.executionTimeField != null && !TimestampFieldMapper.NAME.equals(action.executionTimeField)) {
                 if (!(doc instanceof HashMap)) {

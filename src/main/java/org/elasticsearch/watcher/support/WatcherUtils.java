@@ -8,6 +8,7 @@ package org.elasticsearch.watcher.support;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -55,11 +56,16 @@ public final class WatcherUtils {
         }
     }
 
-    public static SearchRequest createSearchRequestFromPrototype(SearchRequest requestPrototype, WatchExecutionContext ctx, Payload payload) throws IOException {
+    public static SearchRequest createSearchRequestFromPrototype(SearchRequest requestPrototype, @Nullable DynamicIndexName[] dynamicIndexNames, WatchExecutionContext ctx, Payload payload) throws IOException {
+
+        String[] indices = dynamicIndexNames == null ?
+                requestPrototype.indices() :
+                DynamicIndexName.names(dynamicIndexNames, ctx.executionTime());
+
         SearchRequest request = new SearchRequest(requestPrototype)
                 .indicesOptions(requestPrototype.indicesOptions())
                 .searchType(requestPrototype.searchType())
-                .indices(requestPrototype.indices())
+                .indices(indices)
                 .types(requestPrototype.types());
 
         // TODO: Revise this search template conversion code once search templates in core have been refactored once ES 2.0 is released.

@@ -19,6 +19,7 @@ import org.elasticsearch.watcher.input.InputModule;
 import org.elasticsearch.watcher.license.LicenseModule;
 import org.elasticsearch.watcher.rest.WatcherRestModule;
 import org.elasticsearch.watcher.shield.WatcherShieldModule;
+import org.elasticsearch.watcher.support.DynamicIndexName;
 import org.elasticsearch.watcher.support.TemplateUtils;
 import org.elasticsearch.watcher.support.clock.ClockModule;
 import org.elasticsearch.watcher.support.http.HttpClientModule;
@@ -70,6 +71,7 @@ public class WatcherModule extends AbstractModule implements SpawnModules {
         bind(WatcherLifeCycleService.class).asEagerSingleton();
         bind(TemplateUtils.class).asEagerSingleton();
         bind(WatcherSettingsValidation.class).asEagerSingleton();
+        bind(DynamicIndexName.Parser.class).asEagerSingleton();
     }
 
 }

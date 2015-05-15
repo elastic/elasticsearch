@@ -12,6 +12,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.watcher.actions.Action;
+import org.elasticsearch.watcher.support.DynamicIndexName;
 import org.elasticsearch.watcher.support.xcontent.XContentSource;
 
 import java.io.IOException;
@@ -91,10 +92,14 @@ public class IndexAction implements Action {
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
-            } else if (token == XContentParser.Token.VALUE_STRING) {
-                if (Field.INDEX.match(currentFieldName)) {
+            } else if (Field.INDEX.match(currentFieldName)) {
+                try {
                     index = parser.text();
-                } else if (Field.DOC_TYPE.match(currentFieldName)) {
+                } catch (DynamicIndexName.ParseException pe) {
+                    throw new IndexActionException("could not parse [{}] action [{}/{}]. failed to parse index name value for field [{}]", pe, TYPE, watchId, actionId, currentFieldName);
+                }
+            } else if (token == XContentParser.Token.VALUE_STRING) {
+                if (Field.DOC_TYPE.match(currentFieldName)) {
                     docType = parser.text();
                 } else if (Field.EXECUTION_TIME_FIELD.match(currentFieldName)) {
                     executionTimeField = parser.text();

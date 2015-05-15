@@ -8,6 +8,7 @@ package org.elasticsearch.watcher.input.search;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -16,6 +17,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.watcher.input.ExecutableInput;
+import org.elasticsearch.watcher.support.DynamicIndexName;
 import org.elasticsearch.watcher.support.WatcherUtils;
 import org.elasticsearch.watcher.support.XContentFilterKeysUtils;
 import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
@@ -33,16 +35,23 @@ public class ExecutableSearchInput extends ExecutableInput<SearchInput, SearchIn
     public static final SearchType DEFAULT_SEARCH_TYPE = SearchType.QUERY_THEN_FETCH;
 
     private final ClientProxy client;
+    private final @Nullable DynamicIndexName[] indexNames;
 
-    public ExecutableSearchInput(SearchInput input, ESLogger logger, ClientProxy client) {
+    public ExecutableSearchInput(SearchInput input, ESLogger logger, ClientProxy client, DynamicIndexName.Parser indexNameParser) {
         super(input, logger);
         this.client = client;
+        String[] indices = input.getSearchRequest().indices();
+        indexNames =  indices != null ? indexNameParser.parse(indices) : null;
+    }
+
+    DynamicIndexName[] indexNames() {
+        return indexNames;
     }
 
     public SearchInput.Result execute(WatchExecutionContext ctx) {
         SearchRequest request = null;
         try {
-            request = WatcherUtils.createSearchRequestFromPrototype(input.getSearchRequest(), ctx, null);
+            request = WatcherUtils.createSearchRequestFromPrototype(input.getSearchRequest(), indexNames, ctx, null);
             return doExecute(ctx, request);
         } catch (Exception e) {
             logger.error("failed to execute [{}] input for [{}]", e, SearchInput.TYPE, ctx.watch());
@@ -51,7 +60,6 @@ public class ExecutableSearchInput extends ExecutableInput<SearchInput, SearchIn
     }
 
     SearchInput.Result doExecute(WatchExecutionContext ctx, SearchRequest request) throws Exception {
-
         if (logger.isTraceEnabled()) {
             BytesReference source = request.source() != null ? request.source() : request.templateSource();
             logger.trace("[{}] running query for [{}] [{}]", ctx.id(), ctx.watch().id(), XContentHelper.convertToJson(source, false, true));

@@ -34,6 +34,7 @@ public class RestWatcherInfoAction extends WatcherRestHandler {
             public RestResponse buildResponse(WatcherStatsResponse watcherStatsResponse, XContentBuilder builder) throws Exception {
                 builder.startObject();
                 builder.startObject("version")
+                        .field("name", watcherStatsResponse.getBuild().versionName())
                         .field("number", watcherStatsResponse.getVersion().number())
                         .field("build_hash", watcherStatsResponse.getBuild().hash())
                         .field("build_timestamp", watcherStatsResponse.getBuild().timestamp())

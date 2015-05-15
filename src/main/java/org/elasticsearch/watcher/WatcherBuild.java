@@ -22,6 +22,7 @@ public class WatcherBuild {
     public static final WatcherBuild CURRENT;
 
     static {
+        String versionName = "NA";
         String hash = "NA";
         String hashShort = "NA";
         String timestamp = "NA";
@@ -38,21 +39,28 @@ public class WatcherBuild {
             if (gitTimestampRaw != null) {
                 timestamp = ISODateTimeFormat.dateTimeNoMillis().withZone(UTC).print(Long.parseLong(gitTimestampRaw));
             }
+            versionName = props.getProperty("version", "NA");
         } catch (Exception e) {
             // just ignore...
         }
 
-        CURRENT = new WatcherBuild(hash, hashShort, timestamp);
+        CURRENT = new WatcherBuild(versionName, hash, hashShort, timestamp);
     }
 
+    private final String versionName;
     private final String hash;
     private final String hashShort;
     private final String timestamp;
 
-    WatcherBuild(String hash, String hashShort, String timestamp) {
+    WatcherBuild(String versionName, String hash, String hashShort, String timestamp) {
+        this.versionName = versionName;
         this.hash = hash;
         this.hashShort = hashShort;
         this.timestamp = timestamp;
+    }
+
+    public String versionName() {
+        return versionName;
     }
 
     public String hash() {
@@ -77,6 +85,7 @@ public class WatcherBuild {
         if (!hash.equals(that.hash)) return false;
         if (!hashShort.equals(that.hashShort)) return false;
         if (!timestamp.equals(that.timestamp)) return false;
+        if (!versionName.equals(that.versionName)) return false;
 
         return true;
     }
@@ -86,19 +95,22 @@ public class WatcherBuild {
         int result = hash.hashCode();
         result = 31 * result + hashShort.hashCode();
         result = 31 * result + timestamp.hashCode();
+        result = 31 * result + versionName.hashCode();
         return result;
     }
 
     public static WatcherBuild readBuild(StreamInput in) throws IOException {
+        String versionName = in.readString();
         String hash = in.readString();
         String hashShort = in.readString();
         String timestamp = in.readString();
-        return new WatcherBuild(hash, hashShort, timestamp);
+        return new WatcherBuild(versionName, hash, hashShort, timestamp);
     }
 
     public static void writeBuild(WatcherBuild build, StreamOutput out) throws IOException {
-        out.writeString(build.hash());
-        out.writeString(build.hashShort());
-        out.writeString(build.timestamp());
+        out.writeString(build.versionName);
+        out.writeString(build.hash);
+        out.writeString(build.hashShort);
+        out.writeString(build.timestamp);
     }
 }

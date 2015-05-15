@@ -68,6 +68,57 @@ public class TermQueryBuilder extends BaseTermQueryBuilder<TermQueryBuilder> {
         // for serialization only
     }
 
+    /**
+     * @return the field name used in this query
+     */
+    @Override
+    public String fieldName() {
+        return this.fieldName;
+    }
+
+    /**
+     * @return the value used in this query
+     */
+    @Override
+    public Object value() {
+        return this.value;
+    }
+
+    /**
+     * Sets the boost for this query.  Documents matching this query will (in addition to the normal
+     * weightings) have their score multiplied by the boost provided.
+     */
+    @Override
+    public TermQueryBuilder boost(float boost) {
+        this.boost = boost;
+        return this;
+    }
+
+    /**
+     * Gets the boost for this query.
+     */
+    @Override
+    public float boost() {
+        return this.boost;
+    }
+
+    /**
+     * Sets the query name for the query.
+     */
+    @Override
+    public TermQueryBuilder queryName(String queryName) {
+        this.queryName = queryName;
+        return this;
+    }
+
+    /**
+     * Gets the query name for the query.
+     */
+    @Override
+    public String queryName() {
+        return this.queryName;
+    }
+
     @Override
     public Query toQuery(QueryParseContext parseContext) {
         Query query = null;
@@ -89,4 +140,5 @@ public class TermQueryBuilder extends BaseTermQueryBuilder<TermQueryBuilder> {
     protected String parserName() {
         return TermQueryParser.NAME;
     }
+
 }

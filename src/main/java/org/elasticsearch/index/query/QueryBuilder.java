@@ -87,7 +87,7 @@ public abstract class QueryBuilder extends ToXContentToBytes {
      * @param obj the input object
      * @return the same input object or a {@link BytesRef} representation if input was of type string
      */
-    public static Object convertToBytesRefIfString(Object obj) {
+    protected static Object convertToBytesRefIfString(Object obj) {
         if (obj instanceof String) {
             return BytesRefs.toBytesRef(obj);
         }
@@ -101,7 +101,7 @@ public abstract class QueryBuilder extends ToXContentToBytes {
      * @param obj the input object
      * @return the same input object or a utf8 string if input was of type {@link BytesRef}
      */
-    public static Object convertToStringIfBytesRef(Object obj) {
+    protected static Object convertToStringIfBytesRef(Object obj) {
         if (obj instanceof BytesRef) {
             return ((BytesRef) obj).utf8ToString();
         }

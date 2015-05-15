@@ -37,6 +37,7 @@ import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.aggregations.support.ValuesSource.Bytes.WithOrdinals;
 
 import java.io.IOException;
 import java.util.HashSet;
@@ -80,33 +81,65 @@ public class IncludeExclude {
     }
 
     // Only used for the 'map' execution mode (ie. scripts)
-    public static class StringFilter {
+    public abstract static class StringFilter {
+        public abstract boolean accept(BytesRef value);
+    }
+
+    static class AutomatonBackedStringFilter extends StringFilter {
 
         private final ByteRunAutomaton runAutomaton;
 
-        private StringFilter(Automaton automaton) {
+        private AutomatonBackedStringFilter(Automaton automaton) {
             this.runAutomaton = new ByteRunAutomaton(automaton);
         }
 
         /**
          * Returns whether the given value is accepted based on the {@code include} & {@code exclude} patterns.
          */
+        @Override
         public boolean accept(BytesRef value) {
             return runAutomaton.run(value.bytes, value.offset, value.length);
         }
     }
 
-    public static class OrdinalsFilter {
+    static class TermListBackedStringFilter extends StringFilter {
+
+        private final Set<BytesRef> valids;
+        private final Set<BytesRef> invalids;
+
+        public TermListBackedStringFilter(Set<BytesRef> includeValues, Set<BytesRef> excludeValues) {
+            this.valids = includeValues;
+            this.invalids = excludeValues;
+        }
+
+        /**
+         * Returns whether the given value is accepted based on the
+         * {@code include} & {@code exclude} sets.
+         */
+        @Override
+        public boolean accept(BytesRef value) {
+            return ((valids == null) || (valids.contains(value))) && ((invalids == null) || (!invalids.contains(value)));
+        }
+    }
+
+    public static abstract class OrdinalsFilter {
+        public abstract LongBitSet acceptedGlobalOrdinals(RandomAccessOrds globalOrdinals, ValuesSource.Bytes.WithOrdinals valueSource) throws IOException;
+        
+    }
+
+    static class AutomatonBackedOrdinalsFilter extends OrdinalsFilter {
 
         private final CompiledAutomaton compiled;
 
-        private OrdinalsFilter(Automaton automaton) {
+        private AutomatonBackedOrdinalsFilter(Automaton automaton) {
             this.compiled = new CompiledAutomaton(automaton);
         }
 
         /**
          * Computes which global ordinals are accepted by this IncludeExclude instance.
+         * 
          */
+        @Override
         public LongBitSet acceptedGlobalOrdinals(RandomAccessOrds globalOrdinals, ValuesSource.Bytes.WithOrdinals valueSource) throws IOException {
             LongBitSet acceptedGlobalOrdinals = new LongBitSet(globalOrdinals.getValueCount());
             TermsEnum globalTermsEnum;
@@ -115,6 +148,43 @@ public class IncludeExclude {
             globalTermsEnum = compiled.getTermsEnum(globalTerms);
             for (BytesRef term = globalTermsEnum.next(); term != null; term = globalTermsEnum.next()) {
                 acceptedGlobalOrdinals.set(globalTermsEnum.ord());
+            }
+            return acceptedGlobalOrdinals;
+        }
+
+    }
+    
+    static class TermListBackedOrdinalsFilter extends OrdinalsFilter {
+
+        private final SortedSet<BytesRef> includeValues;
+        private final SortedSet<BytesRef> excludeValues;
+
+        public TermListBackedOrdinalsFilter(SortedSet<BytesRef> includeValues, SortedSet<BytesRef> excludeValues) {
+            this.includeValues = includeValues;
+            this.excludeValues = excludeValues;
+        }
+
+        @Override
+        public LongBitSet acceptedGlobalOrdinals(RandomAccessOrds globalOrdinals, WithOrdinals valueSource) throws IOException {
+            LongBitSet acceptedGlobalOrdinals = new LongBitSet(globalOrdinals.getValueCount());
+            if(includeValues!=null){
+                for (BytesRef term : includeValues) {
+                    long ord = globalOrdinals.lookupTerm(term);
+                    if (ord >= 0) {
+                        acceptedGlobalOrdinals.set(ord);
+                    }
+                }                
+            } else {
+                // default to all terms being acceptable
+                acceptedGlobalOrdinals.set(0, acceptedGlobalOrdinals.length());
+            }
+            if (excludeValues != null) {
+                for (BytesRef term : excludeValues) {
+                    long ord = globalOrdinals.lookupTerm(term);
+                    if (ord >= 0) {
+                        acceptedGlobalOrdinals.clear(ord);
+                    }
+                }
             }
             return acceptedGlobalOrdinals;
         }
@@ -325,11 +395,18 @@ public class IncludeExclude {
     }
 
     public StringFilter convertToStringFilter() {
-        return new StringFilter(toAutomaton());
+        if (isRegexBased()) {
+            return new AutomatonBackedStringFilter(toAutomaton());
+        }
+        return new TermListBackedStringFilter(includeValues, excludeValues);
     }
 
     public OrdinalsFilter convertToOrdinalsFilter() {
-        return new OrdinalsFilter(toAutomaton());
+
+        if (isRegexBased()) {
+            return new AutomatonBackedOrdinalsFilter(toAutomaton());
+        }
+        return new TermListBackedOrdinalsFilter(includeValues, excludeValues);
     }
 
     public LongFilter convertToLongFilter() {

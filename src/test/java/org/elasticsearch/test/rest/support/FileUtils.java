@@ -25,17 +25,15 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.PathUtils;
 
 import java.io.IOException;
-import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.file.DirectoryStream;
-import java.nio.file.FileSystems;
+import java.nio.file.FileSystem;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.NotDirectoryException;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.HashSet;
@@ -53,10 +51,10 @@ public final class FileUtils {
 
     /**
      * Returns the json files found within the directory provided as argument.
-     * Files are looked up in the classpath first, then outside of it if not found.
+     * Files are looked up in the classpath first, then as a fallback optionally from {@code fileSystem} if its not null.
      */
-    public static Set<Path> findJsonSpec(String optionalPathPrefix, String path) throws IOException {
-        Path dir = resolveFile(optionalPathPrefix, path, null);
+    public static Set<Path> findJsonSpec(FileSystem fileSystem, String optionalPathPrefix, String path) throws IOException {
+        Path dir = resolveFile(fileSystem, optionalPathPrefix, path, null);
 
         if (!Files.isDirectory(dir)) {
             throw new NotDirectoryException(path);
@@ -81,17 +79,17 @@ public final class FileUtils {
     /**
      * Returns the yaml files found within the paths provided.
      * Each input path can either be a single file (the .yaml suffix is optional) or a directory.
-     * Each path is looked up in the classpath first, then outside of it if not found yet.
+     * Each path is looked up in the classpath first, then as a fallback optionally from {@code fileSystem} if its not null.
      */
-    public static Map<String, Set<Path>> findYamlSuites(final String optionalPathPrefix, final String... paths) throws IOException {
+    public static Map<String, Set<Path>> findYamlSuites(FileSystem fileSystem, String optionalPathPrefix, final String... paths) throws IOException {
         Map<String, Set<Path>> yamlSuites = Maps.newHashMap();
         for (String path : paths) {
-            collectFiles(resolveFile(optionalPathPrefix, path, YAML_SUFFIX), YAML_SUFFIX, yamlSuites);
+            collectFiles(resolveFile(fileSystem, optionalPathPrefix, path, YAML_SUFFIX), YAML_SUFFIX, yamlSuites);
         }
         return yamlSuites;
     }
 
-    private static Path resolveFile(String optionalPathPrefix, String path, String optionalFileSuffix) throws IOException {
+    private static Path resolveFile(FileSystem fileSystem, String optionalPathPrefix, String path, String optionalFileSuffix) throws IOException {
         //try within classpath with and without file suffix (as it could be a single test suite)
         URL resource = findResource(path, optionalFileSuffix);
         if (resource == null) {
@@ -100,11 +98,15 @@ public final class FileUtils {
             resource = findResource(newPath, optionalFileSuffix);
             if (resource == null) {
                 //if it wasn't on classpath we look outside of the classpath
-                Path file = findFile(path, optionalFileSuffix);
-                if (!Files.exists(file)) {
+                if (fileSystem != null) {
+                    Path file = findFile(fileSystem, path, optionalFileSuffix);
+                    if (!Files.exists(file)) {
+                        throw new NoSuchFileException(path);
+                    }
+                    return file;
+                } else {
                     throw new NoSuchFileException(path);
                 }
-                return file;
             }
         }
 
@@ -126,10 +128,10 @@ public final class FileUtils {
         return resource;
     }
 
-    private static Path findFile(String path, String optionalFileSuffix) {
-        Path file = PathUtils.get(path);
+    private static Path findFile(FileSystem fileSystem, String path, String optionalFileSuffix) {
+        Path file = fileSystem.getPath(path);
         if (!Files.exists(file)) {
-            file = PathUtils.get(path + optionalFileSuffix);
+            file = fileSystem.getPath(path + optionalFileSuffix);
         }
         return file;
     }

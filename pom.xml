@@ -787,8 +787,6 @@
                                 <!-- unit tests for test framework classes-->
                                 <exclude>org/elasticsearch/test/test/**/*</exclude>
                             </excludes>
-                            <!-- Resources are large and not really helpful as "test sources". -->
-                            <excludeResources>true</excludeResources>
                         </configuration>
                     </execution>
                 </executions>
@@ -1539,6 +1537,7 @@
                         </goals>
                         <configuration>
                             <includes>
+                                <include>rest-api-spec/**/*</include>
                                 <include>org/elasticsearch/test/**/*</include>
                                 <include>org/elasticsearch/bootstrap/BootstrapForTesting.class</include>
                                 <include>org/elasticsearch/common/cli/CliToolTestCase.class</include>

@@ -435,6 +435,34 @@ public class ContextSuggestSearchTests extends ElasticsearchIntegrationTest {
 
     }
 
+    @Test // see issue #10987
+    public void testEmptySuggestion() throws Exception {
+        String mapping = jsonBuilder()
+                .startObject()
+                .startObject(TYPE)
+                .startObject("properties")
+                .startObject(FIELD)
+                .field("type", "completion")
+                .startObject("context")
+                .startObject("type_context")
+                .field("path", "_type")
+                .field("type", "category")
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+                .string();
+
+        assertAcked(client().admin().indices().prepareCreate(INDEX).addMapping(TYPE, mapping).get());
+        ensureGreen();
+
+        client().prepareIndex(INDEX, TYPE, "1").setSource(FIELD, "")
+                .setRefresh(true).get();
+
+    }
+
     @Test
     public void testMultiValueField() throws Exception {
         assertAcked(prepareCreate(INDEX).addMapping(TYPE, createMapping(TYPE, ContextBuilder.reference("st", "category"))));

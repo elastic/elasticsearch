@@ -106,6 +106,46 @@ public enum MultiValueMode {
     },
 
     /**
+     * Median of the values.
+     *
+     * Note that apply/reduce do not work with MED since median cannot be derived from
+     * an accumulator algorithm without using internal memory.
+     */
+    MEDIAN {
+        @Override
+        protected long pick(SortedNumericDocValues values, long missingValue) {
+            int count = values.count();
+            if (count > 0) {
+                if (count % 2 == 0) {
+                    count /= 2;
+                    return (values.valueAt(count - 1) + values.valueAt(count))/2;
+                } else {
+                    count /= 2;
+                    return values.valueAt(count);
+                }
+            } else {
+                return missingValue;
+            }
+        }
+
+        @Override
+        protected double pick(SortedNumericDoubleValues values, double missingValue) {
+            int count = values.count();
+            if (count > 0) {
+                if (count % 2 == 0) {
+                    count /= 2;
+                    return (values.valueAt(count - 1) + values.valueAt(count))/2;
+                } else {
+                    count /= 2;
+                    return values.valueAt(count);
+                }
+            } else {
+                return missingValue;
+            }
+        }
+    },
+
+    /**
      * Pick the lowest value.
      */
     MIN {
@@ -288,7 +328,9 @@ public enum MultiValueMode {
      * @param b another argument
      * @return the result of the function.
      */
-    public abstract double apply(double a, double b);
+    public double apply(double a, double b) {
+        throw new UnsupportedOperationException();
+    }
 
     /**
      * Applies the sort mode and returns the result. This method is meant to be
@@ -302,7 +344,9 @@ public enum MultiValueMode {
      * @param b another argument
      * @return the result of the function.
      */
-    public abstract long apply(long a, long b);
+    public long apply(long a, long b) {
+        throw new UnsupportedOperationException();
+    }
 
     public int applyOrd(int ord1, int ord2) {
         throw new UnsupportedOperationException();

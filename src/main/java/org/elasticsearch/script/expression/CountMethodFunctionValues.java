@@ -16,15 +16,29 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.search.suggest;
 
-import java.io.IOException;
+package org.elasticsearch.script.expression;
 
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.query.IndexQueryParserService;
+import org.apache.lucene.queries.function.ValueSource;
+import org.apache.lucene.queries.function.docvalues.DoubleDocValues;
+import org.elasticsearch.index.fielddata.AtomicNumericFieldData;
+import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 
-public interface SuggestContextParser {
-    public SuggestionSearchContext.SuggestionContext parse(XContentParser parser, MapperService mapperService, IndexQueryParserService queryParserService) throws IOException;
+/**
+ * FunctionValues to get the count of the number of values in a field for a document.
+ */
+public class CountMethodFunctionValues extends DoubleDocValues {
+    SortedNumericDoubleValues values;
 
+    CountMethodFunctionValues(ValueSource parent, AtomicNumericFieldData fieldData) {
+        super(parent);
+
+        values = fieldData.getDoubleValues();
+    }
+
+    @Override
+    public double doubleVal(int doc) {
+        values.setDocument(doc);
+        return values.count();
+    }
 }

@@ -32,19 +32,23 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * A {@link ValueSource} wrapper for field data.
+ * A ValueSource to create FunctionValues to get the count of the number of values in a field for a document.
  */
-class FieldDataValueSource extends ValueSource {
-
+public class CountMethodValueSource extends ValueSource {
     protected IndexFieldData<?> fieldData;
-    protected MultiValueMode multiValueMode;
 
-    protected FieldDataValueSource(IndexFieldData<?> d, MultiValueMode m) {
-        Objects.requireNonNull(d);
-        Objects.requireNonNull(m);
+    protected CountMethodValueSource(IndexFieldData<?> fieldData) {
+        Objects.requireNonNull(fieldData);
 
-        fieldData = d;
-        multiValueMode = m;
+        this.fieldData = fieldData;
+    }
+
+    @Override
+    public FunctionValues getValues(Map context, LeafReaderContext leaf) throws IOException {
+        AtomicFieldData leafData = fieldData.load(leaf);
+        assert(leafData instanceof AtomicNumericFieldData);
+
+        return new CountMethodFunctionValues(this, (AtomicNumericFieldData)leafData);
     }
 
     @Override
@@ -54,27 +58,16 @@ class FieldDataValueSource extends ValueSource {
 
         FieldDataValueSource that = (FieldDataValueSource) o;
 
-        if (!fieldData.equals(that.fieldData)) return false;
-        return multiValueMode == that.multiValueMode;
-
+        return fieldData.equals(that.fieldData);
     }
 
     @Override
     public int hashCode() {
-        int result = fieldData.hashCode();
-        result = 31 * result + multiValueMode.hashCode();
-        return result;
-    }
-
-    @Override
-    public FunctionValues getValues(Map context, LeafReaderContext leaf) throws IOException {
-        AtomicFieldData leafData = fieldData.load(leaf);
-        assert(leafData instanceof AtomicNumericFieldData);
-        return new FieldDataFunctionValues(this, multiValueMode, (AtomicNumericFieldData)leafData);
+        return fieldData.hashCode();
     }
 
     @Override
     public String description() {
-        return "field(" + fieldData.getFieldNames().toString() + ")";
+        return "count: field(" + fieldData.getFieldNames().toString() + ")";
     }
 }

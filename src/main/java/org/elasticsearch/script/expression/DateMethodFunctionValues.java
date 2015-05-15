@@ -25,13 +25,14 @@ import java.util.TimeZone;
 
 import org.apache.lucene.queries.function.ValueSource;
 import org.elasticsearch.index.fielddata.AtomicNumericFieldData;
+import org.elasticsearch.search.MultiValueMode;
 
 class DateMethodFunctionValues extends FieldDataFunctionValues {
     private final int calendarType;
     private final Calendar calendar;
 
-    DateMethodFunctionValues(ValueSource parent, AtomicNumericFieldData data, int calendarType) {
-        super(parent, data);
+    DateMethodFunctionValues(ValueSource parent, MultiValueMode multiValueMode,  AtomicNumericFieldData data, int calendarType) {
+        super(parent, multiValueMode, data);
 
         this.calendarType = calendarType;
         calendar = Calendar.getInstance(TimeZone.getTimeZone("UTC"), Locale.ROOT);

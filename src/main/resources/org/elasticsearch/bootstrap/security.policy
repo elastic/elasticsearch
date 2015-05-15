@@ -98,4 +98,7 @@ grant {
 
   // needed by JDKESLoggerTests
   permission java.util.logging.LoggingPermission "control";
+
+  // needed by Mockito
+  permission java.lang.RuntimePermission "reflectionFactoryAccess";
 };

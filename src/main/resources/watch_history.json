@@ -9,8 +9,18 @@
     "watch_record": {
       "dynamic_templates": [
         {
-          "disabled_fields": {
-            "path_match": "execution_result\\.((input\\..+)|(actions\\.transform))\\.payload",
+          "disabled_payload_fields": {
+            "path_match": "execution_result\\.((input\\..+)|(actions\\.transform\\..+)|(transform\\..+))\\.payload",
+            "match_pattern": "regex",
+            "mapping": {
+              "type": "object",
+              "enabled": false
+            }
+          }
+        },
+        {
+          "disabled_search_request_body_fields": {
+            "path_match": "execution_result\\.((input)|(actions\\.transform.*)|(transform.*))\\.search\\.request\\.(body|template)",
             "match_pattern": "regex",
             "mapping": {
               "type": "object",
@@ -120,7 +130,23 @@
             },
             "transform" : {
               "type" : "object",
-              "enabled" : false
+              "dynamic" : true,
+              "properties" : {
+                "search" : {
+                  "type" : "object",
+                  "dynamic" : true,
+                  "properties" : {
+                    "indices" : {
+                      "type" : "string",
+                      "index" : "not_analyzed"
+                    },
+                    "types" : {
+                      "type" : "string",
+                      "index" : "not_analyzed"
+                    }
+                  }
+                }
+              }
             },
             "actions": {
               "type": "nested",
@@ -206,10 +232,6 @@
                       }
                     }
                   }
-                },
-                "transform" : {
-                  "type" : "object",
-                  "enabled" : false
                 }
               }
             }

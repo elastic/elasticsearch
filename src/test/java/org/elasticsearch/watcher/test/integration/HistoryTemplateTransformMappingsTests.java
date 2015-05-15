@@ -98,8 +98,8 @@ public class HistoryTemplateTransformMappingsTests extends AbstractWatcherIntegr
                     try {
                         Map<String, Object> source = metadata.getSourceAsMap();
                         logger.info("checking index [{}] with metadata:\n[{}]", metadatas.key, metadata.source().toString());
-                        assertThat(extractValue("properties.execution_result.properties.transform.enabled", source), is((Object) false));
-                        assertThat(extractValue("properties.execution_result.properties.actions.properties.transform.enabled", source), is((Object) false));
+                        assertThat(extractValue("properties.execution_result.properties.transform.properties.script.properties.payload.enabled", source), is((Object) false));
+                        assertThat(extractValue("properties.execution_result.properties.actions.properties.transform.properties.script.properties.payload.enabled", source), is((Object) false));
                     } catch (IOException e) {
                         throw new RuntimeException(e);
                     }

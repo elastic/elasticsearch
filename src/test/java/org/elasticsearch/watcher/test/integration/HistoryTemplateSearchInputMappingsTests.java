@@ -16,6 +16,7 @@ import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
 import org.elasticsearch.watcher.transport.actions.put.PutWatchResponse;
 import org.junit.Test;
 
+import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.elasticsearch.watcher.actions.ActionBuilders.loggingAction;
@@ -54,7 +55,8 @@ public class HistoryTemplateSearchInputMappingsTests extends AbstractWatcherInte
 
         PutWatchResponse putWatchResponse = watcherClient().preparePutWatch("_id").setSource(watchBuilder()
                 .trigger(schedule(interval("5s")))
-                .input(searchInput(new SearchRequest().indices(index).types(type).searchType(SearchType.QUERY_AND_FETCH)))
+                .input(searchInput(new SearchRequest().indices(index).types(type).searchType(SearchType.QUERY_AND_FETCH)
+                        .source(searchSource().query(matchAllQuery()))))
                 .condition(alwaysCondition())
                 .addAction("logger", loggingAction("indexed")))
                 .get();
@@ -71,6 +73,7 @@ public class HistoryTemplateSearchInputMappingsTests extends AbstractWatcherInte
                 .aggregation(terms("input_search_type").field("execution_result.input.search.request.search_type"))
                 .aggregation(terms("input_indices").field("execution_result.input.search.request.indices"))
                 .aggregation(terms("input_types").field("execution_result.input.search.request.types"))
+                .aggregation(terms("input_body").field("execution_result.input.search.request.body"))
                 .buildAsBytes())
                 .get();
 
@@ -96,5 +99,9 @@ public class HistoryTemplateSearchInputMappingsTests extends AbstractWatcherInte
         assertThat(terms.getBuckets().size(), is(1));
         assertThat(terms.getBucketByKey(type), notNullValue());
         assertThat(terms.getBucketByKey(type).getDocCount(), is(1L));
+
+        terms = aggs.get("input_body");
+        assertThat(terms, notNullValue());
+        assertThat(terms.getBuckets().size(), is(0));
     }
 }

@@ -174,7 +174,7 @@ public class HttpServer extends AbstractLifecycleComponent<HttpServer> {
         // this is a plugin provided site, serve it as static files from the plugin location
         File siteFile = new File(new File(environment.pluginsFile(), pluginName), "_site");
         File file = new File(siteFile, sitePath);
-        if (!file.exists() || file.isHidden() || !file.getAbsoluteFile().toPath().normalize().startsWith(siteFile.getAbsoluteFile().toPath())) {
+        if (!file.exists() || file.isHidden() || !file.getAbsoluteFile().toPath().normalize().startsWith(siteFile.getAbsoluteFile().toPath().normalize())) {
             channel.sendResponse(new BytesRestResponse(NOT_FOUND));
             return;
         }

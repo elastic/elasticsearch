@@ -244,6 +244,26 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
     public @interface Integration {
     }
 
+    /**
+     * Property that controls whether ThirdParty Integration tests are run (not the default).
+     */
+    public static final String SYSPROP_THIRDPARTY = "tests.thirdparty";
+
+    /**
+     * Annotation for third-party integration tests.
+     * <p>
+     * These are tests the require a third-party service in order to run. They
+     * may require the user to manually configure an external process (such as rabbitmq),
+     * or may additionally require some external configuration (e.g. AWS credentials)
+     * via the {@code tests.config} system property.
+     */
+    @Inherited
+    @Retention(RetentionPolicy.RUNTIME)
+    @Target(ElementType.TYPE)
+    @TestGroup(enabled = false, sysProperty = ElasticsearchIntegrationTest.SYSPROP_THIRDPARTY)
+    public @interface ThirdParty {
+    }
+
     /** node names of the corresponding clusters will start with these prefixes */
     public static final String SUITE_CLUSTER_NODE_PREFIX = "node_s";
     public static final String TEST_CLUSTER_NODE_PREFIX = "node_t";

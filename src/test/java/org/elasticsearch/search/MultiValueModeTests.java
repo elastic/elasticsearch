@@ -32,6 +32,8 @@ import org.elasticsearch.test.ElasticsearchTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Set;
 
 public class MultiValueModeTests extends ElasticsearchTestCase {
 
@@ -122,6 +124,9 @@ public class MultiValueModeTests extends ElasticsearchTestCase {
     private void verify(SortedNumericDocValues values, int maxDoc) {
         for (long missingValue : new long[] { 0, randomLong() }) {
             for (MultiValueMode mode : MultiValueMode.values()) {
+                if (MultiValueMode.MEDIAN.equals(mode)) {
+                    continue;
+                }
                 final NumericDocValues selected = mode.select(values, missingValue);
                 for (int i = 0; i < maxDoc; ++i) {
                     final long actual = selected.get(i);
@@ -147,6 +152,9 @@ public class MultiValueModeTests extends ElasticsearchTestCase {
     private void verify(SortedNumericDocValues values, int maxDoc, FixedBitSet rootDocs, FixedBitSet innerDocs) throws IOException {
         for (long missingValue : new long[] { 0, randomLong() }) {
             for (MultiValueMode mode : MultiValueMode.values()) {
+                if (MultiValueMode.MEDIAN.equals(mode)) {
+                    continue;
+                }
                 final NumericDocValues selected = mode.select(values, missingValue, rootDocs, new BitDocIdSet(innerDocs), maxDoc);
                 int prevRoot = -1;
                 for (int root = rootDocs.nextSetBit(0); root != -1; root = root + 1 < maxDoc ? rootDocs.nextSetBit(root + 1) : -1) {
@@ -239,6 +247,9 @@ public class MultiValueModeTests extends ElasticsearchTestCase {
     private void verify(SortedNumericDoubleValues values, int maxDoc) {
         for (long missingValue : new long[] { 0, randomLong() }) {
             for (MultiValueMode mode : MultiValueMode.values()) {
+                if (MultiValueMode.MEDIAN.equals(mode)) {
+                    continue;
+                }
                 final NumericDoubleValues selected = mode.select(values, missingValue);
                 for (int i = 0; i < maxDoc; ++i) {
                     final double actual = selected.get(i);
@@ -264,6 +275,9 @@ public class MultiValueModeTests extends ElasticsearchTestCase {
     private void verify(SortedNumericDoubleValues values, int maxDoc, FixedBitSet rootDocs, FixedBitSet innerDocs) throws IOException {
         for (long missingValue : new long[] { 0, randomLong() }) {
             for (MultiValueMode mode : MultiValueMode.values()) {
+                if (MultiValueMode.MEDIAN.equals(mode)) {
+                    continue;
+                }
                 final NumericDoubleValues selected = mode.select(values, missingValue, rootDocs, new BitDocIdSet(innerDocs), maxDoc);
                 int prevRoot = -1;
                 for (int root = rootDocs.nextSetBit(0); root != -1; root = root + 1 < maxDoc ? rootDocs.nextSetBit(root + 1) : -1) {

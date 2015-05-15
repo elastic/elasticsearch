@@ -85,16 +85,16 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
 
                     final int dash = autoExpandReplicas.indexOf('-');
                     if (-1 == dash) {
-                        logger.warn("Unexpected value [{}] for setting [{}]; it should be dash delimited",
-                                autoExpandReplicas, IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS);
+                        logger.warn("failed to set [{}] for index [{}], it should be dash delimited [{}]",
+                                IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, indexMetaData.index(), autoExpandReplicas);
                         continue;
                     }
                     final String sMin = autoExpandReplicas.substring(0, dash);
                     try {
                         min = Integer.parseInt(sMin);
                     } catch (NumberFormatException e) {
-                        logger.warn("failed to set [{}], minimum value is not a number [{}]",
-                                e, IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, sMin);
+                        logger.warn("failed to set [{}] for index [{}], minimum value is not a number [{}]",
+                                e, IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, indexMetaData.index(), sMin);
                         continue;
                     }
                     String sMax = autoExpandReplicas.substring(dash + 1);
@@ -104,8 +104,8 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
                         try {
                             max = Integer.parseInt(sMax);
                         } catch (NumberFormatException e) {
-                            logger.warn("failed to set [{}], maximum value is neither [{}] nor a number [{}]",
-                                    e, IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, ALL_NODES_VALUE, sMax);
+                            logger.warn("failed to set [{}] for index [{}], maximum value is neither [{}] nor a number [{}]",
+                                    e, IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, indexMetaData.index(), ALL_NODES_VALUE, sMax);
                             continue;
                         }
                     }

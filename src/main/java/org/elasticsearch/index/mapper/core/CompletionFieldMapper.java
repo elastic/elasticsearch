@@ -369,6 +369,9 @@ public class CompletionFieldMapper extends AbstractFieldMapper<String> {
         payload = payload == null ? EMPTY : payload;
         if (surfaceForm == null) { // no surface form use the input
             for (String input : inputs) {
+                if (input.length() == 0) {
+                    continue;
+                }
                 BytesRef suggestPayload = analyzingSuggestLookupProvider.buildPayload(new BytesRef(
                         input), weight, payload);
                 context.doc().add(getCompletionField(ctx, input, suggestPayload));
@@ -377,6 +380,9 @@ public class CompletionFieldMapper extends AbstractFieldMapper<String> {
             BytesRef suggestPayload = analyzingSuggestLookupProvider.buildPayload(new BytesRef(
                     surfaceForm), weight, payload);
             for (String input : inputs) {
+                if (input.length() == 0) {
+                    continue;
+                }
                 context.doc().add(getCompletionField(ctx, input, suggestPayload));
             }
         }

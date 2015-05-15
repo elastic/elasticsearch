@@ -19,9 +19,7 @@
 
 package org.elasticsearch.index.fielddata;
 
-import com.carrotsearch.hppc.DoubleHashSet;
 import com.carrotsearch.hppc.LongHashSet;
-import com.carrotsearch.hppc.cursors.DoubleCursor;
 import com.carrotsearch.hppc.cursors.LongCursor;
 
 import org.apache.lucene.document.Document;
@@ -37,7 +35,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThan;
 
 /**
  * Tests for all integer types (byte, short, int, long).
@@ -348,7 +348,7 @@ public class LongFieldDataTests extends AbstractNumericFieldDataTests {
         final SortedNumericDocValues data = atomicFieldData.getLongValues();
         final SortedNumericDoubleValues doubleData = atomicFieldData.getDoubleValues();
         final LongHashSet set = new LongHashSet();
-        final DoubleHashSet doubleSet = new DoubleHashSet();
+        final LongHashSet doubleSet = new LongHashSet();
         for (int i = 0; i < values.size(); ++i) {
             final LongHashSet v = values.get(i);
 
@@ -365,17 +365,17 @@ public class LongFieldDataTests extends AbstractNumericFieldDataTests {
             }
             assertThat(set, equalTo(v));
 
-            final DoubleHashSet doubleV = new DoubleHashSet();
+            final LongHashSet doubleV = new LongHashSet();
             for (LongCursor c : v) {
-                doubleV.add(c.value);
+                doubleV.add(Double.doubleToLongBits(c.value));
             }
             doubleSet.clear();
             doubleData.setDocument(i);
             numValues = doubleData.count();
             double prev = 0;
             for (int j = 0; j < numValues; j++) {
-                double current;
-                doubleSet.add(current = doubleData.valueAt(j));
+                double current = doubleData.valueAt(j);
+                doubleSet.add(Double.doubleToLongBits(current));
                 if (j > 0) {
                     assertThat(prev, lessThan(current));
                 }

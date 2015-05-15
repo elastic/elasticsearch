@@ -229,13 +229,6 @@
             <version>0.7.1</version>
         </dependency>
 
-        <dependency> <!-- ES uses byte* hashes -->
-            <groupId>com.carrotsearch</groupId>
-            <artifactId>hppc</artifactId>
-            <version>0.7.1</version>
-            <classifier>esoteric</classifier>
-        </dependency>
-
         <dependency>
             <groupId>joda-time</groupId>
             <artifactId>joda-time</artifactId>

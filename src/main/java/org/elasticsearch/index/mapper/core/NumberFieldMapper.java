@@ -19,9 +19,7 @@
 
 package org.elasticsearch.index.mapper.core;
 
-import com.carrotsearch.hppc.DoubleHashSet;
 import com.carrotsearch.hppc.LongArrayList;
-import com.carrotsearch.hppc.LongHashSet;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.NumericTokenStream;

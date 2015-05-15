@@ -25,7 +25,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.Aggregation;
-import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation.Type;
@@ -35,7 +34,6 @@ import org.elasticsearch.search.aggregations.reducers.InternalSimpleValue;
 import org.elasticsearch.search.aggregations.reducers.Reducer;
 import org.elasticsearch.search.aggregations.reducers.ReducerFactory;
 import org.elasticsearch.search.aggregations.reducers.ReducerStreams;
-import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatterStreams;
 
@@ -73,17 +71,17 @@ public class DiffReducer extends Reducer {
 
     private ValueFormatter formatter;
     private GapPolicy gapPolicy;
-    private int periods;
+    private int lag;
 
     public DiffReducer() {
     }
 
     public DiffReducer(String name, String[] bucketsPaths, @Nullable ValueFormatter formatter, GapPolicy gapPolicy,
-                       int periods, Map<String, Object> metadata) {
+                       int lag, Map<String, Object> metadata) {
         super(name, bucketsPaths, metadata);
         this.formatter = formatter;
         this.gapPolicy = gapPolicy;
-        this.periods = periods;
+        this.lag = lag;
     }
 
     @Override
@@ -102,11 +100,11 @@ public class DiffReducer extends Reducer {
         for (InternalHistogram.Bucket bucket : buckets) {
             Double thisBucketValue = resolveBucketValue(histo, bucket, bucketsPaths()[0], gapPolicy);
 
-            if (current < periods) {
+            if (current < lag) {
                 newBuckets.add(bucket);
             } else {
 
-                Double lastPeriodValue = resolveBucketValue(histo, buckets.get(current - periods), bucketsPaths()[0], gapPolicy);
+                Double lastPeriodValue = resolveBucketValue(histo, buckets.get(current - lag), bucketsPaths()[0], gapPolicy);
                 if (lastPeriodValue == null) {
                     newBuckets.add(bucket);
                 } else {
@@ -128,32 +126,32 @@ public class DiffReducer extends Reducer {
     public void doReadFrom(StreamInput in) throws IOException {
         formatter = ValueFormatterStreams.readOptional(in);
         gapPolicy = GapPolicy.readFrom(in);
-        periods = in.readVInt();
+        lag = in.readVInt();
     }
 
     @Override
     public void doWriteTo(StreamOutput out) throws IOException {
         ValueFormatterStreams.writeOptional(formatter, out);
         gapPolicy.writeTo(out);
-        out.writeVInt(periods);
+        out.writeVInt(lag);
     }
 
     public static class Factory extends ReducerFactory {
 
         private final ValueFormatter formatter;
         private GapPolicy gapPolicy;
-        private int periods;
+        private int lag;
 
-        public Factory(String name, String[] bucketsPaths, @Nullable ValueFormatter formatter, GapPolicy gapPolicy, int periods) {
+        public Factory(String name, String[] bucketsPaths, @Nullable ValueFormatter formatter, GapPolicy gapPolicy, int lag) {
             super(name, TYPE.name(), bucketsPaths);
             this.formatter = formatter;
             this.gapPolicy = gapPolicy;
-            this.periods = periods;
+            this.lag = lag;
         }
 
         @Override
         protected Reducer createInternal(Map<String, Object> metaData) throws IOException {
-            return new DiffReducer(name, bucketsPaths, formatter, gapPolicy, periods, metaData);
+            return new DiffReducer(name, bucketsPaths, formatter, gapPolicy, lag, metaData);
         }
 
     }

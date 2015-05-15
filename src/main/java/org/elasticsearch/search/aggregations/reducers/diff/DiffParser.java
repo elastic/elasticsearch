@@ -38,7 +38,7 @@ public class DiffParser implements Reducer.Parser {
 
     public static final ParseField FORMAT = new ParseField("format");
     public static final ParseField GAP_POLICY = new ParseField("gap_policy");
-    public static final ParseField PERIODS = new ParseField("periods");
+    public static final ParseField LAG = new ParseField("lag");
 
     @Override
     public String type() {
@@ -52,7 +52,7 @@ public class DiffParser implements Reducer.Parser {
         String[] bucketsPaths = null;
         String format = null;
         GapPolicy gapPolicy = GapPolicy.SKIP;
-        int periods = 1;
+        int lag = 1;
 
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
@@ -69,8 +69,8 @@ public class DiffParser implements Reducer.Parser {
                             + currentFieldName + "].", parser.getTokenLocation());
                 }
             } else if (token == XContentParser.Token.VALUE_NUMBER) {
-                if (PERIODS.match(currentFieldName)) {
-                    periods = parser.intValue(true);
+                if (LAG.match(currentFieldName)) {
+                    lag = parser.intValue(true);
                 }  else {
                     throw new SearchParseException(context, "Unknown key for a " + token + " in [" + reducerName + "]: ["
                             + currentFieldName + "].", parser.getTokenLocation());
@@ -103,7 +103,7 @@ public class DiffParser implements Reducer.Parser {
             formatter = ValueFormat.Patternable.Number.format(format).formatter();
         }
 
-        return new DiffReducer.Factory(reducerName, bucketsPaths, formatter, gapPolicy, periods);
+        return new DiffReducer.Factory(reducerName, bucketsPaths, formatter, gapPolicy, lag);
     }
 
 }

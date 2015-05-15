@@ -134,20 +134,13 @@ public final class PhraseSuggestParser implements SuggestContextParser {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                         if (token == XContentParser.Token.FIELD_NAME) {
                             fieldName = parser.currentName();
-                        } else if ("query".equals(fieldName) || "filter".equals(fieldName)) {
-                            Template template = Template.parse(parser);
-                            if (suggestion.getCollateFilterScript() != null) {
-                                throw new IllegalArgumentException("suggester[phrase][collate] filter already set, doesn't support additional [" + fieldName + "]");
-                            }
+                        } else if ("query".equals(fieldName)) {
                             if (suggestion.getCollateQueryScript() != null) {
                                 throw new IllegalArgumentException("suggester[phrase][collate] query already set, doesn't support additional [" + fieldName + "]");
                             }
+                            Template template = Template.parse(parser);
                             CompiledScript compiledScript = suggester.scriptService().compile(template, ScriptContext.Standard.SEARCH);
-                            if ("query".equals(fieldName)) {
-                                suggestion.setCollateQueryScript(compiledScript);
-                            } else {
-                                suggestion.setCollateFilterScript(compiledScript);
-                            }
+                            suggestion.setCollateQueryScript(compiledScript);
                         } else if ("params".equals(fieldName)) {
                             suggestion.setCollateScriptParams(parser.map());
                         } else if ("prune".equals(fieldName)) {

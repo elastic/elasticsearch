@@ -137,7 +137,7 @@ public final class PhraseSuggestParser implements SuggestContextParser {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                         if (token == XContentParser.Token.FIELD_NAME) {
                             fieldName = parser.currentName();
-                        } else if ("query".equals(fieldName) || "filter".equals(fieldName)) {
+                        } else if ("query".equals(fieldName)) {
                             String templateNameOrTemplateContent;
                             if (token == XContentParser.Token.START_OBJECT) {
                                 XContentBuilder builder = XContentBuilder.builder(parser.contentType().xContent());
@@ -147,20 +147,13 @@ public final class PhraseSuggestParser implements SuggestContextParser {
                                 templateNameOrTemplateContent = parser.text();
                             }
                             if (templateNameOrTemplateContent == null) {
-                                throw new IllegalArgumentException("suggester[phrase][collate] no query/filter found in collate object");
-                            }
-                            if (suggestion.getCollateFilterScript() != null) {
-                                throw new IllegalArgumentException("suggester[phrase][collate] filter already set, doesn't support additional [" + fieldName + "]");
+                                throw new IllegalArgumentException("suggester[phrase][collate] no query found in collate object");
                             }
                             if (suggestion.getCollateQueryScript() != null) {
                                 throw new IllegalArgumentException("suggester[phrase][collate] query already set, doesn't support additional [" + fieldName + "]");
                             }
                             CompiledScript compiledScript = suggester.scriptService().compile(new Script(MustacheScriptEngineService.NAME, templateNameOrTemplateContent, ScriptType.INLINE, null), ScriptContext.Standard.SEARCH);
-                            if ("query".equals(fieldName)) {
-                                suggestion.setCollateQueryScript(compiledScript);
-                            } else {
-                                suggestion.setCollateFilterScript(compiledScript);
-                            }
+                            suggestion.setCollateQueryScript(compiledScript);
                         } else if ("params".equals(fieldName)) {
                             suggestion.setCollateScriptParams(parser.map());
                         } else if ("prune".equals(fieldName)) {

@@ -1129,7 +1129,7 @@ public class SuggestSearchTests extends ElasticsearchIntegrationTest {
         }
         indexRandom(true, builders);
 
-        // suggest without filtering
+        // suggest without collate
         PhraseSuggestionBuilder suggest = phraseSuggestion("title")
                 .field("title")
                 .addCandidateGenerator(PhraseSuggestionBuilder.candidateGenerator("title")
@@ -1145,7 +1145,7 @@ public class SuggestSearchTests extends ElasticsearchIntegrationTest {
         Suggest searchSuggest = searchSuggest("united states house of representatives elections in washington 2006", suggest);
         assertSuggestionSize(searchSuggest, 0, 10, "title");
 
-        // suggest with filtering
+        // suggest with collate
         String filterString = XContentFactory.jsonBuilder()
                     .startObject()
                         .startObject("match_phrase")
@@ -1157,13 +1157,13 @@ public class SuggestSearchTests extends ElasticsearchIntegrationTest {
         searchSuggest = searchSuggest("united states house of representatives elections in washington 2006", filteredQuerySuggest);
         assertSuggestionSize(searchSuggest, 0, 2, "title");
 
-        // filtered suggest with no result (boundary case)
+        // collate suggest with no result (boundary case)
         searchSuggest = searchSuggest("Elections of Representatives Parliament", filteredQuerySuggest);
         assertSuggestionSize(searchSuggest, 0, 0, "title");
 
         NumShards numShards = getNumShards("test");
 
-        // filtered suggest with bad query
+        // collate suggest with bad query
         String incorrectFilterString = XContentFactory.jsonBuilder()
                 .startObject()
                     .startObject("test")
@@ -1179,7 +1179,7 @@ public class SuggestSearchTests extends ElasticsearchIntegrationTest {
             // expected
         }
 
-        // suggest with filter collation
+        // suggest with collation
         String filterStringAsFilter = XContentFactory.jsonBuilder()
                 .startObject()
                 .startObject("query")
@@ -1190,11 +1190,11 @@ public class SuggestSearchTests extends ElasticsearchIntegrationTest {
                 .endObject()
                 .string();
 
-        PhraseSuggestionBuilder filteredFilterSuggest = suggest.collateQuery(null).collateFilter(filterStringAsFilter);
+        PhraseSuggestionBuilder filteredFilterSuggest = suggest.collateQuery(filterStringAsFilter);
         searchSuggest = searchSuggest("united states house of representatives elections in washington 2006", filteredFilterSuggest);
         assertSuggestionSize(searchSuggest, 0, 2, "title");
 
-        // filtered suggest with bad filter
+        // collate suggest with bad query
         String filterStr = XContentFactory.jsonBuilder()
                 .startObject()
                 .startObject("pprefix")
@@ -1203,7 +1203,7 @@ public class SuggestSearchTests extends ElasticsearchIntegrationTest {
                 .endObject()
                 .string();
 
-        PhraseSuggestionBuilder in = suggest.collateQuery(null).collateFilter(filterStr);
+        PhraseSuggestionBuilder in = suggest.collateQuery(filterStr);
         try {
             searchSuggest("united states house of representatives elections in washington 2006", numShards.numPrimaries, in);
             fail("Post filter error has been swallowed");
@@ -1221,7 +1221,7 @@ public class SuggestSearchTests extends ElasticsearchIntegrationTest {
                 .string();
 
 
-        PhraseSuggestionBuilder phraseSuggestWithNoParams = suggest.collateFilter(null).collateQuery(collateWithParams);
+        PhraseSuggestionBuilder phraseSuggestWithNoParams = suggest.collateQuery(collateWithParams);
         try {
             searchSuggest("united states house of representatives elections in washington 2006", numShards.numPrimaries, phraseSuggestWithNoParams);
             fail("Malformed query (lack of additional params) should fail");
@@ -1234,39 +1234,12 @@ public class SuggestSearchTests extends ElasticsearchIntegrationTest {
         params.put("query_type", "match_phrase");
         params.put("query_field", "title");
 
-        PhraseSuggestionBuilder phraseSuggestWithParams = suggest.collateFilter(null).collateQuery(collateWithParams).collateParams(params);
+        PhraseSuggestionBuilder phraseSuggestWithParams = suggest.collateQuery(collateWithParams).collateParams(params);
         searchSuggest = searchSuggest("united states house of representatives elections in washington 2006", phraseSuggestWithParams);
         assertSuggestionSize(searchSuggest, 0, 2, "title");
 
-        //collate request defining both query/filter should fail
-        PhraseSuggestionBuilder phraseSuggestWithFilterAndQuery = suggest.collateFilter(filterStringAsFilter).collateQuery(filterString);
-        try {
-            searchSuggest("united states house of representatives elections in washington 2006", numShards.numPrimaries, phraseSuggestWithFilterAndQuery);
-            fail("expected parse failure, as both filter and query are set in collate");
-        } catch (ElasticsearchException e) {
-            // expected
-        }
-
         // collate query request with prune set to true
-        PhraseSuggestionBuilder phraseSuggestWithParamsAndReturn = suggest.collateFilter(null).collateQuery(collateWithParams).collateParams(params).collatePrune(true);
-        searchSuggest = searchSuggest("united states house of representatives elections in washington 2006", phraseSuggestWithParamsAndReturn);
-        assertSuggestionSize(searchSuggest, 0, 10, "title");
-        assertSuggestionPhraseCollateMatchExists(searchSuggest, "title", 2);
-
-        collateWithParams = XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("query")
-                .startObject("{{query_type}}")
-                .field("{{query_field}}", "{{suggestion}}")
-                .endObject()
-                .endObject()
-                .endObject().string();
-
-        params.clear();
-        params.put("query_type", "match_phrase");
-        params.put("query_field", "title");
-        // collate filter request with prune set to true
-        phraseSuggestWithParamsAndReturn = suggest.collateFilter(collateWithParams).collateQuery(null).collateParams(params).collatePrune(true);
+        PhraseSuggestionBuilder phraseSuggestWithParamsAndReturn = suggest.collateQuery(collateWithParams).collateParams(params).collatePrune(true);
         searchSuggest = searchSuggest("united states house of representatives elections in washington 2006", phraseSuggestWithParamsAndReturn);
         assertSuggestionSize(searchSuggest, 0, 10, "title");
         assertSuggestionPhraseCollateMatchExists(searchSuggest, "title", 2);

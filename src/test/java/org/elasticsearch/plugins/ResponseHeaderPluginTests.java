@@ -18,19 +18,18 @@
  */
 package org.elasticsearch.plugins;
 
-import org.apache.http.impl.client.HttpClients;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.http.HttpServerTransport;
-import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.plugins.responseheader.TestResponseHeaderPlugin;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
-import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
 import org.elasticsearch.test.rest.client.http.HttpResponse;
-import org.elasticsearch.plugins.responseheader.TestResponseHeaderPlugin;
 import org.junit.Test;
 
+import static org.elasticsearch.rest.RestStatus.OK;
+import static org.elasticsearch.rest.RestStatus.UNAUTHORIZED;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasStatus;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -52,11 +51,11 @@ public class ResponseHeaderPluginTests extends ElasticsearchIntegrationTest {
     public void testThatSettingHeadersWorks() throws Exception {
         ensureGreen();
         HttpResponse response = httpClient().method("GET").path("/_protected").execute();
-        assertThat(response.getStatusCode(), equalTo(RestStatus.UNAUTHORIZED.getStatus()));
+        assertThat(response, hasStatus(UNAUTHORIZED));
         assertThat(response.getHeaders().get("Secret"), equalTo("required"));
 
         HttpResponse authResponse = httpClient().method("GET").path("/_protected").addHeader("Secret", "password").execute();
-        assertThat(authResponse.getStatusCode(), equalTo(RestStatus.OK.getStatus()));
+        assertThat(authResponse, hasStatus(OK));
         assertThat(authResponse.getHeaders().get("Secret"), equalTo("granted"));
     }
     

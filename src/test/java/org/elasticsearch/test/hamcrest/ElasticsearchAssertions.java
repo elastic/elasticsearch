@@ -68,6 +68,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.test.engine.AssertingSearcher;
 import org.elasticsearch.test.engine.MockEngineSupport;
+import org.elasticsearch.test.rest.client.http.HttpResponse;
 import org.elasticsearch.test.store.MockDirectoryHelper;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
@@ -485,6 +486,10 @@ public class ElasticsearchAssertions {
 
     public static Matcher<SearchHit> hasScore(final float score) {
         return new ElasticsearchMatchers.SearchHitHasScoreMatcher(score);
+    }
+
+    public static Matcher<HttpResponse> hasStatus(RestStatus restStatus) {
+        return new ElasticsearchMatchers.HttpResponseHasStatusMatcher(restStatus);
     }
 
     public static <T extends Query> T assertBooleanSubQuery(Query query, Class<T> subqueryType, int i) {

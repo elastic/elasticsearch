@@ -5,8 +5,9 @@
  */
 package org.elasticsearch.watcher.input.http;
 
+
 import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
@@ -47,20 +48,42 @@ public class ExecutableHttpInput extends ExecutableInput<HttpInput, HttpInput.Re
         }
 
         XContentType contentType = response.xContentType();
-        XContentParser parser = contentType != null ?
-                contentType.xContent().createParser(response.body()) :
-                XContentHelper.createParser(response.body());
+        if (input.getExpectedResponseXContentType() != null) {
+            if (contentType != input.getExpectedResponseXContentType().contentType()) {
+                logger.warn("[{}] [{}] input expected content type [{}] but read [{}] from headers", type(), ctx.id(), input.getExpectedResponseXContentType(), contentType);
+            }
+
+            if (contentType == null) {
+                contentType = input.getExpectedResponseXContentType().contentType();
+            }
+        } else {
+            //Attempt to auto detect content type
+            if (contentType == null) {
+                contentType = XContentFactory.xContentType(response.body());
+            }
+        }
+
+        XContentParser parser = null;
+        if (contentType != null) {
+            try {
+                parser = contentType.xContent().createParser(response.body());
+            } catch (Exception e) {
+                throw new HttpInputException("[{}] [{}] input could not parse response body [{}] it does not appear to be [{}]", type(), ctx.id(), response.body().toUtf8(), contentType.shortName());
+            }
+        }
 
         final Payload payload;
         if (input.getExtractKeys() != null) {
             Map<String, Object> filteredKeys = XContentFilterKeysUtils.filterMapOrdered(input.getExtractKeys(), parser);
             payload = new Payload.Simple(filteredKeys);
         } else {
-            Map<String, Object> map = parser.mapOrderedAndClose();
-            payload = new Payload.Simple(map);
+            if (parser != null) {
+                Map<String, Object> map = parser.mapOrderedAndClose();
+                payload = new Payload.Simple(map);
+            } else {
+                payload = new Payload.Simple("_value", response.body().toUtf8());
+            }
         }
-
         return new HttpInput.Result(payload, request, response.status());
     }
-
 }

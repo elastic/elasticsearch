@@ -11,6 +11,7 @@ import org.elasticsearch.common.collect.ImmutableSet;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.watcher.input.Input;
+import org.elasticsearch.watcher.support.http.HttpContentType;
 import org.elasticsearch.watcher.support.http.HttpRequest;
 import org.elasticsearch.watcher.support.http.HttpRequestTemplate;
 import org.elasticsearch.watcher.watch.Payload;
@@ -28,10 +29,12 @@ public class HttpInput implements Input {
     public static final String TYPE = "http";
 
     private final HttpRequestTemplate request;
+    private final @Nullable HttpContentType expectedResponseXContentType;
     private final @Nullable Set<String> extractKeys;
 
-    public HttpInput(HttpRequestTemplate request, @Nullable Set<String> extractKeys) {
+    public HttpInput(HttpRequestTemplate request, @Nullable HttpContentType expectedResponseXContentType, @Nullable Set<String> extractKeys) {
         this.request = request;
+        this.expectedResponseXContentType = expectedResponseXContentType;
         this.extractKeys = extractKeys;
     }
 
@@ -48,12 +51,19 @@ public class HttpInput implements Input {
         return extractKeys;
     }
 
+    public HttpContentType getExpectedResponseXContentType() {
+        return expectedResponseXContentType;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(Field.REQUEST.getPreferredName(), request, params);
         if (extractKeys != null) {
             builder.field(Field.EXTRACT.getPreferredName(), extractKeys);
+        }
+        if (expectedResponseXContentType != null) {
+            builder.field(Field.RESPONSE_CONTENT_TYPE.getPreferredName(), expectedResponseXContentType, params);
         }
         builder.endObject();
         return builder;
@@ -62,6 +72,7 @@ public class HttpInput implements Input {
     public static HttpInput parse(String watchId, XContentParser parser, HttpRequestTemplate.Parser requestParser) throws IOException {
         Set<String> extract = null;
         HttpRequestTemplate request = null;
+        HttpContentType expectedResponseBodyType = null;
 
         String currentFieldName = null;
         XContentParser.Token token;
@@ -87,6 +98,15 @@ public class HttpInput implements Input {
                 } else {
                     throw new HttpInputException("could not parse [{}] input for watch [{}]. unexpected array field [{}]", TYPE, watchId, currentFieldName);
                 }
+            } else if (token == XContentParser.Token.VALUE_STRING) {
+                if (Field.RESPONSE_CONTENT_TYPE.match(currentFieldName)) {
+                    expectedResponseBodyType = HttpContentType.resolve(parser.text());
+                    if (expectedResponseBodyType == null) {
+                        throw new HttpInputException("could not parse [{}] input for watch [{}]. unknown content type [{}]", TYPE, watchId, parser.text());
+                    }
+                } else {
+                    throw new HttpInputException("could not parse [{}] input for watch [{}]. unexpected string field [{}]", TYPE, watchId, currentFieldName);
+                }
             } else {
                 throw new HttpInputException("could not parse [{}] input for watch [{}]. unexpected token [{}]", TYPE, watchId, token);
             }
@@ -96,7 +116,11 @@ public class HttpInput implements Input {
             throw new HttpInputException("could not parse [{}] input for watch [{}]. missing require [{}] field", TYPE, watchId, Field.REQUEST.getPreferredName());
         }
 
-        return new HttpInput(request, extract);
+        if (expectedResponseBodyType == HttpContentType.TEXT && extract != null ) {
+            throw new HttpInputException("could not parse [{}] input for watch [{}]. key extraction is not supported for content type [{}]", TYPE, watchId, expectedResponseBodyType);
+        }
+
+        return new HttpInput(request, expectedResponseBodyType, extract);
     }
 
     public static Builder builder(HttpRequestTemplate httpRequest) {
@@ -135,6 +159,7 @@ public class HttpInput implements Input {
 
         private final HttpRequestTemplate request;
         private final ImmutableSet.Builder<String> extractKeys = ImmutableSet.builder();
+        private HttpContentType expectedResponseXContentType = null;
 
         private Builder(HttpRequestTemplate request) {
             this.request = request;
@@ -150,10 +175,15 @@ public class HttpInput implements Input {
             return this;
         }
 
+        public Builder expectedResponseXContentType(HttpContentType expectedResponseXContentType) {
+            this.expectedResponseXContentType = expectedResponseXContentType;
+            return this;
+        }
+
         @Override
         public HttpInput build() {
             ImmutableSet<String> keys = extractKeys.build();
-            return new HttpInput(request, keys.isEmpty() ? null : keys);
+            return new HttpInput(request, expectedResponseXContentType, keys.isEmpty() ? null : keys);
         }
     }
 
@@ -161,5 +191,6 @@ public class HttpInput implements Input {
         ParseField REQUEST = new ParseField("request");
         ParseField EXTRACT = new ParseField("extract");
         ParseField STATUS = new ParseField("status");
+        ParseField RESPONSE_CONTENT_TYPE = new ParseField("response_content_type");
     }
 }

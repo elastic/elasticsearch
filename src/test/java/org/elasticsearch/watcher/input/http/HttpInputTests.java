@@ -82,30 +82,37 @@ public class HttpInputTests extends ElasticsearchTestCase {
         HttpRequestTemplate.Builder request = HttpRequestTemplate.builder(host, port)
                 .method(HttpMethod.POST)
                 .body("_body");
-        HttpInput httpInput = InputBuilders.httpInput(request.build()).build();
-        ExecutableHttpInput input = new ExecutableHttpInput(httpInput, logger, httpClient, templateEngine);
+        HttpInput httpInput;
 
         HttpResponse response;
         switch (randomIntBetween(1, 6)) {
             case 1:
                 response = new HttpResponse(123, "{\"key\" : \"value\"}".getBytes(UTF8));
+                httpInput = InputBuilders.httpInput(request.build()).build();
                 break;
             case 2:
                 response = new HttpResponse(123, "---\nkey : value".getBytes(UTF8));
+                httpInput = InputBuilders.httpInput(request.build()).expectedResponseXContentType(HttpContentType.YAML).build();
                 break;
             case 3:
                 response = new HttpResponse(123, "{\"key\" : \"value\"}".getBytes(UTF8), ImmutableMap.of(HttpHeaders.Names.CONTENT_TYPE, new String[] { XContentType.JSON.restContentType() }));
+                httpInput = InputBuilders.httpInput(request.build()).build();
                 break;
             case 4:
                 response = new HttpResponse(123, "key: value".getBytes(UTF8), ImmutableMap.of(HttpHeaders.Names.CONTENT_TYPE, new String[] { XContentType.YAML.restContentType() }));
+                httpInput = InputBuilders.httpInput(request.build()).build();
                 break;
             case 5:
                 response = new HttpResponse(123, "---\nkey: value".getBytes(UTF8), ImmutableMap.of(HttpHeaders.Names.CONTENT_TYPE, new String[] { "unrecognized_content_type" }));
+                httpInput = InputBuilders.httpInput(request.build()).expectedResponseXContentType(HttpContentType.YAML).build();
                 break;
             default:
                 response = new HttpResponse(123, "{\"key\" : \"value\"}".getBytes(UTF8), ImmutableMap.of(HttpHeaders.Names.CONTENT_TYPE, new String[] { "unrecognized_content_type" }));
+                httpInput = InputBuilders.httpInput(request.build()).build();
                 break;
         }
+
+        ExecutableHttpInput input = new ExecutableHttpInput(httpInput, logger, httpClient, templateEngine);
 
         when(httpClient.execute(any(HttpRequest.class))).thenReturn(response);
 
@@ -128,6 +135,38 @@ public class HttpInputTests extends ElasticsearchTestCase {
         assertThat(result.type(), equalTo(HttpInput.TYPE));
         assertThat(result.payload().data(), equalTo(MapBuilder.<String, Object>newMapBuilder().put("key", "value").map()));
     }
+
+    @Test
+    public void testExecute_nonJson() throws Exception {
+        String host = "_host";
+        int port = 123;
+        HttpRequestTemplate.Builder request = HttpRequestTemplate.builder(host, port)
+                .method(HttpMethod.POST)
+                .body("_body");
+        HttpInput httpInput = InputBuilders.httpInput(request.build()).expectedResponseXContentType(HttpContentType.TEXT).build();
+        ExecutableHttpInput input = new ExecutableHttpInput(httpInput, logger, httpClient, templateEngine);
+        String notJson = "This is not json";
+        HttpResponse response = new HttpResponse(123, notJson.getBytes(UTF8));
+        when(httpClient.execute(any(HttpRequest.class))).thenReturn(response);
+        when(templateEngine.render(eq(Template.inline("_body").build()), any(Map.class))).thenReturn("_body");
+        Watch watch = new Watch("test-watch",
+                new ScheduleTrigger(new IntervalSchedule(new IntervalSchedule.Interval(1, IntervalSchedule.Interval.Unit.MINUTES))),
+                new ExecutableSimpleInput(new SimpleInput(new Payload.Simple()), logger),
+                new ExecutableAlwaysCondition(logger),
+                null,
+                null,
+                new ExecutableActions(new ArrayList<ActionWrapper>()),
+                null,
+                new WatchStatus(ImmutableMap.<String, ActionStatus>of()));
+        WatchExecutionContext ctx = new TriggeredExecutionContext(watch,
+                new DateTime(0, UTC),
+                new ScheduleTriggerEvent(watch.id(), new DateTime(0, UTC), new DateTime(0, UTC)),
+                TimeValue.timeValueSeconds(5));
+        HttpInput.Result result = input.execute(ctx);
+        assertThat(result.type(), equalTo(HttpInput.TYPE));
+        assertThat(result.payload().data().get("_value").toString(), equalTo(notJson));
+    }
+
 
     @Test @Repeat(iterations = 20)
     public void testParser() throws Exception {
@@ -154,8 +193,18 @@ public class HttpInputTests extends ElasticsearchTestCase {
         if (headers != null) {
             requestBuilder.putHeaders(headers);
         }
+        HttpInput.Builder inputBuilder = InputBuilders.httpInput(requestBuilder);
+        HttpContentType expectedResponseXContentType = randomFrom(HttpContentType.values());
 
-        BytesReference source = jsonBuilder().value(InputBuilders.httpInput(requestBuilder).build()).bytes();
+        String[] extractKeys = randomFrom(new String[]{"foo", "bar"}, new String[]{"baz"}, null);
+        if (expectedResponseXContentType != HttpContentType.TEXT) {
+            if (extractKeys != null) {
+                inputBuilder.extractKeys(extractKeys);
+            }
+        }
+
+        inputBuilder.expectedResponseXContentType(expectedResponseXContentType);
+        BytesReference source = jsonBuilder().value(inputBuilder.build()).bytes();
         XContentParser parser = XContentHelper.createParser(source);
         parser.nextToken();
         HttpInput result = httpParser.parseInput("_id", parser);
@@ -166,6 +215,12 @@ public class HttpInputTests extends ElasticsearchTestCase {
         assertThat(result.getRequest().host(), equalTo(host));
         assertThat(result.getRequest().port(), equalTo(port));
         assertThat(result.getRequest().path(), is(Template.inline(path).build()));
+        assertThat(result.getExpectedResponseXContentType(), equalTo(expectedResponseXContentType));
+        if (expectedResponseXContentType != HttpContentType.TEXT && extractKeys != null) {
+            for (String key : extractKeys) {
+                assertThat(result.getExtractKeys().contains(key), is(true));
+            }
+        }
         if (params != null) {
             assertThat(result.getRequest().params(), hasEntry(is("a"), is(Template.inline("b").build())));
         }

@@ -26,6 +26,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Injector;
@@ -33,7 +34,6 @@ import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.inject.util.Providers;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
@@ -66,15 +66,16 @@ import java.io.IOException;
 import static org.hamcrest.Matchers.is;
 
 @Ignore
-public abstract class BaseQueryTestCase<QB extends QueryBuilder & Streamable> extends ElasticsearchTestCase {
+public abstract class BaseQueryTestCase<QB extends QueryBuilder<QB>> extends ElasticsearchTestCase {
 
     protected static final String DATE_FIELD_NAME = "age";
     protected static final String INT_FIELD_NAME = "price";
     private static Injector injector;
     private static IndexQueryParserService queryParserService;
     private static Index index;
+    protected static String[] currentTypes;
 
-    protected QB testQuery = createTestQueryBuilder();
+    private QB testQuery = createTestQueryBuilder();
 
     /**
      * Setup for the whole base test class.
@@ -112,10 +113,16 @@ public abstract class BaseQueryTestCase<QB extends QueryBuilder & Streamable> ex
         ).createInjector();
         queryParserService = injector.getInstance(IndexQueryParserService.class);
         MapperService mapperService = queryParserService.mapperService;
-        CompressedString mapping = new CompressedString(PutMappingRequest.buildFromSimplifiedDef("type",
-                DATE_FIELD_NAME, "type=date",
-                INT_FIELD_NAME, "type=integer").string());
-        mapperService.merge("type", mapping, true);
+
+        //create some random types
+        currentTypes = new String[randomIntBetween(0, 5)];
+        for (int i = 0; i < currentTypes.length; i++) {
+            String type = randomAsciiOfLengthBetween(1, 10);
+            mapperService.merge(type, new CompressedString(PutMappingRequest.buildFromSimplifiedDef(type,
+                    DATE_FIELD_NAME, "type=date",
+                    INT_FIELD_NAME, "type=integer").string()), false);
+            currentTypes[i] = type;
+        }
     }
 
     @AfterClass
@@ -124,6 +131,7 @@ public abstract class BaseQueryTestCase<QB extends QueryBuilder & Streamable> ex
         injector = null;
         index = null;
         queryParserService = null;
+        QueryParseContext.setTypes(null);
     }
 
     /**
@@ -161,6 +169,7 @@ public abstract class BaseQueryTestCase<QB extends QueryBuilder & Streamable> ex
         QueryBuilder newQuery = queryParserService.queryParser(testQuery.parserName()).fromXContent(context);
         assertNotSame(newQuery, testQuery);
         assertEquals(newQuery, testQuery);
+        assertEquals(newQuery.hashCode(), testQuery.hashCode());
     }
 
     /**
@@ -185,12 +194,10 @@ public abstract class BaseQueryTestCase<QB extends QueryBuilder & Streamable> ex
         testQuery = createTestQueryBuilder();
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             testQuery.writeTo(output);
-
             try (StreamInput in = StreamInput.wrap(output.bytes())) {
-                QB deserializedQuery = createEmptyQueryBuilder();
-                deserializedQuery.readFrom(in);
-
+                QB deserializedQuery = createEmptyQueryBuilder().readFrom(in);
                 assertEquals(deserializedQuery, testQuery);
+                assertEquals(deserializedQuery.hashCode(), testQuery.hashCode());
                 assertNotSame(deserializedQuery, testQuery);
             }
         }
@@ -200,6 +207,22 @@ public abstract class BaseQueryTestCase<QB extends QueryBuilder & Streamable> ex
      * @return a new {@link QueryParseContext} based on the base test index and queryParserService
      */
     protected static QueryParseContext createContext() {
+        //set some random types to be queried as part the search request, they changed every time a new QueryParseContext is requested
+        String[] types;
+        if (currentTypes.length > 0 && randomBoolean()) {
+            int numberOfQueryTypes = randomIntBetween(1, currentTypes.length);
+            types = new String[numberOfQueryTypes];
+            for (int i = 0; i < numberOfQueryTypes; i++) {
+                types[i] = randomFrom(currentTypes);
+            }
+        } else {
+            if (randomBoolean()) {
+                types = new String[]{MetaData.ALL};
+            } else {
+                types = new String[0];
+            }
+        }
+        QueryParseContext.setTypes(types);
         return new QueryParseContext(index, queryParserService);
     }
 

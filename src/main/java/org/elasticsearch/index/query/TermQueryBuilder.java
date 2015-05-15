@@ -28,7 +28,8 @@ import org.elasticsearch.index.mapper.FieldMapper;
 /**
  * A Query that matches documents containing a term.
  */
-public class TermQueryBuilder extends BaseTermQueryBuilder<TermQueryBuilder> {
+public class TermQueryBuilder extends BaseTermQueryBuilder<TermQueryBuilder> implements BoostableQueryBuilder<TermQueryBuilder> {
+
     /** @see BaseTermQueryBuilder#BaseTermQueryBuilder(String, String) */
     public TermQueryBuilder(String fieldName, String value) {
         super(fieldName, (Object) value);
@@ -64,10 +65,6 @@ public class TermQueryBuilder extends BaseTermQueryBuilder<TermQueryBuilder> {
         super(fieldName, value);
     }
 
-    public TermQueryBuilder() {
-        // for serialization only
-    }
-
     @Override
     public Query toQuery(QueryParseContext parseContext) {
         Query query = null;
@@ -83,6 +80,11 @@ public class TermQueryBuilder extends BaseTermQueryBuilder<TermQueryBuilder> {
             parseContext.addNamedQuery(queryName, query);
         }
         return query;
+    }
+
+    @Override
+    protected TermQueryBuilder createBuilder(String fieldName, Object value) {
+        return new TermQueryBuilder(fieldName, value);
     }
 
     @Override

@@ -31,7 +31,7 @@ public class TermQueryBuilderTest extends BaseTermQueryTestCase<TermQueryBuilder
 
     @Override
     protected TermQueryBuilder createEmptyQueryBuilder() {
-        return new TermQueryBuilder();
+        return new TermQueryBuilder(null, null);
     }
 
     /**
@@ -51,7 +51,7 @@ public class TermQueryBuilderTest extends BaseTermQueryTestCase<TermQueryBuilder
             query.boost(2.0f / randomIntBetween(1, 20));
         }
         if (randomBoolean()) {
-            query.queryName(randomAsciiOfLength(8));
+            query.queryName(randomAsciiOfLengthBetween(1, 10));
         }
         return query;
     }

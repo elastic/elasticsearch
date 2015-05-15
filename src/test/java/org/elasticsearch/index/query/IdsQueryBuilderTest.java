@@ -20,18 +20,21 @@
 package org.elasticsearch.index.query;
 
 
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Sets;
 import org.apache.lucene.queries.TermsQuery;
-import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.junit.Test;
 
 import java.io.IOException;
 
-import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.*;
 
 public class IdsQueryBuilderTest extends BaseQueryTestCase<IdsQueryBuilder> {
 
@@ -56,36 +59,68 @@ public class IdsQueryBuilderTest extends BaseQueryTestCase<IdsQueryBuilder> {
 
     @Override
     protected void assertLuceneQuery(IdsQueryBuilder queryBuilder, Query query, QueryParseContext context) throws IOException {
-        if (testQuery.ids().size() == 0) {
-            assertThat(query, is(instanceOf(BooleanQuery.class)));
+        if (queryBuilder.ids().size() == 0) {
+            assertThat(query, equalTo(Queries.newMatchNoDocsQuery()));
         } else {
+            assertThat(query.getBoost(), is(queryBuilder.boost()));
             assertThat(query, is(instanceOf(TermsQuery.class)));
-            TermsQuery termQuery = (TermsQuery) query;
-            assertThat(termQuery.getBoost(), is(testQuery.boost()));
-            // because internals of TermsQuery are well hidden, check string representation
-            String[] parts = termQuery.toString().split(" ");
-            assertThat(parts.length, is(queryBuilder.ids().size() * queryBuilder.types().size()));
-            assertThat(parts[0].substring(0, parts[0].indexOf(":")), is(UidFieldMapper.NAME));
+            String[] typesForQuery;
+            if (queryBuilder.types().length > 0 && MetaData.isAllTypes(queryBuilder.types()) == false) {
+                typesForQuery = queryBuilder.types();
+            } else if (MetaData.isAllTypes(QueryParseContext.getTypes())) {
+                typesForQuery = currentTypes;
+            } else {
+                typesForQuery = QueryParseContext.getTypes();
+            }
+            TermsQuery expectedQuery = new TermsQuery(UidFieldMapper.NAME, Uid.createTypeUids(Sets.newHashSet(typesForQuery), queryBuilder.ids()));
+            expectedQuery.setBoost(queryBuilder.boost());
+            assertThat((TermsQuery) query, equalTo(expectedQuery));
+            if (queryBuilder.queryName() != null) {
+                ImmutableMap<String, Query> namedFilters = context.copyNamedFilters();
+                Query namedQuery = namedFilters.get(queryBuilder.queryName());
+                assertThat(namedQuery, sameInstance(query));
+            }
         }
     }
 
     @Override
     protected IdsQueryBuilder createTestQueryBuilder() {
-        IdsQueryBuilder query;
-        int numberOfTypes = randomIntBetween(1, 10);
-        String[] types = new String[numberOfTypes];
-        for (int i = 0; i < numberOfTypes; i++) {
-            types[i] = randomAsciiOfLength(8);
-        }
-        query = new IdsQueryBuilder(types);
-        if (randomBoolean()) {
-            int numberOfIds = randomIntBetween(1, 10);
-            for (int i = 0; i < numberOfIds; i++) {
-                query.addIds(randomAsciiOfLength(8));
+        String[] types;
+        if (currentTypes.length > 0 && randomBoolean()) {
+            int numberOfTypes = randomIntBetween(1, currentTypes.length);
+            types = new String[numberOfTypes];
+            for (int i = 0; i < numberOfTypes; i++) {
+                if (frequently()) {
+                    types[i] = randomFrom(currentTypes);
+                } else {
+                    types[i] = randomAsciiOfLengthBetween(1, 10);
+                }
             }
+        } else {
+            if (randomBoolean()) {
+                types = new String[]{MetaData.ALL};
+            } else {
+                types = new String[0];
+            }
+        }
+        int numberOfIds = randomIntBetween(0, 10);
+        String[] ids = new String[numberOfIds];
+        for (int i = 0; i < numberOfIds; i++) {
+            ids[i] = randomAsciiOfLengthBetween(1, 10);
+        }
+        IdsQueryBuilder query;
+        if (types.length > 0 || randomBoolean()) {
+            query = new IdsQueryBuilder(types);
+            query.addIds(ids);
+        } else {
+            query = new IdsQueryBuilder();
+            query.addIds(ids);
         }
         if (randomBoolean()) {
             query.boost(2.0f / randomIntBetween(1, 20));
+        }
+        if (randomBoolean()) {
+            query.queryName(randomAsciiOfLengthBetween(1, 10));
         }
         return query;
     }

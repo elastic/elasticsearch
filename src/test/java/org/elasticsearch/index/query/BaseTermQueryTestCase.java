@@ -19,14 +19,13 @@
 
 package org.elasticsearch.index.query;
 
-import org.elasticsearch.common.io.stream.Streamable;
 import org.junit.Ignore;
 import org.junit.Test;
 
 import static org.hamcrest.Matchers.is;
 
 @Ignore
-public abstract class BaseTermQueryTestCase<QB extends QueryBuilder & Streamable> extends BaseQueryTestCase<QB> {
+public abstract class BaseTermQueryTestCase<QB extends QueryBuilder<QB>> extends BaseQueryTestCase<QB> {
     
     protected Object createRandomValueObject() {
         Object value = null;

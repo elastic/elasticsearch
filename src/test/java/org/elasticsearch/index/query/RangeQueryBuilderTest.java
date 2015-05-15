@@ -98,7 +98,7 @@ public class RangeQueryBuilderTest extends BaseQueryTestCase<RangeQueryBuilder> 
         }
         String fieldName = queryBuilder.fieldName();
         Query expectedQuery;
-        if (!fieldName.equals(DATE_FIELD_NAME) && !fieldName.equals(INT_FIELD_NAME)) {
+        if (currentTypes.length == 0 || (fieldName.equals(DATE_FIELD_NAME) == false && fieldName.equals(INT_FIELD_NAME) == false) ) {
             assertThat(query, instanceOf(TermRangeQuery.class));
             expectedQuery = new TermRangeQuery(queryBuilder.fieldName(),
                     BytesRefs.toBytesRef(queryBuilder.from()), BytesRefs.toBytesRef(queryBuilder.to()),
@@ -111,10 +111,12 @@ public class RangeQueryBuilderTest extends BaseQueryTestCase<RangeQueryBuilder> 
             expectedQuery = NumericRangeQuery.newLongRange(DATE_FIELD_NAME, min, max, queryBuilder.includeLower(), queryBuilder.includeUpper());
             expectedQuery = expectedQuery.rewrite(null);
             query = query.rewrite(null);
-        } else {
+        } else if (fieldName.equals(INT_FIELD_NAME)) {
             assertThat(query, instanceOf(NumericRangeQuery.class));
             expectedQuery = NumericRangeQuery.newIntRange(INT_FIELD_NAME, (Integer) queryBuilder.from(), (Integer) queryBuilder.to(), queryBuilder.includeLower(), queryBuilder.includeUpper());
-            expectedQuery.setBoost(testQuery.boost());
+            expectedQuery.setBoost(queryBuilder.boost());
+        } else {
+            throw new UnsupportedOperationException();
         }
         assertEquals(expectedQuery, query);
     }
@@ -162,7 +164,7 @@ public class RangeQueryBuilderTest extends BaseQueryTestCase<RangeQueryBuilder> 
 
     @Override
     protected RangeQueryBuilder createEmptyQueryBuilder() {
-        return new RangeQueryBuilder();
+        return new RangeQueryBuilder(null);
     }
 
     private Long expectedDateLong(Object value, RangeQueryBuilder queryBuilder, QueryParseContext context) {

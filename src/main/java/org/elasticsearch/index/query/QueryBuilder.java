@@ -23,6 +23,9 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.action.support.ToXContentToBytes;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 
@@ -32,7 +35,7 @@ import java.io.IOException;
  * Base class for all classes producing lucene queries.
  * Supports conversion to BytesReference and creation of lucene Query objects.
  */
-public abstract class QueryBuilder extends ToXContentToBytes {
+public abstract class QueryBuilder<QB> extends ToXContentToBytes implements Writeable<QB> {
 
     protected QueryBuilder() {
         super(XContentType.JSON);
@@ -102,5 +105,16 @@ public abstract class QueryBuilder extends ToXContentToBytes {
             return ((BytesRef) obj).utf8ToString();
         }
         return obj;
+    }
+
+    //norelease remove this once all builders implement readFrom themselves
+    @Override
+    public QB readFrom(StreamInput in) throws IOException {
+        return null;
+    }
+
+    //norelease remove this once all builders implement writeTo themselves
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
     }
 }

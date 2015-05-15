@@ -23,7 +23,6 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
@@ -32,7 +31,7 @@ import java.io.IOException;
 /**
  * A query that matches on all documents.
  */
-public class MatchAllQueryBuilder extends QueryBuilder implements Streamable, BoostableQueryBuilder<MatchAllQueryBuilder> {
+public class MatchAllQueryBuilder extends QueryBuilder<MatchAllQueryBuilder> implements BoostableQueryBuilder<MatchAllQueryBuilder> {
 
     private float boost = 1.0f;
 
@@ -91,8 +90,10 @@ public class MatchAllQueryBuilder extends QueryBuilder implements Streamable, Bo
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        this.boost = in.readFloat();
+    public MatchAllQueryBuilder readFrom(StreamInput in) throws IOException {
+        MatchAllQueryBuilder matchAllQueryBuilder = new MatchAllQueryBuilder();
+        matchAllQueryBuilder.boost(in.readFloat());
+        return matchAllQueryBuilder;
     }
 
     @Override

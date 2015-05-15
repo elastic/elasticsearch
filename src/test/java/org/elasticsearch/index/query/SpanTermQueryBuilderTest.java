@@ -33,7 +33,7 @@ public class SpanTermQueryBuilderTest extends BaseTermQueryTestCase<SpanTermQuer
 
     @Override
     protected SpanTermQueryBuilder createEmptyQueryBuilder() {
-        return new SpanTermQueryBuilder();
+        return new SpanTermQueryBuilder(null, null);
     }
     
     @Override

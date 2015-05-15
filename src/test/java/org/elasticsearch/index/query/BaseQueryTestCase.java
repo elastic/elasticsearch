@@ -69,6 +69,7 @@ import static org.hamcrest.Matchers.*;
 public abstract class BaseQueryTestCase<QB extends QueryBuilder & Streamable> extends ElasticsearchTestCase {
 
     protected static final String DATE_FIELD_NAME = "age";
+    protected static final String INT_FIELD_NAME = "price";
     private static Injector injector;
     private static IndexQueryParserService queryParserService;
     private static Index index;
@@ -110,7 +111,9 @@ public abstract class BaseQueryTestCase<QB extends QueryBuilder & Streamable> ex
         ).createInjector();
         queryParserService = injector.getInstance(IndexQueryParserService.class);
         MapperService mapperService = queryParserService.mapperService;
-        CompressedString mapping = new CompressedString(PutMappingRequest.buildFromSimplifiedDef("type", DATE_FIELD_NAME, "type=date").string());
+        CompressedString mapping = new CompressedString(PutMappingRequest.buildFromSimplifiedDef("type",
+                DATE_FIELD_NAME, "type=date",
+                INT_FIELD_NAME, "type=integer").string());
         mapperService.merge("type", mapping, true);
     }
 

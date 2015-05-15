@@ -51,6 +51,7 @@ public class RangeQueryBuilderTest extends BaseQueryTestCase<RangeQueryBuilder> 
         // switch between numeric and date ranges
         if (randomBoolean()) {
             if (randomBoolean()) {
+                query = new RangeQueryBuilder(INT_FIELD_NAME);
                 query.from(randomIntBetween(1, 100));
                 query.to(randomIntBetween(101, 200));
             } else {
@@ -88,20 +89,26 @@ public class RangeQueryBuilderTest extends BaseQueryTestCase<RangeQueryBuilder> 
     @Override
     protected void assertLuceneQuery(RangeQueryBuilder queryBuilder, Query query, QueryParseContext context) throws IOException {
         assertThat(query.getBoost(), is(queryBuilder.boost()));
-        if (!queryBuilder.fieldname().equals(DATE_FIELD_NAME)) {
+        String fieldname = queryBuilder.fieldname();
+        if (!fieldname.equals(DATE_FIELD_NAME) && !fieldname.equals(INT_FIELD_NAME)) {
             assertThat(query, instanceOf(TermRangeQuery.class));
             TermRangeQuery termRangeQuery = (TermRangeQuery) query;
             assertThat(termRangeQuery.includesLower(), is(queryBuilder.includeLower()));
             assertThat(termRangeQuery.includesUpper(), is(queryBuilder.includeUpper()));
             assertThat(termRangeQuery.getLowerTerm(), is(BytesRefs.toBytesRef(queryBuilder.from())));
             assertThat(termRangeQuery.getUpperTerm(), is(BytesRefs.toBytesRef(queryBuilder.to())));
-            assertThat(termRangeQuery.getField(), is(queryBuilder.fieldname()));
-        } else {
+            assertThat(termRangeQuery.getField(), is(fieldname));
+        } else if (fieldname.equals(DATE_FIELD_NAME)) {
             assertThat(query, instanceOf(LateParsingQuery.class));
             Long min = expectedDateLong(queryBuilder.from(), queryBuilder, context);
             Long max = expectedDateLong(queryBuilder.to(), queryBuilder, context);
             Query expectedQuery = NumericRangeQuery.newLongRange(DATE_FIELD_NAME, min, max, queryBuilder.includeLower(), queryBuilder.includeUpper());
             assertEquals(query.rewrite(null), expectedQuery.rewrite(null));
+        } else {
+            assertThat(query, instanceOf(NumericRangeQuery.class));
+            Query expectedQuery = NumericRangeQuery.newIntRange(INT_FIELD_NAME, (Integer) queryBuilder.from(), (Integer) queryBuilder.to(), queryBuilder.includeLower(), queryBuilder.includeUpper());
+            expectedQuery.setBoost(testQuery.boost());
+            assertEquals(query, expectedQuery);
         }
         if (queryBuilder.queryName() != null) {
             Query namedQuery = context.copyNamedFilters().get(queryBuilder.queryName());

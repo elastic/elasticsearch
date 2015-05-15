@@ -31,6 +31,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 public final class ShardPath {
     public static final String INDEX_FOLDER_NAME = "index";
@@ -115,25 +116,31 @@ public final class ShardPath {
         }
     }
 
-    // TODO - do we need something more extensible? Yet, this does the job for now...
-    public static ShardPath selectNewPathForShard(NodeEnvironment env, ShardId shardId, @IndexSettings Settings indexSettings) throws IOException {
+    /** estReserveBytes maps each path.data path to a "guess" of how many bytes the shards allocated to that path might use over their
+     *  lifetime; we do this so a bunch of newly allocated shards won't just all go the path with the most free space at this moment. */
+    public static ShardPath selectNewPathForShard(NodeEnvironment env, ShardId shardId, @IndexSettings Settings indexSettings,
+                                                  Map<Path,Long> estReserveBytes) throws IOException {
+        // TODO - do we need something more extensible? Yet, this does the job for now...
         final String indexUUID = indexSettings.get(IndexMetaData.SETTING_UUID, IndexMetaData.INDEX_UUID_NA_VALUE);
         final NodeEnvironment.NodePath[] paths = env.nodePaths();
-        final List<Tuple<Path, Long>> minUsedPaths = new ArrayList<>();
+        NodeEnvironment.NodePath bestPath = null;
+        long maxUsableBytes = Long.MIN_VALUE;
         for (NodeEnvironment.NodePath nodePath : paths) {
-            final Path shardPath = nodePath.resolve(shardId);
             FileStore fileStore = nodePath.fileStore;
-            long usableSpace = fileStore.getUsableSpace();
-            if (minUsedPaths.isEmpty() || minUsedPaths.get(0).v2() == usableSpace) {
-                minUsedPaths.add(new Tuple<>(shardPath, usableSpace));
-            } else if (minUsedPaths.get(0).v2() < usableSpace) {
-                minUsedPaths.clear();
-                minUsedPaths.add(new Tuple<>(shardPath, usableSpace));
+            long usableBytes = fileStore.getUsableSpace();
+            Long reservedBytes = estReserveBytes.get(nodePath.path);
+            if (reservedBytes != null) {
+                usableBytes -= reservedBytes;
+            }
+            if (usableBytes > maxUsableBytes) {
+                maxUsableBytes = usableBytes;
+                bestPath = nodePath;
             }
         }
-        Path minUsed = minUsedPaths.get(shardId.id() % minUsedPaths.size()).v1();
+
+        final Path statePath = bestPath.resolve(shardId);
         final Path dataPath;
-        final Path statePath = minUsed;
+        
         if (NodeEnvironment.hasCustomDataPath(indexSettings)) {
             dataPath = env.resolveCustomLocation(indexSettings, shardId);
         } else {

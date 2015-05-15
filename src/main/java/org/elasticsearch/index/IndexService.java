@@ -25,6 +25,8 @@ import com.google.common.collect.Iterators;
 
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.cluster.ClusterInfo;
+import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -75,8 +77,10 @@ import org.elasticsearch.plugins.ShardsPluginsModule;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -123,12 +127,16 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final AtomicBoolean deleted = new AtomicBoolean(false);
 
+    private volatile long avgShardSizeInBytes = -1;
+
     @Inject
     public IndexService(Injector injector, Index index, @IndexSettings Settings indexSettings, NodeEnvironment nodeEnv,
                         AnalysisService analysisService, MapperService mapperService, IndexQueryParserService queryParserService,
                         SimilarityService similarityService, IndexAliasesService aliasesService, IndexCache indexCache,
                         IndexSettingsService settingsService,
-                        IndexFieldDataService indexFieldData, BitsetFilterCache bitSetFilterCache, IndicesService indicesServices) {
+                        IndexFieldDataService indexFieldData, BitsetFilterCache bitSetFilterCache, IndicesService indicesServices,
+                        ClusterInfoService clusterInfoService) {
+
         super(index, indexSettings);
         this.injector = injector;
         this.indexSettings = indexSettings;
@@ -150,7 +158,30 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
         indexFieldData.setIndexService(this);
         bitSetFilterCache.setIndexService(this);
         this.nodeEnv = nodeEnv;
+        clusterInfoService.addListener(new ShardSizeListener());
     }
+
+    /**
+     * Just records average size of shards in the cluster as a heuristic to help when allocating new shards to data paths.
+     */
+    class ShardSizeListener implements ClusterInfoService.Listener {
+
+        @Override
+        public void onNewInfo(ClusterInfo info) {
+            int count = 0;
+            long totBytes = 0;
+            for (long size : info.getShardSizes().values()) {
+                count++;
+                totBytes += size;
+            }
+            if (count > 0) {
+                IndexService.this.avgShardSizeInBytes = totBytes / count;
+            } else {
+                IndexService.this.avgShardSizeInBytes = -1;
+            }
+        }
+    }
+
 
     public int numberOfShards() {
         return shards.size();
@@ -285,9 +316,33 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
         Injector shardInjector = null;
         try {
 
+            
+
             ShardPath path = ShardPath.loadShardPath(logger, nodeEnv, shardId, indexSettings);
             if (path == null) {
-                path = ShardPath.selectNewPathForShard(nodeEnv, shardId, indexSettings);
+
+                long totFreeSpace = 0;
+                for (NodeEnvironment.NodePath nodePath : nodeEnv.nodePaths()) {
+                    totFreeSpace += nodePath.fileStore.getUsableSpace();
+                }
+
+                // Very rough heurisic of how much disk space we expect the shard will use over its lifetime, the max of current average
+                // shard size across the cluster and 5% of the total available free space on this node:
+                long estShardSizeInBytes = Math.max(avgShardSizeInBytes, (long) (totFreeSpace/20.0));
+
+                // Just collate predicted disk usage on each path.data:
+                Map<Path,Long> estReserveBytes = new HashMap<>();
+                for(Tuple<IndexShard,Injector> shardInjectorTuple : shards.values()) {
+                    IndexShard shard = shardInjectorTuple.v1();
+                    // Remove indices/<index>/<shardID> subdirs from the statePath to get back to the path.data:
+                    Path nodeDataPath = shard.shardPath().getShardStatePath().getParent().getParent().getParent();
+                    Long curBytes = estReserveBytes.get(nodeDataPath);
+                    if (curBytes == null) {
+                        curBytes = 0L;
+                    }
+                    estReserveBytes.put(nodeDataPath, curBytes + estShardSizeInBytes);
+                }
+                path = ShardPath.selectNewPathForShard(nodeEnv, shardId, indexSettings, estReserveBytes);
                 logger.debug("{} creating using a new path [{}]", shardId, path);
             } else {
                 logger.debug("{} creating using an existing path [{}]", shardId, path);

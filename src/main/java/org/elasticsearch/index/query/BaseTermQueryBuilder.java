@@ -22,19 +22,18 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
 
-public abstract class BaseTermQueryBuilder<QB extends BoostableQueryBuilder<QB>> extends QueryBuilder implements Streamable, BoostableQueryBuilder<QB> {
-
+public abstract class BaseTermQueryBuilder<QB extends BaseTermQueryBuilder<QB>> extends QueryBuilder<QB> implements BoostableQueryBuilder<QB> {
+    
     /** Name of field to match against. */
-    protected String fieldName;
+    protected final String fieldName;
 
     /** Value to find matches for. */
-    protected Object value;
+    protected final Object value;
 
     /** Query boost. */
     protected float boost = 1.0f;
@@ -114,10 +113,6 @@ public abstract class BaseTermQueryBuilder<QB extends BoostableQueryBuilder<QB>>
     public BaseTermQueryBuilder(String fieldName, Object value) {
         this.fieldName = fieldName;
         this.value = convertToBytesRefIfString(value);
-    }
-
-    BaseTermQueryBuilder() {
-        // for serialization only
     }
 
     /** Returns the field name used in this query. */
@@ -206,7 +201,6 @@ public abstract class BaseTermQueryBuilder<QB extends BoostableQueryBuilder<QB>>
         if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
-        @SuppressWarnings("rawtypes")
         BaseTermQueryBuilder other = (BaseTermQueryBuilder) obj;
         return Objects.equals(fieldName, other.fieldName) &&
                Objects.equals(value, other.value) &&
@@ -214,16 +208,16 @@ public abstract class BaseTermQueryBuilder<QB extends BoostableQueryBuilder<QB>>
                Objects.equals(queryName, other.queryName);
     }
 
-    /** Read the given parameters. */
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        fieldName = in.readString();
-        value = in.readGenericValue();
-        boost = in.readFloat();
-        queryName = in.readOptionalString();
+    public QB readFrom(StreamInput in) throws IOException {
+        QB emptyBuilder = createBuilder(in.readString(), in.readGenericValue());
+        emptyBuilder.boost = in.readFloat();
+        emptyBuilder.queryName = in.readOptionalString();
+        return emptyBuilder;
     }
 
-    /** Writes the given parameters. */
+    protected abstract QB createBuilder(String fieldName, Object value);
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(fieldName);

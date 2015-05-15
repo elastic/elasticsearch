@@ -20,7 +20,6 @@
 package org.elasticsearch.index.query;
 
 import com.carrotsearch.randomizedtesting.annotations.Repeat;
-
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
@@ -33,7 +32,6 @@ import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.inject.util.Providers;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
@@ -53,28 +51,35 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.query.IndicesQueriesModule;
 import org.elasticsearch.script.ScriptModule;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.TestSearchContext;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolModule;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
-import org.junit.Ignore;
-import org.junit.Test;
+import org.junit.*;
 
 import java.io.IOException;
 
-import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.*;
 
 @Ignore
-public abstract class BaseQueryTestCase<QB extends QueryBuilder & Streamable> extends ElasticsearchTestCase {
+public abstract class BaseQueryTestCase<QB extends QueryBuilder<QB>> extends ElasticsearchTestCase {
 
     protected static final String DATE_FIELD_NAME = "age";
     protected static final String INT_FIELD_NAME = "price";
+    protected static final String STRING_FIELD_NAME = "text";
+    protected static final String DOUBLE_FIELD_NAME = "double";
+    protected static final String BOOLEAN_FIELD_NAME = "boolean";
+
     private static Injector injector;
     private static IndexQueryParserService queryParserService;
     private static Index index;
 
-    protected QB testQuery = createTestQueryBuilder();
+    private static String[] currentTypes;
+
+    protected static String[] getCurrentTypes() {
+        return currentTypes;
+    }
 
     /**
      * Setup for the whole base test class.
@@ -112,32 +117,70 @@ public abstract class BaseQueryTestCase<QB extends QueryBuilder & Streamable> ex
         ).createInjector();
         queryParserService = injector.getInstance(IndexQueryParserService.class);
         MapperService mapperService = queryParserService.mapperService;
-        CompressedString mapping = new CompressedString(PutMappingRequest.buildFromSimplifiedDef("type",
-                DATE_FIELD_NAME, "type=date",
-                INT_FIELD_NAME, "type=integer").string());
-        mapperService.merge("type", mapping, true);
+        //create some random type with some default field, those types will stick around for all of the subclasses
+        currentTypes = new String[randomIntBetween(0, 5)];
+        for (int i = 0; i < currentTypes.length; i++) {
+            String type = randomAsciiOfLengthBetween(1, 10);
+            mapperService.merge(type, new CompressedString(PutMappingRequest.buildFromSimplifiedDef(type,
+                    DATE_FIELD_NAME, "type=date",
+                    INT_FIELD_NAME, "type=integer",
+                    DOUBLE_FIELD_NAME, "type=double",
+                    BOOLEAN_FIELD_NAME, "type=boolean",
+                    STRING_FIELD_NAME, "type=string").string()), false);
+            currentTypes[i] = type;
+        }
     }
 
     @AfterClass
-    public static void after() throws Exception {
+    public static void afterClass() throws Exception {
         terminate(injector.getInstance(ThreadPool.class));
         injector = null;
         index = null;
         queryParserService = null;
+        currentTypes = null;
+    }
+
+    @Before
+    public void beforeTest() {
+        //set some random types to be queried as part the search request, before each test
+        String[] types;
+        if (currentTypes.length > 0 && randomBoolean()) {
+            int numberOfQueryTypes = randomIntBetween(1, currentTypes.length);
+            types = new String[numberOfQueryTypes];
+            for (int i = 0; i < numberOfQueryTypes; i++) {
+                types[i] = randomFrom(currentTypes);
+            }
+        } else {
+            /* norelease waiting for a fix on master that restores support for _all type
+            if (randomBoolean()) {
+                types = new String[]{MetaData.ALL};
+            } else {
+                types = new String[0];
+            }
+            */
+            types = new String[0];
+        }
+        //some query (e.g. range query) have a different behaviour depending on whether the current search context is set or not
+        //which is why we randomly set the search context, which will internally also do QueryParseContext.setTypes(types)
+        if (randomBoolean()) {
+            QueryParseContext.setTypes(types);
+        } else {
+            TestSearchContext testSearchContext = new TestSearchContext();
+            testSearchContext.setTypes(types);
+            SearchContext.setCurrent(testSearchContext);
+        }
+    }
+
+    @After
+    public void afterTest() {
+        QueryParseContext.removeTypes();
+        SearchContext.removeCurrent();
     }
 
     /**
      * Create the query that is being tested
      */
     protected abstract QB createTestQueryBuilder();
-
-    /**
-     * Subclass should handle assertions on the lucene query produced by the query builder under test here
-     * @param queryBuilder the original queryBuilder used in this test
-     * @param query the lucene query constructed from this
-     * @param context the {@link QueryParseContext} that can be used for assertions
-     */
-    protected abstract void assertLuceneQuery(QB queryBuilder, Query query, QueryParseContext context) throws IOException;
 
     /**
      * Creates an empty builder of the type of query under test
@@ -151,7 +194,7 @@ public abstract class BaseQueryTestCase<QB extends QueryBuilder & Streamable> ex
     @Test
     @Repeat(iterations = 20)
     public void testFromXContent() throws IOException {
-        testQuery = createTestQueryBuilder();
+        QB testQuery = createTestQueryBuilder();
         QueryParseContext context = createContext();
         String contentString = testQuery.toString();
         XContentParser parser = XContentFactory.xContent(contentString).createParser(contentString);
@@ -161,6 +204,7 @@ public abstract class BaseQueryTestCase<QB extends QueryBuilder & Streamable> ex
         QueryBuilder newQuery = queryParserService.queryParser(testQuery.parserName()).fromXContent(context);
         assertNotSame(newQuery, testQuery);
         assertEquals(newQuery, testQuery);
+        assertEquals(newQuery.hashCode(), testQuery.hashCode());
     }
 
     /**
@@ -170,10 +214,29 @@ public abstract class BaseQueryTestCase<QB extends QueryBuilder & Streamable> ex
     @Test
     @Repeat(iterations = 20)
     public void testToQuery() throws IOException {
-        testQuery = createTestQueryBuilder();
+        QB testQuery = createTestQueryBuilder();
         QueryParseContext context = createContext();
         context.setAllowUnmappedFields(true);
-        assertLuceneQuery(testQuery, testQuery.toQuery(context), context);
+
+        Query expectedQuery = createExpectedQuery(testQuery, context);
+        Query actualQuery = testQuery.toQuery(context);
+        assertThat(actualQuery, instanceOf(expectedQuery.getClass()));
+        assertThat(actualQuery, equalTo(expectedQuery));
+        assertLuceneQuery(testQuery, actualQuery, context);
+    }
+
+    /**
+     * Creates the expected lucene query given the current {@link QueryBuilder} and {@link QueryParseContext}.
+     * The returned query will be compared with the result of {@link QueryBuilder#toQuery(QueryParseContext)} to test its behaviour.
+     */
+    protected abstract Query createExpectedQuery(QB queryBuilder, QueryParseContext context) throws IOException;
+
+    /**
+     * Run after default equality comparison between lucene expected query and result of {@link QueryBuilder#toQuery(QueryParseContext)}.
+     * Can contain additional assertions that are query specific. Empty default implementation.
+     */
+    protected void assertLuceneQuery(QB queryBuilder, Query query, QueryParseContext context) {
+
     }
 
     /**
@@ -182,15 +245,13 @@ public abstract class BaseQueryTestCase<QB extends QueryBuilder & Streamable> ex
     @Test
     @Repeat(iterations = 20)
     public void testSerialization() throws IOException {
-        testQuery = createTestQueryBuilder();
+        QB testQuery = createTestQueryBuilder();
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             testQuery.writeTo(output);
-
             try (StreamInput in = StreamInput.wrap(output.bytes())) {
-                QB deserializedQuery = createEmptyQueryBuilder();
-                deserializedQuery.readFrom(in);
-
+                QB deserializedQuery = createEmptyQueryBuilder().readFrom(in);
                 assertEquals(deserializedQuery, testQuery);
+                assertEquals(deserializedQuery.hashCode(), testQuery.hashCode());
                 assertNotSame(deserializedQuery, testQuery);
             }
         }

@@ -31,33 +31,35 @@ import org.elasticsearch.index.mapper.FieldMapper;
  * @see SpanTermQuery
  */
 public class SpanTermQueryBuilder extends BaseTermQueryBuilder<SpanTermQueryBuilder> implements SpanQueryBuilder {
+
     /** @see BaseTermQueryBuilder#BaseTermQueryBuilder(String, String) */
     public SpanTermQueryBuilder(String name, String value) {
         super(name, (Object) value);
     }
+
     /** @see BaseTermQueryBuilder#BaseTermQueryBuilder(String, int) */
     public SpanTermQueryBuilder(String name, int value) {
         super(name, (Object) value);
     }
+
     /** @see BaseTermQueryBuilder#BaseTermQueryBuilder(String, long) */
     public SpanTermQueryBuilder(String name, long value) {
         super(name, (Object) value);
     }
+
     /** @see BaseTermQueryBuilder#BaseTermQueryBuilder(String, float) */
     public SpanTermQueryBuilder(String name, float value) {
         super(name, (Object) value);
     }
+
     /** @see BaseTermQueryBuilder#BaseTermQueryBuilder(String, double) */
     public SpanTermQueryBuilder(String name, double value) {
         super(name, (Object) value);
     }
+
     /** @see BaseTermQueryBuilder#BaseTermQueryBuilder(String, Object) */
     public SpanTermQueryBuilder(String name, Object value) {
         super(name, value);
-    }
-
-    public SpanTermQueryBuilder() {
-        // for testing and serialisation only
     }
 
     @Override
@@ -68,6 +70,7 @@ public class SpanTermQueryBuilder extends BaseTermQueryBuilder<SpanTermQueryBuil
     @Override
     public Query toQuery(QueryParseContext context) {
         BytesRef valueBytes = null;
+        String fieldName = this.fieldName;
         FieldMapper mapper = context.fieldMapper(fieldName);
         if (mapper != null) {
             fieldName = mapper.names().indexName();
@@ -76,12 +79,17 @@ public class SpanTermQueryBuilder extends BaseTermQueryBuilder<SpanTermQueryBuil
         if (valueBytes == null) {
             valueBytes = BytesRefs.toBytesRef(this.value);
         }
-        
+
         SpanTermQuery query = new SpanTermQuery(new Term(fieldName, valueBytes));
         query.setBoost(boost);
         if (queryName != null) {
             context.addNamedQuery(queryName, query);
         }
         return query;
+    }
+
+    @Override
+    protected SpanTermQueryBuilder createBuilder(String fieldName, Object value) {
+        return new SpanTermQueryBuilder(fieldName, value);
     }
 }

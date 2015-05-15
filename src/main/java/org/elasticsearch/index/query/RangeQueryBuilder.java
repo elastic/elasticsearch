@@ -24,7 +24,6 @@ import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.joda.DateMathParser;
 import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.lucene.BytesRefs;
@@ -39,9 +38,9 @@ import java.util.Objects;
 /**
  * A Query that matches documents within an range of terms.
  */
-public class RangeQueryBuilder extends MultiTermQueryBuilder implements Streamable, BoostableQueryBuilder<RangeQueryBuilder> {
+public class RangeQueryBuilder extends MultiTermQueryBuilder<RangeQueryBuilder> implements BoostableQueryBuilder<RangeQueryBuilder> {
 
-    private String fieldName;
+    private final String fieldName;
 
     private Object from;
 
@@ -65,10 +64,6 @@ public class RangeQueryBuilder extends MultiTermQueryBuilder implements Streamab
      */
     public RangeQueryBuilder(String fieldName) {
         this.fieldName = fieldName;
-    }
-
-    public RangeQueryBuilder() {
-        // for serialization
     }
 
     /**
@@ -344,16 +339,17 @@ public class RangeQueryBuilder extends MultiTermQueryBuilder implements Streamab
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        this.fieldName = in.readString();
-        this.from = in.readGenericValue();
-        this.to = in.readGenericValue();
-        this.includeLower = in.readBoolean();
-        this.includeUpper = in.readBoolean();
-        this.timeZone = in.readOptionalString();
-        this.format = in.readOptionalString();
-        this.boost = in.readFloat();
-        this.queryName = in.readOptionalString();
+    public RangeQueryBuilder readFrom(StreamInput in) throws IOException {
+        RangeQueryBuilder rangeQueryBuilder = new RangeQueryBuilder(in.readString());
+        rangeQueryBuilder.from = in.readGenericValue();
+        rangeQueryBuilder.to = in.readGenericValue();
+        rangeQueryBuilder.includeLower = in.readBoolean();
+        rangeQueryBuilder.includeUpper = in.readBoolean();
+        rangeQueryBuilder.timeZone = in.readOptionalString();
+        rangeQueryBuilder.format = in.readOptionalString();
+        rangeQueryBuilder.boost = in.readFloat();
+        rangeQueryBuilder.queryName = in.readOptionalString();
+        return rangeQueryBuilder;
     }
 
     @Override

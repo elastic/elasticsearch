@@ -22,12 +22,15 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.NumericRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermRangeQuery;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.joda.DateMathParser;
 import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.lucene.BytesRefs;
-import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.index.mapper.ContentPath;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
-import org.elasticsearch.index.mapper.core.DateFieldMapper.LateParsingQuery;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.junit.Test;
@@ -37,7 +40,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 public class RangeQueryBuilderTest extends BaseQueryTestCase<RangeQueryBuilder> {
@@ -90,33 +92,48 @@ public class RangeQueryBuilderTest extends BaseQueryTestCase<RangeQueryBuilder> 
     }
 
     @Override
-    protected void assertLuceneQuery(RangeQueryBuilder queryBuilder, Query query, QueryParseContext context) throws IOException {
-        assertThat(query.getBoost(), is(queryBuilder.boost()));
+    protected Query createExpectedQuery(RangeQueryBuilder queryBuilder, QueryParseContext context) throws IOException {
+        Query expectedQuery;
+        if (getCurrentTypes().length == 0 || (queryBuilder.fieldName().equals(DATE_FIELD_NAME) == false && queryBuilder.fieldName().equals(INT_FIELD_NAME) == false) ) {
+            expectedQuery = new TermRangeQuery(queryBuilder.fieldName(),
+                    BytesRefs.toBytesRef(queryBuilder.from()), BytesRefs.toBytesRef(queryBuilder.to()),
+                    queryBuilder.includeLower(), queryBuilder.includeUpper());
+
+        } else if (queryBuilder.fieldName().equals(DATE_FIELD_NAME)) {
+            DateFieldMapper.Builder fieldMapperBuilder = new DateFieldMapper.Builder(queryBuilder.fieldName());
+            DateFieldMapper fieldMapper = fieldMapperBuilder.build(new Mapper.BuilderContext(ImmutableSettings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build(), new ContentPath()));
+            DateMathParser dateMathParser = null;
+            if (queryBuilder.format() != null) {
+                dateMathParser = new DateMathParser(Joda.forPattern(queryBuilder.format()), DateFieldMapper.Defaults.TIME_UNIT);
+            }
+            DateTimeZone timeZone = null;
+            if( queryBuilder.timeZone() != null) {
+                timeZone = DateTimeZone.forID(queryBuilder.timeZone());
+            }
+            Long from = null;
+            if (queryBuilder.from() != null) {
+                from = fieldMapper.parseToMilliseconds(queryBuilder.from(), queryBuilder.includeLower(), timeZone, dateMathParser);
+            }
+            Long to = null;
+            if (queryBuilder.to() != null) {
+                to = fieldMapper.parseToMilliseconds(queryBuilder.to(), queryBuilder.includeLower(), timeZone, dateMathParser);
+            }
+            expectedQuery = fieldMapper.rangeQuery(from, to, queryBuilder.includeLower(), queryBuilder.includeUpper(), timeZone, dateMathParser, context);
+        } else if (queryBuilder.fieldName().equals(INT_FIELD_NAME)) {
+            expectedQuery = NumericRangeQuery.newIntRange(INT_FIELD_NAME, (Integer) queryBuilder.from(), (Integer) queryBuilder.to(), queryBuilder.includeLower(), queryBuilder.includeUpper());
+        } else {
+            throw new UnsupportedOperationException();
+        }
+        expectedQuery.setBoost(queryBuilder.boost());
+        return expectedQuery;
+    }
+
+    @Override
+    protected void assertLuceneQuery(RangeQueryBuilder queryBuilder, Query query, QueryParseContext context) {
         if (queryBuilder.queryName() != null) {
             Query namedQuery = context.copyNamedFilters().get(queryBuilder.queryName());
             assertThat(namedQuery, equalTo(query));
         }
-        String fieldName = queryBuilder.fieldName();
-        Query expectedQuery;
-        if (!fieldName.equals(DATE_FIELD_NAME) && !fieldName.equals(INT_FIELD_NAME)) {
-            assertThat(query, instanceOf(TermRangeQuery.class));
-            expectedQuery = new TermRangeQuery(queryBuilder.fieldName(),
-                    BytesRefs.toBytesRef(queryBuilder.from()), BytesRefs.toBytesRef(queryBuilder.to()),
-                    queryBuilder.includeLower(), queryBuilder.includeUpper());
-            expectedQuery.setBoost(queryBuilder.boost());
-        } else if (fieldName.equals(DATE_FIELD_NAME)) {
-            assertThat(query, instanceOf(LateParsingQuery.class));
-            Long min = expectedDateLong(queryBuilder.from(), queryBuilder, context);
-            Long max = expectedDateLong(queryBuilder.to(), queryBuilder, context);
-            expectedQuery = NumericRangeQuery.newLongRange(DATE_FIELD_NAME, min, max, queryBuilder.includeLower(), queryBuilder.includeUpper());
-            expectedQuery = expectedQuery.rewrite(null);
-            query = query.rewrite(null);
-        } else {
-            assertThat(query, instanceOf(NumericRangeQuery.class));
-            expectedQuery = NumericRangeQuery.newIntRange(INT_FIELD_NAME, (Integer) queryBuilder.from(), (Integer) queryBuilder.to(), queryBuilder.includeLower(), queryBuilder.includeUpper());
-            expectedQuery.setBoost(testQuery.boost());
-        }
-        assertEquals(expectedQuery, query);
     }
 
     @Test
@@ -162,23 +179,6 @@ public class RangeQueryBuilderTest extends BaseQueryTestCase<RangeQueryBuilder> 
 
     @Override
     protected RangeQueryBuilder createEmptyQueryBuilder() {
-        return new RangeQueryBuilder();
-    }
-
-    private Long expectedDateLong(Object value, RangeQueryBuilder queryBuilder, QueryParseContext context) {
-        FieldMapper mapper = context.fieldMapper(queryBuilder.fieldName());
-        DateMathParser dateParser = null;
-        if (queryBuilder.format()  != null) {
-            dateParser = new DateMathParser(Joda.forPattern(queryBuilder.format()), DateFieldMapper.Defaults.TIME_UNIT);
-        }
-        DateTimeZone dateTimeZone = null;
-        if (queryBuilder.timeZone() != null) {
-            dateTimeZone = DateTimeZone.forID(queryBuilder.timeZone());
-        }
-        Long expectedDate = null;
-        if (value != null) {
-            expectedDate = ((DateFieldMapper) mapper).parseToMilliseconds(value, queryBuilder.includeLower(), dateTimeZone, dateParser);
-        }
-        return expectedDate;
+        return new RangeQueryBuilder(null);
     }
 }

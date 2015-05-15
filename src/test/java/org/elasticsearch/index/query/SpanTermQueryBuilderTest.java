@@ -19,21 +19,15 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.spans.SpanTermQuery;
-import org.elasticsearch.common.lucene.BytesRefs;
-
-import java.io.IOException;
-
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.is;
 
 public class SpanTermQueryBuilderTest extends BaseTermQueryTestCase<SpanTermQueryBuilder> {
 
     @Override
     protected SpanTermQueryBuilder createEmptyQueryBuilder() {
-        return new SpanTermQueryBuilder();
+        return new SpanTermQueryBuilder(null, null);
     }
     
     @Override
@@ -41,31 +35,8 @@ public class SpanTermQueryBuilderTest extends BaseTermQueryTestCase<SpanTermQuer
         return new SpanTermQueryBuilder(fieldName, value);
     }
 
-    /** Returns a {@link SpanTermQueryBuilder} with random field name and value, optional random boost and queryname */
     @Override
-    protected SpanTermQueryBuilder createTestQueryBuilder() {
-        Object value = createRandomValueObject();
-        SpanTermQueryBuilder query = new SpanTermQueryBuilder(randomAsciiOfLength(8), value);
-        if (randomBoolean()) {
-            query.boost(2.0f / randomIntBetween(1, 20));
-        }
-        if (randomBoolean()) {
-            query.queryName(randomAsciiOfLength(8));
-        }
-        return query;
-    }
-
-    /** Checks the generated Lucene query against the {@link SpanTermQueryBuilder} it was created from. */
-    @Override
-    protected void assertLuceneQuery(SpanTermQueryBuilder queryBuilder, Query query, QueryParseContext context) throws IOException {
-        assertThat(query, instanceOf(SpanTermQuery.class));
-        assertThat(query.getBoost(), is(queryBuilder.boost()));
-        SpanTermQuery termQuery = (SpanTermQuery) query;
-        assertThat(termQuery.getTerm().field(), is(queryBuilder.fieldName()));
-        assertThat(termQuery.getTerm().bytes(), is(BytesRefs.toBytesRef(queryBuilder.value())));
-        if (queryBuilder.queryName() != null) {
-            Query namedQuery = context.copyNamedFilters().get(queryBuilder.queryName());
-            assertThat(namedQuery, equalTo((Query)termQuery));
-        }
+    protected Query createLuceneTermQuery(Term term) {
+        return new SpanTermQuery(term);
     }
 }

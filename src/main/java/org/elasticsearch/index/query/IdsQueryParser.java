@@ -20,7 +20,6 @@
 package org.elasticsearch.index.query;
 
 import com.google.common.collect.ImmutableList;
-
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 

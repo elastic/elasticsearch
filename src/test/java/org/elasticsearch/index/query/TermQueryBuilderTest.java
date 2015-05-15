@@ -19,19 +19,15 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
-import org.elasticsearch.common.lucene.BytesRefs;
-
-import java.io.IOException;
-
-import static org.hamcrest.Matchers.*;
 
 public class TermQueryBuilderTest extends BaseTermQueryTestCase<TermQueryBuilder> {
 
     @Override
     protected TermQueryBuilder createEmptyQueryBuilder() {
-        return new TermQueryBuilder();
+        return new TermQueryBuilder(null, null);
     }
 
     /**
@@ -42,31 +38,8 @@ public class TermQueryBuilderTest extends BaseTermQueryTestCase<TermQueryBuilder
         return new TermQueryBuilder(fieldName, value);
     }
 
-    /** Returns a TermQuery with random field name and value, optional random boost and queryname. */
     @Override
-    protected TermQueryBuilder createTestQueryBuilder() {
-        Object value = createRandomValueObject();
-        TermQueryBuilder query = new TermQueryBuilder(randomAsciiOfLength(8), value);
-        if (randomBoolean()) {
-            query.boost(2.0f / randomIntBetween(1, 20));
-        }
-        if (randomBoolean()) {
-            query.queryName(randomAsciiOfLength(8));
-        }
-        return query;
-    }
-
-    /** Validates the Lucene query that was generated from a given {@link TermQueryBuilder}*/
-    @Override
-    protected void assertLuceneQuery(TermQueryBuilder queryBuilder, Query query, QueryParseContext context) throws IOException {
-        assertThat(query, instanceOf(TermQuery.class));
-        assertThat(query.getBoost(), is(queryBuilder.boost()));
-        TermQuery termQuery = (TermQuery) query;
-        assertThat(termQuery.getTerm().field(), is(queryBuilder.fieldName()));
-        assertThat(termQuery.getTerm().bytes(), is(BytesRefs.toBytesRef(queryBuilder.value())));
-        if (queryBuilder.queryName() != null) {
-            Query namedQuery = context.copyNamedFilters().get(queryBuilder.queryName());
-            assertThat(namedQuery, equalTo((Query)termQuery));
-        }
+    protected Query createLuceneTermQuery(Term term) {
+        return new TermQuery(term);
     }
 }

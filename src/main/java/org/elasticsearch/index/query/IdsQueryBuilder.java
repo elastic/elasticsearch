@@ -19,51 +19,45 @@
 
 package org.elasticsearch.index.query;
 
-import com.google.common.collect.Iterables;
-
+import com.google.common.collect.Sets;
 import org.apache.lucene.queries.TermsQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.List;
-import java.util.Objects;
+import java.util.*;
 
 /**
  * A query that will return only documents matching specific ids (and a type).
  */
-public class IdsQueryBuilder extends QueryBuilder implements Streamable, BoostableQueryBuilder<IdsQueryBuilder> {
+public class IdsQueryBuilder extends QueryBuilder<IdsQueryBuilder> implements BoostableQueryBuilder<IdsQueryBuilder> {
 
-    private List<String> types = new ArrayList<>();
+    private final Set<String> ids = Sets.newHashSet();
 
-    private List<String> ids = new ArrayList<>();
+    private final String[] types;
 
     private float boost = 1.0f;
 
     private String queryName;
 
-    public IdsQueryBuilder() {
-        //for serialization only
-    }
-
-    public IdsQueryBuilder(String... types) {
-        this.types = (types == null || types.length == 0) ? new ArrayList<String>() : Arrays.asList(types);
+    /**
+     * Creates a new IdsQueryBuilder by optionally providing the types of the documents to look for
+     */
+    public IdsQueryBuilder(@Nullable String... types) {
+        this.types = types;
     }
 
     /**
-     * Get the types used in this query
-     * @return the types
+     * Returns the types used in this query
      */
-    public Collection<String> types() {
+    public String[] types() {
         return this.types;
     }
 
@@ -71,7 +65,7 @@ public class IdsQueryBuilder extends QueryBuilder implements Streamable, Boostab
      * Adds ids to the query.
      */
     public IdsQueryBuilder addIds(String... ids) {
-        this.ids.addAll(Arrays.asList(ids));
+        Collections.addAll(this.ids, ids);
         return this;
     }
 
@@ -83,9 +77,9 @@ public class IdsQueryBuilder extends QueryBuilder implements Streamable, Boostab
     }
 
     /**
-     * Gets the ids for the query.
+     * Returns the ids for the query.
      */
-    public Collection<String> ids() {
+    public Set<String> ids() {
         return this.ids;
     }
 
@@ -125,14 +119,10 @@ public class IdsQueryBuilder extends QueryBuilder implements Streamable, Boostab
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(IdsQueryParser.NAME);
         if (types != null) {
-            if (types.size() == 1) {
-                builder.field("type", types.get(0));
+            if (types.length == 1) {
+                builder.field("type", types[0]);
             } else {
-                builder.startArray("types");
-                for (String type : types) {
-                    builder.value(type);
-                }
-                builder.endArray();
+                builder.array("types", types);
             }
         }
         builder.startArray("values");
@@ -140,7 +130,7 @@ public class IdsQueryBuilder extends QueryBuilder implements Streamable, Boostab
             builder.value(value);
         }
         builder.endArray();
-        if (boost != -1) {
+        if (boost != 1.0f) {
             builder.field("boost", boost);
         }
         if (queryName != null) {
@@ -155,18 +145,21 @@ public class IdsQueryBuilder extends QueryBuilder implements Streamable, Boostab
     }
 
     public Query toQuery(QueryParseContext parseContext) throws IOException, QueryParsingException {
+        Query query;
         if (this.ids.isEmpty()) {
-            return Queries.newMatchNoDocsQuery();
-        }
+             query = Queries.newMatchNoDocsQuery();
+        } else {
+            Collection<String> typesForQuery;
+            if (types == null || types.length == 0) {
+                typesForQuery = parseContext.queryTypes();
+            } else if (types.length == 1 && MetaData.ALL.equals(types[0])) {
+                typesForQuery = parseContext.mapperService().types();
+            } else {
+                typesForQuery = Sets.newHashSet(types);
+            }
 
-        Collection<String> typesForQuery = this.types;
-        if (typesForQuery == null || typesForQuery.isEmpty()) {
-            typesForQuery = parseContext.queryTypes();
-        } else if (typesForQuery.size() == 1 && Iterables.getFirst(typesForQuery, null).equals("_all")) {
-            typesForQuery = parseContext.mapperService().types();
+            query = new TermsQuery(UidFieldMapper.NAME, Uid.createUidsForTypesAndIds(typesForQuery, ids));
         }
-
-        TermsQuery query = new TermsQuery(UidFieldMapper.NAME, Uid.createUidsForTypesAndIds(typesForQuery, ids));
         query.setBoost(boost);
         if (queryName != null) {
             parseContext.addNamedQuery(queryName, query);
@@ -181,24 +174,25 @@ public class IdsQueryBuilder extends QueryBuilder implements Streamable, Boostab
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        this.types = in.readStringList();
-        this.ids = in.readStringList();
-        queryName = in.readOptionalString();
-        boost = in.readFloat();
+    public IdsQueryBuilder readFrom(StreamInput in) throws IOException {
+        IdsQueryBuilder idsQueryBuilder = new IdsQueryBuilder(in.readStringArray());
+        idsQueryBuilder.addIds(in.readStringArray());
+        idsQueryBuilder.queryName = in.readOptionalString();
+        idsQueryBuilder.boost = in.readFloat();
+        return idsQueryBuilder;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeStringList(this.types);
-        out.writeStringList(this.ids);
+        out.writeStringArray(this.types);
+        out.writeStringArray(this.ids.toArray(new String[this.ids.size()]));
         out.writeOptionalString(queryName);
         out.writeFloat(boost);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(ids, types, boost, queryName);
+        return Objects.hash(ids, Arrays.hashCode(types), boost, queryName);
     }
 
     @Override
@@ -211,7 +205,7 @@ public class IdsQueryBuilder extends QueryBuilder implements Streamable, Boostab
         }
         IdsQueryBuilder other = (IdsQueryBuilder) obj;
         return Objects.equals(ids, other.ids) &&
-               Objects.equals(types, other.types) &&
+               Arrays.equals(types, other.types) &&
                Objects.equals(boost, other.boost) &&
                Objects.equals(queryName, other.queryName);
     }

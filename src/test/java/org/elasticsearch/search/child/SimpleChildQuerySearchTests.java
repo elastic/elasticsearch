@@ -286,8 +286,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
 
     @Test
     @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elasticsearch/elasticsearch/issues/9270")
-    public void testClearIdCacheBug() throws Exception {
-        // enforce lazy loading to make sure that p/c stats are not counted as part of field data
+    public void testParentFieldDataCacheBug() throws Exception {
         assertAcked(prepareCreate("test")
                 .setSettings(ImmutableSettings.builder().put(indexSettings())
                         .put("index.refresh_interval", -1)) // Disable automatic refresh, so that the _parent doesn't get warmed
@@ -307,10 +306,10 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         client().prepareIndex("test", "parent", "p1").setSource("p_field", "p_value1").get();
 
         refresh();
-        // No _parent field yet, there shouldn't be anything in the parent id cache
+        // No _parent field yet, there shouldn't be anything in the field data for _parent field
         IndicesStatsResponse indicesStatsResponse = client().admin().indices()
-                .prepareStats("test").setIdCache(true).get();
-        assertThat(indicesStatsResponse.getTotal().getIdCache().getMemorySizeInBytes(), equalTo(0l));
+                .prepareStats("test").setFieldData(true).get();
+        assertThat(indicesStatsResponse.getTotal().getFieldData().getMemorySizeInBytes(), equalTo(0l));
 
         // Now add mapping + children
         client().admin().indices().preparePutMapping("test").setType("child")
@@ -338,12 +337,9 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         refresh();
 
         indicesStatsResponse = client().admin().indices()
-                .prepareStats("test").setFieldData(true).get();
-        // automatic warm-up has populated the cache since it found a parent field mapper
-        assertThat(indicesStatsResponse.getTotal().getIdCache().getMemorySizeInBytes(), greaterThan(0l));
-        // Even though p/c is field data based the stats stay zero, because _parent field data field is kept
-        // track of under id cache stats memory wise for bwc
-        assertThat(indicesStatsResponse.getTotal().getFieldData().getMemorySizeInBytes(), equalTo(0l));
+                .prepareStats("test").setFieldData(true).setFieldDataFields("_parent").get();
+        assertThat(indicesStatsResponse.getTotal().getFieldData().getMemorySizeInBytes(), greaterThan(0l));
+        assertThat(indicesStatsResponse.getTotal().getFieldData().getFields().get("_parent"), greaterThan(0l));
 
         SearchResponse searchResponse = client().prepareSearch("test")
                 .setQuery(constantScoreQuery(hasChildQuery("child", termQuery("c_field", "blue"))))
@@ -352,17 +348,17 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
 
         indicesStatsResponse = client().admin().indices()
-                .prepareStats("test").setFieldData(true).get();
-        assertThat(indicesStatsResponse.getTotal().getIdCache().getMemorySizeInBytes(), greaterThan(0l));
-        assertThat(indicesStatsResponse.getTotal().getFieldData().getMemorySizeInBytes(), equalTo(0l));
+                .prepareStats("test").setFieldData(true).setFieldDataFields("_parent").get();
+        assertThat(indicesStatsResponse.getTotal().getFieldData().getMemorySizeInBytes(), greaterThan(0l));
+        assertThat(indicesStatsResponse.getTotal().getFieldData().getFields().get("_parent"), greaterThan(0l));
 
-        ClearIndicesCacheResponse clearCacheResponse = client().admin().indices().prepareClearCache("test").setIdCache(true).get();
+        ClearIndicesCacheResponse clearCacheResponse = client().admin().indices().prepareClearCache("test").setFieldDataCache(true).get();
         assertNoFailures(clearCacheResponse);
         assertAllSuccessful(clearCacheResponse);
         indicesStatsResponse = client().admin().indices()
-                .prepareStats("test").setFieldData(true).get();
-        assertThat(indicesStatsResponse.getTotal().getIdCache().getMemorySizeInBytes(), equalTo(0l));
+                .prepareStats("test").setFieldData(true).setFieldDataFields("_parent").get();
         assertThat(indicesStatsResponse.getTotal().getFieldData().getMemorySizeInBytes(), equalTo(0l));
+        assertThat(indicesStatsResponse.getTotal().getFieldData().getFields().get("_parent"), equalTo(0l));
     }
 
     @Test

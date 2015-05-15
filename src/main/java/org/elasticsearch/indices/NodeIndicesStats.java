@@ -34,7 +34,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.cache.filter.FilterCacheStats;
-import org.elasticsearch.index.cache.id.IdCacheStats;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
 import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.index.fielddata.FieldDataStats;
@@ -140,11 +139,6 @@ public class NodeIndicesStats implements Streamable, Serializable, ToXContent {
     @Nullable
     public QueryCacheStats getQueryCache() {
         return stats.getQueryCache();
-    }
-
-    @Nullable
-    public IdCacheStats getIdCache() {
-        return stats.getIdCache();
     }
 
     @Nullable

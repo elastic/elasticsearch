@@ -260,7 +260,7 @@ public class ChildSearchBenchmark {
         statsResponse = client.admin().cluster().prepareNodesStats()
                 .setJvm(true).setIndices(true).execute().actionGet();
 
-        System.out.println("--> Id cache size: " + statsResponse.getNodes()[0].getIndices().getIdCache().getMemorySize());
+        System.out.println("--> Field data size: " + statsResponse.getNodes()[0].getIndices().getFieldData().getMemorySize());
         System.out.println("--> Used heap size: " + statsResponse.getNodes()[0].getJvm().getMem().getHeapUsed());
 
         System.out.println("--> Running has_child query with score type");
@@ -319,7 +319,7 @@ public class ChildSearchBenchmark {
         statsResponse = client.admin().cluster().prepareNodesStats()
                 .setJvm(true).setIndices(true).execute().actionGet();
 
-        System.out.println("--> Id cache size: " + statsResponse.getNodes()[0].getIndices().getIdCache().getMemorySize());
+        System.out.println("--> Field data size: " + statsResponse.getNodes()[0].getIndices().getFieldData().getMemorySize());
         System.out.println("--> Used heap size: " + statsResponse.getNodes()[0].getJvm().getMem().getHeapUsed());
 
         client.close();

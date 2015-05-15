@@ -20,10 +20,12 @@
 package org.elasticsearch.index.query;
 
 import com.carrotsearch.randomizedtesting.annotations.Repeat;
+
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
@@ -42,6 +44,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNameModule;
 import org.elasticsearch.index.analysis.AnalysisModule;
 import org.elasticsearch.index.cache.IndexCacheModule;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.functionscore.FunctionScoreModule;
 import org.elasticsearch.index.settings.IndexSettingsModule;
 import org.elasticsearch.index.similarity.SimilarityModule;
@@ -58,6 +61,8 @@ import org.junit.Ignore;
 import org.junit.Test;
 
 import java.io.IOException;
+
+import static org.elasticsearch.common.io.Streams.copyToStringFromClasspath;
 
 import static org.hamcrest.Matchers.*;
 
@@ -104,6 +109,9 @@ public abstract class BaseQueryTestCase<QB extends QueryBuilder & Streamable> ex
                 }
         ).createInjector();
         queryParserService = injector.getInstance(IndexQueryParserService.class);
+        MapperService mapperService = queryParserService.mapperService;
+        String mapping = copyToStringFromClasspath("/org/elasticsearch/index/query/mapping.json");
+        mapperService.merge("person", new CompressedString(mapping), true);
     }
 
     @AfterClass

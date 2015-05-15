@@ -21,7 +21,13 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermRangeQuery;
+import org.elasticsearch.common.joda.DateMathParser;
+import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MapperService.SmartNameFieldMappers;
+import org.elasticsearch.index.mapper.core.DateFieldMapper;
+import org.elasticsearch.index.mapper.core.DateFieldMapper.LateParsingQuery;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.junit.Test;
@@ -31,7 +37,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
-
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
@@ -42,26 +47,32 @@ public class RangeQueryBuilderTest extends BaseQueryTestCase<RangeQueryBuilder> 
     @Override
     protected RangeQueryBuilder createTestQueryBuilder() {
         RangeQueryBuilder query = new RangeQueryBuilder(randomAsciiOfLength(8));
+        // switch between numeric and date ranges
+        if (randomBoolean()) {
+            if (randomBoolean()) {
+                query.from(randomIntBetween(1, 100));
+                query.to(randomIntBetween(101, 200));
+            } else {
+                query.from(0.0-randomDouble());
+                query.to(randomDouble());
+            }
+        } else {
+            query = new RangeQueryBuilder("born");
+            query.from(new DateTime(System.currentTimeMillis() - randomIntBetween(0, 1000000)).toString());
+            query.to(new DateTime(System.currentTimeMillis() + randomIntBetween(0, 1000000)).toString());
+            if (randomBoolean()) {
+                query.timeZone(TIMEZONE_IDS.get(randomIntBetween(0, TIMEZONE_IDS.size()-1)));
+            }
+            if (randomBoolean()) {
+                query.format("yyyy-MM-dd'T'HH:mm:ss.SSSZZ");
+            }
+        }
+        query.includeLower(randomBoolean()).includeUpper(randomBoolean());
         if (randomBoolean()) {
             query.boost(2.0f / randomIntBetween(1, 20));
         }
         if (randomBoolean()) {
             query.queryName(randomAsciiOfLength(8));
-        }
-        query.includeLower(randomBoolean()).includeUpper(randomBoolean());
-        // switch between numeric and date ranges
-        if (randomBoolean()) {
-            query.from(randomIntBetween(1, 100));
-            query.to(randomIntBetween(101, 200));
-        } else {
-            query.from(new DateTime(System.currentTimeMillis() - randomIntBetween(0, 1000000)).toString());
-            query.to(new DateTime(System.currentTimeMillis() + randomIntBetween(0, 1000000)).toString());
-            if (randomBoolean()) {
-                query.timeZone(TIMEZONE_IDS.get(randomIntBetween(0, TIMEZONE_IDS.size())));
-            }
-            if (randomBoolean()) {
-                query.format("yyyy-MM-ddTHH:mm:ss.SSSZZ");
-            }
         }
 
         if (randomBoolean()) {
@@ -75,17 +86,27 @@ public class RangeQueryBuilderTest extends BaseQueryTestCase<RangeQueryBuilder> 
 
     @Override
     protected void assertLuceneQuery(RangeQueryBuilder queryBuilder, Query query, QueryParseContext context) throws IOException {
-        assertThat(query, instanceOf(TermRangeQuery.class));
         assertThat(query.getBoost(), is(queryBuilder.boost()));
-        TermRangeQuery termRangeQuery = (TermRangeQuery) query;
-        assertThat(termRangeQuery.includesLower(), is(queryBuilder.includeLower()));
-        assertThat(termRangeQuery.includesUpper(), is(queryBuilder.includeUpper()));
-        assertThat(termRangeQuery.getLowerTerm(), is(BytesRefs.toBytesRef(queryBuilder.from())));
-        assertThat(termRangeQuery.getUpperTerm(), is(BytesRefs.toBytesRef(queryBuilder.to())));
-        assertThat(termRangeQuery.getField(), is(queryBuilder.fieldname()));
+        if (!queryBuilder.fieldname().equals("born")) {
+            assertThat(query, instanceOf(TermRangeQuery.class));
+            TermRangeQuery termRangeQuery = (TermRangeQuery) query;
+            assertThat(termRangeQuery.includesLower(), is(queryBuilder.includeLower()));
+            assertThat(termRangeQuery.includesUpper(), is(queryBuilder.includeUpper()));
+            assertThat(termRangeQuery.getLowerTerm(), is(BytesRefs.toBytesRef(queryBuilder.from())));
+            assertThat(termRangeQuery.getUpperTerm(), is(BytesRefs.toBytesRef(queryBuilder.to())));
+            assertThat(termRangeQuery.getField(), is(queryBuilder.fieldname()));
+        } else {
+            assertThat(query, instanceOf(LateParsingQuery.class));
+            String expectedFromDate = expectedDateString(queryBuilder.from(), queryBuilder, context);
+            String expectedToDate = expectedDateString(queryBuilder.to(), queryBuilder, context);
+            String expectedLowerBracket = queryBuilder.includeLower() ? "[" : "{";
+            String expectedUpperBracket = queryBuilder.includeUpper() ? "]" : "}";
+            String queryString = query.rewrite(null).toString();
+            assertThat(queryString, is("born:"+expectedLowerBracket+expectedFromDate+" TO "+expectedToDate+expectedUpperBracket));
+        }
         if (queryBuilder.queryName() != null) {
             Query namedQuery = context.copyNamedFilters().get(queryBuilder.queryName());
-            assertThat(namedQuery, equalTo((Query) termRangeQuery));
+            assertThat(namedQuery, equalTo(query));
         }
     }
 
@@ -113,6 +134,24 @@ public class RangeQueryBuilderTest extends BaseQueryTestCase<RangeQueryBuilder> 
     @Override
     protected RangeQueryBuilder createEmptyQueryBuilder() {
         return new RangeQueryBuilder();
+    }
+
+    private String expectedDateString(Object value, RangeQueryBuilder queryBuilder, QueryParseContext context) {
+        SmartNameFieldMappers smartFieldMappers = context.smartFieldMappers(queryBuilder.fieldname());
+        FieldMapper<?> mapper = smartFieldMappers.mapper();
+        DateMathParser dateParser = null;
+        if (queryBuilder.format()  != null) {
+            dateParser = new DateMathParser(Joda.forPattern(queryBuilder.format()), DateFieldMapper.Defaults.TIME_UNIT);
+        }
+        DateTimeZone dateTimeZone = null;
+        if (queryBuilder.timeZone() != null) {
+            dateTimeZone = DateTimeZone.forID(queryBuilder.timeZone());
+        }
+        String expectedClause = "*";
+        if (value != null) {
+            expectedClause = Long.toString(((DateFieldMapper) mapper).parseToMilliseconds(value, queryBuilder.includeLower(), dateTimeZone, dateParser));
+        }
+        return expectedClause;
     }
 
 }

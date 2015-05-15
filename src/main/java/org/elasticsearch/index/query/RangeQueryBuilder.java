@@ -98,7 +98,7 @@ public class RangeQueryBuilder extends MultiTermQueryBuilder implements Streamab
      * Gets the lower range value for this query.
      */
     public Object from() {
-        return this.from;
+        return convertToBytesRefIfString(this.from);
     }
 
     /**
@@ -135,7 +135,7 @@ public class RangeQueryBuilder extends MultiTermQueryBuilder implements Streamab
      * Gets the upper range value for this query.
      */
     public Object to() {
-        return this.to;
+        return convertToBytesRefIfString(this.to);
     }
 
     /**
@@ -223,11 +223,25 @@ public class RangeQueryBuilder extends MultiTermQueryBuilder implements Streamab
     }
 
     /**
+     * In case of date field, gets the from/to fields timezone adjustment
+     */
+    public String timeZone() {
+        return this.timeZone;
+    }
+
+    /**
      * In case of format field, we can parse the from/to fields using this time format
      */
     public RangeQueryBuilder format(String format) {
         this.format = format;
         return this;
+    }
+
+    /**
+     * Gets the format field to parse the from/to fields
+     */
+    public String format() {
+        return this.format;
     }
 
     @Override

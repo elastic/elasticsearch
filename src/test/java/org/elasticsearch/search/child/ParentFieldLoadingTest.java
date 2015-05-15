@@ -71,7 +71,7 @@ public class ParentFieldLoadingTest extends ElasticsearchIntegrationTest {
         refresh();
 
         ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().get();
-        assertThat(response.getIndicesStats().getIdCache().getMemorySizeInBytes(), equalTo(0l));
+        assertThat(response.getIndicesStats().getFieldData().getMemorySizeInBytes(), equalTo(0l));
 
         logger.info("testing default loading...");
         assertAcked(client().admin().indices().prepareDelete("test").get());
@@ -86,8 +86,8 @@ public class ParentFieldLoadingTest extends ElasticsearchIntegrationTest {
         refresh();
 
         response = client().admin().cluster().prepareClusterStats().get();
-        long idCacheSizeDefault = response.getIndicesStats().getIdCache().getMemorySizeInBytes();
-        assertThat(idCacheSizeDefault, greaterThan(0l));
+        long fielddataSizeDefault = response.getIndicesStats().getFieldData().getMemorySizeInBytes();
+        assertThat(fielddataSizeDefault, greaterThan(0l));
 
         logger.info("testing eager loading...");
         assertAcked(client().admin().indices().prepareDelete("test").get());
@@ -102,7 +102,7 @@ public class ParentFieldLoadingTest extends ElasticsearchIntegrationTest {
         refresh();
 
         response = client().admin().cluster().prepareClusterStats().get();
-        assertThat(response.getIndicesStats().getIdCache().getMemorySizeInBytes(), equalTo(idCacheSizeDefault));
+        assertThat(response.getIndicesStats().getFieldData().getMemorySizeInBytes(), equalTo(fielddataSizeDefault));
 
         logger.info("testing eager global ordinals loading...");
         assertAcked(client().admin().indices().prepareDelete("test").get());
@@ -113,14 +113,14 @@ public class ParentFieldLoadingTest extends ElasticsearchIntegrationTest {
         ensureGreen();
 
         // Need to do 2 separate refreshes, otherwise we have 1 segment and then we can't measure if global ordinals
-        // is loaded by the size of the id_cache, because global ordinals on 1 segment shards takes no extra memory.
+        // is loaded by the size of the field data cache, because global ordinals on 1 segment shards takes no extra memory.
         client().prepareIndex("test", "parent", "1").setSource("{}").get();
         refresh();
         client().prepareIndex("test", "child", "1").setParent("1").setSource("{}").get();
         refresh();
 
         response = client().admin().cluster().prepareClusterStats().get();
-        assertThat(response.getIndicesStats().getIdCache().getMemorySizeInBytes(), greaterThan(idCacheSizeDefault));
+        assertThat(response.getIndicesStats().getFieldData().getMemorySizeInBytes(), greaterThan(fielddataSizeDefault));
     }
 
     @Test
@@ -136,8 +136,8 @@ public class ParentFieldLoadingTest extends ElasticsearchIntegrationTest {
         refresh();
 
         ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().get();
-        long idCacheSizeDefault = response.getIndicesStats().getIdCache().getMemorySizeInBytes();
-        assertThat(idCacheSizeDefault, greaterThan(0l));
+        long fielddataSizeDefault = response.getIndicesStats().getFieldData().getMemorySizeInBytes();
+        assertThat(fielddataSizeDefault, greaterThan(0l));
 
         PutMappingResponse putMappingResponse = client().admin().indices().preparePutMapping("test").setType("child")
                 .setSource(childMapping(FieldMapper.Loading.EAGER_GLOBAL_ORDINALS))
@@ -165,11 +165,11 @@ public class ParentFieldLoadingTest extends ElasticsearchIntegrationTest {
         });
 
         // Need to add a new doc otherwise the refresh doesn't trigger a new searcher
-        // Because it ends up in its own segment, but isn't of type parent or child, this doc doesn't contribute to the size of the id_cache
+        // Because it ends up in its own segment, but isn't of type parent or child, this doc doesn't contribute to the size of the fielddata cache
         client().prepareIndex("test", "dummy", "dummy").setSource("{}").get();
         refresh();
         response = client().admin().cluster().prepareClusterStats().get();
-        assertThat(response.getIndicesStats().getIdCache().getMemorySizeInBytes(), greaterThan(idCacheSizeDefault));
+        assertThat(response.getIndicesStats().getFieldData().getMemorySizeInBytes(), greaterThan(fielddataSizeDefault));
     }
 
     private XContentBuilder childMapping(FieldMapper.Loading loading) throws IOException {

@@ -36,7 +36,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.index.cache.filter.FilterCacheStats;
-import org.elasticsearch.index.cache.id.IdCacheStats;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
 import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.index.fielddata.FieldDataStats;
@@ -161,8 +160,6 @@ public class RestNodesAction extends AbstractCatAction {
         table.addCell("get.exists_total", "alias:geto,getExistsTotal;default:false;text-align:right;desc:number of successful gets");
         table.addCell("get.missing_time", "alias:gmti,getMissingTime;default:false;text-align:right;desc:time spent in failed gets");
         table.addCell("get.missing_total", "alias:gmto,getMissingTotal;default:false;text-align:right;desc:number of failed gets");
-
-        table.addCell("id_cache.memory_size", "alias:im,idCacheMemory;default:false;text-align:right;desc:used id cache");
 
         table.addCell("indexing.delete_current", "alias:idc,indexingDeleteCurrent;default:false;text-align:right;desc:number of current deletions");
         table.addCell("indexing.delete_time", "alias:idti,indexingDeleteTime;default:false;text-align:right;desc:time spent in deletions");
@@ -294,9 +291,6 @@ public class RestNodesAction extends AbstractCatAction {
             table.addCell(getStats == null ? null : getStats.getExistsCount());
             table.addCell(getStats == null ? null : getStats.getMissingTime());
             table.addCell(getStats == null ? null : getStats.getMissingCount());
-
-            IdCacheStats idCacheStats = indicesStats == null ? null : indicesStats.getIdCache();
-            table.addCell(idCacheStats == null ? null : idCacheStats.getMemorySize());
 
             IndexingStats indexingStats = indicesStats == null ? null : indicesStats.getIndexing();
             table.addCell(indexingStats == null ? null : indexingStats.getTotal().getDeleteCurrent());

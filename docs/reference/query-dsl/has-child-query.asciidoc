@@ -82,11 +82,11 @@ Additionally, every child document is mapped to its parent using a long
 value (approximately). It is advisable to keep the string parent ID short
 in order to reduce memory usage.
 
-You can check how much memory is being used by the ID cache using the
-<<indices-stats,indices stats>> or <<cluster-nodes-stats,nodes stats>>
+You can check how much memory is being used by the `_parent` field in the fielddata cache
+using the <<indices-stats,indices stats>> or <<cluster-nodes-stats,nodes stats>>
 APIS, eg:
 
 [source,js]
 --------------------------------------------------
-curl -XGET "http://localhost:9200/_stats/id_cache?pretty&human"
+curl -XGET "http://localhost:9200/_stats/fielddata?pretty&human&fielddata_fields=_parent"
 --------------------------------------------------

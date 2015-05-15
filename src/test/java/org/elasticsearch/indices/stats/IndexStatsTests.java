@@ -639,7 +639,7 @@ public class IndexStatsTests extends ElasticsearchIntegrationTest {
     @Test
     public void testFlagOrdinalOrder() {
         Flag[] flags = new Flag[]{Flag.Store, Flag.Indexing, Flag.Get, Flag.Search, Flag.Merge, Flag.Flush, Flag.Refresh,
-                Flag.FilterCache, Flag.IdCache, Flag.FieldData, Flag.Docs, Flag.Warmer, Flag.Percolate, Flag.Completion, Flag.Segments,
+                Flag.FilterCache, Flag.FieldData, Flag.Docs, Flag.Warmer, Flag.Percolate, Flag.Completion, Flag.Segments,
                 Flag.Translog, Flag.Suggest, Flag.QueryCache, Flag.Recovery};
 
         assertThat(flags.length, equalTo(Flag.values().length));
@@ -872,9 +872,6 @@ public class IndexStatsTests extends ElasticsearchIntegrationTest {
             case Get:
                 builder.setGet(set);
                 break;
-            case IdCache:
-                builder.setIdCache(set);
-                break;
             case Indexing:
                 builder.setIndexing(set);
                 break;
@@ -932,8 +929,6 @@ public class IndexStatsTests extends ElasticsearchIntegrationTest {
                 return response.getFlush() != null;
             case Get:
                 return response.getGet() != null;
-            case IdCache:
-                return response.getIdCache() != null;
             case Indexing:
                 return response.getIndexing() != null;
             case Merge:

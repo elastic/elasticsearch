@@ -21,27 +21,24 @@ package org.elasticsearch.plugins;
 import org.apache.http.client.config.RequestConfig;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
-import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.http.HttpServerTransport;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
 import org.elasticsearch.test.rest.client.http.HttpResponse;
 import org.junit.Test;
 
-import java.net.URISyntaxException;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.rest.RestStatus.*;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasStatus;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
 
 /**
  * We want to test site plugins
@@ -70,12 +67,12 @@ public class SitePluginTests extends ElasticsearchIntegrationTest {
     public void testRedirectSitePlugin() throws Exception {
         // We use an HTTP Client to test redirection
         HttpResponse response = httpClient().method("GET").path("/_plugin/dummy").execute();
-        assertThat(response.getStatusCode(), equalTo(RestStatus.MOVED_PERMANENTLY.getStatus()));
+        assertThat(response, hasStatus(MOVED_PERMANENTLY));
         assertThat(response.getBody(), containsString("/_plugin/dummy/"));
 
         // We test the real URL
         response = httpClient().method("GET").path("/_plugin/dummy/").execute();
-        assertThat(response.getStatusCode(), equalTo(RestStatus.OK.getStatus()));
+        assertThat(response, hasStatus(OK));
         assertThat(response.getBody(), containsString("<title>Dummy Site Plugin</title>"));
     }
 
@@ -85,7 +82,7 @@ public class SitePluginTests extends ElasticsearchIntegrationTest {
     @Test
     public void testAnyPage() throws Exception {
         HttpResponse response = httpClient().path("/_plugin/dummy/index.html").execute();
-        assertThat(response.getStatusCode(), equalTo(RestStatus.OK.getStatus()));
+        assertThat(response, hasStatus(OK));
         assertThat(response.getBody(), containsString("<title>Dummy Site Plugin</title>"));
     }
 
@@ -108,12 +105,12 @@ public class SitePluginTests extends ElasticsearchIntegrationTest {
         for (String uri : notFoundUris) {
             HttpResponse response = httpClient().path(uri).execute();
             String message = String.format(Locale.ROOT, "URI [%s] expected to be not found", uri);
-            assertThat(message, response.getStatusCode(), equalTo(RestStatus.NOT_FOUND.getStatus()));
+            assertThat(message, response, hasStatus(NOT_FOUND));
         }
 
         // using relative path inside of the plugin should work
         HttpResponse response = httpClient().path("/_plugin/dummy/dir1/../dir1/../index.html").execute();
-        assertThat(response.getStatusCode(), equalTo(RestStatus.OK.getStatus()));
+        assertThat(response, hasStatus(OK));
         assertThat(response.getBody(), containsString("<title>Dummy Site Plugin</title>"));
     }
 
@@ -124,14 +121,14 @@ public class SitePluginTests extends ElasticsearchIntegrationTest {
     @Test
     public void testWelcomePageInSubDirs() throws Exception {
         HttpResponse response = httpClient().path("/_plugin/subdir/dir/").execute();
-        assertThat(response.getStatusCode(), equalTo(RestStatus.OK.getStatus()));
+        assertThat(response, hasStatus(OK));
         assertThat(response.getBody(), containsString("<title>Dummy Site Plugin (subdir)</title>"));
 
         response = httpClient().path("/_plugin/subdir/dir_without_index/").execute();
-        assertThat(response.getStatusCode(), equalTo(RestStatus.FORBIDDEN.getStatus()));
+        assertThat(response, hasStatus(FORBIDDEN));
 
         response = httpClient().path("/_plugin/subdir/dir_without_index/page.html").execute();
-        assertThat(response.getStatusCode(), equalTo(RestStatus.OK.getStatus()));
+        assertThat(response, hasStatus(OK));
         assertThat(response.getBody(), containsString("<title>Dummy Site Plugin (page)</title>"));
     }
 }

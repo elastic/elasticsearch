@@ -66,7 +66,7 @@ public class TransportCreateSnapshotAction extends TransportMasterNodeOperationA
     @Override
     protected void masterOperation(final CreateSnapshotRequest request, ClusterState state, final ActionListener<CreateSnapshotResponse> listener) {
         SnapshotsService.SnapshotRequest snapshotRequest =
-                new SnapshotsService.SnapshotRequest("create_snapshot[" + request.snapshot() + "]", request.snapshot(), request.repository())
+                new SnapshotsService.SnapshotRequest("create_snapshot [" + request.snapshot() + "]", request.snapshot(), request.repository())
                         .indices(request.indices())
                         .indicesOptions(request.indicesOptions())
                         .partial(request.partial())

@@ -131,6 +131,8 @@ public class InternalEngine extends Engine {
             this.searcherFactory = new SearchFactory(engineConfig);
             final Translog.TranslogGeneration translogGeneration;
             try {
+                // TODO: would be better if ES could tell us "from above" whether this shard was already here, instead of using Lucene's API
+                // (which relies on IO ops, directory listing, and has had scary bugs in the past):
                 boolean create = !Lucene.indexExists(store.directory());
                 writer = createWriter(create);
                 indexWriter = writer;
@@ -175,7 +177,12 @@ public class InternalEngine extends Engine {
     private Translog openTranslog(EngineConfig engineConfig, IndexWriter writer, boolean createNew) throws IOException {
         final Translog.TranslogGeneration generation = loadTranslogIdFromCommit(writer);
         final TranslogConfig translogConfig = engineConfig.getTranslogConfig();
+
         if (createNew == false) {
+            // We expect that this shard already exists, so it must already have an existing translog else something is badly wrong!
+            if (generation == null) {
+                throw new IllegalStateException("no translog generation present in commit data but translog is expected to exist");
+            }
             translogConfig.setTranslogGeneration(generation);
             if (generation != null && generation.translogUUID == null) {
                 // only upgrade on pre-2.0 indices...
@@ -184,9 +191,6 @@ public class InternalEngine extends Engine {
         }
         final Translog translog = new Translog(translogConfig);
         if (generation == null) {
-            if (createNew == false) {
-                throw new IllegalStateException("no tranlog generation present in commit data but translog is expected to exist");
-            }
             logger.debug("no translog ID present in the current generation - creating one");
             commitIndexWriter(writer, translog);
         }

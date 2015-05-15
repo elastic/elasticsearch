@@ -51,7 +51,7 @@ import static org.hamcrest.core.Is.is;
 /**
  */
 @Slow
-@TestLogging("watcher:DEBUG,cluster.service:DEBUG,indices.cluster:DEBUG")
+@TestLogging("watcher:DEBUG,discovery:TRACE")
 @ClusterScope(scope = TEST, numClientNodes = 0, transportClientRatio = 0, randomDynamicTemplates = false, numDataNodes = 0)
 public class NoMasterNodeTests extends AbstractWatcherIntegrationTests {
 

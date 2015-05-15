@@ -159,18 +159,7 @@ public class AnalyzeActionTests extends ElasticsearchIntegrationTest {
         ensureGreen();
 
         client().admin().indices().preparePutMapping("test")
-                .setType("document").setSource(
-                "{\n" +
-                        "    \"document\":{\n" +
-                        "        \"properties\":{\n" +
-                        "            \"simple\":{\n" +
-                        "                \"type\":\"string\",\n" +
-                        "                \"analyzer\": \"simple\"\n" +
-                        "            }\n" +
-                        "        }\n" +
-                        "    }\n" +
-                        "}"
-        ).get();
+                .setType("document").setSource("simple", "type=string,analyzer=simple").get();
 
         for (int i = 0; i < 10; i++) {
             final AnalyzeRequestBuilder requestBuilder = client().admin().indices().prepareAnalyze("THIS IS A TEST");
@@ -266,19 +255,7 @@ public class AnalyzeActionTests extends ElasticsearchIntegrationTest {
         ensureGreen();
 
         client().admin().indices().preparePutMapping("test")
-            .setType("document").setSource(
-            "{\n" +
-                "    \"document\":{\n" +
-                "        \"properties\":{\n" +
-                "            \"simple\":{\n" +
-                "                \"type\":\"string\",\n" +
-                "                \"analyzer\": \"simple\",\n" +
-                "                \"position_offset_gap\": 100\n" +
-                "            }\n" +
-                "        }\n" +
-                "    }\n" +
-                "}"
-        ).get();
+            .setType("document").setSource("simple", "type=string,analyzer=simple,position_offset_gap=100").get();
 
         String[] texts = new String[]{"THIS IS A TEST", "THE SECOND TEXT"};
 

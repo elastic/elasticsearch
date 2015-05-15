@@ -20,7 +20,7 @@
 package org.elasticsearch.common;
 
 import com.carrotsearch.hppc.ObjectObjectAssociativeContainer;
-import com.carrotsearch.hppc.ObjectObjectOpenHashMap;
+import com.carrotsearch.hppc.ObjectObjectHashMap;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 
 /**
@@ -28,7 +28,7 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
  */
 public class ContextHolder {
 
-    private ObjectObjectOpenHashMap<Object, Object> context;
+    private ObjectObjectHashMap<Object, Object> context;
 
     /**
      * Attaches the given value to the context.
@@ -39,7 +39,7 @@ public class ContextHolder {
     @SuppressWarnings("unchecked")
     public final synchronized <V> V putInContext(Object key, Object value) {
         if (context == null) {
-            context = new ObjectObjectOpenHashMap<>(2);
+            context = new ObjectObjectHashMap<>(2);
         }
         return (V) context.put(key, value);
     }
@@ -52,7 +52,7 @@ public class ContextHolder {
             return;
         }
         if (context == null) {
-            context = new ObjectObjectOpenHashMap<>(map);
+            context = new ObjectObjectHashMap<>(map);
         } else {
             context.putAll(map);
         }
@@ -120,7 +120,7 @@ public class ContextHolder {
                 return;
             }
             if (context == null) {
-                context = new ObjectObjectOpenHashMap<>(other.context);
+                context = new ObjectObjectHashMap<>(other.context);
             } else {
                 context.putAll(other.context);
             }

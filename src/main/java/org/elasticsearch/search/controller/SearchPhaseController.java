@@ -20,7 +20,7 @@
 package org.elasticsearch.search.controller;
 
 import com.carrotsearch.hppc.IntArrayList;
-import com.carrotsearch.hppc.ObjectObjectOpenHashMap;
+import com.carrotsearch.hppc.ObjectObjectHashMap;
 import com.google.common.collect.Lists;
 
 import org.apache.lucene.index.Term;
@@ -102,8 +102,8 @@ public class SearchPhaseController extends AbstractComponent {
     }
 
     public AggregatedDfs aggregateDfs(AtomicArray<DfsSearchResult> results) {
-        ObjectObjectOpenHashMap<Term, TermStatistics> termStatistics = HppcMaps.newNoNullKeysMap();
-        ObjectObjectOpenHashMap<String, CollectionStatistics> fieldStatistics = HppcMaps.newNoNullKeysMap();
+        ObjectObjectHashMap<Term, TermStatistics> termStatistics = HppcMaps.newNoNullKeysMap();
+        ObjectObjectHashMap<String, CollectionStatistics> fieldStatistics = HppcMaps.newNoNullKeysMap();
         long aggMaxDoc = 0;
         for (AtomicArray.Entry<DfsSearchResult> lEntry : results.asList()) {
             final Term[] terms = lEntry.value.terms();
@@ -124,11 +124,12 @@ public class SearchPhaseController extends AbstractComponent {
                 }
 
             }
-            final boolean[] states = lEntry.value.fieldStatistics().allocated;
+
+            assert !lEntry.value.fieldStatistics().containsKey(null);
             final Object[] keys = lEntry.value.fieldStatistics().keys;
             final Object[] values = lEntry.value.fieldStatistics().values;
-            for (int i = 0; i < states.length; i++) {
-                if (states[i]) {
+            for (int i = 0; i < keys.length; i++) {
+                if (keys[i] != null) {
                     String key = (String) keys[i];
                     CollectionStatistics value = (CollectionStatistics) values[i];
                     assert key != null;

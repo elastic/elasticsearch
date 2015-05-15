@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper.core;
 
+import com.carrotsearch.hppc.ObjectHashSet;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.google.common.base.Function;

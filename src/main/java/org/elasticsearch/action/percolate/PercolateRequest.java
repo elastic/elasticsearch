@@ -30,11 +30,9 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.search.builder.SearchSourceBuilderException;
 
 import java.io.IOException;
 import java.util.List;
@@ -227,13 +225,7 @@ public class PercolateRequest extends BroadcastOperationRequest<PercolateRequest
      * This is the preferred way to set the request body.
      */
     public PercolateRequest source(PercolateSourceBuilder sourceBuilder) {
-        try {
-            XContentBuilder builder = XContentFactory.contentBuilder(Requests.CONTENT_TYPE);
-            sourceBuilder.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            this.source = builder.bytes();
-        } catch (Exception e) {
-            throw new SearchSourceBuilderException("Failed to build search source", e);
-        }
+        this.source = sourceBuilder.buildAsBytes(Requests.CONTENT_TYPE);
         return this;
     }
 

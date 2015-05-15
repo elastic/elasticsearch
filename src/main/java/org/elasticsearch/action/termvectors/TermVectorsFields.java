@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.termvectors;
 
-import com.carrotsearch.hppc.ObjectLongOpenHashMap;
+import com.carrotsearch.hppc.ObjectLongHashMap;
 import com.carrotsearch.hppc.cursors.ObjectLongCursor;
 import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.PostingsEnum;
@@ -113,7 +113,7 @@ import static org.apache.lucene.util.ArrayUtil.grow;
 
 public final class TermVectorsFields extends Fields {
 
-    private final ObjectLongOpenHashMap<String> fieldMap;
+    private final ObjectLongHashMap<String> fieldMap;
     private final BytesReference termVectors;
     final boolean hasTermStatistic;
     final boolean hasFieldStatistic;
@@ -126,8 +126,7 @@ public final class TermVectorsFields extends Fields {
      */
     public TermVectorsFields(BytesReference headerRef, BytesReference termVectors) throws IOException {
         StreamInput header = StreamInput.wrap(headerRef.toBytesArray());
-        fieldMap = new ObjectLongOpenHashMap<>();
-
+        fieldMap = new ObjectLongHashMap<>();
         // here we read the header to fill the field offset map
         String headerString = header.readString();
         assert headerString.equals("TV");
@@ -170,10 +169,11 @@ public final class TermVectorsFields extends Fields {
     public Terms terms(String field) throws IOException {
         // first, find where in the termVectors bytes the actual term vector for
         // this field is stored
-        if (!fieldMap.containsKey(field)) {
+        final int keySlot = fieldMap.indexOf(field); 
+        if (keySlot < 0) {
             return null; // we don't have it.
         }
-        long readOffset = fieldMap.lget();
+        long readOffset = fieldMap.indexGet(keySlot);
         return new TermVector(termVectors, readOffset);
     }
 

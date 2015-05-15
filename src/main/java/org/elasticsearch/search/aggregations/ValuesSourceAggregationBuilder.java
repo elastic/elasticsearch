@@ -34,6 +34,7 @@ public abstract class ValuesSourceAggregationBuilder<B extends ValuesSourceAggre
     private String script;
     private String lang;
     private Map<String, Object> params;
+    private Object missing;
 
     /**
      * Constructs a new builder.
@@ -117,6 +118,14 @@ public abstract class ValuesSourceAggregationBuilder<B extends ValuesSourceAggre
         return (B) this;
     }
 
+    /**
+     * Configure the value to use when documents miss a value.
+     */
+    public B missing(Object missingValue) {
+        this.missing = missingValue;
+        return (B) this;
+    }
+
     @Override
     protected final XContentBuilder internalXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -131,6 +140,9 @@ public abstract class ValuesSourceAggregationBuilder<B extends ValuesSourceAggre
         }
         if (this.params != null) {
             builder.field("params").map(this.params);
+        }
+        if (missing != null) {
+            builder.field("missing", missing);
         }
 
         doInternalXContent(builder, params);

@@ -31,9 +31,9 @@ import org.elasticsearch.search.MultiValueMode;
 class FieldDataFunctionValues extends DoubleDocValues {
     NumericDoubleValues dataAccessor;
 
-    FieldDataFunctionValues(ValueSource parent, AtomicNumericFieldData d) {
+    FieldDataFunctionValues(ValueSource parent, MultiValueMode m, AtomicNumericFieldData d) {
         super(parent);
-        dataAccessor = MultiValueMode.MIN.select(d.getDoubleValues(), 0d);
+        dataAccessor = m.select(d.getDoubleValues(), 0d);
     }
 
     @Override

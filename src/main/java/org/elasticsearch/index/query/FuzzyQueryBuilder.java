@@ -26,10 +26,8 @@ import java.io.IOException;
 
 /**
  * A Query that does fuzzy matching for a specific value.
- *
- *
  */
-public class FuzzyQueryBuilder extends BaseQueryBuilder implements MultiTermQueryBuilder, BoostableQueryBuilder<FuzzyQueryBuilder> {
+public class FuzzyQueryBuilder extends MultiTermQueryBuilder implements BoostableQueryBuilder<FuzzyQueryBuilder> {
 
     private final String name;
 
@@ -45,6 +43,8 @@ public class FuzzyQueryBuilder extends BaseQueryBuilder implements MultiTermQuer
     
     //LUCENE 4 UPGRADE  we need a testcase for this + documentation
     private Boolean transpositions;
+
+    private String rewrite;
 
     private String queryName;
 
@@ -89,6 +89,11 @@ public class FuzzyQueryBuilder extends BaseQueryBuilder implements MultiTermQuer
       return this;
     }
 
+    public FuzzyQueryBuilder rewrite(String rewrite) {
+        this.rewrite = rewrite;
+        return this;
+    }
+
     /**
      * Sets the query name for the filter that can be used when searching for matched_filters per hit.
      */
@@ -119,6 +124,9 @@ public class FuzzyQueryBuilder extends BaseQueryBuilder implements MultiTermQuer
             }
             if (maxExpansions != null) {
                 builder.field("max_expansions", maxExpansions);
+            }
+            if (rewrite != null) {
+                builder.field("rewrite", rewrite);
             }
             if (queryName != null) {
                 builder.field("_name", queryName);

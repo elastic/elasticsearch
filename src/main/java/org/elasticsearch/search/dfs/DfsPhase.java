@@ -19,8 +19,8 @@
 
 package org.elasticsearch.search.dfs;
 
-import com.carrotsearch.hppc.ObjectObjectOpenHashMap;
-import com.carrotsearch.hppc.ObjectOpenHashSet;
+import com.carrotsearch.hppc.ObjectObjectHashMap;
+import com.carrotsearch.hppc.ObjectHashSet;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.index.IndexReaderContext;
@@ -55,7 +55,7 @@ public class DfsPhase implements SearchPhase {
 
     @Override
     public void execute(SearchContext context) {
-        final ObjectOpenHashSet<Term> termsSet = new ObjectOpenHashSet<>();
+        final ObjectHashSet<Term> termsSet = new ObjectHashSet<>();
         try {
             if (!context.queryRewritten()) {
                 context.updateRewriteQuery(context.searcher().rewrite(context.query()));
@@ -75,7 +75,7 @@ public class DfsPhase implements SearchPhase {
                 termStatistics[i] = context.searcher().termStatistics(terms[i], termContext);
             }
 
-            ObjectObjectOpenHashMap<String, CollectionStatistics> fieldStatistics = HppcMaps.newNoNullKeysMap();
+            ObjectObjectHashMap<String, CollectionStatistics> fieldStatistics = HppcMaps.newNoNullKeysMap();
             for (Term term : terms) {
                 assert term.field() != null : "field is null";
                 if (!fieldStatistics.containsKey(term.field())) {
@@ -97,9 +97,9 @@ public class DfsPhase implements SearchPhase {
     // We need to bridge to JCF world, b/c of Query#extractTerms
     private static class DelegateSet extends AbstractSet<Term> {
 
-        private final ObjectOpenHashSet<Term> delegate;
+        private final ObjectHashSet<Term> delegate;
 
-        private DelegateSet(ObjectOpenHashSet<Term> delegate) {
+        private DelegateSet(ObjectHashSet<Term> delegate) {
             this.delegate = delegate;
         }
 

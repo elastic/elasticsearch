@@ -19,8 +19,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import java.util.Objects;
-
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.DelegatingAnalyzerWrapper;
 import org.elasticsearch.index.analysis.FieldNameAnalyzer;

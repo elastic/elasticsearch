@@ -226,7 +226,7 @@
         <dependency>
             <groupId>com.carrotsearch</groupId>
             <artifactId>hppc</artifactId>
-            <version>0.6.0</version>
+            <version>0.7.1</version>
         </dependency>
 
         <dependency>
@@ -462,6 +462,7 @@
                 <argument>-XX:+HeapDumpOnOutOfMemoryError</argument>
                 <argument>-XX:+DisableExplicitGC</argument>
                 <argument>-Dfile.encoding=UTF-8</argument>
+                <argument>-Djna.nosys=true</argument>
                 <argument>-Delasticsearch</argument>
               </arguments>
             </configuration>
@@ -609,6 +610,8 @@
                                 <tests.timeoutSuite>${tests.timeoutSuite}</tests.timeoutSuite>
                                 <tests.showSuccess>${tests.showSuccess}</tests.showSuccess>
                                 <tests.integration>${tests.integration}</tests.integration>
+                                <tests.thirdparty>${tests.thirdparty}</tests.thirdparty>
+                                <tests.config>${tests.config}</tests.config>
                                 <tests.client.ratio>${tests.client.ratio}</tests.client.ratio>
                                 <tests.enable_mock_modules>${tests.enable_mock_modules}</tests.enable_mock_modules>
                                 <tests.assertion.disabled>${tests.assertion.disabled}</tests.assertion.disabled>

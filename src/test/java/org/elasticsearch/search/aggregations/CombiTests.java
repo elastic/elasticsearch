@@ -20,7 +20,7 @@
 package org.elasticsearch.search.aggregations;
 
 import com.carrotsearch.hppc.IntIntMap;
-import com.carrotsearch.hppc.IntIntOpenHashMap;
+import com.carrotsearch.hppc.IntIntHashMap;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -60,7 +60,7 @@ public class CombiTests extends ElasticsearchIntegrationTest {
 
         createIndex("idx");
         IndexRequestBuilder[] builders = new IndexRequestBuilder[randomInt(30)];
-        IntIntMap values = new IntIntOpenHashMap();
+        IntIntMap values = new IntIntHashMap();
         long missingValues = 0;
         for (int i = 0; i < builders.length; i++) {
             String name = "name_" + randomIntBetween(1, 10);

@@ -22,6 +22,7 @@ package org.elasticsearch.action.percolate;
 import com.google.common.collect.Lists;
 
 import org.elasticsearch.ElasticsearchGenerationException;
+import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -44,7 +45,7 @@ import java.util.Map;
 /**
  * Builder to create the percolate request body.
  */
-public class PercolateSourceBuilder implements ToXContent {
+public class PercolateSourceBuilder extends ToXContentToBytes {
 
     private DocBuilder docBuilder;
     private QueryBuilder queryBuilder;

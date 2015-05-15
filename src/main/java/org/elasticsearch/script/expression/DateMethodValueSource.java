@@ -29,19 +29,33 @@ import org.apache.lucene.queries.function.FunctionValues;
 import org.elasticsearch.index.fielddata.AtomicFieldData;
 import org.elasticsearch.index.fielddata.AtomicNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.search.MultiValueMode;
 
 class DateMethodValueSource extends FieldDataValueSource {
 
     protected final String methodName;
     protected final int calendarType;
 
-    DateMethodValueSource(IndexFieldData<?> indexFieldData, String methodName, int calendarType) {
-        super(indexFieldData);
+    DateMethodValueSource(IndexFieldData<?> indexFieldData, MultiValueMode multiValueMode, String methodName, int calendarType) {
+        super(indexFieldData, multiValueMode);
 
         Objects.requireNonNull(methodName);
 
         this.methodName = methodName;
         this.calendarType = calendarType;
+    }
+
+    @Override
+    public FunctionValues getValues(Map context, LeafReaderContext leaf) throws IOException {
+        AtomicFieldData leafData = fieldData.load(leaf);
+        assert(leafData instanceof AtomicNumericFieldData);
+
+        return new DateMethodFunctionValues(this, multiValueMode, (AtomicNumericFieldData)leafData, calendarType);
+    }
+
+    @Override
+    public String description() {
+        return methodName + ": field(" + fieldData.getFieldNames().toString() + ")";
     }
 
     @Override
@@ -63,18 +77,5 @@ class DateMethodValueSource extends FieldDataValueSource {
         result = 31 * result + methodName.hashCode();
         result = 31 * result + calendarType;
         return result;
-    }
-
-    @Override
-    public FunctionValues getValues(Map context, LeafReaderContext leaf) throws IOException {
-        AtomicFieldData leafData = fieldData.load(leaf);
-        assert(leafData instanceof AtomicNumericFieldData);
-
-        return new DateMethodFunctionValues(this, (AtomicNumericFieldData)leafData, calendarType);
-    }
-
-    @Override
-    public String description() {
-        return methodName + ": field(" + fieldData.getFieldNames().toString() + ")";
     }
 }

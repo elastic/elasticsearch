@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.termvectors;
 
-import com.carrotsearch.hppc.ObjectIntOpenHashMap;
+import com.carrotsearch.hppc.ObjectIntHashMap;
 
 import org.apache.lucene.analysis.payloads.PayloadHelper;
 import org.apache.lucene.document.FieldType;
@@ -493,7 +493,7 @@ public class GetTermVectorsTests extends AbstractTermVectorsTests {
 
     private String createString(String[] tokens, Map<String, List<BytesRef>> payloads, int encoding, char delimiter) {
         String resultString = "";
-        ObjectIntOpenHashMap<String> payloadCounter = new ObjectIntOpenHashMap<>();
+        ObjectIntHashMap<String> payloadCounter = new ObjectIntHashMap<>();
         for (String token : tokens) {
             if (!payloadCounter.containsKey(token)) {
                 payloadCounter.putIfAbsent(token, 0);

@@ -588,6 +588,12 @@ public interface IndicesAdminClient extends ElasticsearchClient {
     AnalyzeRequestBuilder prepareAnalyze(String text);
 
     /**
+     * Analyze text/texts.
+     *
+     */
+    AnalyzeRequestBuilder prepareAnalyze();
+
+    /**
      * Puts an index template.
      */
     ActionFuture<PutIndexTemplateResponse> putTemplate(PutIndexTemplateRequest request);

@@ -25,6 +25,7 @@ import org.apache.lucene.queries.function.ValueSource;
 import org.elasticsearch.index.fielddata.AtomicFieldData;
 import org.elasticsearch.index.fielddata.AtomicNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.search.MultiValueMode;
 
 import java.io.IOException;
 import java.util.Map;
@@ -36,18 +37,14 @@ import java.util.Objects;
 class FieldDataValueSource extends ValueSource {
 
     protected IndexFieldData<?> fieldData;
+    protected MultiValueMode multiValueMode;
 
-    protected FieldDataValueSource(IndexFieldData<?> d) {
+    protected FieldDataValueSource(IndexFieldData<?> d, MultiValueMode m) {
         Objects.requireNonNull(d);
+        Objects.requireNonNull(m);
 
         fieldData = d;
-    }
-
-    @Override
-    public FunctionValues getValues(Map context, LeafReaderContext leaf) throws IOException {
-        AtomicFieldData leafData = fieldData.load(leaf);
-        assert(leafData instanceof AtomicNumericFieldData);
-        return new FieldDataFunctionValues(this, (AtomicNumericFieldData)leafData);
+        multiValueMode = m;
     }
 
     @Override
@@ -57,12 +54,23 @@ class FieldDataValueSource extends ValueSource {
 
         FieldDataValueSource that = (FieldDataValueSource) o;
 
-        return fieldData.equals(that.fieldData);
+        if (!fieldData.equals(that.fieldData)) return false;
+        return multiValueMode == that.multiValueMode;
+
     }
 
     @Override
     public int hashCode() {
-        return fieldData.hashCode();
+        int result = fieldData.hashCode();
+        result = 31 * result + multiValueMode.hashCode();
+        return result;
+    }
+
+    @Override
+    public FunctionValues getValues(Map context, LeafReaderContext leaf) throws IOException {
+        AtomicFieldData leafData = fieldData.load(leaf);
+        assert(leafData instanceof AtomicNumericFieldData);
+        return new FieldDataFunctionValues(this, multiValueMode, (AtomicNumericFieldData)leafData);
     }
 
     @Override

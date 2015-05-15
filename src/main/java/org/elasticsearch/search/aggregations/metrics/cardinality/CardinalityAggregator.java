@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.aggregations.metrics.cardinality;
 
-import com.carrotsearch.hppc.hash.MurmurHash3;
+import com.carrotsearch.hppc.BitMixer;
 import com.google.common.base.Preconditions;
 
 import org.apache.lucene.index.LeafReaderContext;
@@ -375,7 +375,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
 
             @Override
             public long valueAt(int index) {
-                return MurmurHash3.hash(values.valueAt(index));
+                return BitMixer.mix64(values.valueAt(index));
             }
         }
 
@@ -399,7 +399,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
 
             @Override
             public long valueAt(int index) {
-                return MurmurHash3.hash(java.lang.Double.doubleToLongBits(values.valueAt(index)));
+                return BitMixer.mix64(java.lang.Double.doubleToLongBits(values.valueAt(index)));
             }
         }
 

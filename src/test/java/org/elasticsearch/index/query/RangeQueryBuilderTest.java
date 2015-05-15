@@ -57,7 +57,7 @@ public class RangeQueryBuilderTest extends BaseQueryTestCase<RangeQueryBuilder> 
                 query.to(randomDouble());
             }
         } else {
-            query = new RangeQueryBuilder("born");
+            query = new RangeQueryBuilder(DATE_FIELD_NAME);
             query.from(new DateTime(System.currentTimeMillis() - randomIntBetween(0, 1000000)).toString());
             query.to(new DateTime(System.currentTimeMillis() + randomIntBetween(0, 1000000)).toString());
             if (randomBoolean()) {
@@ -87,7 +87,7 @@ public class RangeQueryBuilderTest extends BaseQueryTestCase<RangeQueryBuilder> 
     @Override
     protected void assertLuceneQuery(RangeQueryBuilder queryBuilder, Query query, QueryParseContext context) throws IOException {
         assertThat(query.getBoost(), is(queryBuilder.boost()));
-        if (!queryBuilder.fieldname().equals("born")) {
+        if (!queryBuilder.fieldname().equals(DATE_FIELD_NAME)) {
             assertThat(query, instanceOf(TermRangeQuery.class));
             TermRangeQuery termRangeQuery = (TermRangeQuery) query;
             assertThat(termRangeQuery.includesLower(), is(queryBuilder.includeLower()));
@@ -102,7 +102,7 @@ public class RangeQueryBuilderTest extends BaseQueryTestCase<RangeQueryBuilder> 
             String expectedLowerBracket = queryBuilder.includeLower() ? "[" : "{";
             String expectedUpperBracket = queryBuilder.includeUpper() ? "]" : "}";
             String queryString = query.rewrite(null).toString();
-            assertThat(queryString, is("born:"+expectedLowerBracket+expectedFromDate+" TO "+expectedToDate+expectedUpperBracket));
+            assertThat(queryString, is(DATE_FIELD_NAME+":"+expectedLowerBracket+expectedFromDate+" TO "+expectedToDate+expectedUpperBracket));
         }
         if (queryBuilder.queryName() != null) {
             Query namedQuery = context.copyNamedFilters().get(queryBuilder.queryName());

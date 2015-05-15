@@ -23,6 +23,7 @@ import com.carrotsearch.randomizedtesting.annotations.Repeat;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.compress.CompressedString;
@@ -62,13 +63,12 @@ import org.junit.Test;
 
 import java.io.IOException;
 
-import static org.elasticsearch.common.io.Streams.copyToStringFromClasspath;
-
 import static org.hamcrest.Matchers.*;
 
 @Ignore
 public abstract class BaseQueryTestCase<QB extends QueryBuilder & Streamable> extends ElasticsearchTestCase {
 
+    protected static final String DATE_FIELD_NAME = "age";
     private static Injector injector;
     private static IndexQueryParserService queryParserService;
     private static Index index;
@@ -110,8 +110,8 @@ public abstract class BaseQueryTestCase<QB extends QueryBuilder & Streamable> ex
         ).createInjector();
         queryParserService = injector.getInstance(IndexQueryParserService.class);
         MapperService mapperService = queryParserService.mapperService;
-        String mapping = copyToStringFromClasspath("/org/elasticsearch/index/query/mapping.json");
-        mapperService.merge("person", new CompressedString(mapping), true);
+        CompressedString mapping = new CompressedString(PutMappingRequest.buildFromSimplifiedDef("type", DATE_FIELD_NAME, "type=date").string());
+        mapperService.merge("type", mapping, true);
     }
 
     @AfterClass

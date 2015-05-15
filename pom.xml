@@ -1517,6 +1517,7 @@
                                 <signaturesFile>dev-tools/forbidden/all-signatures.txt</signaturesFile>
                             </signaturesFiles>
                             <signatures>${forbidden.test.signatures}</signatures>
+                            <suppressAnnotations><annotation>**.SuppressForbidden</annotation></suppressAnnotations>
                         </configuration>
                         <phase>test-compile</phase>
                         <goals>

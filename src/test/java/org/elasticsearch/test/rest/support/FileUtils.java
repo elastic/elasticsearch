@@ -25,7 +25,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.PathUtils;
 
 import java.io.IOException;
-import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.file.DirectoryStream;
 import java.nio.file.FileSystem;
@@ -51,7 +50,7 @@ public final class FileUtils {
 
     /**
      * Returns the json files found within the directory provided as argument.
-     * Files are looked up in the classpath first, then as a fallback optionally from {@code fileSystem} if its not null.
+     * Files are looked up in the classpath, or optionally from {@code fileSystem} if its not null.
      */
     public static Set<Path> findJsonSpec(FileSystem fileSystem, String optionalPathPrefix, String path) throws IOException {
         Path dir = resolveFile(fileSystem, optionalPathPrefix, path, null);
@@ -79,7 +78,7 @@ public final class FileUtils {
     /**
      * Returns the yaml files found within the paths provided.
      * Each input path can either be a single file (the .yaml suffix is optional) or a directory.
-     * Each path is looked up in the classpath first, then as a fallback optionally from {@code fileSystem} if its not null.
+     * Each path is looked up in the classpath, or optionally from {@code fileSystem} if its not null.
      */
     public static Map<String, Set<Path>> findYamlSuites(FileSystem fileSystem, String optionalPathPrefix, final String... paths) throws IOException {
         Map<String, Set<Path>> yamlSuites = Maps.newHashMap();
@@ -90,30 +89,35 @@ public final class FileUtils {
     }
 
     private static Path resolveFile(FileSystem fileSystem, String optionalPathPrefix, String path, String optionalFileSuffix) throws IOException {
-        //try within classpath with and without file suffix (as it could be a single test suite)
-        URL resource = findResource(path, optionalFileSuffix);
-        if (resource == null) {
-            //try within classpath with optional prefix: /rest-api-spec/test (or /rest-api-spec/api) is optional
-            String newPath = optionalPathPrefix + "/" + path;
-            resource = findResource(newPath, optionalFileSuffix);
-            if (resource == null) {
-                //if it wasn't on classpath we look outside of the classpath
-                if (fileSystem != null) {
-                    Path file = findFile(fileSystem, path, optionalFileSuffix);
-                    if (!Files.exists(file)) {
-                        throw new NoSuchFileException(path);
-                    }
-                    return file;
-                } else {
+        if (fileSystem != null) {
+            Path file = findFile(fileSystem, path, optionalFileSuffix);
+            if (!lenientExists(file)) {
+                // try with optional prefix: /rest-api-spec/test (or /rest-api-spec/api) is optional
+                String newPath = optionalPathPrefix + "/" + path;
+                file = findFile(fileSystem, newPath, optionalFileSuffix);
+                if (!lenientExists(file)) {
                     throw new NoSuchFileException(path);
                 }
             }
-        }
-
-        try {
-            return PathUtils.get(resource.toURI());
-        } catch (URISyntaxException e) {
-            throw new RuntimeException(e);
+            return file;
+        } else {
+            //try within classpath
+            URL resource = findResource(path, optionalFileSuffix);
+            if (resource == null) {
+                //try within classpath with optional prefix: /rest-api-spec/test (or /rest-api-spec/api) is optional
+                String newPath = optionalPathPrefix + "/" + path;
+                resource = findResource(newPath, optionalFileSuffix);
+                if (resource == null) {
+                    throw new NoSuchFileException(path);
+                }
+            }
+            try {
+                return PathUtils.get(resource.toURI());
+            } catch (Exception e) {
+                // some filesystems have REALLY useless exceptions here.
+                // ZipFileSystem I am looking at you.
+                throw new RuntimeException("couldn't retrieve URL: " + resource, e);
+            }
         }
     }
 
@@ -127,10 +131,19 @@ public final class FileUtils {
         }
         return resource;
     }
+    
+    // used because this test "guesses" from like 4 different places from the filesystem!
+    private static boolean lenientExists(Path file) {
+        boolean exists = false; 
+        try {
+            exists = Files.exists(file);
+        } catch (SecurityException ok) {}
+        return exists;
+    }
 
     private static Path findFile(FileSystem fileSystem, String path, String optionalFileSuffix) {
         Path file = fileSystem.getPath(path);
-        if (!Files.exists(file)) {
+        if (!lenientExists(file)) {
             file = fileSystem.getPath(path + optionalFileSuffix);
         }
         return file;

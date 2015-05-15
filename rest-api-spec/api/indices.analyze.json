@@ -37,7 +37,7 @@
           "description" : "With `true`, specify that a local shard should be used if available, with `false`, use a random shard (default: true)"
         },
         "text": {
-          "type" : "string",
+          "type" : "list",
           "description" : "The text on which the analysis should be performed (when request body is not used)"
         },
         "tokenizer": {

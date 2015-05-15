@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.analysis;
 
-import com.carrotsearch.hppc.IntObjectOpenHashMap;
+import com.carrotsearch.hppc.IntObjectHashMap;
 
 import java.io.IOException;
 
@@ -28,10 +28,10 @@ import java.io.IOException;
  */
 public class NumericIntegerAnalyzer extends NumericAnalyzer<NumericIntegerTokenizer> {
 
-    private final static IntObjectOpenHashMap<NamedAnalyzer> builtIn;
+    private final static IntObjectHashMap<NamedAnalyzer> builtIn;
 
     static {
-        builtIn = new IntObjectOpenHashMap<>();
+        builtIn = new IntObjectHashMap<>();
         builtIn.put(Integer.MAX_VALUE, new NamedAnalyzer("_int/max", AnalyzerScope.GLOBAL, new NumericIntegerAnalyzer(Integer.MAX_VALUE)));
         for (int i = 0; i <= 64; i += 4) {
             builtIn.put(i, new NamedAnalyzer("_int/" + i, AnalyzerScope.GLOBAL, new NumericIntegerAnalyzer(i)));

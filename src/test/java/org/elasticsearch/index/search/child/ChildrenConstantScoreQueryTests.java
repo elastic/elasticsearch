@@ -18,8 +18,8 @@
  */
 package org.elasticsearch.index.search.child;
 
-import com.carrotsearch.hppc.IntOpenHashSet;
-import com.carrotsearch.hppc.ObjectObjectOpenHashMap;
+import com.carrotsearch.hppc.IntHashSet;
+import com.carrotsearch.hppc.ObjectObjectHashMap;
 
 import org.apache.lucene.analysis.MockAnalyzer;
 import org.apache.lucene.document.Document;
@@ -155,10 +155,10 @@ public class ChildrenConstantScoreQueryTests extends AbstractChildTests {
             childValues[i] = Integer.toString(i);
         }
 
-        IntOpenHashSet filteredOrDeletedDocs = new IntOpenHashSet();
+        IntHashSet filteredOrDeletedDocs = new IntHashSet();
         int childDocId = 0;
         int numParentDocs = scaledRandomIntBetween(1, numUniqueChildValues);
-        ObjectObjectOpenHashMap<String, NavigableSet<String>> childValueToParentIds = new ObjectObjectOpenHashMap<>();
+        ObjectObjectHashMap<String, NavigableSet<String>> childValueToParentIds = new ObjectObjectHashMap<>();
         for (int parentDocId = 0; parentDocId < numParentDocs; parentDocId++) {
             boolean markParentAsDeleted = rarely();
             boolean filterMe = rarely();
@@ -194,7 +194,7 @@ public class ChildrenConstantScoreQueryTests extends AbstractChildTests {
                 if (!markChildAsDeleted) {
                     NavigableSet<String> parentIds;
                     if (childValueToParentIds.containsKey(childValue)) {
-                        parentIds = childValueToParentIds.lget();
+                        parentIds = childValueToParentIds.get(childValue);
                     } else {
                         childValueToParentIds.put(childValue, parentIds = new TreeSet<>());
                     }
@@ -271,7 +271,7 @@ public class ChildrenConstantScoreQueryTests extends AbstractChildTests {
                 LeafReader slowLeafReader = SlowCompositeReaderWrapper.wrap(indexReader);
                 Terms terms = slowLeafReader.terms(UidFieldMapper.NAME);
                 if (terms != null) {
-                    NavigableSet<String> parentIds = childValueToParentIds.lget();
+                    NavigableSet<String> parentIds = childValueToParentIds.get(childValue);
                     TermsEnum termsEnum = terms.iterator();
                     PostingsEnum docsEnum = null;
                     for (String id : parentIds) {

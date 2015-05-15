@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.benchmark.search.aggregations;
 
-import com.carrotsearch.hppc.ObjectOpenHashSet;
+import com.carrotsearch.hppc.ObjectScatterSet;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import com.google.common.collect.Lists;
 
@@ -137,7 +137,7 @@ public class SubAggregationSearchCollectModeBenchmark {
             for (int i = 0; i < NUMBER_OF_TERMS; i++) {
                 lValues[i] = ThreadLocalRandom.current().nextLong();
             }
-            ObjectOpenHashSet<String> uniqueTerms = ObjectOpenHashSet.newInstance();
+            ObjectScatterSet<String> uniqueTerms = new ObjectScatterSet<>();
             for (int i = 0; i < NUMBER_OF_TERMS; i++) {
                 boolean added;
                 do {

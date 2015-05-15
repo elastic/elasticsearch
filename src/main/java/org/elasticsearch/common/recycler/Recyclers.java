@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.recycler;
 
-import com.carrotsearch.hppc.hash.MurmurHash3;
+import com.carrotsearch.hppc.BitMixer;
 import com.google.common.collect.Queues;
 import org.elasticsearch.ElasticsearchException;
 
@@ -173,7 +173,7 @@ public enum Recyclers {
             final int slot() {
                 final long id = Thread.currentThread().getId();
                 // don't trust Thread.hashCode to have equiprobable low bits
-                int slot = (int) MurmurHash3.hash(id);
+                int slot = (int) BitMixer.mix64(id);
                 // make positive, otherwise % may return negative numbers
                 slot &= 0x7FFFFFFF;
                 slot %= concurrencyLevel;

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.analysis;
 
-import com.carrotsearch.hppc.IntObjectOpenHashMap;
+import com.carrotsearch.hppc.IntObjectHashMap;
 import com.google.common.collect.Maps;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.joda.time.format.DateTimeFormatter;
@@ -32,12 +32,12 @@ import java.util.Map;
  */
 public class NumericDateAnalyzer extends NumericAnalyzer<NumericDateTokenizer> {
 
-    private static final Map<String, IntObjectOpenHashMap<NamedAnalyzer>> globalAnalyzers = Maps.newHashMap();
+    private static final Map<String, IntObjectHashMap<NamedAnalyzer>> globalAnalyzers = Maps.newHashMap();
 
     public static synchronized NamedAnalyzer buildNamedAnalyzer(FormatDateTimeFormatter formatter, int precisionStep) {
-        IntObjectOpenHashMap<NamedAnalyzer> precisionMap = globalAnalyzers.get(formatter.format());
+        IntObjectHashMap<NamedAnalyzer> precisionMap = globalAnalyzers.get(formatter.format());
         if (precisionMap == null) {
-            precisionMap = new IntObjectOpenHashMap<>();
+            precisionMap = new IntObjectHashMap<>();
             globalAnalyzers.put(formatter.format(), precisionMap);
         }
         NamedAnalyzer namedAnalyzer = precisionMap.get(precisionStep);

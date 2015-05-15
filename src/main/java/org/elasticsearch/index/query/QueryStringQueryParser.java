@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.query;
 
-import com.carrotsearch.hppc.ObjectFloatOpenHashMap;
+import com.carrotsearch.hppc.ObjectFloatHashMap;
 import com.google.common.collect.Lists;
 
 import org.apache.lucene.queryparser.classic.MapperQueryParser;
@@ -110,7 +110,7 @@ public class QueryStringQueryParser implements QueryParser {
                                 qpSettings.fields().add(field);
                                 if (fBoost != -1) {
                                     if (qpSettings.boosts() == null) {
-                                        qpSettings.boosts(new ObjectFloatOpenHashMap<String>());
+                                        qpSettings.boosts(new ObjectFloatHashMap<String>());
                                     }
                                     qpSettings.boosts().put(field, fBoost);
                                 }
@@ -119,7 +119,7 @@ public class QueryStringQueryParser implements QueryParser {
                             qpSettings.fields().add(fField);
                             if (fBoost != -1) {
                                 if (qpSettings.boosts() == null) {
-                                    qpSettings.boosts(new ObjectFloatOpenHashMap<String>());
+                                    qpSettings.boosts(new ObjectFloatHashMap<String>());
                                 }
                                 qpSettings.boosts().put(fField, fBoost);
                             }

@@ -19,17 +19,25 @@
 
 package org.elasticsearch.index.query;
 
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.action.support.ToXContentToBytes;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 
-/**
- *
- */
-public interface QueryBuilder extends ToXContent {
+import java.io.IOException;
 
-    BytesReference buildAsBytes();
+public abstract class QueryBuilder extends ToXContentToBytes {
 
-    BytesReference buildAsBytes(XContentType contentType);
+    protected QueryBuilder() {
+        super(XContentType.JSON);
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        doXContent(builder, params);
+        builder.endObject();
+        return builder;
+    }
+
+    protected abstract void doXContent(XContentBuilder builder, Params params) throws IOException;
 }

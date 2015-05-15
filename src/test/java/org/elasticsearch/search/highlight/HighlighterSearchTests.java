@@ -562,10 +562,9 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    public void testForceSourceWithSourceDisabledBackcompat() throws Exception {
+    public void testForceSourceWithSourceDisabled() throws Exception {
 
         assertAcked(prepareCreate("test")
-                .setSettings(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id)
                 .addMapping("type1", jsonBuilder().startObject().startObject("type1")
                         .startObject("_source").field("enabled", false).endObject()
                         .startObject("properties")

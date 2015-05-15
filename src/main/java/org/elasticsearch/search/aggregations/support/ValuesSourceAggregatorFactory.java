@@ -57,10 +57,10 @@ public abstract class ValuesSourceAggregatorFactory<VS extends ValuesSource> ext
     @Override
     public Aggregator createInternal(AggregationContext context, Aggregator parent, boolean collectsFromSingleBucket,
             List<Reducer> reducers, Map<String, Object> metaData) throws IOException {
-        if (config.unmapped()) {
+        VS vs = context.valuesSource(config, context.searchContext());
+        if (vs == null) {
             return createUnmapped(context, parent, reducers, metaData);
         }
-        VS vs = context.valuesSource(config);
         return doCreateInternal(vs, context, parent, collectsFromSingleBucket, reducers, metaData);
     }
 

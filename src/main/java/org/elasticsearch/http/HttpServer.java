@@ -183,7 +183,7 @@ public class HttpServer extends AbstractLifecycleComponent<HttpServer> {
         Path file = siteFile.resolve(sitePath);
 
         // return not found instead of forbidden to prevent malicious requests to find out if files exist or dont exist
-        if (!Files.exists(file) || Files.isHidden(file) || !file.toAbsolutePath().normalize().startsWith(siteFile.toAbsolutePath())) {
+        if (!Files.exists(file) || Files.isHidden(file) || !file.toAbsolutePath().normalize().startsWith(siteFile.toAbsolutePath().normalize())) {
             channel.sendResponse(new BytesRestResponse(NOT_FOUND));
             return;
         }

@@ -35,6 +35,7 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
     boolean unmapped = false;
     String formatPattern;
     ValueFormat format;
+    Object missing;
 
     public ValuesSourceConfig(Class<VS> valueSourceType) {
         this.valueSourceType = valueSourceType;

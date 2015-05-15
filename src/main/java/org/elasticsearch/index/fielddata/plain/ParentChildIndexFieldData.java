@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.fielddata.plain;
 
-import com.carrotsearch.hppc.ObjectObjectOpenHashMap;
+import com.carrotsearch.hppc.ObjectObjectHashMap;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.google.common.collect.ImmutableSortedSet;
 
@@ -132,7 +132,7 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<AtomicPare
         );
         ParentChildEstimator estimator = new ParentChildEstimator(breakerService.getBreaker(CircuitBreaker.FIELDDATA), termsEnum);
         TermsEnum estimatedTermsEnum = estimator.beforeLoad(null);
-        ObjectObjectOpenHashMap<String, TypeBuilder> typeBuilders = ObjectObjectOpenHashMap.newInstance();
+        ObjectObjectHashMap<String, TypeBuilder> typeBuilders = new ObjectObjectHashMap<>();
         try {
             try {
                 PostingsEnum docsEnum = null;

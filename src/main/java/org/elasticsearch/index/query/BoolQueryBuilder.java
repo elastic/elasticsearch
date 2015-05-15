@@ -29,7 +29,7 @@ import java.util.List;
 /**
  * A Query that matches documents matching boolean combinations of other queries.
  */
-public class BoolQueryBuilder extends BaseQueryBuilder implements BoostableQueryBuilder<BoolQueryBuilder> {
+public class BoolQueryBuilder extends QueryBuilder implements BoostableQueryBuilder<BoolQueryBuilder> {
 
     private final List<QueryBuilder> mustClauses = new ArrayList<>();
 

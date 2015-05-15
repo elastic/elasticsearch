@@ -23,10 +23,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
-/**
- *
- */
-public class SpanNotQueryBuilder extends BaseQueryBuilder implements SpanQueryBuilder, BoostableQueryBuilder<SpanNotQueryBuilder> {
+public class SpanNotQueryBuilder extends SpanQueryBuilder implements BoostableQueryBuilder<SpanNotQueryBuilder> {
 
     private SpanQueryBuilder include;
 

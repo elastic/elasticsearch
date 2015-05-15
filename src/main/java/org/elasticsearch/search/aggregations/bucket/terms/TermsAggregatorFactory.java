@@ -69,7 +69,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<Values
                               Terms.Order order, TermsAggregator.BucketCountThresholds bucketCountThresholds, IncludeExclude includeExclude,
                               AggregationContext aggregationContext, Aggregator parent, SubAggCollectionMode subAggCollectMode, boolean showTermDocCountError, List<Reducer> reducers, Map<String, Object> metaData) throws IOException {
                 final IncludeExclude.OrdinalsFilter filter = includeExclude == null ? null : includeExclude.convertToOrdinalsFilter();
-                return new GlobalOrdinalsStringTermsAggregator(name, factories, (ValuesSource.Bytes.WithOrdinals.FieldData) valuesSource, order, bucketCountThresholds, filter, aggregationContext, parent, subAggCollectMode, showTermDocCountError, reducers, metaData);
+                return new GlobalOrdinalsStringTermsAggregator(name, factories, (ValuesSource.Bytes.WithOrdinals) valuesSource, order, bucketCountThresholds, filter, aggregationContext, parent, subAggCollectMode, showTermDocCountError, reducers, metaData);
             }
 
             @Override
@@ -103,7 +103,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<Values
                 if (includeExclude != null || factories.count() > 0) {
                     return GLOBAL_ORDINALS.create(name, factories, valuesSource, order, bucketCountThresholds, includeExclude, aggregationContext, parent, subAggCollectMode, showTermDocCountError, reducers, metaData);
                 }
-                return new GlobalOrdinalsStringTermsAggregator.LowCardinality(name, factories, (ValuesSource.Bytes.WithOrdinals.FieldData) valuesSource, order, bucketCountThresholds, aggregationContext, parent, subAggCollectMode, showTermDocCountError, reducers, metaData);
+                return new GlobalOrdinalsStringTermsAggregator.LowCardinality(name, factories, (ValuesSource.Bytes.WithOrdinals) valuesSource, order, bucketCountThresholds, aggregationContext, parent, subAggCollectMode, showTermDocCountError, reducers, metaData);
             }
 
             @Override

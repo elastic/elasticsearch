@@ -56,7 +56,7 @@ import static org.hamcrest.Matchers.notNullValue;
  */
 @ClusterScope(numDataNodes = 0, scope = Scope.TEST)
 @Slow
-public class RecoveryFromGatewayTests extends ElasticsearchIntegrationTest {
+public class RecoveryFromGatewayTesTermVectorsFields.javats extends ElasticsearchIntegrationTest {
 
     @Test
     @Slow

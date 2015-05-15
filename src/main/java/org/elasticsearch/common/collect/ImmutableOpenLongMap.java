@@ -23,6 +23,8 @@ import com.carrotsearch.hppc.*;
 import com.carrotsearch.hppc.cursors.LongCursor;
 import com.carrotsearch.hppc.cursors.LongObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+import com.carrotsearch.hppc.predicates.IntObjectPredicate;
+import com.carrotsearch.hppc.predicates.LongObjectPredicate;
 import com.carrotsearch.hppc.predicates.LongPredicate;
 import com.carrotsearch.hppc.procedures.LongObjectProcedure;
 import com.google.common.collect.UnmodifiableIterator;
@@ -38,9 +40,9 @@ import java.util.Map;
  */
 public final class ImmutableOpenLongMap<VType> implements Iterable<LongObjectCursor<VType>> {
 
-    private final LongObjectOpenHashMap<VType> map;
+    private final LongObjectHashMap<VType> map;
 
-    private ImmutableOpenLongMap(LongObjectOpenHashMap<VType> map) {
+    private ImmutableOpenLongMap(LongObjectHashMap<VType> map) {
         this.map = map;
     }
 
@@ -175,7 +177,7 @@ public final class ImmutableOpenLongMap<VType> implements Iterable<LongObjectCur
     }
 
     @SuppressWarnings("unchecked")
-    private static final ImmutableOpenLongMap EMPTY = new ImmutableOpenLongMap(new LongObjectOpenHashMap());
+    private static final ImmutableOpenLongMap EMPTY = new ImmutableOpenLongMap(new LongObjectHashMap());
 
     @SuppressWarnings("unchecked")
     public static <VType> ImmutableOpenLongMap<VType> of() {
@@ -196,7 +198,7 @@ public final class ImmutableOpenLongMap<VType> implements Iterable<LongObjectCur
 
     public static class Builder<VType> implements LongObjectMap<VType> {
 
-        private LongObjectOpenHashMap<VType> map;
+        private LongObjectHashMap<VType> map;
 
         public Builder() {
             //noinspection unchecked
@@ -204,7 +206,7 @@ public final class ImmutableOpenLongMap<VType> implements Iterable<LongObjectCur
         }
 
         public Builder(int size) {
-            this.map = new LongObjectOpenHashMap<>(size);
+            this.map = new LongObjectHashMap<>(size);
         }
 
         public Builder(ImmutableOpenLongMap<VType> map) {
@@ -215,7 +217,7 @@ public final class ImmutableOpenLongMap<VType> implements Iterable<LongObjectCur
          * Builds a new instance of the
          */
         public ImmutableOpenLongMap<VType> build() {
-            LongObjectOpenHashMap<VType> map = this.map;
+            LongObjectHashMap<VType> map = this.map;
             this.map = null; // nullify the map, so any operation post build will fail! (hackish, but safest)
             return new ImmutableOpenLongMap<>(map);
         }
@@ -312,11 +314,6 @@ public final class ImmutableOpenLongMap<VType> implements Iterable<LongObjectCur
         }
 
         @Override
-        public <T extends LongObjectProcedure<? super VType>> T forEach(T procedure) {
-            return map.forEach(procedure);
-        }
-
-        @Override
         public LongCollection keys() {
             return map.keys();
         }
@@ -325,5 +322,55 @@ public final class ImmutableOpenLongMap<VType> implements Iterable<LongObjectCur
         public ObjectContainer<VType> values() {
             return map.values();
         }
+
+        @Override
+        public <T extends LongObjectProcedure<? super VType>> T forEach(T procedure) {
+            return map.forEach(procedure);
+        }
+
+        @Override
+        public int indexOf(long key) {
+            return map.indexOf(key);
+        }
+
+        @Override
+        public boolean indexExists(int index) {
+            return map.indexExists(index);
+        }
+
+        @Override
+        public VType indexGet(int index) {
+            return map.indexGet(index);
+        }
+
+        @Override
+        public VType indexReplace(int index, VType newValue) {
+            return map.indexReplace(index, newValue);
+        }
+
+        @Override
+        public void indexInsert(int index, long key, VType value) {
+            map.indexInsert(index, key, value);
+        }
+
+        @Override
+        public void release() {
+            map.release();
+        }
+
+        @Override
+        public String visualizeKeyDistribution(int characters) {
+            return map.visualizeKeyDistribution(characters);
+        }
+
+        @Override
+        public int removeAll(LongObjectPredicate<? super VType> predicate) {
+            return map.removeAll(predicate);
+        }
+
+        @Override
+        public <T extends LongObjectPredicate<? super VType>> T forEach(T predicate) {
+            return map.forEach(predicate);
+        }        
     }
 }

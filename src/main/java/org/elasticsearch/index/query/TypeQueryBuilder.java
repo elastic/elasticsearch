@@ -23,7 +23,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
-public class TypeQueryBuilder extends BaseQueryBuilder {
+public class TypeQueryBuilder extends QueryBuilder {
 
     private final String type;
 

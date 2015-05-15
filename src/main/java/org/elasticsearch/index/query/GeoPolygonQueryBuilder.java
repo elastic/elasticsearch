@@ -28,10 +28,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.List;
 
-/**
- *
- */
-public class GeoPolygonQueryBuilder extends BaseQueryBuilder {
+public class GeoPolygonQueryBuilder extends QueryBuilder {
 
     public static final String POINTS = GeoPolygonQueryParser.POINTS;
     

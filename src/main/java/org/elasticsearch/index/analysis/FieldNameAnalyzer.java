@@ -63,7 +63,9 @@ public final class FieldNameAnalyzer extends DelegatingAnalyzerWrapper {
         if (analyzer != null) {
             return analyzer;
         }
-        return defaultAnalyzer;
+        // Don't be lenient here and return the default analyzer
+        // Fields need to be explicitly added
+        throw new IllegalArgumentException("Field [" + name + "] has no associated analyzer");
     }
 
     /**
@@ -72,9 +74,11 @@ public final class FieldNameAnalyzer extends DelegatingAnalyzerWrapper {
     public FieldNameAnalyzer copyAndAddAll(Collection<? extends Map.Entry<String, Analyzer>> mappers) {
         CopyOnWriteHashMap<String, Analyzer> analyzers = this.analyzers;
         for (Map.Entry<String, Analyzer> entry : mappers) {
-            if (entry.getValue() != null) {
-                analyzers = analyzers.copyAndPut(entry.getKey(), entry.getValue());
+            Analyzer analyzer = entry.getValue();
+            if (analyzer == null) {
+                analyzer = defaultAnalyzer;
             }
+            analyzers = analyzers.copyAndPut(entry.getKey(), analyzer);
         }
         return new FieldNameAnalyzer(analyzers, defaultAnalyzer);
     }

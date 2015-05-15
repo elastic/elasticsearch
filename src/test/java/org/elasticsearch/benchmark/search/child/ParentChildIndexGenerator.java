@@ -20,7 +20,7 @@
 package org.elasticsearch.benchmark.search.child;
 
 import com.carrotsearch.hppc.ObjectArrayList;
-import com.carrotsearch.hppc.ObjectOpenHashSet;
+import com.carrotsearch.hppc.ObjectHashSet;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -49,8 +49,8 @@ public class ParentChildIndexGenerator {
 
     public void index() {
         // Memory intensive...
-        ObjectOpenHashSet<String> usedParentIds = ObjectOpenHashSet.newInstanceWithCapacity(numParents, 0.5f);
-        ObjectArrayList<ParentDocument> parents = ObjectArrayList.newInstanceWithCapacity(numParents);
+        ObjectHashSet<String> usedParentIds = new ObjectHashSet<>(numParents, 0.5d);
+        ObjectArrayList<ParentDocument> parents = new ObjectArrayList<>(numParents);
 
         for (int i = 0; i < numParents; i++) {
             String parentId;

@@ -30,7 +30,7 @@ public class AnalyzeRequestBuilder extends SingleCustomOperationRequestBuilder<A
         super(client, action, new AnalyzeRequest());
     }
 
-    public AnalyzeRequestBuilder(ElasticsearchClient client, AnalyzeAction action, String index, String text) {
+    public AnalyzeRequestBuilder(ElasticsearchClient client, AnalyzeAction action, String index, String... text) {
         super(client, action, new AnalyzeRequest(index).text(text));
     }
 
@@ -84,6 +84,14 @@ public class AnalyzeRequestBuilder extends SingleCustomOperationRequestBuilder<A
      */
     public AnalyzeRequestBuilder setCharFilters(String... charFilters) {
         request.charFilters(charFilters);
+        return this;
+    }
+
+    /**
+     * Sets texts to analyze
+     */
+    public AnalyzeRequestBuilder setText(String... texts) {
+        request.text(texts);
         return this;
     }
 }

@@ -117,11 +117,6 @@ public class IndicesStatsRequestBuilder extends BroadcastOperationRequestBuilder
         return this;
     }
 
-    public IndicesStatsRequestBuilder setIdCache(boolean idCache) {
-        request.idCache(idCache);
-        return this;
-    }
-
     public IndicesStatsRequestBuilder setFieldData(boolean fieldData) {
         request.fieldData(fieldData);
         return this;

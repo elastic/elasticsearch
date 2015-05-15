@@ -24,10 +24,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.ArrayList;
 
-/**
- *
- */
-public class SpanOrQueryBuilder extends BaseQueryBuilder implements SpanQueryBuilder, BoostableQueryBuilder<SpanOrQueryBuilder> {
+public class SpanOrQueryBuilder extends SpanQueryBuilder implements BoostableQueryBuilder<SpanOrQueryBuilder> {
 
     private ArrayList<SpanQueryBuilder> clauses = new ArrayList<>();
 

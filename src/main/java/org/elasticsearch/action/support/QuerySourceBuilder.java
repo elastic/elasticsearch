@@ -19,18 +19,14 @@
 
 package org.elasticsearch.action.support;
 
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.search.builder.SearchSourceBuilderException;
 
 import java.io.IOException;
 
-public class QuerySourceBuilder implements ToXContent {
+public class QuerySourceBuilder extends ToXContentToBytes {
 
     private QueryBuilder queryBuilder;
 
@@ -66,27 +62,6 @@ public class QuerySourceBuilder implements ToXContent {
             } else {
                 builder.field("query_binary", queryBinary);
             }
-        }
-    }
-
-    public BytesReference buildAsBytes(XContentType contentType) throws SearchSourceBuilderException {
-        try {
-            XContentBuilder builder = XContentFactory.contentBuilder(contentType);
-            toXContent(builder, ToXContent.EMPTY_PARAMS);
-            return builder.bytes();
-        } catch (Exception e) {
-            throw new SearchSourceBuilderException("Failed to build search source", e);
-        }
-    }
-
-    @Override
-    public String toString() {
-        try {
-            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON).prettyPrint();
-            toXContent(builder, ToXContent.EMPTY_PARAMS);
-            return builder.string();
-        } catch (Exception e) {
-            return "{ \"error\" : \"" + ExceptionsHelper.detailedMessage(e) + "\"}";
         }
     }
 }

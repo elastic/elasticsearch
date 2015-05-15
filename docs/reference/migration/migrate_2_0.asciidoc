@@ -560,3 +560,29 @@ same search request will likely be off if `top_children` was used.
 
 === Removed file based index templates
 Index templates can no longer be configured on disk. Use the `_template` API instead.
+
+[float]
+=== Removed `id_cache` from stats apis
+
+Removed `id_cache` metric from nodes stats, indices stats and cluster stats apis. This metric has also been removed
+from the shards cat, indices cat and nodes cat apis. Parent/child memory is now reported under fielddata, because it
+has internally be using fielddata for a while now.
+
+To just see how much parent/child related field data is taking, the `fielddata_fields` option can be used on the stats
+apis. Indices stats example:
+
+[source,js]
+--------------------------------------------------
+curl -XGET "http://localhost:9200/_stats/fielddata?pretty&human&fielddata_fields=_parent"
+--------------------------------------------------
+
+Parent/child is using field data for the `_parent` field since version `1.1.0`, but the memory stats for the `_parent`
+field were still shown under `id_cache` metric in the stats apis for backwards compatible reasons between 1.x versions.
+
+Before version `1.1.0` the parent/child had its own in-memory data structures for id values in the `_parent` field.
+
+[float]
+=== Removed `id_cache` from clear cache api
+
+Removed `id_cache` option from the clear cache apis. The `fielddata` option should be used to clear `_parent` field
+from fielddata.

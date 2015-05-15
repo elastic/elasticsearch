@@ -34,7 +34,6 @@ import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
-import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -396,15 +395,10 @@ public class IncludeExclude {
     }
 
     public StringFilter convertToStringFilter() {
-        try {
+        if (isRegexBased()) {
             return new AutomatonBackedStringFilter(toAutomaton());
-        } catch (TooComplexToDeterminizeException e) {
-            // Hard to pre-empt when this exception will occur due to the number
-            // terms and possible overlap of contents
-            // so we let it try and fall-back to Set based lookups if too
-            // complex.
-            return new TermListBackedStringFilter(includeValues, excludeValues);
         }
+        return new TermListBackedStringFilter(includeValues, excludeValues);
     }
 
     public OrdinalsFilter convertToOrdinalsFilter() {

@@ -22,7 +22,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
-public class SpanMultiTermQueryBuilder extends SpanQueryBuilder {
+public class SpanMultiTermQueryBuilder extends QueryBuilder implements SpanQueryBuilder {
 
     private MultiTermQueryBuilder multiTermQueryBuilder;
 

@@ -26,7 +26,7 @@ import java.io.IOException;
 /**
  * Builder for {@link org.apache.lucene.search.spans.SpanWithinQuery}.
  */
-public class SpanWithinQueryBuilder extends SpanQueryBuilder implements BoostableQueryBuilder<SpanWithinQueryBuilder> {
+public class SpanWithinQueryBuilder extends QueryBuilder implements SpanQueryBuilder, BoostableQueryBuilder<SpanWithinQueryBuilder> {
 
     private SpanQueryBuilder big;
     private SpanQueryBuilder little;

@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.query;
 
-public interface SpanQueryBuilder {
+import org.elasticsearch.common.xcontent.ToXContent;
+
+public interface SpanQueryBuilder extends ToXContent {
 
 }

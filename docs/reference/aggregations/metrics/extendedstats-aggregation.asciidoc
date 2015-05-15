@@ -117,3 +117,25 @@ It turned out that the exam was way above the level of the students and a grade 
     }
 }
 --------------------------------------------------
+
+==== Missing value
+
+The `missing` parameter defines how documents that are missing a value should be treated.
+By default they will be ignored but it is also possible to treat them as if they
+had a value.
+
+[source,js]
+--------------------------------------------------
+{
+    "aggs" : {
+        "grades_stats" : {
+            "extended_stats" : {
+                "field" : "grade",
+                "missing": 0 <1>
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+<1> Documents without a value in the `grade` field will fall into the same bucket as documents that have the value `0`.

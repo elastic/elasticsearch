@@ -23,6 +23,8 @@ import org.elasticsearch.action.Action;
 import org.elasticsearch.client.ElasticsearchClient;
 
 /**
+ * Action that shortcuts to the search api with size set to 0. It doesn't have a corresponding
+ * transport action, it just runs the search api internally.
  */
 public class CountAction extends Action<CountRequest, CountResponse, CountRequestBuilder> {
 
@@ -35,7 +37,7 @@ public class CountAction extends Action<CountRequest, CountResponse, CountReques
 
     @Override
     public CountResponse newResponse() {
-        return new CountResponse();
+        throw new UnsupportedOperationException("CountAction doesn't have its own transport action, gets executed as a SearchAction internally");
     }
 
     @Override

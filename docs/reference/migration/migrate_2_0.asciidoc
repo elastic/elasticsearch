@@ -404,6 +404,12 @@ The `count` search type has been deprecated. All benefits from this search type 
 now be achieved by using the `query_then_fetch` search type (which is the
 default) and setting `size` to `0`.
 
+=== The count api internally uses the search api
+
+The count api is now a shortcut to the search api with `size` set to 0. As a
+result, a total failure will result in an exception being returned rather
+than a normal response with `count` set to `0` and shard failures.
+
 === JSONP support
 
 JSONP callback support has now been removed. CORS should be used to access Elasticsearch

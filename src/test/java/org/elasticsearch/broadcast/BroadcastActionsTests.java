@@ -20,8 +20,8 @@
 package org.elasticsearch.broadcast;
 
 import com.google.common.base.Charsets;
-import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.count.CountResponse;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
@@ -33,7 +33,6 @@ import static org.elasticsearch.client.Requests.countRequest;
 import static org.elasticsearch.client.Requests.indexRequest;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class BroadcastActionsTests extends ElasticsearchIntegrationTest {
@@ -72,14 +71,10 @@ public class BroadcastActionsTests extends ElasticsearchIntegrationTest {
 
         for (int i = 0; i < 5; i++) {
             // test failed (simply query that can't be parsed)
-            CountResponse countResponse = client().count(countRequest("test").source("{ term : { _type : \"type1 } }".getBytes(Charsets.UTF_8))).actionGet();
-
-            assertThat(countResponse.getCount(), equalTo(0l));
-            assertThat(countResponse.getTotalShards(), equalTo(numShards.numPrimaries));
-            assertThat(countResponse.getSuccessfulShards(), equalTo(0));
-            assertThat(countResponse.getFailedShards(), equalTo(numShards.numPrimaries));
-            for (ShardOperationFailedException exp : countResponse.getShardFailures()) {
-                assertThat(exp.reason(), containsString("QueryParsingException"));
+            try {
+                client().count(countRequest("test").source("{ term : { _type : \"type1 } }".getBytes(Charsets.UTF_8))).actionGet();
+            } catch(SearchPhaseExecutionException e) {
+                assertThat(e.shardFailures().length, equalTo(numShards.numPrimaries));
             }
         }
     }

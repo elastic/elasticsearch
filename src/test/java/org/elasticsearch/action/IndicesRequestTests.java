@@ -57,8 +57,6 @@ import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryAction
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequest;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkRequest;
-import org.elasticsearch.action.count.CountAction;
-import org.elasticsearch.action.count.CountRequest;
 import org.elasticsearch.action.delete.DeleteAction;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.exists.ExistsAction;
@@ -354,18 +352,6 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
 
         clearInterceptedActions();
         assertIndicesSubset(indices, multiGetShardAction);
-    }
-
-    @Test
-    public void testCount() {
-        String countShardAction = CountAction.NAME + "[s]";
-        interceptTransportActions(countShardAction);
-
-        CountRequest countRequest = new CountRequest(randomIndicesOrAliases());
-        internalCluster().clientNodeClient().count(countRequest).actionGet();
-
-        clearInterceptedActions();
-        assertSameIndices(countRequest, countShardAction);
     }
 
     @Test

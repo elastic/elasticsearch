@@ -20,6 +20,10 @@
 package org.elasticsearch.action.count;
 
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.search.SearchAction;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.DelegatingActionListener;
 import org.elasticsearch.action.support.QuerySourceBuilder;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
@@ -143,6 +147,17 @@ public class CountRequestBuilder extends BroadcastOperationRequestBuilder<CountR
             sourceBuilder = new QuerySourceBuilder();
         }
         return sourceBuilder;
+    }
+
+    @Override
+    public void execute(ActionListener<CountResponse> listener) {
+        CountRequest countRequest = beforeExecute(request);
+        client.execute(SearchAction.INSTANCE, countRequest.toSearchRequest(), new DelegatingActionListener<SearchResponse, CountResponse>(listener) {
+            @Override
+            protected CountResponse getDelegatedFromInstigator(SearchResponse response) {
+                return new CountResponse(response);
+            }
+        });
     }
 
     @Override

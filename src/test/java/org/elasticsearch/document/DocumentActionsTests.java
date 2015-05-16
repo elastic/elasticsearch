@@ -19,7 +19,6 @@
 
 package org.elasticsearch.document;
 
-import com.google.common.base.Charsets;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheResponse;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
@@ -30,6 +29,7 @@ import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
@@ -40,7 +40,8 @@ import java.io.IOException;
 import static org.elasticsearch.client.Requests.*;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  *
@@ -163,11 +164,11 @@ public class DocumentActionsTests extends ElasticsearchIntegrationTest {
             assertThat(countResponse.getFailedShards(), equalTo(0));
 
             // test failed (simply query that can't be parsed)
-            countResponse = client().count(countRequest("test").source("{ term : { _type : \"type1 } }".getBytes(Charsets.UTF_8))).actionGet();
-
-            assertThat(countResponse.getCount(), equalTo(0l));
-            assertThat(countResponse.getSuccessfulShards(), equalTo(0));
-            assertThat(countResponse.getFailedShards(), equalTo(numShards.numPrimaries));
+            try {
+                client().count(countRequest("test").source("{ term : { _type : \"type1 } }")).actionGet();
+            } catch(SearchPhaseExecutionException e) {
+                assertThat(e.shardFailures().length, equalTo(numShards.numPrimaries));
+            }
 
             // count with no query is a match all one
             countResponse = client().prepareCount("test").execute().actionGet();

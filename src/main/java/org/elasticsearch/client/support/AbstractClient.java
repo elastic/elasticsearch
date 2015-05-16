@@ -259,6 +259,8 @@ import org.elasticsearch.action.suggest.SuggestAction;
 import org.elasticsearch.action.suggest.SuggestRequest;
 import org.elasticsearch.action.suggest.SuggestRequestBuilder;
 import org.elasticsearch.action.suggest.SuggestResponse;
+import org.elasticsearch.action.support.AdapterActionFuture;
+import org.elasticsearch.action.support.DelegatingActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.action.termvectors.*;
@@ -334,7 +336,6 @@ public abstract class AbstractClient extends AbstractComponent implements Client
     }
 
     protected abstract <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> void doExecute(final Action<Request, Response, RequestBuilder> action, final Request request, ActionListener<Response> listener);
-
 
     @Override
     public ActionFuture<IndexResponse> index(final IndexRequest request) {
@@ -594,12 +595,24 @@ public abstract class AbstractClient extends AbstractComponent implements Client
 
     @Override
     public ActionFuture<CountResponse> count(final CountRequest request) {
-        return execute(CountAction.INSTANCE, request);
+        AdapterActionFuture<CountResponse, SearchResponse> actionFuture = new AdapterActionFuture<CountResponse, SearchResponse>() {
+            @Override
+            protected CountResponse convert(SearchResponse listenerResponse) {
+                return new CountResponse(listenerResponse);
+            }
+        };
+        execute(SearchAction.INSTANCE, request.toSearchRequest(), actionFuture);
+        return actionFuture;
     }
 
     @Override
     public void count(final CountRequest request, final ActionListener<CountResponse> listener) {
-        execute(CountAction.INSTANCE, request, listener);
+        execute(SearchAction.INSTANCE, request.toSearchRequest(), new DelegatingActionListener<SearchResponse, CountResponse>(listener) {
+            @Override
+            protected CountResponse getDelegatedFromInstigator(SearchResponse response) {
+                return new CountResponse(response);
+            }
+        });
     }
 
     @Override

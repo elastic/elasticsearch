@@ -47,10 +47,7 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.suggest.SuggestBuilder;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 /**
  * A search source builder allowing to easily build search source. Simple
@@ -188,6 +185,7 @@ public class SearchSourceBuilder extends ToXContentToBytes {
     /**
      * Constructs a new search source builder with a query from a map.
      */
+    @SuppressWarnings("unchecked")
     public SearchSourceBuilder query(Map query) {
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(Requests.CONTENT_TYPE);
@@ -251,6 +249,7 @@ public class SearchSourceBuilder extends ToXContentToBytes {
     /**
      * Constructs a new search source builder with a query from a map.
      */
+    @SuppressWarnings("unchecked")
     public SearchSourceBuilder postFilter(Map postFilter) {
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(Requests.CONTENT_TYPE);
@@ -415,9 +414,6 @@ public class SearchSourceBuilder extends ToXContentToBytes {
 
     /**
      * Set the rescore window size for rescores that don't specify their window.
-     * 
-     * @param defaultRescoreWindowSize
-     * @return
      */
     public SearchSourceBuilder defaultRescoreWindowSize(int defaultRescoreWindowSize) {
         this.defaultRescoreWindowSize = defaultRescoreWindowSize;
@@ -427,6 +423,7 @@ public class SearchSourceBuilder extends ToXContentToBytes {
     /**
      * Sets a raw (xcontent / json) addAggregation.
      */
+    @SuppressWarnings("unchecked")
     public SearchSourceBuilder aggregations(Map aggregations) {
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(Requests.CONTENT_TYPE);
@@ -482,9 +479,6 @@ public class SearchSourceBuilder extends ToXContentToBytes {
     /**
      * Indicates whether the response should contain the stored _source for
      * every hit
-     *
-     * @param fetch
-     * @return
      */
     public SearchSourceBuilder fetchSource(boolean fetch) {
         if (this.fetchSourceContext == null) {
@@ -563,9 +557,7 @@ public class SearchSourceBuilder extends ToXContentToBytes {
         if (fieldNames == null) {
             fieldNames = new ArrayList<>();
         }
-        for (String field : fields) {
-            fieldNames.add(field);
-        }
+        Collections.addAll(fieldNames, fields);
         return this;
     }
 
@@ -777,7 +769,7 @@ public class SearchSourceBuilder extends ToXContentToBytes {
         }
 
         if (trackScores) {
-            builder.field("track_scores", trackScores);
+            builder.field("track_scores", true);
         }
 
         if (indexBoost != null) {

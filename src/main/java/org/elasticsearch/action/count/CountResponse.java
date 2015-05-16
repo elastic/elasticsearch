@@ -19,30 +19,27 @@
 
 package org.elasticsearch.action.count;
 
-import java.io.IOException;
-import java.util.List;
-import org.elasticsearch.action.ShardOperationFailedException;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.rest.RestStatus;
+
+import java.io.IOException;
+import java.util.Arrays;
 
 /**
  * The response of the count action.
  */
 public class CountResponse extends BroadcastOperationResponse {
 
-    private boolean terminatedEarly;
-    private long count;
+    private final boolean terminatedEarly;
+    private final long count;
 
-    CountResponse() {
-
-    }
-
-    CountResponse(long count, boolean hasTerminatedEarly, int totalShards, int successfulShards, int failedShards, List<ShardOperationFailedException> shardFailures) {
-        super(totalShards, successfulShards, failedShards, shardFailures);
-        this.count = count;
-        this.terminatedEarly = hasTerminatedEarly;
+    public CountResponse(SearchResponse searchResponse) {
+        super(searchResponse.getTotalShards(), searchResponse.getSuccessfulShards(), searchResponse.getFailedShards(), Arrays.asList(searchResponse.getShardFailures()));
+        this.count = searchResponse.getHits().totalHits();
+        this.terminatedEarly = searchResponse.isTerminatedEarly() != null && searchResponse.isTerminatedEarly();
     }
 
     /**
@@ -65,15 +62,11 @@ public class CountResponse extends BroadcastOperationResponse {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        count = in.readVLong();
-        terminatedEarly = in.readBoolean();
+        throw new UnsupportedOperationException("CountResponse doesn't support being sent over the wire, just a shortcut to the search api");
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeVLong(count);
-        out.writeBoolean(terminatedEarly);
+        throw new UnsupportedOperationException("CountResponse doesn't support being sent over the wire, just a shortcut to the search api");
     }
 }

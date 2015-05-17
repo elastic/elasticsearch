@@ -204,9 +204,7 @@ public class DefaultSearchContext extends SearchContext {
 
     @Override
     public void doClose() {
-        if (scanContext != null) {
-            scanContext.clear();
-        }
+        scanContext = null;
         // clear and scope phase we  have
         Releasables.close(searcher, engineSearcher);
     }

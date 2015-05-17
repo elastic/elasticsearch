@@ -308,7 +308,7 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
                 endSnapshot(snapshot);
                 return;
             }
-            clusterService.submitStateUpdateTask("update_snapshot [" + snapshot + "]", new ProcessedClusterStateUpdateTask() {
+            clusterService.submitStateUpdateTask("update_snapshot [" + snapshot.snapshotId().getSnapshot() + "]", new ProcessedClusterStateUpdateTask() {
                 boolean accepted = false;
                 SnapshotMetaData.Entry updatedSnapshot;
                 String failure = null;

@@ -72,11 +72,9 @@ that the query is composed of, regardless of whether they are actually part of
 a query match, effectively ignoring their positions.
 
 [WARNING]
-The postings highlighter does support highlighting of multi term queries, like
-prefix queries, wildcard queries and so on. On the other hand, this requires
-the queries to be rewritten using a proper
-<<query-dsl-multi-term-rewrite,rewrite method>> that supports multi term
-extraction, which is a potentially expensive operation.
+The postings highlighter doesn't support highlighting some complex queries,
+like a `match` query with `type` set to `match_phrase_prefix`. No highlighted
+snippets will be returned in that case.
 
 [[fast-vector-highlighter]]
 ==== Fast vector highlighter
@@ -406,10 +404,10 @@ at the field level.
 [[field-match]]
 ==== Require Field Match
 
-`require_field_match` can be set to `true` which will cause a field to
-be highlighted only if a query matched that field. `false` means that
-terms are highlighted on all requested fields regardless if the query
-matches specifically on them.
+`require_field_match` can be set to `false` which will cause any field to
+be highlighted regardless of whether the query matched specifically on them.
+The default behaviour is `true`, meaning that only fields that hold a query
+match will be highlighted.
 
 [[boundary-characters]]
 ==== Boundary Characters

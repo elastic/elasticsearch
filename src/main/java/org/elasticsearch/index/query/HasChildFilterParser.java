@@ -144,7 +144,7 @@ public class HasChildFilterParser implements FilterParser {
             throw new QueryParsingException(parseContext.index(), "No mapping for for type [" + childType + "]");
         }
         if (innerHits != null) {
-            InnerHitsContext.ParentChildInnerHits parentChildInnerHits = new InnerHitsContext.ParentChildInnerHits(innerHits.v2(), query, null, childDocMapper);
+            InnerHitsContext.ParentChildInnerHits parentChildInnerHits = new InnerHitsContext.ParentChildInnerHits(innerHits.v2(), query, null, parseContext.mapperService(), childDocMapper);
             String name = innerHits.v1() != null ? innerHits.v1() : childType;
             parseContext.addInnerHits(name, parentChildInnerHits);
         }

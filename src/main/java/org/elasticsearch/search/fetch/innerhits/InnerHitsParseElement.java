@@ -151,7 +151,7 @@ public class InnerHitsParseElement implements SearchParseElement {
         if (documentMapper == null) {
             throw new ElasticsearchIllegalArgumentException("type [" + type + "] doesn't exist");
         }
-        return new InnerHitsContext.ParentChildInnerHits(parseResult.context(), parseResult.query(), parseResult.childInnerHits(), documentMapper);
+        return new InnerHitsContext.ParentChildInnerHits(parseResult.context(), parseResult.query(), parseResult.childInnerHits(), parseContext.mapperService(), documentMapper);
     }
 
     private InnerHitsContext.NestedInnerHits parseNested(XContentParser parser, QueryParseContext parseContext, SearchContext searchContext, String nestedPath) throws Exception {

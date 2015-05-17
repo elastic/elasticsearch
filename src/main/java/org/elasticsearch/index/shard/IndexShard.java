@@ -115,8 +115,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.nio.channels.ClosedByInterruptException;
-import java.util.Arrays;
-import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ScheduledFuture;
@@ -693,13 +691,13 @@ public class IndexShard extends AbstractIndexShardComponent {
         return completionStats;
     }
 
-    public Engine.SyncedFlushResult syncFlushIfNoPendingChanges(String syncId, byte[] expectedCommitId) {
+    public Engine.SyncedFlushResult syncFlushIfNoPendingChanges(String syncId, Engine.CommitId expectedCommitId) {
         verifyStartedOrRecovering();
         logger.trace("trying to sync flush. sync id [{}]. expected commit id [{}]]", syncId, expectedCommitId);
         return engine().syncFlushIfNoPendingChanges(syncId, expectedCommitId);
     }
 
-    public byte[] flush(FlushRequest request) throws ElasticsearchException {
+    public Engine.CommitId flush(FlushRequest request) throws ElasticsearchException {
         boolean waitIfOngoing = request.waitIfOngoing();
         boolean force = request.force();
         if (logger.isTraceEnabled()) {
@@ -711,7 +709,7 @@ public class IndexShard extends AbstractIndexShardComponent {
         verifyStartedOrRecovering();
 
         long time = System.nanoTime();
-        byte[] commitId = engine().flush(force, waitIfOngoing);
+        Engine.CommitId commitId = engine().flush(force, waitIfOngoing);
         flushMetric.inc(System.nanoTime() - time);
         return commitId;
 
@@ -1385,4 +1383,5 @@ public class IndexShard extends AbstractIndexShardComponent {
     public Translog.Durabilty getTranslogDurability() {
        return engine().getTranslog().getDurabilty();
     }
+
 }

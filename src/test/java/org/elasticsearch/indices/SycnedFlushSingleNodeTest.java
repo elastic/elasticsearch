@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
@@ -49,7 +50,7 @@ public class SycnedFlushSingleNodeTest extends ElasticsearchSingleNodeTest {
         final IndexShardRoutingTable shardRoutingTable = flushService.getActiveShardRoutings(shardId, state);
         final List<ShardRouting> activeShards = shardRoutingTable.activeShards();
         assertEquals("exactly one active shard", 1, activeShards.size());
-        Map<String, byte[]> commitIds = flushService.sendPreSyncRequests(activeShards, state, shardId);
+        Map<String, Engine.CommitId> commitIds = flushService.sendPreSyncRequests(activeShards, state, shardId);
         assertEquals("exactly one commit id", 1, commitIds.size());
         client().prepareIndex("test", "test", "2").setSource("{}").get();
         String syncId = Strings.base64UUID();
@@ -171,7 +172,7 @@ public class SycnedFlushSingleNodeTest extends ElasticsearchSingleNodeTest {
         final IndexShardRoutingTable shardRoutingTable = flushService.getActiveShardRoutings(shardId, state);
         final List<ShardRouting> activeShards = shardRoutingTable.activeShards();
         assertEquals("exactly one active shard", 1, activeShards.size());
-        Map<String, byte[]> commitIds = flushService.sendPreSyncRequests(activeShards, state, shardId);
+        Map<String, Engine.CommitId> commitIds = flushService.sendPreSyncRequests(activeShards, state, shardId);
         assertEquals("exactly one commit id", 1, commitIds.size());
         if (randomBoolean()) {
             client().prepareIndex("test", "test", "2").setSource("{}").get();
@@ -205,7 +206,7 @@ public class SycnedFlushSingleNodeTest extends ElasticsearchSingleNodeTest {
         final IndexShardRoutingTable shardRoutingTable = flushService.getActiveShardRoutings(shardId, state);
         final List<ShardRouting> activeShards = shardRoutingTable.activeShards();
         assertEquals("exactly one active shard", 1, activeShards.size());
-        Map<String, byte[]> commitIds = flushService.sendPreSyncRequests(activeShards, state, shardId);
+        Map<String, Engine.CommitId> commitIds = flushService.sendPreSyncRequests(activeShards, state, shardId);
         assertEquals("exactly one commit id", 1, commitIds.size());
         commitIds.clear(); // wipe it...
         String syncId = Strings.base64UUID();

@@ -37,8 +37,12 @@ import org.apache.lucene.search.join.BitDocIdSetFilter;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.Accountables;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.Base64;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.logging.ESLogger;
@@ -227,7 +231,7 @@ public abstract class Engine implements Closeable {
      * @param expectedCommitId the expected value of
      * @return true if the sync commit was made, false o.w.
      */
-    public abstract SyncedFlushResult syncFlushIfNoPendingChanges(String syncId, byte[] expectedCommitId) throws EngineException;
+    public abstract SyncedFlushResult syncFlushIfNoPendingChanges(String syncId, CommitId expectedCommitId) throws EngineException;
 
     public enum SyncedFlushResult {
         SUCCESS,
@@ -458,7 +462,7 @@ public abstract class Engine implements Closeable {
      *                      Otherwise this call will return without blocking.
      * @return the commit Id for the resulting commit
      */
-    public abstract byte[] flush(boolean force, boolean waitIfOngoing) throws EngineException;
+    public abstract CommitId flush(boolean force, boolean waitIfOngoing) throws EngineException;
 
     /**
      * Flushes the state of the engine including the transaction log, clearing memory and persisting
@@ -468,7 +472,7 @@ public abstract class Engine implements Closeable {
      *
      * @return the commit Id for the resulting commit
      */
-    public abstract byte[] flush() throws EngineException;
+    public abstract CommitId flush() throws EngineException;
 
     /**
      * Optimizes to 1 segment
@@ -1141,4 +1145,54 @@ public abstract class Engine implements Closeable {
      * @return
      */
     public abstract boolean hasUncommittedChanges();
+
+    public static class CommitId implements Writeable {
+        private byte[] id;
+        public CommitId(byte[] id) {
+            assert id != null;
+            this.id = Arrays.copyOf(id, id.length);
+        }
+
+        public CommitId(StreamInput in) throws IOException {
+            assert in != null;
+            this.id = in.readByteArray();
+        }
+
+        @Override
+        public String toString() {
+            return Base64.encodeBytes(id);
+        }
+
+        @Override
+        public CommitId readFrom(StreamInput in) throws IOException {
+            byte[] bytes = in.readByteArray();
+            return new CommitId(bytes);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeByteArray(id);
+        }
+
+        public boolean idsEqual(byte[] id) {
+            return Arrays.equals(id, this.id);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+
+            CommitId commitId = (CommitId) o;
+
+            if (!Arrays.equals(id, commitId.id)) return false;
+
+            return true;
+        }
+
+        @Override
+        public int hashCode() {
+            return Arrays.hashCode(id);
+        }
+    }
 }

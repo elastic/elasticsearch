@@ -665,14 +665,14 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public SyncedFlushResult syncFlushIfNoPendingChanges(String syncId, byte[] expectedCommitId) throws EngineException {
+    public SyncedFlushResult syncFlushIfNoPendingChanges(String syncId, CommitId expectedCommitId) throws EngineException {
         // best effort attempt before we acquire locks
         ensureOpen();
         if (indexWriter.hasUncommittedChanges()) {
             logger.trace("can't sync commit [{}]. have pending changes", syncId);
             return SyncedFlushResult.FAILED_PENDING_OPERATIONS;
         }
-        if (Arrays.equals(expectedCommitId, lastCommittedSegmentInfos.getId()) == false) {
+        if (expectedCommitId.idsEqual(lastCommittedSegmentInfos.getId()) == false) {
             logger.trace("can't sync commit [{}]. current commit id is not equal to expected.", syncId);
             return SyncedFlushResult.FAILED_COMMIT_MISMATCH;
         }
@@ -682,7 +682,7 @@ public class InternalEngine extends Engine {
                 logger.trace("can't sync commit [{}]. have pending changes", syncId);
                 return SyncedFlushResult.FAILED_PENDING_OPERATIONS;
             }
-            if (Arrays.equals(expectedCommitId, lastCommittedSegmentInfos.getId()) == false) {
+            if (expectedCommitId.idsEqual(lastCommittedSegmentInfos.getId()) == false) {
                 logger.trace("can't sync commit [{}]. current commit id is not equal to expected.", syncId);
                 return SyncedFlushResult.FAILED_COMMIT_MISMATCH;
             }
@@ -699,16 +699,16 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public byte[] flush() throws EngineException {
+    public CommitId flush() throws EngineException {
         return flush(true, false, false);
     }
 
     @Override
-    public byte[] flush(boolean force, boolean waitIfOngoing) throws EngineException {
+    public CommitId flush(boolean force, boolean waitIfOngoing) throws EngineException {
         return flush(true, force, waitIfOngoing);
     }
 
-    private byte[] flush(boolean commitTranslog, boolean force, boolean waitIfOngoing) throws EngineException {
+    private CommitId flush(boolean commitTranslog, boolean force, boolean waitIfOngoing) throws EngineException {
         ensureOpen();
         final byte[] newCommitId;
         /*
@@ -799,7 +799,7 @@ public class InternalEngine extends Engine {
         if (engineConfig.isEnableGcDeletes()) {
             pruneDeletedTombstones();
         }
-        return newCommitId;
+        return new CommitId(newCommitId);
     }
 
     private void pruneDeletedTombstones() {

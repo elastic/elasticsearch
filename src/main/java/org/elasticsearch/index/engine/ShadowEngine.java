@@ -125,17 +125,17 @@ public class ShadowEngine extends Engine {
     }
 
     @Override
-    public SyncedFlushResult syncFlushIfNoPendingChanges(String syncId, byte[] expectedCommitId) {
+    public SyncedFlushResult syncFlushIfNoPendingChanges(String syncId, CommitId expectedCommitId) {
         throw new UnsupportedOperationException(shardId + " sync commit operation not allowed on shadow engine");
     }
 
     @Override
-    public byte[] flush() throws EngineException {
+    public CommitId flush() throws EngineException {
         return flush(false, false);
     }
 
     @Override
-    public byte[] flush(boolean force, boolean waitIfOngoing) throws EngineException {
+    public CommitId flush(boolean force, boolean waitIfOngoing) throws EngineException {
         logger.trace("skipping FLUSH on shadow engine");
         // reread the last committed segment infos
         refresh("flush");
@@ -159,7 +159,7 @@ public class ShadowEngine extends Engine {
         } finally {
             store.decRef();
         }
-        return lastCommittedSegmentInfos.getId();
+        return new CommitId(lastCommittedSegmentInfos.getId());
     }
 
     @Override

@@ -231,7 +231,7 @@ public abstract class Engine implements Closeable {
      * @param expectedCommitId the expected value of
      * @return true if the sync commit was made, false o.w.
      */
-    public abstract SyncedFlushResult syncFlushIfNoPendingChanges(String syncId, CommitId expectedCommitId) throws EngineException;
+    public abstract SyncedFlushResult syncFlush(String syncId, CommitId expectedCommitId) throws EngineException;
 
     public enum SyncedFlushResult {
         SUCCESS,

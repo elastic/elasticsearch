@@ -331,17 +331,18 @@ public class GatewayAllocator extends AbstractComponent {
                             if (primaryNodeStore != null && primaryNodeStore.allocated()) {
                                 long sizeMatched = 0;
 
+                                String primarySyncId = primaryNodeStore.syncId();
+                                String replicaSyncId = storeFilesMetaData.syncId();
                                 // see if we have a sync id we can make use of
-                                if (storeFilesMetaData.syncId() != null && storeFilesMetaData.syncId().equals(primaryNodeStore.syncId())) {
-                                    logger.trace("{}: node [{}] has same sync id {} as primary", shard, discoNode.name(), storeFilesMetaData.syncId());
+                                if (replicaSyncId != null && replicaSyncId.equals(primarySyncId)) {
+                                    logger.trace("{}: node [{}] has same sync id {} as primary", shard, discoNode.name(), replicaSyncId);
                                     lastNodeMatched = node;
                                     lastSizeMatched = Long.MAX_VALUE;
                                     lastDiscoNodeMatched = discoNode;
                                 } else {
                                     for (StoreFileMetaData storeFileMetaData : storeFilesMetaData) {
-                                        logger.trace("{}: node [{}] has file {}",
-                                                shard, discoNode.name(), storeFileMetaData.name());
-                                        if (primaryNodeStore.fileExists(storeFileMetaData.name()) && primaryNodeStore.file(storeFileMetaData.name()).isSame(storeFileMetaData)) {
+                                        String metaDataFileName = storeFileMetaData.name();
+                                        if (primaryNodeStore.fileExists(metaDataFileName) && primaryNodeStore.file(metaDataFileName).isSame(storeFileMetaData)) {
                                             sizeMatched += storeFileMetaData.length();
                                         }
                                     }

@@ -41,6 +41,7 @@ import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.LuceneTestCase.SuppressFileSystems;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.Base64;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -690,11 +691,12 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         final String syncId = randomUnicodeOfCodepointLengthBetween(10, 20);
         ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, null);
         engine.create(new Engine.Create(null, newUid("1"), doc));
-        byte[] commitID = engine.flush();
-        assertThat(commitID, equalTo(store.readLastCommittedSegmentsInfo().getId()));
-        byte[] fakeId = commitID.clone();
-        fakeId[0] = (byte) ~fakeId[0];
-        assertThat("should fail to sync flush with wrong id (but no docs)", engine.syncFlushIfNoPendingChanges(syncId + "1", fakeId),
+        Engine.CommitId commitID = engine.flush();
+        assertThat(commitID, equalTo(new Engine.CommitId(store.readLastCommittedSegmentsInfo().getId())));
+        byte[] wrongBytes = Base64.decode(commitID.toString());
+        wrongBytes[0] = (byte) ~wrongBytes[0];
+        Engine.CommitId wrongId = new Engine.CommitId(wrongBytes);
+        assertThat("should fail to sync flush with wrong id (but no docs)", engine.syncFlushIfNoPendingChanges(syncId + "1", wrongId),
                 equalTo(Engine.SyncedFlushResult.FAILED_COMMIT_MISMATCH));
         engine.create(new Engine.Create(null, newUid("2"), doc));
         assertThat("should fail to sync flush with right id but pending doc", engine.syncFlushIfNoPendingChanges(syncId + "2", commitID),
@@ -1797,5 +1799,4 @@ public class InternalEngineTests extends ElasticsearchTestCase {
             recoveredOps.incrementAndGet();
         }
     }
-    
 }

@@ -697,10 +697,10 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         wrongBytes[0] = (byte) ~wrongBytes[0];
         Engine.CommitId wrongId = new Engine.CommitId(wrongBytes);
         assertThat("should fail to sync flush with wrong id (but no docs)", engine.syncFlush(syncId + "1", wrongId),
-                equalTo(Engine.SyncedFlushResult.FAILED_COMMIT_MISMATCH));
+                equalTo(Engine.SyncedFlushResult.COMMIT_MISMATCH));
         engine.create(new Engine.Create(null, newUid("2"), doc));
         assertThat("should fail to sync flush with right id but pending doc", engine.syncFlush(syncId + "2", commitID),
-                equalTo(Engine.SyncedFlushResult.FAILED_PENDING_OPERATIONS));
+                equalTo(Engine.SyncedFlushResult.PENDING_OPERATIONS));
         commitID = engine.flush();
         assertThat("should succeed to flush commit with right id and no pending doc", engine.syncFlush(syncId, commitID),
                 equalTo(Engine.SyncedFlushResult.SUCCESS));

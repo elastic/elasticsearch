@@ -34,6 +34,7 @@ import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.index.cache.fixedbitset.FixedBitSetFilter;
 import org.elasticsearch.index.fieldvisitor.SingleFieldsVisitor;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
@@ -43,6 +44,7 @@ import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
 import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.internal.FilteredSearchContext;
+import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -242,23 +244,23 @@ public final class InnerHitsContext {
 
     public static final class ParentChildInnerHits extends BaseInnerHits {
 
+        private final MapperService mapperService;
         private final DocumentMapper documentMapper;
 
-        public ParentChildInnerHits(SearchContext context, Query query, Map<String, BaseInnerHits> childInnerHits, DocumentMapper documentMapper) {
+        public ParentChildInnerHits(SearchContext context, Query query, Map<String, BaseInnerHits> childInnerHits, MapperService mapperService, DocumentMapper documentMapper) {
             super(context, query, childInnerHits);
+            this.mapperService = mapperService;
             this.documentMapper = documentMapper;
         }
 
         @Override
         public TopDocs topDocs(SearchContext context, FetchSubPhase.HitContext hitContext) throws IOException {
-            final String term;
             final String field;
-            if (documentMapper.parentFieldMapper().active()) {
-                // Active _parent field has been selected, so we want a children doc as inner hits.
+            final String term;
+            if (isParentHit(hitContext.hit())) {
                 field = ParentFieldMapper.NAME;
                 term = Uid.createUid(hitContext.hit().type(), hitContext.hit().id());
-            } else {
-                // No active _parent field has been selected, so we want parent docs as inner hits.
+            } else if (isChildHit(hitContext.hit())) {
                 field = UidFieldMapper.NAME;
                 SearchHitField parentField = hitContext.hit().field(ParentFieldMapper.NAME);
                 if (parentField != null) {
@@ -271,9 +273,13 @@ public final class InnerHitsContext {
                     }
                     term = (String) fieldsVisitor.fields().get(ParentFieldMapper.NAME).get(0);
                 }
+            } else {
+                return Lucene.EMPTY_TOP_DOCS;
             }
-            Filter filter = new TermFilter(new Term(field, term)); // Only include docs that have the current hit as parent
-            Filter typeFilter = documentMapper.typeFilter(); // Only include docs that have this inner hits type.
+            // Only include docs that have the current hit as parent
+            Filter filter = new TermFilter(new Term(field, term));
+            // Only include docs that have this inner hits type
+            Filter typeFilter = documentMapper.typeFilter();
 
             if (size() == 0) {
                 TotalHitCountCollector collector = new TotalHitCountCollector();
@@ -296,6 +302,15 @@ public final class InnerHitsContext {
                 );
                 return topDocsCollector.topDocs(from(), size());
             }
+        }
+
+        private boolean isParentHit(InternalSearchHit hit) {
+            return hit.type().equals(documentMapper.parentFieldMapper().type());
+        }
+
+        private boolean isChildHit(InternalSearchHit hit) {
+            DocumentMapper hitDocumentMapper = mapperService.documentMapper(hit.type());
+            return documentMapper.type().equals(hitDocumentMapper.parentFieldMapper().type());
         }
     }
 }

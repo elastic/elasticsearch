@@ -34,11 +34,13 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.IndicesLifecycle;
 import org.elasticsearch.indices.SyncedFlushService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 
 import java.io.IOException;
+import java.util.HashSet;
 import java.util.Set;
 
 /**
@@ -60,34 +62,39 @@ public class TransportSealIndicesAction extends HandledTransportAction<SealIndic
     protected void doExecute(final SealIndicesRequest request, final ActionListener<SealIndicesResponse> listener) {
         ClusterState state = clusterService.state();
         String[] concreteIndices = state.metaData().concreteIndices(request.indicesOptions(), request.indices());
-        GroupShardsIterator primaries = state.routingTable().activePrimaryShardsGrouped(concreteIndices, false);
+        GroupShardsIterator primaries = state.routingTable().activePrimaryShardsGrouped(concreteIndices, true);
         final Set<SyncedFlushService.SyncedFlushResult> results = ConcurrentCollections.newConcurrentSet();
-        if (primaries.size() == 0) {
-            // no active primary available
-            listener.onResponse(new SealIndicesResponse(results));
-            return;
-        }
-        final CountDown countDown = new CountDown(primaries.size());
-        for (final ShardIterator shard : primaries) {
-            final ShardId shardId = shard.shardId();
-            syncedFlushService.attemptSyncedFlush(shardId, new ActionListener<SyncedFlushService.SyncedFlushResult>() {
-                @Override
-                public void onResponse(SyncedFlushService.SyncedFlushResult syncedFlushResult) {
-                    results.add(syncedFlushResult);
-                    if (countDown.countDown()) {
-                        listener.onResponse(new SealIndicesResponse(results));
-                    }
-                }
 
-                @Override
-                public void onFailure(Throwable e) {
-                    logger.debug("{} unexpected error while executing synced flush", shardId);
-                    results.add(new SyncedFlushService.SyncedFlushResult(shardId, e.getMessage()));
-                    if (countDown.countDown()) {
-                        listener.onResponse(new SealIndicesResponse(results));
-                    }
+        final CountDown countDown = new CountDown(primaries.size());
+
+        for (final ShardIterator shard : primaries) {
+            if (shard.size() == 0) {
+                results.add(new SyncedFlushService.SyncedFlushResult(shard.shardId(), "no active primary available"));
+                if (countDown.countDown()) {
+                    listener.onResponse(new SealIndicesResponse(results));
                 }
-            });
+            } else {
+                final ShardId shardId = shard.shardId();
+                syncedFlushService.attemptSyncedFlush(shardId, new ActionListener<SyncedFlushService.SyncedFlushResult>() {
+                    @Override
+                    public void onResponse(SyncedFlushService.SyncedFlushResult syncedFlushResult) {
+                        results.add(syncedFlushResult);
+                        if (countDown.countDown()) {
+                            listener.onResponse(new SealIndicesResponse(results));
+                        }
+                    }
+
+                    @Override
+                    public void onFailure(Throwable e) {
+                        logger.debug("{} unexpected error while executing synced flush", shardId);
+                        results.add(new SyncedFlushService.SyncedFlushResult(shardId, e.getMessage()));
+                        if (countDown.countDown()) {
+                            listener.onResponse(new SealIndicesResponse(results));
+                        }
+                    }
+                });
+            }
         }
+
     }
 }

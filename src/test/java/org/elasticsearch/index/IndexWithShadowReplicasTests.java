@@ -52,6 +52,7 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -612,13 +613,59 @@ public class IndexWithShadowReplicasTests extends ElasticsearchIntegrationTest {
         assertThat(hits[3].field("foo").getValue().toString(), equalTo("foo"));
     }
 
+    /** wait until none of the nodes have shards allocated on them */
+    private void assertNoShardsOn(final List<String> nodeList) throws Exception {
+        assertBusy(new Runnable() {
+            @Override
+            public void run() {
+                ClusterStateResponse resp = client().admin().cluster().prepareState().get();
+                RoutingNodes nodes = resp.getState().getRoutingNodes();
+                for (RoutingNode node : nodes) {
+                    logger.info("--> node {} has {} shards", node.node().getName(), node.numberOfOwningShards());
+                    if (nodeList.contains(node.node().getName())) {
+                        assertThat("no shards on node", node.numberOfOwningShards(), equalTo(0));
+                    }
+                }
+            }
+        });
+    }
+
+    /** wait until the node has the specified number of shards allocated on it */
+    private void assertShardCountOn(final String nodeName, final int shardCount) throws Exception {
+        assertBusy(new Runnable() {
+            @Override
+            public void run() {
+                ClusterStateResponse resp = client().admin().cluster().prepareState().get();
+                RoutingNodes nodes = resp.getState().getRoutingNodes();
+                for (RoutingNode node : nodes) {
+                    logger.info("--> node {} has {} shards", node.node().getName(), node.numberOfOwningShards());
+                    if (nodeName.equals(node.node().getName())) {
+                        assertThat(node.numberOfOwningShards(), equalTo(shardCount));
+                    }
+                }
+            }
+        });
+    }
+
     @Test
     public void testIndexOnSharedFSRecoversToAnyNode() throws Exception {
         Settings nodeSettings = nodeSettings();
+        Settings fooSettings = ImmutableSettings.builder().put(nodeSettings).put("node.affinity", "foo").build();
+        Settings barSettings = ImmutableSettings.builder().put(nodeSettings).put("node.affinity", "bar").build();
 
-        internalCluster().startNode(nodeSettings);
+        final Future<List<String>> fooNodes = internalCluster().startNodesAsync(2, fooSettings);
+        final Future<List<String>> barNodes = internalCluster().startNodesAsync(2, barSettings);
+        fooNodes.get();
+        barNodes.get();
         Path dataPath = createTempDir();
         String IDX = "test";
+
+        Settings includeFoo = ImmutableSettings.builder()
+                .put("index.routing.allocation.include.affinity", "foo")
+                .build();
+        Settings includeBar = ImmutableSettings.builder()
+                .put("index.routing.allocation.include.affinity", "bar")
+                .build();
 
         Settings idxSettings = ImmutableSettings.builder()
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 5)
@@ -626,6 +673,7 @@ public class IndexWithShadowReplicasTests extends ElasticsearchIntegrationTest {
                 .put(IndexMetaData.SETTING_DATA_PATH, dataPath.toAbsolutePath().toString())
                 .put(IndexMetaData.SETTING_SHARED_FILESYSTEM, true)
                 .put(IndexMetaData.SETTING_SHARED_FS_ALLOW_RECOVERY_ON_ANY_NODE, true)
+                .put(includeFoo) // start with requiring the shards on "foo"
                 .build();
 
         // only one node, so all primaries will end up on node1
@@ -637,17 +685,43 @@ public class IndexWithShadowReplicasTests extends ElasticsearchIntegrationTest {
         client().prepareIndex(IDX, "doc", "2").setSource("foo", "bar").get();
         client().prepareIndex(IDX, "doc", "3").setSource("foo", "baz").get();
         client().prepareIndex(IDX, "doc", "4").setSource("foo", "eggplant").get();
+        flushAndRefresh(IDX);
 
-        // start a second node
-        internalCluster().startNode(nodeSettings);
+        // put shards on "bar"
+        client().admin().indices().prepareUpdateSettings(IDX).setSettings(includeBar).get();
 
-        // node1 is master, stop that one, since we only have primaries,
-        // usually this would mean data loss, but not on shared fs!
-        internalCluster().stopCurrentMasterNode();
+        // wait for the shards to move from "foo" nodes to "bar" nodes
+        assertNoShardsOn(fooNodes.get());
 
+        // put shards back on "foo"
+        client().admin().indices().prepareUpdateSettings(IDX).setSettings(includeFoo).get();
+
+        // wait for the shards to move from "bar" nodes to "foo" nodes
+        assertNoShardsOn(barNodes.get());
+
+        // Stop a foo node
+        logger.info("--> stopping first 'foo' node");
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(fooNodes.get().get(0)));
+
+        // Ensure that the other foo node has all the shards now
+        assertShardCountOn(fooNodes.get().get(1), 5);
+
+        // Assert no shards on the "bar" nodes
+        assertNoShardsOn(barNodes.get());
+
+        // Stop the second "foo" node
+        logger.info("--> stopping second 'foo' node");
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(fooNodes.get().get(1)));
+
+        // The index should still be able to be allocated (on the "bar" nodes),
+        // all the "foo" nodes are gone
         ensureGreen(IDX);
-        refresh();
-        SearchResponse resp = client().prepareSearch(IDX).setQuery(matchAllQuery()).addFieldDataField("foo").addSort("foo", SortOrder.ASC).get();
-        assertHitCount(resp, 4);
+
+        // Start another "foo" node and make sure the index moves back
+        logger.info("--> starting additional 'foo' node");
+        String newFooNode = internalCluster().startNode(fooSettings);
+
+        assertShardCountOn(newFooNode, 5);
+        assertNoShardsOn(barNodes.get());
     }
 }

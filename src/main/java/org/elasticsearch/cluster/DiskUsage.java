@@ -59,6 +59,10 @@ public class DiskUsage {
         return 100.0 * ((double)freeBytes / totalBytes);
     }
 
+    public double getUsedDiskAsPercentage() {
+        return 100.0 - getFreeDiskAsPercentage();
+    }
+
     public long getFreeBytes() {
         return freeBytes;
     }

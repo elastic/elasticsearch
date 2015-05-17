@@ -670,21 +670,21 @@ public class InternalEngine extends Engine {
         ensureOpen();
         if (indexWriter.hasUncommittedChanges()) {
             logger.trace("can't sync commit [{}]. have pending changes", syncId);
-            return SyncedFlushResult.FAILED_PENDING_OPERATIONS;
+            return SyncedFlushResult.PENDING_OPERATIONS;
         }
         if (expectedCommitId.idsEqual(lastCommittedSegmentInfos.getId()) == false) {
             logger.trace("can't sync commit [{}]. current commit id is not equal to expected.", syncId);
-            return SyncedFlushResult.FAILED_COMMIT_MISMATCH;
+            return SyncedFlushResult.COMMIT_MISMATCH;
         }
         try (ReleasableLock lock = writeLock.acquire()) {
             ensureOpen();
             if (indexWriter.hasUncommittedChanges()) {
                 logger.trace("can't sync commit [{}]. have pending changes", syncId);
-                return SyncedFlushResult.FAILED_PENDING_OPERATIONS;
+                return SyncedFlushResult.PENDING_OPERATIONS;
             }
             if (expectedCommitId.idsEqual(lastCommittedSegmentInfos.getId()) == false) {
                 logger.trace("can't sync commit [{}]. current commit id is not equal to expected.", syncId);
-                return SyncedFlushResult.FAILED_COMMIT_MISMATCH;
+                return SyncedFlushResult.COMMIT_MISMATCH;
             }
             logger.trace("starting sync commit [{}]", syncId);
             final long translogId = translog.currentId();

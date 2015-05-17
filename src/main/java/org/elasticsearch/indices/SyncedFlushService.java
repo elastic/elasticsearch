@@ -347,9 +347,9 @@ public class SyncedFlushService extends AbstractComponent {
         switch (result) {
             case SUCCESS:
                 return new SyncedFlushResponse();
-            case FAILED_COMMIT_MISMATCH:
+            case COMMIT_MISMATCH:
                 return new SyncedFlushResponse("commit has changed");
-            case FAILED_PENDING_OPERATIONS:
+            case PENDING_OPERATIONS:
                 return new SyncedFlushResponse("pending operations");
             default:
                 throw new ElasticsearchException("unknown synced flush result [" + result + "]");

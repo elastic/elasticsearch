@@ -235,8 +235,8 @@ public abstract class Engine implements Closeable {
 
     public enum SyncedFlushResult {
         SUCCESS,
-        FAILED_COMMIT_MISMATCH,
-        FAILED_PENDING_OPERATIONS
+        COMMIT_MISMATCH,
+        PENDING_OPERATIONS
     }
 
     final protected GetResult getFromSearcher(Get get) throws EngineException {

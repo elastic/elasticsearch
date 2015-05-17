@@ -19,24 +19,14 @@
 
 package org.elasticsearch.action.admin.indices.seal;
 
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.IndicesRequest;
-import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.action.support.broadcast.BroadcastOperationRequest;
 
-import java.io.IOException;
 import java.util.Arrays;
 
 /**
  * A request to seal one or more indices.
  */
-public class SealIndicesRequest extends ActionRequest implements IndicesRequest.Replaceable {
-
-    private String[] indices;
-
-    private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpenAndForbidClosed();
+public class SealIndicesRequest extends BroadcastOperationRequest {
 
     SealIndicesRequest() {
     }
@@ -46,54 +36,14 @@ public class SealIndicesRequest extends ActionRequest implements IndicesRequest.
      * be sealed.
      */
     public SealIndicesRequest(String... indices) {
-        this.indices = indices;
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeStringArrayNullable(indices);
-        indicesOptions.writeIndicesOptions(out);
+        super(indices);
     }
 
     @Override
     public String toString() {
         return "SealIndicesRequest{" +
                 "indices=" + Arrays.toString(indices) +
-                ", indicesOptions=" + indicesOptions +
+                ", indicesOptions=" + indicesOptions() +
                 '}';
-    }
-
-    @Override
-    public ActionRequestValidationException validate() {
-        return null;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        indices = in.readStringArray();
-        indicesOptions = IndicesOptions.readIndicesOptions(in);
-    }
-
-    @Override
-    public SealIndicesRequest indices(String[] indices) {
-        this.indices = indices;
-        return this;
-    }
-
-    public String[] indices() {
-        return indices;
-    }
-
-    @Override
-    public IndicesOptions indicesOptions() {
-        return indicesOptions;
-    }
-
-    @SuppressWarnings("unchecked")
-    public final SealIndicesRequest indicesOptions(IndicesOptions indicesOptions) {
-        this.indicesOptions = indicesOptions;
-        return this;
     }
 }

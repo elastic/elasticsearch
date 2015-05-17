@@ -691,10 +691,10 @@ public class IndexShard extends AbstractIndexShardComponent {
         return completionStats;
     }
 
-    public Engine.SyncedFlushResult syncFlushIfNoPendingChanges(String syncId, Engine.CommitId expectedCommitId) {
+    public Engine.SyncedFlushResult syncFlush(String syncId, Engine.CommitId expectedCommitId) {
         verifyStartedOrRecovering();
         logger.trace("trying to sync flush. sync id [{}]. expected commit id [{}]]", syncId, expectedCommitId);
-        return engine().syncFlushIfNoPendingChanges(syncId, expectedCommitId);
+        return engine().syncFlush(syncId, expectedCommitId);
     }
 
     public Engine.CommitId flush(FlushRequest request) throws ElasticsearchException {

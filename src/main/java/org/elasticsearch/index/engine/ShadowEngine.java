@@ -125,7 +125,7 @@ public class ShadowEngine extends Engine {
     }
 
     @Override
-    public SyncedFlushResult syncFlushIfNoPendingChanges(String syncId, CommitId expectedCommitId) {
+    public SyncedFlushResult syncFlush(String syncId, CommitId expectedCommitId) {
         throw new UnsupportedOperationException(shardId + " sync commit operation not allowed on shadow engine");
     }
 

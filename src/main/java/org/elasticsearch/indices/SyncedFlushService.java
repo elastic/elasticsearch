@@ -342,7 +342,7 @@ public class SyncedFlushService extends AbstractComponent {
         IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
         IndexShard indexShard = indexService.shardSafe(request.shardId().id());
         logger.trace("{} performing sync flush. sync id [{}], expected commit id {}", request.shardId(), request.syncId(), request.expectedCommitId());
-        Engine.SyncedFlushResult result = indexShard.syncFlushIfNoPendingChanges(request.syncId(), request.expectedCommitId());
+        Engine.SyncedFlushResult result = indexShard.syncFlush(request.syncId(), request.expectedCommitId());
         logger.trace("{} sync flush done. sync id [{}], result  [{}]", request.shardId(), request.syncId(), result);
         switch (result) {
             case SUCCESS:

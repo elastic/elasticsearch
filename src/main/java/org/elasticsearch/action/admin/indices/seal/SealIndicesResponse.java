@@ -35,9 +35,10 @@ import java.util.*;
  */
 public class SealIndicesResponse extends ActionResponse implements ToXContent {
 
-    private Set<SyncedFlushService.SyncedFlushResult> results;
+    final private Set<SyncedFlushService.SyncedFlushResult> results;
 
     SealIndicesResponse() {
+        results = new HashSet<>();
     }
 
     SealIndicesResponse(Set<SyncedFlushService.SyncedFlushResult> results) {
@@ -48,7 +49,7 @@ public class SealIndicesResponse extends ActionResponse implements ToXContent {
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         int size = in.readVInt();
-        results = new HashSet<>();
+        results.clear();
         for (int i = 0; i < size; i++) {
             SyncedFlushService.SyncedFlushResult syncedFlushResult = new SyncedFlushService.SyncedFlushResult();
             syncedFlushResult.readFrom(in);

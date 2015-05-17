@@ -19,6 +19,7 @@
 package org.elasticsearch.indices;
 
 import org.elasticsearch.action.admin.indices.seal.SealIndicesResponse;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
@@ -41,6 +42,8 @@ public class SealTests extends ElasticsearchIntegrationTest {
         // this should not hang but instead immediately return with empty result set
         SealIndicesResponse sealIndicesResponse = client().admin().indices().prepareSealIndices("test").get();
         // just to make sure the test actually tests the right thing
-        assertThat(sealIndicesResponse.results().size(), equalTo(0));
+        int numShards = client().admin().indices().prepareGetSettings("test").get().getIndexToSettings().get("test").getAsInt(IndexMetaData.SETTING_NUMBER_OF_SHARDS, -1);
+        assertThat(sealIndicesResponse.results().size(), equalTo(numShards));
+        assertThat(sealIndicesResponse.results().iterator().next().failureReason(), equalTo("no active primary available"));
     }
 }

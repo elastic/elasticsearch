@@ -8,6 +8,7 @@ package org.elasticsearch.watcher.test.rest;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import org.apache.lucene.util.AbstractRandomizedTest.Rest;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.client.support.Headers;
 import org.elasticsearch.common.base.Charsets;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.Streams;
@@ -17,6 +18,7 @@ import org.elasticsearch.license.plugin.LicensePlugin;
 import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.shield.ShieldPlugin;
 import org.elasticsearch.shield.authc.esusers.ESUsersRealm;
+import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.rest.ElasticsearchRestTests;
@@ -27,6 +29,7 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
 
+import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope.SUITE;
 
 
@@ -50,7 +53,6 @@ public class WatcherRestTests extends ElasticsearchRestTests {
                         + (shieldEnabled ? ShieldPlugin.class.getName() + "," : "")
                         + "," + LicensePlugin.class.getName())
                 .put(InternalNode.HTTP_ENABLED, true)
-                .put("shield.user", "admin:changeme")
                 .put(ShieldSettings.settings(shieldEnabled))
         .build();
     }
@@ -61,23 +63,13 @@ public class WatcherRestTests extends ElasticsearchRestTests {
     @Override
     protected Settings restClientSettings() {
         if (shieldEnabled) {
+            String token = basicAuthHeaderValue("admin", new SecuredString("changeme".toCharArray()));
             return ImmutableSettings.builder()
-                    .put("client.transport.sniff", false)
-                    .put("plugin.types", WatcherPlugin.class.getName() + ","
-                            + (shieldEnabled ? ShieldPlugin.class.getName() + "," : "")
-                            + "," + LicensePlugin.class.getName())
-                    .put(InternalNode.HTTP_ENABLED, true)
-                    .put("shield.user", "admin:changeme")
-                    .put(ShieldSettings.settings(shieldEnabled))
+                    .put(Headers.PREFIX + ".Authorization", token)
                     .build();
+        } else {
+            return ImmutableSettings.EMPTY;
         }
-
-        return ImmutableSettings.builder()
-                .put("plugin.types", WatcherPlugin.class.getName())
-                .put(InternalNode.HTTP_ENABLED, true)
-                .put("plugin.types", WatcherPlugin.class.getName() + ","
-                        + "," + LicensePlugin.class.getName())
-                .build();
     }
 
     @Override
@@ -88,7 +80,6 @@ public class WatcherRestTests extends ElasticsearchRestTests {
                     .put("client.transport.sniff", false)
                     .put("plugin.types", WatcherPlugin.class.getName() + ","
                             + (shieldEnabled ? ShieldPlugin.class.getName() + "," : ""))
-                    .put(ShieldSettings.settings(shieldEnabled))
                     .put("shield.user", "admin:changeme")
                     .put(InternalNode.HTTP_ENABLED, true)
                     .build();
@@ -119,7 +110,7 @@ public class WatcherRestTests extends ElasticsearchRestTests {
 
         public static final String ROLES =
                 "test:\n" + // a user for the test infra.
-                "  cluster: all, manage_watcher\n" +
+                "  cluster: cluster:monitor/state, cluster:monitor/health, indices:admin/template/delete, cluster:admin/repository/delete, indices:admin/template/put\n" +
                 "  indices:\n" +
                 "    '*': all\n" +
                 "\n" +
@@ -143,8 +134,6 @@ public class WatcherRestTests extends ElasticsearchRestTests {
             return builder.put("shield.enabled", true)
                     .put("shield.user", "test:changeme")
                     .put("shield.authc.realms.esusers.type", ESUsersRealm.TYPE)
-                    .put("shield.authc.anonymous.username","anonymous_user")
-                    .put("shield.authc.anonymous.roles", "admin")
                     .put("shield.authc.realms.esusers.order", 0)
                     .put("shield.authc.realms.esusers.files.users", writeFile(folder, "users", USERS))
                     .put("shield.authc.realms.esusers.files.users_roles", writeFile(folder, "users_roles", USER_ROLES))

@@ -97,7 +97,7 @@ public class WatcherShieldAuthorizationFailedRestTests extends WatcherRestTests 
 
         public static final String ROLES =
                 "test:\n" + // a user for the test infra.
-                        "  cluster: all, manage_watcher\n" +
+                        "  cluster: all, cluster:monitor/state, cluster:monitor/health, indices:admin/template/delete, cluster:admin/repository/delete, indices:admin/template/put\n" +
                         "  indices:\n" +
                         "    '*': all\n" +
                         "\n" +

@@ -25,6 +25,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.ByteArrayDataOutput;
 import org.apache.lucene.util.IOUtils;
+import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
@@ -70,6 +71,7 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
+@LuceneTestCase.SuppressFileSystems("ExtrasFS")
 public class TranslogTests extends ElasticsearchTestCase {
 
     protected final ShardId shardId = new ShardId(new Index("index"), 1);
@@ -106,6 +108,7 @@ public class TranslogTests extends ElasticsearchTestCase {
     @After
     public void tearDown() throws Exception {
         try {
+            assertEquals("there are still open views", 0, translog.getNumOpenViews());
             translog.close();
         } finally {
             super.tearDown();

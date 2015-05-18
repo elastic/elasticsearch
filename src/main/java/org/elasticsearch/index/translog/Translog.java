@@ -125,7 +125,8 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         @Override
         public void handle(View view) {
             logger.trace("closing view starting at translog [{}]", view.minTranslogGeneration());
-            outstandingViews.remove(this);
+            boolean removed = outstandingViews.remove(view);
+            assert removed : "View was never set but was supposed to be removed";
         }
     };
 
@@ -448,18 +449,18 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      * @see org.elasticsearch.index.translog.Translog.Delete
      */
     public Location add(Operation operation) throws TranslogException {
-        ReleasableBytesStreamOutput out = new ReleasableBytesStreamOutput(bigArrays);
+        final ReleasableBytesStreamOutput out = new ReleasableBytesStreamOutput(bigArrays);
         try {
             final BufferedChecksumStreamOutput checksumStreamOutput = new BufferedChecksumStreamOutput(out);
             final long start = out.position();
             out.skip(RamUsageEstimator.NUM_BYTES_INT);
             writeOperationNoSize(checksumStreamOutput, operation);
-            long end = out.position();
-            int operationSize = (int) (out.position() - RamUsageEstimator.NUM_BYTES_INT - start);
+            final long end = out.position();
+            final int operationSize = (int) (end - RamUsageEstimator.NUM_BYTES_INT - start);
             out.seek(start);
             out.writeInt(operationSize);
             out.seek(end);
-            ReleasablePagedBytesReference bytes = out.bytes();
+            final ReleasablePagedBytesReference bytes = out.bytes();
             try (ReleasableLock lock = readLock.acquire()) {
                 Location location = current.add(bytes);
                 if (config.isSyncOnEachOperation()) {
@@ -1766,6 +1767,13 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         if (closed.get()) {
             throw new AlreadyClosedException("translog is already closed");
         }
+    }
+
+    /**
+     * The number of currently open views
+     */
+    int getNumOpenViews() {
+        return outstandingViews.size();
     }
 
 }

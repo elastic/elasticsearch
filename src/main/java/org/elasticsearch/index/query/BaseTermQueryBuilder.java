@@ -30,7 +30,7 @@ import java.io.IOException;
 import java.util.Objects;
 
 public abstract class BaseTermQueryBuilder<QB extends BoostableQueryBuilder<QB>> extends QueryBuilder implements Streamable, BoostableQueryBuilder<QB> {
-    
+
     /** Name of field to match against. */
     protected String fieldName;
 
@@ -111,11 +111,7 @@ public abstract class BaseTermQueryBuilder<QB extends BoostableQueryBuilder<QB>>
      */
     public BaseTermQueryBuilder(String fieldName, Object value) {
         this.fieldName = fieldName;
-        if (value instanceof String) {
-            this.value = BytesRefs.toBytesRef(value);
-        } else {
-            this.value = value;
-        }
+        this.value = convertToBytesRefIfString(value);
     }
 
     BaseTermQueryBuilder() {
@@ -129,9 +125,9 @@ public abstract class BaseTermQueryBuilder<QB extends BoostableQueryBuilder<QB>>
 
     /** Returns the value used in this query. */
     public Object value() {
-        return this.value;
+        return convertToStringIfBytesRef(this.value);
     }
-    
+
     /** Returns the query name for the query. */
     public String queryName() {
         return this.queryName;
@@ -144,7 +140,7 @@ public abstract class BaseTermQueryBuilder<QB extends BoostableQueryBuilder<QB>>
         this.queryName = queryName;
         return (QB) this;
     }
-    
+
     /** Returns the boost for this query. */
     public float boost() {
         return this.boost;
@@ -163,16 +159,11 @@ public abstract class BaseTermQueryBuilder<QB extends BoostableQueryBuilder<QB>>
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(parserName());
-        Object valueToWrite = value;
-        if (value instanceof BytesRef) {
-            valueToWrite = ((BytesRef) value).utf8ToString();
-        }
-
         if (boost == 1.0f && queryName == null) {
-            builder.field(fieldName, valueToWrite);
+            builder.field(fieldName, convertToStringIfBytesRef(this.value));
         } else {
             builder.startObject(fieldName);
-            builder.field("value", valueToWrite);
+            builder.field("value", convertToStringIfBytesRef(this.value));
             if (boost != 1.0f) {
                 builder.field("boost", boost);
             }
@@ -183,7 +174,7 @@ public abstract class BaseTermQueryBuilder<QB extends BoostableQueryBuilder<QB>>
         }
         builder.endObject();
     }
-    
+
     /** Returns a {@link QueryValidationException} if fieldName is null or empty, or if value is null. */
     @Override
     public QueryValidationException validate() {
@@ -194,7 +185,7 @@ public abstract class BaseTermQueryBuilder<QB extends BoostableQueryBuilder<QB>>
         if (value == null) {
             validationException = QueryValidationException.addValidationError("value cannot be null.", validationException);
         }
-        return validationException;        
+        return validationException;
     }
 
     @Override

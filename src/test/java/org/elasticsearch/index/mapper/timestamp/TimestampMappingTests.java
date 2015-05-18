@@ -534,7 +534,6 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
         DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
 
         DocumentMapper docMapper = parser.parse(mapping);
-        docMapper.refreshSource();
         docMapper = parser.parse(docMapper.mappingSource().string());
         assertThat(docMapper.mappingSource().string(), equalTo(mapping));
     }
@@ -557,7 +556,6 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
 
         DocumentMapper docMapper = parser.parse(mapping);
         boolean tokenized = docMapper.timestampFieldMapper().fieldType().tokenized();
-        docMapper.refreshSource();
         docMapper = parser.parse(docMapper.mappingSource().string());
         assertThat(tokenized, equalTo(docMapper.timestampFieldMapper().fieldType().tokenized()));
     }
@@ -686,7 +684,6 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
 
     void assertConflict(String mapping1, String mapping2, DocumentMapperParser parser, String conflict) throws IOException {
         DocumentMapper docMapper = parser.parse(mapping1);
-        docMapper.refreshSource();
         docMapper = parser.parse(docMapper.mappingSource().string());
         MergeResult mergeResult = docMapper.merge(parser.parse(mapping2).mapping(), true);
         assertThat(mergeResult.buildConflicts().length, equalTo(conflict == null ? 0 : 1));
@@ -744,7 +741,6 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
         DocumentMapperParser parser = createIndex("test_doc_values").mapperService().documentMapperParser();
         DocumentMapper docMapper = parser.parse(mapping);
         boolean docValues= docMapper.timestampFieldMapper().hasDocValues();
-        docMapper.refreshSource();
         docMapper = parser.parse(docMapper.mappingSource().string());
         assertThat(docMapper.timestampFieldMapper().hasDocValues(), equalTo(docValues));
         assertAcked(client().admin().indices().prepareDelete("test_doc_values"));

@@ -194,7 +194,15 @@ public class InternalEngine extends Engine {
         final Translog translog = new Translog(translogConfig);
         if (generation == null) {
             logger.debug("no translog ID present in the current generation - creating one");
-            commitIndexWriter(writer, translog);
+            boolean success = false;
+            try {
+                commitIndexWriter(writer, translog);
+                success = true;
+            } finally {
+                if (success == false) {
+                    IOUtils.closeWhileHandlingException(translog);
+                }
+            }
         }
         return translog;
     }

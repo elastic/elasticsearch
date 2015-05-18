@@ -534,29 +534,8 @@ public abstract class Engine implements Closeable {
         return t;
     }
 
-    public static interface FailedEngineListener {
+    public interface FailedEngineListener {
         void onFailedEngine(ShardId shardId, String reason, @Nullable Throwable t);
-    }
-
-    /**
-     * Recovery allow to start the recovery process. It is built of three phases.
-     * <p/>
-     * <p>The first phase allows to take a snapshot of the master index. Once this
-     * is taken, no commit operations are effectively allowed on the index until the recovery
-     * phases are through.
-     * <p/>
-     * <p>The seconds phase takes a snapshot of the current transaction log.
-     * <p/>
-     * <p>The last phase returns the remaining transaction log. During this phase, no dirty
-     * operations are allowed on the index.
-     */
-    public static interface RecoveryHandler {
-
-        void phase1(SnapshotIndexCommit snapshot);
-
-        void phase2(Translog.Snapshot snapshot);
-
-        void phase3(Translog.Snapshot snapshot);
     }
 
     public static class Searcher implements Releasable {

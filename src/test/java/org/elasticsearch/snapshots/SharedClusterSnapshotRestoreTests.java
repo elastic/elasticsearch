@@ -1556,7 +1556,7 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
             SnapshotStatus snapshotStatus = client.admin().cluster().prepareSnapshotStatus("test-repo").setSnapshots("test-1").get().getSnapshots().get(0);
             List<SnapshotIndexShardStatus> shards = snapshotStatus.getShards();
             for (SnapshotIndexShardStatus status : shards) {
-                assertThat(status.getStats().getProcessedFiles(), equalTo(1)); // we flush before the snapshot such that we have to process the segments_N files
+                assertThat(status.getStats().getProcessedFiles(), equalTo(0));
             }
         }
 

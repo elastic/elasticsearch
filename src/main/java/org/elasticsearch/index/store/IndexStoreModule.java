@@ -32,7 +32,7 @@ public class IndexStoreModule extends AbstractModule implements SpawnModules {
 
     private final Settings settings;
 
-    public static enum Type {
+    public enum Type {
         NIOFS {
             @Override
             public boolean match(String setting) {

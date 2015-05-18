@@ -40,6 +40,7 @@ import org.elasticsearch.monitor.fs.FsStats;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.engine.MockEngineSupport;
 import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.test.store.MockFSIndexStoreModule;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportModule;
 import org.junit.Test;
@@ -81,6 +82,7 @@ public class CorruptedTranslogTests extends ElasticsearchIntegrationTest {
                 .put("index.number_of_shards", 1)
                 .put("index.number_of_replicas", 0)
                 .put("index.refresh_interval", "-1")
+                .put(IndexStoreModule.STORE_TYPE, IndexStoreModule.Type.DEFAULT) // no mock store - it commits for check-index
                 .put(MockEngineSupport.FLUSH_ON_CLOSE_RATIO, 0.0d) // never flush - always recover from translog
                 .put(IndexShard.INDEX_FLUSH_ON_CLOSE, false) // never flush - always recover from translog
                 .put(TranslogConfig.INDEX_TRANSLOG_SYNC_INTERVAL, "1s") // fsync the translog every second

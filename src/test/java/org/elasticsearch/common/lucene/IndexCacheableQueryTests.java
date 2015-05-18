@@ -20,7 +20,6 @@
 package org.elasticsearch.common.lucene;
 
 import org.apache.lucene.document.Document;
-import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.MultiReader;
@@ -94,6 +93,7 @@ public class IndexCacheableQueryTests extends ElasticsearchTestCase {
         QueryUtils.checkUnequal(rewritten, rewritten2);
     }
 
+    @AwaitsFix(bugUrl="https://issues.apache.org/jira/browse/LUCENE-6483")
     public void testCache() throws IOException {
         Directory dir = newDirectory();
         LRUQueryCache cache = new LRUQueryCache(10000, Long.MAX_VALUE);

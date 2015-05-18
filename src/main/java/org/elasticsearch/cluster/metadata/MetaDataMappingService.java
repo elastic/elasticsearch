@@ -382,8 +382,8 @@ public class MetaDataMappingService extends AbstractComponent {
                             if (existingMapper != null) {
                                 // first, simulate
                                 MergeResult mergeResult = existingMapper.merge(newMapper.mapping(), true);
-                                // if we have conflicts, and we are not supposed to ignore them, throw an exception
-                                if (!request.ignoreConflicts() && mergeResult.hasConflicts()) {
+                                // if we have conflicts, throw an exception
+                                if (mergeResult.hasConflicts()) {
                                     throw new MergeMappingException(mergeResult.buildConflicts());
                                 }
                             }

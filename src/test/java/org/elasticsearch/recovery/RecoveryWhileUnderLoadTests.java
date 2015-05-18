@@ -159,7 +159,6 @@ public class RecoveryWhileUnderLoadTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    @TestLogging("action.search.type:TRACE,action.admin.indices.refresh:TRACE")
     @Slow
     public void recoverWhileUnderLoadWithReducedAllowedNodes() throws Exception {
         logger.info("--> creating test index ...");
@@ -231,7 +230,6 @@ public class RecoveryWhileUnderLoadTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    @TestLogging("action.search.type:TRACE,action.admin.indices.refresh:TRACE,action.index:TRACE,action.support.replication:TRACE,cluster.service:DEBUG")
     @Slow
     public void recoverWhileRelocating() throws Exception {
         final int numShards = between(2, 10);

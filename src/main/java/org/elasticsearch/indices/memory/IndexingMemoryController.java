@@ -210,8 +210,8 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
                         shardsIndicesStatus.put(indexShard.shardId(), status);
                         changes.add(ShardStatusChangeType.ADDED);
                     }
-                    // check if it is deemed to be inactive (sam translogId and numberOfOperations over a long period of time)
-                    if (status.translogId == translog.currentId() && translog.totalOperations() == 0) {
+                    // check if it is deemed to be inactive (sam translogFileGeneration and numberOfOperations over a long period of time)
+                    if (status.translogId == translog.currentFileGeneration() && translog.totalOperations() == 0) {
                         if (status.time == -1) { // first time
                             status.time = time;
                         }
@@ -234,7 +234,7 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
                         }
                         status.time = -1;
                     }
-                    status.translogId = translog.currentId();
+                    status.translogId = translog.currentFileGeneration();
                     status.translogNumberOfOperations = translog.totalOperations();
 
                     if (status.activeIndexing) {

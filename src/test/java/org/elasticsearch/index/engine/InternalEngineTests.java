@@ -79,6 +79,7 @@ import org.elasticsearch.index.store.DirectoryService;
 import org.elasticsearch.index.store.DirectoryUtils;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -89,6 +90,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.nio.charset.Charset;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
@@ -220,7 +222,8 @@ public class InternalEngineTests extends ElasticsearchTestCase {
     }
 
     protected Translog createTranslog(Path translogPath) throws IOException {
-        return new Translog(shardId, EMPTY_SETTINGS, BigArrays.NON_RECYCLING_INSTANCE, translogPath);
+        TranslogConfig translogConfig = new TranslogConfig(shardId, translogPath, EMPTY_SETTINGS, Translog.Durabilty.REQUEST, BigArrays.NON_RECYCLING_INSTANCE, threadPool);
+        return new Translog(translogConfig);
     }
 
     protected Translog createTranslogReplica() throws IOException {
@@ -254,6 +257,8 @@ public class InternalEngineTests extends ElasticsearchTestCase {
 
     public EngineConfig config(IndexSettingsService indexSettingsService, Store store, Path translogPath, MergeSchedulerProvider mergeSchedulerProvider) {
         IndexWriterConfig iwc = newIndexWriterConfig();
+        TranslogConfig translogConfig = new TranslogConfig(shardId, translogPath, indexSettingsService.getSettings(), Translog.Durabilty.REQUEST, BigArrays.NON_RECYCLING_INSTANCE, threadPool);
+
         EngineConfig config = new EngineConfig(shardId, threadPool, new ShardIndexingService(shardId, EMPTY_SETTINGS, new ShardSlowLogIndexingService(shardId, EMPTY_SETTINGS, indexSettingsService)), indexSettingsService
                 , null, store, createSnapshotDeletionPolicy(), createMergePolicy(), mergeSchedulerProvider,
                 iwc.getAnalyzer(), iwc.getSimilarity(), new CodecService(shardId.index()), new Engine.FailedEngineListener() {
@@ -261,7 +266,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
             public void onFailedEngine(ShardId shardId, String reason, @Nullable Throwable t) {
                 // we don't need to notify anybody in this test
             }
-        }, new TranslogHandler(shardId.index().getName()), IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), BigArrays.NON_RECYCLING_INSTANCE, translogPath);
+        }, new TranslogHandler(shardId.index().getName()), IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), translogConfig);
 
         return config;
     }
@@ -482,15 +487,18 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         CommitStats stats1 = engine.commitStats();
         assertThat(stats1.getGeneration(), greaterThan(0l));
         assertThat(stats1.getId(), notNullValue());
-        assertThat(stats1.getUserData(), hasKey(Translog.TRANSLOG_ID_KEY));
+        assertThat(stats1.getUserData(), hasKey(Translog.TRANSLOG_GENERATION_KEY));
 
         engine.flush(true, true);
         CommitStats stats2 = engine.commitStats();
         assertThat(stats2.getGeneration(), greaterThan(stats1.getGeneration()));
         assertThat(stats2.getId(), notNullValue());
         assertThat(stats2.getId(), not(equalTo(stats1.getId())));
-        assertThat(stats2.getUserData(), hasKey(Translog.TRANSLOG_ID_KEY));
-        assertThat(stats2.getUserData().get(Translog.TRANSLOG_ID_KEY), not(equalTo(stats1.getUserData().get(Translog.TRANSLOG_ID_KEY))));
+        assertThat(stats2.getUserData(), hasKey(Translog.TRANSLOG_GENERATION_KEY));
+        assertThat(stats2.getUserData(), hasKey(Translog.TRANSLOG_UUID_KEY));
+        assertThat(stats2.getUserData().get(Translog.TRANSLOG_GENERATION_KEY), not(equalTo(stats1.getUserData().get(Translog.TRANSLOG_GENERATION_KEY))));
+        assertThat(stats2.getUserData().get(Translog.TRANSLOG_UUID_KEY), equalTo(stats1.getUserData().get(Translog.TRANSLOG_UUID_KEY)))
+        ;
     }
 
     @Test
@@ -1546,7 +1554,8 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         engine.close();
         // fake a new translog, causing the engine to point to a missing one.
         Translog translog = createTranslog();
-        translog.markCommitted(translog.currentId());
+        long id = translog.currentFileGeneration();
+        IOUtils.rm(translog.location().resolve(Translog.getFilename(id)));
         // we have to re-open the translog because o.w. it will complain about commit information going backwards, which is OK as we did a fake markComitted
         translog.close();
         try {
@@ -1557,7 +1566,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         }
         // now it should be OK.
         IndexSettingsService indexSettingsService = new IndexSettingsService(shardId.index(), ImmutableSettings.builder().put(defaultSettings)
-                .put(EngineConfig.INDEX_IGNORE_UNKNOWN_TRANSLOG, true).build());
+                .put(EngineConfig.INDEX_FORCE_NEW_TRANSLOG, true).build());
         engine = createEngine(indexSettingsService, store, primaryTranslogDir, createMergeScheduler(indexSettingsService));
     }
 
@@ -1775,6 +1784,59 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         @Override
         protected void operationProcessed() {
             recoveredOps.incrementAndGet();
+        }
+    }
+
+    public void testRecoverFromForeignTranslog() throws IOException {
+        boolean canHaveDuplicates = true;
+        boolean autoGeneratedId = true;
+        final int numDocs = randomIntBetween(1, 10);
+        for (int i = 0; i < numDocs; i++) {
+            ParsedDocument doc = testParsedDocument(Integer.toString(i), Integer.toString(i), "test", null, -1, -1, testDocument(), new BytesArray("{}"), null);
+            Engine.Create firstIndexRequest = new Engine.Create(null, newUid(Integer.toString(i)), doc, Versions.MATCH_ANY, VersionType.INTERNAL, PRIMARY, System.nanoTime(), canHaveDuplicates, autoGeneratedId);
+            engine.create(firstIndexRequest);
+            assertThat(firstIndexRequest.version(), equalTo(1l));
+        }
+        engine.refresh("test");
+        try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
+            TopDocs topDocs = searcher.searcher().search(new MatchAllDocsQuery(), randomIntBetween(numDocs, numDocs + 10));
+            assertThat(topDocs.totalHits, equalTo(numDocs));
+        }
+        final MockDirectoryWrapper directory = DirectoryUtils.getLeaf(store.directory(), MockDirectoryWrapper.class);
+        if (directory != null) {
+            // since we rollback the IW we are writing the same segment files again after starting IW but MDW prevents
+            // this so we have to disable the check explicitly
+            directory.setPreventDoubleWrite(false);
+        }
+        Translog.TranslogGeneration generation = engine.getTranslog().getGeneration();
+        engine.close();
+
+        Translog translog = new Translog(new TranslogConfig(shardId, createTempDir(), ImmutableSettings.EMPTY, Translog.Durabilty.REQUEST, BigArrays.NON_RECYCLING_INSTANCE, threadPool));
+        translog.add(new Translog.Create("test", "SomeBogusId", "{}".getBytes(Charset.forName("UTF-8"))));
+        assertEquals(generation.translogFileGeneration, translog.currentFileGeneration());
+        translog.close();
+
+        EngineConfig config = engine.config();
+        Path translogPath = config.getTranslogConfig().getTranslogPath();
+
+        /* create a TranslogConfig that has been created with a different UUID */
+        TranslogConfig translogConfig = new TranslogConfig(shardId, translog.location(), config.getIndexSettings(), Translog.Durabilty.REQUEST, BigArrays.NON_RECYCLING_INSTANCE, threadPool);
+
+        EngineConfig brokenConfig = new EngineConfig(shardId, threadPool, config.getIndexingService(), config.getIndexSettingsService()
+                , null, store, createSnapshotDeletionPolicy(), createMergePolicy(), config.getMergeScheduler(),
+                config.getAnalyzer(), config.getSimilarity(), new CodecService(shardId.index()), config.getFailedEngineListener()
+        , config.getTranslogRecoveryPerformer(), IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), translogConfig);
+
+        try {
+            new InternalEngine(brokenConfig, false);
+            fail("translog belongs to a different engine");
+        } catch (EngineCreationFailureException ex) {
+        }
+
+        engine = createEngine(store, primaryTranslogDir); // and recover again!
+        try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
+            TopDocs topDocs = searcher.searcher().search(new MatchAllDocsQuery(), randomIntBetween(numDocs, numDocs + 10));
+            assertThat(topDocs.totalHits, equalTo(numDocs));
         }
     }
 

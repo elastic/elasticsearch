@@ -22,7 +22,6 @@ package org.elasticsearch.common.bytes;
 import com.google.common.base.Charsets;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.Channels;
-import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.jboss.netty.buffer.ChannelBuffer;
 import org.jboss.netty.buffer.ChannelBuffers;
@@ -96,7 +95,7 @@ public class BytesArray implements BytesReference {
 
     @Override
     public StreamInput streamInput() {
-        return new BytesStreamInput(bytes, offset, length);
+        return StreamInput.wrap(bytes, offset, length);
     }
 
     @Override

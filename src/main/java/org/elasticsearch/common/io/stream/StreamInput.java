@@ -30,6 +30,7 @@ import org.elasticsearch.common.text.StringAndBytesText;
 import org.elasticsearch.common.text.Text;
 import org.joda.time.DateTime;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.ObjectInputStream;
@@ -489,5 +490,20 @@ public abstract class StreamInput extends InputStream {
         } catch (ClassNotFoundException e) {
             throw new IOException("failed to deserialize exception", e);
         }
+    }
+
+    public static StreamInput wrap(BytesReference reference) {
+        if (reference.hasArray() == false) {
+            reference = reference.toBytesArray();
+        }
+        return wrap(reference.array(), reference.arrayOffset(), reference.length());
+    }
+
+    public static StreamInput wrap(byte[] bytes) {
+        return wrap(bytes, 0, bytes.length);
+    }
+
+    public static StreamInput wrap(byte[] bytes, int offset, int length) {
+        return new InputStreamStreamInput(new ByteArrayInputStream(bytes, offset, length));
     }
 }

@@ -19,14 +19,16 @@
 
 package org.elasticsearch.index.translog;
 
-import org.elasticsearch.common.io.stream.StreamInput;
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
-import java.io.EOFException;
+import java.io.IOException;
+import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -39,68 +41,58 @@ public class TranslogVersionTests extends ElasticsearchTestCase {
     public void testV0LegacyTranslogVersion() throws Exception {
         Path translogFile = getDataPath("/org/elasticsearch/index/translog/translog-v0.binary");
         assertThat("test file should exist", Files.exists(translogFile), equalTo(true));
-        TranslogStream stream = TranslogStreams.translogStreamFor(translogFile);
-        assertThat("a version0 stream is returned", stream instanceof LegacyTranslogStream, equalTo(true));
+        try (ImmutableTranslogReader reader = openReader(translogFile, 0)) {
+            assertThat("a version0 stream is returned", reader instanceof LegacyTranslogReader, equalTo(true));
+            try (final Translog.Snapshot snapshot = reader.newSnapshot()) {
+                final Translog.Operation operation = snapshot.next();
+                assertThat("operation is the correct type correctly", operation.opType() == Translog.Operation.Type.SAVE, equalTo(true));
+                Translog.Index op = (Translog.Index) operation;
+                assertThat(op.id(), equalTo("1"));
+                assertThat(op.type(), equalTo("doc"));
+                assertThat(op.source().toUtf8(), equalTo("{\"body\": \"worda wordb wordc wordd \\\"worde\\\" wordf\"}"));
+                assertThat(op.routing(), equalTo(null));
+                assertThat(op.parent(), equalTo(null));
+                assertThat(op.version(), equalTo(1L));
+                assertThat(op.timestamp(), equalTo(1407312091791L));
+                assertThat(op.ttl(), equalTo(-1L));
+                assertThat(op.versionType(), equalTo(VersionType.INTERNAL));
 
-        StreamInput in = stream.openInput(translogFile);
-
-        Translog.Operation operation = stream.read(in);
-
-        assertThat("operation is the correct type correctly", operation.opType() == Translog.Operation.Type.SAVE, equalTo(true));
-        Translog.Index op = (Translog.Index) operation;
-        assertThat(op.id(), equalTo("1"));
-        assertThat(op.type(), equalTo("doc"));
-        assertThat(op.source().toUtf8(), equalTo("{\"body\": \"worda wordb wordc wordd \\\"worde\\\" wordf\"}"));
-        assertThat(op.routing(), equalTo(null));
-        assertThat(op.parent(), equalTo(null));
-        assertThat(op.version(), equalTo(1L));
-        assertThat(op.timestamp(), equalTo(1407312091791L));
-        assertThat(op.ttl(), equalTo(-1L));
-        assertThat(op.versionType(), equalTo(VersionType.INTERNAL));
-
-        try {
-            stream.read(in);
-            fail("should have been the end of the file");
-        } catch (EOFException e) {
-            // success
+                assertNull(snapshot.next());
+            }
         }
-        in.close();
     }
 
     @Test
     public void testV1ChecksummedTranslogVersion() throws Exception {
         Path translogFile = getDataPath("/org/elasticsearch/index/translog/translog-v1.binary");
         assertThat("test file should exist", Files.exists(translogFile), equalTo(true));
-        TranslogStream stream = TranslogStreams.translogStreamFor(translogFile);
-        assertThat("a version1 stream is returned", stream instanceof ChecksummedTranslogStream, equalTo(true));
+        try (ImmutableTranslogReader reader = openReader(translogFile, 0)) {
+            try (final Translog.Snapshot snapshot = reader.newSnapshot()) {
 
-        StreamInput in = stream.openInput(translogFile);
-        Translog.Operation operation = stream.read(in);
+                assertThat("a version1 stream is returned", reader instanceof ImmutableTranslogReader, equalTo(true));
 
-        assertThat("operation is the correct type correctly", operation.opType() == Translog.Operation.Type.CREATE, equalTo(true));
-        Translog.Create op = (Translog.Create) operation;
-        assertThat(op.id(), equalTo("Bwiq98KFSb6YjJQGeSpeiw"));
-        assertThat(op.type(), equalTo("doc"));
-        assertThat(op.source().toUtf8(), equalTo("{\"body\": \"foo\"}"));
-        assertThat(op.routing(), equalTo(null));
-        assertThat(op.parent(), equalTo(null));
-        assertThat(op.version(), equalTo(1L));
-        assertThat(op.timestamp(), equalTo(1408627184844L));
-        assertThat(op.ttl(), equalTo(-1L));
-        assertThat(op.versionType(), equalTo(VersionType.INTERNAL));
+                Translog.Operation operation = snapshot.next();
 
-        // There are more operations
-        int opNum = 1;
-        while (true) {
-            try {
-                stream.read(in);
-                opNum++;
-            } catch (EOFException e) {
-                break;
+                assertThat("operation is the correct type correctly", operation.opType() == Translog.Operation.Type.CREATE, equalTo(true));
+                Translog.Create op = (Translog.Create) operation;
+                assertThat(op.id(), equalTo("Bwiq98KFSb6YjJQGeSpeiw"));
+                assertThat(op.type(), equalTo("doc"));
+                assertThat(op.source().toUtf8(), equalTo("{\"body\": \"foo\"}"));
+                assertThat(op.routing(), equalTo(null));
+                assertThat(op.parent(), equalTo(null));
+                assertThat(op.version(), equalTo(1L));
+                assertThat(op.timestamp(), equalTo(1408627184844L));
+                assertThat(op.ttl(), equalTo(-1L));
+                assertThat(op.versionType(), equalTo(VersionType.INTERNAL));
+
+                // There are more operations
+                int opNum = 1;
+                while (snapshot.next() != null) {
+                    opNum++;
+                }
+                assertThat("there should be 5 translog operations", opNum, equalTo(5));
             }
         }
-        assertThat("there should be 5 translog operations", opNum, equalTo(5));
-        in.close();
     }
 
     @Test
@@ -108,7 +100,7 @@ public class TranslogVersionTests extends ElasticsearchTestCase {
         try {
             Path translogFile = getDataPath("/org/elasticsearch/index/translog/translog-v1-corrupted-magic.binary");
             assertThat("test file should exist", Files.exists(translogFile), equalTo(true));
-            TranslogStream stream = TranslogStreams.translogStreamFor(translogFile);
+            openReader(translogFile, 0);
             fail("should have thrown an exception about the header being corrupt");
         } catch (TranslogCorruptedException e) {
             assertThat("translog corruption from header: " + e.getMessage(),
@@ -118,7 +110,7 @@ public class TranslogVersionTests extends ElasticsearchTestCase {
         try {
             Path translogFile = getDataPath("/org/elasticsearch/index/translog/translog-invalid-first-byte.binary");
             assertThat("test file should exist", Files.exists(translogFile), equalTo(true));
-            TranslogStream stream = TranslogStreams.translogStreamFor(translogFile);
+            openReader(translogFile, 0);
             fail("should have thrown an exception about the header being corrupt");
         } catch (TranslogCorruptedException e) {
             assertThat("translog corruption from header: " + e.getMessage(),
@@ -128,13 +120,10 @@ public class TranslogVersionTests extends ElasticsearchTestCase {
         try {
             Path translogFile = getDataPath("/org/elasticsearch/index/translog/translog-v1-corrupted-body.binary");
             assertThat("test file should exist", Files.exists(translogFile), equalTo(true));
-            TranslogStream stream = TranslogStreams.translogStreamFor(translogFile);
-            try (StreamInput in = stream.openInput(translogFile)) {
-                while (true) {
-                    try {
-                        stream.read(in);
-                    } catch (EOFException e) {
-                        break;
+            try (ImmutableTranslogReader reader = openReader(translogFile, 0)) {
+                try (final Translog.Snapshot snapshot = reader.newSnapshot()) {
+                    while(snapshot.next() != null) {
+
                     }
                 }
             }
@@ -151,20 +140,29 @@ public class TranslogVersionTests extends ElasticsearchTestCase {
         try {
             Path translogFile = getDataPath("/org/elasticsearch/index/translog/translog-v1-truncated.binary");
             assertThat("test file should exist", Files.exists(translogFile), equalTo(true));
-            TranslogStream stream = TranslogStreams.translogStreamFor(translogFile);
-            try (StreamInput in = stream.openInput(translogFile)) {
-                while (true) {
-                    try {
-                        stream.read(in);
-                    } catch (EOFException e) {
-                        break;
+            try (ImmutableTranslogReader reader = openReader(translogFile, 0)) {
+                try (final Translog.Snapshot snapshot = reader.newSnapshot()) {
+                    while(snapshot.next() != null) {
+
                     }
                 }
             }
             fail("should have thrown an exception about the body being truncated");
-        } catch (TruncatedTranslogException e) {
+        } catch (TranslogCorruptedException e) {
             assertThat("translog truncated: " + e.getMessage(),
-                    e.getMessage().contains("reached premature end of file, translog is truncated"), equalTo(true));
+                    e.getMessage().contains("operation size is corrupted must be"), equalTo(true));
+        }
+    }
+
+    public ImmutableTranslogReader openReader(Path path, long id) throws IOException {
+        FileChannel channel = FileChannel.open(path, StandardOpenOption.READ);
+        try {
+            final ChannelReference raf = new ChannelReference(path, id, channel, null);
+            ImmutableTranslogReader reader = ImmutableTranslogReader.open(raf, new Checkpoint(Files.size(path), TranslogReader.UNKNOWN_OP_COUNT, id), null);
+            channel = null;
+            return reader;
+        } finally {
+            IOUtils.close(channel);
         }
     }
 }

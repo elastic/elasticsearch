@@ -116,7 +116,7 @@ public class SharedFSRecoverySourceHandler extends RecoverySourceHandler {
         }
 
         @Override
-        public long minTranslogId() {
+        public long minTranslogGeneration() {
             return 0;
         }
 

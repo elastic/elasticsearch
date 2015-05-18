@@ -20,8 +20,8 @@
 package org.elasticsearch.action.support;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
@@ -41,9 +41,9 @@ public class IndicesOptionsTests extends ElasticsearchTestCase {
             output.setVersion(outputVersion);
             indicesOptions.writeIndicesOptions(output);
 
-            BytesStreamInput bytesStreamInput = new BytesStreamInput(output.bytes());
-            bytesStreamInput.setVersion(randomVersion(random()));
-            IndicesOptions indicesOptions2 = IndicesOptions.readIndicesOptions(bytesStreamInput);
+            StreamInput streamInput = StreamInput.wrap(output.bytes());
+            streamInput.setVersion(randomVersion(random()));
+            IndicesOptions indicesOptions2 = IndicesOptions.readIndicesOptions(streamInput);
 
             assertThat(indicesOptions2.ignoreUnavailable(), equalTo(indicesOptions.ignoreUnavailable()));
             assertThat(indicesOptions2.allowNoIndices(), equalTo(indicesOptions.allowNoIndices()));

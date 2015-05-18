@@ -128,6 +128,20 @@
                 }
               }
             },
+            "condition" : {
+              "type" : "object",
+              "dynamic" : true,
+              "properties" : {
+                "compare" : {
+                  "type" : "object",
+                  "enabled" : false
+                },
+                "script" : {
+                  "type" : "object",
+                  "enabled" : false
+                }
+              }
+            },
             "transform" : {
               "type" : "object",
               "dynamic" : true,

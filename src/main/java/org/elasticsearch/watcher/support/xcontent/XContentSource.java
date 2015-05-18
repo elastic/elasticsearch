@@ -11,7 +11,6 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.*;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
 
 import java.io.IOException;
 import java.util.Map;
@@ -59,7 +58,7 @@ public class XContentSource implements ToXContent {
      * @return The extracted value or {@code null} if no value is associated with the given path
      */
     public <T> T getValue(String path) {
-        return (T) XContentMapValues.extractValue(path, getAsMap());
+        return (T) MapPath.eval(path, getAsMap());
     }
 
     @Override

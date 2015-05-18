@@ -33,7 +33,6 @@ import java.net.BindException;
 import java.net.URISyntaxException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.List;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.watcher.client.WatchSourceBuilders.watchBuilder;
@@ -120,15 +119,13 @@ public class WebhookHttpsIntegrationTests extends AbstractWatcherIntegrationTest
                 .get();
         assertNoFailures(response);
         XContentSource source = new XContentSource(response.getHits().getAt(0).sourceRef());
-        List<String> bodies = source.getValue("execution_result.actions.webhook.response.body");
-        assertThat(bodies, notNullValue());
-        assertThat(bodies, hasSize(1));
-        assertThat(bodies, hasItem("body"));
+        String body = source.getValue("execution_result.actions.0.webhook.response.body");
+        assertThat(body, notNullValue());
+        assertThat(body, is("body"));
 
-        List<Number> statuses = source.getValue("execution_result.actions.webhook.response.status");
-        assertThat(statuses, notNullValue());
-        assertThat(statuses, hasSize(1));
-        assertThat(statuses, hasItem(200));
+        Number status = source.getValue("execution_result.actions.0.webhook.response.status");
+        assertThat(status, notNullValue());
+        assertThat(status.intValue(), is(200));
     }
 
     @Test

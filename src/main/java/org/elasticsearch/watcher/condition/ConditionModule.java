@@ -9,6 +9,8 @@ import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.multibindings.MapBinder;
 import org.elasticsearch.watcher.condition.always.AlwaysCondition;
 import org.elasticsearch.watcher.condition.always.AlwaysConditionFactory;
+import org.elasticsearch.watcher.condition.compare.CompareCondition;
+import org.elasticsearch.watcher.condition.compare.CompareConditionFactory;
 import org.elasticsearch.watcher.condition.never.NeverCondition;
 import org.elasticsearch.watcher.condition.never.NeverConditionFactory;
 import org.elasticsearch.watcher.condition.script.ScriptCondition;
@@ -41,6 +43,9 @@ public class ConditionModule extends AbstractModule {
 
         bind(AlwaysConditionFactory.class).asEagerSingleton();
         factoriesBinder.addBinding(AlwaysCondition.TYPE).to(AlwaysConditionFactory.class);
+
+        bind(CompareConditionFactory.class).asEagerSingleton();
+        factoriesBinder.addBinding(CompareCondition.TYPE).to(CompareConditionFactory.class);
 
         for (Map.Entry<String, Class<? extends ConditionFactory>> entry : factories.entrySet()) {
             bind(entry.getValue()).asEagerSingleton();

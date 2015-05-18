@@ -26,7 +26,6 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.net.BindException;
-import java.util.List;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.watcher.client.WatchSourceBuilders.watchBuilder;
@@ -98,12 +97,12 @@ public class WebhookIntegrationTests extends AbstractWatcherIntegrationTests {
 
         assertNoFailures(response);
         XContentSource source = new XContentSource(response.getHits().getAt(0).getSourceRef());
-        List<String> bodies = source.getValue("execution_result.actions.webhook.response.body");
-        assertThat(bodies, notNullValue());
-        assertThat(bodies, hasItem("body"));
-        List<Number> statuses = source.getValue("execution_result.actions.webhook.response.status");
-        assertThat(statuses, notNullValue());
-        assertThat(statuses, hasItem(200));
+        String body = source.getValue("execution_result.actions.0.webhook.response.body");
+        assertThat(body, notNullValue());
+        assertThat(body, is("body"));
+        Number status = source.getValue("execution_result.actions.0.webhook.response.status");
+        assertThat(status, notNullValue());
+        assertThat(status.intValue(), is(200));
     }
 
     @Test

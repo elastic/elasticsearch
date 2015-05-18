@@ -6,7 +6,6 @@
 package org.elasticsearch.watcher.watch;
 
 import com.carrotsearch.ant.tasks.junit4.dependencies.com.google.common.collect.ImmutableSet;
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.collect.ImmutableMap;
@@ -42,6 +41,10 @@ import org.elasticsearch.watcher.condition.ExecutableCondition;
 import org.elasticsearch.watcher.condition.always.AlwaysCondition;
 import org.elasticsearch.watcher.condition.always.AlwaysConditionFactory;
 import org.elasticsearch.watcher.condition.always.ExecutableAlwaysCondition;
+import org.elasticsearch.watcher.condition.compare.CompareCondition;
+import org.elasticsearch.watcher.condition.compare.CompareCondition.Op;
+import org.elasticsearch.watcher.condition.compare.CompareConditionFactory;
+import org.elasticsearch.watcher.condition.compare.ExecutableCompareCondition;
 import org.elasticsearch.watcher.condition.script.ExecutableScriptCondition;
 import org.elasticsearch.watcher.condition.script.ScriptCondition;
 import org.elasticsearch.watcher.condition.script.ScriptConditionFactory;
@@ -127,7 +130,7 @@ public class WatchTests extends ElasticsearchTestCase {
         logger = Loggers.getLogger(WatchTests.class);
     }
 
-    @Test @Repeat(iterations = 20)
+    @Test //@Repeat(iterations = 20)
     public void testParser_SelfGenerated() throws Exception {
 
         TransformRegistry transformRegistry = transformRegistry();
@@ -314,10 +317,12 @@ public class WatchTests extends ElasticsearchTestCase {
     }
 
     private ExecutableCondition randomCondition() {
-        String type = randomFrom(ScriptCondition.TYPE, AlwaysCondition.TYPE);
+        String type = randomFrom(ScriptCondition.TYPE, AlwaysCondition.TYPE, CompareCondition.TYPE);
         switch (type) {
             case ScriptCondition.TYPE:
                 return new ExecutableScriptCondition(new ScriptCondition(Script.inline("_script").build()), logger, scriptService);
+            case CompareCondition.TYPE:
+                return new ExecutableCompareCondition(new CompareCondition("_path", randomFrom(Op.values()), randomFrom(5, "3")), logger, SystemClock.INSTANCE);
             default:
                 return new ExecutableAlwaysCondition(logger);
         }
@@ -328,6 +333,9 @@ public class WatchTests extends ElasticsearchTestCase {
         switch (condition.type()) {
             case ScriptCondition.TYPE:
                 parsers.put(ScriptCondition.TYPE, new ScriptConditionFactory(settings, scriptService));
+                return new ConditionRegistry(parsers.build());
+            case CompareCondition.TYPE:
+                parsers.put(CompareCondition.TYPE, new CompareConditionFactory(settings, SystemClock.INSTANCE));
                 return new ConditionRegistry(parsers.build());
             default:
                 parsers.put(AlwaysCondition.TYPE, new AlwaysConditionFactory(settings));

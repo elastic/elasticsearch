@@ -450,7 +450,15 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     public Location add(Operation operation) throws TranslogException {
         ReleasableBytesStreamOutput out = new ReleasableBytesStreamOutput(bigArrays);
         try {
-            writeOperation(out, operation);
+            final BufferedChecksumStreamOutput checksumStreamOutput = new BufferedChecksumStreamOutput(out);
+            final long start = out.position();
+            out.skip(RamUsageEstimator.NUM_BYTES_INT);
+            writeOperationNoSize(checksumStreamOutput, operation);
+            long end = out.position();
+            int operationSize = (int) (out.position() - RamUsageEstimator.NUM_BYTES_INT - start);
+            out.seek(start);
+            out.writeInt(operationSize);
+            out.seek(end);
             ReleasablePagedBytesReference bytes = out.bytes();
             try (ReleasableLock lock = readLock.acquire()) {
                 Location location = current.add(bytes);
@@ -1546,29 +1554,17 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         }
     }
 
-    public static Snapshot snapshotFromStream(StreamInput input, final int numOps) {
+    /**
+     * Reads a list of operations written with {@link #writeOperations(StreamOutput, List)}
+     */
+    public static List<Operation> readOperations(StreamInput input) throws IOException {
+        ArrayList<Operation> operations = new ArrayList<>();
+        int numOps = input.readInt();
         final BufferedChecksumStreamInput checksumStreamInput = new BufferedChecksumStreamInput(input);
-        return new Snapshot() {
-            int read = 0;
-            @Override
-            public int estimatedTotalOperations() {
-                return numOps;
-            }
-
-            @Override
-            public Operation next() throws IOException {
-                if (read < numOps) {
-                    read++;
-                    return readOperation(checksumStreamInput);
-                }
-                return null;
-            }
-
-            @Override
-            public void close() {
-                // doNothing
-            }
-        };
+        for (int i = 0; i < numOps; i++) {
+            operations.add(readOperation(checksumStreamInput));
+        }
+        return operations;
     }
 
     static Translog.Operation readOperation(BufferedChecksumStreamInput in) throws IOException {
@@ -1601,24 +1597,39 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         return operation;
     }
 
-    public static void writeOperation(StreamOutput outStream, Translog.Operation op) throws IOException {
-        //TODO lets get rid of this crazy double writing here.
+    /**
+     * Writes all operations in the given iterable to the given output stream including the size of the array
+     * use {@link #readOperations(StreamInput)} to read it back.
+     */
+    public static void writeOperations(StreamOutput outStream, List<Operation> toWrite) throws IOException {
+        final ReleasableBytesStreamOutput out = new ReleasableBytesStreamOutput(BigArrays.NON_RECYCLING_INSTANCE);
+        try {
+            outStream.writeInt(toWrite.size());
+            final BufferedChecksumStreamOutput checksumStreamOutput = new BufferedChecksumStreamOutput(out);
+            for (Operation op : toWrite) {
+                out.reset();
+                final long start = out.position();
+                out.skip(RamUsageEstimator.NUM_BYTES_INT);
+                writeOperationNoSize(checksumStreamOutput, op);
+                long end = out.position();
+                int operationSize = (int) (out.position() - RamUsageEstimator.NUM_BYTES_INT - start);
+                out.seek(start);
+                out.writeInt(operationSize);
+                out.seek(end);
+                ReleasablePagedBytesReference bytes = out.bytes();
+                bytes.writeTo(outStream);
+            }
+        } finally {
+            Releasables.close(out.bytes());
+        }
 
-        // We first write to a NoopStreamOutput to get the size of the
-        // operation. We could write to a byte array and then send that as an
-        // alternative, but here we choose to use CPU over allocating new
-        // byte arrays.
-        NoopStreamOutput noopOut = new NoopStreamOutput();
-        noopOut.writeByte(op.opType().id());
-        op.writeTo(noopOut);
-        noopOut.writeInt(0); // checksum holder
-        int size = noopOut.getCount();
+    }
 
+    public static void writeOperationNoSize(BufferedChecksumStreamOutput out, Translog.Operation op) throws IOException {
         // This BufferedChecksumStreamOutput remains unclosed on purpose,
         // because closing it closes the underlying stream, which we don't
         // want to do here.
-        BufferedChecksumStreamOutput out = new BufferedChecksumStreamOutput(outStream);
-        outStream.writeInt(size); // opSize is not checksummed
+        out.resetDigest();
         out.writeByte(op.opType().id());
         op.writeTo(out);
         long checksum = out.getChecksum();

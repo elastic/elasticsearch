@@ -19,16 +19,9 @@
 
 package org.elasticsearch.indices.recovery;
 
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.cluster.ClusterService;
-import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
-import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
-import org.elasticsearch.index.engine.RecoveryEngineException;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.translog.Translog;
-import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -43,8 +36,8 @@ public class SharedFSRecoverySourceHandler extends RecoverySourceHandler {
     private final StartRecoveryRequest request;
     private static final Translog.View EMPTY_VIEW = new EmptyView();
 
-    public SharedFSRecoverySourceHandler(IndexShard shard, StartRecoveryRequest request, RecoverySettings recoverySettings, TransportService transportService, ClusterService clusterService, IndicesService indicesService, MappingUpdatedAction mappingUpdatedAction, ESLogger logger) {
-        super(shard, request, recoverySettings, transportService, clusterService, indicesService, mappingUpdatedAction, logger);
+    public SharedFSRecoverySourceHandler(IndexShard shard, StartRecoveryRequest request, RecoverySettings recoverySettings, TransportService transportService, ESLogger logger) {
+        super(shard, request, recoverySettings, transportService, logger);
         this.shard = shard;
         this.request = request;
     }

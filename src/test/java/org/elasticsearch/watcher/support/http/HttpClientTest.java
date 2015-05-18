@@ -83,7 +83,9 @@ public class HttpClientTest extends ElasticsearchTestCase {
         String paramValue = randomAsciiOfLength(3);
         requestBuilder.setParam(paramKey, paramValue);
 
-        String headerKey = randomAsciiOfLength(3);
+        // Certain headers keys like via and host are illegal and the jdk http client ignores those, so lets
+        // prepend all keys with `_`, so we don't run into a failure because randomly a restricted header was used:
+        String headerKey = "_" + randomAsciiOfLength(3);
         String headerValue = randomAsciiOfLength(3);
         requestBuilder.setHeader(headerKey, headerValue);
 

@@ -27,7 +27,6 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.ThrowableObjectInputStream;
-import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
@@ -225,7 +224,7 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
         Transports.assertTransportThread();
         try {
             transportServiceAdapter.received(data.length);
-            StreamInput stream = new BytesStreamInput(data);
+            StreamInput stream = StreamInput.wrap(data);
             stream.setVersion(version);
 
             long requestId = stream.readLong();

@@ -655,3 +655,25 @@ in inner aggregations.
 <1> experimental[] the possible values are `map`, `global_ordinals`, `global_ordinals_hash` and `global_ordinals_low_cardinality`
 
 Please note that Elasticsearch will ignore this execution hint if it is not applicable and that there is no backward compatibility guarantee on these hints.
+
+==== Missing value
+
+The `missing` parameter defines how documents that are missing a value should be treated.
+By default they will be ignored but it is also possible to treat them as if they
+had a value.
+
+[source,js]
+--------------------------------------------------
+{
+    "aggs" : {
+        "tags" : {
+             "terms" : {
+                 "field" : "tags",
+                 "missing": "N/A" <1>
+             }
+         }
+    }
+}
+--------------------------------------------------
+
+<1> Documents without a value in the `tags` field will fall into the same bucket as documents that have the value `N/A`. 

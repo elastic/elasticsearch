@@ -32,8 +32,8 @@ import org.elasticsearch.cluster.routing.*;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.LocalTransportAddress;
@@ -105,7 +105,7 @@ public class ClusterStateDiffTests extends ElasticsearchIntegrationTest {
                 diffBeforeSerialization.writeTo(os);
                 byte[] diffBytes = os.bytes().toBytes();
                 Diff<ClusterState> diff;
-                try (BytesStreamInput input = new BytesStreamInput(diffBytes)) {
+                try (StreamInput input = StreamInput.wrap(diffBytes)) {
                     diff = previousClusterStateFromDiffs.readDiffFrom(input);
                     clusterStateFromDiffs = diff.apply(previousClusterStateFromDiffs);
                 }

@@ -22,7 +22,7 @@ package org.elasticsearch.common.io;
 import com.google.common.base.Charsets;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.io.stream.BytesStreamInput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
@@ -87,7 +87,7 @@ public class StreamsTests extends ElasticsearchTestCase {
         byte stuff[] = new byte[] { 0, 1, 2, 3 };
         BytesRef stuffRef = new BytesRef(stuff, 2, 2);
         BytesArray stuffArray = new BytesArray(stuffRef);
-        BytesStreamInput input = new BytesStreamInput(stuffArray);
+        StreamInput input = StreamInput.wrap(stuffArray);
         assertEquals(2, input.read());
         assertEquals(3, input.read());
         assertEquals(-1, input.read());

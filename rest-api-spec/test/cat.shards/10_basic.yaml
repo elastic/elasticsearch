@@ -29,7 +29,6 @@
                     get.exists_total                 .+   \n
                     get.missing_time                 .+   \n
                     get.missing_total                .+   \n
-                    id_cache.memory_size             .+   \n
                     indexing.delete_current          .+   \n
                     indexing.delete_time             .+   \n
                     indexing.delete_total            .+   \n

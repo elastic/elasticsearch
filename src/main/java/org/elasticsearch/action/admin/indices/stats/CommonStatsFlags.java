@@ -216,7 +216,6 @@ public class CommonStatsFlags implements Streamable, Cloneable {
         Flush("flush"),
         Refresh("refresh"),
         FilterCache("filter_cache"),
-        IdCache("id_cache"),
         FieldData("fielddata"),
         Docs("docs"),
         Warmer("warmer"),

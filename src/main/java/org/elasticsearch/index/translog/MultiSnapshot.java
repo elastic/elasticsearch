@@ -20,44 +20,40 @@
 package org.elasticsearch.index.translog;
 
 import org.apache.lucene.store.AlreadyClosedException;
-import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.lease.Releasables;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-public class TranslogSnapshot implements Translog.Snapshot {
+/**
+ * A snapshot composed out of multiple snapshots
+ */
+final class MultiSnapshot implements Translog.Snapshot {
 
-    private final List<ChannelSnapshot> orderedTranslogs;
-    private final ESLogger logger;
-    private final ByteBuffer cacheBuffer;
+    private final Translog.Snapshot[] translogs;
     private AtomicBoolean closed = new AtomicBoolean(false);
     private final int estimatedTotalOperations;
-    private int currentTranslog;
+    private int index;
 
     /**
-     * Create a snapshot of translog file channel. The length parameter should be consistent with totalOperations and point
-     * at the end of the last operation in this snapshot.
+     * Creates a new point in time snapshot of the given snapshots. Those snapshots are always iterated in-order.
      */
-    public TranslogSnapshot(List<ChannelSnapshot> orderedTranslogs, ESLogger logger) {
-        this.orderedTranslogs = orderedTranslogs;
-        this.logger = logger;
+    MultiSnapshot(Translog.Snapshot[] translogs) {
+        this.translogs = translogs;
         int ops = 0;
-        for (ChannelSnapshot translog : orderedTranslogs) {
+        for (Translog.Snapshot translog : translogs) {
 
             final int tops = translog.estimatedTotalOperations();
-            if (tops < 0) {
-                ops = ChannelReader.UNKNOWN_OP_COUNT;
+            if (tops == TranslogReader.UNKNOWN_OP_COUNT) {
+                ops = TranslogReader.UNKNOWN_OP_COUNT;
                 break;
             }
+            assert tops >= 0 : "tops must be positive but was: " + tops;
             ops += tops;
         }
         estimatedTotalOperations = ops;
-        cacheBuffer = ByteBuffer.allocate(1024);
-        currentTranslog = 0;
+        index = 0;
     }
 
 
@@ -69,16 +65,10 @@ public class TranslogSnapshot implements Translog.Snapshot {
     @Override
     public Translog.Operation next() throws IOException {
         ensureOpen();
-        for (; currentTranslog < orderedTranslogs.size(); currentTranslog++) {
-            final ChannelSnapshot current = orderedTranslogs.get(currentTranslog);
-            Translog.Operation op = null;
-            try {
-                op = current.next(cacheBuffer);
-            } catch (TruncatedTranslogException e) {
-                // file is empty or header has been half-written and should be ignored
-                logger.trace("ignoring truncation exception, the translog [{}] is either empty or half-written", e, current.translogId());
-            }
-            if (op != null) {
+        for (; index < translogs.length; index++) {
+            final Translog.Snapshot current = translogs[index];
+            Translog.Operation op = current.next();
+            if (op != null) { // if we are null we move to the next snapshot
                 return op;
             }
         }
@@ -94,13 +84,7 @@ public class TranslogSnapshot implements Translog.Snapshot {
     @Override
     public void close() throws ElasticsearchException {
         if (closed.compareAndSet(false, true)) {
-            try {
-                IOUtils.close(orderedTranslogs);
-            } catch (IOException e) {
-                throw new ElasticsearchException("failed to close channel snapshots", e);
-            } finally {
-                orderedTranslogs.clear();
-            }
+            Releasables.close(translogs);
         }
     }
 }

@@ -19,8 +19,8 @@
 
 package org.elasticsearch.action.get;
 
-import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
 import org.elasticsearch.test.ElasticsearchTestCase;
@@ -73,7 +73,7 @@ public class MultiGetShardRequestTests extends ElasticsearchTestCase {
         out.setVersion(randomVersion(random()));
         multiGetShardRequest.writeTo(out);
 
-        BytesStreamInput in = new BytesStreamInput(out.bytes());
+        StreamInput in = StreamInput.wrap(out.bytes());
         in.setVersion(out.getVersion());
         MultiGetShardRequest multiGetShardRequest2 = new MultiGetShardRequest();
         multiGetShardRequest2.readFrom(in);

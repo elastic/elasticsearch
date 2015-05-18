@@ -108,8 +108,6 @@ public class RestShardsAction extends AbstractCatAction {
         table.addCell("get.missing_time", "alias:gmti,getMissingTime;default:false;text-align:right;desc:time spent in failed gets");
         table.addCell("get.missing_total", "alias:gmto,getMissingTotal;default:false;text-align:right;desc:number of failed gets");
 
-        table.addCell("id_cache.memory_size", "alias:im,idCacheMemory;default:false;text-align:right;desc:used id cache");
-
         table.addCell("indexing.delete_current", "alias:idc,indexingDeleteCurrent;default:false;text-align:right;desc:number of current deletions");
         table.addCell("indexing.delete_time", "alias:idti,indexingDeleteTime;default:false;text-align:right;desc:time spent in deletions");
         table.addCell("indexing.delete_total", "alias:idto,indexingDeleteTotal;default:false;text-align:right;desc:number of delete ops");
@@ -228,8 +226,6 @@ public class RestShardsAction extends AbstractCatAction {
             table.addCell(shardStats == null ? null : shardStats.getGet().getExistsCount());
             table.addCell(shardStats == null ? null : shardStats.getGet().getMissingTime());
             table.addCell(shardStats == null ? null : shardStats.getGet().getMissingCount());
-
-            table.addCell(shardStats == null ? null : shardStats.getIdCache().getMemorySize());
 
             table.addCell(shardStats == null ? null : shardStats.getIndexing().getTotal().getDeleteCurrent());
             table.addCell(shardStats == null ? null : shardStats.getIndexing().getTotal().getDeleteTime());

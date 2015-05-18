@@ -229,13 +229,6 @@
             <version>0.7.1</version>
         </dependency>
 
-        <dependency> <!-- ES uses byte* hashes -->
-            <groupId>com.carrotsearch</groupId>
-            <artifactId>hppc</artifactId>
-            <version>0.7.1</version>
-            <classifier>esoteric</classifier>
-        </dependency>
-
         <dependency>
             <groupId>joda-time</groupId>
             <artifactId>joda-time</artifactId>
@@ -794,8 +787,6 @@
                                 <!-- unit tests for test framework classes-->
                                 <exclude>org/elasticsearch/test/test/**/*</exclude>
                             </excludes>
-                            <!-- Resources are large and not really helpful as "test sources". -->
-                            <excludeResources>true</excludeResources>
                         </configuration>
                     </execution>
                 </executions>
@@ -1526,6 +1517,7 @@
                                 <signaturesFile>dev-tools/forbidden/all-signatures.txt</signaturesFile>
                             </signaturesFiles>
                             <signatures>${forbidden.test.signatures}</signatures>
+                            <suppressAnnotations><annotation>**.SuppressForbidden</annotation></suppressAnnotations>
                         </configuration>
                         <phase>test-compile</phase>
                         <goals>
@@ -1546,6 +1538,7 @@
                         </goals>
                         <configuration>
                             <includes>
+                                <include>rest-api-spec/**/*</include>
                                 <include>org/elasticsearch/test/**/*</include>
                                 <include>org/elasticsearch/bootstrap/BootstrapForTesting.class</include>
                                 <include>org/elasticsearch/common/cli/CliToolTestCase.class</include>

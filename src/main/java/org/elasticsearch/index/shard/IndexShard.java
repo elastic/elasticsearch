@@ -65,7 +65,6 @@ import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.cache.bitset.ShardBitsetFilterCache;
 import org.elasticsearch.index.cache.filter.FilterCacheStats;
 import org.elasticsearch.index.cache.filter.ShardFilterCache;
-import org.elasticsearch.index.cache.id.IdCacheStats;
 import org.elasticsearch.index.cache.query.ShardQueryCache;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.deletionpolicy.SnapshotDeletionPolicy;
@@ -101,7 +100,9 @@ import org.elasticsearch.index.suggest.stats.ShardSuggestService;
 import org.elasticsearch.index.suggest.stats.SuggestStats;
 import org.elasticsearch.index.termvectors.ShardTermVectorsService;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.index.translog.TranslogStats;
+import org.elasticsearch.index.translog.TranslogWriter;
 import org.elasticsearch.index.warmer.ShardIndexWarmerService;
 import org.elasticsearch.index.warmer.WarmerStats;
 import org.elasticsearch.indices.IndicesLifecycle;
@@ -163,6 +164,7 @@ public class IndexShard extends AbstractIndexShardComponent {
     private final MergePolicyProvider mergePolicyProvider;
     private final BigArrays bigArrays;
     private final EngineConfig engineConfig;
+    private final TranslogConfig translogConfig;
 
     private TimeValue refreshInterval;
 
@@ -252,7 +254,10 @@ public class IndexShard extends AbstractIndexShardComponent {
         logger.debug("state: [CREATED]");
 
         this.checkIndexOnStartup = indexSettings.get("index.shard.check_on_startup", "false");
-        this.engineConfig = newEngineConfig();
+        this.translogConfig = new TranslogConfig(shardId, shardPath().resolveTranslog(), indexSettings, getFromSettings(logger, indexSettings, Translog.Durabilty.REQUEST),
+                bigArrays, threadPool);
+        this.engineConfig = newEngineConfig(translogConfig);
+
         this.indexShardOperationCounter = new IndexShardOperationCounter(logger, shardId);
     }
 
@@ -263,10 +268,6 @@ public class IndexShard extends AbstractIndexShardComponent {
     /** returns true if this shard supports indexing (i.e., write) operations. */
     public boolean canIndex() {
         return true;
-    }
-
-    public Translog.View newTranslogView() {
-        return engine().getTranslog().newView();
     }
 
     public ShardIndexingService indexingService() {
@@ -665,11 +666,6 @@ public class IndexShard extends AbstractIndexShardComponent {
         return shardPercolateService;
     }
 
-    public IdCacheStats idCacheStats() {
-        long memorySizeInBytes = shardFieldData.stats(ParentFieldMapper.NAME).getFields().get(ParentFieldMapper.NAME);
-        return new IdCacheStats(memorySizeInBytes);
-    }
-
     public TranslogStats translogStats() {
         return engine().getTranslog().stats();
     }
@@ -844,10 +840,6 @@ public class IndexShard extends AbstractIndexShardComponent {
         Map<String, Mapping> recoveredTypes = internalPerformTranslogRecovery(true);
         assert recoveredTypes.isEmpty();
         assert recoveryState.getTranslog().recoveredOperations() == 0;
-        if (wipeTranslogs) {
-            final Translog translog = engine().getTranslog();
-            translog.markCommitted(translog.currentId());
-        }
     }
 
     /**
@@ -1006,7 +998,7 @@ public class IndexShard extends AbstractIndexShardComponent {
     }
 
     public void markAsInactive() {
-        updateBufferSize(EngineConfig.INACTIVE_SHARD_INDEXING_BUFFER, Translog.INACTIVE_SHARD_TRANSLOG_BUFFER);
+        updateBufferSize(EngineConfig.INACTIVE_SHARD_INDEXING_BUFFER, TranslogConfig.INACTIVE_SHARD_TRANSLOG_BUFFER);
     }
 
     public final boolean isFlushOnClose() {
@@ -1042,6 +1034,18 @@ public class IndexShard extends AbstractIndexShardComponent {
                 if (flushOnClose != IndexShard.this.flushOnClose) {
                     logger.info("updating {} from [{}] to [{}]", INDEX_FLUSH_ON_CLOSE, IndexShard.this.flushOnClose, flushOnClose);
                     IndexShard.this.flushOnClose = flushOnClose;
+                }
+
+                TranslogWriter.Type type = TranslogWriter.Type.fromString(settings.get(TranslogConfig.INDEX_TRANSLOG_FS_TYPE, translogConfig.getType().name()));
+                if (type != translogConfig.getType()) {
+                    logger.info("updating type from [{}] to [{}]", translogConfig.getType(), type);
+                    translogConfig.setType(type);
+                }
+
+                final Translog.Durabilty durabilty = getFromSettings(logger, settings, translogConfig.getDurabilty());
+                if (durabilty != translogConfig.getDurabilty()) {
+                    logger.info("updating durability from [{}] to [{}]", translogConfig.getDurabilty(), durabilty);
+                    translogConfig.setDurabilty(durabilty);
                 }
 
                 TimeValue refreshInterval = settings.getAsTime(INDEX_REFRESH_INTERVAL, IndexShard.this.refreshInterval);
@@ -1308,7 +1312,7 @@ public class IndexShard extends AbstractIndexShardComponent {
         return mapperService.documentMapperWithAutoCreate(type);
     }
 
-    private final EngineConfig newEngineConfig() {
+    private final EngineConfig newEngineConfig(TranslogConfig translogConfig) {
         final TranslogRecoveryPerformer translogRecoveryPerformer = new TranslogRecoveryPerformer(mapperService, mapperAnalyzer, queryParserService, indexAliasesService, indexCache) {
             @Override
             protected void operationProcessed() {
@@ -1318,7 +1322,7 @@ public class IndexShard extends AbstractIndexShardComponent {
         };
         return new EngineConfig(shardId,
                 threadPool, indexingService, indexSettingsService, warmer, store, deletionPolicy, mergePolicyProvider, mergeScheduler,
-                mapperAnalyzer, similarityService.similarity(), codecService, failedEngineListener, translogRecoveryPerformer, indexCache.filter(), indexCache.filterPolicy(), bigArrays, shardPath().resolveTranslog());
+                mapperAnalyzer, similarityService.similarity(), codecService, failedEngineListener, translogRecoveryPerformer, indexCache.filter(), indexCache.filterPolicy(), translogConfig);
     }
 
     private static class IndexShardOperationCounter extends AbstractRefCounted {
@@ -1371,6 +1375,16 @@ public class IndexShard extends AbstractIndexShardComponent {
      * Returns the current translog durability mode
      */
     public Translog.Durabilty getTranslogDurability() {
-       return engine().getTranslog().getDurabilty();
+       return translogConfig.getDurabilty();
+    }
+
+    private static Translog.Durabilty getFromSettings(ESLogger logger, Settings settings, Translog.Durabilty defaultValue) {
+        final String value = settings.get(TranslogConfig.INDEX_TRANSLOG_DURABILITY, defaultValue.name());
+        try {
+            return Translog.Durabilty.valueOf(value.toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException ex) {
+            logger.warn("Can't apply {} illegal value: {} using {} instead, use one of: {}", TranslogConfig.INDEX_TRANSLOG_DURABILITY, value, defaultValue, Arrays.toString(Translog.Durabilty.values()));
+            return defaultValue;
+        }
     }
 }

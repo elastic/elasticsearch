@@ -422,17 +422,22 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
 
     /**
-     * Read the Operation object from the given location.
+     * Read the Operation object from the given location. This method will try to read the given location from
+     * the current or from the currently committing translog file. If the location is in a file that has already
+     * been closed or even removed the method will return <code>null</code> instead.
      */
     public Translog.Operation read(Location location) {
         try (ReleasableLock lock = readLock.acquire()) {
             final TranslogReader reader;
-            if (current.getGeneration() == location.generation) {
+            final long currentGeneration = current.getGeneration();
+            if (currentGeneration == location.generation) {
                 reader = current;
             } else if (currentCommittingTranslog != null && currentCommittingTranslog.getGeneration() == location.generation) {
                 reader = currentCommittingTranslog;
+            } else if (currentGeneration < location.generation) {
+                throw new IllegalStateException("location generation [" + location.generation + "] is greater than the current generation [" + currentGeneration + "]");
             } else {
-                throw new IllegalStateException("Can't read from translog location" + location);
+                return null;
             }
             return reader.read(location);
         } catch (IOException e) {
@@ -776,7 +781,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         public final long translogLocation;
         public final int size;
 
-        public Location(long generation, long translogLocation, int size) {
+        Location(long generation, long translogLocation, int size) {
             this.generation = generation;
             this.translogLocation = translogLocation;
             this.size = size;

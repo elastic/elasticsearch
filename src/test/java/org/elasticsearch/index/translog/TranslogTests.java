@@ -165,8 +165,18 @@ public class TranslogTests extends ElasticsearchTestCase {
         assertThat(translog.read(loc3).getSource().source.toBytesArray(), equalTo(new BytesArray(new byte[]{3})));
         translog.sync();
         assertThat(translog.read(loc3).getSource().source.toBytesArray(), equalTo(new BytesArray(new byte[]{3})));
-
-
+        translog.prepareCommit();
+        assertThat(translog.read(loc3).getSource().source.toBytesArray(), equalTo(new BytesArray(new byte[]{3})));
+        translog.commit();
+        assertNull(translog.read(loc1));
+        assertNull(translog.read(loc2));
+        assertNull(translog.read(loc3));
+        try {
+            translog.read(new Translog.Location(translog.currentFileGeneration() + 1, 17, 35));
+            fail("generation is greater than the current");
+        } catch (IllegalStateException ex) {
+            // expected
+        }
     }
 
     @Test

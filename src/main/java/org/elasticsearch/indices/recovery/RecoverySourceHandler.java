@@ -415,7 +415,7 @@ public class RecoverySourceHandler {
                     // related to this recovery (out of date segments, for example)
                     // are deleted
                     try {
-                        final Store.MetadataSnapshot remainingFilesAfterCleanup = recoverWithSyncId? request.metadataSnapshot(): recoverySourceMetadata;
+                        final Store.MetadataSnapshot remainingFilesAfterCleanup = recoverWithSyncId ? request.metadataSnapshot() : recoverySourceMetadata;
                         transportService.submitRequest(request.targetNode(), RecoveryTarget.Actions.CLEAN_FILES,
                                 new RecoveryCleanFilesRequest(request.recoveryId(), shard.shardId(), remainingFilesAfterCleanup, translogView.totalOperations()),
                                 TransportRequestOptions.options().withTimeout(recoverySettings.internalActionTimeout()),

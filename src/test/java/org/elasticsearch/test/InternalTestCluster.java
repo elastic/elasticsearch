@@ -977,6 +977,8 @@ public final class InternalTestCluster extends TestCluster {
         // and not all docs have been purged after the test) and inherit from
         // ElasticsearchIntegrationTest must override beforeIndexDeletion() to avoid failures.
         assertShardIndexCounter();
+        //check that shards that have same sync id also contain same number of documents
+
     }
 
     private void assertShardIndexCounter() {

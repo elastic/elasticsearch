@@ -127,6 +127,9 @@ public class SyncedFlushService extends AbstractComponent {
     * changes on the replica (the write operation has not reached the replica yet).
     *
     * Step 2 detects this scenario and fails the whole synced flush if a write operation is ongoing on the primary.
+    * Together with the conditions for step 3 (same commit id and no uncommitted changes) this guarantees that a snc id will only
+    * be written on a primary if no write operation was executed between step 1 and step 3 and sync id will only be written on
+    * the replica if it contains the same changes that the primary contains.
     *
     * Synced flush is a best effort operation. The sync id may be written on all, some or none of the copies. 
     *

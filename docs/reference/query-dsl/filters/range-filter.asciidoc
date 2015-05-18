@@ -40,7 +40,7 @@ added[0.90.8]
 The `execution` option controls how the range filter internally executes. The `execution` option accepts the following values:
 
 [horizontal]
-`index`::       Uses field's inverted in order to determine of documents fall with in the range filter's from and to range
+`index`::       Uses field's inverted index order to determine of documents fall with in the range filter's from and to range
 `fielddata`::   Uses field data in order to determine of documents fall with in the range filter's from and to range.
 
 In general for small ranges the `index` execution is faster and for longer ranges the `fielddata` execution is faster.

@@ -188,9 +188,14 @@ public class RecoveryStatus extends AbstractRefCounted {
     public void markAsDone() {
         if (finished.compareAndSet(false, true)) {
             assert tempFileNames.isEmpty() : "not all temporary files are renamed";
-            indexShard.postRecovery("peer recovery done");
-            // release the initial reference. recovery files will be cleaned as soon as ref count goes to zero, potentially now
-            decRef();
+            try {
+                // this might still throw an exception ie. if the shard is CLOSED due to some other event.
+                // it's safer to decrement the reference in a try finally here.
+                indexShard.postRecovery("peer recovery done");
+            } finally {
+                // release the initial reference. recovery files will be cleaned as soon as ref count goes to zero, potentially now
+                decRef();
+            }
             listener.onRecoveryDone(state());
         }
     }

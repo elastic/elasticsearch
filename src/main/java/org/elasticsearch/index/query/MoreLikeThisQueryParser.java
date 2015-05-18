@@ -21,7 +21,6 @@ package org.elasticsearch.index.query;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
-
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.queries.TermsQuery;
 import org.apache.lucene.search.BooleanClause;
@@ -40,6 +39,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.Analysis;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.search.morelikethis.MoreLikeThisFetchService;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -245,6 +245,7 @@ public class MoreLikeThisQueryParser implements QueryParser {
         if (!likeItems.isEmpty()) {
             // set default index, type and fields if not specified
             MultiTermVectorsRequest items = likeItems;
+
             for (TermVectorsRequest item : ignoreItems) {
                 items.add(item);
             }
@@ -272,7 +273,7 @@ public class MoreLikeThisQueryParser implements QueryParser {
                 }
             }
             // fetching the items with multi-termvectors API
-            BooleanQuery boolQuery = new BooleanQuery();
+            items.copyContextAndHeadersFrom(SearchContext.current());
             MultiTermVectorsResponse responses = fetchService.fetchResponse(items);
 
             // getting the Fields for liked items
@@ -286,6 +287,7 @@ public class MoreLikeThisQueryParser implements QueryParser {
                 }
             }
 
+            BooleanQuery boolQuery = new BooleanQuery();
             boolQuery.add(mltQuery, BooleanClause.Occur.SHOULD);
 
             // exclude the items from the search

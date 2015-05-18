@@ -70,7 +70,7 @@ public class TransportPutMappingAction extends TransportMasterNodeOperationActio
         PutMappingClusterStateUpdateRequest updateRequest = new PutMappingClusterStateUpdateRequest()
                 .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout())
                 .indices(concreteIndices).type(request.type())
-                .source(request.source()).ignoreConflicts(request.ignoreConflicts());
+                .source(request.source());
 
         metaDataMappingService.putMapping(updateRequest, new ActionListener<ClusterStateUpdateResponse>() {
 

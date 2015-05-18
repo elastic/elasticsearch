@@ -166,30 +166,6 @@ public class UpdateMappingIntegrationTests extends ElasticsearchIntegrationTest 
     }
 
     /*
-    First regression test for https://github.com/elasticsearch/elasticsearch/issues/3381
-     */
-    @Test
-    public void updateMappingWithIgnoredConflicts() throws Exception {
-
-        client().admin().indices().prepareCreate("test")
-                .setSettings(
-                        settingsBuilder()
-                                .put("index.number_of_shards", 2)
-                                .put("index.number_of_replicas", 0)
-                ).addMapping("type", "{\"type\":{\"properties\":{\"body\":{\"type\":\"string\"}}}}")
-                .execute().actionGet();
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
-
-        PutMappingResponse putMappingResponse = client().admin().indices().preparePutMapping("test").setType("type")
-                .setSource("{\"type\":{\"properties\":{\"body\":{\"type\":\"integer\"}}}}")
-                .setIgnoreConflicts(true)
-                .execute().actionGet();
-
-        //no changes since the only one had a conflict and was ignored, we return
-        assertThat(putMappingResponse.isAcknowledged(), equalTo(true));
-    }
-
-    /*
     Second regression test for https://github.com/elasticsearch/elasticsearch/issues/3381
      */
     @Test

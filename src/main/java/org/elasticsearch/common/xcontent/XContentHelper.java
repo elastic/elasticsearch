@@ -20,7 +20,9 @@
 package org.elasticsearch.common.xcontent;
 
 import com.google.common.base.Charsets;
+import com.google.common.base.Objects;
 import com.google.common.collect.Maps;
+
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -257,11 +259,11 @@ public class XContentHelper {
             if (modified) {
                 continue;
             }
-            if (!checkUpdatesAreUnequal || old == null) {
+            if (!checkUpdatesAreUnequal) {
                 modified = true;
                 continue;
             }
-            modified = !old.equals(changesEntry.getValue());
+            modified = !Objects.equal(old, changesEntry.getValue());
         }
         return modified;
     }

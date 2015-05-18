@@ -23,7 +23,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
-public class SpanFirstQueryBuilder extends SpanQueryBuilder implements BoostableQueryBuilder<SpanFirstQueryBuilder> {
+public class SpanFirstQueryBuilder extends QueryBuilder implements SpanQueryBuilder, BoostableQueryBuilder<SpanFirstQueryBuilder> {
 
     private final SpanQueryBuilder matchBuilder;
 

@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.query;
 
-public abstract class SpanQueryBuilder extends QueryBuilder {
+import org.elasticsearch.common.xcontent.ToXContent;
+
+public interface SpanQueryBuilder extends ToXContent {
 
 }

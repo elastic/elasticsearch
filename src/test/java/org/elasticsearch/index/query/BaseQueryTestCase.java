@@ -74,7 +74,7 @@ public abstract class BaseQueryTestCase<QB extends QueryBuilder & Streamable> ex
      * Setup for the whole base test class.
      */
     @BeforeClass
-    public static void init() throws IOException {
+    public static void init() {
         Settings settings = ImmutableSettings.settingsBuilder()
                 .put("name", BaseQueryTestCase.class.toString())
                 .put("path.home", createTempDir())
@@ -150,7 +150,7 @@ public abstract class BaseQueryTestCase<QB extends QueryBuilder & Streamable> ex
         assertNotSame(newQuery, testQuery);
         assertEquals(newQuery, testQuery);
     }
-
+    
     /**
      * Test creates the {@link Query} from the {@link QueryBuilder} under test and delegates the
      * assertions being made on the result to the implementing subclass.
@@ -171,15 +171,17 @@ public abstract class BaseQueryTestCase<QB extends QueryBuilder & Streamable> ex
     @Repeat(iterations = 20)
     public void testSerialization() throws IOException {
         testQuery = createTestQueryBuilder();
-        BytesStreamOutput output = new BytesStreamOutput();
-        testQuery.writeTo(output);
-
-        BytesStreamInput in = new BytesStreamInput(output.bytes());
-        QB deserializedQuery = createEmptyQueryBuilder();
-        deserializedQuery.readFrom(in);
-
-        assertEquals(deserializedQuery, testQuery);
-        assertNotSame(deserializedQuery, testQuery);
+        try (BytesStreamOutput output = new BytesStreamOutput()) {
+            testQuery.writeTo(output);
+    
+            try (BytesStreamInput in = new BytesStreamInput(output.bytes())) {
+                QB deserializedQuery = createEmptyQueryBuilder();
+                deserializedQuery.readFrom(in);
+        
+                assertEquals(deserializedQuery, testQuery);
+                assertNotSame(deserializedQuery, testQuery);
+            }
+        }
     }
 
     /**

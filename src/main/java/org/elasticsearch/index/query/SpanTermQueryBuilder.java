@@ -19,80 +19,71 @@
 
 package org.elasticsearch.index.query;
 
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.spans.SpanTermQuery;
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.index.mapper.MapperService;
 
-import java.io.IOException;
-
-public class SpanTermQueryBuilder extends SpanQueryBuilder implements BoostableQueryBuilder<SpanTermQueryBuilder> {
-
-    private final String name;
-
-    private final Object value;
-
-    private float boost = -1;
-
-    private String queryName;
-
+/**
+ * A Span Query that matches documents containing a term.
+ * @see SpanTermQuery
+ */
+public class SpanTermQueryBuilder extends BaseTermQueryBuilder<SpanTermQueryBuilder> implements SpanQueryBuilder {
+    /** @see BaseTermQueryBuilder#BaseTermQueryBuilder(String, String) */
     public SpanTermQueryBuilder(String name, String value) {
-        this(name, (Object) value);
+        super(name, (Object) value);
     }
-
+    /** @see BaseTermQueryBuilder#BaseTermQueryBuilder(String, int) */
     public SpanTermQueryBuilder(String name, int value) {
-        this(name, (Object) value);
+        super(name, (Object) value);
     }
-
+    /** @see BaseTermQueryBuilder#BaseTermQueryBuilder(String, long) */
     public SpanTermQueryBuilder(String name, long value) {
-        this(name, (Object) value);
+        super(name, (Object) value);
     }
-
+    /** @see BaseTermQueryBuilder#BaseTermQueryBuilder(String, float) */
     public SpanTermQueryBuilder(String name, float value) {
-        this(name, (Object) value);
+        super(name, (Object) value);
     }
-
+    /** @see BaseTermQueryBuilder#BaseTermQueryBuilder(String, double) */
     public SpanTermQueryBuilder(String name, double value) {
-        this(name, (Object) value);
+        super(name, (Object) value);
+    }
+    /** @see BaseTermQueryBuilder#BaseTermQueryBuilder(String, Object) */
+    public SpanTermQueryBuilder(String name, Object value) {
+        super(name, value);
     }
 
-    private SpanTermQueryBuilder(String name, Object value) {
-        this.name = name;
-        this.value = value;
-    }
-
-    @Override
-    public SpanTermQueryBuilder boost(float boost) {
-        this.boost = boost;
-        return this;
-    }
-
-    /**
-     * Sets the query name for the filter that can be used when searching for matched_filters per hit.
-     */
-    public SpanTermQueryBuilder queryName(String queryName) {
-        this.queryName = queryName;
-        return this;
-    }
-
-    @Override
-    public void doXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(SpanTermQueryParser.NAME);
-        if (boost == -1 && queryName != null) {
-            builder.field(name, value);
-        } else {
-            builder.startObject(name);
-            builder.field("value", value);
-            if (boost != -1) {
-                builder.field("boost", boost);
-            }
-            if (queryName != null) {
-                builder.field("_name", queryName);
-            }
-            builder.endObject();
-        }
-        builder.endObject();
+    public SpanTermQueryBuilder() {
+        // for testing and serialisation only
     }
 
     @Override
     protected String parserName() {
         return SpanTermQueryParser.NAME;
+    }
+
+    @Override
+    public Query toQuery(QueryParseContext context) {
+        BytesRef valueBytes = null;
+        MapperService.SmartNameFieldMappers smartNameFieldMappers = context.smartFieldMappers(fieldName);
+        if (smartNameFieldMappers != null) {
+            if (smartNameFieldMappers.hasMapper()) {
+                fieldName = smartNameFieldMappers.mapper().names().indexName();
+                valueBytes = smartNameFieldMappers.mapper().indexedValueForSearch(value);
+            }
+        }
+        if (valueBytes == null) {
+            valueBytes = BytesRefs.toBytesRef(this.value);
+        }
+        
+        SpanTermQuery query = new SpanTermQuery(new Term(fieldName, valueBytes));
+        query.setBoost(boost);
+        if (queryName != null) {
+            context.addNamedQuery(queryName, query);
+        }
+        return query;
     }
 }

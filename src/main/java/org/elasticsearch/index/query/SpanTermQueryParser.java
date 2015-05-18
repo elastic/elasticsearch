@@ -19,21 +19,17 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.index.Term;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.spans.SpanTermQuery;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.MapperService;
 
 import java.io.IOException;
 
 /**
- *
+ * Parses the json representation of a spantermquery into the Elasticsearch internal
+ * query builder representation.
  */
-public class SpanTermQueryParser extends BaseQueryParserTemp {
+public class SpanTermQueryParser extends BaseQueryParser {
 
     public static final String NAME = "span_term";
 
@@ -47,18 +43,19 @@ public class SpanTermQueryParser extends BaseQueryParserTemp {
     }
 
     @Override
-    public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public QueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
         XContentParser.Token token = parser.currentToken();
         if (token == XContentParser.Token.START_OBJECT) {
             token = parser.nextToken();
         }
+
         assert token == XContentParser.Token.FIELD_NAME;
         String fieldName = parser.currentName();
 
 
-        String value = null;
+        Object value = null;
         float boost = 1.0f;
         String queryName = null;
         token = parser.nextToken();
@@ -69,9 +66,9 @@ public class SpanTermQueryParser extends BaseQueryParserTemp {
                     currentFieldName = parser.currentName();
                 } else {
                     if ("term".equals(currentFieldName)) {
-                        value = parser.text();
+                        value = parser.objectBytes();
                     } else if ("value".equals(currentFieldName)) {
-                        value = parser.text();
+                        value = parser.objectBytes();
                     } else if ("boost".equals(currentFieldName)) {
                         boost = parser.floatValue();
                     } else if ("_name".equals(currentFieldName)) {
@@ -83,7 +80,7 @@ public class SpanTermQueryParser extends BaseQueryParserTemp {
             }
             parser.nextToken();
         } else {
-            value = parser.text();
+            value = parser.objectBytes();
             // move to the next token
             parser.nextToken();
         }
@@ -92,23 +89,9 @@ public class SpanTermQueryParser extends BaseQueryParserTemp {
             throw new QueryParsingException(parseContext, "No value specified for term query");
         }
 
-        BytesRef valueBytes = null;
-        MapperService.SmartNameFieldMappers smartNameFieldMappers = parseContext.smartFieldMappers(fieldName);
-        if (smartNameFieldMappers != null) {
-            if (smartNameFieldMappers.hasMapper()) {
-                fieldName = smartNameFieldMappers.mapper().names().indexName();
-                valueBytes = smartNameFieldMappers.mapper().indexedValueForSearch(value);
-            }
-        }
-        if (valueBytes == null) {
-            valueBytes = new BytesRef(value);
-        }
-
-        SpanTermQuery query = new SpanTermQuery(new Term(fieldName, valueBytes));
-        query.setBoost(boost);
-        if (queryName != null) {
-            parseContext.addNamedQuery(queryName, query);
-        }
-        return query;
+        SpanTermQueryBuilder result = new SpanTermQueryBuilder(fieldName, value);
+        result.boost(boost).queryName(queryName);
+        result.validate();
+        return result;
     }
 }

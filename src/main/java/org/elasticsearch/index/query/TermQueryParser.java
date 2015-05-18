@@ -40,6 +40,7 @@ public class TermQueryParser extends BaseQueryParser {
         return new String[]{NAME};
     }
 
+    @Override
     public QueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 

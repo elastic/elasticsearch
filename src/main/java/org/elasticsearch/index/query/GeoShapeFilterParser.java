@@ -22,6 +22,7 @@ package org.elasticsearch.index.query;
 import com.spatial4j.core.shape.Shape;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.spatial.prefix.PrefixTreeStrategy;
+import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.inject.Inject;
@@ -32,6 +33,7 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.geo.GeoShapeFieldMapper;
 import org.elasticsearch.index.search.shape.ShapeFetchService;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 
@@ -134,7 +136,9 @@ public class GeoShapeFilterParser implements FilterParser {
                             } else if (type == null) {
                                 throw new QueryParsingException(parseContext.index(), "Type for indexed shape not provided");
                             }
-                            shape = fetchService.fetch(id, type, index, shapePath);
+                            GetRequest getRequest = new GetRequest(index, type, id);
+                            getRequest.copyContextAndHeadersFrom(SearchContext.current());
+                            shape = fetchService.fetch(getRequest, shapePath);
                         }  else {
                             throw new QueryParsingException(parseContext.index(), "[geo_shape] filter does not support [" + currentFieldName + "]");
                         }

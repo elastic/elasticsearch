@@ -40,6 +40,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.Analysis;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.search.morelikethis.MoreLikeThisFetchService;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -235,9 +236,11 @@ public class MoreLikeThisQueryParser implements QueryParser {
                 }
             }
             // fetching the items with multi-termvectors API
-            BooleanQuery boolQuery = new BooleanQuery();
             org.apache.lucene.index.Fields[] likeFields = fetchService.fetch(items);
+            items.copyContextAndHeadersFrom(SearchContext.current());
             mltQuery.setLikeText(likeFields);
+
+            BooleanQuery boolQuery = new BooleanQuery();
             boolQuery.add(mltQuery, BooleanClause.Occur.SHOULD);
             // exclude the items from the search
             if (!include) {

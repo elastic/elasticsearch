@@ -108,7 +108,9 @@ public class IndicesTermsFilterCache extends AbstractComponent {
     }
 
     TermsFilterValue buildTermsFilterValue(TermsLookup lookup) {
-        GetResponse getResponse = client.get(new GetRequest(lookup.getIndex(), lookup.getType(), lookup.getId()).preference("_local").routing(lookup.getRouting())).actionGet();
+        GetRequest request = new GetRequest(lookup.getIndex(), lookup.getType(), lookup.getId()).preference("_local").routing(lookup.getRouting());
+        request.copyContextAndHeadersFrom(lookup.getHasContextAndHeaders());
+        GetResponse getResponse = client.get(request).actionGet();
         if (!getResponse.isExists()) {
             return NO_TERMS;
         }

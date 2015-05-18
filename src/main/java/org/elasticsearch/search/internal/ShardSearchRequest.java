@@ -20,6 +20,9 @@
 package org.elasticsearch.search.internal;
 
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.common.HasContext;
+import org.elasticsearch.common.HasContextAndHeaders;
+import org.elasticsearch.common.HasHeaders;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.Scroll;
@@ -32,7 +35,7 @@ import java.util.Map;
  * It provides all the methods that the {@link org.elasticsearch.search.internal.SearchContext} needs.
  * Provides a cache key based on its content that can be used to cache shard level response.
  */
-public interface ShardSearchRequest {
+public interface ShardSearchRequest extends HasContextAndHeaders {
 
     String index();
 

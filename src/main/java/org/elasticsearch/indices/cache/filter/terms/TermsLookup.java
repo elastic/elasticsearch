@@ -19,8 +19,10 @@
 
 package org.elasticsearch.indices.cache.filter.terms;
 
+import org.elasticsearch.common.HasContextAndHeaders;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.search.internal.SearchContext;
 
 /**
  */
@@ -34,14 +36,16 @@ public class TermsLookup {
 
     @Nullable
     private final QueryParseContext queryParseContext;
+    private HasContextAndHeaders hasContextAndHeaders;
 
-    public TermsLookup(String index, String type, String id, String routing, String path, @Nullable QueryParseContext queryParseContext) {
+    public TermsLookup(String index, String type, String id, String routing, String path, @Nullable QueryParseContext queryParseContext, HasContextAndHeaders hasContextAndHeaders) {
         this.index = index;
         this.type = type;
         this.id = id;
         this.routing = routing;
         this.path = path;
         this.queryParseContext = queryParseContext;
+        this.hasContextAndHeaders = hasContextAndHeaders;
     }
 
     public String getIndex() {
@@ -62,6 +66,10 @@ public class TermsLookup {
 
     public String getPath() {
         return path;
+    }
+
+    public HasContextAndHeaders getHasContextAndHeaders() {
+        return hasContextAndHeaders;
     }
 
     @Nullable

@@ -50,17 +50,17 @@ public class ShapeFetchService extends AbstractComponent {
     /**
      * Fetches the Shape with the given ID in the given type and index.
      *
-     * @param id        ID of the Shape to fetch
-     * @param type      Index type where the Shape is indexed
-     * @param index     Index where the Shape is indexed
+     * @param getRequest GetRequest containing index, type and id
      * @param path      Name or path of the field in the Shape Document where the Shape itself is located
      * @return Shape with the given ID
      * @throws IOException Can be thrown while parsing the Shape Document and extracting the Shape
      */
-    public ShapeBuilder fetch(String id, String type, String index, String path) throws IOException {
-        GetResponse response = client.get(new GetRequest(index, type, id).preference("_local").operationThreaded(false)).actionGet();
+    public ShapeBuilder fetch(GetRequest getRequest, String path) throws IOException {
+        getRequest.preference("_local");
+        getRequest.operationThreaded(false);
+        GetResponse response = client.get(getRequest).actionGet();
         if (!response.isExists()) {
-            throw new ElasticsearchIllegalArgumentException("Shape with ID [" + id + "] in type [" + type + "] not found");
+            throw new ElasticsearchIllegalArgumentException("Shape with ID [" + getRequest.id() + "] in type [" + getRequest.type() + "] not found");
         }
 
         String[] pathElements = Strings.splitStringToArray(path, '.');
@@ -83,7 +83,7 @@ public class ShapeFetchService extends AbstractComponent {
                     }
                 }
             }
-            throw new ElasticsearchIllegalStateException("Shape with name [" + id + "] found but missing " + path + " field");
+            throw new ElasticsearchIllegalStateException("Shape with name [" + getRequest.id() + "] found but missing " + path + " field");
         } finally {
             if (parser != null) {
                 parser.close();

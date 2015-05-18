@@ -38,6 +38,7 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.cache.filter.terms.IndicesTermsFilterCache;
 import org.elasticsearch.indices.cache.filter.terms.TermsLookup;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.List;
@@ -186,7 +187,7 @@ public class TermsFilterParser implements FilterParser {
             }
 
             // external lookup, use it
-            TermsLookup termsLookup = new TermsLookup(lookupIndex, lookupType, lookupId, lookupRouting, lookupPath, parseContext);
+            TermsLookup termsLookup = new TermsLookup(lookupIndex, lookupType, lookupId, lookupRouting, lookupPath, parseContext, SearchContext.current());
             terms.addAll(termsFilterCache.terms(termsLookup, lookupCache, cacheKey));
         }
 

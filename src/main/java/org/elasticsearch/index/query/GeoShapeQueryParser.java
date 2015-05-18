@@ -24,6 +24,7 @@ import org.apache.lucene.spatial.prefix.PrefixTreeStrategy;
 import org.apache.lucene.spatial.query.SpatialArgs;
 import org.apache.lucene.spatial.query.SpatialOperation;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.ShapeRelation;
@@ -34,6 +35,7 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.geo.GeoShapeFieldMapper;
 import org.elasticsearch.index.search.shape.ShapeFetchService;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 
@@ -112,7 +114,9 @@ public class GeoShapeQueryParser implements QueryParser {
                             } else if (type == null) {
                                 throw new QueryParsingException(parseContext.index(), "Type for indexed shape not provided");
                             }
-                            shape = fetchService.fetch(id, type, index, shapePath);
+                            GetRequest getRequest = new GetRequest(index, type, id);
+                            getRequest.copyContextAndHeadersFrom(SearchContext.current());
+                            shape = fetchService.fetch(getRequest, shapePath);
                         } else {
                             throw new QueryParsingException(parseContext.index(), "[geo_shape] query does not support [" + currentFieldName + "]");
                         }
@@ -164,7 +168,7 @@ public class GeoShapeQueryParser implements QueryParser {
     public void setFetchService(@Nullable ShapeFetchService fetchService) {
         this.fetchService = fetchService;
     }
-    
+
     public static SpatialArgs getArgs(ShapeBuilder shape, ShapeRelation relation) {
         switch(relation) {
         case DISJOINT:
@@ -175,7 +179,6 @@ public class GeoShapeQueryParser implements QueryParser {
             return new SpatialArgs(SpatialOperation.IsWithin, shape.build());
         default:
             throw new ElasticsearchIllegalArgumentException("");
-        
         }
     }
 }

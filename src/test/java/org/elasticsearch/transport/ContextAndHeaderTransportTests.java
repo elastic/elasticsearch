@@ -92,19 +92,12 @@ public class ContextAndHeaderTransportTests extends ElasticsearchIntegrationTest
                 .startObject("properties")
                 .startObject("location").field("type", "geo_shape").endObject()
                 .startObject("name").field("type", "string").endObject()
-                .startObject("title").field("type", "string").field("analyzer", "text").endObject()
                 .endObject()
                 .endObject().endObject().string();
 
         Settings settings = settingsBuilder()
                 .put(indexSettings())
                 .put(SETTING_NUMBER_OF_SHARDS, 1) // A single shard will help to keep the tests repeatable.
-                .put("index.analysis.analyzer.text.tokenizer", "standard")
-                .putArray("index.analysis.analyzer.text.filter", "lowercase", "my_shingle")
-                .put("index.analysis.filter.my_shingle.type", "shingle")
-                .put("index.analysis.filter.my_shingle.output_unigrams", true)
-                .put("index.analysis.filter.my_shingle.min_shingle_size", 2)
-                .put("index.analysis.filter.my_shingle.max_shingle_size", 3)
                 .build();
         assertAcked(transportClient().admin().indices().prepareCreate(lookupIndex)
                 .setSettings(settings).addMapping("type", mapping));
@@ -119,17 +112,7 @@ public class ContextAndHeaderTransportTests extends ElasticsearchIntegrationTest
     public void checkAllRequestsContainHeaders() {
         assertRequestsContainHeader(IndexRequest.class);
         assertRequestsContainHeader(RefreshRequest.class);
-
-    /*
-        for (ActionRequest request : requests) {
-            String msg = String.format(Locale.ROOT, "Expected request [%s] to have randomized header key set", request.getClass().getSimpleName());
-            assertThat(msg, request.hasHeader(randomHeaderKey), is(true));
-            assertThat(request.getHeader(randomHeaderKey).toString(), is(randomHeaderValue));
-        }
-    */
     }
-
-    // TODO check context as well
 
     @Test
     public void testThatTermsLookupGetRequestContainsContextAndHeaders() throws Exception {
@@ -154,29 +137,29 @@ public class ContextAndHeaderTransportTests extends ElasticsearchIntegrationTest
 
     @Test
     public void testThatGeoShapeQueryGetRequestContainsContextAndHeaders() throws Exception {
-        indexRandom(false, false,
-                transportClient().prepareIndex(lookupIndex, "type", "1").setSource(jsonBuilder().startObject()
-                        .field("name", "Munich Suburban Area")
-                        .startObject("location")
-                        .field("type", "polygon")
-                        .startArray("coordinates").startArray()
-                        .startArray().value(11.34).value(48.25).endArray()
-                        .startArray().value(11.68).value(48.25).endArray()
-                        .startArray().value(11.65).value(48.06).endArray()
-                        .startArray().value(11.37).value(48.13).endArray()
-                        .startArray().value(11.34).value(48.25).endArray() // close the polygon
-                        .endArray().endArray()
-                        .endObject()
-                        .endObject()),
-                // second document
-                transportClient().prepareIndex(queryIndex, "type", "1").setSource(jsonBuilder().startObject()
-                        .field("name", "Munich Center")
-                        .startObject("location")
-                        .field("type", "point")
-                        .startArray("coordinates").value(11.57).value(48.13).endArray()
-                        .endObject()
-                        .endObject())
-        );
+        transportClient().prepareIndex(lookupIndex, "type", "1").setSource(jsonBuilder().startObject()
+                .field("name", "Munich Suburban Area")
+                .startObject("location")
+                .field("type", "polygon")
+                .startArray("coordinates").startArray()
+                .startArray().value(11.34).value(48.25).endArray()
+                .startArray().value(11.68).value(48.25).endArray()
+                .startArray().value(11.65).value(48.06).endArray()
+                .startArray().value(11.37).value(48.13).endArray()
+                .startArray().value(11.34).value(48.25).endArray() // close the polygon
+                .endArray().endArray()
+                .endObject()
+                .endObject())
+                .get();
+        // second document
+        transportClient().prepareIndex(queryIndex, "type", "1").setSource(jsonBuilder().startObject()
+                .field("name", "Munich Center")
+                .startObject("location")
+                .field("type", "point")
+                .startArray("coordinates").value(11.57).value(48.13).endArray()
+                .endObject()
+                .endObject())
+                .get();
         transportClient().admin().indices().prepareRefresh(lookupIndex, queryIndex).get();
 
         GeoShapeQueryBuilder queryBuilder = QueryBuilders.geoShapeQuery("location", "1", "type")
@@ -196,13 +179,15 @@ public class ContextAndHeaderTransportTests extends ElasticsearchIntegrationTest
 
     @Test
     public void testThatMoreLikeThisQueryMultiTermVectorRequestContainsContextAndHeaders() throws Exception {
-        indexRandom(false, false,
-                transportClient().prepareIndex(lookupIndex, "type", "1")
-                        .setSource(jsonBuilder().startObject().field("name", "Star Wars - The new republic").endObject()),
-                transportClient().prepareIndex(queryIndex, "type", "1")
-                        .setSource(jsonBuilder().startObject().field("name", "Jar Jar Binks - A horrible mistake").endObject()),
-                transportClient().prepareIndex(queryIndex, "type", "2")
-                        .setSource(jsonBuilder().startObject().field("name", "Star Wars - Return of the jedi").endObject()));
+        transportClient().prepareIndex(lookupIndex, "type", "1")
+                .setSource(jsonBuilder().startObject().field("name", "Star Wars - The new republic").endObject())
+                .get();
+        transportClient().prepareIndex(queryIndex, "type", "1")
+                .setSource(jsonBuilder().startObject().field("name", "Jar Jar Binks - A horrible mistake").endObject())
+                .get();
+        transportClient().prepareIndex(queryIndex, "type", "2")
+                .setSource(jsonBuilder().startObject().field("name", "Star Wars - Return of the jedi").endObject())
+                .get();
         transportClient().admin().indices().prepareRefresh(lookupIndex, queryIndex).get();
 
         MoreLikeThisQueryBuilder moreLikeThisQueryBuilder = QueryBuilders.moreLikeThisQuery("name")
@@ -222,12 +207,12 @@ public class ContextAndHeaderTransportTests extends ElasticsearchIntegrationTest
 
     @Test
     public void testThatPercolatingExistingDocumentGetRequestContainsContextAndHeaders() throws Exception {
-        indexRandom(false,
-                transportClient().prepareIndex(lookupIndex, ".percolator", "1")
-                        .setSource(jsonBuilder().startObject().startObject("query").startObject("match").field("name", "star wars").endObject().endObject().endObject()),
-                transportClient().prepareIndex(lookupIndex, "type", "1")
-                        .setSource(jsonBuilder().startObject().field("name", "Star Wars - The new republic").endObject())
-        );
+        transportClient().prepareIndex(lookupIndex, ".percolator", "1")
+                .setSource(jsonBuilder().startObject().startObject("query").startObject("match").field("name", "star wars").endObject().endObject().endObject())
+                .get();
+        transportClient().prepareIndex(lookupIndex, "type", "1")
+                .setSource(jsonBuilder().startObject().field("name", "Star Wars - The new republic").endObject())
+                .get();
         transportClient().admin().indices().prepareRefresh(lookupIndex).get();
 
         GetRequest getRequest = transportClient().prepareGet(lookupIndex, "type", "1").request();
@@ -244,8 +229,9 @@ public class ContextAndHeaderTransportTests extends ElasticsearchIntegrationTest
         ).get();
         assertThat(scriptResponse.isCreated(), is(true));
 
-        indexRandom(false, false, transportClient().prepareIndex(queryIndex, "type", "1")
-                .setSource(jsonBuilder().startObject().field("name", "Star Wars - The new republic").endObject()));
+        transportClient().prepareIndex(queryIndex, "type", "1")
+                .setSource(jsonBuilder().startObject().field("name", "Star Wars - The new republic").endObject())
+                .get();
         transportClient().admin().indices().prepareRefresh(queryIndex).get();
 
         // custom content, not sure how to specify "script_id" otherwise in the API
@@ -272,8 +258,9 @@ public class ContextAndHeaderTransportTests extends ElasticsearchIntegrationTest
         ).get();
         assertThat(scriptResponse.isCreated(), is(true));
 
-        indexRandom(false, false, transportClient().prepareIndex(queryIndex, "type", "1")
-                .setSource(jsonBuilder().startObject().field("name", "Star Wars - The new republic").endObject()));
+        transportClient().prepareIndex(queryIndex, "type", "1")
+                .setSource(jsonBuilder().startObject().field("name", "Star Wars - The new republic").endObject())
+                .get();
         transportClient().admin().indices().prepareRefresh(queryIndex).get();
 
         Map<String, Object> params = new HashMap<>();

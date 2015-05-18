@@ -50,17 +50,19 @@ public class RangeQueryBuilderTest extends BaseQueryTestCase<RangeQueryBuilder> 
         RangeQueryBuilder query;
         // switch between numeric and date ranges
         if (randomBoolean()) {
-            // also switch between mapped integer and unmapped double fields
             if (randomBoolean()) {
+                // use mapped integer field for numeric range queries
                 query = new RangeQueryBuilder(INT_FIELD_NAME);
                 query.from(randomIntBetween(1, 100));
                 query.to(randomIntBetween(101, 200));
             } else {
+                // use unmapped field for numeric range queries
                 query = new RangeQueryBuilder(randomAsciiOfLengthBetween(1, 10));
                 query.from(0.0-randomDouble());
                 query.to(randomDouble());
             }
         } else {
+            // use mapped date field, using date string representation
             query = new RangeQueryBuilder(DATE_FIELD_NAME);
             query.from(new DateTime(System.currentTimeMillis() - randomIntBetween(0, 1000000)).toString());
             query.to(new DateTime(System.currentTimeMillis() + randomIntBetween(0, 1000000)).toString());
@@ -95,15 +97,15 @@ public class RangeQueryBuilderTest extends BaseQueryTestCase<RangeQueryBuilder> 
             Query namedQuery = context.copyNamedFilters().get(queryBuilder.queryName());
             assertThat(namedQuery, equalTo(query));
         }
-        String fieldname = queryBuilder.fieldname();
+        String fieldName = queryBuilder.fieldName();
         Query expectedQuery;
-        if (!fieldname.equals(DATE_FIELD_NAME) && !fieldname.equals(INT_FIELD_NAME)) {
+        if (!fieldName.equals(DATE_FIELD_NAME) && !fieldName.equals(INT_FIELD_NAME)) {
             assertThat(query, instanceOf(TermRangeQuery.class));
-            expectedQuery = new TermRangeQuery(queryBuilder.fieldname(),
+            expectedQuery = new TermRangeQuery(queryBuilder.fieldName(),
                     BytesRefs.toBytesRef(queryBuilder.from()), BytesRefs.toBytesRef(queryBuilder.to()),
                     queryBuilder.includeLower(), queryBuilder.includeUpper());
             expectedQuery.setBoost(queryBuilder.boost());
-        } else if (fieldname.equals(DATE_FIELD_NAME)) {
+        } else if (fieldName.equals(DATE_FIELD_NAME)) {
             assertThat(query, instanceOf(LateParsingQuery.class));
             Long min = expectedDateLong(queryBuilder.from(), queryBuilder, context);
             Long max = expectedDateLong(queryBuilder.to(), queryBuilder, context);
@@ -165,7 +167,7 @@ public class RangeQueryBuilderTest extends BaseQueryTestCase<RangeQueryBuilder> 
     }
 
     private Long expectedDateLong(Object value, RangeQueryBuilder queryBuilder, QueryParseContext context) {
-        SmartNameFieldMappers smartFieldMappers = context.smartFieldMappers(queryBuilder.fieldname());
+        SmartNameFieldMappers smartFieldMappers = context.smartFieldMappers(queryBuilder.fieldName());
         FieldMapper<?> mapper = smartFieldMappers.mapper();
         DateMathParser dateParser = null;
         if (queryBuilder.format()  != null) {

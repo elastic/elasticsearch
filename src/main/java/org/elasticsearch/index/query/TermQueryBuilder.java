@@ -140,5 +140,4 @@ public class TermQueryBuilder extends BaseTermQueryBuilder<TermQueryBuilder> {
     protected String parserName() {
         return TermQueryParser.NAME;
     }
-
 }

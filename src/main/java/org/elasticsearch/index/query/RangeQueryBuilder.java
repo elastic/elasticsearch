@@ -41,7 +41,7 @@ import java.util.Objects;
  */
 public class RangeQueryBuilder extends MultiTermQueryBuilder implements Streamable, BoostableQueryBuilder<RangeQueryBuilder> {
 
-    private String fieldname;
+    private String fieldName;
 
     private Object from;
 
@@ -61,10 +61,10 @@ public class RangeQueryBuilder extends MultiTermQueryBuilder implements Streamab
     /**
      * A Query that matches documents within an range of terms.
      *
-     * @param fieldname The field name
+     * @param fieldName The field name
      */
-    public RangeQueryBuilder(String fieldname) {
-        this.fieldname = fieldname;
+    public RangeQueryBuilder(String fieldName) {
+        this.fieldName = fieldName;
     }
 
     public RangeQueryBuilder() {
@@ -74,8 +74,8 @@ public class RangeQueryBuilder extends MultiTermQueryBuilder implements Streamab
     /**
      * Get the field name for this query.
      */
-    public String fieldname() {
-        return this.fieldname;
+    public String fieldName() {
+        return this.fieldName;
     }
 
     /**
@@ -98,7 +98,7 @@ public class RangeQueryBuilder extends MultiTermQueryBuilder implements Streamab
      * Gets the lower range value for this query.
      */
     public Object from() {
-        return convertToBytesRefIfString(this.from);
+        return convertToStringIfBytesRef(this.from);
     }
 
     /**
@@ -135,7 +135,7 @@ public class RangeQueryBuilder extends MultiTermQueryBuilder implements Streamab
      * Gets the upper range value for this query.
      */
     public Object to() {
-        return convertToBytesRefIfString(this.to);
+        return convertToStringIfBytesRef(this.to);
     }
 
     /**
@@ -247,7 +247,7 @@ public class RangeQueryBuilder extends MultiTermQueryBuilder implements Streamab
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(RangeQueryParser.NAME);
-        builder.startObject(fieldname);
+        builder.startObject(fieldName);
         builder.field("from", convertToStringIfBytesRef(this.from));
         builder.field("to", convertToStringIfBytesRef(this.to));
         if (timeZone != null) {
@@ -276,14 +276,14 @@ public class RangeQueryBuilder extends MultiTermQueryBuilder implements Streamab
     @Override
     public Query toQuery(QueryParseContext parseContext) throws QueryParsingException, IOException {
         Query query = null;
-        MapperService.SmartNameFieldMappers smartNameFieldMappers = parseContext.smartFieldMappers(this.fieldname);
+        MapperService.SmartNameFieldMappers smartNameFieldMappers = parseContext.smartFieldMappers(this.fieldName);
         if (smartNameFieldMappers != null) {
             if (smartNameFieldMappers.hasMapper()) {
                 FieldMapper<?> mapper = smartNameFieldMappers.mapper();
                 if (mapper instanceof DateFieldMapper) {
                     if ((from instanceof Number || to instanceof Number) && timeZone != null) {
                         throw new QueryParsingException(parseContext,
-                                "[range] time_zone when using ms since epoch format as it's UTC based can not be applied to [" + this.fieldname
+                                "[range] time_zone when using ms since epoch format as it's UTC based can not be applied to [" + this.fieldName
                                         + "]");
                     }
                     DateMathParser forcedDateParser = null;
@@ -298,7 +298,7 @@ public class RangeQueryBuilder extends MultiTermQueryBuilder implements Streamab
                 } else  {
                     if (timeZone != null) {
                         throw new QueryParsingException(parseContext, "[range] time_zone can not be applied to non date field ["
-                                + this.fieldname + "]");
+                                + this.fieldName + "]");
                     }
                     //LUCENE 4 UPGRADE Mapper#rangeQuery should use bytesref as well?
                     query = mapper.rangeQuery(from, to, includeLower, includeUpper, parseContext);
@@ -307,7 +307,7 @@ public class RangeQueryBuilder extends MultiTermQueryBuilder implements Streamab
             }
         }
         if (query == null) {
-            query = new TermRangeQuery(this.fieldname, BytesRefs.toBytesRef(from), BytesRefs.toBytesRef(to), includeLower, includeUpper);
+            query = new TermRangeQuery(this.fieldName, BytesRefs.toBytesRef(from), BytesRefs.toBytesRef(to), includeLower, includeUpper);
         }
         query.setBoost(boost);
         if (queryName != null) {
@@ -319,7 +319,7 @@ public class RangeQueryBuilder extends MultiTermQueryBuilder implements Streamab
     @Override
     public QueryValidationException validate() {
         QueryValidationException validationException = null;
-        if (this.fieldname == null || this.fieldname.isEmpty()) {
+        if (this.fieldName == null || this.fieldName.isEmpty()) {
             validationException = QueryValidationException.addValidationError("field name cannot be null or empty.", validationException);
         }
         if (this.timeZone != null) {
@@ -343,7 +343,7 @@ public class RangeQueryBuilder extends MultiTermQueryBuilder implements Streamab
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        this.fieldname = in.readString();
+        this.fieldName = in.readString();
         this.from = in.readGenericValue();
         this.to = in.readGenericValue();
         this.includeLower = in.readBoolean();
@@ -356,7 +356,7 @@ public class RangeQueryBuilder extends MultiTermQueryBuilder implements Streamab
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(this.fieldname);
+        out.writeString(this.fieldName);
         out.writeGenericValue(this.from);
         out.writeGenericValue(this.to);
         out.writeBoolean(this.includeLower);
@@ -369,7 +369,7 @@ public class RangeQueryBuilder extends MultiTermQueryBuilder implements Streamab
 
     @Override
     public int hashCode() {
-        return Objects.hash(fieldname, from, to, timeZone, includeLower, includeUpper,
+        return Objects.hash(fieldName, from, to, timeZone, includeLower, includeUpper,
                 boost, queryName, format);
     }
 
@@ -382,7 +382,7 @@ public class RangeQueryBuilder extends MultiTermQueryBuilder implements Streamab
             return false;
         }
         RangeQueryBuilder other = (RangeQueryBuilder) obj;
-        return Objects.equals(fieldname, other.fieldname) &&
+        return Objects.equals(fieldName, other.fieldName) &&
                Objects.equals(from, other.from) &&
                Objects.equals(to, other.to) &&
                Objects.equals(timeZone, other.timeZone) &&

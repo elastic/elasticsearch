@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -103,6 +104,9 @@ public abstract class BaseTermQueryBuilder<QB extends BoostableQueryBuilder<QB>>
 
     /**
      * Constructs a new base term query.
+     * In case value is assigned to a string, we internally convert it to a {@link BytesRef}
+     * because in {@link TermQueryParser} and {@link SpanTermQueryParser} string values are parsed to {@link BytesRef}
+     * and we want internal representation of query to be equal regardless of whether it was created from XContent or via Java API.
      *
      * @param fieldName  The name of the field
      * @param value The value of the term
@@ -121,7 +125,10 @@ public abstract class BaseTermQueryBuilder<QB extends BoostableQueryBuilder<QB>>
         return this.fieldName;
     }
 
-    /** Returns the value used in this query. */
+    /**
+     *  Returns the value used in this query.
+     *  If necessary, converts internal {@link BytesRef} representation back to string.
+     */
     public Object value() {
         return convertToStringIfBytesRef(this.value);
     }

@@ -21,6 +21,7 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermRangeQuery;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -80,6 +81,9 @@ public class RangeQueryBuilder extends MultiTermQueryBuilder implements Streamab
 
     /**
      * The from part of the range query. Null indicates unbounded.
+     * In case lower bound is assigned to a string, we internally convert it to a {@link BytesRef} because
+     * in {@link RangeQueryParser} field are later parsed as {@link BytesRef} and we need internal representation
+     * of query to be equal regardless of whether it was created from XContent or via Java API.
      */
     public RangeQueryBuilder from(Object from, boolean includeLower) {
         this.from = convertToBytesRefIfString(from);
@@ -133,6 +137,9 @@ public class RangeQueryBuilder extends MultiTermQueryBuilder implements Streamab
 
     /**
      * Gets the upper range value for this query.
+     * In case upper bound is assigned to a string, we internally convert it to a {@link BytesRef} because
+     * in {@link RangeQueryParser} field are later parsed as {@link BytesRef} and we need internal representation
+     * of query to be equal regardless of whether it was created from XContent or via Java API.
      */
     public Object to() {
         return convertToStringIfBytesRef(this.to);

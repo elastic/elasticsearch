@@ -26,6 +26,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.indices.SyncedFlushService;
+import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.util.*;
@@ -37,12 +38,25 @@ public class SealIndicesResponse extends ActionResponse implements ToXContent {
 
     final private Set<SyncedFlushService.SyncedFlushResult> results;
 
+    private RestStatus restStatus;
+
     SealIndicesResponse() {
         results = new HashSet<>();
     }
 
     SealIndicesResponse(Set<SyncedFlushService.SyncedFlushResult> results) {
         this.results = results;
+        if (allShardsFailed()) {
+            restStatus = RestStatus.CONFLICT;
+        } else if (someShardsFailed()) {
+            restStatus = RestStatus.PARTIAL_CONTENT;
+        } else {
+            restStatus = RestStatus.OK;
+        }
+    }
+
+    public RestStatus status() {
+        return restStatus;
     }
 
     @Override
@@ -55,6 +69,7 @@ public class SealIndicesResponse extends ActionResponse implements ToXContent {
             syncedFlushResult.readFrom(in);
             results.add(syncedFlushResult);
         }
+        restStatus = RestStatus.readFrom(in);
     }
 
     @Override
@@ -64,6 +79,7 @@ public class SealIndicesResponse extends ActionResponse implements ToXContent {
         for (SyncedFlushService.SyncedFlushResult syncedFlushResult : results) {
             syncedFlushResult.writeTo(out);
         }
+        RestStatus.writeTo(out, restStatus);
     }
 
     public Set<SyncedFlushService.SyncedFlushResult> results() {
@@ -119,5 +135,37 @@ public class SealIndicesResponse extends ActionResponse implements ToXContent {
             builder.endArray();
         }
         return builder;
+    }
+
+    public boolean allShardsFailed() {
+        for (SyncedFlushService.SyncedFlushResult result : results) {
+            if (result.success()) {
+                return false;
+            }
+            if (result.shardResponses().size() > 0) {
+                for (Map.Entry<ShardRouting, SyncedFlushService.SyncedFlushResponse> shardResponse : result.shardResponses().entrySet()) {
+                    if (shardResponse.getValue().success()) {
+                        return false;
+                    }
+                }
+            }
+        }
+        return true;
+    }
+
+    public boolean someShardsFailed() {
+        for (SyncedFlushService.SyncedFlushResult result : results) {
+            if (result.success() == false) {
+                return true;
+            }
+            if (result.shardResponses().size() > 0) {
+                for (Map.Entry<ShardRouting, SyncedFlushService.SyncedFlushResponse> shardResponse : result.shardResponses().entrySet()) {
+                    if (shardResponse.getValue().success() == false) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
     }
 }

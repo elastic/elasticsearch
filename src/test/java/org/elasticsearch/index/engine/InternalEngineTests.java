@@ -1830,7 +1830,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
             MapperService mapperService = new MapperService(index, settings, analysisService, null, similarityLookupService, null);
             DocumentMapper.Builder b = new DocumentMapper.Builder(indexName, settings, rootBuilder);
             DocumentMapperParser parser = new DocumentMapperParser(index, settings, mapperService, analysisService, similarityLookupService, null);
-            this.docMapper = b.build(null, parser);
+            this.docMapper = b.build(mapperService, parser);
 
         }
 

@@ -22,16 +22,18 @@ package org.elasticsearch;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
+import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexException;
 import org.elasticsearch.rest.HasRestHeaders;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 /**
  * A base class for all elasticsearch exceptions.
@@ -288,6 +290,4 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     public String toString() {
         return ExceptionsHelper.detailedMessage(this).trim();
     }
-
-
 }

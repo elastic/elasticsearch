@@ -85,7 +85,7 @@ public class RestCountAction extends BaseRestHandler {
                     builder.field("terminated_early", response.terminatedEarly());
                 }
                 builder.field("count", response.getCount());
-                buildBroadcastShardsHeader(builder, response);
+                buildBroadcastShardsHeader(builder, request, response);
 
                 builder.endObject();
                 return new BytesRestResponse(response.status(), builder);

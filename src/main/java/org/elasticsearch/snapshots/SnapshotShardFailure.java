@@ -27,6 +27,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.snapshots.IndexShardSnapshotFailedException;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
@@ -106,6 +108,11 @@ public class SnapshotShardFailure implements ShardOperationFailedException {
         return status;
     }
 
+    @Override
+    public Throwable getCause() {
+        return new IndexShardSnapshotFailedException(new ShardId(index, shardId), reason);
+    }
+
     /**
      * Returns node id where failure occurred
      *
@@ -162,13 +169,7 @@ public class SnapshotShardFailure implements ShardOperationFailedException {
      */
     public static void toXContent(SnapshotShardFailure snapshotShardFailure, XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject();
-        if (snapshotShardFailure.nodeId != null) {
-            builder.field("node_id", snapshotShardFailure.nodeId);
-        }
-        builder.field("index", snapshotShardFailure.index);
-        builder.field("reason", snapshotShardFailure.reason);
-        builder.field("shard_id", snapshotShardFailure.shardId);
-        builder.field("status", snapshotShardFailure.status.name());
+        snapshotShardFailure.toXContent(builder, params);
         builder.endObject();
     }
 
@@ -211,5 +212,17 @@ public class SnapshotShardFailure implements ShardOperationFailedException {
             throw new ElasticsearchParseException("unexpected token  [" + token + "]");
         }
         return snapshotShardFailure;
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.field("index", index);
+        builder.field("shard_id", shardId);
+        builder.field("reason", reason);
+        if (nodeId != null) {
+            builder.field("node_id", nodeId);
+        }
+        builder.field("status", status.name());
+        return builder;
     }
 }

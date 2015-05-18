@@ -40,7 +40,7 @@ import static org.elasticsearch.search.SearchShardTarget.readSearchShardTarget;
 /**
  * Represents a failure to search on a specific shard.
  */
-public class ShardSearchFailure implements ShardOperationFailedException, ToXContent {
+public class ShardSearchFailure implements ShardOperationFailedException {
 
     public static final ShardSearchFailure[] EMPTY_ARRAY = new ShardSearchFailure[0];
 
@@ -172,6 +172,7 @@ public class ShardSearchFailure implements ShardOperationFailedException, ToXCon
         return builder;
     }
 
+    @Override
     public Throwable getCause() {
         return cause;
     }

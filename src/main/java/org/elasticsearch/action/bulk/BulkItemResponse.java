@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.bulk;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionWriteResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
@@ -27,6 +28,7 @@ import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
@@ -44,24 +46,15 @@ public class BulkItemResponse implements Streamable {
         private final String index;
         private final String type;
         private final String id;
-        private final String message;
+        private final Throwable cause;
         private final RestStatus status;
 
         public Failure(String index, String type, String id, Throwable t) {
             this.index = index;
             this.type = type;
             this.id = id;
-            this.message = t.toString();
+            this.cause = t;
             this.status = ExceptionsHelper.status(t);
-        }
-
-
-        public Failure(String index, String type, String id, String message, RestStatus status) {
-            this.index = index;
-            this.type = type;
-            this.id = id;
-            this.message = message;
-            this.status = status;
         }
 
         /**
@@ -89,7 +82,7 @@ public class BulkItemResponse implements Streamable {
          * The failure message.
          */
         public String getMessage() {
-            return this.message;
+            return this.cause.toString();
         }
 
         /**
@@ -97,6 +90,10 @@ public class BulkItemResponse implements Streamable {
          */
         public RestStatus getStatus() {
             return this.status;
+        }
+
+        public Throwable getCause() {
+            return cause;
         }
     }
 
@@ -265,9 +262,8 @@ public class BulkItemResponse implements Streamable {
             String fIndex = in.readString();
             String fType = in.readString();
             String fId = in.readOptionalString();
-            String fMessage = in.readString();
-            RestStatus status = RestStatus.readFrom(in);
-            failure = new Failure(fIndex, fType, fId, fMessage, status);
+            Throwable throwable = in.readThrowable();
+            failure = new Failure(fIndex, fType, fId, throwable);
         }
     }
 
@@ -295,8 +291,7 @@ public class BulkItemResponse implements Streamable {
             out.writeString(failure.getIndex());
             out.writeString(failure.getType());
             out.writeOptionalString(failure.getId());
-            out.writeString(failure.getMessage());
-            RestStatus.writeTo(out, failure.getStatus());
+            out.writeThrowable(failure.getCause());
         }
     }
 }

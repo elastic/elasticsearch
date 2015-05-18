@@ -231,6 +231,11 @@ public abstract class ActionWriteResponse extends ActionResponse {
                 return status;
             }
 
+            @Override
+            public Throwable getCause() {
+                return cause;
+            }
+
             /**
              * @return Whether this failure occurred on a primary shard.
              * (this only reports true for delete by query)

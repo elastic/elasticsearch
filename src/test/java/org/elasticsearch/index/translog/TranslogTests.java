@@ -25,7 +25,6 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.ByteArrayDataOutput;
 import org.apache.lucene.util.IOUtils;
-import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
@@ -64,7 +63,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.regex.Matcher;
 
 import static com.google.common.collect.Lists.newArrayList;
 import static org.hamcrest.Matchers.*;
@@ -72,7 +70,6 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
-@LuceneTestCase.SuppressFileSystems("ExtrasFS")
 public class TranslogTests extends ElasticsearchTestCase {
 
     protected final ShardId shardId = new ShardId(new Index("index"), 1);
@@ -117,7 +114,7 @@ public class TranslogTests extends ElasticsearchTestCase {
 
     protected Translog create(Path path) throws IOException {
         Settings build = ImmutableSettings.settingsBuilder()
-                .put("index.translog.fs.type", TranslogWriter.Type.SIMPLE.name())
+                .put(TranslogConfig.INDEX_TRANSLOG_FS_TYPE, TranslogWriter.Type.SIMPLE.name())
                 .build();
         TranslogConfig translogConfig = new TranslogConfig(shardId, path, build, Translog.Durabilty.REQUEST, BigArrays.NON_RECYCLING_INSTANCE, null);
         return new Translog(translogConfig);

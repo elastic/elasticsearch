@@ -34,7 +34,6 @@ public class SharedFSRecoverySourceHandler extends RecoverySourceHandler {
 
     private final IndexShard shard;
     private final StartRecoveryRequest request;
-    private static final Translog.View EMPTY_VIEW = new EmptyView();
 
     public SharedFSRecoverySourceHandler(IndexShard shard, StartRecoveryRequest request, RecoverySettings recoverySettings, TransportService transportService, ESLogger logger) {
         super(shard, request, recoverySettings, transportService, logger);
@@ -59,7 +58,7 @@ public class SharedFSRecoverySourceHandler extends RecoverySourceHandler {
                     shard.failShard("failed to close engine (phase1)", e);
                 }
             }
-            prepareTargetForTranslog(EMPTY_VIEW);
+            prepareTargetForTranslog(Translog.View.EMPTY_VIEW);
             finalizeRecovery();
             return response;
         } catch (Throwable t) {
@@ -88,33 +87,4 @@ public class SharedFSRecoverySourceHandler extends RecoverySourceHandler {
         return request.recoveryType() == RecoveryState.Type.RELOCATION && shard.routingEntry().primary();
     }
 
-    /**
-     * An empty view since we don't recover from translog even in the shared FS case
-     */
-    private static class EmptyView implements Translog.View {
-
-        @Override
-        public int totalOperations() {
-            return 0;
-        }
-
-        @Override
-        public long sizeInBytes() {
-            return 0;
-        }
-
-        @Override
-        public Translog.Snapshot snapshot() {
-            return null;
-        }
-
-        @Override
-        public long minTranslogGeneration() {
-            return 0;
-        }
-
-        @Override
-        public void close() {
-        }
-    }
 }

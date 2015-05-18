@@ -25,6 +25,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.ByteArrayDataOutput;
 import org.apache.lucene.util.IOUtils;
+import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
@@ -70,6 +71,7 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
+@LuceneTestCase.SuppressFileSystems("ExtrasFS")
 public class TranslogTests extends ElasticsearchTestCase {
 
     protected final ShardId shardId = new ShardId(new Index("index"), 1);
@@ -106,6 +108,7 @@ public class TranslogTests extends ElasticsearchTestCase {
     @After
     public void tearDown() throws Exception {
         try {
+            assertEquals("there are still open views", 0, translog.getNumOpenViews());
             translog.close();
         } finally {
             super.tearDown();
@@ -1021,23 +1024,18 @@ public class TranslogTests extends ElasticsearchTestCase {
 
     }
 
-
     public void testSnapshotFromStreamInput() throws IOException {
         BytesStreamOutput out = new BytesStreamOutput();
         List<Translog.Operation> ops = newArrayList();
         int translogOperations = randomIntBetween(10, 100);
         for (int op = 0; op < translogOperations; op++) {
             Translog.Create test = new Translog.Create("test", "" + op, Integer.toString(op).getBytes(Charset.forName("UTF-8")));
-            Translog.writeOperation(out, test);
             ops.add(test);
         }
-        Translog.Snapshot snapshot = Translog.snapshotFromStream(StreamInput.wrap(out.bytes()), ops.size());
-        assertEquals(ops.size(), snapshot.estimatedTotalOperations());
-        for (Translog.Operation op : ops) {
-            assertEquals(op, snapshot.next());
-        }
-        assertNull(snapshot.next());
-        // no need to close
+        Translog.writeOperations(out, ops);
+        final List<Translog.Operation> readOperations = Translog.readOperations(StreamInput.wrap(out.bytes()));
+        assertEquals(ops.size(), readOperations.size());
+        assertEquals(ops, readOperations);
     }
 
     public void testLocationHashCodeEquals() throws IOException {

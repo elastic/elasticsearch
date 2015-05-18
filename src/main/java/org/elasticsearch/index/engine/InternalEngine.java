@@ -682,15 +682,11 @@ public class InternalEngine extends Engine {
 
     @Override
     public void flush() throws EngineException {
-        flush(true, false, false);
+        flush(false, false);
     }
 
     @Override
     public void flush(boolean force, boolean waitIfOngoing) throws EngineException {
-        flush(true, force, waitIfOngoing);
-    }
-
-    private void flush(boolean commitTranslog, boolean force, boolean waitIfOngoing) throws EngineException {
         ensureOpen();
         /*
          * Unfortunately the lock order is important here. We have to acquire the readlock first otherwise
@@ -714,37 +710,21 @@ public class InternalEngine extends Engine {
                 logger.trace("acquired flush lock immediately");
             }
             try {
-                if (commitTranslog) {
-                    if (flushNeeded || force) {
-                        flushNeeded = false;
-                        try {
-                            translog.prepareCommit();
-                            logger.trace("starting commit for flush; commitTranslog=true");
-                            commitIndexWriter(indexWriter, translog);
-                            logger.trace("finished commit for flush");
-                            translog.commit();
-                            // we need to refresh in order to clear older version values
-                            refresh("version_table_flush");
-
-                        } catch (Throwable e) {
-                            throw new FlushFailedEngineException(shardId, e);
-                        }
-                    }
-                } else {
-                    // note, its ok to just commit without cleaning the translog, its perfectly fine to replay a
-                    // translog on an index that was opened on a committed point in time that is "in the future"
-                    // of that translog
-                    // we allow to *just* commit if there is an ongoing recovery happening...
-                    // its ok to use this, only a flush will cause a new translogFileGeneration, and we are locked here from
-                    // other flushes use flushLock
+                if (flushNeeded || force) {
+                    flushNeeded = false;
+                    final long translogId;
                     try {
-                        logger.trace("starting commit for flush; commitTranslog=false");
+                        translog.prepareCommit();
+                        logger.trace("starting commit for flush; commitTranslog=true");
                         commitIndexWriter(indexWriter, translog);
                         logger.trace("finished commit for flush");
+                        translog.commit();
+                        // we need to refresh in order to clear older version values
+                        refresh("version_table_flush");
+
                     } catch (Throwable e) {
                         throw new FlushFailedEngineException(shardId, e);
                     }
-
                 }
                 /*
                  * we have to inc-ref the store here since if the engine is closed by a tragic event
@@ -838,7 +818,7 @@ public class InternalEngine extends Engine {
                     indexWriter.forceMerge(maxNumSegments, true /* blocks and waits for merges*/);
                 }
                 if (flush) {
-                    flush(true, true, true);
+                    flush(true, true);
                 }
                 if (upgrade) {
                     logger.info("finished segment upgrade");
@@ -865,7 +845,7 @@ public class InternalEngine extends Engine {
         // the to a write lock when we fail the engine in this operation
         if (flushFirst) {
             logger.trace("start flush for snapshot");
-            flush(false, false, true);
+            flush(false, true);
             logger.trace("finish flush for snapshot");
         }
         try (ReleasableLock lock = readLock.acquire()) {

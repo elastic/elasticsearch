@@ -74,6 +74,8 @@ import org.elasticsearch.index.cache.filter.FilterCacheModule;
 import org.elasticsearch.index.cache.filter.FilterCacheModule.FilterCacheSettings;
 import org.elasticsearch.index.cache.filter.index.IndexFilterCache;
 import org.elasticsearch.index.cache.filter.none.NoneFilterCache;
+import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.EngineClosedException;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardModule;
 import org.elasticsearch.index.shard.IndexShardState;
@@ -978,7 +980,33 @@ public final class InternalTestCluster extends TestCluster {
         // ElasticsearchIntegrationTest must override beforeIndexDeletion() to avoid failures.
         assertShardIndexCounter();
         //check that shards that have same sync id also contain same number of documents
+        assertSameSyncIdSameDocs();
 
+    }
+
+    private void assertSameSyncIdSameDocs() {
+        Map<String, Long> docsOnShards = new HashMap<>();
+        final Collection<NodeAndClient> nodesAndClients = nodes.values();
+        for (NodeAndClient nodeAndClient : nodesAndClients) {
+            IndicesService indexServices = getInstance(IndicesService.class, nodeAndClient.name);
+            for (IndexService indexService : indexServices) {
+                for (IndexShard indexShard : indexService) {
+                    try {
+                        String syncId = indexShard.engine().commitStats().getUserData().get(Engine.SYNC_COMMIT_ID);
+                        if (syncId != null) {
+                            long liveDocsOnShard = indexShard.docStats().getCount() - indexShard.docStats().getDeleted();
+                            if (docsOnShards.get(syncId) != null) {
+                                assertThat("sync id is equal but number of docs does not match on node " + nodeAndClient.name + ". expected " + docsOnShards.get(syncId) + " but got " + liveDocsOnShard, docsOnShards.get(syncId), equalTo(liveDocsOnShard));
+                            } else {
+                                docsOnShards.put(syncId, liveDocsOnShard);
+                            }
+                        }
+                    } catch (EngineClosedException e) {
+                        // nothing to do, shard is closed
+                    }
+                }
+            }
+        }
     }
 
     private void assertShardIndexCounter() {

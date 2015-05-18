@@ -234,7 +234,7 @@ public class NoMasterNodeTests extends AbstractWatcherIntegrationTests {
         // will elect itself as master. This is bad and should be fixed in core. What I think that should happen is that
         // if a node detects that is has lost a node, a node should clear its unicast temporal responses or at least
         // remove the node that has been removed. This is a workaround:
-        for (ZenPingService pingService : internalCluster().getInstances(ZenPingService.class)) {
+        for (ZenPingService pingService : internalTestCluster().getInstances(ZenPingService.class)) {
             for (ZenPing zenPing : pingService.zenPings()) {
                 if (zenPing instanceof UnicastZenPing) {
                     ((UnicastZenPing) zenPing).clearTemporalResponses();

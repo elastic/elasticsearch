@@ -16,6 +16,9 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.discovery.zen.elect.ElectMasterService;
+import org.elasticsearch.discovery.zen.ping.ZenPing;
+import org.elasticsearch.discovery.zen.ping.ZenPingService;
+import org.elasticsearch.discovery.zen.ping.unicast.UnicastZenPing;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.test.discovery.ClusterDiscoveryConfiguration;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -51,7 +54,7 @@ import static org.hamcrest.core.Is.is;
 /**
  */
 @Slow
-@TestLogging("watcher:DEBUG,discovery:TRACE")
+@TestLogging("discovery:TRACE")
 @ClusterScope(scope = TEST, numClientNodes = 0, transportClientRatio = 0, randomDynamicTemplates = false, numDataNodes = 0)
 public class NoMasterNodeTests extends AbstractWatcherIntegrationTests {
 
@@ -225,6 +228,19 @@ public class NoMasterNodeTests extends AbstractWatcherIntegrationTests {
     }
 
     private void stopElectedMasterNodeAndWait() throws Exception {
+        // Due to the fact that the elected master node gets stopped before the ping timeout has passed,
+        // the unicast ping may have cached ping responses. This can cause the existing node to think
+        // that there is another node and if its node id is lower than the node that has been stopped it
+        // will elect itself as master. This is bad and should be fixed in core. What I think that should happen is that
+        // if a node detects that is has lost a node, a node should clear its unicast temporal responses or at least
+        // remove the node that has been removed. This is a workaround:
+        for (ZenPingService pingService : internalCluster().getInstances(ZenPingService.class)) {
+            for (ZenPing zenPing : pingService.zenPings()) {
+                if (zenPing instanceof UnicastZenPing) {
+                    ((UnicastZenPing) zenPing).clearTemporalResponses();
+                }
+            }
+        }
         internalTestCluster().stopCurrentMasterNode();
         // Can't use ensureWatcherStopped, b/c that relies on the watcher stats api which requires an elected master node
         assertBusy(new Runnable() {

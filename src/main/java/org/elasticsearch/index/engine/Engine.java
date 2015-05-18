@@ -1147,7 +1147,9 @@ public abstract class Engine implements Closeable {
     public abstract boolean hasUncommittedChanges();
 
     public static class CommitId implements Writeable {
-        private byte[] id;
+
+        private final byte[] id;
+
         public CommitId(byte[] id) {
             assert id != null;
             this.id = Arrays.copyOf(id, id.length);
@@ -1165,8 +1167,7 @@ public abstract class Engine implements Closeable {
 
         @Override
         public CommitId readFrom(StreamInput in) throws IOException {
-            byte[] bytes = in.readByteArray();
-            return new CommitId(bytes);
+            return new CommitId(in);
         }
 
         @Override

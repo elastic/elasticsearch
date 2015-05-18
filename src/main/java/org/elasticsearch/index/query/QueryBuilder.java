@@ -21,6 +21,8 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.action.support.ToXContentToBytes;
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 
@@ -75,4 +77,30 @@ public abstract class QueryBuilder extends ToXContentToBytes {
     }
 
     protected abstract void doXContent(XContentBuilder builder, Params params) throws IOException;
+
+    /**
+     * This helper method checks if the object passed in is a string, if so it
+     * converts it to a {@link BytesRef}.
+     * @param obj the input object
+     * @return the same input object or a {@link BytesRef} representation if input was of type string
+     */
+    protected static Object convertToBytesRefIfString(Object obj) {
+        if (obj instanceof String) {
+            return BytesRefs.toBytesRef(obj);
+        }
+        return obj;
+    }
+
+    /**
+     * This helper method checks if the object passed in is a {@link BytesRef}, if so it
+     * converts it to a utf8 string.
+     * @param obj the input object
+     * @return the same input object or a utf8 string if input was of type {@link BytesRef}
+     */
+    protected static Object convertToStringIfBytesRef(Object obj) {
+        if (obj instanceof BytesRef) {
+            return ((BytesRef) obj).utf8ToString();
+        }
+        return obj;
+    }
 }

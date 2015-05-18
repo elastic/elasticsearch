@@ -20,10 +20,13 @@
 package org.elasticsearch.index.query;
 
 import com.carrotsearch.randomizedtesting.annotations.Repeat;
+
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
@@ -42,6 +45,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNameModule;
 import org.elasticsearch.index.analysis.AnalysisModule;
 import org.elasticsearch.index.cache.IndexCacheModule;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.functionscore.FunctionScoreModule;
 import org.elasticsearch.index.settings.IndexSettingsModule;
 import org.elasticsearch.index.similarity.SimilarityModule;
@@ -64,6 +68,8 @@ import static org.hamcrest.Matchers.*;
 @Ignore
 public abstract class BaseQueryTestCase<QB extends QueryBuilder & Streamable> extends ElasticsearchTestCase {
 
+    protected static final String DATE_FIELD_NAME = "age";
+    protected static final String INT_FIELD_NAME = "price";
     private static Injector injector;
     private static IndexQueryParserService queryParserService;
     private static Index index;
@@ -72,9 +78,10 @@ public abstract class BaseQueryTestCase<QB extends QueryBuilder & Streamable> ex
 
     /**
      * Setup for the whole base test class.
+     * @throws IOException
      */
     @BeforeClass
-    public static void init() {
+    public static void init() throws IOException {
         Settings settings = ImmutableSettings.settingsBuilder()
                 .put("name", BaseQueryTestCase.class.toString())
                 .put("path.home", createTempDir())
@@ -104,6 +111,11 @@ public abstract class BaseQueryTestCase<QB extends QueryBuilder & Streamable> ex
                 }
         ).createInjector();
         queryParserService = injector.getInstance(IndexQueryParserService.class);
+        MapperService mapperService = queryParserService.mapperService;
+        CompressedString mapping = new CompressedString(PutMappingRequest.buildFromSimplifiedDef("type",
+                DATE_FIELD_NAME, "type=date",
+                INT_FIELD_NAME, "type=integer").string());
+        mapperService.merge("type", mapping, true);
     }
 
     @AfterClass
@@ -150,7 +162,7 @@ public abstract class BaseQueryTestCase<QB extends QueryBuilder & Streamable> ex
         assertNotSame(newQuery, testQuery);
         assertEquals(newQuery, testQuery);
     }
-    
+
     /**
      * Test creates the {@link Query} from the {@link QueryBuilder} under test and delegates the
      * assertions being made on the result to the implementing subclass.
@@ -160,7 +172,7 @@ public abstract class BaseQueryTestCase<QB extends QueryBuilder & Streamable> ex
     public void testToQuery() throws IOException {
         testQuery = createTestQueryBuilder();
         QueryParseContext context = createContext();
-        context.setMapUnmappedFieldAsString(true);
+        context.setAllowUnmappedFields(true);
         assertLuceneQuery(testQuery, testQuery.toQuery(context), context);
     }
 
@@ -173,11 +185,11 @@ public abstract class BaseQueryTestCase<QB extends QueryBuilder & Streamable> ex
         testQuery = createTestQueryBuilder();
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             testQuery.writeTo(output);
-    
+
             try (BytesStreamInput in = new BytesStreamInput(output.bytes())) {
                 QB deserializedQuery = createEmptyQueryBuilder();
                 deserializedQuery.readFrom(in);
-        
+
                 assertEquals(deserializedQuery, testQuery);
                 assertNotSame(deserializedQuery, testQuery);
             }

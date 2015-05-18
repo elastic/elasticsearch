@@ -110,7 +110,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     private volatile ScheduledFuture<?> syncScheduler;
     // this is a concurrent set and is not protected by any of the locks. The main reason
     // is that is being accessed by two separate classes (additions & reading are done by FsTranslog, remove by FsView when closed)
-    private final Set<FsView> outstandingViews = ConcurrentCollections.newConcurrentSet();
+    private final Set<View> outstandingViews = ConcurrentCollections.newConcurrentSet();
     private BigArrays bigArrays;
     protected final ReleasableLock readLock;
     protected final ReleasableLock writeLock;
@@ -121,6 +121,14 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     private final AtomicBoolean closed = new AtomicBoolean();
     private final TranslogConfig config;
     private final String translogUUID;
+    private Callback<View> onViewClose = new Callback<View>() {
+        @Override
+        public void handle(View view) {
+            logger.trace("closing view starting at translog [{}]", view.minTranslogGeneration());
+            outstandingViews.remove(this);
+        }
+    };
+
 
 
     /**
@@ -475,7 +483,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         }
     }
 
-    private Snapshot createSnapshot(TranslogReader... translogs) {
+    private static Snapshot createSnapshot(TranslogReader... translogs) {
         Snapshot[] snapshots = new Snapshot[translogs.length];
         boolean success = false;
         try {
@@ -507,7 +515,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                     translogs.add(currentCommittingTranslog.clone());
                 }
                 translogs.add(current.newReaderFromWriter());
-                FsView view = new FsView(translogs);
+                View view = new View(translogs, onViewClose);
                 // this is safe as we know that no new translog is being made at the moment
                 // (we hold a read lock) and the view will be notified of any future one
                 outstandingViews.add(view);
@@ -615,16 +623,18 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      * a view into the translog, capturing all translog file at the moment of creation
      * and updated with any future translog.
      */
-    class FsView implements View {
+    public static final class View implements Closeable {
+        public static final Translog.View EMPTY_VIEW = new View(Collections.EMPTY_LIST, null);
 
         boolean closed;
         // last in this list is always FsTranslog.current
         final List<TranslogReader> orderedTranslogs;
+        private final Callback<View> onClose;
 
-        FsView(List<TranslogReader> orderedTranslogs) {
-            assert orderedTranslogs.isEmpty() == false;
+        View(List<TranslogReader> orderedTranslogs, Callback<View> onClose) {
             // clone so we can safely mutate..
             this.orderedTranslogs = new ArrayList<>(orderedTranslogs);
+            this.onClose = onClose;
         }
 
         /**
@@ -647,13 +657,15 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             orderedTranslogs.add(newCurrent);
         }
 
-        @Override
+        /** this smallest translog generation in this view */
         public synchronized long minTranslogGeneration() {
             ensureOpen();
             return orderedTranslogs.get(0).getGeneration();
         }
 
-        @Override
+        /**
+         * The total number of operations in the view.
+         */
         public synchronized int totalOperations() {
             int ops = 0;
             for (TranslogReader translog : orderedTranslogs) {
@@ -667,7 +679,9 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             return ops;
         }
 
-        @Override
+        /**
+         * Returns the size in bytes of the files behind the view.
+         */
         public synchronized long sizeInBytes() {
             long size = 0;
             for (TranslogReader translog : orderedTranslogs) {
@@ -676,6 +690,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             return size;
         }
 
+        /** create a snapshot from this view */
         public synchronized Snapshot snapshot() {
             ensureOpen();
             return createSnapshot(orderedTranslogs.toArray(new TranslogReader[orderedTranslogs.size()]));
@@ -690,15 +705,19 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
         @Override
         public void close() {
-            List<TranslogReader> toClose = new ArrayList<>();
+            final List<TranslogReader> toClose = new ArrayList<>();
             try {
                 synchronized (this) {
                     if (closed == false) {
-                        logger.trace("closing view starting at translog [{}]", minTranslogGeneration());
-                        closed = true;
-                        outstandingViews.remove(this);
-                        toClose.addAll(orderedTranslogs);
-                        orderedTranslogs.clear();
+                        try {
+                            if (onClose != null) {
+                                onClose.handle(this);
+                            }
+                        } finally {
+                            closed = true;
+                            toClose.addAll(orderedTranslogs);
+                            orderedTranslogs.clear();
+                        }
                     }
                 }
             } finally {
@@ -813,27 +832,6 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
          * Returns the next operation in the snapshot or <code>null</code> if we reached the end.
          */
         Translog.Operation next() throws IOException;
-
-    }
-
-    /** a view into the current translog that receives all operations from the moment created */
-    public interface View extends Releasable {
-
-        /**
-         * The total number of operations in the view.
-         */
-        int totalOperations();
-
-        /**
-         * Returns the size in bytes of the files behind the view.
-         */
-        long sizeInBytes();
-
-        /** create a snapshot from this view */
-        Snapshot snapshot();
-
-        /** this smallest translog generation in this view */
-        long minTranslogGeneration();
 
     }
 
@@ -1666,7 +1664,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             current = createWriter(current.getGeneration() + 1);
             // notify all outstanding views of the new translog (no views are created now as
             // we hold a write lock).
-            for (FsView view : outstandingViews) {
+            for (View view : outstandingViews) {
                 view.onNewTranslog(currentCommittingTranslog.clone(), current.newReaderFromWriter());
             }
             IOUtils.close(oldCurrent);
@@ -1758,6 +1756,5 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             throw new AlreadyClosedException("translog is already closed");
         }
     }
-
 
 }

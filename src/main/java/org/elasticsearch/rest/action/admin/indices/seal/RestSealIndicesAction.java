@@ -33,7 +33,6 @@ import org.elasticsearch.rest.action.support.RestBuilderListener;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
-import static org.elasticsearch.rest.RestStatus.OK;
 
 /**
  *
@@ -60,7 +59,7 @@ public class RestSealIndicesAction extends BaseRestHandler {
                 builder.startObject();
                 builder = response.toXContent(builder, ToXContent.EMPTY_PARAMS);
                 builder.endObject();
-                return new BytesRestResponse(OK, builder);
+                return new BytesRestResponse(response.status(), builder);
             }
         });
     }

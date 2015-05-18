@@ -50,6 +50,16 @@ public class BootstrapForTesting {
     static {
         // just like bootstrap, initialize natives, then SM
         Bootstrap.initializeNatives(true, true);
+
+        // make sure java.io.tmpdir exists always (in case code uses it in a static initializer)
+        Path javaTmpDir = PathUtils.get(Objects.requireNonNull(System.getProperty("java.io.tmpdir"),
+                                                               "please set ${java.io.tmpdir} in pom.xml"));
+        try {
+            Security.ensureDirectoryExists(javaTmpDir);
+        } catch (Exception e) {
+            throw new RuntimeException("unable to create test temp directory", e);
+        }
+
         // install security manager if requested
         if (systemPropertyAsBoolean("tests.security.manager", false)) {
             try {
@@ -67,8 +77,6 @@ public class BootstrapForTesting {
                                                                      "please set ${m2.repository} in pom.xml"));
                 Security.addPath(perms, m2repoDir, "read,readlink");
                 // java.io.tmpdir
-                Path javaTmpDir = PathUtils.get(Objects.requireNonNull(System.getProperty("java.io.tmpdir"), 
-                                                                      "please set ${java.io.tmpdir} in pom.xml"));
                 Security.addPath(perms, javaTmpDir, "read,readlink,write,delete");
                 // custom test config file
                 if (Strings.hasLength(System.getProperty("tests.config"))) {

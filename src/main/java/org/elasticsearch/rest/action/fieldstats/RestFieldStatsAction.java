@@ -62,7 +62,7 @@ public class RestFieldStatsAction extends BaseRestHandler {
             @Override
             public RestResponse buildResponse(FieldStatsResponse response, XContentBuilder builder) throws Exception {
                 builder.startObject();
-                buildBroadcastShardsHeader(builder, response);
+                buildBroadcastShardsHeader(builder, request, response);
 
                 builder.startObject("indices");
                 for (Map.Entry<String, Map<String, FieldStats>> entry1 : response.getIndicesMergedFieldStats().entrySet()) {

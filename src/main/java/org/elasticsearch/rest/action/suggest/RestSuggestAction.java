@@ -72,7 +72,7 @@ public class RestSuggestAction extends BaseRestHandler {
             public RestResponse buildResponse(SuggestResponse response, XContentBuilder builder) throws Exception {
                 RestStatus restStatus = RestStatus.status(response.getSuccessfulShards(), response.getTotalShards(), response.getShardFailures());
                 builder.startObject();
-                buildBroadcastShardsHeader(builder, response);
+                buildBroadcastShardsHeader(builder, request, response);
                 Suggest suggest = response.getSuggest();
                 if (suggest != null) {
                     suggest.toXContent(builder, request);

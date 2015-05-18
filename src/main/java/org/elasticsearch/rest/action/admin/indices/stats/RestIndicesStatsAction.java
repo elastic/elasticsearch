@@ -103,7 +103,7 @@ public class RestIndicesStatsAction extends BaseRestHandler {
             @Override
             public RestResponse buildResponse(IndicesStatsResponse response, XContentBuilder builder) throws Exception {
                 builder.startObject();
-                buildBroadcastShardsHeader(builder, response);
+                buildBroadcastShardsHeader(builder, request, response);
                 response.toXContent(builder, request);
                 builder.endObject();
                 return new BytesRestResponse(OK, builder);

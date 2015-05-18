@@ -255,7 +255,9 @@ public class Snapshot implements Comparable<Snapshot>, ToXContent {
         builder.field(Fields.SUCCESSFUL_SHARDS, successfulShards);
         builder.startArray(Fields.FAILURES);
         for (SnapshotShardFailure shardFailure : shardFailures) {
-            SnapshotShardFailure.toXContent(shardFailure, builder, params);
+            builder.startObject();
+            shardFailure.toXContent(builder, params);
+            builder.endObject();
         }
         builder.endArray();
         builder.endObject();

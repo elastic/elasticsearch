@@ -19,16 +19,14 @@
 
 package org.elasticsearch.rest.action.support;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.QuerySourceBuilder;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationResponse;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.uid.Versions;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryStringQueryBuilder;
 import org.elasticsearch.rest.RestRequest;
@@ -62,33 +60,23 @@ public class RestActions {
         static final XContentBuilderString SUCCESSFUL = new XContentBuilderString("successful");
         static final XContentBuilderString FAILED = new XContentBuilderString("failed");
         static final XContentBuilderString FAILURES = new XContentBuilderString("failures");
-        static final XContentBuilderString INDEX = new XContentBuilderString("index");
-        static final XContentBuilderString SHARD = new XContentBuilderString("shard");
-        static final XContentBuilderString STATUS = new XContentBuilderString("status");
-        static final XContentBuilderString REASON = new XContentBuilderString("reason");
     }
 
-    public static void buildBroadcastShardsHeader(XContentBuilder builder, BroadcastOperationResponse response) throws IOException {
-        buildBroadcastShardsHeader(builder, response.getTotalShards(), response.getSuccessfulShards(), response.getFailedShards(), response.getShardFailures());
+    public static void buildBroadcastShardsHeader(XContentBuilder builder, ToXContent.Params params, BroadcastOperationResponse response) throws IOException {
+        buildBroadcastShardsHeader(builder, params, response.getTotalShards(), response.getSuccessfulShards(), response.getFailedShards(), response.getShardFailures());
     }
 
-    public static void buildBroadcastShardsHeader(XContentBuilder builder, int total, int successful, int failed, ShardOperationFailedException[] shardFailures) throws IOException {
+    public static void buildBroadcastShardsHeader(XContentBuilder builder, ToXContent.Params params, int total, int successful, int failed, ShardOperationFailedException[] shardFailures) throws IOException {
         builder.startObject(Fields._SHARDS);
         builder.field(Fields.TOTAL, total);
         builder.field(Fields.SUCCESSFUL, successful);
         builder.field(Fields.FAILED, failed);
         if (shardFailures != null && shardFailures.length > 0) {
             builder.startArray(Fields.FAILURES);
-            for (ShardOperationFailedException shardFailure : shardFailures) {
+            final boolean group = params.paramAsBoolean("group_shard_failures", true); // we group by default
+            for (ShardOperationFailedException shardFailure : group ? ExceptionsHelper.groupBy(shardFailures) : shardFailures) {
                 builder.startObject();
-                if (shardFailure.index() != null) {
-                    builder.field(Fields.INDEX, shardFailure.index(), XContentBuilder.FieldCaseConversion.NONE);
-                }
-                if (shardFailure.shardId() != -1) {
-                    builder.field(Fields.SHARD, shardFailure.shardId());
-                }
-                builder.field(Fields.STATUS, shardFailure.status().getStatus());
-                builder.field(Fields.REASON, shardFailure.reason());
+                shardFailure.toXContent(builder, params);
                 builder.endObject();
             }
             builder.endArray();

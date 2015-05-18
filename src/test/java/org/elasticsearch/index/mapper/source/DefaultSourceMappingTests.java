@@ -224,7 +224,6 @@ public class DefaultSourceMappingTests extends ElasticsearchSingleNodeTest {
 
     void assertConflicts(String mapping1, String mapping2, DocumentMapperParser parser, String... conflicts) throws IOException {
         DocumentMapper docMapper = parser.parse(mapping1);
-        docMapper.refreshSource();
         docMapper = parser.parse(docMapper.mappingSource().string());
         MergeResult mergeResult = docMapper.merge(parser.parse(mapping2).mapping(), true);
 

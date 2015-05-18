@@ -126,7 +126,6 @@ public class UpdateMappingTests extends ElasticsearchSingleNodeTest {
                 .endObject();
         DocumentMapper documentMapper = indexService.mapperService().parse("type", new CompressedString(indexMapping.string()), true);
         assertThat(documentMapper.indexMapper().enabled(), equalTo(enabled));
-        documentMapper.refreshSource();
         documentMapper = indexService.mapperService().parse("type", new CompressedString(documentMapper.mappingSource().string()), true);
         assertThat(documentMapper.indexMapper().enabled(), equalTo(enabled));
     }
@@ -151,7 +150,6 @@ public class UpdateMappingTests extends ElasticsearchSingleNodeTest {
         assertThat(documentMapper.timestampFieldMapper().enabled(), equalTo(enabled));
         assertTrue(documentMapper.timestampFieldMapper().fieldType().stored());
         assertTrue(documentMapper.timestampFieldMapper().hasDocValues());
-        documentMapper.refreshSource();
         documentMapper = indexService.mapperService().parse("type", new CompressedString(documentMapper.mappingSource().string()), true);
         assertThat(documentMapper.timestampFieldMapper().enabled(), equalTo(enabled));
         assertTrue(documentMapper.timestampFieldMapper().hasDocValues());
@@ -173,7 +171,6 @@ public class UpdateMappingTests extends ElasticsearchSingleNodeTest {
         DocumentMapper documentMapper = indexService.mapperService().parse("type", new CompressedString(indexMapping.string()), true);
         assertThat(documentMapper.sizeFieldMapper().enabled(), equalTo(enabled));
         assertTrue(documentMapper.sizeFieldMapper().fieldType().stored());
-        documentMapper.refreshSource();
         documentMapper = indexService.mapperService().parse("type", new CompressedString(documentMapper.mappingSource().string()), true);
         assertThat(documentMapper.sizeFieldMapper().enabled(), equalTo(enabled));
     }
@@ -184,7 +181,6 @@ public class UpdateMappingTests extends ElasticsearchSingleNodeTest {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/update/default_mapping_with_disabled_root_types.json");
         DocumentMapper documentMapper = indexService.mapperService().parse("type", new CompressedString(mapping), true);
         assertThat(documentMapper.mappingSource().string(), equalTo(mapping));
-        documentMapper.refreshSource();
         documentMapper = indexService.mapperService().parse("type", new CompressedString(documentMapper.mappingSource().string()), true);
         assertThat(documentMapper.mappingSource().string(), equalTo(mapping));
     }

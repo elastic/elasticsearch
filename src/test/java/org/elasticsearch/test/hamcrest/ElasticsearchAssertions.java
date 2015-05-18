@@ -58,7 +58,6 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -640,7 +639,7 @@ public class ElasticsearchAssertions {
                 ((ActionRequest<?>) streamable).validate();
             }
             BytesReference orig = serialize(version, streamable);
-            StreamInput input = new BytesStreamInput(orig);
+            StreamInput input = StreamInput.wrap(orig);
             input.setVersion(version);
             newInstance.readFrom(input);
             assertThat("Stream should be fully read with version [" + version + "] for streamable [" + streamable + "]", input.available(), equalTo(0));

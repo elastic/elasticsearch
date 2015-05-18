@@ -19,8 +19,8 @@
 
 package org.elasticsearch.action.indexedscripts.get;
 
-import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
@@ -44,7 +44,7 @@ public class GetIndexedScriptRequestTests extends ElasticsearchTestCase {
         out.setVersion(randomVersion(random()));
         request.writeTo(out);
 
-        BytesStreamInput in = new BytesStreamInput(out.bytes());
+        StreamInput in = StreamInput.wrap(out.bytes());
         in.setVersion(out.getVersion());
         GetIndexedScriptRequest request2 = new GetIndexedScriptRequest();
         request2.readFrom(in);

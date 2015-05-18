@@ -19,8 +19,8 @@
 
 package org.elasticsearch.common.unit;
 
-import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.joda.time.PeriodType;
 import org.junit.Test;
@@ -73,7 +73,7 @@ public class TimeValueTests extends ElasticsearchTestCase {
         BytesStreamOutput out = new BytesStreamOutput();
         value.writeTo(out);
 
-        BytesStreamInput in = new BytesStreamInput(out.bytes());
+        StreamInput in = StreamInput.wrap(out.bytes());
         TimeValue inValue = TimeValue.readTimeValue(in);
 
         assertThat(inValue, equalTo(value));

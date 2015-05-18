@@ -35,7 +35,7 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.translog.Translog;
-import org.elasticsearch.index.translog.TranslogStreams;
+import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.monitor.fs.FsStats;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.engine.MockEngineSupport;
@@ -83,7 +83,7 @@ public class CorruptedTranslogTests extends ElasticsearchIntegrationTest {
                 .put("index.refresh_interval", "-1")
                 .put(MockEngineSupport.FLUSH_ON_CLOSE_RATIO, 0.0d) // never flush - always recover from translog
                 .put(IndexShard.INDEX_FLUSH_ON_CLOSE, false) // never flush - always recover from translog
-                .put(Translog.INDEX_TRANSLOG_SYNC_INTERVAL, "1s") // fsync the translog every second
+                .put(TranslogConfig.INDEX_TRANSLOG_SYNC_INTERVAL, "1s") // fsync the translog every second
         ));
         ensureYellow();
 
@@ -150,7 +150,7 @@ public class CorruptedTranslogTests extends ElasticsearchIntegrationTest {
                 fileToCorrupt = RandomPicks.randomFrom(getRandom(), files);
                 try (FileChannel raf = FileChannel.open(fileToCorrupt, StandardOpenOption.READ, StandardOpenOption.WRITE)) {
                     // read
-                    raf.position(randomIntBetween(0, (int) Math.min(TranslogStreams.LATEST.headerLength(), raf.size() - 1))); // only corrupt the header to ensure we actually fail
+                    raf.position(randomIntBetween(0, (int) Math.min(Integer.MAX_VALUE, raf.size() - 1)));
                     long filePointer = raf.position();
                     ByteBuffer bb = ByteBuffer.wrap(new byte[1]);
                     raf.read(bb);

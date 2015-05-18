@@ -20,7 +20,6 @@
 package org.elasticsearch.discovery.local;
 
 import com.google.common.base.Objects;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.block.ClusterBlocks;
@@ -32,8 +31,8 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.internal.Nullable;
-import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -47,8 +46,6 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
 
 import static com.google.common.collect.Sets.newHashSet;
 import static org.elasticsearch.cluster.ClusterState.Builder;
@@ -330,7 +327,7 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
                             clusterStateDiffBytes = os.bytes().toBytes();
                         }
                         try {
-                            newNodeSpecificClusterState = discovery.lastProcessedClusterState.readDiffFrom(new BytesStreamInput(clusterStateDiffBytes)).apply(discovery.lastProcessedClusterState);
+                            newNodeSpecificClusterState = discovery.lastProcessedClusterState.readDiffFrom(StreamInput.wrap(clusterStateDiffBytes)).apply(discovery.lastProcessedClusterState);
                             logger.debug("sending diff cluster state version with size {} to [{}]", clusterStateDiffBytes.length, discovery.localNode.getName());
                         } catch (IncompatibleClusterStateVersionException ex) {
                             logger.warn("incompatible cluster state version - resending complete cluster state", ex);

@@ -21,19 +21,8 @@ package org.elasticsearch.index.engine;
 
 import com.google.common.collect.Lists;
 
-import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.*;
 import org.apache.lucene.index.IndexWriter.IndexReaderWarmer;
-import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.index.LeafReader;
-import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.LiveIndexWriterConfig;
-import org.apache.lucene.index.MergePolicy;
-import org.apache.lucene.index.MultiReader;
-import org.apache.lucene.index.SegmentCommitInfo;
-import org.apache.lucene.index.SegmentInfos;
-import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.IndexSearcher;
@@ -68,17 +57,14 @@ import org.elasticsearch.index.search.nested.IncludeNestedDocsQuery;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.TranslogRecoveryPerformer;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.index.translog.TranslogConfig;
+import org.elasticsearch.index.translog.TranslogCorruptedException;
 import org.elasticsearch.indices.IndicesWarmer;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.Lock;
@@ -88,7 +74,6 @@ import java.util.concurrent.locks.ReentrantLock;
  *
  */
 public class InternalEngine extends Engine {
-
     private final FailEngineOnMergeFailure mergeSchedulerFailureListener;
     private final MergeSchedulerListener mergeSchedulerListener;
 
@@ -146,13 +131,17 @@ public class InternalEngine extends Engine {
 
             throttle = new IndexThrottle();
             this.searcherFactory = new SearchFactory(logger, isClosed, engineConfig);
-            final Long committedTranslogId;
+            final Translog.TranslogGeneration translogGeneration;
             try {
-                writer = createWriter();
+                // TODO: would be better if ES could tell us "from above" whether this shard was already here, instead of using Lucene's API
+                // (which relies on IO ops, directory listing, and has had scary bugs in the past):
+                boolean create = !Lucene.indexExists(store.directory());
+                writer = createWriter(create);
                 indexWriter = writer;
-                translog = new Translog(engineConfig.getShardId(), engineConfig.getIndesSettingService(), engineConfig.getBigArrays(), engineConfig.getTranslogPath(), engineConfig.getThreadPool());
-                committedTranslogId = loadCommittedTranslogId(writer, translog);
-            } catch (IOException e) {
+                translog = openTranslog(engineConfig, writer, create || skipInitialTranslogRecovery || engineConfig.forceNewTranslog());
+                translogGeneration = translog.getGeneration();
+                assert translogGeneration != null;
+            } catch (IOException | TranslogCorruptedException e) {
                 throw new EngineCreationFailureException(shardId, "failed to create engine", e);
             }
             this.translog = translog;
@@ -166,9 +155,9 @@ public class InternalEngine extends Engine {
             try {
                 if (skipInitialTranslogRecovery) {
                     // make sure we point at the latest translog from now on..
-                    commitIndexWriter(writer, translog.currentId());
+                    commitIndexWriter(writer, translog);
                 } else {
-                    recoverFromTranslog(engineConfig, committedTranslogId);
+                    recoverFromTranslog(engineConfig, translogGeneration);
                 }
             } catch (IOException | EngineException ex) {
                 throw new EngineCreationFailureException(shardId, "failed to recover from translog", ex);
@@ -187,26 +176,36 @@ public class InternalEngine extends Engine {
         logger.trace("created new InternalEngine");
     }
 
+    private Translog openTranslog(EngineConfig engineConfig, IndexWriter writer, boolean createNew) throws IOException {
+        final Translog.TranslogGeneration generation = loadTranslogIdFromCommit(writer);
+        final TranslogConfig translogConfig = engineConfig.getTranslogConfig();
+
+        if (createNew == false) {
+            // We expect that this shard already exists, so it must already have an existing translog else something is badly wrong!
+            if (generation == null) {
+                throw new IllegalStateException("no translog generation present in commit data but translog is expected to exist");
+            }
+            translogConfig.setTranslogGeneration(generation);
+            if (generation != null && generation.translogUUID == null) {
+                // only upgrade on pre-2.0 indices...
+                Translog.upgradeLegacyTranslog(logger, translogConfig);
+            }
+        }
+        final Translog translog = new Translog(translogConfig);
+        if (generation == null) {
+            logger.debug("no translog ID present in the current generation - creating one");
+            commitIndexWriter(writer, translog);
+        }
+        return translog;
+    }
+
     @Override
     public Translog getTranslog() {
         ensureOpen();
         return translog;
     }
 
-    protected void recoverFromTranslog(EngineConfig engineConfig, Long committedTranslogId) throws IOException {
-        if (committedTranslogId != null) {
-            try {
-                // trim unneeded files
-                translog.markCommitted(committedTranslogId);
-            } catch (FileNotFoundException ex) {
-                if (engineConfig.getIgnoreUnknownTranslog()) {
-                    logger.warn("ignoring committed translog id [{}] ([{}] set to true)", committedTranslogId,
-                            EngineConfig.INDEX_IGNORE_UNKNOWN_TRANSLOG);
-                } else {
-                    throw ex;
-                }
-            }
-        }
+    protected void recoverFromTranslog(EngineConfig engineConfig, Translog.TranslogGeneration translogGeneration) throws IOException {
         int opsRecovered = 0;
         final TranslogRecoveryPerformer handler = engineConfig.getTranslogRecoveryPerformer();
         try (Translog.Snapshot snapshot = translog.newSnapshot()) {
@@ -227,12 +226,12 @@ public class InternalEngine extends Engine {
         } catch (Throwable e) {
             throw new EngineException(shardId, "failed to recover from translog", e);
         }
+
         // flush if we recovered something or if we have references to older translogs
         // note: if opsRecovered == 0 and we have older translogs it means they are corrupted or 0 length.
-        if (opsRecovered > 0 ||
-                (committedTranslogId != null && translog.currentId() != committedTranslogId)) {
+        if (opsRecovered > 0 || translog.isCurrent(translogGeneration) == false) {
             logger.trace("flushing post recovery from translog. ops recovered [{}]. committed translog id [{}]. current id [{}]",
-                    opsRecovered, committedTranslogId, translog.currentId());
+                    opsRecovered, translogGeneration == null ? null : translogGeneration.translogFileGeneration, translog.currentFileGeneration());
             flush(true, true);
         }
     }
@@ -242,15 +241,21 @@ public class InternalEngine extends Engine {
      * translog id into lucene and returns null.
      */
     @Nullable
-    private Long loadCommittedTranslogId(IndexWriter writer, Translog translog) throws IOException {
+    private Translog.TranslogGeneration loadTranslogIdFromCommit(IndexWriter writer) throws IOException {
         // commit on a just opened writer will commit even if there are no changes done to it
         // we rely on that for the commit data translog id key
         final Map<String, String> commitUserData = writer.getCommitData();
-        if (commitUserData.containsKey(Translog.TRANSLOG_ID_KEY)) {
-            return Long.parseLong(commitUserData.get(Translog.TRANSLOG_ID_KEY));
+        if (commitUserData.containsKey("translog_id")) {
+            assert commitUserData.containsKey(Translog.TRANSLOG_UUID_KEY) == false : "legacy commit contains translog UUID";
+            return new Translog.TranslogGeneration(null, Long.parseLong(commitUserData.get("translog_id")));
+        } else if (commitUserData.containsKey(Translog.TRANSLOG_GENERATION_KEY)) {
+            if (commitUserData.containsKey(Translog.TRANSLOG_UUID_KEY) == false) {
+                throw new IllegalStateException("commit doesn't contain translog UUID");
+            }
+            final String translogUUID = commitUserData.get(Translog.TRANSLOG_UUID_KEY);
+            final long translogGen = Long.parseLong(commitUserData.get(Translog.TRANSLOG_GENERATION_KEY));
+            return new Translog.TranslogGeneration(translogUUID, translogGen);
         }
-        logger.debug("no translog ID present in the current commit - creating one");
-        commitIndexWriter(writer, translog.currentId());
         return null;
     }
 
@@ -704,15 +709,14 @@ public class InternalEngine extends Engine {
                 if (commitTranslog) {
                     if (flushNeeded || force) {
                         flushNeeded = false;
-                        final long translogId;
                         try {
-                            translogId = translog.newTranslog();
+                            translog.prepareCommit();
                             logger.trace("starting commit for flush; commitTranslog=true");
-                            commitIndexWriter(indexWriter, translogId);
+                            commitIndexWriter(indexWriter, translog);
                             logger.trace("finished commit for flush");
+                            translog.commit();
                             // we need to refresh in order to clear older version values
                             refresh("version_table_flush");
-                            translog.markCommitted(translogId);
 
                         } catch (Throwable e) {
                             throw new FlushFailedEngineException(shardId, e);
@@ -723,11 +727,11 @@ public class InternalEngine extends Engine {
                     // translog on an index that was opened on a committed point in time that is "in the future"
                     // of that translog
                     // we allow to *just* commit if there is an ongoing recovery happening...
-                    // its ok to use this, only a flush will cause a new translogId, and we are locked here from
+                    // its ok to use this, only a flush will cause a new translogFileGeneration, and we are locked here from
                     // other flushes use flushLock
                     try {
                         logger.trace("starting commit for flush; commitTranslog=false");
-                        commitIndexWriter(indexWriter, translog.currentId());
+                        commitIndexWriter(indexWriter, translog);
                         logger.trace("finished commit for flush");
                     } catch (Throwable e) {
                         throw new FlushFailedEngineException(shardId, e);
@@ -989,9 +993,8 @@ public class InternalEngine extends Engine {
         }
     }
 
-    private IndexWriter createWriter() throws IOException {
+    private IndexWriter createWriter(boolean create) throws IOException {
         try {
-            boolean create = !Lucene.indexExists(store.directory());
             final IndexWriterConfig iwc = new IndexWriterConfig(engineConfig.getAnalyzer());
             iwc.setCommitOnClose(false); // we by default don't commit on close
             iwc.setOpenMode(create ? IndexWriterConfig.OpenMode.CREATE : IndexWriterConfig.OpenMode.APPEND);
@@ -1184,10 +1187,14 @@ public class InternalEngine extends Engine {
     }
 
 
-    private void commitIndexWriter(IndexWriter writer, long translogId) throws IOException {
+    private void commitIndexWriter(IndexWriter writer, Translog translog) throws IOException {
         try {
-            logger.trace("committing writer with translog id [{}] ", translogId);
-            indexWriter.setCommitData(Collections.singletonMap(Translog.TRANSLOG_ID_KEY, Long.toString(translogId)));
+            Translog.TranslogGeneration translogGeneration = translog.getGeneration();
+            logger.trace("committing writer with translog id [{}] ", translogGeneration.translogFileGeneration);
+            Map<String, String> commitData = new HashMap<>(2);
+            commitData.put(Translog.TRANSLOG_GENERATION_KEY, Long.toString(translogGeneration.translogFileGeneration));
+            commitData.put(Translog.TRANSLOG_UUID_KEY, translogGeneration.translogUUID);
+            indexWriter.setCommitData(commitData);
             writer.commit();
         } catch (Throwable ex) {
             failEngine("lucene commit failed", ex);

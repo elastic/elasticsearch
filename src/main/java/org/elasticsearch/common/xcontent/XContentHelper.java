@@ -30,7 +30,7 @@ import org.elasticsearch.common.compress.CompressedStreamInput;
 import org.elasticsearch.common.compress.Compressor;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.common.io.stream.BytesStreamInput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.ToXContent.Params;
 
 import java.io.IOException;
@@ -65,7 +65,7 @@ public class XContentHelper {
     public static XContentParser createParser(byte[] data, int offset, int length) throws IOException {
         Compressor compressor = CompressorFactory.compressor(data, offset, length);
         if (compressor != null) {
-            CompressedStreamInput compressedInput = compressor.streamInput(new BytesStreamInput(data, offset, length));
+            CompressedStreamInput compressedInput = compressor.streamInput(StreamInput.wrap(data, offset, length));
             XContentType contentType = XContentFactory.xContentType(compressedInput);
             compressedInput.resetToBufferStart();
             return XContentFactory.xContent(contentType).createParser(compressedInput);
@@ -111,7 +111,7 @@ public class XContentHelper {
             XContentType contentType;
             Compressor compressor = CompressorFactory.compressor(data, offset, length);
             if (compressor != null) {
-                CompressedStreamInput compressedStreamInput = compressor.streamInput(new BytesStreamInput(data, offset, length));
+                CompressedStreamInput compressedStreamInput = compressor.streamInput(StreamInput.wrap(data, offset, length));
                 contentType = XContentFactory.xContentType(compressedStreamInput);
                 compressedStreamInput.resetToBufferStart();
                 parser = XContentFactory.xContent(contentType).createParser(compressedStreamInput);

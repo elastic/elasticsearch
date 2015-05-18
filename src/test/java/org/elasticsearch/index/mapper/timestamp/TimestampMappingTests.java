@@ -28,8 +28,8 @@ import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedString;
-import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -459,7 +459,7 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
             out.close();
             BytesReference bytes = out.bytes();
 
-            MappingMetaData metaData = MappingMetaData.PROTO.readFrom(new BytesStreamInput(bytes));
+            MappingMetaData metaData = MappingMetaData.PROTO.readFrom(StreamInput.wrap(bytes));
 
             assertThat(metaData, is(expected));
         }
@@ -476,7 +476,7 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
             out.close();
             BytesReference bytes = out.bytes();
 
-            MappingMetaData metaData = MappingMetaData.PROTO.readFrom(new BytesStreamInput(bytes));
+            MappingMetaData metaData = MappingMetaData.PROTO.readFrom(StreamInput.wrap(bytes));
 
             assertThat(metaData, is(expected));
         }
@@ -493,7 +493,7 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
             out.close();
             BytesReference bytes = out.bytes();
 
-            MappingMetaData metaData = MappingMetaData.PROTO.readFrom(new BytesStreamInput(bytes));
+            MappingMetaData metaData = MappingMetaData.PROTO.readFrom(StreamInput.wrap(bytes));
 
             assertThat(metaData, is(expected));
         }

@@ -32,8 +32,8 @@ import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
 import org.elasticsearch.cluster.routing.allocation.command.CancelAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.decider.DisableAllocationDecider;
-import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -345,7 +345,7 @@ public class AllocationCommandsTests extends ElasticsearchAllocationTestCase {
         );
         BytesStreamOutput bytes = new BytesStreamOutput();
         AllocationCommands.writeTo(commands, bytes);
-        AllocationCommands sCommands = AllocationCommands.readFrom(new BytesStreamInput(bytes.bytes()));
+        AllocationCommands sCommands = AllocationCommands.readFrom(StreamInput.wrap(bytes.bytes()));
 
         assertThat(sCommands.commands().size(), equalTo(3));
         assertThat(((AllocateAllocationCommand) (sCommands.commands().get(0))).shardId(), equalTo(new ShardId("test", 1)));

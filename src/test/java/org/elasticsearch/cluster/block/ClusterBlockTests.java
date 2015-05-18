@@ -20,8 +20,8 @@
 package org.elasticsearch.cluster.block;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
@@ -54,7 +54,7 @@ public class ClusterBlockTests extends ElasticsearchTestCase {
             out.setVersion(version);
             clusterBlock.writeTo(out);
 
-            BytesStreamInput in = new BytesStreamInput(out.bytes());
+            StreamInput in = StreamInput.wrap(out.bytes());
             in.setVersion(version);
             ClusterBlock result = ClusterBlock.readClusterBlock(in);
 

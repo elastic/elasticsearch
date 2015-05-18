@@ -21,6 +21,7 @@ package org.elasticsearch.index.mapper;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Sets;
+
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
@@ -44,6 +45,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.locks.Lock;
 
 /** A parser for documents, given mappings from a DocumentMapper */
 class DocumentParser implements Closeable {
@@ -55,19 +57,30 @@ class DocumentParser implements Closeable {
         }
     };
 
-    private String index;
-    private Settings indexSettings;
-    private DocumentMapperParser docMapperParser;
-    private DocumentMapper docMapper;
+    private final String index;
+    private final Settings indexSettings;
+    private final DocumentMapperParser docMapperParser;
+    private final DocumentMapper docMapper;
+    private final Lock parseLock;
 
-    public DocumentParser(String index, Settings indexSettings, DocumentMapperParser docMapperParser, DocumentMapper docMapper) {
+    public DocumentParser(String index, Settings indexSettings, DocumentMapperParser docMapperParser, DocumentMapper docMapper, Lock parseLock) {
         this.index = index;
         this.indexSettings = indexSettings;
         this.docMapperParser = docMapperParser;
         this.docMapper = docMapper;
+        this.parseLock = parseLock;
     }
 
     public ParsedDocument parseDocument(SourceToParse source) throws MapperParsingException {
+        parseLock.lock();
+        try {
+            return innerParseDocument(source);
+        } finally {
+            parseLock.unlock();
+        }
+    }
+
+    private ParsedDocument innerParseDocument(SourceToParse source) throws MapperParsingException {
         ParseContext.InternalParseContext context = cache.get();
 
         final Mapping mapping = docMapper.mapping();

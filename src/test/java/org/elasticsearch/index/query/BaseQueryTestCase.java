@@ -31,8 +31,8 @@ import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.inject.util.Providers;
-import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -63,7 +63,7 @@ import org.junit.Test;
 
 import java.io.IOException;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.is;
 
 @Ignore
 public abstract class BaseQueryTestCase<QB extends QueryBuilder & Streamable> extends ElasticsearchTestCase {
@@ -186,7 +186,7 @@ public abstract class BaseQueryTestCase<QB extends QueryBuilder & Streamable> ex
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             testQuery.writeTo(output);
 
-            try (BytesStreamInput in = new BytesStreamInput(output.bytes())) {
+            try (StreamInput in = StreamInput.wrap(output.bytes())) {
                 QB deserializedQuery = createEmptyQueryBuilder();
                 deserializedQuery.readFrom(in);
 

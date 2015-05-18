@@ -70,4 +70,8 @@ public final class BufferedChecksumStreamOutput extends StreamOutput {
         out.reset();
         digest.reset();
     }
+
+    public void resetDigest() {
+        digest.reset();
+    }
 }

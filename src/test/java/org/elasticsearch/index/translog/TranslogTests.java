@@ -1021,23 +1021,18 @@ public class TranslogTests extends ElasticsearchTestCase {
 
     }
 
-
     public void testSnapshotFromStreamInput() throws IOException {
         BytesStreamOutput out = new BytesStreamOutput();
         List<Translog.Operation> ops = newArrayList();
         int translogOperations = randomIntBetween(10, 100);
         for (int op = 0; op < translogOperations; op++) {
             Translog.Create test = new Translog.Create("test", "" + op, Integer.toString(op).getBytes(Charset.forName("UTF-8")));
-            Translog.writeOperation(out, test);
             ops.add(test);
         }
-        Translog.Snapshot snapshot = Translog.snapshotFromStream(StreamInput.wrap(out.bytes()), ops.size());
-        assertEquals(ops.size(), snapshot.estimatedTotalOperations());
-        for (Translog.Operation op : ops) {
-            assertEquals(op, snapshot.next());
-        }
-        assertNull(snapshot.next());
-        // no need to close
+        Translog.writeOperations(out, ops);
+        final List<Translog.Operation> readOperations = Translog.readOperations(StreamInput.wrap(out.bytes()));
+        assertEquals(ops.size(), readOperations.size());
+        assertEquals(ops, readOperations);
     }
 
     public void testLocationHashCodeEquals() throws IOException {

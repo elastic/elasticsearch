@@ -33,7 +33,6 @@ import org.elasticsearch.common.lucene.all.AllEntries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.AnalysisService;
-import org.elasticsearch.index.mapper.DocumentMapper.ParseListener;
 import org.elasticsearch.index.mapper.object.RootObjectMapper;
 
 import java.util.ArrayList;
@@ -247,11 +246,6 @@ public abstract class ParseContext {
         }
 
         @Override
-        public ParseListener listener() {
-            return in.listener();
-        }
-
-        @Override
         public Document rootDoc() {
             return in.rootDoc();
         }
@@ -391,8 +385,6 @@ public abstract class ParseContext {
 
         private String id;
 
-        private DocumentMapper.ParseListener listener;
-
         private Field uid, version;
 
         private StringBuilder stringBuilder = new StringBuilder();
@@ -413,7 +405,7 @@ public abstract class ParseContext {
             this.path = path;
         }
 
-        public void reset(XContentParser parser, Document document, SourceToParse source, DocumentMapper.ParseListener listener) {
+        public void reset(XContentParser parser, Document document, SourceToParse source) {
             this.parser = parser;
             this.document = document;
             if (document != null) {
@@ -428,7 +420,6 @@ public abstract class ParseContext {
             this.sourceToParse = source;
             this.source = source == null ? null : sourceToParse.source();
             this.path.reset();
-            this.listener = listener == null ? DocumentMapper.ParseListener.EMPTY : listener;
             this.allEntries = new AllEntries();
             this.ignoredValues.clear();
             this.docBoost = 1.0f;
@@ -485,11 +476,6 @@ public abstract class ParseContext {
         @Override
         public XContentParser parser() {
             return this.parser;
-        }
-
-        @Override
-        public DocumentMapper.ParseListener listener() {
-            return this.listener;
         }
 
         @Override
@@ -700,8 +686,6 @@ public abstract class ParseContext {
     public abstract ContentPath path();
 
     public abstract XContentParser parser();
-
-    public abstract DocumentMapper.ParseListener listener();
 
     public abstract Document rootDoc();
 

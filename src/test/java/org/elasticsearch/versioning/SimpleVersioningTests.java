@@ -81,7 +81,7 @@ public class SimpleVersioningTests extends ElasticsearchIntegrationTest {
     @Test
     public void testForce() throws Exception {
         createIndex("test");
-
+        ensureGreen("test"); // we are testing force here which doesn't work if we are recovering at the same time - zzzzz...
         IndexResponse indexResponse = client().prepareIndex("test", "type", "1").setSource("field1", "value1_1").setVersion(12).setVersionType(VersionType.FORCE).get();
         assertThat(indexResponse.getVersion(), equalTo(12l));
 

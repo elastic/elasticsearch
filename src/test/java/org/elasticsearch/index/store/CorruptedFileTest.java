@@ -114,7 +114,6 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
      * Tests that we can actually recover from a corruption on the primary given that we have replica shards around.
      */
     @Test
-    @TestLogging("indices.recovery:TRACE")
     public void testCorruptFileAndRecover() throws ExecutionException, InterruptedException, IOException {
         int numDocs = scaledRandomIntBetween(100, 1000);
         // have enough space for 3 copies

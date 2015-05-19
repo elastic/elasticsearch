@@ -120,7 +120,7 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
             try {
                 indexShard.store().failIfCorrupted();
                 try {
-                    si = Lucene.readSegmentInfos(indexShard.store().directory());
+                    si = indexShard.store().readLastCommittedSegmentsInfo();
                 } catch (Throwable e) {
                     String files = "_unknown_";
                     try {

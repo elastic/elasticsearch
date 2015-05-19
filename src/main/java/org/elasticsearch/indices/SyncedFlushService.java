@@ -59,9 +59,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 public class SyncedFlushService extends AbstractComponent {
 
-    public static final String PRE_SYNCED_FLUSH_ACTION_NAME = "internal:indices/flush/synced/pre";
-    public static final String SYNCED_FLUSH_ACTION_NAME = "internal:indices/flush/synced/sync";
-    public static final String IN_FLIGHT_OPS_ACTION_NAME = "internal:indices/flush/synced/in_flight";
+    private static final String PRE_SYNCED_FLUSH_ACTION_NAME = "internal:indices/flush/synced/pre";
+    private static final String SYNCED_FLUSH_ACTION_NAME = "internal:indices/flush/synced/sync";
+    private static final String IN_FLIGHT_OPS_ACTION_NAME = "internal:indices/flush/synced/in_flight";
 
     private final IndicesService indicesService;
     private final ClusterService clusterService;
@@ -693,7 +693,6 @@ public class SyncedFlushService extends AbstractComponent {
 
         int opCount;
 
-
         public InFlightOpsResponse() {
         }
 
@@ -725,8 +724,7 @@ public class SyncedFlushService extends AbstractComponent {
         }
     }
 
-
-    private class PreSyncedFlushTransportHandler implements TransportRequestHandler<PreSyncedFlushRequest> {
+    private final class PreSyncedFlushTransportHandler implements TransportRequestHandler<PreSyncedFlushRequest> {
 
         @Override
         public void messageReceived(PreSyncedFlushRequest request, TransportChannel channel) throws Exception {
@@ -734,8 +732,7 @@ public class SyncedFlushService extends AbstractComponent {
         }
     }
 
-
-    private class SyncedFlushTransportHandler implements TransportRequestHandler<SyncedFlushRequest> {
+    private final class SyncedFlushTransportHandler implements TransportRequestHandler<SyncedFlushRequest> {
 
         @Override
         public void messageReceived(SyncedFlushRequest request, TransportChannel channel) throws Exception {
@@ -743,7 +740,7 @@ public class SyncedFlushService extends AbstractComponent {
         }
     }
 
-    private class InFlightOpCountTransportHandler implements TransportRequestHandler<InFlightOpsRequest> {
+    private final class InFlightOpCountTransportHandler implements TransportRequestHandler<InFlightOpsRequest> {
 
         @Override
         public void messageReceived(InFlightOpsRequest request, TransportChannel channel) throws Exception {

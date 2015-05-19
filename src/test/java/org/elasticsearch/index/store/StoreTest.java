@@ -54,7 +54,6 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -728,9 +727,9 @@ public class StoreTest extends ElasticsearchTestCase {
         Map<String, StoreFileMetaData> metaDataMap = new HashMap<>();
         metaDataMap.put("segments_1", new StoreFileMetaData("segments_1", 50, null, null, new BytesRef(new byte[]{1})));
         metaDataMap.put("_0_1.del", new StoreFileMetaData("_0_1.del", 42, "foobarbaz", null, new BytesRef()));
-        Store.MetadataSnapshot first = new Store.MetadataSnapshot(metaDataMap, Collections.EMPTY_MAP);
+        Store.MetadataSnapshot first = new Store.MetadataSnapshot(metaDataMap, Collections.EMPTY_MAP, 0);
 
-        Store.MetadataSnapshot second = new Store.MetadataSnapshot(metaDataMap, Collections.EMPTY_MAP);
+        Store.MetadataSnapshot second = new Store.MetadataSnapshot(metaDataMap, Collections.EMPTY_MAP, 0);
         Store.RecoveryDiff recoveryDiff = first.recoveryDiff(second);
         assertEquals(recoveryDiff.toString(), recoveryDiff.different.size(), 2);
     }
@@ -1000,7 +999,7 @@ public class StoreTest extends ElasticsearchTestCase {
         Map<String, StoreFileMetaData> metaDataMap = new HashMap<>();
         metaDataMap.put("segments_1", new StoreFileMetaData("segments_1", 50, null, null, new BytesRef(new byte[]{1})));
         metaDataMap.put("_0_1.del", new StoreFileMetaData("_0_1.del", 42, "foobarbaz", null, new BytesRef()));
-        Store.MetadataSnapshot snapshot = new Store.MetadataSnapshot(metaDataMap, Collections.EMPTY_MAP);
+        Store.MetadataSnapshot snapshot = new Store.MetadataSnapshot(metaDataMap, Collections.EMPTY_MAP, 0);
 
         final ShardId shardId = new ShardId(new Index("index"), 1);
         DirectoryService directoryService = new LuceneManagedDirectoryService(random());
@@ -1134,7 +1133,7 @@ public class StoreTest extends ElasticsearchTestCase {
         Map<String, String> commitUserData = new HashMap<>();
         commitUserData.put("userdata_1", "test");
         commitUserData.put("userdata_2", "test");
-        return new Store.MetadataSnapshot(storeFileMetaDataMap, commitUserData);
+        return new Store.MetadataSnapshot(storeFileMetaDataMap, commitUserData, 0);
     }
 
     @Test

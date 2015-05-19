@@ -207,6 +207,7 @@ public class RecoverySourceHandler {
             final boolean recoverWithSyncId = recoverySourceSyncId != null &&
                     recoverySourceSyncId.equals(recoveryTargetSyncId);
             if (recoverWithSyncId) {
+                assert request.metadataSnapshot().getNumDocs() == recoverySourceMetadata.getNumDocs();
                 for (StoreFileMetaData md : request.metadataSnapshot()) {
                     response.phase1ExistingFileNames.add(md.name());
                     response.phase1ExistingFileSizes.add(md.length());

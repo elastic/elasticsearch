@@ -44,6 +44,7 @@ import org.elasticsearch.index.deletionpolicy.SnapshotDeletionPolicy;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.indices.store.TransportNodesListShardStoreMetaData;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ElasticsearchTestCase;
@@ -1152,7 +1153,7 @@ public class StoreTest extends ElasticsearchTestCase {
         String syncId = "a sync id";
         String translogId = "a translog id";
         commitData.put(Engine.SYNC_COMMIT_ID, syncId);
-        commitData.put(Translog.TRANSLOG_ID_KEY, translogId);
+        commitData.put(Translog.TRANSLOG_GENERATION_KEY, translogId);
         writer.setCommitData(commitData);
         writer.commit();
         writer.close();
@@ -1165,7 +1166,7 @@ public class StoreTest extends ElasticsearchTestCase {
         assertFalse(metadata.asMap().isEmpty());
         // do not check for correct files, we have enough tests for that above
         assertThat(metadata.getCommitUserData().get(Engine.SYNC_COMMIT_ID), equalTo(syncId));
-        assertThat(metadata.getCommitUserData().get(Translog.TRANSLOG_ID_KEY), equalTo(translogId));
+        assertThat(metadata.getCommitUserData().get(Translog.TRANSLOG_GENERATION_KEY), equalTo(translogId));
         TestUtil.checkIndex(store.directory());
         assertDeleteContent(store, directoryService);
         IOUtils.close(store);

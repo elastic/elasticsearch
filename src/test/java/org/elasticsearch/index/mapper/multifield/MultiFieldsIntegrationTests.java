@@ -76,7 +76,6 @@ public class MultiFieldsIntegrationTests extends ElasticsearchIntegrationTest {
         assertAcked(
                 client().admin().indices().preparePutMapping("my-index").setType("my-type")
                         .setSource(createPutMappingSource())
-                        .setIgnoreConflicts(true) // If updated with multi-field type, we need to ignore failures.
         );
 
         getMappingsResponse = client().admin().indices().prepareGetMappings("my-index").get();
@@ -240,70 +239,35 @@ public class MultiFieldsIntegrationTests extends ElasticsearchIntegrationTest {
     }
 
     private XContentBuilder createTypeSource() throws IOException {
-        if (randomBoolean()) {
-            return XContentFactory.jsonBuilder().startObject().startObject("my-type")
-                    .startObject("properties")
-                    .startObject("title")
-                    .field("type", "string")
-                    .startObject("fields")
-                    .startObject("not_analyzed")
-                    .field("type", "string")
-                    .field("index", "not_analyzed")
-                    .endObject()
-                    .endObject()
-                    .endObject()
-                    .endObject()
-                    .endObject().endObject();
-        } else {
-            return XContentFactory.jsonBuilder().startObject().startObject("my-type")
-                    .startObject("properties")
-                    .startObject("title")
-                    .field("type", "multi_field")
-                    .startObject("fields")
-                    .startObject("title")
-                    .field("type", "string")
-                    .endObject()
-                    .startObject("not_analyzed")
-                    .field("type", "string")
-                    .field("index", "not_analyzed")
-                    .endObject()
-                    .endObject()
-                    .endObject()
-                    .endObject()
-                    .endObject().endObject();
-        }
+        return XContentFactory.jsonBuilder().startObject().startObject("my-type")
+                .startObject("properties")
+                .startObject("title")
+                .field("type", "string")
+                .startObject("fields")
+                .startObject("not_analyzed")
+                .field("type", "string")
+                .field("index", "not_analyzed")
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject().endObject();
     }
 
     private XContentBuilder createPutMappingSource() throws IOException {
-        if (randomBoolean()) {
-            return XContentFactory.jsonBuilder().startObject().startObject("my-type")
-                    .startObject("properties")
-                    .startObject("title")
-                    .field("type", "string")
-                    .startObject("fields")
-                    .startObject("uncased")
-                    .field("type", "string")
-                    .field("analyzer", "whitespace")
-                    .endObject()
-                    .endObject()
-                    .endObject()
-                    .endObject()
-                    .endObject().endObject();
-        } else {
-            return XContentFactory.jsonBuilder().startObject().startObject("my-type")
-                    .startObject("properties")
-                    .startObject("title")
-                    .field("type", "multi_field")
-                    .startObject("fields")
-                    .startObject("uncased")
-                    .field("type", "string")
-                    .field("analyzer", "whitespace")
-                    .endObject()
-                    .endObject()
-                    .endObject()
-                    .endObject()
-                    .endObject().endObject();
-        }
+        return XContentFactory.jsonBuilder().startObject().startObject("my-type")
+                .startObject("properties")
+                .startObject("title")
+                .field("type", "string")
+                .startObject("fields")
+                .startObject("uncased")
+                .field("type", "string")
+                .field("analyzer", "whitespace")
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject().endObject();
     }
 
 }

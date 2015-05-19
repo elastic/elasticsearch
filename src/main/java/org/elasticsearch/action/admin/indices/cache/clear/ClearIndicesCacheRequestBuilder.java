@@ -51,8 +51,4 @@ public class ClearIndicesCacheRequestBuilder extends BroadcastOperationRequestBu
         return this;
     }
 
-    public ClearIndicesCacheRequestBuilder setIdCache(boolean idCache) {
-        request.idCache(idCache);
-        return this;
-    }
 }

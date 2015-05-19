@@ -17,22 +17,22 @@
  * under the License.
  */
 
-package org.elasticsearch.index.translog;
+package org.elasticsearch.common;
 
-import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.common.util.BigArrays;
-
-import java.io.IOException;
+import java.util.Set;
 
 /**
  *
  */
-public class FsSimpleTranslogTests extends TranslogTests {
+public interface HasHeaders {
 
-    @Override
-    protected Translog create() throws IOException {
-        return new Translog(shardId,
-                ImmutableSettings.settingsBuilder().put("index.translog.fs.type", TranslogFile.Type.SIMPLE.name()).build(),
-                BigArrays.NON_RECYCLING_INSTANCE, translogDir);
-    }
+    <V> V putHeader(String key, V value);
+
+    <V> V getHeader(String key);
+
+    boolean hasHeader(String key);
+
+    Set<String> getHeaders();
+
+    void copyHeadersFrom(HasHeaders from);
 }

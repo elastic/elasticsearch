@@ -24,6 +24,8 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.shard.IndexShardException;
 import org.elasticsearch.rest.RestStatus;
 
@@ -81,6 +83,11 @@ public class DefaultShardOperationFailedException implements ShardOperationFaile
         return status;
     }
 
+    @Override
+    public Throwable getCause() {
+        return reason;
+    }
+
     public static DefaultShardOperationFailedException readShardOperationFailed(StreamInput in) throws IOException {
         DefaultShardOperationFailedException exp = new DefaultShardOperationFailedException();
         exp.readFrom(in);
@@ -113,5 +120,20 @@ public class DefaultShardOperationFailedException implements ShardOperationFaile
     @Override
     public String toString() {
         return "[" + index + "][" + shardId + "] failed, reason [" + reason() + "]";
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.field("shard", shardId());
+        builder.field("index", index());
+        builder.field("status", status.name());
+        if (reason != null) {
+            builder.field("reason");
+            builder.startObject();
+            ElasticsearchException.toXContent(builder, params, reason);
+            builder.endObject();
+        }
+        return builder;
+
     }
 }

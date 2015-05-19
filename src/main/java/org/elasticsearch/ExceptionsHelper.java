@@ -22,15 +22,21 @@ package org.elasticsearch;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
+import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexException;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  *
@@ -213,5 +219,60 @@ public final class ExceptionsHelper {
             }
         }
         return true;
+    }
+
+
+    /**
+     * Deduplicate the failures by exception message and index.
+     */
+    public static ShardOperationFailedException[] groupBy(ShardOperationFailedException[] failures) {
+        List<ShardOperationFailedException> uniqueFailures = new ArrayList<>();
+        Set<GroupBy> reasons = new HashSet<>();
+        for (ShardOperationFailedException failure : failures) {
+            GroupBy reason = new GroupBy(failure.getCause());
+            if (reasons.contains(reason) == false) {
+                reasons.add(reason);
+                uniqueFailures.add(failure);
+            }
+        }
+        return uniqueFailures.toArray(new ShardOperationFailedException[0]);
+    }
+
+    static class GroupBy {
+        final String reason;
+        final Index index;
+        final Class<? extends Throwable> causeType;
+
+        public GroupBy(Throwable t) {
+            if (t instanceof IndexException) {
+                index = ((IndexException) t).index();
+            } else {
+                index = null;
+            }
+            reason = t.getMessage();
+            causeType = t.getClass();
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+
+            GroupBy groupBy = (GroupBy) o;
+
+            if (!causeType.equals(groupBy.causeType)) return false;
+            if (index != null ? !index.equals(groupBy.index) : groupBy.index != null) return false;
+            if (reason != null ? !reason.equals(groupBy.reason) : groupBy.reason != null) return false;
+
+            return true;
+        }
+
+        @Override
+        public int hashCode() {
+            int result = reason != null ? reason.hashCode() : 0;
+            result = 31 * result + (index != null ? index.hashCode() : 0);
+            result = 31 * result + causeType.hashCode();
+            return result;
+        }
     }
 }

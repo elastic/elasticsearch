@@ -271,10 +271,7 @@ public class DocumentMapperParser extends AbstractIndexComponent {
 
         checkNoRemainingFields(mapping, parserContext.indexVersionCreated(), "Root mapping definition has unsupported parameters: ");
 
-        DocumentMapper documentMapper = docBuilder.build(mapperService, this);
-        // update the source with the generated one
-        documentMapper.refreshSource();
-        return documentMapper;
+        return docBuilder.build(mapperService, this);
     }
 
     public static void checkNoRemainingFields(String fieldName, Map<String, Object> fieldNodeMap, Version indexVersionCreated) {

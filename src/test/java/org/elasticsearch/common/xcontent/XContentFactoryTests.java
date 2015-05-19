@@ -22,7 +22,7 @@ package org.elasticsearch.common.xcontent;
 import com.fasterxml.jackson.dataformat.cbor.CBORConstants;
 import com.fasterxml.jackson.dataformat.smile.SmileConstants;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.io.stream.BytesStreamInput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
@@ -65,7 +65,7 @@ public class XContentFactoryTests extends ElasticsearchTestCase {
 
         assertThat(XContentFactory.xContentType(builder.bytes()), equalTo(type));
         BytesArray bytesArray = builder.bytes().toBytesArray();
-        assertThat(XContentFactory.xContentType(new BytesStreamInput(bytesArray.array(), bytesArray.arrayOffset(), bytesArray.length())), equalTo(type));
+        assertThat(XContentFactory.xContentType(StreamInput.wrap(bytesArray.array(), bytesArray.arrayOffset(), bytesArray.length())), equalTo(type));
 
         // CBOR is binary, cannot use String
         if (type != XContentType.CBOR) {

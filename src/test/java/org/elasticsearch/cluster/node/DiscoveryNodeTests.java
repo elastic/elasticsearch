@@ -21,8 +21,8 @@ package org.elasticsearch.cluster.node;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.ThrowableObjectInputStream;
 import org.elasticsearch.common.io.ThrowableObjectOutputStream;
-import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.test.ElasticsearchTestCase;
@@ -57,7 +57,7 @@ public class DiscoveryNodeTests extends ElasticsearchTestCase {
             ThrowableObjectOutputStream too = new ThrowableObjectOutputStream(bytesOutput);
             too.writeObject(discoveryNode);
             too.close();
-            ThrowableObjectInputStream from = new ThrowableObjectInputStream(new BytesStreamInput(bytesOutput.bytes()));
+            ThrowableObjectInputStream from = new ThrowableObjectInputStream(StreamInput.wrap(bytesOutput.bytes()));
             DiscoveryNode readDiscoveryNode = (DiscoveryNode) from.readObject();
             from.close();
             assertThat(readDiscoveryNode, Matchers.equalTo(discoveryNode));

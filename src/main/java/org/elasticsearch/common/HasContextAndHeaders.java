@@ -17,21 +17,17 @@
  * under the License.
  */
 
-package org.elasticsearch.common.lucene.docset;
-
-import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.DocIdSet;
+package org.elasticsearch.common;
 
 /**
- * A holder for a {@link DocIdSet} and the {@link LeafReaderContext} it is associated with.
+ * marker interface
  */
-public class ContextDocIdSet {
+public interface HasContextAndHeaders extends HasContext, HasHeaders {
 
-    public final LeafReaderContext context;
-    public final DocIdSet docSet;
+    /**
+     * copies over the context and the headers
+     * @param other another object supporting headers and context
+     */
+    void copyContextAndHeadersFrom(HasContextAndHeaders other);
 
-    public ContextDocIdSet(LeafReaderContext context, DocIdSet docSet) {
-        this.context = context;
-        this.docSet = docSet;
-    }
 }

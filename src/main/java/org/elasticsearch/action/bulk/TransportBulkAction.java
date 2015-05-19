@@ -284,7 +284,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 MappingMetaData mappingMd = clusterState.metaData().index(concreteIndex).mappingOrDefault(updateRequest.type());
                 if (mappingMd != null && mappingMd.routing().required() && updateRequest.routing() == null) {
                     BulkItemResponse.Failure failure = new BulkItemResponse.Failure(updateRequest.index(), updateRequest.type(),
-                            updateRequest.id(), "routing is required for this item", RestStatus.BAD_REQUEST);
+                            updateRequest.id(), new IllegalArgumentException("routing is required for this item"));
                     responses.set(i, new BulkItemResponse(i, updateRequest.type(), failure));
                     continue;
                 }
@@ -328,21 +328,19 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 @Override
                 public void onFailure(Throwable e) {
                     // create failures for all relevant requests
-                    String message = ExceptionsHelper.detailedMessage(e);
-                    RestStatus status = ExceptionsHelper.status(e);
                     for (BulkItemRequest request : requests) {
                         if (request.request() instanceof IndexRequest) {
                             IndexRequest indexRequest = (IndexRequest) request.request();
                             responses.set(request.id(), new BulkItemResponse(request.id(), indexRequest.opType().toString().toLowerCase(Locale.ENGLISH),
-                                    new BulkItemResponse.Failure(concreteIndices.getConcreteIndex(indexRequest.index()), indexRequest.type(), indexRequest.id(), message, status)));
+                                    new BulkItemResponse.Failure(concreteIndices.getConcreteIndex(indexRequest.index()), indexRequest.type(), indexRequest.id(), e)));
                         } else if (request.request() instanceof DeleteRequest) {
                             DeleteRequest deleteRequest = (DeleteRequest) request.request();
                             responses.set(request.id(), new BulkItemResponse(request.id(), "delete",
-                                    new BulkItemResponse.Failure(concreteIndices.getConcreteIndex(deleteRequest.index()), deleteRequest.type(), deleteRequest.id(), message, status)));
+                                    new BulkItemResponse.Failure(concreteIndices.getConcreteIndex(deleteRequest.index()), deleteRequest.type(), deleteRequest.id(), e)));
                         } else if (request.request() instanceof UpdateRequest) {
                             UpdateRequest updateRequest = (UpdateRequest) request.request();
                             responses.set(request.id(), new BulkItemResponse(request.id(), "update",
-                                    new BulkItemResponse.Failure(concreteIndices.getConcreteIndex(updateRequest.index()), updateRequest.type(), updateRequest.id(), message, status)));
+                                    new BulkItemResponse.Failure(concreteIndices.getConcreteIndex(updateRequest.index()), updateRequest.type(), updateRequest.id(), e)));
                         }
                     }
                     if (counter.decrementAndGet() == 0) {

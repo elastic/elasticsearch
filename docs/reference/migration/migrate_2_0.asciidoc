@@ -177,6 +177,7 @@ A `RoutingMissingException` is now thrown instead.
 
 * The setting `index.mapping.allow_type_wrapper` has been removed.  Documents should always be sent without the type as the root element.
 * The delete mappings API has been removed. Mapping types can no longer be deleted.
+* The `ignore_conflicts` option of the put mappings API has been removed. Conflicts can't be ignored anymore.
 
 ==== Removed type prefix on field names in queries
 Types can no longer be specified on fields within queries.  Instead, specify type restrictions in the search request.
@@ -498,7 +499,8 @@ systems and the provided start/stop scripts.
 
 === Analyze API
 
-The Analyze API return 0 as first Token's position instead of 1.
+* The Analyze API return 0 as first Token's position instead of 1.
+* The `text()` method on `AnalyzeRequest` now returns `String[]` instead of `String`.
 
 === Multiple data.path striping
 
@@ -560,3 +562,48 @@ same search request will likely be off if `top_children` was used.
 
 === Removed file based index templates
 Index templates can no longer be configured on disk. Use the `_template` API instead.
+
+[float]
+=== Removed `id_cache` from stats apis
+
+Removed `id_cache` metric from nodes stats, indices stats and cluster stats apis. This metric has also been removed
+from the shards cat, indices cat and nodes cat apis. Parent/child memory is now reported under fielddata, because it
+has internally be using fielddata for a while now.
+
+To just see how much parent/child related field data is taking, the `fielddata_fields` option can be used on the stats
+apis. Indices stats example:
+
+[source,js]
+--------------------------------------------------
+curl -XGET "http://localhost:9200/_stats/fielddata?pretty&human&fielddata_fields=_parent"
+--------------------------------------------------
+
+Parent/child is using field data for the `_parent` field since version `1.1.0`, but the memory stats for the `_parent`
+field were still shown under `id_cache` metric in the stats apis for backwards compatible reasons between 1.x versions.
+
+Before version `1.1.0` the parent/child had its own in-memory data structures for id values in the `_parent` field.
+
+[float]
+=== Removed `id_cache` from clear cache api
+
+Removed `id_cache` option from the clear cache apis. The `fielddata` option should be used to clear `_parent` field
+from fielddata.
+
+[float]
+=== Highlighting
+
+The default value for the `require_field_match` option is `true` rather than
+`false`, meaning that the highlighters will take the fields that were queried
+into account by default. That means for instance that highlighting any field
+when querying the `_all` field will produce no highlighted snippets by default,
+given that the match was on the `_all` field only. Querying the same fields
+that need to be highlighted is the cleaner solution to get highlighted snippets
+back. Otherwise `require_field_match` option can be set to `false` to ignore
+field names completely when highlighting.
+
+The postings highlighter doesn't support the `require_field_match` option
+anymore, it will only highlight fields that were queried.
+
+The `match` query with type set to `match_phrase_prefix` is not supported by the
+postings highlighter. No highlighted snippets will be returned.
+

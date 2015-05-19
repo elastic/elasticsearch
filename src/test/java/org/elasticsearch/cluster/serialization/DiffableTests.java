@@ -53,7 +53,7 @@ public class DiffableTests extends ElasticsearchTestCase {
         Diff diff = DiffableUtils.diff(before, after);
         BytesStreamOutput out = new BytesStreamOutput();
         diff.writeTo(out);
-        BytesStreamInput in = new BytesStreamInput(out.bytes());
+        StreamInput in = StreamInput.wrap(out.bytes());
         ImmutableMap<String, TestDiffable> serialized = DiffableUtils.readImmutableMapDiff(in, TestDiffable.PROTO).apply(before);
         assertThat(serialized.size(), equalTo(3));
         assertThat(serialized.get("foo").value(), equalTo("1"));
@@ -76,7 +76,7 @@ public class DiffableTests extends ElasticsearchTestCase {
         Diff diff = DiffableUtils.diff(before, after);
         BytesStreamOutput out = new BytesStreamOutput();
         diff.writeTo(out);
-        BytesStreamInput in = new BytesStreamInput(out.bytes());
+        StreamInput in = StreamInput.wrap(out.bytes());
         ImmutableOpenMap<String, TestDiffable> serialized = DiffableUtils.readImmutableOpenMapDiff(in, new KeyedReader<TestDiffable>() {
             @Override
             public TestDiffable readFrom(StreamInput in, String key) throws IOException {

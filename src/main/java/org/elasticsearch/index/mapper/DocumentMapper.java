@@ -491,7 +491,7 @@ public class DocumentMapper implements ToXContent {
         return mergeResult;
     }
 
-    public CompressedString refreshSource() throws ElasticsearchGenerationException {
+    private void refreshSource() throws ElasticsearchGenerationException {
         try {
             BytesStreamOutput bStream = new BytesStreamOutput();
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON, CompressorFactory.defaultCompressor().streamOutput(bStream));
@@ -499,7 +499,7 @@ public class DocumentMapper implements ToXContent {
             toXContent(builder, ToXContent.EMPTY_PARAMS);
             builder.endObject();
             builder.close();
-            return mappingSource = new CompressedString(bStream.bytes());
+            mappingSource = new CompressedString(bStream.bytes());
         } catch (Exception e) {
             throw new ElasticsearchGenerationException("failed to serialize source for type [" + type + "]", e);
         }

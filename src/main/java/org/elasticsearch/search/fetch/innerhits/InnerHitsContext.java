@@ -31,7 +31,6 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.FilteredQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.QueryWrapperFilter;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopDocsCollector;
@@ -45,6 +44,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.fieldvisitor.SingleFieldsVisitor;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
@@ -53,6 +53,7 @@ import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.internal.FilteredSearchContext;
+import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -276,23 +277,23 @@ public final class InnerHitsContext {
 
     public static final class ParentChildInnerHits extends BaseInnerHits {
 
+        private final MapperService mapperService;
         private final DocumentMapper documentMapper;
 
-        public ParentChildInnerHits(SearchContext context, Query query, Map<String, BaseInnerHits> childInnerHits, DocumentMapper documentMapper) {
+        public ParentChildInnerHits(SearchContext context, Query query, Map<String, BaseInnerHits> childInnerHits, MapperService mapperService, DocumentMapper documentMapper) {
             super(context, query, childInnerHits);
+            this.mapperService = mapperService;
             this.documentMapper = documentMapper;
         }
 
         @Override
         public TopDocs topDocs(SearchContext context, FetchSubPhase.HitContext hitContext) throws IOException {
-            final String term;
             final String field;
-            if (documentMapper.parentFieldMapper().active()) {
-                // Active _parent field has been selected, so we want a children doc as inner hits.
+            final String term;
+            if (isParentHit(hitContext.hit())) {
                 field = ParentFieldMapper.NAME;
                 term = Uid.createUid(hitContext.hit().type(), hitContext.hit().id());
-            } else {
-                // No active _parent field has been selected, so we want parent docs as inner hits.
+            } else if (isChildHit(hitContext.hit())) {
                 field = UidFieldMapper.NAME;
                 SearchHitField parentField = hitContext.hit().field(ParentFieldMapper.NAME);
                 if (parentField != null) {
@@ -305,16 +306,19 @@ public final class InnerHitsContext {
                     }
                     term = (String) fieldsVisitor.fields().get(ParentFieldMapper.NAME).get(0);
                 }
-            }
-            Filter filter = new QueryWrapperFilter(new TermQuery(new Term(field, term))); // Only include docs that have the current hit as parent
-            Query typeFilter = documentMapper.typeFilter(); // Only include docs that have this inner hits type.
 
-            BooleanQuery filteredQuery = new BooleanQuery();
-            filteredQuery.add(query, Occur.MUST);
-            filteredQuery.add(filter, Occur.FILTER);
-            filteredQuery.add(typeFilter, Occur.FILTER);
+            } else {
+                return Lucene.EMPTY_TOP_DOCS;
+            }
+
+            BooleanQuery q = new BooleanQuery();
+            q.add(query, Occur.MUST);
+            // Only include docs that have the current hit as parent
+            q.add(new TermQuery(new Term(field, term)), Occur.MUST);
+            // Only include docs that have this inner hits type
+            q.add(documentMapper.typeFilter(), Occur.MUST);
             if (size() == 0) {
-                final int count = context.searcher().count(filteredQuery);
+                final int count = context.searcher().count(q);
                 return new TopDocs(count, Lucene.EMPTY_SCORE_DOCS, 0);
             } else {
                 int topN = from() + size();
@@ -324,9 +328,18 @@ public final class InnerHitsContext {
                 } else {
                     topDocsCollector = TopScoreDocCollector.create(topN);
                 }
-                context.searcher().search( filteredQuery, topDocsCollector);
+                context.searcher().search( q, topDocsCollector);
                 return topDocsCollector.topDocs(from(), size());
             }
+        }
+
+        private boolean isParentHit(InternalSearchHit hit) {
+            return hit.type().equals(documentMapper.parentFieldMapper().type());
+        }
+
+        private boolean isChildHit(InternalSearchHit hit) {
+            DocumentMapper hitDocumentMapper = mapperService.documentMapper(hit.type());
+            return documentMapper.type().equals(hitDocumentMapper.parentFieldMapper().type());
         }
     }
 }

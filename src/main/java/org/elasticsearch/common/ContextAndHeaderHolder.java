@@ -23,20 +23,21 @@ import com.carrotsearch.hppc.ObjectObjectAssociativeContainer;
 import com.carrotsearch.hppc.ObjectObjectHashMap;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Set;
+
 /**
  *
  */
-public class ContextHolder {
+public class ContextAndHeaderHolder<T> implements HasContextAndHeaders {
 
     private ObjectObjectHashMap<Object, Object> context;
+    protected Map<String, Object> headers;
 
-    /**
-     * Attaches the given value to the context.
-     *
-     * @return  The previous value that was associated with the given key in the context, or
-     *          {@code null} if there was none.
-     */
     @SuppressWarnings("unchecked")
+    @Override
     public final synchronized <V> V putInContext(Object key, Object value) {
         if (context == null) {
             context = new ObjectObjectHashMap<>(2);
@@ -44,9 +45,7 @@ public class ContextHolder {
         return (V) context.put(key, value);
     }
 
-    /**
-     * Attaches the given values to the context
-     */
+    @Override
     public final synchronized void putAllInContext(ObjectObjectAssociativeContainer<Object, Object> map) {
         if (map == null) {
             return;
@@ -58,72 +57,98 @@ public class ContextHolder {
         }
     }
 
-    /**
-     * @return  The context value that is associated with the given key
-     *
-     * @see     #putInContext(Object, Object)
-     */
     @SuppressWarnings("unchecked")
+    @Override
     public final synchronized <V> V getFromContext(Object key) {
         return context != null ? (V) context.get(key) : null;
     }
 
-    /**
-     * @param defaultValue  The default value that should be returned for the given key, if no
-     *                      value is currently associated with it.
-     *
-     * @return  The value that is associated with the given key in the context
-     *
-     * @see     #putInContext(Object, Object)
-     */
     @SuppressWarnings("unchecked")
+    @Override
     public final synchronized <V> V getFromContext(Object key, V defaultValue) {
         V value = getFromContext(key);
         return value == null ? defaultValue : value;
     }
 
-    /**
-     * Checks if the context contains an entry with the given key
-     */
+    @Override
     public final synchronized boolean hasInContext(Object key) {
         return context != null && context.containsKey(key);
     }
 
-    /**
-     * @return  The number of values attached in the context.
-     */
+    @Override
     public final synchronized int contextSize() {
         return context != null ? context.size() : 0;
     }
 
-    /**
-     * Checks if the context is empty.
-     */
+    @Override
     public final synchronized boolean isContextEmpty() {
         return context == null || context.isEmpty();
     }
 
-    /**
-     * @return  A safe immutable copy of the current context.
-     */
+    @Override
     public synchronized ImmutableOpenMap<Object, Object> getContext() {
         return context != null ? ImmutableOpenMap.copyOf(context) : ImmutableOpenMap.of();
     }
 
-    /**
-     * Copies the context from the given context holder to this context holder. Any shared keys between
-     * the two context will be overridden by the given context holder.
-     */
-    public synchronized void copyContextFrom(ContextHolder other) {
+    @Override
+    public synchronized void copyContextFrom(HasContext other) {
+        if (other == null) {
+            return;
+        }
+
         synchronized (other) {
-            if (other.context == null) {
+            ImmutableOpenMap<Object, Object> otherContext = other.getContext();
+            if (otherContext == null) {
                 return;
             }
             if (context == null) {
-                context = new ObjectObjectHashMap<>(other.context);
+                ObjectObjectHashMap<Object, Object> map = new ObjectObjectHashMap<>(other.getContext().size());
+                map.putAll(otherContext);
+                this.context = map;
             } else {
-                context.putAll(other.context);
+                context.putAll(otherContext);
             }
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    @Override
+    public final T putHeader(String key, Object value) {
+        if (headers == null) {
+            headers = new HashMap<>();
+        }
+        headers.put(key, value);
+        return (T) this;
+    }
+
+    @SuppressWarnings("unchecked")
+    @Override
+    public final <V> V getHeader(String key) {
+        return headers != null ? (V) headers.get(key) : null;
+    }
+
+    @Override
+    public final boolean hasHeader(String key) {
+        return headers != null && headers.containsKey(key);
+    }
+
+    @Override
+    public Set<String> getHeaders() {
+        return headers != null ? headers.keySet() : Collections.<String>emptySet();
+    }
+
+    @Override
+    public void copyHeadersFrom(HasHeaders from) {
+        if (from != null && from.getHeaders() != null && !from.getHeaders().isEmpty()) {
+            for (String headerName : from.getHeaders()) {
+                putHeader(headerName, from.getHeader(headerName));
+            }
+        }
+    }
+
+    @Override
+    public void copyContextAndHeadersFrom(HasContextAndHeaders other) {
+        copyContextFrom(other);
+        copyHeadersFrom(other);
     }
 }

@@ -93,7 +93,8 @@ public class IndicesStatsTests extends ElasticsearchSingleNodeTest {
             assertNotNull(commitStats);
             assertThat(commitStats.getGeneration(), greaterThan(0l));
             assertThat(commitStats.getId(), notNullValue());
-            assertThat(commitStats.getUserData(), hasKey(Translog.TRANSLOG_ID_KEY));
+            assertThat(commitStats.getUserData(), hasKey(Translog.TRANSLOG_GENERATION_KEY));
+            assertThat(commitStats.getUserData(), hasKey(Translog.TRANSLOG_UUID_KEY));
 
         }
     }

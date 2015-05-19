@@ -22,6 +22,7 @@ package org.elasticsearch.search.internal;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.ContextAndHeaderHolder;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -57,22 +58,15 @@ import static org.elasticsearch.search.Scroll.readScroll;
  * </pre>
  */
 
-public class ShardSearchLocalRequest implements ShardSearchRequest {
+public class ShardSearchLocalRequest extends ContextAndHeaderHolder implements ShardSearchRequest {
 
     private String index;
-
     private int shardId;
-
     private int numberOfShards;
-
     private SearchType searchType;
-
     private Scroll scroll;
-
     private String[] types = Strings.EMPTY_ARRAY;
-
     private String[] filteringAliases;
-
     private BytesReference source;
     private BytesReference extraSource;
     private BytesReference templateSource;
@@ -80,7 +74,6 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
     private ScriptService.ScriptType templateType;
     private Map<String, Object> templateParams;
     private Boolean queryCache;
-
     private long nowInMillis;
 
     ShardSearchLocalRequest() {
@@ -90,7 +83,6 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
                             String[] filteringAliases, long nowInMillis) {
         this(shardRouting.shardId(), numberOfShards, searchRequest.searchType(),
                 searchRequest.source(), searchRequest.types(), searchRequest.queryCache());
-
         this.extraSource = searchRequest.extraSource();
         this.templateSource = searchRequest.templateSource();
         this.templateName = searchRequest.templateName();
@@ -99,6 +91,7 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
         this.scroll = searchRequest.scroll();
         this.filteringAliases = filteringAliases;
         this.nowInMillis = nowInMillis;
+        copyContextAndHeadersFrom(searchRequest);
     }
 
     public ShardSearchLocalRequest(String[] types, long nowInMillis) {

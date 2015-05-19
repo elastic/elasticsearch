@@ -175,15 +175,6 @@ public class IndicesStatsRequest extends BroadcastOperationRequest<IndicesStatsR
         return flags.isSet(Flag.FilterCache);
     }
 
-    public IndicesStatsRequest idCache(boolean idCache) {
-        flags.set(Flag.IdCache, idCache);
-        return this;
-    }
-
-    public boolean idCache() {
-        return flags.isSet(Flag.IdCache);
-    }
-
     public IndicesStatsRequest fieldData(boolean fieldData) {
         flags.set(Flag.FieldData, fieldData);
         return this;

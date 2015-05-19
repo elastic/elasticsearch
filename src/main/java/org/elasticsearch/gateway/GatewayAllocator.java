@@ -23,8 +23,10 @@ import com.carrotsearch.hppc.ObjectLongHashMap;
 import com.carrotsearch.hppc.ObjectHashSet;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.predicates.ObjectPredicate;
+import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
+import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -45,14 +47,13 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.indices.store.TransportNodesListShardStoreMetaData;
 import org.elasticsearch.transport.ConnectTransportException;
 
-import java.util.Iterator;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.ConcurrentMap;
 
 /**
@@ -101,6 +102,15 @@ public class GatewayAllocator extends AbstractComponent {
         }
     }
 
+    /**
+     * Return {@code true} if the index is configured to allow shards to be
+     * recovered on any node
+     */
+    private boolean recoverOnAnyNode(@IndexSettings Settings idxSettings) {
+        return IndexMetaData.isOnSharedFilesystem(idxSettings) &&
+                idxSettings.getAsBoolean(IndexMetaData.SETTING_SHARED_FS_ALLOW_RECOVERY_ON_ANY_NODE, false);
+    }
+
     public boolean allocateUnassigned(RoutingAllocation allocation) {
         boolean changed = false;
         DiscoveryNodes nodes = allocation.nodes();
@@ -125,11 +135,13 @@ public class GatewayAllocator extends AbstractComponent {
 
             int numberOfAllocationsFound = 0;
             long highestVersion = -1;
-            Set<DiscoveryNode> nodesWithHighestVersion = Sets.newHashSet();
+            final Map<DiscoveryNode, Long> nodesWithVersion = Maps.newHashMap();
 
             assert !nodesState.containsKey(null);
             final Object[] keys = nodesState.keys;
             final long[] values = nodesState.values;
+            IndexMetaData indexMetaData = routingNodes.metaData().index(shard.index());
+            Settings idxSettings = indexMetaData.settings();
             for (int i = 0; i < keys.length; i++) {
                 if (keys[i] == null) {
                     continue;
@@ -141,21 +153,56 @@ public class GatewayAllocator extends AbstractComponent {
                 if (allocation.shouldIgnoreShardForNode(shard.shardId(), node.id())) {
                     continue;
                 }
-                if (version != -1) {
+                if (recoverOnAnyNode(idxSettings)) {
                     numberOfAllocationsFound++;
-                    if (highestVersion == -1) {
-                        nodesWithHighestVersion.add(node);
+                    if (version > highestVersion) {
                         highestVersion = version;
-                    } else {
-                        if (version > highestVersion) {
-                            nodesWithHighestVersion.clear();
-                            nodesWithHighestVersion.add(node);
-                            highestVersion = version;
-                        } else if (version == highestVersion) {
-                            nodesWithHighestVersion.add(node);
-                        }
+                    }
+                    // We always put the node without clearing the map
+                    nodesWithVersion.put(node, version);
+                } else if (version != -1) {
+                    numberOfAllocationsFound++;
+                    // If we've found a new "best" candidate, clear the
+                    // current candidates and add it
+                    if (version > highestVersion) {
+                        highestVersion = version;
+                        nodesWithVersion.clear();
+                        nodesWithVersion.put(node, version);
+                    } else if (version == highestVersion) {
+                        // If the candidate is the same, add it to the
+                        // list, but keep the current candidate
+                        nodesWithVersion.put(node, version);
                     }
                 }
+            }
+            // Now that we have a map of nodes to versions along with the
+            // number of allocations found (and not ignored), we need to sort
+            // it so the node with the highest version is at the beginning
+            List<DiscoveryNode> nodesWithHighestVersion = Lists.newArrayList();
+            nodesWithHighestVersion.addAll(nodesWithVersion.keySet());
+            CollectionUtil.timSort(nodesWithHighestVersion, new Comparator<DiscoveryNode>() {
+                @Override
+                public int compare(DiscoveryNode o1, DiscoveryNode o2) {
+                    return Long.compare(nodesWithVersion.get(o2), nodesWithVersion.get(o1));
+                }
+            });
+
+            if (logger.isDebugEnabled()) {
+                logger.debug("[{}][{}] found {} allocations of {}, highest version: [{}]",
+                        shard.index(), shard.id(), numberOfAllocationsFound, shard, highestVersion);
+            }
+            if (logger.isTraceEnabled()) {
+                StringBuilder sb = new StringBuilder("[");
+                for (DiscoveryNode n : nodesWithHighestVersion) {
+                    sb.append("[");
+                    sb.append(n.getName());
+                    sb.append("]");
+                    sb.append(" -> ");
+                    sb.append(nodesWithVersion.get(n));
+                    sb.append(", ");
+                }
+                sb.append("]");
+                logger.trace("{} candidates for allocation: {}", shard, sb.toString());
             }
 
             // check if the counts meets the minimum set
@@ -163,7 +210,6 @@ public class GatewayAllocator extends AbstractComponent {
             // if we restore from a repository one copy is more then enough
             if (shard.restoreSource() == null) {
                 try {
-                    IndexMetaData indexMetaData = routingNodes.metaData().index(shard.index());
                     String initialShards = indexMetaData.settings().get(INDEX_RECOVERY_INITIAL_SHARDS, settings.get(INDEX_RECOVERY_INITIAL_SHARDS, this.initialShards));
                     if ("quorum".equals(initialShards)) {
                         if (indexMetaData.numberOfReplicas() > 1) {
@@ -426,13 +472,6 @@ public class GatewayAllocator extends AbstractComponent {
 
         for (TransportNodesListGatewayStartedShards.NodeGatewayStartedShards nodeShardState : response) {
             long version = nodeShardState.version();
-            Settings idxSettings = indexMetaData.settings();
-            if (IndexMetaData.isOnSharedFilesystem(idxSettings) &&
-                    idxSettings.getAsBoolean(IndexMetaData.SETTING_SHARED_FS_ALLOW_RECOVERY_ON_ANY_NODE, false)) {
-                // Shared filesystems use 0 as a minimum shard state, which
-                // means that the shard can be allocated to any node
-                version = Math.max(0, version);
-            }
             // -1 version means it does not exists, which is what the API returns, and what we expect to
             logger.trace("[{}] on node [{}] has version [{}] of shard",
                     shard, nodeShardState.getNode(), version);

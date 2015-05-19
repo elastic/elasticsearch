@@ -82,7 +82,7 @@ public class HighlighterParseElement implements SearchParseElement {
 
         final SearchContextHighlight.FieldOptions.Builder globalOptionsBuilder = new SearchContextHighlight.FieldOptions.Builder()
                 .preTags(DEFAULT_PRE_TAGS).postTags(DEFAULT_POST_TAGS).scoreOrdered(false).highlightFilter(false)
-                .requireFieldMatch(false).forceSource(false).fragmentCharSize(100).numberOfFragments(5)
+                .requireFieldMatch(true).forceSource(false).fragmentCharSize(100).numberOfFragments(5)
                 .encoder("default").boundaryMaxScan(SimpleBoundaryScanner.DEFAULT_MAX_SCAN)
                 .boundaryChars(SimpleBoundaryScanner.DEFAULT_BOUNDARY_CHARS)
                 .noMatchSize(0).phraseLimit(256);

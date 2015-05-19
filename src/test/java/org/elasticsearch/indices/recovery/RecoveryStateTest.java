@@ -21,7 +21,6 @@ package org.elasticsearch.indices.recovery;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -73,7 +72,7 @@ public class RecoveryStateTest extends ElasticsearchTestCase {
             BytesStreamOutput out = new BytesStreamOutput();
             source.writeTo(out);
             out.close();
-            StreamInput in = new BytesStreamInput(out.bytes());
+            StreamInput in = StreamInput.wrap(out.bytes());
             T obj = deserialize(in);
             lastRead = obj;
             return obj;

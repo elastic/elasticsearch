@@ -19,12 +19,7 @@
 
 package org.elasticsearch.index.translog;
 
-import java.io.IOException;
-
-public class TruncatedTranslogException extends IOException {
-    public TruncatedTranslogException(String msg) {
-        super(msg);
-    }
+public class TruncatedTranslogException extends TranslogCorruptedException {
 
     public TruncatedTranslogException(String msg, Throwable cause) {
         super(msg, cause);

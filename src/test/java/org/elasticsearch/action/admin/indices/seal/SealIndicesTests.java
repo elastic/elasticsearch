@@ -22,7 +22,6 @@ package org.elasticsearch.action.admin.indices.seal;
 import org.elasticsearch.cluster.routing.ImmutableShardRouting;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
-import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.shard.ShardId;
@@ -50,7 +49,7 @@ public class SealIndicesTests extends ElasticsearchTestCase {
         BytesStreamOutput out = new BytesStreamOutput();
         sealIndicesResponse.writeTo(out);
         out.close();
-        StreamInput in = new BytesStreamInput(out.bytes());
+        StreamInput in = StreamInput.wrap(out.bytes());
         SealIndicesResponse readResponse = new SealIndicesResponse();
         readResponse.readFrom(in);
         Map<String, Object> asMap = convertToMap(readResponse);

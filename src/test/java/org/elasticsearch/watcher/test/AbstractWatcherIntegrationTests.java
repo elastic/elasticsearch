@@ -35,6 +35,7 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.TestCluster;
+import org.elasticsearch.watcher.WatcherLifeCycleService;
 import org.elasticsearch.watcher.WatcherPlugin;
 import org.elasticsearch.watcher.WatcherService;
 import org.elasticsearch.watcher.WatcherState;
@@ -155,7 +156,7 @@ public abstract class AbstractWatcherIntegrationTests extends ElasticsearchInteg
         if (checkWatcherRunningOnlyOnce()) {
             ensureWatcherOnlyRunningOnce();
         }
-        stopWatcher();
+        stopWatcher(false);
     }
 
     @AfterClass
@@ -189,15 +190,15 @@ public abstract class AbstractWatcherIntegrationTests extends ElasticsearchInteg
     private void startWatcherIfNodesExist() throws Exception {
         if (internalTestCluster().size() > 0) {
             ensureLicenseEnabled();
-            WatcherStatsResponse response = watcherClient().prepareWatcherStats().get();
-            if (response.getWatcherState() == WatcherState.STOPPED) {
+            WatcherState state = getInstanceFromMaster(WatcherService.class).state();
+            if (state == WatcherState.STOPPED) {
                 logger.info("[{}#{}]: starting watcher", getTestClass().getSimpleName(), getTestName());
-                startWatcher();
-            } else if (response.getWatcherState() == WatcherState.STARTING) {
+                startWatcher(false);
+            } else if (state == WatcherState.STARTING) {
                 logger.info("[{}#{}]: watcher is starting, waiting for it to get in a started state", getTestClass().getSimpleName(), getTestName());
                 ensureWatcherStarted(false);
             } else {
-                logger.info("[{}#{}]: not starting watcher, because watcher is in state [{}]", getTestClass().getSimpleName(), getTestName(), response.getWatcherState());
+                logger.info("[{}#{}]: not starting watcher, because watcher is in state [{}]", getTestClass().getSimpleName(), getTestName(), state);
             }
         } else {
             logger.info("[{}#{}]: not starting watcher, because test cluster has no nodes", getTestClass().getSimpleName(), getTestName());
@@ -427,13 +428,29 @@ public abstract class AbstractWatcherIntegrationTests extends ElasticsearchInteg
     }
 
     protected void startWatcher() throws Exception {
-        watcherClient().prepareWatchService().start().get();
-        ensureWatcherStarted(false);
+        startWatcher(true);
     }
 
     protected void stopWatcher() throws Exception {
-        watcherClient().prepareWatchService().stop().get();
-        ensureWatcherStopped(false);
+        stopWatcher(true);
+    }
+
+    protected void startWatcher(boolean useClient) throws Exception {
+        if (useClient) {
+            watcherClient().prepareWatchService().start().get();
+        } else {
+            getInstanceFromMaster(WatcherLifeCycleService.class).start();
+        }
+        ensureWatcherStarted(useClient);
+    }
+
+    protected void stopWatcher(boolean useClient) throws Exception {
+        if (useClient) {
+            watcherClient().prepareWatchService().stop().get();
+        } else {
+            getInstanceFromMaster(WatcherLifeCycleService.class).stop();
+        }
+        ensureWatcherStopped(useClient);
     }
 
     protected void ensureWatcherOnlyRunningOnce() {
@@ -587,8 +604,6 @@ public abstract class AbstractWatcherIntegrationTests extends ElasticsearchInteg
 
         public static final String TEST_USERNAME = "test";
         public static final String TEST_PASSWORD = "changeme";
-        public static final String TEST_BASIC_AUTH_TOKEN = UsernamePasswordToken.basicAuthHeaderValue(TEST_USERNAME, new SecuredString(TEST_PASSWORD.toCharArray()));
-        public static final String ADMIN_BASIC_AUTH_TOKEN = UsernamePasswordToken.basicAuthHeaderValue("admin", new SecuredString("changeme".toCharArray()));
 
         static boolean auditLogsEnabled = SystemPropertyUtil.getBoolean("tests.audit_logs", true);
         static byte[] systemKey = generateKey(); // must be the same for all nodes
@@ -596,23 +611,27 @@ public abstract class AbstractWatcherIntegrationTests extends ElasticsearchInteg
         public static final String IP_FILTER = "allow: all\n";
 
         public static final String USERS =
+                "transport_client:{plain}changeme\n" +
                 TEST_USERNAME + ":{plain}" + TEST_PASSWORD + "\n" +
                 "admin:{plain}changeme\n" +
                 "monitor:{plain}changeme";
 
         public static final String USER_ROLES =
+                "transport_client:transport_client\n" +
                 "test:test\n" +
                 "admin:admin\n" +
                 "monitor:monitor";
 
         public static final String ROLES =
                 "test:\n" + // a user for the test infra.
-                "  cluster: all\n" +
+                "  cluster: cluster:monitor/state, cluster:monitor/health, indices:admin/template/delete, cluster:admin/repository/delete, indices:admin/template/put, cluster:monitor/stats\n" +
                 "  indices:\n" +
                 "    '*': all\n" +
                 "\n" +
                 "admin:\n" +
                 "  cluster: manage_watcher, cluster:monitor/nodes/info\n" +
+                "transport_client:\n" +
+                "  cluster: cluster:monitor/nodes/info\n" +
                 "\n" +
                 "monitor:\n" +
                 "  cluster: monitor_watcher, cluster:monitor/nodes/info\n"

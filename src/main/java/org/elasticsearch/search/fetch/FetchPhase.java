@@ -44,6 +44,7 @@ import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
 import org.elasticsearch.index.fieldvisitor.JustUidFieldsVisitor;
 import org.elasticsearch.index.fieldvisitor.UidAndSourceFieldsVisitor;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldMappers;
 import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
@@ -67,7 +68,12 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import static com.google.common.collect.Lists.newArrayList;
 import static org.elasticsearch.common.xcontent.XContentFactory.contentBuilder;
@@ -136,17 +142,17 @@ public class FetchPhase implements SearchPhase {
                     }
                     continue;
                 }
-                FieldMappers x = context.smartNameFieldMappers(fieldName);
-                if (x == null) {
+                FieldMapper mapper = context.smartNameFieldMapper(fieldName);
+                if (mapper == null) {
                     // Only fail if we know it is a object field, missing paths / fields shouldn't fail.
                     if (context.smartNameObjectMapper(fieldName) != null) {
                         throw new IllegalArgumentException("field [" + fieldName + "] isn't a leaf field");
                     }
-                } else if (x.mapper().fieldType().stored()) {
+                } else if (mapper.fieldType().stored()) {
                     if (fieldNames == null) {
                         fieldNames = new HashSet<>();
                     }
-                    fieldNames.add(x.mapper().names().indexName());
+                    fieldNames.add(mapper.names().indexName());
                 } else {
                     if (extractFieldNames == null) {
                         extractFieldNames = newArrayList();

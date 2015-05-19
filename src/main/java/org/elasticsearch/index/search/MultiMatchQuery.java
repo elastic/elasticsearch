@@ -30,7 +30,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
 
@@ -163,16 +162,16 @@ public class MultiMatchQuery extends MatchQuery {
             List<Tuple<String, Float>> missing = new ArrayList<>();
             for (Map.Entry<String, Float> entry : fieldNames.entrySet()) {
                 String name = entry.getKey();
-                MapperService.SmartNameFieldMappers smartNameFieldMappers = parseContext.smartFieldMappers(name);
-                if (smartNameFieldMappers != null && smartNameFieldMappers.hasMapper()) {
-                    Analyzer actualAnalyzer = getAnalyzer(smartNameFieldMappers.mapper(), smartNameFieldMappers);
-                    name = smartNameFieldMappers.mapper().names().indexName();
+                FieldMapper mapper = parseContext.fieldMapper(name);
+                if (mapper != null) {
+                    Analyzer actualAnalyzer = getAnalyzer(mapper);
+                    name = mapper.names().indexName();
                     if (!groups.containsKey(actualAnalyzer)) {
                        groups.put(actualAnalyzer, new ArrayList<FieldAndMapper>());
                     }
                     Float boost = entry.getValue();
                     boost = boost == null ? Float.valueOf(1.0f) : boost;
-                    groups.get(actualAnalyzer).add(new FieldAndMapper(name, smartNameFieldMappers.mapper(), boost));
+                    groups.get(actualAnalyzer).add(new FieldAndMapper(name, mapper, boost));
                 } else {
                     missing.add(new Tuple(name, entry.getValue()));
                 }

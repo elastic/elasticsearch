@@ -25,7 +25,7 @@ import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.FieldMapper;
 
 import java.io.IOException;
 
@@ -97,9 +97,9 @@ public class TermQueryParser implements QueryParser {
         }
 
         Query query = null;
-        MapperService.SmartNameFieldMappers smartNameFieldMappers = parseContext.smartFieldMappers(fieldName);
-        if (smartNameFieldMappers != null && smartNameFieldMappers.hasMapper()) {
-            query = smartNameFieldMappers.mapper().termQuery(value, parseContext);
+        FieldMapper mapper = parseContext.fieldMapper(fieldName);
+        if (mapper != null) {
+            query = mapper.termQuery(value, parseContext);
         }
         if (query == null) {
             query = new TermQuery(new Term(fieldName, BytesRefs.toBytesRef(value)));

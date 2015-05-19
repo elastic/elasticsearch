@@ -713,16 +713,6 @@ public class DefaultSearchContext extends SearchContext {
     }
 
     @Override
-    public MapperService.SmartNameFieldMappers smartFieldMappers(String name) {
-        return mapperService().smartName(name, request.types());
-    }
-
-    @Override
-    public FieldMappers smartNameFieldMappers(String name) {
-        return mapperService().smartNameFieldMappers(name, request.types());
-    }
-
-    @Override
     public FieldMapper smartNameFieldMapper(String name) {
         return mapperService().smartNameFieldMapper(name, request.types());
     }

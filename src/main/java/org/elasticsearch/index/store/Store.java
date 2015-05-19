@@ -500,6 +500,32 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         return false;
     }
 
+    /**
+     * Deletes all corruption markers from this store.
+     */
+    public void removeCorruptionMarker() throws IOException {
+        ensureOpen();
+        final Directory directory = directory();
+        IOException firstException = null;
+        final String[] files = directory.listAll();
+        for (String file : files) {
+            if (file.startsWith(CORRUPTED)) {
+                try {
+                    directory.deleteFile(file);
+                } catch (IOException ex) {
+                    if (firstException == null) {
+                        firstException = ex;
+                    } else {
+                        firstException.addSuppressed(ex);
+                    }
+                }
+            }
+        }
+        if (firstException != null) {
+            throw firstException;
+        }
+    }
+
     public void failIfCorrupted() throws IOException {
         ensureOpen();
         failIfCorrupted(directory, shardId);

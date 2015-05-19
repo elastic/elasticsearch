@@ -356,7 +356,11 @@ public class RecoveryTarget extends AbstractComponent {
                     // source shard since this index might be broken there as well? The Source can handle this and checks
                     // its content on disk if possible.
                     try {
-                        Lucene.cleanLuceneIndex(store.directory()); // clean up and delete all files
+                        try {
+                            store.removeCorruptionMarker();
+                        } finally {
+                            Lucene.cleanLuceneIndex(store.directory()); // clean up and delete all files
+                        }
                     } catch (Throwable e) {
                         logger.debug("Failed to clean lucene index", e);
                         ex.addSuppressed(e);

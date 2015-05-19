@@ -25,8 +25,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
-import org.elasticsearch.common.lucene.docset.DocIdSets;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -82,7 +81,7 @@ public class FiltersAggregator extends BucketsAggregator {
         // no need to provide deleted docs to the filter
         final Bits[] bits = new Bits[filters.length];
         for (int i = 0; i < filters.length; ++i) {
-            bits[i] = DocIdSets.asSequentialAccessBits(ctx.reader().maxDoc(), filters[i].scorer(ctx, null));
+            bits[i] = Lucene.asSequentialAccessBits(ctx.reader().maxDoc(), filters[i].scorer(ctx, null));
         }
         return new LeafBucketCollectorBase(sub, null) {
             @Override

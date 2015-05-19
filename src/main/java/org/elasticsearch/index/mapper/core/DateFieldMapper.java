@@ -24,6 +24,7 @@ import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Terms;
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.NumericRangeQuery;
 import org.apache.lucene.search.Query;
@@ -335,15 +336,11 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
     }
 
     @Override
-    public Filter nullValueFilter() {
+    public Query nullValueFilter() {
         if (nullValue == null) {
             return null;
         }
-        long value = parseStringValue(nullValue);
-        return new QueryWrapperFilter(NumericRangeQuery.newLongRange(names.indexName(), precisionStep,
-                value,
-                value,
-                true, true));
+        return new ConstantScoreQuery(termQuery(nullValue, null));
     }
 
 

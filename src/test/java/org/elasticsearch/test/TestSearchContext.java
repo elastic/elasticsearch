@@ -552,16 +552,6 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public MapperService.SmartNameFieldMappers smartFieldMappers(String name) {
-        return null;
-    }
-
-    @Override
-    public FieldMappers smartNameFieldMappers(String name) {
-        return null;
-    }
-
-    @Override
     public FieldMapper<?> smartNameFieldMapper(String name) {
         if (mapperService() != null) {
             return mapperService().smartNameFieldMapper(name, types());

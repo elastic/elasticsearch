@@ -37,7 +37,6 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.cache.filter.terms.TermsLookup;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -74,7 +73,6 @@ public class TermsQueryParser implements QueryParser {
     public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
-        MapperService.SmartNameFieldMappers smartNameFieldMappers;
         String queryName = null;
         String currentFieldName = null;
 
@@ -160,13 +158,9 @@ public class TermsQueryParser implements QueryParser {
             throw new QueryParsingException(parseContext, "terms query requires a field name, followed by array of terms");
         }
 
-        FieldMapper<?> fieldMapper = null;
-        smartNameFieldMappers = parseContext.smartFieldMappers(fieldName);
-        if (smartNameFieldMappers != null) {
-            if (smartNameFieldMappers.hasMapper()) {
-                fieldMapper = smartNameFieldMappers.mapper();
-                fieldName = fieldMapper.names().indexName();
-            }
+        FieldMapper<?> fieldMapper = parseContext.fieldMapper(fieldName);
+        if (fieldMapper != null) {
+            fieldName = fieldMapper.names().indexName();
         }
 
         if (lookupId != null) {

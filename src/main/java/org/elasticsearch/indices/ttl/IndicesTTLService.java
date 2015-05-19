@@ -41,6 +41,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fieldvisitor.UidAndRoutingFieldsVisitor;
+import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldMappers;
 import org.elasticsearch.index.mapper.Uid;
@@ -170,15 +171,11 @@ public class IndicesTTLService extends AbstractLifecycleComponent<IndicesTTLServ
                     continue;
                 }
 
-                // should be optimized with the hasTTL flag
-                FieldMappers ttlFieldMappers = indexService.mapperService().fullName(TTLFieldMapper.NAME);
-                if (ttlFieldMappers == null) {
-                    continue;
-                }
                 // check if ttl is enabled for at least one type of this index
                 boolean hasTTLEnabled = false;
-                for (FieldMapper ttlFieldMapper : ttlFieldMappers) {
-                    if (((TTLFieldMapper) ttlFieldMapper).enabled()) {
+                for (String type : indexService.mapperService().types()) {
+                    DocumentMapper documentType = indexService.mapperService().documentMapper(type);
+                    if (documentType.TTLFieldMapper().enabled()) {
                         hasTTLEnabled = true;
                         break;
                     }

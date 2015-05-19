@@ -28,7 +28,6 @@ import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
 import org.joda.time.DateTimeZone;
 
@@ -121,26 +120,22 @@ public class RangeQueryParser implements QueryParser {
         }
 
         Query query = null;
-        MapperService.SmartNameFieldMappers smartNameFieldMappers = parseContext.smartFieldMappers(fieldName);
-        if (smartNameFieldMappers != null) {
-            if (smartNameFieldMappers.hasMapper()) {
-                FieldMapper mapper = smartNameFieldMappers.mapper();
-                if (mapper instanceof DateFieldMapper) {
-                    if ((from instanceof Number || to instanceof Number) && timeZone != null) {
-                        throw new QueryParsingException(parseContext,
-                                "[range] time_zone when using ms since epoch format as it's UTC based can not be applied to [" + fieldName
-                                        + "]");
-                    }
-                    query = ((DateFieldMapper) mapper).rangeQuery(from, to, includeLower, includeUpper, timeZone, forcedDateParser, parseContext);
-                } else  {
-                    if (timeZone != null) {
-                        throw new QueryParsingException(parseContext, "[range] time_zone can not be applied to non date field ["
-                                + fieldName + "]");
-                    }
-                    //LUCENE 4 UPGRADE Mapper#rangeQuery should use bytesref as well?
-                    query = mapper.rangeQuery(from, to, includeLower, includeUpper, parseContext);
+        FieldMapper mapper = parseContext.fieldMapper(fieldName);
+        if (mapper != null) {
+            if (mapper instanceof DateFieldMapper) {
+                if ((from instanceof Number || to instanceof Number) && timeZone != null) {
+                    throw new QueryParsingException(parseContext,
+                            "[range] time_zone when using ms since epoch format as it's UTC based can not be applied to [" + fieldName
+                                    + "]");
                 }
-
+                query = ((DateFieldMapper) mapper).rangeQuery(from, to, includeLower, includeUpper, timeZone, forcedDateParser, parseContext);
+            } else  {
+                if (timeZone != null) {
+                    throw new QueryParsingException(parseContext, "[range] time_zone can not be applied to non date field ["
+                            + fieldName + "]");
+                }
+                //LUCENE 4 UPGRADE Mapper#rangeQuery should use bytesref as well?
+                query = mapper.rangeQuery(from, to, includeLower, includeUpper, parseContext);
             }
         }
         if (query == null) {

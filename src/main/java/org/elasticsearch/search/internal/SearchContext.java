@@ -343,10 +343,6 @@ public abstract class SearchContext implements Releasable, HasContextAndHeaders 
 
     public abstract ScanContext scanContext();
 
-    public abstract MapperService.SmartNameFieldMappers smartFieldMappers(String name);
-
-    public abstract FieldMappers smartNameFieldMappers(String name);
-
     public abstract FieldMapper smartNameFieldMapper(String name);
 
     /**

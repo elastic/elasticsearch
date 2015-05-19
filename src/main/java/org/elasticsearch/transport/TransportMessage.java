@@ -20,6 +20,7 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.common.ContextAndHeaderHolder;
+import org.elasticsearch.common.HasHeaders;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -32,7 +33,7 @@ import java.util.HashMap;
  * The transport message is also a {@link ContextAndHeaderHolder context holder} that holds <b>transient</b> context, that is,
  * the context is not serialized with message.
  */
-public abstract class TransportMessage<TM extends TransportMessage<TM>> extends ContextAndHeaderHolder<TM> implements Streamable {
+public abstract class TransportMessage<TM extends TransportMessage<TM>> extends ContextAndHeaderHolder implements Streamable {
 
     private TransportAddress remoteAddress;
 
@@ -55,6 +56,11 @@ public abstract class TransportMessage<TM extends TransportMessage<TM>> extends 
 
     public TransportAddress remoteAddress() {
         return remoteAddress;
+    }
+
+    // Needed for plugins already compiled against 1.5.x versions:
+    public TransportMessage putHeader(String key, Object value) {
+        return (TransportMessage) super.putHeader(key, value);
     }
 
     @Override

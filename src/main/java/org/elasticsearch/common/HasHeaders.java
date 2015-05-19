@@ -26,7 +26,7 @@ import java.util.Set;
  */
 public interface HasHeaders {
 
-    <V> V putHeader(String key, V value);
+    HasHeaders putHeader(String key, Object value);
 
     <V> V getHeader(String key);
 

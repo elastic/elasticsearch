@@ -31,7 +31,7 @@ import java.util.Set;
 /**
  *
  */
-public class ContextAndHeaderHolder<T> implements HasContextAndHeaders {
+public class ContextAndHeaderHolder implements HasContextAndHeaders {
 
     private ObjectObjectOpenHashMap<Object, Object> context;
     protected Map<String, Object> headers;
@@ -108,14 +108,13 @@ public class ContextAndHeaderHolder<T> implements HasContextAndHeaders {
         }
     }
 
-    @SuppressWarnings("unchecked")
     @Override
-    public final T putHeader(String key, Object value) {
+    public HasHeaders putHeader(String key, Object value) {
         if (headers == null) {
             headers = new HashMap<>();
         }
         headers.put(key, value);
-        return (T) this;
+        return this;
     }
 
     @SuppressWarnings("unchecked")

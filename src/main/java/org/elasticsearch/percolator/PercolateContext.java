@@ -788,9 +788,9 @@ public class PercolateContext extends SearchContext {
     }
 
     @Override
-    public <V> V putHeader(String key, V value) {
-        assert false : "percolatocontext does not support contexts & headers";
-        return value;
+    public HasHeaders putHeader(String key, Object value) {
+        assert false : "percolatcontext does not support contexts & headers";
+        return this;
     }
 
     @Override

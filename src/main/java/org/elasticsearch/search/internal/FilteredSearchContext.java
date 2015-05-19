@@ -658,7 +658,7 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    public <V> V putHeader(String key, V value) {
+    public HasHeaders putHeader(String key, Object value) {
         return in.putHeader(key, value);
     }
 

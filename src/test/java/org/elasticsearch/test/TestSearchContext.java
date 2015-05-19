@@ -704,8 +704,8 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public <V> V putHeader(String key, V value) {
-        return value;
+    public HasHeaders putHeader(String key, Object value) {
+        return this;
     }
 
     @Override

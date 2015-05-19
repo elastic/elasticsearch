@@ -734,7 +734,7 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
                     snapshotMetaData.put(fileInfo.metadata().name(), fileInfo.metadata());
                     fileInfos.put(fileInfo.metadata().name(), fileInfo);
                 }
-                final Store.MetadataSnapshot sourceMetaData = new Store.MetadataSnapshot(snapshotMetaData, Collections.EMPTY_MAP);
+                final Store.MetadataSnapshot sourceMetaData = new Store.MetadataSnapshot(snapshotMetaData, Collections.EMPTY_MAP, 0);
                 final Store.RecoveryDiff diff = sourceMetaData.recoveryDiff(recoveryTargetMetadata);
                 for (StoreFileMetaData md : diff.identical) {
                     FileInfo fileInfo = fileInfos.get(md.name());

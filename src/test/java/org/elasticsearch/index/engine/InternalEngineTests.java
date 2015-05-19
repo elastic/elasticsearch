@@ -700,16 +700,58 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         byte[] wrongBytes = Base64.decode(commitID.toString());
         wrongBytes[0] = (byte) ~wrongBytes[0];
         Engine.CommitId wrongId = new Engine.CommitId(wrongBytes);
-        assertThat("should fail to sync flush with wrong id (but no docs)", engine.syncFlush(syncId + "1", wrongId),
-                equalTo(Engine.SyncedFlushResult.COMMIT_MISMATCH));
+        assertEquals("should fail to sync flush with wrong id (but no docs)", engine.syncFlush(syncId + "1", wrongId),
+                Engine.SyncedFlushResult.COMMIT_MISMATCH);
         engine.create(new Engine.Create(null, newUid("2"), doc));
-        assertThat("should fail to sync flush with right id but pending doc", engine.syncFlush(syncId + "2", commitID),
-                equalTo(Engine.SyncedFlushResult.PENDING_OPERATIONS));
+        assertEquals("should fail to sync flush with right id but pending doc", engine.syncFlush(syncId + "2", commitID),
+                Engine.SyncedFlushResult.PENDING_OPERATIONS);
         commitID = engine.flush();
-        assertThat("should succeed to flush commit with right id and no pending doc", engine.syncFlush(syncId, commitID),
-                equalTo(Engine.SyncedFlushResult.SUCCESS));
-        assertThat(store.readLastCommittedSegmentsInfo().getUserData().get(Engine.SYNC_COMMIT_ID), equalTo(syncId));
-        assertThat(engine.getLastCommittedSegmentInfos().getUserData().get(Engine.SYNC_COMMIT_ID), equalTo(syncId));
+        assertEquals("should succeed to flush commit with right id and no pending doc", engine.syncFlush(syncId, commitID),
+                Engine.SyncedFlushResult.SUCCESS);
+        assertEquals(store.readLastCommittedSegmentsInfo().getUserData().get(Engine.SYNC_COMMIT_ID), syncId);
+        assertEquals(engine.getLastCommittedSegmentInfos().getUserData().get(Engine.SYNC_COMMIT_ID), syncId);
+    }
+
+    public void testSycnedFlushSurvivesEngineRestart() throws IOException {
+        final String syncId = randomUnicodeOfCodepointLengthBetween(10, 20);
+        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, null);
+        engine.create(new Engine.Create(null, newUid("1"), doc));
+        final Engine.CommitId commitID = engine.flush();
+        assertEquals("should succeed to flush commit with right id and no pending doc", engine.syncFlush(syncId, commitID),
+                Engine.SyncedFlushResult.SUCCESS);
+        assertEquals(store.readLastCommittedSegmentsInfo().getUserData().get(Engine.SYNC_COMMIT_ID), syncId);
+        assertEquals(engine.getLastCommittedSegmentInfos().getUserData().get(Engine.SYNC_COMMIT_ID), syncId);
+        EngineConfig config = engine.config();
+        if (randomBoolean()) {
+            engine.close();
+        } else {
+            engine.flushAndClose();
+        }
+        engine = new InternalEngine(config, randomBoolean());
+        assertEquals(engine.getLastCommittedSegmentInfos().getUserData().get(Engine.SYNC_COMMIT_ID), syncId);
+    }
+
+    public void testSycnedFlushVanishesOnReplay() throws IOException {
+        final String syncId = randomUnicodeOfCodepointLengthBetween(10, 20);
+        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, null);
+        engine.create(new Engine.Create(null, newUid("1"), doc));
+        final Engine.CommitId commitID = engine.flush();
+        assertEquals("should succeed to flush commit with right id and no pending doc", engine.syncFlush(syncId, commitID),
+                Engine.SyncedFlushResult.SUCCESS);
+        assertEquals(store.readLastCommittedSegmentsInfo().getUserData().get(Engine.SYNC_COMMIT_ID), syncId);
+        assertEquals(engine.getLastCommittedSegmentInfos().getUserData().get(Engine.SYNC_COMMIT_ID), syncId);
+        doc = testParsedDocument("2", "2", "test", null, -1, -1, testDocumentWithTextField(), new BytesArray("{}"), null);
+        engine.create(new Engine.Create(null, newUid("2"), doc));
+        EngineConfig config = engine.config();
+        engine.close();
+        final MockDirectoryWrapper directory = DirectoryUtils.getLeaf(store.directory(), MockDirectoryWrapper.class);
+        if (directory != null) {
+            // since we rollback the IW we are writing the same segment files again after starting IW but MDW prevents
+            // this so we have to disable the check explicitly
+            directory.setPreventDoubleWrite(false);
+        }
+        engine = new InternalEngine(config, false);
+        assertNull("Sync ID must be gone since we have a document to replay", engine.getLastCommittedSegmentInfos().getUserData().get(Engine.SYNC_COMMIT_ID));
     }
 
     @Test

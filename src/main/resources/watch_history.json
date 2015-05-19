@@ -217,15 +217,15 @@
                       "type": "object",
                       "dynamic": true,
                       "properties": {
-                        "_index": {
+                        "index": {
                           "type": "string",
                           "index": "not_analyzed"
                         },
-                        "_type": {
+                        "type": {
                           "type": "string",
                           "index": "not_analyzed"
                         },
-                        "_id": {
+                        "id": {
                           "type": "string",
                           "index": "not_analyzed"
                         }

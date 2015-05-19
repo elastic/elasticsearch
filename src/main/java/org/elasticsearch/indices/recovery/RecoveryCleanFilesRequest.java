@@ -66,7 +66,7 @@ class RecoveryCleanFilesRequest extends TransportRequest {
         recoveryId = in.readLong();
         shardId = ShardId.readShardId(in);
         if (in.getVersion().onOrAfter(Version.V_1_5_0)) {
-            snapshotFiles = Store.MetadataSnapshot.read(in);
+            snapshotFiles = new Store.MetadataSnapshot(in);
             totalTranslogOps = in.readVInt();
         } else {
             int size = in.readVInt();
@@ -75,7 +75,6 @@ class RecoveryCleanFilesRequest extends TransportRequest {
                 legacySnapshotFiles.add(in.readString());
             }
         }
-
     }
 
     @Override

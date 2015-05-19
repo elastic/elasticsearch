@@ -119,12 +119,17 @@ public class ShadowEngine extends Engine {
     }
 
     @Override
-    public void flush() throws EngineException {
-        flush(false, false);
+    public SyncedFlushResult syncFlush(String syncId, CommitId expectedCommitId) {
+        throw new UnsupportedOperationException(shardId + " sync commit operation not allowed on shadow engine");
     }
 
     @Override
-    public void flush(boolean force, boolean waitIfOngoing) throws EngineException {
+    public CommitId flush() throws EngineException {
+        return flush(false, false);
+    }
+
+    @Override
+    public CommitId flush(boolean force, boolean waitIfOngoing) throws EngineException {
         logger.trace("skipping FLUSH on shadow engine");
         // reread the last committed segment infos
         refresh("flush");
@@ -134,10 +139,12 @@ public class ShadowEngine extends Engine {
          * dec the store reference which can essentially close the store and unless we can inc the reference
          * we can't use it.
          */
+        CommitId id = null;
         store.incRef();
         try (ReleasableLock lock = readLock.acquire()) {
             // reread the last committed segment infos
             lastCommittedSegmentInfos = store.readLastCommittedSegmentsInfo();
+            id = CommitId.readCommitID(store, lastCommittedSegmentInfos);
         } catch (Throwable e) {
             if (isClosed.get() == false) {
                 logger.warn("failed to read latest segment infos on flush", e);
@@ -148,6 +155,7 @@ public class ShadowEngine extends Engine {
         } finally {
             store.decRef();
         }
+        return id;
     }
 
     @Override

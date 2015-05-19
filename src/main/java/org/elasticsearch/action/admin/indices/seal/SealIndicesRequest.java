@@ -17,39 +17,33 @@
  * under the License.
  */
 
-package org.elasticsearch.action;
+package org.elasticsearch.action.admin.indices.seal;
 
-import java.util.concurrent.CountDownLatch;
+import org.elasticsearch.action.support.broadcast.BroadcastOperationRequest;
+
+import java.util.Arrays;
 
 /**
- * An action listener that allows passing in a {@link CountDownLatch} that
- * will be counted down after onResponse or onFailure is called
+ * A request to seal one or more indices.
  */
-public class LatchedActionListener<T> implements ActionListener<T> {
+public class SealIndicesRequest extends BroadcastOperationRequest {
 
-    private final ActionListener<T> delegate;
-    private final CountDownLatch latch;
+    SealIndicesRequest() {
+    }
 
-    public LatchedActionListener(ActionListener<T> delegate, CountDownLatch latch) {
-        this.delegate = delegate;
-        this.latch = latch;
+    /**
+     * Constructs a seal request against one or more indices. If nothing is provided, all indices will
+     * be sealed.
+     */
+    public SealIndicesRequest(String... indices) {
+        super(indices);
     }
 
     @Override
-    public void onResponse(T t) {
-        try {
-            delegate.onResponse(t);
-        } finally {
-            latch.countDown();
-        }
-    }
-
-    @Override
-    public void onFailure(Throwable e) {
-        try {
-            delegate.onFailure(e);
-        } finally {
-            latch.countDown();
-        }
+    public String toString() {
+        return "SealIndicesRequest{" +
+                "indices=" + Arrays.toString(indices) +
+                ", indicesOptions=" + indicesOptions() +
+                '}';
     }
 }

@@ -49,13 +49,13 @@ public class RecoveryTargetTests extends ElasticsearchSingleNodeTest {
         store.incRef();
         try {
             DiscoveryNode discoveryNode = new DiscoveryNode("123", new LocalTransportAddress("123"), Version.CURRENT);
-            Map<String, StoreFileMetaData> metaDataMap = recoveryTarget.existingFiles(discoveryNode, store);
+            Map<String, StoreFileMetaData> metaDataMap = recoveryTarget.existingFiles(discoveryNode, store).asMap();
             assertTrue(metaDataMap.size() > 0);
             int iters = randomIntBetween(10, 20);
             for (int i = 0; i < iters; i++) {
                 Version version = randomVersion();
                 DiscoveryNode discoNode = new DiscoveryNode("123", new LocalTransportAddress("123"), version);
-                Map<String, StoreFileMetaData> map = recoveryTarget.existingFiles(discoNode, store);
+                Map<String, StoreFileMetaData> map = recoveryTarget.existingFiles(discoNode, store).asMap();
                 if (version.before(Version.V_1_4_0)) {
                     assertTrue(map.isEmpty());
                 } else {

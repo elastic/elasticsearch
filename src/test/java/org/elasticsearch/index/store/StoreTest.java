@@ -32,16 +32,25 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.Lucene;
+import org.apache.lucene.util.Version;
+import org.elasticsearch.common.io.stream.InputStreamStreamInput;
+import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.deletionpolicy.KeepOnlyLastDeletionPolicy;
+import org.elasticsearch.index.deletionpolicy.SnapshotDeletionPolicy;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.distributor.Distributor;
 import org.elasticsearch.index.store.distributor.LeastUsedDistributor;
 import org.elasticsearch.index.store.distributor.RandomWeightedDistributor;
+import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.indices.store.TransportNodesListShardStoreMetaData;
 import org.elasticsearch.test.DummyShardLock;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchLuceneTestCase;
 import org.hamcrest.Matchers;
 import org.junit.AfterClass;
@@ -49,16 +58,18 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import java.io.File;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.file.NoSuchFileException;
-import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.zip.Adler32;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.*;
+import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
 import static org.hamcrest.Matchers.*;
 
 public class StoreTest extends ElasticsearchLuceneTestCase {
@@ -724,7 +735,7 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
         }
         final long luceneChecksum;
         final long adler32LegacyChecksum = adler32.getValue();
-        try(IndexInput indexInput = dir.openInput("lucene_checksum.bin", IOContext.DEFAULT)) {
+        try (IndexInput indexInput = dir.openInput("lucene_checksum.bin", IOContext.DEFAULT)) {
             assertEquals(luceneFileLength, indexInput.length());
             luceneChecksum = CodecUtil.retrieveChecksum(indexInput);
         }
@@ -804,19 +815,19 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
         IOUtils.close(dir);
     }
 
-    private void readIndexInputFullyWithRandomSeeks(IndexInput indexInput) throws IOException{
+    private void readIndexInputFullyWithRandomSeeks(IndexInput indexInput) throws IOException {
         BytesRef ref = new BytesRef(scaledRandomIntBetween(1, 1024));
         long pos = 0;
         while (pos < indexInput.length()) {
             assertEquals(pos, indexInput.getFilePointer());
             int op = random().nextInt(5);
-            if (op == 0 ) {
-                int shift =  100 - randomIntBetween(0, 200);
-                pos =  Math.min(indexInput.length() - 1, Math.max(0, pos + shift));
+            if (op == 0) {
+                int shift = 100 - randomIntBetween(0, 200);
+                pos = Math.min(indexInput.length() - 1, Math.max(0, pos + shift));
                 indexInput.seek(pos);
             } else if (op == 1) {
                 indexInput.readByte();
-                pos ++;
+                pos++;
             } else {
                 int min = (int) Math.min(indexInput.length() - pos, ref.bytes.length);
                 indexInput.readBytes(ref.bytes, ref.offset, min);
@@ -863,6 +874,7 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
         public LuceneManagedDirectoryService(Random random) {
             this(random, true);
         }
+
         public LuceneManagedDirectoryService(Random random, boolean preventDoubleWrite) {
             super(new ShardId("fake", 1), ImmutableSettings.EMPTY);
             this.dirs = new Directory[1 + random.nextInt(5)];
@@ -876,6 +888,7 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
             }
             this.random = random;
         }
+
         @Override
         public Directory[] build() throws IOException {
             return dirs;
@@ -917,11 +930,11 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
     @Test
     public void testRecoveryDiffWithLegacyCommit() {
         Map<String, StoreFileMetaData> metaDataMap = new HashMap<>();
-        metaDataMap.put("segments_1", new StoreFileMetaData("segments_1", 50, null, null, new BytesRef(new byte[] {1})));
+        metaDataMap.put("segments_1", new StoreFileMetaData("segments_1", 50, null, null, new BytesRef(new byte[]{1})));
         metaDataMap.put("_0_1.del", new StoreFileMetaData("_0_1.del", 42, "foobarbaz", null, new BytesRef()));
-        Store.MetadataSnapshot first = new Store.MetadataSnapshot(metaDataMap);
+        Store.MetadataSnapshot first = new Store.MetadataSnapshot(metaDataMap, Collections.EMPTY_MAP, 0);
 
-        Store.MetadataSnapshot second = new Store.MetadataSnapshot(metaDataMap);
+        Store.MetadataSnapshot second = new Store.MetadataSnapshot(metaDataMap, Collections.EMPTY_MAP, 0);
         Store.RecoveryDiff recoveryDiff = first.recoveryDiff(second);
         assertEquals(recoveryDiff.toString(), recoveryDiff.different.size(), 2);
     }
@@ -965,7 +978,7 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
             store.close();
         }
         long time = new Date().getTime();
-        while(time == new Date().getTime()) {
+        while (time == new Date().getTime()) {
             Thread.sleep(10); // bump the time
         }
         Store.MetadataSnapshot second;
@@ -1030,7 +1043,7 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
         }
         Store.RecoveryDiff afterDeleteDiff = metadata.recoveryDiff(second);
         if (delFile != null) {
-            assertThat(afterDeleteDiff.identical.size(), equalTo(metadata.size()-2)); // segments_N + del file
+            assertThat(afterDeleteDiff.identical.size(), equalTo(metadata.size() - 2)); // segments_N + del file
             assertThat(afterDeleteDiff.different.size(), equalTo(0));
             assertThat(afterDeleteDiff.missing.size(), equalTo(2));
         } else {
@@ -1059,7 +1072,7 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
         Store.MetadataSnapshot newCommitMetaData = store.getMetadata();
         Store.RecoveryDiff newCommitDiff = newCommitMetaData.recoveryDiff(metadata);
         if (delFile != null) {
-            assertThat(newCommitDiff.identical.size(), equalTo(newCommitMetaData.size()-5)); // segments_N, del file, cfs, cfe, si for the new segment
+            assertThat(newCommitDiff.identical.size(), equalTo(newCommitMetaData.size() - 5)); // segments_N, del file, cfs, cfe, si for the new segment
             assertThat(newCommitDiff.different.size(), equalTo(1)); // the del file must be different
             assertThat(newCommitDiff.different.get(0).name(), endsWith(".del"));
             assertThat(newCommitDiff.missing.size(), equalTo(4)); // segments_N,cfs, cfe, si for the new segment
@@ -1086,7 +1099,7 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
         int docs = 1 + random().nextInt(100);
         int numCommits = 0;
         for (int i = 0; i < docs; i++) {
-            if (i > 0 && randomIntBetween(0, 10 ) == 0) {
+            if (i > 0 && randomIntBetween(0, 10) == 0) {
                 writer.commit();
                 numCommits++;
             }
@@ -1148,7 +1161,7 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
                 assertTrue(firstMeta.contains(file) || Store.isChecksum(file) || file.equals("write.lock"));
                 if (Store.isChecksum(file)) {
                     numChecksums++;
-                } else  if (secondMeta.contains(file) == false) {
+                } else if (secondMeta.contains(file) == false) {
                     numNotFound++;
                 }
 
@@ -1164,7 +1177,7 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
                 assertTrue(file, secondMeta.contains(file) || Store.isChecksum(file) || file.equals("write.lock"));
                 if (Store.isChecksum(file)) {
                     numChecksums++;
-                } else  if (firstMeta.contains(file) == false) {
+                } else if (firstMeta.contains(file) == false) {
                     numNotFound++;
                 }
 
@@ -1182,7 +1195,7 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
         Map<String, StoreFileMetaData> metaDataMap = new HashMap<>();
         metaDataMap.put("segments_1", new StoreFileMetaData("segments_1", 50, null, null, new BytesRef(new byte[]{1})));
         metaDataMap.put("_0_1.del", new StoreFileMetaData("_0_1.del", 42, "foobarbaz", null, new BytesRef()));
-        Store.MetadataSnapshot snapshot = new Store.MetadataSnapshot(metaDataMap);
+        Store.MetadataSnapshot snapshot = new Store.MetadataSnapshot(metaDataMap, Collections.EMPTY_MAP, 0);
 
         final ShardId shardId = new ShardId(new Index("index"), 1);
         DirectoryService directoryService = new LuceneManagedDirectoryService(random());
@@ -1311,7 +1324,7 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
     }
 
     public void testCanOpenIndex() throws IOException {
-        IndexWriterConfig iwc =  newIndexWriterConfig(random(), TEST_VERSION_CURRENT, new MockAnalyzer(random())).setCodec(actualDefaultCodec());
+        IndexWriterConfig iwc = newIndexWriterConfig(random(), TEST_VERSION_CURRENT, new MockAnalyzer(random())).setCodec(actualDefaultCodec());
         File tempDir = createTempDir();
         final BaseDirectoryWrapper dir = newFSDirectory(tempDir);
         assertFalse(Store.canOpenIndex(logger, tempDir));
@@ -1332,7 +1345,7 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
 
             @Override
             public Directory[] build() throws IOException {
-                return new Directory[] {dir};
+                return new Directory[]{dir};
             }
 
             @Override
@@ -1345,5 +1358,101 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
         store.markStoreCorrupted(new CorruptIndexException("foo", new IOException()));
         assertFalse(Store.canOpenIndex(logger, tempDir));
         store.close();
+    }
+
+    @Test
+    public void testMetadataSnapshotStreaming() throws Exception {
+
+        Store.MetadataSnapshot outMetadataSnapshot = createMetaDataSnapshot();
+        org.elasticsearch.Version targetNodeVersion = ElasticsearchIntegrationTest.randomVersion(random());
+
+        ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
+        OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
+        out.setVersion(targetNodeVersion);
+        outMetadataSnapshot.writeTo(out);
+
+        ByteArrayInputStream inBuffer = new ByteArrayInputStream(outBuffer.toByteArray());
+        InputStreamStreamInput in = new InputStreamStreamInput(inBuffer);
+        in.setVersion(targetNodeVersion);
+        Store.MetadataSnapshot inMetadataSnapshot = new Store.MetadataSnapshot(in);
+        Map<String, StoreFileMetaData> origEntries = new HashMap<>();
+        origEntries.putAll(outMetadataSnapshot.asMap());
+        for (Map.Entry<String, StoreFileMetaData> entry : inMetadataSnapshot.asMap().entrySet()) {
+            assertThat(entry.getValue().name(), equalTo(origEntries.remove(entry.getKey()).name()));
+        }
+        assertThat(origEntries.size(), equalTo(0));
+        if (targetNodeVersion.before(org.elasticsearch.Version.V_1_6_0)) {
+            assertTrue("we had no commit data before 1.6 " + inMetadataSnapshot.getCommitUserData(), inMetadataSnapshot.getCommitUserData().isEmpty());
+        } else {
+            assertThat(inMetadataSnapshot.getCommitUserData(), equalTo(outMetadataSnapshot.getCommitUserData()));
+        }
+    }
+
+    protected Store.MetadataSnapshot createMetaDataSnapshot() {
+        StoreFileMetaData storeFileMetaData1 = new StoreFileMetaData("segments", 1);
+        StoreFileMetaData storeFileMetaData2 = new StoreFileMetaData("no_segments", 1);
+        Map<String, StoreFileMetaData> storeFileMetaDataMap = new HashMap<>();
+        storeFileMetaDataMap.put(storeFileMetaData1.name(), storeFileMetaData1);
+        storeFileMetaDataMap.put(storeFileMetaData2.name(), storeFileMetaData2);
+        Map<String, String> commitUserData = new HashMap<>();
+        commitUserData.put("userdata_1", "test");
+        commitUserData.put("userdata_2", "test");
+        return new Store.MetadataSnapshot(storeFileMetaDataMap, commitUserData, 0);
+    }
+
+    @Test
+    public void testUserDataRead() throws IOException {
+        final ShardId shardId = new ShardId(new Index("index"), 1);
+        DirectoryService directoryService = new LuceneManagedDirectoryService(random());
+        IndexWriterConfig iwc = newIndexWriterConfig(random(), TEST_VERSION_CURRENT, new MockAnalyzer(random())).setCodec(actualDefaultCodec());
+        Store store = new Store(shardId, ImmutableSettings.EMPTY, directoryService, randomDistributor(directoryService), new DummyShardLock(shardId));
+        SnapshotDeletionPolicy deletionPolicy = new SnapshotDeletionPolicy(new KeepOnlyLastDeletionPolicy(shardId, EMPTY_SETTINGS));
+        iwc.setIndexDeletionPolicy(deletionPolicy);
+        IndexWriter writer = new IndexWriter(store.directory(), iwc);
+        Document doc = new Document();
+        doc.add(new TextField("id", "1", Field.Store.NO));
+        writer.addDocument(doc);
+        Map<String, String> commitData = new HashMap<>(2);
+        String syncId = "a sync id";
+        String translogId = "a translog id";
+        commitData.put(Engine.SYNC_COMMIT_ID, syncId);
+        commitData.put(Translog.TRANSLOG_ID_KEY, translogId);
+        writer.setCommitData(commitData);
+        writer.commit();
+        writer.close();
+        Store.MetadataSnapshot metadata;
+        if (randomBoolean()) {
+            metadata = store.getMetadata();
+        } else {
+            metadata = store.getMetadata(deletionPolicy.snapshot());
+        }
+        assertFalse(metadata.asMap().isEmpty());
+        // do not check for correct files, we have enough tests for that above
+        assertThat(metadata.getCommitUserData().get(Engine.SYNC_COMMIT_ID), equalTo(syncId));
+        assertThat(metadata.getCommitUserData().get(Translog.TRANSLOG_ID_KEY), equalTo(translogId));
+        TestUtil.checkIndex(store.directory());
+        assertDeleteContent(store, directoryService);
+        IOUtils.close(store);
+    }
+
+    @Test
+    public void testStreamStoreFilesMetaData() throws Exception {
+        Store.MetadataSnapshot metadataSnapshot = createMetaDataSnapshot();
+        TransportNodesListShardStoreMetaData.StoreFilesMetaData outStoreFileMetaData = new TransportNodesListShardStoreMetaData.StoreFilesMetaData(randomBoolean(), new ShardId("test", 0),metadataSnapshot);
+        ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
+        OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
+        org.elasticsearch.Version targetNodeVersion = ElasticsearchIntegrationTest.randomVersion(random());
+
+        out.setVersion(targetNodeVersion);
+        outStoreFileMetaData.writeTo(out);
+        ByteArrayInputStream inBuffer = new ByteArrayInputStream(outBuffer.toByteArray());
+        InputStreamStreamInput in = new InputStreamStreamInput(inBuffer);
+        in.setVersion(targetNodeVersion);
+        TransportNodesListShardStoreMetaData.StoreFilesMetaData inStoreFileMetaData = TransportNodesListShardStoreMetaData.StoreFilesMetaData.readStoreFilesMetaData(in);
+        Iterator<StoreFileMetaData> outFiles = outStoreFileMetaData.iterator();
+        for (StoreFileMetaData inFile : inStoreFileMetaData) {
+            assertThat(inFile.name(), equalTo(outFiles.next().name()));
+        }
+        assertThat(outStoreFileMetaData.syncId(), equalTo(inStoreFileMetaData.syncId()));
     }
 }

@@ -71,7 +71,9 @@ public class InternalEngine extends Engine {
     private final FailEngineOnMergeFailure mergeSchedulerFailureListener;
     private final MergeSchedulerListener mergeSchedulerListener;
 
-    /** When we last pruned expired tombstones from versionMap.deletes: */
+    /**
+     * When we last pruned expired tombstones from versionMap.deletes:
+     */
     private volatile long lastDeleteVersionPruneTimeMSec;
 
     private final ShardIndexingService indexingService;
@@ -102,7 +104,7 @@ public class InternalEngine extends Engine {
     private final AtomicLong translogIdGenerator = new AtomicLong();
     private final AtomicBoolean versionMapRefreshPending = new AtomicBoolean();
 
-    private volatile SegmentInfos lastCommittedSegmentInfos;
+    private volatile CommitInfo lastCommittedCommitInfo;
 
     private final IndexThrottle throttle;
     private volatile boolean possibleMergeNeeded;
@@ -174,16 +176,15 @@ public class InternalEngine extends Engine {
                         translogId = Long.parseLong(commitUserData.get(Translog.TRANSLOG_ID_KEY));
                     } else {
                         translogId = System.currentTimeMillis();
-                        indexWriter.setCommitData(Collections.singletonMap(Translog.TRANSLOG_ID_KEY, Long.toString(translogId)));
-                        indexWriter.commit();
+                        commitIndexWriter(indexWriter, translogId, null);
                     }
                 } else {
                     translogId = System.currentTimeMillis();
-                    indexWriter.setCommitData(Collections.singletonMap(Translog.TRANSLOG_ID_KEY, Long.toString(translogId)));
-                    commitIndexWriter(indexWriter);
+                    commitIndexWriter(indexWriter, translogId, null);
                 }
                 searcherManager = new SearcherManager(indexWriter, true, searcherFactory);
-                lastCommittedSegmentInfos = store.readLastCommittedSegmentsInfo();
+                final SegmentInfos segmentCommitInfos = store.readLastCommittedSegmentsInfo();
+                lastCommittedCommitInfo = new CommitInfo(segmentCommitInfos, CommitId.readCommitID(store, segmentCommitInfos));
                 translog.newTranslog(translogId);
                 versionMap.setManager(searcherManager);
                 translogIdGenerator.set(translogId);
@@ -585,23 +586,57 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public void flush() throws EngineException {
-        flush(true, false, false);
+    public SyncedFlushResult syncFlush(String syncId, CommitId expectedCommitId) throws EngineException {
+        // best effort attempt before we acquire locks
+        ensureOpen();
+        if (indexWriter.hasUncommittedChanges()) {
+            logger.trace("can't sync commit [{}]. have pending changes", syncId);
+            return SyncedFlushResult.PENDING_OPERATIONS;
+        }
+        if (expectedCommitId.equals(lastCommittedCommitInfo.commitId) == false) {
+            logger.trace("can't sync commit [{}]. current commit id is not equal to expected.", syncId);
+            return SyncedFlushResult.COMMIT_MISMATCH;
+        }
+        try (ReleasableLock lock = writeLock.acquire()) {
+            ensureOpen();
+            if (indexWriter.hasUncommittedChanges()) {
+                logger.trace("can't sync commit [{}]. have pending changes", syncId);
+                return SyncedFlushResult.PENDING_OPERATIONS;
+            }
+            if (expectedCommitId.equals(lastCommittedCommitInfo.commitId) == false) {
+                logger.trace("can't sync commit [{}]. current commit id is not equal to expected.", syncId);
+                return SyncedFlushResult.COMMIT_MISMATCH;
+            }
+            logger.trace("starting sync commit [{}]", syncId);
+            commitIndexWriter(indexWriter, translogIdGenerator.get(), syncId);
+            logger.debug("successfully sync committed. sync id [{}].", syncId);
+            store.incRef();
+            try {
+                final SegmentInfos segmentCommitInfos = store.readLastCommittedSegmentsInfo();
+                lastCommittedCommitInfo = new CommitInfo(segmentCommitInfos, CommitId.readCommitID(store, segmentCommitInfos));
+            } finally {
+                store.decRef();
+            }
+            return SyncedFlushResult.SUCCESS;
+        } catch (IOException ex) {
+            maybeFailEngine("sync commit", ex);
+            throw new EngineException(shardId, "failed to sync commit", ex);
+        }
     }
 
     @Override
-    public void flush(boolean force, boolean waitIfOngoing) throws EngineException {
-        flush(true, force, waitIfOngoing);
+    public CommitId flush() throws EngineException {
+        return flush(false, false);
     }
 
-    private void flush(boolean commitTranslog, boolean force, boolean waitIfOngoing) throws EngineException {
+    @Override
+    public CommitId flush(boolean force, boolean waitIfOngoing) throws EngineException {
+        return flush(true, force, waitIfOngoing);
+    }
+
+    private CommitId flush(boolean commitTranslog, boolean force, boolean waitIfOngoing) throws EngineException {
         ensureOpen();
-        if (commitTranslog) {
-            // check outside the lock as well so we can check without blocking on the write lock
-            if (onGoingRecoveries.get() > 0) {
-                throw new FlushNotAllowedEngineException(shardId, "recovery is in progress, flush with committing translog is not allowed");
-            }
-        }
+        final CommitId newCommitId;
         /*
          * Unfortunately the lock order is important here. We have to acquire the readlock first otherwise
          * if we are flushing at the end of the recovery while holding the write lock we can deadlock if:
@@ -634,9 +669,8 @@ public class InternalEngine extends Engine {
                         try {
                             long translogId = translogIdGenerator.incrementAndGet();
                             translog.newTransientTranslog(translogId);
-                            indexWriter.setCommitData(Collections.singletonMap(Translog.TRANSLOG_ID_KEY, Long.toString(translogId)));
                             logger.trace("starting commit for flush; commitTranslog=true");
-                            commitIndexWriter(indexWriter);
+                            commitIndexWriter(indexWriter, translogId, null);
                             logger.trace("finished commit for flush");
                             // we need to refresh in order to clear older version values
                             refresh("version_table_flush");
@@ -659,9 +693,8 @@ public class InternalEngine extends Engine {
                     // other flushes use flushLock
                     try {
                         long translogId = translog.currentId();
-                        indexWriter.setCommitData(Collections.singletonMap(Translog.TRANSLOG_ID_KEY, Long.toString(translogId)));
                         logger.trace("starting commit for flush; commitTranslog=false");
-                        commitIndexWriter(indexWriter);
+                        commitIndexWriter(indexWriter, translogId, null);
                         logger.trace("finished commit for flush");
                     } catch (Throwable e) {
                         throw new FlushFailedEngineException(shardId, e);
@@ -677,7 +710,8 @@ public class InternalEngine extends Engine {
                 store.incRef();
                 try {
                     // reread the last committed segment infos
-                    lastCommittedSegmentInfos = store.readLastCommittedSegmentsInfo();
+                    final SegmentInfos segmentCommitInfos = store.readLastCommittedSegmentsInfo();
+                    lastCommittedCommitInfo = new CommitInfo(segmentCommitInfos, CommitId.readCommitID(store, segmentCommitInfos));
                 } catch (Throwable e) {
                     if (isClosed.get() == false) {
                         logger.warn("failed to read latest segment infos on flush", e);
@@ -688,6 +722,7 @@ public class InternalEngine extends Engine {
                 } finally {
                     store.decRef();
                 }
+                newCommitId = lastCommittedCommitInfo.commitId;
             } catch (FlushFailedEngineException ex) {
                 maybeFailEngine("flush", ex);
                 throw ex;
@@ -700,6 +735,7 @@ public class InternalEngine extends Engine {
         if (engineConfig.isEnableGcDeletes()) {
             pruneDeletedTombstones();
         }
+        return newCommitId;
     }
 
     private void pruneDeletedTombstones() {
@@ -938,7 +974,7 @@ public class InternalEngine extends Engine {
 
     @Override
     protected SegmentInfos getLastCommittedSegmentInfos() {
-        return lastCommittedSegmentInfos;
+        return lastCommittedCommitInfo.segmentInfos;
     }
 
     @Override
@@ -951,7 +987,7 @@ public class InternalEngine extends Engine {
     @Override
     public List<Segment> segments() {
         try (ReleasableLock lock = readLock.acquire()) {
-            Segment[] segmentsArr = getSegmentInfo(lastCommittedSegmentInfos);
+            Segment[] segmentsArr = getSegmentInfo(lastCommittedCommitInfo.segmentInfos);
 
             // fill in the merges flag
             Set<OnGoingMerge> onGoingMerges = mergeScheduler.onGoingMerges();
@@ -1235,12 +1271,29 @@ public class InternalEngine extends Engine {
     }
 
 
-    private void commitIndexWriter(IndexWriter writer) throws IOException {
+    private void commitIndexWriter(IndexWriter writer, long translogID, String syncId) throws IOException {
         try {
+            Map<String, String> commitData = new HashMap<>(2);
+            commitData.put(Translog.TRANSLOG_ID_KEY, Long.toString(translogID));
+            if (syncId != null) {
+                commitData.put(Engine.SYNC_COMMIT_ID, syncId);
+            }
+            writer.setCommitData(commitData);
             writer.commit();
         } catch (Throwable ex) {
             failEngine("lucene commit failed", ex);
             throw ex;
         }
     }
+
+    private static class CommitInfo {
+        private final SegmentInfos segmentInfos;
+        private final CommitId commitId;
+
+        private CommitInfo(SegmentInfos segmentInfos, CommitId commitId) {
+            this.segmentInfos = segmentInfos;
+            this.commitId = commitId;
+        }
+    }
+
 }

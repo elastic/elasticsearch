@@ -40,6 +40,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.index.IndexShardMissingException;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.RecoveryEngineException;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.*;
@@ -153,14 +154,14 @@ public class RecoveryTarget extends AbstractComponent {
     }
 
     // pkd private for testing
-    Map<String, StoreFileMetaData> existingFiles(DiscoveryNode sourceNode, Store store) throws IOException {
+    Store.MetadataSnapshot existingFiles(DiscoveryNode sourceNode, Store store) throws IOException {
         final Version sourceNodeVersion = sourceNode.version();
         if (sourceNodeVersion.onOrAfter(Version.V_1_4_0)) {
-            return store.getMetadataOrEmpty().asMap();
+            return store.getMetadataOrEmpty();
         } else {
             logger.debug("Force full recovery source node version {}", sourceNodeVersion);
             // force full recovery if we recover from nodes < 1.4.0
-            return Collections.EMPTY_MAP;
+            return Store.MetadataSnapshot.EMPTY;
         }
     }
 
@@ -168,12 +169,12 @@ public class RecoveryTarget extends AbstractComponent {
         assert recoveryStatus.sourceNode() != null : "can't do a recovery without a source node";
 
         logger.trace("collecting local files for {}", recoveryStatus);
-        Map<String, StoreFileMetaData> existingFiles;
+        Store.MetadataSnapshot metadataSnapshot = null;
         try {
-            existingFiles = existingFiles(recoveryStatus.sourceNode(), recoveryStatus.store());
+            metadataSnapshot = existingFiles(recoveryStatus.sourceNode(), recoveryStatus.store());
         } catch (IOException e) {
             logger.warn("error while listing local files, recover as if there are none", e);
-            existingFiles = Store.MetadataSnapshot.EMPTY.asMap();
+            metadataSnapshot = Store.MetadataSnapshot.EMPTY;
         } catch (Exception e) {
             // this will be logged as warning later on...
             logger.trace("unexpected error while listing local files, failing recovery", e);
@@ -188,7 +189,7 @@ public class RecoveryTarget extends AbstractComponent {
                     + " : true] due to compression bugs -  see issue #7210 for details");
         }
         final StartRecoveryRequest request = new StartRecoveryRequest(recoveryStatus.shardId(), recoveryStatus.sourceNode(), clusterService.localNode(),
-                false, existingFiles, recoveryStatus.state().getType(), recoveryStatus.recoveryId());
+                false, metadataSnapshot, recoveryStatus.state().getType(), recoveryStatus.recoveryId());
 
         final AtomicReference<RecoveryResponse> responseHolder = new AtomicReference<>();
         try {

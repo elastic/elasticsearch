@@ -38,10 +38,12 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.MockDirectoryWrapper;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.XIOUtils;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.Base64;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -71,6 +73,7 @@ import org.elasticsearch.index.settings.IndexDynamicSettingsModule;
 import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.DirectoryService;
+import org.elasticsearch.index.store.DirectoryUtils;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.distributor.LeastUsedDistributor;
 import org.elasticsearch.index.translog.Translog;
@@ -662,6 +665,48 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(1));
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(new TermQuery(new Term("value", "test")), 1));
         searchResult.close();
+    }
+
+    public void testSyncedFlush() throws IOException {
+        final String syncId = randomUnicodeOfCodepointLengthBetween(10, 20);
+        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), Lucene.STANDARD_ANALYZER, B_1, false);
+        engine.create(new Engine.Create(null, newUid("1"), doc));
+        Engine.CommitId commitID = engine.flush();
+        SegmentInfos segmentCommitInfos = store.readLastCommittedSegmentsInfo();
+        Engine.CommitId readId = Engine.CommitId.readCommitID(store, segmentCommitInfos);
+        assertThat(commitID, equalTo(readId));
+        byte[] wrongBytes = Base64.decode(commitID.toString());
+        wrongBytes[0] = (byte) ~wrongBytes[0];
+        Engine.CommitId wrongId = new Engine.CommitId(new BytesRef(wrongBytes));
+        assertEquals("should fail to sync flush with wrong id (but no docs)", engine.syncFlush(syncId + "1", wrongId),
+                Engine.SyncedFlushResult.COMMIT_MISMATCH);
+        engine.create(new Engine.Create(null, newUid("2"), doc));
+        assertEquals("should fail to sync flush with right id but pending doc", engine.syncFlush(syncId + "2", commitID),
+                Engine.SyncedFlushResult.PENDING_OPERATIONS);
+        commitID = engine.flush();
+        assertEquals("should succeed to flush commit with right id and no pending doc", engine.syncFlush(syncId, commitID),
+                Engine.SyncedFlushResult.SUCCESS);
+        assertEquals(store.readLastCommittedSegmentsInfo().getUserData().get(Engine.SYNC_COMMIT_ID), syncId);
+        assertEquals(engine.getLastCommittedSegmentInfos().getUserData().get(Engine.SYNC_COMMIT_ID), syncId);
+    }
+
+    public void testSycnedFlushSurvivesEngineRestart() throws IOException {
+        final String syncId = randomUnicodeOfCodepointLengthBetween(10, 20);
+        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), Lucene.STANDARD_ANALYZER, B_1, false);
+        engine.create(new Engine.Create(null, newUid("1"), doc));
+        final Engine.CommitId commitID = engine.flush();
+        assertEquals("should succeed to flush commit with right id and no pending doc", engine.syncFlush(syncId, commitID),
+                Engine.SyncedFlushResult.SUCCESS);
+        assertEquals(store.readLastCommittedSegmentsInfo().getUserData().get(Engine.SYNC_COMMIT_ID), syncId);
+        assertEquals(engine.getLastCommittedSegmentInfos().getUserData().get(Engine.SYNC_COMMIT_ID), syncId);
+        EngineConfig config = engine.config();
+        if (randomBoolean()) {
+            engine.close();
+        } else {
+            engine.flushAndClose();
+        }
+        engine = new InternalEngine(config);
+        assertEquals(engine.getLastCommittedSegmentInfos().getUserData().get(Engine.SYNC_COMMIT_ID), syncId);
     }
 
     @Test
@@ -1704,5 +1749,4 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
             });
         }
     }
-
 }

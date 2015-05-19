@@ -22,6 +22,7 @@ import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.admin.indices.recovery.ShardRecoveryResponse;
+import org.elasticsearch.action.admin.indices.seal.SealIndicesResponse;
 import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -75,7 +76,9 @@ public class RecoveryBackwardsCompatibilityTests extends ElasticsearchBackwardsC
         }
         indexRandom(true, builders);
         ensureGreen();
-
+        if (randomBoolean()) { // just make sure it doesn't break anything - we seal before we actually bump replicas
+            backwardsCluster().internalCluster().client().admin().indices().prepareSealIndices("test").get();
+        }
         logger.info("--> bump number of replicas from 0 to 1");
         client().admin().indices().prepareFlush().execute().actionGet();
         client().admin().indices().prepareUpdateSettings("test").setSettings(ImmutableSettings.builder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "1").build()).get();

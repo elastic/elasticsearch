@@ -69,6 +69,7 @@ public class IndicesModule extends AbstractModule implements SpawnModules {
         bind(IndicesStore.class).asEagerSingleton();
         bind(IndicesClusterStateService.class).asEagerSingleton();
         bind(IndexingMemoryController.class).asEagerSingleton();
+        bind(SyncedFlushService.class).asEagerSingleton();
         bind(IndicesFilterCache.class).asEagerSingleton();
         bind(IndicesQueryCache.class).asEagerSingleton();
         bind(IndicesFieldDataCache.class).asEagerSingleton();

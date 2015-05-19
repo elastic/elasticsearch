@@ -19,8 +19,17 @@
 package org.elasticsearch.index.shard;
 
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.action.admin.indices.stats.IndexStats;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.routing.MutableShardRouting;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.junit.Test;
@@ -28,6 +37,8 @@ import org.junit.Test;
 import java.io.IOException;
 import java.util.concurrent.ExecutionException;
 
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
@@ -91,4 +102,24 @@ public class IndexShardTests extends ElasticsearchSingleNodeTest {
         indexShard.decrementOperationCounter();
         assertEquals(1, indexShard.getOperationsCount());
     }
+
+    @Test
+    public void testMarkAsInactiveTriggersSyncedFlush() throws Exception {
+        assertAcked(client().admin().indices().prepareCreate("test")
+                .setSettings(SETTING_NUMBER_OF_SHARDS, 1, SETTING_NUMBER_OF_REPLICAS, 0));
+        client().prepareIndex("test", "test").setSource("{}").get();
+        ensureGreen("test");
+        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        indicesService.indexService("test").shard(0).markAsInactive();
+        assertBusy(new Runnable() { // should be very very quick
+            @Override
+            public void run() {
+                IndexStats indexStats = client().admin().indices().prepareStats("test").get().getIndex("test");
+                assertNotNull(indexStats.getShards()[0].getCommitStats().getUserData().get(Engine.SYNC_COMMIT_ID));
+            }
+        });
+        IndexStats indexStats = client().admin().indices().prepareStats("test").get().getIndex("test");
+        assertNotNull(indexStats.getShards()[0].getCommitStats().getUserData().get(Engine.SYNC_COMMIT_ID));
+    }
+
 }

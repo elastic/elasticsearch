@@ -30,6 +30,7 @@ import org.apache.lucene.util.*;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.ExceptionsHelper;
+import org.apache.lucene.util.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.compress.Compressor;
@@ -51,6 +52,7 @@ import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.RefCounted;
 import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.index.CloseableIndexComponent;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
@@ -806,21 +808,38 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
         // we stopped writing legacy checksums in 1.3.0 so all segments here must use the new CRC32 version
         private static final Version FIRST_ES_CRC32_VERSION = org.elasticsearch.Version.V_1_3_0.luceneVersion;
 
-        private Map<String, StoreFileMetaData> metadata;
+        private ImmutableMap<String, StoreFileMetaData> metadata;
 
         public static final MetadataSnapshot EMPTY = new MetadataSnapshot();
 
-        public MetadataSnapshot(Map<String, StoreFileMetaData> metadata) {
-            this.metadata = metadata;
+        private ImmutableMap<String, String> commitUserData;
+
+        private long numDocs;
+
+        public MetadataSnapshot(Map<String, StoreFileMetaData> metadata, Map<String, String> commitUserData, long numDocs) {
+            ImmutableMap.Builder<String, StoreFileMetaData> metaDataBuilder = ImmutableMap.builder();
+            this.metadata = metaDataBuilder.putAll(metadata).build();
+            ImmutableMap.Builder<String, String> commitUserDataBuilder = ImmutableMap.builder();
+            this.commitUserData = commitUserDataBuilder.putAll(commitUserData).build();
+            this.numDocs = numDocs;
         }
 
         MetadataSnapshot() {
-            this.metadata = Collections.emptyMap();
+            metadata = ImmutableMap.of();
+            commitUserData = ImmutableMap.of();
+            numDocs = 0;
         }
 
         MetadataSnapshot(IndexCommit commit, Directory directory, ESLogger logger) throws IOException {
-            metadata = buildMetadata(commit, directory, logger);
+            LoadedMetadata loadedMetadata = loadMetadata(commit, directory, logger);
+            metadata = loadedMetadata.fileMetadata;
+            commitUserData = loadedMetadata.userData;
+            numDocs = loadedMetadata.numDocs;
             assert metadata.isEmpty() || numSegmentFiles() == 1 : "numSegmentFiles: " + numSegmentFiles();
+        }
+
+        public MetadataSnapshot(StreamInput input) throws IOException {
+            readFrom(input);
         }
 
         private static final boolean useLuceneChecksum(Version version, boolean hasLegacyChecksum) {
@@ -828,12 +847,35 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
                     || version.onOrAfter(FIRST_ES_CRC32_VERSION); // OR we know that we didn't even write legacy checksums anymore when this segment was written.
         }
 
-        ImmutableMap<String, StoreFileMetaData> buildMetadata(IndexCommit commit, Directory directory, ESLogger logger) throws IOException {
+        /**
+         * Returns the number of documents in this store snapshot
+         */
+        public long getNumDocs() {
+            return numDocs;
+        }
+
+        static class LoadedMetadata {
+            final ImmutableMap<String, StoreFileMetaData> fileMetadata;
+            final ImmutableMap<String, String> userData;
+            final long numDocs;
+
+            LoadedMetadata(ImmutableMap<String, StoreFileMetaData> fileMetadata, ImmutableMap<String, String> userData, long numDocs) {
+                this.fileMetadata = fileMetadata;
+                this.userData = userData;
+                this.numDocs = numDocs;
+            }
+        }
+
+        static LoadedMetadata loadMetadata(IndexCommit commit, Directory directory, ESLogger logger) throws IOException {
+            long numDocs;
             ImmutableMap.Builder<String, StoreFileMetaData> builder = ImmutableMap.builder();
             Map<String, String> checksumMap = readLegacyChecksums(directory).v1();
+            ImmutableMap.Builder<String, String> commitUserDataBuilder = ImmutableMap.builder();
             try {
                 final SegmentInfos segmentCommitInfos = Store.readSegmentsInfo(commit, directory);
                 Version maxVersion = Version.LUCENE_3_0; // we don't know which version was used to write so we take the max version.
+                numDocs = Lucene.getNumDocs(segmentCommitInfos);
+                commitUserDataBuilder.putAll(segmentCommitInfos.getUserData());
                 for (SegmentCommitInfo info : segmentCommitInfos) {
                     final Version version = info.info.getVersion();
                     if (version != null && version.onOrAfter(maxVersion)) {
@@ -881,7 +923,7 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
 
                 throw ex;
             }
-            return builder.build();
+            return new LoadedMetadata(builder.build(), commitUserDataBuilder.build(), numDocs);
         }
 
         /**
@@ -1100,30 +1142,24 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
             return metadata.size();
         }
 
-        public static MetadataSnapshot read(StreamInput in) throws IOException {
-            MetadataSnapshot storeFileMetaDatas = new MetadataSnapshot();
-            storeFileMetaDatas.readFrom(in);
-            return storeFileMetaDatas;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            int size = in.readVInt();
-            ImmutableMap.Builder<String, StoreFileMetaData> builder = ImmutableMap.builder();
-            for (int i = 0; i < size; i++) {
-                StoreFileMetaData meta = StoreFileMetaData.readStoreFileMetaData(in);
-                builder.put(meta.name(), meta);
-            }
-            this.metadata = builder.build();
-            assert metadata.isEmpty() || numSegmentFiles() == 1 : "numSegmentFiles: " + numSegmentFiles();
-        }
-
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeVInt(this.metadata.size());
             for (StoreFileMetaData meta : this) {
                 meta.writeTo(out);
             }
+            if (out.getVersion().onOrAfter(org.elasticsearch.Version.V_1_6_0)) {
+                out.writeVInt(commitUserData.size());
+                for (Map.Entry<String, String> entry : commitUserData.entrySet()) {
+                    out.writeString(entry.getKey());
+                    out.writeString(entry.getValue());
+                }
+                out.writeLong(numDocs);
+            }
+        }
+
+        public Map<String, String> getCommitUserData() {
+            return commitUserData;
         }
 
         /**
@@ -1154,6 +1190,39 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
                 }
             }
             return count;
+        }
+
+        /**
+         * Returns the sync id of the commit point that this MetadataSnapshot represents.
+         *
+         * @return sync id if exists, else null
+         */
+        public String getSyncId() {
+            return commitUserData.get(Engine.SYNC_COMMIT_ID);
+        }
+
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
+            final int size = in.readVInt();
+            final ImmutableMap.Builder<String, StoreFileMetaData> metadataBuilder = ImmutableMap.builder();
+            for (int i = 0; i < size; i++) {
+                StoreFileMetaData meta = StoreFileMetaData.readStoreFileMetaData(in);
+                metadataBuilder.put(meta.name(), meta);
+            }
+            this.metadata = metadataBuilder.build();
+            final ImmutableMap.Builder<String, String> commitUserDataBuilder = ImmutableMap.builder();
+            if (in.getVersion().onOrAfter(org.elasticsearch.Version.V_1_6_0)) {
+                int num = in.readVInt();
+                for (int i = num; i > 0; i--) {
+                    commitUserDataBuilder.put(in.readString(), in.readString());
+                }
+
+                this.numDocs = in.readLong();
+                assert metadata.isEmpty() || numSegmentFiles() == 1 : "numSegmentFiles: " + numSegmentFiles();
+            } else {
+                this.numDocs = -1;
+            }
+            this.commitUserData = commitUserDataBuilder.build();
         }
     }
 
@@ -1503,7 +1572,7 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
         }
 
         @Override
-        protected StoreStats refresh()  {
+        protected StoreStats refresh() {
             try {
                 return new StoreStats(estimateSize(directory), directoryService.throttleTimeInNanos());
             } catch (IOException ex) {

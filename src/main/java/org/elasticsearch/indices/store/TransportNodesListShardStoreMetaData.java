@@ -40,6 +40,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
@@ -158,7 +159,7 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesOperatio
                     store.incRef();
                     try {
                         exists = true;
-                        return new StoreFilesMetaData(true, shardId, store.getMetadataOrEmpty().asMap());
+                        return new StoreFilesMetaData(true, shardId, store.getMetadataOrEmpty());
                     } finally {
                         store.decRef();
                     }
@@ -167,11 +168,11 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesOperatio
             // try and see if we an list unallocated
             IndexMetaData metaData = clusterService.state().metaData().index(shardId.index().name());
             if (metaData == null) {
-                return new StoreFilesMetaData(false, shardId, ImmutableMap.<String, StoreFileMetaData>of());
+                return new StoreFilesMetaData(false, shardId, Store.MetadataSnapshot.EMPTY);
             }
             String storeType = metaData.settings().get("index.store.type", "fs");
             if (!storeType.contains("fs")) {
-                return new StoreFilesMetaData(false, shardId, ImmutableMap.<String, StoreFileMetaData>of());
+                return new StoreFilesMetaData(false, shardId, Store.MetadataSnapshot.EMPTY);
             }
             File[] shardLocations = nodeEnv.shardDataLocations(shardId, metaData.settings());
             File[] shardIndexLocations = new File[shardLocations.length];
@@ -185,9 +186,9 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesOperatio
                 }
             }
             if (!exists) {
-                return new StoreFilesMetaData(false, shardId, ImmutableMap.<String, StoreFileMetaData>of());
+                return new StoreFilesMetaData(false, shardId, Store.MetadataSnapshot.EMPTY);
             }
-            return new StoreFilesMetaData(false, shardId, Store.readMetadataSnapshot(shardIndexLocations, logger).asMap());
+            return new StoreFilesMetaData(false, shardId, Store.readMetadataSnapshot(shardIndexLocations, logger));
         } finally {
             TimeValue took = new TimeValue(System.nanoTime() - startTimeNS, TimeUnit.NANOSECONDS);
             if (exists) {
@@ -204,17 +205,18 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesOperatio
     }
 
     public static class StoreFilesMetaData implements Iterable<StoreFileMetaData>, Streamable {
+        // here also trasmit sync id, else recovery will not use sync id because of stupid gateway allocator every now and then...
         private boolean allocated;
         private ShardId shardId;
-        private Map<String, StoreFileMetaData> files;
+        Store.MetadataSnapshot metadataSnapshot;
 
         StoreFilesMetaData() {
         }
 
-        public StoreFilesMetaData(boolean allocated, ShardId shardId, Map<String, StoreFileMetaData> files) {
+        public StoreFilesMetaData(boolean allocated, ShardId shardId, Store.MetadataSnapshot metadataSnapshot) {
             this.allocated = allocated;
             this.shardId = shardId;
-            this.files = files;
+            this.metadataSnapshot = metadataSnapshot;
         }
 
         public boolean allocated() {
@@ -235,15 +237,15 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesOperatio
 
         @Override
         public Iterator<StoreFileMetaData> iterator() {
-            return files.values().iterator();
+            return metadataSnapshot.iterator();
         }
 
         public boolean fileExists(String name) {
-            return files.containsKey(name);
+            return metadataSnapshot.asMap().containsKey(name);
         }
 
         public StoreFileMetaData file(String name) {
-            return files.get(name);
+            return metadataSnapshot.asMap().get(name);
         }
 
         public static StoreFilesMetaData readStoreFilesMetaData(StreamInput in) throws IOException {
@@ -256,22 +258,18 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesOperatio
         public void readFrom(StreamInput in) throws IOException {
             allocated = in.readBoolean();
             shardId = ShardId.readShardId(in);
-            int size = in.readVInt();
-            files = Maps.newHashMapWithExpectedSize(size);
-            for (int i = 0; i < size; i++) {
-                StoreFileMetaData md = StoreFileMetaData.readStoreFileMetaData(in);
-                files.put(md.name(), md);
-            }
+            this.metadataSnapshot = new Store.MetadataSnapshot(in);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeBoolean(allocated);
             shardId.writeTo(out);
-            out.writeVInt(files.size());
-            for (StoreFileMetaData md : files.values()) {
-                md.writeTo(out);
-            }
+            metadataSnapshot.writeTo(out);
+        }
+
+        public String syncId() {
+            return metadataSnapshot.getSyncId();
         }
     }
 

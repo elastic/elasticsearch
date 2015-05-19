@@ -23,6 +23,7 @@ import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexAction;
+import org.elasticsearch.action.admin.indices.seal.SealIndicesAction;
 import org.elasticsearch.action.exists.ExistsAction;
 import org.elasticsearch.action.fieldstats.FieldStatsAction;
 import org.elasticsearch.action.indexedscripts.delete.DeleteIndexedScriptAction;
@@ -31,6 +32,7 @@ import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.discovery.zen.ping.unicast.UnicastZenPing;
+import org.elasticsearch.indices.SyncedFlushService;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.repositories.VerifyNodeRepositoryAction;
 import org.elasticsearch.search.action.SearchServiceTransportAction;
@@ -79,6 +81,11 @@ public class ActionNamesBackwardsCompatibilityTest extends ElasticsearchBackward
         actionsVersions.put(SearchServiceTransportAction.FETCH_ID_SCROLL_ACTION_NAME, Version.V_1_4_0_Beta1);
         actionsVersions.put(VerifyRepositoryAction.NAME, Version.V_1_4_0);
         actionsVersions.put(VerifyNodeRepositoryAction.ACTION_NAME, Version.V_1_4_0);
+
+        actionsVersions.put(SyncedFlushService.IN_FLIGHT_OPS_ACTION_NAME, Version.V_1_6_0);
+        actionsVersions.put(SyncedFlushService.PRE_SYNCED_FLUSH_ACTION_NAME, Version.V_1_6_0);
+        actionsVersions.put(SyncedFlushService.SYNCED_FLUSH_ACTION_NAME, Version.V_1_6_0);
+        actionsVersions.put(SealIndicesAction.NAME, Version.V_1_6_0);
     }
 
     @Test

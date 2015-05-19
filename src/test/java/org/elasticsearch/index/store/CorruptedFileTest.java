@@ -514,6 +514,7 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
      * replica.
      */
     @Test
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/11226")
     public void testReplicaCorruption() throws Exception {
         int numDocs = scaledRandomIntBetween(100, 1000);
         internalCluster().ensureAtLeastNumDataNodes(2);

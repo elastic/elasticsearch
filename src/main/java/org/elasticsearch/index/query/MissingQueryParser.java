@@ -22,9 +22,7 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.QueryWrapperFilter;
 import org.apache.lucene.search.TermRangeQuery;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -112,7 +110,7 @@ public class MissingQueryParser implements QueryParser {
             return null;
         }
 
-        Filter existenceFilter = null;
+        Query existenceFilter = null;
         Query nullFilter = null;
 
         if (existence) {
@@ -139,8 +137,8 @@ public class MissingQueryParser implements QueryParser {
                 boolFilter.add(filter, BooleanClause.Occur.SHOULD);
             }
 
-            existenceFilter = new QueryWrapperFilter(boolFilter);
-            existenceFilter = new QueryWrapperFilter(Queries.not(existenceFilter));;
+            existenceFilter = boolFilter;
+            existenceFilter = Queries.not(existenceFilter);;
         }
 
         if (nullValue) {

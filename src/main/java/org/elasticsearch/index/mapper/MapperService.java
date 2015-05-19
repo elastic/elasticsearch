@@ -35,7 +35,7 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.QueryWrapperFilter;
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchGenerationException;
@@ -372,11 +372,11 @@ public class MapperService extends AbstractIndexComponent  {
                 BooleanQuery bq = new BooleanQuery();
                 bq.add(percolatorType, Occur.MUST_NOT);
                 bq.add(Queries.newNonNestedFilter(), Occur.MUST);
-                return new QueryWrapperFilter(bq);
+                return new ConstantScoreQuery(bq);
             } else if (hasNested) {
                 return Queries.newNonNestedFilter();
             } else if (filterPercolateType) {
-                return new QueryWrapperFilter(Queries.not(percolatorType));
+                return new ConstantScoreQuery(Queries.not(percolatorType));
             } else {
                 return null;
             }
@@ -390,7 +390,7 @@ public class MapperService extends AbstractIndexComponent  {
                 BooleanQuery bq = new BooleanQuery();
                 bq.add(percolatorType, Occur.MUST_NOT);
                 bq.add(filter, Occur.MUST);
-                return new QueryWrapperFilter(bq);
+                return new ConstantScoreQuery(bq);
             } else {
                 return filter;
             }
@@ -420,9 +420,9 @@ public class MapperService extends AbstractIndexComponent  {
                 BooleanQuery bq = new BooleanQuery();
                 bq.add(percolatorType, Occur.MUST_NOT);
                 bq.add(termsFilter, Occur.MUST);
-                return new QueryWrapperFilter(bq);
+                return new ConstantScoreQuery(bq);
             } else {
-                return new QueryWrapperFilter(termsFilter);
+                return termsFilter;
             }
         } else {
             // Current bool filter requires that at least one should clause matches, even with a must clause.
@@ -442,7 +442,7 @@ public class MapperService extends AbstractIndexComponent  {
                 bool.add(Queries.newNonNestedFilter(), BooleanClause.Occur.MUST);
             }
 
-            return new QueryWrapperFilter(bool);
+            return new ConstantScoreQuery(bool);
         }
     }
 

@@ -35,7 +35,7 @@ import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.LongBitSet;
 import org.elasticsearch.common.lucene.IndexCacheableQuery;
-import org.elasticsearch.common.lucene.docset.DocIdSets;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.NoopCollector;
 import org.elasticsearch.index.fielddata.AtomicParentChildFieldData;
 import org.elasticsearch.index.fielddata.IndexParentChildFieldData;
@@ -176,7 +176,7 @@ public class ParentConstantScoreQuery extends IndexCacheableQuery {
         @Override
         public Scorer scorer(LeafReaderContext context, Bits acceptDocs) throws IOException {
             DocIdSet childrenDocIdSet = childrenFilter.getDocIdSet(context, acceptDocs);
-            if (DocIdSets.isEmpty(childrenDocIdSet)) {
+            if (Lucene.isEmpty(childrenDocIdSet)) {
                 return null;
             }
 

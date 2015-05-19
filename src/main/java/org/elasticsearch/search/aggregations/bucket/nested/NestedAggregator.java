@@ -25,7 +25,7 @@ import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.join.BitDocIdSetFilter;
 import org.apache.lucene.util.BitDocIdSet;
 import org.apache.lucene.util.BitSet;
-import org.elasticsearch.common.lucene.docset.DocIdSets;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
@@ -67,7 +67,7 @@ public class NestedAggregator extends SingleBucketAggregator {
         this.parentFilter = null;
         // In ES if parent is deleted, then also the children are deleted. Therefore acceptedDocs can also null here.
         DocIdSet childDocIdSet = childFilter.getDocIdSet(ctx, null);
-        if (DocIdSets.isEmpty(childDocIdSet)) {
+        if (Lucene.isEmpty(childDocIdSet)) {
             childDocs = null;
         } else {
             childDocs = childDocIdSet.iterator();
@@ -97,7 +97,7 @@ public class NestedAggregator extends SingleBucketAggregator {
                     }
                     parentFilter = context.searchContext().bitsetFilterCache().getBitDocIdSetFilter(parentFilterNotCached);
                     BitDocIdSet parentSet = parentFilter.getDocIdSet(ctx);
-                    if (DocIdSets.isEmpty(parentSet)) {
+                    if (Lucene.isEmpty(parentSet)) {
                         // There are no parentDocs in the segment, so return and set childDocs to null, so we exit early for future invocations.
                         childDocs = null;
                         return;

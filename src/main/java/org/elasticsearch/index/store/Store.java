@@ -136,7 +136,13 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      * @throws IOException if the index is corrupted or the segments file is not present
      */
     public SegmentInfos readLastCommittedSegmentsInfo() throws IOException {
-        return readSegmentsInfo(null, directory());
+        failIfCorrupted();
+        try {
+            return readSegmentsInfo(null, directory());
+        } catch (CorruptIndexException ex) {
+            markStoreCorrupted(ex);
+            throw ex;
+        }
     }
 
     /**

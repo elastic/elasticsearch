@@ -68,6 +68,7 @@ public class ValuesSourceParser<VS extends ValuesSource> {
         Map<String, Object> params = null;
         ValueType valueType = null;
         String format = null;
+        Object missing = null;
     }
 
     private final String aggName;
@@ -90,6 +91,10 @@ public class ValuesSourceParser<VS extends ValuesSource> {
     }
 
     public boolean token(String currentFieldName, XContentParser.Token token, XContentParser parser) throws IOException {
+        if ("missing".equals(currentFieldName) && token.isValue()) {
+            input.missing = parser.objectText();
+            return true;
+        }
         if (token == XContentParser.Token.VALUE_STRING) {
             if ("field".equals(currentFieldName)) {
                 input.field = parser.text();
@@ -146,6 +151,7 @@ public class ValuesSourceParser<VS extends ValuesSource> {
                 valuesSourceType = ValuesSource.Bytes.class;
             }
             ValuesSourceConfig<VS> config = new ValuesSourceConfig<VS>(valuesSourceType);
+            config.missing = input.missing;
             config.format = resolveFormat(input.format, valueType);
             config.script = createScript();
             config.scriptValueType = valueType;
@@ -156,6 +162,7 @@ public class ValuesSourceParser<VS extends ValuesSource> {
         if (mapper == null) {
             Class<VS> valuesSourceType = valueType != null ? (Class<VS>) valueType.getValuesSourceType() : this.valuesSourceType;
             ValuesSourceConfig<VS> config = new ValuesSourceConfig<>(valuesSourceType);
+            config.missing = input.missing;
             config.format = resolveFormat(input.format, valueType);
             config.unmapped = true;
             if (valueType != null) {
@@ -181,6 +188,7 @@ public class ValuesSourceParser<VS extends ValuesSource> {
         }
 
         config.fieldContext = new FieldContext(input.field, indexFieldData, mapper);
+        config.missing = input.missing;
         config.script = createScript();
         config.format = resolveFormat(input.format, mapper);
         return config;

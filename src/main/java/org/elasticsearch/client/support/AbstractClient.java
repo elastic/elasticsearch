@@ -1498,6 +1498,11 @@ public abstract class AbstractClient extends AbstractComponent implements Client
         }
 
         @Override
+        public AnalyzeRequestBuilder prepareAnalyze() {
+            return new AnalyzeRequestBuilder(this, AnalyzeAction.INSTANCE);
+        }
+
+        @Override
         public ActionFuture<PutIndexTemplateResponse> putTemplate(final PutIndexTemplateRequest request) {
             return execute(PutIndexTemplateAction.INSTANCE, request);
         }

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.update;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -42,8 +41,11 @@ public class UpdateNoopTests extends ElasticsearchIntegrationTest {
         updateAndCheckSource(2, fields("bar", "bir"));
         updateAndCheckSource(2, fields("bar", "bir"));
         updateAndCheckSource(3, fields("bar", "foo"));
+        updateAndCheckSource(4, fields("bar", null));
+        updateAndCheckSource(4, fields("bar", null));
+        updateAndCheckSource(5, fields("bar", "foo"));
 
-        assertEquals(2, totalNoopUpdates());
+        assertEquals(3, totalNoopUpdates());
     }
 
     @Test
@@ -51,13 +53,22 @@ public class UpdateNoopTests extends ElasticsearchIntegrationTest {
         // Use random keys so we get random iteration order.
         String key1 = 1 + randomAsciiOfLength(3);
         String key2 = 2 + randomAsciiOfLength(3);
+        String key3 = 3 + randomAsciiOfLength(3);
         updateAndCheckSource(1, fields(key1, "foo", key2, "baz"));
         updateAndCheckSource(1, fields(key1, "foo", key2, "baz"));
         updateAndCheckSource(2, fields(key1, "foo", key2, "bir"));
         updateAndCheckSource(2, fields(key1, "foo", key2, "bir"));
         updateAndCheckSource(3, fields(key1, "foo", key2, "foo"));
+        updateAndCheckSource(4, fields(key1, "foo", key2, null));
+        updateAndCheckSource(4, fields(key1, "foo", key2, null));
+        updateAndCheckSource(5, fields(key1, "foo", key2, "foo"));
+        updateAndCheckSource(6, fields(key1, null, key2, "foo"));
+        updateAndCheckSource(6, fields(key1, null, key2, "foo"));
+        updateAndCheckSource(7, fields(key1, null, key2, null));
+        updateAndCheckSource(7, fields(key1, null, key2, null));
+        updateAndCheckSource(8, fields(key1, null, key2, null, key3, null));
 
-        assertEquals(2, totalNoopUpdates());
+        assertEquals(5, totalNoopUpdates());
     }
 
     @Test
@@ -83,6 +94,7 @@ public class UpdateNoopTests extends ElasticsearchIntegrationTest {
         // Use random keys so we get variable iteration order.
         String key1 = 1 + randomAsciiOfLength(3);
         String key2 = 2 + randomAsciiOfLength(3);
+        String key3 = 3 + randomAsciiOfLength(3);
         updateAndCheckSource(1, XContentFactory.jsonBuilder().startObject()
                 .startObject("test")
                     .field(key1, "foo")
@@ -108,8 +120,24 @@ public class UpdateNoopTests extends ElasticsearchIntegrationTest {
                     .field(key1, "foo")
                     .field(key2, "foo")
                 .endObject().endObject());
+        updateAndCheckSource(4, XContentFactory.jsonBuilder().startObject()
+                .startObject("test")
+                    .field(key1, "foo")
+                    .field(key2, (Object) null)
+                .endObject().endObject());
+        updateAndCheckSource(4, XContentFactory.jsonBuilder().startObject()
+                .startObject("test")
+                    .field(key1, "foo")
+                    .field(key2, (Object) null)
+                .endObject().endObject());
+        updateAndCheckSource(5, XContentFactory.jsonBuilder().startObject()
+                .startObject("test")
+                    .field(key1, "foo")
+                    .field(key2, (Object) null)
+                    .field(key3, (Object) null)
+                .endObject().endObject());
 
-        assertEquals(2, totalNoopUpdates());
+        assertEquals(3, totalNoopUpdates());
     }
 
     @Test
@@ -199,7 +227,7 @@ public class UpdateNoopTests extends ElasticsearchIntegrationTest {
 
     private XContentBuilder fields(Object... fields) throws IOException {
         assertEquals("Fields must field1, value1, field2, value2, etc", 0, fields.length % 2);
-        
+
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
         for (int i = 0; i < fields.length; i += 2) {
             builder.field((String) fields[i], fields[i + 1]);
@@ -229,6 +257,7 @@ public class UpdateNoopTests extends ElasticsearchIntegrationTest {
         return client().admin().indices().prepareStats("test").setIndexing(true).get().getIndex("test").getTotal().getIndexing().getTotal()
                 .getNoopUpdateCount();
     }
+
     @Before
     public void setup() {
         createIndex("test");

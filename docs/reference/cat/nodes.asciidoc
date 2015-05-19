@@ -131,8 +131,6 @@ get operations |2
 gets |0s
 |`get.missing_total` |`gmto`, `getMissingTotal` |No |Number of failed
 get operations |1
-|`id_cache.memory_size` |`im`, `idCacheMemory` |No |Used ID cache
-memory |216b
 |`indexing.delete_current` |`idc`, `indexingDeleteCurrent` |No |Number
 of current deletion operations |0
 |`indexing.delete_time` |`idti`, `indexingDeleteTime` |No |Time spent in

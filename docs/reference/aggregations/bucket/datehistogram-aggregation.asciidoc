@@ -123,3 +123,26 @@ settings and filter the returned buckets based on a `min_doc_count` setting (by 
 bucket that matches documents and the last one are returned). This histogram also supports the `extended_bounds`
 setting, which enables extending the bounds of the histogram beyond the data itself (to read more on why you'd want to
 do that please refer to the explanation <<search-aggregations-bucket-histogram-aggregation-extended-bounds,here>>).
+
+==== Missing value
+
+The `missing` parameter defines how documents that are missing a value should be treated.
+By default they will be ignored but it is also possible to treat them as if they
+had a value.
+
+[source,js]
+--------------------------------------------------
+{
+    "aggs" : {
+        "publish_date" : {
+             "datehistogram" : {
+                 "field" : "publish_date",
+                 "interval": "year",
+                 "missing": "2000-01-01" <1>
+             }
+         }
+    }
+}
+--------------------------------------------------
+
+<1> Documents without a value in the `publish_date` field will fall into the same bucket as documents that have the value `2000-01-01`.

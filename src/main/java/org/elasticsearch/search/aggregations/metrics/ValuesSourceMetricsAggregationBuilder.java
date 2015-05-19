@@ -36,6 +36,7 @@ public abstract class ValuesSourceMetricsAggregationBuilder<B extends ValuesSour
     private String lang;
     private String format;
     private Map<String, Object> params;
+    private Object missing;
 
     protected ValuesSourceMetricsAggregationBuilder(String name, String type) {
         super(name, type);
@@ -84,6 +85,14 @@ public abstract class ValuesSourceMetricsAggregationBuilder<B extends ValuesSour
         return (B) this;
     }
 
+    /**
+     * Configure the value to use when documents miss a value.
+     */
+    public B missing(Object missingValue) {
+        this.missing = missingValue;
+        return (B) this;
+    }
+
     @Override
     protected void internalXContent(XContentBuilder builder, Params params) throws IOException {
         if (field != null) {
@@ -104,6 +113,10 @@ public abstract class ValuesSourceMetricsAggregationBuilder<B extends ValuesSour
 
         if (this.params != null && !this.params.isEmpty()) {
             builder.field("params").map(this.params);
+        }
+
+        if (missing != null) {
+            builder.field("missing", missing);
         }
     }
 }

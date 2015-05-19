@@ -25,7 +25,6 @@ import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.RemovalListener;
 import com.google.common.cache.RemovalNotification;
 import com.google.common.collect.ImmutableMap;
-
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -57,6 +56,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.query.TemplateQueryParser;
 import org.elasticsearch.script.groovy.GroovyScriptEngineService;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
@@ -288,6 +288,7 @@ public class ScriptService extends AbstractComponent implements Closeable {
         }
         scriptLang = validateScriptLanguage(scriptLang);
         GetRequest getRequest = new GetRequest(SCRIPT_INDEX, scriptLang, id);
+        getRequest.copyContextAndHeadersFrom(SearchContext.current());
         GetResponse responseFields = client.get(getRequest).actionGet();
         if (responseFields.isExists()) {
             return getScriptFromResponse(responseFields);

@@ -31,9 +31,7 @@ More information on how to define type mappings can be found in the
 
 When an existing mapping already exists under the given type, the two
 mapping definitions, the one already defined, and the new ones are
-merged. The `ignore_conflicts` parameters can be used to control if
-conflicts should be ignored or not, by default, it is set to `false`
-which means conflicts are *not* ignored.
+merged. If there are conflicts then the update will be rejected.
 
 The definition of conflict is really dependent on the type merged, but
 in general, if a different core type is defined, it is considered as a

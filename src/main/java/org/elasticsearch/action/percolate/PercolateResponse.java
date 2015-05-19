@@ -116,7 +116,7 @@ public class PercolateResponse extends BroadcastOperationResponse implements Ite
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field(Fields.TOOK, tookInMillis);
-        RestActions.buildBroadcastShardsHeader(builder, this);
+        RestActions.buildBroadcastShardsHeader(builder, params, this);
 
         builder.field(Fields.TOTAL, count);
         if (matches != null) {

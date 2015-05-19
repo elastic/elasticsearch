@@ -263,7 +263,7 @@ public class RecoveryTarget extends AbstractComponent {
         }
     }
 
-    public static interface RecoveryListener {
+    public interface RecoveryListener {
         void onRecoveryDone(RecoveryState state);
 
         void onRecoveryFailure(RecoveryState state, RecoveryFailedException e, boolean sendShardFailure);

@@ -19,55 +19,45 @@
 
 package org.elasticsearch.index.translog;
 
-import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
-import java.nio.channels.FileChannel;
-import java.nio.file.Files;
-import java.nio.file.Path;
 
 /**
  * Version 0 of the translog format, there is no header in this file
  */
-public class LegacyTranslogStream implements TranslogStream {
+@Deprecated
+public final class LegacyTranslogReader extends LegacyTranslogReaderBase {
 
-    LegacyTranslogStream() {
+    /**
+     * Create a snapshot of translog file channel. The length parameter should be consistent with totalOperations and point
+     * at the end of the last operation in this snapshot.
+     *
+     * @param generation
+     * @param channelReference
+     */
+    LegacyTranslogReader(long generation, ChannelReference channelReference, long fileLength) {
+        super(generation, channelReference, 0, fileLength);
     }
 
     @Override
-    public Translog.Operation read(StreamInput in) throws IOException {
+    protected Translog.Operation read(BufferedChecksumStreamInput in) throws IOException {
         // read the opsize before an operation.
         // Note that this was written & read out side of the stream when this class was used, but it makes things more consistent
         // to read this here
         in.readInt();
         Translog.Operation.Type type = Translog.Operation.Type.fromId(in.readByte());
-        Translog.Operation operation = TranslogStreams.newOperationFromType(type);
+        Translog.Operation operation = Translog.newOperationFromType(type);
         operation.readFrom(in);
         return operation;
     }
 
-    @Override
-    public void write(StreamOutput out, Translog.Operation op) throws IOException {
-        throw new UnsupportedOperationException("LegacyTranslogStream is depracated. Use TranslogStreams.LATEST");
-    }
+
 
     @Override
-    public int writeHeader(FileChannel channel) {
-        // nothing, there is no header for version 0 translog files
-        return 0;
+    protected ImmutableTranslogReader newReader(long generation, ChannelReference channelReference, long firstOperationOffset, long length, int totalOperations) {
+        assert totalOperations == -1 : "expected unknown but was: " + totalOperations;
+        assert firstOperationOffset == 0;
+        return new LegacyTranslogReader(generation, channelReference, length);
     }
-
-    @Override
-    public int headerLength() {
-        return 0;
-    }
-
-    @Override
-    public StreamInput openInput(Path translogFile) throws IOException {
-        // nothing to do, legacy translogs have no header
-        return new InputStreamStreamInput(Files.newInputStream(translogFile));
-    }
-
 }

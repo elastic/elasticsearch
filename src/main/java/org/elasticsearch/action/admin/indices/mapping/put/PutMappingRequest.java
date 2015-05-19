@@ -42,8 +42,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * {@link org.elasticsearch.client.Requests#putMappingRequest(String...)}.
  * <p/>
  * <p>If the mappings already exists, the new mappings will be merged with the new one. If there are elements
- * that can't be merged are detected, the request will be rejected unless the {@link #ignoreConflicts(boolean)}
- * is set. In such a case, the duplicate mappings will be rejected.
+ * that can't be merged are detected, the request will be rejected.
  *
  * @see org.elasticsearch.client.Requests#putMappingRequest(String...)
  * @see org.elasticsearch.client.IndicesAdminClient#putMapping(PutMappingRequest)
@@ -63,8 +62,6 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
     private String type;
 
     private String source;
-
-    private boolean ignoreConflicts = false;
 
     PutMappingRequest() {
     }
@@ -239,25 +236,6 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
         return this;
     }
 
-    /**
-     * If there is already a mapping definition registered against the type, then it will be merged. If there are
-     * elements that can't be merged are detected, the request will be rejected unless the
-     * {@link #ignoreConflicts(boolean)} is set. In such a case, the duplicate mappings will be rejected.
-     */
-    public boolean ignoreConflicts() {
-        return ignoreConflicts;
-    }
-
-    /**
-     * If there is already a mapping definition registered against the type, then it will be merged. If there are
-     * elements that can't be merged are detected, the request will be rejected unless the
-     * {@link #ignoreConflicts(boolean)} is set. In such a case, the duplicate mappings will be rejected.
-     */
-    public PutMappingRequest ignoreConflicts(boolean ignoreDuplicates) {
-        this.ignoreConflicts = ignoreDuplicates;
-        return this;
-    }
-
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
@@ -266,7 +244,6 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
         type = in.readOptionalString();
         source = in.readString();
         readTimeout(in);
-        ignoreConflicts = in.readBoolean();
     }
 
     @Override
@@ -277,6 +254,5 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
         out.writeOptionalString(type);
         out.writeString(source);
         writeTimeout(out);
-        out.writeBoolean(ignoreConflicts);
     }
 }

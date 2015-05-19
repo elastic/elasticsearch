@@ -764,9 +764,9 @@ public class SuggestSearchTests extends ElasticsearchIntegrationTest {
     public void testDifferentShardSize() throws Exception {
         createIndex("test");
         ensureGreen();
-        indexRandom(true, client().prepareIndex("text", "type1", "1").setSource("field1", "foobar1").setRouting("1"),
-                client().prepareIndex("text", "type1", "2").setSource("field1", "foobar2").setRouting("2"),
-                client().prepareIndex("text", "type1", "3").setSource("field1", "foobar3").setRouting("3"));
+        indexRandom(true, client().prepareIndex("test", "type1", "1").setSource("field1", "foobar1").setRouting("1"),
+                client().prepareIndex("test", "type1", "2").setSource("field1", "foobar2").setRouting("2"),
+                client().prepareIndex("test", "type1", "3").setSource("field1", "foobar3").setRouting("3"));
 
         Suggest suggest = searchSuggest( "foobar",
                 termSuggestion("simple")

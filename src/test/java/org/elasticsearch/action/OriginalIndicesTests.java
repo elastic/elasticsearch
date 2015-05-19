@@ -20,8 +20,8 @@
 package org.elasticsearch.action;
 
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
@@ -46,7 +46,7 @@ public class OriginalIndicesTests extends ElasticsearchTestCase {
             out.setVersion(randomVersion(random()));
             OriginalIndices.writeOriginalIndices(originalIndices, out);
 
-            BytesStreamInput in = new BytesStreamInput(out.bytes());
+            StreamInput in = StreamInput.wrap(out.bytes());
             in.setVersion(out.getVersion());
             OriginalIndices originalIndices2 = OriginalIndices.readOriginalIndices(in);
 

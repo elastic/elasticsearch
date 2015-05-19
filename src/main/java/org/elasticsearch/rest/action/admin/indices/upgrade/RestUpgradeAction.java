@@ -87,7 +87,7 @@ public class RestUpgradeAction extends BaseRestHandler {
         });
     }
     
-    void handlePost(RestRequest request, RestChannel channel, Client client) {
+    void handlePost(final RestRequest request, RestChannel channel, Client client) {
         OptimizeRequest optimizeReq = new OptimizeRequest(Strings.splitStringByCommaToArray(request.param("index")));
         optimizeReq.flush(true);
         optimizeReq.upgrade(true);
@@ -97,7 +97,7 @@ public class RestUpgradeAction extends BaseRestHandler {
             @Override
             public RestResponse buildResponse(OptimizeResponse response, XContentBuilder builder) throws Exception {
                 builder.startObject();
-                buildBroadcastShardsHeader(builder, response);
+                buildBroadcastShardsHeader(builder, request, response);
                 builder.endObject();
                 return new BytesRestResponse(OK, builder);
             }

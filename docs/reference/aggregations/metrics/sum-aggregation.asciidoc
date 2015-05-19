@@ -77,3 +77,25 @@ Computing the sum of squares over all stock tick changes:
     }
 }
 --------------------------------------------------
+
+==== Missing value
+
+The `missing` parameter defines how documents that are missing a value should be treated.
+By default they will be ignored but it is also possible to treat them as if they
+had a value.
+
+[source,js]
+--------------------------------------------------
+{
+    "aggs" : {
+        "total_time" : {
+            "sum" : {
+                "field" : "took",
+                "missing": 100 <1>
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+<1> Documents without a value in the `took` field will fall into the same bucket as documents that have the value `100`.

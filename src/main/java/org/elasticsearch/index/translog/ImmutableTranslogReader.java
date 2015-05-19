@@ -26,36 +26,41 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 
 /**
- * a channel reader which is fixed in length
+ * a translog reader which is fixed in length
  */
-public final class ChannelImmutableReader extends ChannelReader {
+public class ImmutableTranslogReader extends TranslogReader {
 
     private final int totalOperations;
-    private final long length;
+    protected final long length;
 
     /**
      * Create a snapshot of translog file channel. The length parameter should be consistent with totalOperations and point
      * at the end of the last operation in this snapshot.
      */
-    public ChannelImmutableReader(long id, ChannelReference channelReference, long length, int totalOperations) {
-        super(id, channelReference);
+    public ImmutableTranslogReader(long generation, ChannelReference channelReference, long firstOperationOffset, long length, int totalOperations) {
+        super(generation, channelReference, firstOperationOffset);
         this.length = length;
         this.totalOperations = totalOperations;
     }
 
-
-    public ChannelImmutableReader clone() {
+    @Override
+    public final TranslogReader clone() {
         if (channelReference.tryIncRef()) {
             try {
-                ChannelImmutableReader reader = new ChannelImmutableReader(id, channelReference, length, totalOperations);
+                ImmutableTranslogReader reader = newReader(generation, channelReference, firstOperationOffset, length, totalOperations);
                 channelReference.incRef(); // for the new object
                 return reader;
             } finally {
                 channelReference.decRef();
             }
         } else {
-            throw new IllegalStateException("can't increment translog [" + id + "] channel ref count");
+            throw new IllegalStateException("can't increment translog [" + generation + "] channel ref count");
         }
+    }
+
+
+    protected ImmutableTranslogReader newReader(long generation, ChannelReference channelReference, long offset, long length, int totalOperations) {
+        return new ImmutableTranslogReader(generation, channelReference, offset, length, totalOperations);
     }
 
     public long sizeInBytes() {
@@ -73,14 +78,14 @@ public final class ChannelImmutableReader extends ChannelReader {
         if (position >= length) {
             throw new EOFException("read requested past EOF. pos [" + position + "] end: [" + length + "]");
         }
-        if (position < firstPosition()) {
-            throw new IOException("read requested before position of first ops. pos [" + position + "] first op on: [" + firstPosition() + "]");
+        if (position < firstOperationOffset) {
+            throw new IOException("read requested before position of first ops. pos [" + position + "] first op on: [" + firstOperationOffset + "]");
         }
         Channels.readFromFileChannelWithEofException(channel, position, buffer);
     }
 
-    @Override
-    public ChannelSnapshot newSnapshot() {
-        return new ChannelSnapshot(clone());
+    public Checkpoint getInfo() {
+        return new Checkpoint(length, totalOperations, getGeneration());
     }
+
 }

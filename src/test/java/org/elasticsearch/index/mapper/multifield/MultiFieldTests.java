@@ -148,7 +148,6 @@ public class MultiFieldTests extends ElasticsearchSingleNodeTest {
                         .addMultiField(stringField("indexed").index(true).tokenized(true))
                         .addMultiField(stringField("not_indexed").index(false).store(true))
         )).build(indexService.mapperService(), mapperParser);
-        builderDocMapper.refreshSource();
 
         String builtMapping = builderDocMapper.mappingSource().string();
 //        System.out.println(builtMapping);

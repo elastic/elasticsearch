@@ -25,6 +25,7 @@ import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.analysis.tokenattributes.OffsetAttribute;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.apache.lucene.analysis.tokenattributes.TypeAttribute;
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.ActionFilters;
@@ -210,36 +211,41 @@ public class TransportAnalyzeAction extends TransportSingleCustomOperationAction
 
         List<AnalyzeResponse.AnalyzeToken> tokens = Lists.newArrayList();
         TokenStream stream = null;
-        try {
-            stream = analyzer.tokenStream(field, request.text());
-            stream.reset();
-            CharTermAttribute term = stream.addAttribute(CharTermAttribute.class);
-            PositionIncrementAttribute posIncr = stream.addAttribute(PositionIncrementAttribute.class);
-            OffsetAttribute offset = stream.addAttribute(OffsetAttribute.class);
-            TypeAttribute type = stream.addAttribute(TypeAttribute.class);
+        int lastPosition = -1;
+        int lastOffset = 0;
+        for (String text : request.text()) {
+            try {
+                stream = analyzer.tokenStream(field, text);
+                stream.reset();
+                CharTermAttribute term = stream.addAttribute(CharTermAttribute.class);
+                PositionIncrementAttribute posIncr = stream.addAttribute(PositionIncrementAttribute.class);
+                OffsetAttribute offset = stream.addAttribute(OffsetAttribute.class);
+                TypeAttribute type = stream.addAttribute(TypeAttribute.class);
 
-            int position = -1;
-            while (stream.incrementToken()) {
-                int increment = posIncr.getPositionIncrement();
-                if (increment > 0) {
-                    position = position + increment;
+                while (stream.incrementToken()) {
+                    int increment = posIncr.getPositionIncrement();
+                    if (increment > 0) {
+                        lastPosition = lastPosition + increment;
+                    }
+                    tokens.add(new AnalyzeResponse.AnalyzeToken(term.toString(), lastPosition, lastOffset + offset.startOffset(), lastOffset + offset.endOffset(), type.type()));
+
                 }
-                tokens.add(new AnalyzeResponse.AnalyzeToken(term.toString(), position, offset.startOffset(), offset.endOffset(), type.type()));
+                stream.end();
+                lastOffset += offset.endOffset();
+                lastPosition += posIncr.getPositionIncrement();
+
+                lastPosition += analyzer.getPositionIncrementGap(field);
+                lastOffset += analyzer.getOffsetGap(field);
+
+            } catch (IOException e) {
+                throw new ElasticsearchException("failed to analyze", e);
+            } finally {
+                IOUtils.closeWhileHandlingException(stream);
             }
-            stream.end();
-        } catch (IOException e) {
-            throw new ElasticsearchException("failed to analyze", e);
-        } finally {
-            if (stream != null) {
-                try {
-                    stream.close();
-                } catch (IOException e) {
-                    // ignore
-                }
-            }
-            if (closeAnalyzer) {
-                analyzer.close();
-            }
+        }
+
+        if (closeAnalyzer) {
+            analyzer.close();
         }
 
         return new AnalyzeResponse(tokens);

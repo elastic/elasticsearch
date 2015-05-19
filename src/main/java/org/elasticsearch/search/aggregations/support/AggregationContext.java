@@ -18,17 +18,24 @@
  */
 package org.elasticsearch.search.aggregations.support;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
+import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
+import org.elasticsearch.index.mapper.core.DateFieldMapper;
+import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.Date;
 
 /**
  *
@@ -53,11 +60,78 @@ public class AggregationContext {
         return searchContext.bigArrays();
     }
 
-    /** Get a value source given its configuration and the depth of the aggregator in the aggregation tree. */
-    public <VS extends ValuesSource> VS valuesSource(ValuesSourceConfig<VS> config) throws IOException {
+    /** Get a value source given its configuration. A return value of null indicates that
+     *  no value source could be built. */
+    @Nullable
+    public <VS extends ValuesSource> VS valuesSource(ValuesSourceConfig<VS> config, SearchContext context) throws IOException {
         assert config.valid() : "value source config is invalid - must have either a field context or a script or marked as unmapped";
-        assert !config.unmapped : "value source should not be created for unmapped fields";
 
+        final VS vs;
+        if (config.unmapped) {
+            if (config.missing == null) {
+                // otherwise we will have values because of the missing value
+                vs = null;
+            } else if (ValuesSource.Numeric.class.isAssignableFrom(config.valueSourceType)) {
+                vs = (VS) ValuesSource.Numeric.EMPTY;
+            } else if (ValuesSource.GeoPoint.class.isAssignableFrom(config.valueSourceType)) {
+                vs = (VS) ValuesSource.GeoPoint.EMPTY;
+            } else if (ValuesSource.class.isAssignableFrom(config.valueSourceType)
+                    || ValuesSource.Bytes.class.isAssignableFrom(config.valueSourceType)
+                    || ValuesSource.Bytes.WithOrdinals.class.isAssignableFrom(config.valueSourceType)) {
+                vs = (VS) ValuesSource.Bytes.EMPTY;
+            } else {
+                throw new SearchParseException(searchContext, "Can't deal with unmapped ValuesSource type " + config.valueSourceType, null);
+            }
+        } else {
+            vs = originalValuesSource(config);
+        }
+
+        if (config.missing == null) {
+            return vs;
+        }
+
+        if (vs instanceof ValuesSource.Bytes) {
+            final BytesRef missing = new BytesRef(config.missing.toString());
+            if (vs instanceof ValuesSource.Bytes.WithOrdinals) {
+                return (VS) MissingValues.replaceMissing((ValuesSource.Bytes.WithOrdinals) vs, missing);
+            } else {
+                return (VS) MissingValues.replaceMissing((ValuesSource.Bytes) vs, missing);
+            }
+        } else if (vs instanceof ValuesSource.Numeric) {
+            Number missing = null;
+            if (config.missing instanceof Number) {
+                missing = (Number) config.missing;
+            } else {
+                if (config.fieldContext != null && config.fieldContext.mapper() instanceof DateFieldMapper) {
+                    final DateFieldMapper mapper = (DateFieldMapper) config.fieldContext.mapper();
+                    try {
+                        missing = mapper.dateTimeFormatter().parser().parseDateTime(config.missing.toString()).getMillis();
+                    } catch (IllegalArgumentException e) {
+                        throw new SearchParseException(context, "Expected a date value in [missing] but got [" + config.missing + "]", null, e);
+                    }
+                } else {
+                    try {
+                        missing = Double.parseDouble(config.missing.toString());
+                    } catch (NumberFormatException e) {
+                        throw new SearchParseException(context, "Expected a numeric value in [missing] but got [" + config.missing + "]", null, e);
+                    }
+                }
+            }
+            return (VS) MissingValues.replaceMissing((ValuesSource.Numeric) vs, missing);
+        } else if (vs instanceof ValuesSource.GeoPoint) {
+            // TODO: also support the structured formats of geo points
+            final GeoPoint missing = GeoUtils.parseGeoPoint(config.missing.toString(), new GeoPoint());
+            return (VS) MissingValues.replaceMissing((ValuesSource.GeoPoint) vs, missing);
+        } else {
+            // Should not happen
+            throw new SearchParseException(searchContext, "Can't apply missing values on a " + vs.getClass(), null);
+        }
+    }
+
+    /**
+     * Return the original values source, before we apply `missing`.
+     */
+    private <VS extends ValuesSource> VS originalValuesSource(ValuesSourceConfig<VS> config) throws IOException {
         if (config.fieldContext == null) {
             if (ValuesSource.Numeric.class.isAssignableFrom(config.valueSourceType)) {
                 return (VS) numericScript(config);
@@ -111,7 +185,7 @@ public class AggregationContext {
     }
 
     private ValuesSource.GeoPoint geoPointField(ValuesSourceConfig<?> config) throws IOException {
-        return new ValuesSource.GeoPoint((IndexGeoPointFieldData) config.fieldContext.indexFieldData());
+        return new ValuesSource.GeoPoint.Fielddata((IndexGeoPointFieldData) config.fieldContext.indexFieldData());
     }
 
 }

@@ -26,10 +26,12 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.support.QueryInnerHitBuilder;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.fetch.innerhits.InnerHitsBuilder;
+import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
@@ -919,6 +921,79 @@ public class InnerHitsTests extends ElasticsearchIntegrationTest {
         assertThat(response.getHits().getAt(0).getInnerHits().get("comments.messages").getAt(0).getNestedIdentity().getField().string(), equalTo("comments.messages"));
         assertThat(response.getHits().getAt(0).getInnerHits().get("comments.messages").getAt(0).getNestedIdentity().getOffset(), equalTo(0));
         assertThat(response.getHits().getAt(0).getInnerHits().get("comments.messages").getAt(0).getNestedIdentity().getChild(), nullValue());
+    }
+
+    @Test
+    public void testRoyals() throws Exception {
+        assertAcked(
+                prepareCreate("royals")
+                .addMapping("king")
+                .addMapping("prince", "_parent", "type=king")
+                .addMapping("duke", "_parent", "type=prince")
+                .addMapping("earl", "_parent", "type=duke")
+                .addMapping("baron", "_parent", "type=earl")
+        );
+
+        List<IndexRequestBuilder> requests = new ArrayList<>();
+        requests.add(client().prepareIndex("royals", "king", "king").setSource("{}"));
+        requests.add(client().prepareIndex("royals", "prince", "prince").setParent("king").setSource("{}"));
+        requests.add(client().prepareIndex("royals", "duke", "duke").setParent("prince").setRouting("king").setSource("{}"));
+        requests.add(client().prepareIndex("royals", "earl", "earl1").setParent("duke").setRouting("king").setSource("{}"));
+        requests.add(client().prepareIndex("royals", "earl", "earl2").setParent("duke").setRouting("king").setSource("{}"));
+        requests.add(client().prepareIndex("royals", "earl", "earl3").setParent("duke").setRouting("king").setSource("{}"));
+        requests.add(client().prepareIndex("royals", "earl", "earl4").setParent("duke").setRouting("king").setSource("{}"));
+        requests.add(client().prepareIndex("royals", "baron", "baron1").setParent("earl1").setRouting("king").setSource("{}"));
+        requests.add(client().prepareIndex("royals", "baron", "baron2").setParent("earl2").setRouting("king").setSource("{}"));
+        requests.add(client().prepareIndex("royals", "baron", "baron3").setParent("earl3").setRouting("king").setSource("{}"));
+        requests.add(client().prepareIndex("royals", "baron", "baron4").setParent("earl4").setRouting("king").setSource("{}"));
+        indexRandom(true, requests);
+
+        SearchResponse response = client().prepareSearch("royals")
+                .setTypes("duke")
+                .addInnerHit("earls", new InnerHitsBuilder.InnerHit()
+                                .setType("earl")
+                                .addSort(SortBuilders.fieldSort("_uid").order(SortOrder.ASC))
+                                .setSize(4)
+                                .addInnerHit("barons", new InnerHitsBuilder.InnerHit().setType("baron"))
+                )
+                .addInnerHit("princes",
+                        new InnerHitsBuilder.InnerHit().setType("prince")
+                        .addInnerHit("kings", new InnerHitsBuilder.InnerHit().setType("king"))
+                )
+                .get();
+        assertHitCount(response, 1);
+        assertThat(response.getHits().getAt(0).getId(), equalTo("duke"));
+
+        SearchHits innerHits = response.getHits().getAt(0).getInnerHits().get("earls");
+        assertThat(innerHits.getTotalHits(), equalTo(4l));
+        assertThat(innerHits.getAt(0).getId(), equalTo("earl1"));
+        assertThat(innerHits.getAt(1).getId(), equalTo("earl2"));
+        assertThat(innerHits.getAt(2).getId(), equalTo("earl3"));
+        assertThat(innerHits.getAt(3).getId(), equalTo("earl4"));
+
+        SearchHits innerInnerHits = innerHits.getAt(0).getInnerHits().get("barons");
+        assertThat(innerInnerHits.totalHits(), equalTo(1l));
+        assertThat(innerInnerHits.getAt(0).getId(), equalTo("baron1"));
+
+        innerInnerHits = innerHits.getAt(1).getInnerHits().get("barons");
+        assertThat(innerInnerHits.totalHits(), equalTo(1l));
+        assertThat(innerInnerHits.getAt(0).getId(), equalTo("baron2"));
+
+        innerInnerHits = innerHits.getAt(2).getInnerHits().get("barons");
+        assertThat(innerInnerHits.totalHits(), equalTo(1l));
+        assertThat(innerInnerHits.getAt(0).getId(), equalTo("baron3"));
+
+        innerInnerHits = innerHits.getAt(3).getInnerHits().get("barons");
+        assertThat(innerInnerHits.totalHits(), equalTo(1l));
+        assertThat(innerInnerHits.getAt(0).getId(), equalTo("baron4"));
+
+        innerHits = response.getHits().getAt(0).getInnerHits().get("princes");
+        assertThat(innerHits.getTotalHits(), equalTo(1l));
+        assertThat(innerHits.getAt(0).getId(), equalTo("prince"));
+
+        innerInnerHits = innerHits.getAt(0).getInnerHits().get("kings");
+        assertThat(innerInnerHits.totalHits(), equalTo(1l));
+        assertThat(innerInnerHits.getAt(0).getId(), equalTo("king"));
     }
 
 }

@@ -30,8 +30,6 @@ public class PutMappingClusterStateUpdateRequest extends IndicesClusterStateUpda
 
     private String source;
 
-    private boolean ignoreConflicts = false;
-
     PutMappingClusterStateUpdateRequest() {
 
     }
@@ -51,15 +49,6 @@ public class PutMappingClusterStateUpdateRequest extends IndicesClusterStateUpda
 
     public PutMappingClusterStateUpdateRequest source(String source) {
         this.source = source;
-        return this;
-    }
-
-    public boolean ignoreConflicts() {
-        return ignoreConflicts;
-    }
-
-    public PutMappingClusterStateUpdateRequest ignoreConflicts(boolean ignoreConflicts) {
-        this.ignoreConflicts = ignoreConflicts;
         return this;
     }
 }

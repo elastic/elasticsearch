@@ -21,7 +21,6 @@ package org.elasticsearch.indices.recovery;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.ClusterService;
-import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -40,7 +39,12 @@ import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * The source recovery accepts recovery requests from other peer shards and start the recovery process from this
@@ -55,7 +59,6 @@ public class RecoverySource extends AbstractComponent {
     private final TransportService transportService;
     private final IndicesService indicesService;
     private final RecoverySettings recoverySettings;
-    private final MappingUpdatedAction mappingUpdatedAction;
 
     private final ClusterService clusterService;
 
@@ -64,11 +67,10 @@ public class RecoverySource extends AbstractComponent {
 
     @Inject
     public RecoverySource(Settings settings, TransportService transportService, IndicesService indicesService,
-                          RecoverySettings recoverySettings, MappingUpdatedAction mappingUpdatedAction, ClusterService clusterService) {
+                          RecoverySettings recoverySettings, ClusterService clusterService) {
         super(settings);
         this.transportService = transportService;
         this.indicesService = indicesService;
-        this.mappingUpdatedAction = mappingUpdatedAction;
         this.clusterService = clusterService;
         this.indicesService.indicesLifecycle().addListener(new IndicesLifecycle.Listener() {
             @Override
@@ -116,9 +118,9 @@ public class RecoverySource extends AbstractComponent {
         logger.trace("[{}][{}] starting recovery to {}, mark_as_relocated {}", request.shardId().index().name(), request.shardId().id(), request.targetNode(), request.markAsRelocated());
         final RecoverySourceHandler handler;
         if (IndexMetaData.isOnSharedFilesystem(shard.indexSettings())) {
-            handler = new SharedFSRecoverySourceHandler(shard, request, recoverySettings, transportService, clusterService, indicesService, mappingUpdatedAction, logger);
+            handler = new SharedFSRecoverySourceHandler(shard, request, recoverySettings, transportService, logger);
         } else {
-            handler = new RecoverySourceHandler(shard, request, recoverySettings, transportService, clusterService, indicesService, mappingUpdatedAction, logger);
+            handler = new RecoverySourceHandler(shard, request, recoverySettings, transportService, logger);
         }
         ongoingRecoveries.add(shard, handler);
         try {

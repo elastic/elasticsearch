@@ -19,9 +19,13 @@
 package org.elasticsearch.common.lucene.search;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.Collector;
+import org.apache.lucene.search.FilterLeafCollector;
+import org.apache.lucene.search.LeafCollector;
+import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
-import org.elasticsearch.common.lucene.docset.DocIdSets;
+import org.elasticsearch.common.lucene.Lucene;
 
 import java.io.IOException;
 
@@ -42,7 +46,7 @@ public class FilteredCollector implements Collector {
     public LeafCollector getLeafCollector(LeafReaderContext context) throws IOException {
         final Scorer filterScorer = filter.scorer(context, null);
         final LeafCollector in = collector.getLeafCollector(context);
-        final Bits bits = DocIdSets.asSequentialAccessBits(context.reader().maxDoc(), filterScorer);
+        final Bits bits = Lucene.asSequentialAccessBits(context.reader().maxDoc(), filterScorer);
 
         return new FilterLeafCollector(in) {
             @Override

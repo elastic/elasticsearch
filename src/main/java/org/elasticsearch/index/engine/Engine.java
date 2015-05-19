@@ -37,8 +37,12 @@ import org.apache.lucene.search.join.BitDocIdSetFilter;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.Accountables;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.Base64;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.logging.ESLogger;
@@ -76,6 +80,8 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
  *
  */
 public abstract class Engine implements Closeable {
+
+    public static final String SYNC_COMMIT_ID = "sync_id";
 
     protected final ShardId shardId;
     protected final ESLogger logger;
@@ -217,6 +223,21 @@ public abstract class Engine implements Closeable {
     /** @deprecated This was removed, but we keep this API so translog can replay any DBQs on upgrade. */
     @Deprecated
     public abstract void delete(DeleteByQuery delete) throws EngineException;
+
+    /**
+     * Attempts to do a special commit where the given syncID is put into the commit data. The attempt
+     * succeeds if there are not pending writes in lucene and the current point is equal to the expected one.
+     * @param syncId id of this sync
+     * @param expectedCommitId the expected value of
+     * @return true if the sync commit was made, false o.w.
+     */
+    public abstract SyncedFlushResult syncFlush(String syncId, CommitId expectedCommitId) throws EngineException;
+
+    public enum SyncedFlushResult {
+        SUCCESS,
+        COMMIT_MISMATCH,
+        PENDING_OPERATIONS
+    }
 
     final protected GetResult getFromSearcher(Get get) throws EngineException {
         final Searcher searcher = acquireSearcher("get");
@@ -439,16 +460,19 @@ public abstract class Engine implements Closeable {
      * @param force if <code>true</code> a lucene commit is executed even if no changes need to be committed.
      * @param waitIfOngoing if <code>true</code> this call will block until all currently running flushes have finished.
      *                      Otherwise this call will return without blocking.
+     * @return the commit Id for the resulting commit
      */
-    public abstract void flush(boolean force, boolean waitIfOngoing) throws EngineException;
+    public abstract CommitId flush(boolean force, boolean waitIfOngoing) throws EngineException;
 
     /**
      * Flushes the state of the engine including the transaction log, clearing memory and persisting
      * documents in the lucene index to disk including a potentially heavy and durable fsync operation.
      * This operation is not going to block if another flush operation is currently running and won't write
      * a lucene commit if nothing needs to be committed.
+     *
+     * @return the commit Id for the resulting commit
      */
-    public abstract void flush() throws EngineException;
+    public abstract CommitId flush() throws EngineException;
 
     /**
      * Optimizes to 1 segment
@@ -1100,4 +1124,55 @@ public abstract class Engine implements Closeable {
      * @return
      */
     public abstract boolean hasUncommittedChanges();
+
+    public static class CommitId implements Writeable {
+
+        private final byte[] id;
+
+        public CommitId(byte[] id) {
+            assert id != null;
+            this.id = Arrays.copyOf(id, id.length);
+        }
+
+        public CommitId(StreamInput in) throws IOException {
+            assert in != null;
+            this.id = in.readByteArray();
+        }
+
+        @Override
+        public String toString() {
+            return Base64.encodeBytes(id);
+        }
+
+        @Override
+        public CommitId readFrom(StreamInput in) throws IOException {
+            return new CommitId(in);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeByteArray(id);
+        }
+
+        public boolean idsEqual(byte[] id) {
+            return Arrays.equals(id, this.id);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+
+            CommitId commitId = (CommitId) o;
+
+            if (!Arrays.equals(id, commitId.id)) return false;
+
+            return true;
+        }
+
+        @Override
+        public int hashCode() {
+            return Arrays.hashCode(id);
+        }
+    }
 }

@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.transport.TransportRequest;
 
@@ -46,7 +47,7 @@ public class StartRecoveryRequest extends TransportRequest {
 
     private boolean markAsRelocated;
 
-    private Map<String, StoreFileMetaData> existingFiles;
+    private Store.MetadataSnapshot metadataSnapshot;
 
     private RecoveryState.Type recoveryType;
 
@@ -57,20 +58,19 @@ public class StartRecoveryRequest extends TransportRequest {
      * Start recovery request.
      *
      * @param shardId
-     * @param sourceNode      The node to recover from
-     * @param targetNode      The node to recover to
+     * @param sourceNode       The node to recover from
+     * @param targetNode       The node to recover to
      * @param markAsRelocated
-     * @param existingFiles
+     * @param metadataSnapshot
      */
-    public StartRecoveryRequest(ShardId shardId, DiscoveryNode sourceNode, DiscoveryNode targetNode, boolean markAsRelocated, Map<String,
-                                StoreFileMetaData> existingFiles, RecoveryState.Type recoveryType, long recoveryId) {
+    public StartRecoveryRequest(ShardId shardId, DiscoveryNode sourceNode, DiscoveryNode targetNode, boolean markAsRelocated, Store.MetadataSnapshot metadataSnapshot, RecoveryState.Type recoveryType, long recoveryId) {
         this.recoveryId = recoveryId;
         this.shardId = shardId;
         this.sourceNode = sourceNode;
         this.targetNode = targetNode;
         this.markAsRelocated = markAsRelocated;
-        this.existingFiles = existingFiles;
         this.recoveryType = recoveryType;
+        this.metadataSnapshot = metadataSnapshot;
     }
 
     public long recoveryId() {
@@ -93,12 +93,12 @@ public class StartRecoveryRequest extends TransportRequest {
         return markAsRelocated;
     }
 
-    public Map<String, StoreFileMetaData> existingFiles() {
-        return existingFiles;
-    }
-
     public RecoveryState.Type recoveryType() {
         return recoveryType;
+    }
+
+    public Store.MetadataSnapshot metadataSnapshot() {
+        return metadataSnapshot;
     }
 
     @Override
@@ -109,13 +109,9 @@ public class StartRecoveryRequest extends TransportRequest {
         sourceNode = DiscoveryNode.readNode(in);
         targetNode = DiscoveryNode.readNode(in);
         markAsRelocated = in.readBoolean();
-        int size = in.readVInt();
-        existingFiles = Maps.newHashMapWithExpectedSize(size);
-        for (int i = 0; i < size; i++) {
-            StoreFileMetaData md = StoreFileMetaData.readStoreFileMetaData(in);
-            existingFiles.put(md.name(), md);
-        }
+        metadataSnapshot = new Store.MetadataSnapshot(in);
         recoveryType = RecoveryState.Type.fromId(in.readByte());
+
     }
 
     @Override
@@ -126,10 +122,8 @@ public class StartRecoveryRequest extends TransportRequest {
         sourceNode.writeTo(out);
         targetNode.writeTo(out);
         out.writeBoolean(markAsRelocated);
-        out.writeVInt(existingFiles.size());
-        for (StoreFileMetaData md : existingFiles.values()) {
-            md.writeTo(out);
-        }
+        metadataSnapshot.writeTo(out);
         out.writeByte(recoveryType.id());
     }
+
 }

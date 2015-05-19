@@ -201,6 +201,15 @@ public interface IndicesLifecycle {
         public void beforeIndexDeleted(IndexService indexService) {
 
         }
+
+        /**
+         * Called when a shard is marked as inactive
+         *
+         * @param indexShard The shard that was marked inactive
+         */
+        public void onShardInactive(IndexShard indexShard) {
+
+        }
     }
 
 }

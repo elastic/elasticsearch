@@ -19,12 +19,14 @@
 
 package org.elasticsearch.indices.recovery;
 
+import org.apache.lucene.index.IndexFileNames;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
@@ -32,6 +34,8 @@ import org.junit.Test;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.hamcrest.Matchers.equalTo;
@@ -49,7 +53,7 @@ public class StartRecoveryRequestTest extends ElasticsearchTestCase {
                 new DiscoveryNode("a", new LocalTransportAddress("1"), targetNodeVersion),
                 new DiscoveryNode("b", new LocalTransportAddress("1"), targetNodeVersion),
                 true,
-                Collections.<String, StoreFileMetaData>emptyMap(),
+                Store.MetadataSnapshot.EMPTY,
                 RecoveryState.Type.RELOCATION,
                 1l
 
@@ -69,11 +73,9 @@ public class StartRecoveryRequestTest extends ElasticsearchTestCase {
         assertThat(outRequest.sourceNode(), equalTo(inRequest.sourceNode()));
         assertThat(outRequest.targetNode(), equalTo(inRequest.targetNode()));
         assertThat(outRequest.markAsRelocated(), equalTo(inRequest.markAsRelocated()));
-        assertThat(outRequest.existingFiles(), equalTo(inRequest.existingFiles()));
+        assertThat(outRequest.metadataSnapshot().asMap(), equalTo(inRequest.metadataSnapshot().asMap()));
         assertThat(outRequest.recoveryId(), equalTo(inRequest.recoveryId()));
         assertThat(outRequest.recoveryType(), equalTo(inRequest.recoveryType()));
     }
-
-
 
 }

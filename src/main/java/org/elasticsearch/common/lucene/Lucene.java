@@ -142,6 +142,17 @@ public class Lucene {
     }
 
     /**
+     * Returns the number of document in the index referenced by this {@link SegmentInfos}
+     */
+    public static int getNumDocs(SegmentInfos info) {
+        int numDocs = 0;
+        for (SegmentCommitInfo si : info) {
+            numDocs += si.info.maxDoc() - si.getDelCount();
+        }
+        return numDocs;
+    }
+
+    /**
      * Reads the segments infos from the given commit, failing if it fails to load
      */
     public static SegmentInfos readSegmentInfos(IndexCommit commit, Directory directory) throws IOException {

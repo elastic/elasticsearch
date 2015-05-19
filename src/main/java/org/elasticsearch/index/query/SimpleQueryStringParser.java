@@ -30,7 +30,7 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.LocaleUtils;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.FieldMapper;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -130,9 +130,9 @@ public class SimpleQueryStringParser implements QueryParser {
                                 fieldsAndWeights.put(fieldName, fBoost);
                             }
                         } else {
-                            MapperService.SmartNameFieldMappers mappers = parseContext.smartFieldMappers(fField);
-                            if (mappers != null && mappers.hasMapper()) {
-                                fieldsAndWeights.put(mappers.mapper().names().indexName(), fBoost);
+                            FieldMapper mapper = parseContext.fieldMapper(fField);
+                            if (mapper != null) {
+                                fieldsAndWeights.put(mapper.names().indexName(), fBoost);
                             } else {
                                 fieldsAndWeights.put(fField, fBoost);
                             }

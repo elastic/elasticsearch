@@ -25,14 +25,9 @@ import org.apache.lucene.codecs.lucene50.Lucene50Codec;
 import org.apache.lucene.codecs.lucene50.Lucene50StoredFieldsFormat;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.index.mapper.FieldMappers;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.core.CompletionFieldMapper;
-import org.elasticsearch.search.suggest.completion.Completion090PostingsFormat;
-import org.elasticsearch.search.suggest.completion.Completion090PostingsFormat.CompletionLookupProvider;
-
-import java.util.HashMap;
-import java.util.Map;
 
 /**
  * {@link PerFieldMappingPostingFormatCodec This postings format} is the default
@@ -59,12 +54,12 @@ public class PerFieldMappingPostingFormatCodec extends Lucene50Codec {
 
     @Override
     public PostingsFormat getPostingsFormatForField(String field) {
-        final FieldMappers indexName = mapperService.indexName(field);
+        final FieldMapper indexName = mapperService.indexName(field);
         if (indexName == null) {
             logger.warn("no index mapper found for field: [{}] returning default postings format", field);
-        } else if (indexName.mapper() instanceof CompletionFieldMapper) {
+        } else if (indexName instanceof CompletionFieldMapper) {
             // CompletionFieldMapper needs a special postings format
-            final CompletionFieldMapper mapper = (CompletionFieldMapper) indexName.mapper();
+            final CompletionFieldMapper mapper = (CompletionFieldMapper) indexName;
             final PostingsFormat defaultFormat = super.getPostingsFormatForField(field);
             return mapper.postingsFormat(defaultFormat);
         }

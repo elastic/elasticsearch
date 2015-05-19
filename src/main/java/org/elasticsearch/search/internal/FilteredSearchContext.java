@@ -532,16 +532,6 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    public MapperService.SmartNameFieldMappers smartFieldMappers(String name) {
-        return in.smartFieldMappers(name);
-    }
-
-    @Override
-    public FieldMappers smartNameFieldMappers(String name) {
-        return in.smartNameFieldMappers(name);
-    }
-
-    @Override
     public FieldMapper smartNameFieldMapper(String name) {
         return in.smartNameFieldMapper(name);
     }

@@ -61,13 +61,13 @@ public abstract class FieldsVisitor extends StoredFieldVisitor {
         }
         // can't derive exact mapping type
         for (Map.Entry<String, List<Object>> entry : fields().entrySet()) {
-            FieldMappers fieldMappers = mapperService.indexName(entry.getKey());
+            FieldMapper fieldMappers = mapperService.indexName(entry.getKey());
             if (fieldMappers == null) {
                 continue;
             }
             List<Object> fieldValues = entry.getValue();
             for (int i = 0; i < fieldValues.size(); i++) {
-                fieldValues.set(i, fieldMappers.mapper().valueForSearch(fieldValues.get(i)));
+                fieldValues.set(i, fieldMappers.valueForSearch(fieldValues.get(i)));
             }
         }
     }

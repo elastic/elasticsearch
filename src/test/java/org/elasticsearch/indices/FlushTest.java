@@ -31,7 +31,6 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.test.SyncedFlushUtil;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
 

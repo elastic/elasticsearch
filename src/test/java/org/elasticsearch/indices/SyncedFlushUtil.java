@@ -16,15 +16,20 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.test;
+package org.elasticsearch.indices;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.LatchedActionListener;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.SyncedFlushService;
 
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.atomic.AtomicReference;
 
 /** Utils for SyncedFlush */
 public class SyncedFlushUtil {
@@ -37,7 +42,7 @@ public class SyncedFlushUtil {
      * Blocking version of {@link SyncedFlushService#attemptSyncedFlush(ShardId, ActionListener)}
      */
     public static SyncedFlushService.SyncedFlushResult attemptSyncedFlush(SyncedFlushService service, ShardId shardId) {
-        SyncResultListener listener = new SyncResultListener();
+        LatchedListener<SyncedFlushService.SyncedFlushResult> listener = new LatchedListener();
         service.attemptSyncedFlush(shardId, listener);
         try {
             listener.latch.await();
@@ -50,14 +55,14 @@ public class SyncedFlushUtil {
         return listener.result;
     }
 
-    public static final class SyncResultListener implements ActionListener<SyncedFlushService.SyncedFlushResult> {
-        public volatile SyncedFlushService.SyncedFlushResult result;
+    public static final class LatchedListener<T> implements ActionListener<T> {
+        public volatile T result;
         public volatile Throwable error;
         public final CountDownLatch latch = new CountDownLatch(1);
 
         @Override
-        public void onResponse(SyncedFlushService.SyncedFlushResult syncedFlushResult) {
-            result = syncedFlushResult;
+        public void onResponse(T result) {
+            this.result = result;
             latch.countDown();
         }
 
@@ -66,6 +71,23 @@ public class SyncedFlushUtil {
             error = e;
             latch.countDown();
         }
+    }
+
+    /**
+     * Blocking version of {@link SyncedFlushService#sendPreSyncRequests(List, ClusterState, ShardId, ActionListener)}
+     */
+    public static Map<String, Engine.CommitId> sendPreSyncRequests(SyncedFlushService service, List<ShardRouting> activeShards, ClusterState state, ShardId shardId) {
+        LatchedListener<Map<String, Engine.CommitId>> listener = new LatchedListener<>();
+        service.sendPreSyncRequests(activeShards, state, shardId, listener);
+        try {
+            listener.latch.await();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+        if (listener.error != null) {
+            throw ExceptionsHelper.convertToElastic(listener.error);
+        }
+        return listener.result;
     }
 
 }

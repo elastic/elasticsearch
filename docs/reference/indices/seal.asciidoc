@@ -5,6 +5,10 @@ The seal API allows to flush one or more indices and adds a marker to primaries 
 The seal marker is used during recovery after a node restarts. If a replica is allocated on a node which already has a shard copy with the same seal as the primary then no files will be copied during recovery.
 Sealing is a best effort operation. If write operations are ongoing while the sealing is in progress then writing the seal might fail on some copies.
 
+A seal marks a point in time snapshot (a low level lucene commit). This mark can be used to decide if the initial, rather resource heavy, recovery phase where segments or event the entire lucene index is copied over the network can
+be skipped. If the indices on both sides of the recover have the same seal no segment files need to be copied and transaction log replay can start immediately. The seal breaks as soon as the shard issues a new lucene commit, uncommitted operations
+in the transaction log do not break the seal until they are committed.
+
 [source,js]
 --------------------------------------------------
 $ curl -XPOST 'http://localhost:9200/twitter/_seal'

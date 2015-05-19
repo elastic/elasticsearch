@@ -750,7 +750,6 @@ public class InternalEngine extends Engine {
             try {
                 if (flushNeeded || force) {
                     flushNeeded = false;
-                    final long translogId;
                     try {
                         translog.prepareCommit();
                         logger.trace("starting commit for flush; commitTranslog=true");
@@ -759,7 +758,6 @@ public class InternalEngine extends Engine {
                         translog.commit();
                         // we need to refresh in order to clear older version values
                         refresh("version_table_flush");
-
                     } catch (Throwable e) {
                         throw new FlushFailedEngineException(shardId, e);
                     }

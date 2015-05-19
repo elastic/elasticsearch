@@ -19,6 +19,8 @@
 
 package org.elasticsearch.update;
 
+import org.elasticsearch.ElasticsearchException;
+
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;

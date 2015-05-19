@@ -10,12 +10,13 @@ import com.squareup.okhttp.mockwebserver.MockResponse;
 import com.squareup.okhttp.mockwebserver.MockWebServer;
 import com.squareup.okhttp.mockwebserver.RecordedRequest;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.base.Charsets;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.test.junit.annotations.Network;
-import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
 import org.elasticsearch.watcher.support.http.auth.HttpAuthFactory;
 import org.elasticsearch.watcher.support.http.auth.HttpAuthRegistry;
 import org.elasticsearch.watcher.support.http.auth.basic.BasicAuth;
@@ -25,13 +26,18 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import javax.net.ssl.SSLSocket;
+import javax.net.ssl.SSLSocketFactory;
+import java.io.IOException;
 import java.net.BindException;
+import java.net.InetAddress;
+import java.net.Socket;
+import java.net.UnknownHostException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.security.UnrecoverableKeyException;
 
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.*;
 import static org.hamcrest.core.Is.is;
 
 /**
@@ -139,13 +145,29 @@ public class HttpClientTest extends ElasticsearchTestCase {
 
     @Test
     public void testHttps() throws Exception {
-        Path resource = Paths.get(HttpClientTest.class.getResource("/org/elasticsearch/shield/keystore/testnode.jks").toURI());
-        HttpClient httpClient = new HttpClient(
-                ImmutableSettings.builder()
-                        .put(HttpClient.SETTINGS_SSL_TRUSTSTORE, resource.toString())
-                        .put(HttpClient.SETTINGS_SSL_TRUSTSTORE_PASSWORD, "testnode")
-                        .build(), authRegistry).start();
-        webServer.useHttps(httpClient.getSslSocketFactory(), false);
+        Path resource = Paths.get(HttpClientTest.class.getResource("/org/elasticsearch/shield/keystore/truststore-testnode-only.jks").toURI());
+
+        Settings settings;
+        if (randomBoolean()) {
+            settings = ImmutableSettings.builder()
+                    .put(HttpClient.SETTINGS_SSL_TRUSTSTORE, resource.toString())
+                    .put(HttpClient.SETTINGS_SSL_TRUSTSTORE_PASSWORD, "truststore-testnode-only")
+                    .build();
+        } else {
+            settings = ImmutableSettings.builder()
+                    .put(HttpClient.SETTINGS_SSL_SHIELD_TRUSTSTORE, resource.toString())
+                    .put(HttpClient.SETTINGS_SSL_SHIELD_TRUSTSTORE_PASSWORD, "truststore-testnode-only")
+                    .build();
+        }
+        HttpClient httpClient = new HttpClient(settings, authRegistry).start();
+
+        // We can't use the client created above for the server since it is only a truststore
+        webServer.useHttps(new HttpClient(ImmutableSettings.builder()
+                .put(HttpClient.SETTINGS_SSL_KEYSTORE, getResource("/org/elasticsearch/shield/keystore/testnode.jks").toPath())
+                .put(HttpClient.SETTINGS_SSL_KEYSTORE_PASSWORD, "testnode")
+                .build(), authRegistry)
+                .start()
+                .getSslSocketFactory(), false);
 
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody("body"));
         HttpRequest.Builder request = HttpRequest.builder("localhost", webPort)
@@ -158,6 +180,79 @@ public class HttpClientTest extends ElasticsearchTestCase {
         RecordedRequest recordedRequest = webServer.takeRequest();
         assertThat(recordedRequest.getPath(), equalTo("/test"));
         assertThat(recordedRequest.getBody().readUtf8Line(), equalTo("body"));
+    }
+
+    @Test
+    public void testHttpsClientAuth() throws Exception {
+        Path resource = Paths.get(HttpClientTest.class.getResource("/org/elasticsearch/shield/keystore/testnode.jks").toURI());
+        Settings settings;
+        if (randomBoolean()) {
+            settings = ImmutableSettings.builder()
+                    .put(HttpClient.SETTINGS_SSL_KEYSTORE, resource.toString())
+                    .put(HttpClient.SETTINGS_SSL_KEYSTORE_PASSWORD, "testnode")
+                    .build();
+        } else {
+            settings = ImmutableSettings.builder()
+                    .put(HttpClient.SETTINGS_SSL_SHIELD_KEYSTORE, resource.toString())
+                    .put(HttpClient.SETTINGS_SSL_SHIELD_KEYSTORE_PASSWORD, "testnode")
+                    .build();
+        }
+
+        HttpClient httpClient = new HttpClient(settings, authRegistry).start();
+        webServer.useHttps(new ClientAuthRequiringSSLSocketFactory(httpClient.getSslSocketFactory()), false);
+
+        webServer.enqueue(new MockResponse().setResponseCode(200).setBody("body"));
+        HttpRequest.Builder request = HttpRequest.builder("localhost", webPort)
+                .scheme(Scheme.HTTPS)
+                .path("/test")
+                .body("body");
+        HttpResponse response = httpClient.execute(request.build());
+        assertThat(response.status(), equalTo(200));
+        assertThat(response.body().toUtf8(), equalTo("body"));
+        RecordedRequest recordedRequest = webServer.takeRequest();
+        assertThat(recordedRequest.getPath(), equalTo("/test"));
+        assertThat(recordedRequest.getBody().readUtf8Line(), equalTo("body"));
+    }
+
+    @Test
+    public void testHttpClientReadKeyWithDifferentPassword() throws Exception {
+        // This truststore doesn't have a cert with a valid SAN so hostname verification will fail if used
+        Path resource = Paths.get(HttpClientTest.class.getResource("/org/elasticsearch/shield/keystore/testnode-different-passwords.jks").toURI());
+
+        Settings settings;
+        final boolean watcherSettings = randomBoolean();
+        if (watcherSettings) {
+            settings = ImmutableSettings.builder()
+                    .put(HttpClient.SETTINGS_SSL_KEYSTORE, resource.toString())
+                    .put(HttpClient.SETTINGS_SSL_KEYSTORE_PASSWORD, "testnode")
+                    .put(HttpClient.SETTINGS_SSL_KEYSTORE_KEY_PASSWORD, "testnode1")
+                    .build();
+        } else {
+            settings = ImmutableSettings.builder()
+                    .put(HttpClient.SETTINGS_SSL_SHIELD_KEYSTORE, resource.toString())
+                    .put(HttpClient.SETTINGS_SSL_SHIELD_KEYSTORE_PASSWORD, "testnode")
+                    .put(HttpClient.SETTINGS_SSL_SHIELD_KEYSTORE_KEY_PASSWORD, "testnode1")
+                    .build();
+        }
+
+        HttpClient httpClient = new HttpClient(settings, authRegistry).start();
+        assertThat(httpClient.getSslSocketFactory(), notNullValue());
+
+        ImmutableSettings.Builder badSettings = ImmutableSettings.builder().put(settings);
+        if (watcherSettings) {
+            badSettings.remove(HttpClient.SETTINGS_SSL_KEYSTORE_KEY_PASSWORD);
+        } else {
+            badSettings.remove(HttpClient.SETTINGS_SSL_SHIELD_KEYSTORE_KEY_PASSWORD);
+        }
+
+        try {
+            new HttpClient(badSettings.build(), authRegistry).start();
+            fail("an exception should have been thrown since the key is not recoverable without the password");
+        } catch (Exception e) {
+            UnrecoverableKeyException rootCause = ExceptionsHelper.unwrap(e, UnrecoverableKeyException.class);
+            assertThat(rootCause, notNullValue());
+            assertThat(rootCause.getMessage(), containsString("Cannot recover key"));
+        }
     }
 
     @Test
@@ -178,6 +273,8 @@ public class HttpClientTest extends ElasticsearchTestCase {
     @Network
     public void testHttpsWithoutTruststore() throws Exception {
         HttpClient httpClient = new HttpClient(ImmutableSettings.EMPTY, authRegistry).start();
+        assertThat(httpClient.getSslSocketFactory(), nullValue());
+
         // Known server with a valid cert from a commercial CA
         HttpRequest.Builder request = HttpRequest.builder("www.elastic.co", 443).scheme(Scheme.HTTPS);
         HttpResponse response = httpClient.execute(request.build());
@@ -186,4 +283,77 @@ public class HttpClientTest extends ElasticsearchTestCase {
         assertThat(response.body(), notNullValue());
     }
 
+    @Test
+    @Network
+    public void testHttpsWithoutTruststoreAndSSLIntegrationActive() throws Exception {
+        // Add some settings with  SSL prefix to force socket factory creation
+        String setting = (randomBoolean() ? HttpClient.SETTINGS_SSL_PREFIX : HttpClient.SETTINGS_SSL_SHIELD_PREFIX) +
+                "foo.bar";
+        Settings settings = ImmutableSettings.builder()
+                .put(setting, randomBoolean())
+                .build();
+        HttpClient httpClient = new HttpClient(settings, authRegistry).start();
+        assertThat(httpClient.getSslSocketFactory(), notNullValue());
+
+        // Known server with a valid cert from a commercial CA
+        HttpRequest.Builder request = HttpRequest.builder("www.elastic.co", 443).scheme(Scheme.HTTPS);
+        HttpResponse response = httpClient.execute(request.build());
+        assertThat(response.status(), equalTo(200));
+        assertThat(response.hasContent(), is(true));
+        assertThat(response.body(), notNullValue());
+    }
+
+    static class ClientAuthRequiringSSLSocketFactory extends SSLSocketFactory {
+
+        final SSLSocketFactory delegate;
+
+        ClientAuthRequiringSSLSocketFactory(SSLSocketFactory delegate) {
+            this.delegate = delegate;
+        }
+
+        @Override
+        public String[] getDefaultCipherSuites() {
+            return delegate.getDefaultCipherSuites();
+        }
+
+        @Override
+        public String[] getSupportedCipherSuites() {
+            return delegate.getSupportedCipherSuites();
+        }
+
+        @Override
+        public Socket createSocket(Socket socket, String s, int i, boolean b) throws IOException {
+            SSLSocket sslSocket = (SSLSocket) delegate.createSocket(socket, s, i, b);
+            sslSocket.setNeedClientAuth(true);
+            return sslSocket;
+        }
+
+        @Override
+        public Socket createSocket(String s, int i) throws IOException, UnknownHostException {
+            SSLSocket sslSocket = (SSLSocket) delegate.createSocket(s, i);
+            sslSocket.setNeedClientAuth(true);
+            return sslSocket;
+        }
+
+        @Override
+        public Socket createSocket(String s, int i, InetAddress inetAddress, int i1) throws IOException, UnknownHostException {
+            SSLSocket sslSocket = (SSLSocket) delegate.createSocket(s, i, inetAddress, i1);
+            sslSocket.setNeedClientAuth(true);
+            return sslSocket;
+        }
+
+        @Override
+        public Socket createSocket(InetAddress inetAddress, int i) throws IOException {
+            SSLSocket sslSocket = (SSLSocket) delegate.createSocket(inetAddress, i);
+            sslSocket.setNeedClientAuth(true);
+            return sslSocket;
+        }
+
+        @Override
+        public Socket createSocket(InetAddress inetAddress, int i, InetAddress inetAddress1, int i1) throws IOException {
+            SSLSocket sslSocket = (SSLSocket) delegate.createSocket(inetAddress, i, inetAddress1, i1);
+            sslSocket.setNeedClientAuth(true);
+            return sslSocket;
+        }
+    }
 }

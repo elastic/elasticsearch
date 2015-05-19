@@ -6,7 +6,6 @@
 package org.elasticsearch.watcher.support.http;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.base.Charsets;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -34,17 +33,25 @@ import java.util.Map;
  */
 public class HttpClient extends AbstractLifecycleComponent<HttpClient> {
 
-    private static final String SETTINGS_SSL_PREFIX = "watcher.http.ssl.";
-    private static final String SETTINGS_SSL_SHIELD_PREFIX = "shield.ssl.";
+    static final String SETTINGS_SSL_PREFIX = "watcher.http.ssl.";
+    static final String SETTINGS_SSL_SHIELD_PREFIX = "shield.ssl.";
 
     public static final String SETTINGS_SSL_PROTOCOL = SETTINGS_SSL_PREFIX + "protocol";
-    private static final String SETTINGS_SSL_SHIELD_CONTEXT_ALGORITHM = SETTINGS_SSL_SHIELD_PREFIX + "context.algorithm";
+    static final String SETTINGS_SSL_SHIELD_PROTOCOL = SETTINGS_SSL_SHIELD_PREFIX + "protocol";
+    public static final String SETTINGS_SSL_KEYSTORE = SETTINGS_SSL_PREFIX + "keystore.path";
+    static final String SETTINGS_SSL_SHIELD_KEYSTORE = SETTINGS_SSL_SHIELD_PREFIX + "keystore.path";
+    public static final String SETTINGS_SSL_KEYSTORE_PASSWORD = SETTINGS_SSL_PREFIX + "keystore.password";
+    static final String SETTINGS_SSL_SHIELD_KEYSTORE_PASSWORD = SETTINGS_SSL_SHIELD_PREFIX + "keystore.password";
+    public static final String SETTINGS_SSL_KEYSTORE_KEY_PASSWORD = SETTINGS_SSL_PREFIX + "keystore.key_password";
+    static final String SETTINGS_SSL_SHIELD_KEYSTORE_KEY_PASSWORD = SETTINGS_SSL_SHIELD_PREFIX + "keystore.key_password";
+    public static final String SETTINGS_SSL_KEYSTORE_ALGORITHM = SETTINGS_SSL_PREFIX + "keystore.algorithm";
+    static final String SETTINGS_SSL_SHIELD_KEYSTORE_ALGORITHM = SETTINGS_SSL_SHIELD_PREFIX + "keystore.algorithm";
     public static final String SETTINGS_SSL_TRUSTSTORE = SETTINGS_SSL_PREFIX + "truststore.path";
-    private static final String SETTINGS_SSL_SHIELD_TRUSTSTORE = SETTINGS_SSL_SHIELD_PREFIX + "truststore.path";
+    static final String SETTINGS_SSL_SHIELD_TRUSTSTORE = SETTINGS_SSL_SHIELD_PREFIX + "truststore.path";
     public static final String SETTINGS_SSL_TRUSTSTORE_PASSWORD = SETTINGS_SSL_PREFIX + "truststore.password";
-    private static final String SETTINGS_SSL_SHIELD_TRUSTSTORE_PASSWORD = SETTINGS_SSL_SHIELD_PREFIX + "truststore.password";
+    static final String SETTINGS_SSL_SHIELD_TRUSTSTORE_PASSWORD = SETTINGS_SSL_SHIELD_PREFIX + "truststore.password";
     public static final String SETTINGS_SSL_TRUSTSTORE_ALGORITHM = SETTINGS_SSL_PREFIX + "truststore.algorithm";
-    private static final String SETTINGS_SSL_SHIELD_TRUSTSTORE_ALGORITHM = SETTINGS_SSL_SHIELD_PREFIX + "truststore.algorithm";
+    static final String SETTINGS_SSL_SHIELD_TRUSTSTORE_ALGORITHM = SETTINGS_SSL_SHIELD_PREFIX + "truststore.algorithm";
 
     private final HttpAuthRegistry httpAuthRegistry;
 
@@ -147,37 +154,40 @@ public class HttpClient extends AbstractLifecycleComponent<HttpClient> {
 
     /** SSL Initialization **/
     private SSLSocketFactory createSSLSocketFactory(Settings settings) {
-        SSLContext sslContext;
-        // Initialize sslContext
         try {
-            String sslContextProtocol = settings.get(SETTINGS_SSL_PROTOCOL, settings.get(SETTINGS_SSL_SHIELD_CONTEXT_ALGORITHM, "TLS"));
+            String sslContextProtocol = settings.get(SETTINGS_SSL_PROTOCOL, settings.get(SETTINGS_SSL_SHIELD_PROTOCOL, "TLS"));
+            String keyStore = settings.get(SETTINGS_SSL_KEYSTORE, settings.get(SETTINGS_SSL_SHIELD_KEYSTORE, System.getProperty("javax.net.ssl.keyStore")));
+            String keyStorePassword = settings.get(SETTINGS_SSL_KEYSTORE_PASSWORD, settings.get(SETTINGS_SSL_SHIELD_KEYSTORE_PASSWORD, System.getProperty("javax.net.ssl.keyStorePassword")));
+            String keyPassword = settings.get(SETTINGS_SSL_KEYSTORE_KEY_PASSWORD, settings.get(SETTINGS_SSL_SHIELD_KEYSTORE_KEY_PASSWORD, keyStorePassword));
+            String keyStoreAlgorithm = settings.get(SETTINGS_SSL_KEYSTORE_ALGORITHM, settings.get(SETTINGS_SSL_SHIELD_KEYSTORE_ALGORITHM, System.getProperty("ssl.KeyManagerFactory.algorithm", KeyManagerFactory.getDefaultAlgorithm())));
             String trustStore = settings.get(SETTINGS_SSL_TRUSTSTORE, settings.get(SETTINGS_SSL_SHIELD_TRUSTSTORE, System.getProperty("javax.net.ssl.trustStore")));
             String trustStorePassword = settings.get(SETTINGS_SSL_TRUSTSTORE_PASSWORD, settings.get(SETTINGS_SSL_SHIELD_TRUSTSTORE_PASSWORD, System.getProperty("javax.net.ssl.trustStorePassword")));
-            String trustStoreAlgorithm = settings.get(SETTINGS_SSL_TRUSTSTORE_ALGORITHM, settings.get(SETTINGS_SSL_SHIELD_TRUSTSTORE_ALGORITHM, System.getProperty("ssl.TrustManagerFactory.algorithm")));
+            String trustStoreAlgorithm = settings.get(SETTINGS_SSL_TRUSTSTORE_ALGORITHM, settings.get(SETTINGS_SSL_SHIELD_TRUSTSTORE_ALGORITHM, System.getProperty("ssl.TrustManagerFactory.algorithm", TrustManagerFactory.getDefaultAlgorithm())));
 
-            if (trustStore == null) {
+            if (keyStore != null) {
+                if (trustStore == null) {
+                    logger.debug("keystore defined with no truststore defined, using keystore as truststore");
+                    trustStore = keyStore;
+                    trustStorePassword = keyStorePassword;
+                    trustStoreAlgorithm = keyStoreAlgorithm;
+                }
+            } else if (trustStore == null) {
                 logger.debug("no truststore defined, using system default");
             }
 
             if (trustStoreAlgorithm == null) {
                 trustStoreAlgorithm = TrustManagerFactory.getDefaultAlgorithm();
             }
+            logger.debug("using protocol [{}], keyStore [{}], keyStoreAlgorithm [{}], trustStore [{}] and trustAlgorithm [{}]", sslContextProtocol, keyStore, keyStoreAlgorithm, trustStore, trustStoreAlgorithm);
 
-            logger.debug("using trustStore [{}] and trustAlgorithm [{}]", trustStore, trustStoreAlgorithm);
-            Path path = Paths.get(trustStore);
-            if (Files.notExists(path)) {
-                throw new ElasticsearchIllegalStateException("could not find truststore [" + trustStore + "]");
-            }
-
-            // FIXME a keystore should be configurable and key_password also needs to be allowed. The fallback to Shield settings can be problematic without this
-            KeyManager[] keyManagers = keyManagers(trustStore, trustStorePassword, trustStoreAlgorithm, trustStorePassword);
+            SSLContext sslContext = SSLContext.getInstance(sslContextProtocol);
+            KeyManager[] keyManagers = keyManagers(keyStore, keyStorePassword, keyStoreAlgorithm, keyPassword);
             TrustManager[] trustManagers = trustManagers(trustStore, trustStorePassword, trustStoreAlgorithm);
-            sslContext = SSLContext.getInstance(sslContextProtocol);
             sslContext.init(keyManagers, trustManagers, new SecureRandom());
+            return sslContext.getSocketFactory();
         } catch (Exception e) {
             throw new RuntimeException("http client failed to initialize the SSLContext", e);
         }
-        return sslContext.getSocketFactory();
     }
 
     public SSLSocketFactory getSslSocketFactory() {
@@ -188,10 +198,14 @@ public class HttpClient extends AbstractLifecycleComponent<HttpClient> {
         if (keyStore == null) {
             return null;
         }
+        Path path = Paths.get(keyStore);
+        if (Files.notExists(path)) {
+            return null;
+        }
 
         try {
             // Load KeyStore
-            KeyStore ks = readKeystore(keyStore, keyStorePassword);
+            KeyStore ks = readKeystore(path, keyStorePassword);
 
             // Initialize KeyManagerFactory
             KeyManagerFactory kmf = KeyManagerFactory.getInstance(keyStoreAlgorithm);
@@ -202,12 +216,15 @@ public class HttpClient extends AbstractLifecycleComponent<HttpClient> {
         }
     }
 
-    private static TrustManager[] trustManagers(String trustStorePath, String trustStorePassword, String trustStoreAlgorithm) {
+    private static TrustManager[] trustManagers(String trustStore, String trustStorePassword, String trustStoreAlgorithm) {
         try {
             // Load TrustStore
             KeyStore ks = null;
-            if (trustStorePath != null) {
-                ks = readKeystore(trustStorePath, trustStorePassword);
+            if (trustStore != null) {
+                Path trustStorePath = Paths.get(trustStore);
+                if (Files.exists(trustStorePath)) {
+                    ks = readKeystore(trustStorePath, trustStorePassword);
+                }
             }
 
             // Initialize a trust manager factory with the trusted store
@@ -219,8 +236,8 @@ public class HttpClient extends AbstractLifecycleComponent<HttpClient> {
         }
     }
 
-    private static KeyStore readKeystore(String path, String password) throws Exception {
-        try (InputStream in = Files.newInputStream(Paths.get(path))) {
+    private static KeyStore readKeystore(Path path, String password) throws Exception {
+        try (InputStream in = Files.newInputStream(path)) {
             // Load TrustStore
             KeyStore ks = KeyStore.getInstance("jks");
             assert password != null;

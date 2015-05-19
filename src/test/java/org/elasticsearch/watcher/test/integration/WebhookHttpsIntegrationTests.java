@@ -59,8 +59,8 @@ public class WebhookHttpsIntegrationTests extends AbstractWatcherIntegrationTest
         }
         return ImmutableSettings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put(HttpClient.SETTINGS_SSL_TRUSTSTORE, resource.toString())
-                .put(HttpClient.SETTINGS_SSL_TRUSTSTORE_PASSWORD, "testnode")
+                .put(HttpClient.SETTINGS_SSL_KEYSTORE, resource.toString())
+                .put(HttpClient.SETTINGS_SSL_KEYSTORE_PASSWORD, "testnode")
                 .build();
     }
 

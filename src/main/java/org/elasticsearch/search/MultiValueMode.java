@@ -41,84 +41,199 @@ import java.util.Locale;
 public enum MultiValueMode {
 
     /**
-     * Sum of all the values.
+     * Pick the sum of all the values.
      */
     SUM {
-        /**
-         * Returns the sum of the two values
-         */
         @Override
-        public double apply(double a, double b) {
-            return a + b;
-        }
-
-        /**
-         * Returns the sum of the two values
-         */
-        @Override
-        public long apply(long a, long b) {
-            return a + b;
-        }
-    },
-
-    /**
-     * Average of all the values.
-     */
-    AVG {
-
-        /**
-         * Returns the sum of the two values
-         */
-        @Override
-        public double apply(double a, double b) {
-            return a + b;
-        }
-
-        /**
-         * Returns the sum of the two values
-         */
-        @Override
-        public long apply(long a, long b) {
-            return a + b;
-        }
-
-        /**
-         * Returns <code>a / Math.max(1.0d, numValues)</code>
-         */
-        @Override
-        public double reduce(double a, int numValues) {
-            return a / Math.max(1.0d, (double) numValues);
-        }
-
-        /**
-         * Returns <code>Math.round(a / Math.max(1.0, numValues))</code>
-         */
-        @Override
-        public long reduce(long a, int numValues) {
-            if (numValues <= 1) {
-                // without this the average might be different from the original
-                // values on a single-valued field due to the precision loss of the double
-                return a;
+        protected long pick(SortedNumericDocValues values, long missingValue, int doc) {
+            values.setDocument(doc);
+            final int count = values.count();
+            if (count > 0) {
+                long total = 0;
+                for (int index = 0; index < count; ++index) {
+                    total += values.valueAt(index);
+                }
+                return total;
             } else {
-                return Math.round(a / Math.max(1.0, numValues));
+                return missingValue;
+            }
+        }
+
+        @Override
+        protected long pick(SortedNumericDocValues values, long missingValue, DocIdSetIterator docItr, int startDoc, int endDoc) {
+            try {
+                int totalCount = 0;
+                long totalValue = 0;
+                for (int doc = startDoc; doc < endDoc; doc = docItr.nextDoc()) {
+                    values.setDocument(doc);
+                    final int count = values.count();
+                    for (int index = 0; index < count; ++index) {
+                        totalValue += values.valueAt(index);
+                    }
+                    totalCount += count;
+                }
+                return totalCount > 0 ? totalValue : missingValue;
+            } catch (IOException ioException) {
+                throw new RuntimeException(ioException);
+            }
+        }
+
+        @Override
+        protected double pick(SortedNumericDoubleValues values, double missingValue, int doc) {
+            values.setDocument(doc);
+            final int count = values.count();
+            if (count > 0) {
+                double total = 0;
+                for (int index = 0; index < count; ++index) {
+                    total += values.valueAt(index);
+                }
+                return total;
+            } else {
+                return missingValue;
+            }
+        }
+
+        @Override
+        protected double pick(SortedNumericDoubleValues values, double missingValue, DocIdSetIterator docItr, int startDoc, int endDoc) {
+            try {
+                int totalCount = 0;
+                double totalValue = 0;
+                for (int doc = startDoc; doc < endDoc; doc = docItr.nextDoc()) {
+                    values.setDocument(doc);
+                    final int count = values.count();
+                    for (int index = 0; index < count; ++index) {
+                        totalValue += values.valueAt(index);
+                    }
+                    totalCount += count;
+                }
+                return totalCount > 0 ? totalValue : missingValue;
+            } catch (IOException ioException) {
+                throw new RuntimeException(ioException);
+            }
+        }
+
+        @Override
+        protected double pick(UnsortedNumericDoubleValues values, double missingValue, int doc) {
+            values.setDocument(doc);
+            final int count = values.count();
+            if (count > 0) {
+                double total = 0;
+                for (int index = 0; index < count; ++index) {
+                    total += values.valueAt(index);
+                }
+                return total;
+            } else {
+                return missingValue;
             }
         }
     },
 
     /**
-     * Median of the values.
-     *
-     * Note that apply/reduce do not work with MED since median cannot be derived from
-     * an accumulator algorithm without using internal memory.
+     * Pick the average of all the values.
+     */
+    AVG {
+        @Override
+        protected long pick(SortedNumericDocValues values, long missingValue, int doc) {
+            values.setDocument(doc);
+            final int count = values.count();
+            if (count > 0) {
+                long total = 0;
+                for (int index = 0; index < count; ++index) {
+                    total += values.valueAt(index);
+                }
+                return count > 1 ? Math.round((double)total/(double)count) : total;
+            } else {
+                return missingValue;
+            }
+        }
+
+        @Override
+        protected long pick(SortedNumericDocValues values, long missingValue, DocIdSetIterator docItr, int startDoc, int endDoc) {
+            try {
+                int totalCount = 0;
+                long totalValue = 0;
+                for (int doc = startDoc; doc < endDoc; doc = docItr.nextDoc()) {
+                    values.setDocument(doc);
+                    final int count = values.count();
+                    for (int index = 0; index < count; ++index) {
+                        totalValue += values.valueAt(index);
+                    }
+                    totalCount += count;
+                }
+                if (totalCount < 1) {
+                    return missingValue;
+                }
+                return totalCount > 1 ? Math.round((double)totalValue/(double)totalCount) : totalValue;
+            } catch (IOException ioException) {
+                throw new RuntimeException(ioException);
+            }
+        }
+
+        @Override
+        protected double pick(SortedNumericDoubleValues values, double missingValue, int doc) {
+            values.setDocument(doc);
+            final int count = values.count();
+            if (count > 0) {
+                double total = 0;
+                for (int index = 0; index < count; ++index) {
+                    total += values.valueAt(index);
+                }
+                return total/count;
+            } else {
+                return missingValue;
+            }
+        }
+
+        @Override
+        protected double pick(SortedNumericDoubleValues values, double missingValue, DocIdSetIterator docItr, int startDoc, int endDoc) {
+            try {
+                int totalCount = 0;
+                double totalValue = 0;
+                for (int doc = startDoc; doc < endDoc; doc = docItr.nextDoc()) {
+                    values.setDocument(doc);
+                    final int count = values.count();
+                    for (int index = 0; index < count; ++index) {
+                        totalValue += values.valueAt(index);
+                    }
+                    totalCount += count;
+                }
+                if (totalCount < 1) {
+                    return missingValue;
+                }
+                return totalValue/totalCount;
+            } catch (IOException ioException) {
+                throw new RuntimeException(ioException);
+            }
+        }
+
+        @Override
+        protected double pick(UnsortedNumericDoubleValues values, double missingValue, int doc) {
+            values.setDocument(doc);
+            final int count = values.count();
+            if (count > 0) {
+                double total = 0;
+                for (int index = 0; index < count; ++index) {
+                    total += values.valueAt(index);
+                }
+                return total/count;
+            } else {
+                return missingValue;
+            }
+        }
+    },
+
+    /**
+     * Pick the median of the values.
      */
     MEDIAN {
         @Override
-        protected long pick(SortedNumericDocValues values, long missingValue) {
+        protected long pick(SortedNumericDocValues values, long missingValue, int doc) {
+            values.setDocument(doc);
             int count = values.count();
             if (count > 0) {
                 if (count % 2 == 0) {
                     count /= 2;
-                    return (values.valueAt(count - 1) + values.valueAt(count))/2;
+                    return Math.round((values.valueAt(count - 1) + values.valueAt(count))/2.0);
                 } else {
                     count /= 2;
                     return values.valueAt(count);
@@ -129,12 +244,13 @@ public enum MultiValueMode {
         }
 
         @Override
-        protected double pick(SortedNumericDoubleValues values, double missingValue) {
+        protected double pick(SortedNumericDoubleValues values, double missingValue, int doc) {
+            values.setDocument(doc);
             int count = values.count();
             if (count > 0) {
                 if (count % 2 == 0) {
                     count /= 2;
-                    return (values.valueAt(count - 1) + values.valueAt(count))/2;
+                    return (values.valueAt(count - 1) + values.valueAt(count))/2.0;
                 } else {
                     count /= 2;
                     return values.valueAt(count);
@@ -149,82 +265,120 @@ public enum MultiValueMode {
      * Pick the lowest value.
      */
     MIN {
-        /**
-         * Equivalent to {@link Math#min(double, double)}
-         */
         @Override
-        public double apply(double a, double b) {
-            return Math.min(a, b);
-        }
-
-        /**
-         * Equivalent to {@link Math#min(long, long)}
-         */
-        @Override
-        public long apply(long a, long b) {
-            return Math.min(a, b);
+        protected long pick(SortedNumericDocValues values, long missingValue, int doc) {
+            values.setDocument(doc);
+            final int count = values.count();
+            return count > 0 ? values.valueAt(0) : missingValue;
         }
 
         @Override
-        public int applyOrd(int ord1, int ord2) {
-            return Math.min(ord1, ord2);
-        }
-
-        @Override
-        public BytesRef apply(BytesRef a, BytesRef b) {
-            return a.compareTo(b) <= 0 ? a : b;
-        }
-
-        /**
-         * Returns {@link Double#POSITIVE_INFINITY}
-         */
-        @Override
-        public double startDouble() {
-            return Double.POSITIVE_INFINITY;
-        }
-
-        /**
-         * Returns {@link Long#MAX_VALUE}
-         */
-        @Override
-        public long startLong() {
-            return Long.MAX_VALUE;
-        }
-
-        @Override
-        protected long pick(SortedNumericDocValues values, long missingValue) {
-            if (values.count() > 0) {
-                return values.valueAt(0);
-            } else {
-                return missingValue;
+        protected long pick(SortedNumericDocValues values, long missingValue, DocIdSetIterator docItr, int startDoc, int endDoc) {
+            try {
+                int totalCount = 0;
+                long minValue = Long.MAX_VALUE;
+                for (int doc = startDoc; doc < endDoc; doc = docItr.nextDoc()) {
+                    values.setDocument(doc);
+                    final int count = values.count();
+                    if (count > 0) {
+                        minValue = Math.min(minValue, values.valueAt(0));
+                    }
+                    totalCount += count;
+                }
+                return totalCount > 0 ? minValue : missingValue;
+            } catch (IOException ioException) {
+                throw new RuntimeException(ioException);
             }
         }
 
         @Override
-        protected double pick(SortedNumericDoubleValues values, double missingValue) {
-            if (values.count() > 0) {
-                return values.valueAt(0);
-            } else {
-                return missingValue;
+        protected double pick(SortedNumericDoubleValues values, double missingValue, int doc) {
+            values.setDocument(doc);
+            int count = values.count();
+            return count > 0 ? values.valueAt(0) : missingValue;
+        }
+
+        @Override
+        protected double pick(SortedNumericDoubleValues values, double missingValue, DocIdSetIterator docItr, int startDoc, int endDoc) {
+            try {
+                int totalCount = 0;
+                double minValue = Double.MAX_VALUE;
+                for (int doc = startDoc; doc < endDoc; doc = docItr.nextDoc()) {
+                    values.setDocument(doc);
+                    final int count = values.count();
+                    if (count > 0) {
+                        minValue = Math.min(minValue, values.valueAt(0));
+                    }
+                    totalCount += count;
+                }
+                return totalCount > 0 ? minValue : missingValue;
+            } catch (IOException ioException) {
+                throw new RuntimeException(ioException);
             }
         }
 
         @Override
-        protected BytesRef pick(SortedBinaryDocValues values, BytesRef missingValue) {
-            if (values.count() > 0) {
-                return values.valueAt(0);
-            } else {
-                return missingValue;
+        protected BytesRef pick(SortedBinaryDocValues values, BytesRef missingValue, int doc) {
+            values.setDocument(doc);
+            final int count = values.count();
+            return count > 0 ? values.valueAt(0) : missingValue;
+        }
+
+        @Override
+        protected BytesRef pick(BinaryDocValues values, BytesRefBuilder builder, DocIdSetIterator docItr, int startDoc, int endDoc) {
+            try {
+                BytesRefBuilder value = null;
+                for (int doc = startDoc; doc < endDoc; doc = docItr.nextDoc()) {
+                    final BytesRef innerValue = values.get(doc);
+                    if (innerValue != null) {
+                        if (value == null) {
+                            builder.copyBytes(innerValue);
+                            value = builder;
+                        } else {
+                            final BytesRef min = value.get().compareTo(innerValue) <= 0 ? value.get() : innerValue;
+                            if (min == innerValue) {
+                                value.copyBytes(min);
+                            }
+                        }
+                    }
+                }
+                return value == null ? null : value.get();
+            } catch (IOException ioException) {
+                throw new RuntimeException(ioException);
             }
         }
 
         @Override
-        protected int pick(RandomAccessOrds values) {
-            if (values.cardinality() > 0) {
-                return (int) values.ordAt(0);
-            } else {
-                return -1;
+        protected int pick(RandomAccessOrds values, int doc) {
+            values.setDocument(doc);
+            return values.cardinality() > 0 ? (int)values.ordAt(0) : -1;
+        }
+
+        @Override
+        protected int pick(SortedDocValues values, DocIdSetIterator docItr, int startDoc, int endDoc) {
+            try {
+                int ord = -1;
+                for (int doc = startDoc; doc < endDoc; doc = docItr.nextDoc()) {
+                    final int innerOrd = values.getOrd(doc);
+                    if (innerOrd != -1) {
+                        ord = ord == -1  ? innerOrd : Math.min(ord, innerOrd);
+                    }
+                }
+                return ord;
+            } catch (IOException ioException) {
+                throw new RuntimeException(ioException);
             }
+        }
+
+        @Override
+        protected double pick(UnsortedNumericDoubleValues values, double missingValue, int doc) {
+            values.setDocument(doc);
+            int count = values.count();
+            double min = Double.MAX_VALUE;
+            for (int index = 0; index < count; ++index) {
+                min = Math.min(values.valueAt(index), min);
+            }
+            return count > 0 ? min : missingValue;
         }
     },
 
@@ -232,188 +386,123 @@ public enum MultiValueMode {
      * Pick the highest value.
      */
     MAX {
-        /**
-         * Equivalent to {@link Math#max(double, double)}
-         */
         @Override
-        public double apply(double a, double b) {
-            return Math.max(a, b);
-        }
-
-        /**
-         * Equivalent to {@link Math#max(long, long)}
-         */
-        @Override
-        public long apply(long a, long b) {
-            return Math.max(a, b);
-        }
-
-        @Override
-        public int applyOrd(int ord1, int ord2) {
-            return Math.max(ord1, ord2);
-        }
-
-        @Override
-        public BytesRef apply(BytesRef a, BytesRef b) {
-            return a.compareTo(b) > 0 ? a : b;
-        }
-
-        /**
-         * Returns {@link Double#NEGATIVE_INFINITY}
-         */
-        @Override
-        public double startDouble() {
-            return Double.NEGATIVE_INFINITY;
-        }
-
-
-        /**
-         * Returns {@link Long#MIN_VALUE}
-         */
-        @Override
-        public long startLong() {
-            return Long.MIN_VALUE;
-        }
-
-        @Override
-        protected long pick(SortedNumericDocValues values, long missingValue) {
+        protected long pick(SortedNumericDocValues values, long missingValue, int doc) {
+            values.setDocument(doc);
             final int count = values.count();
-            if (count > 0) {
-                return values.valueAt(count - 1);
-            } else {
-                return missingValue;
+            return count > 0 ? values.valueAt(count - 1) : missingValue;
+        }
+
+        @Override
+        protected long pick(SortedNumericDocValues values, long missingValue, DocIdSetIterator docItr, int startDoc, int endDoc) {
+            try {
+                int totalCount = 0;
+                long maxValue = Long.MIN_VALUE;
+                for (int doc = startDoc; doc < endDoc; doc = docItr.nextDoc()) {
+                    values.setDocument(doc);
+                    final int count = values.count();
+                    if (count > 0) {
+                        maxValue = Math.max(maxValue, values.valueAt(count - 1));
+                    }
+                    totalCount += count;
+                }
+                return totalCount > 0 ? maxValue : missingValue;
+            } catch (IOException ioException) {
+                throw new RuntimeException(ioException);
             }
         }
 
         @Override
-        protected double pick(SortedNumericDoubleValues values, double missingValue) {
+        protected double pick(SortedNumericDoubleValues values, double missingValue, int doc) {
+            values.setDocument(doc);
             final int count = values.count();
-            if (count > 0) {
-                return values.valueAt(count - 1);
-            } else {
-                return missingValue;
+            return count > 0 ? values.valueAt(count - 1) : missingValue;
+        }
+
+        @Override
+        protected double pick(SortedNumericDoubleValues values, double missingValue, DocIdSetIterator docItr, int startDoc, int endDoc) {
+            try {
+                int totalCount = 0;
+                double maxValue = Double.MIN_VALUE;
+                for (int doc = startDoc; doc < endDoc; doc = docItr.nextDoc()) {
+                    values.setDocument(doc);
+                    final int count = values.count();
+                    if (count > 0) {
+                        maxValue = Math.max(maxValue, values.valueAt(count - 1));
+                    }
+                    totalCount += count;
+                }
+                return totalCount > 0 ? maxValue : missingValue;
+            } catch (IOException ioException) {
+                throw new RuntimeException(ioException);
             }
         }
 
         @Override
-        protected BytesRef pick(SortedBinaryDocValues values, BytesRef missingValue) {
+        protected BytesRef pick(SortedBinaryDocValues values, BytesRef missingValue, int doc) {
+            values.setDocument(doc);
             final int count = values.count();
-            if (count > 0) {
-                return values.valueAt(count - 1);
-            } else {
-                return missingValue;
+            return count > 0 ? values.valueAt(count - 1) : missingValue;
+        }
+
+        @Override
+        protected BytesRef pick(BinaryDocValues values, BytesRefBuilder builder, DocIdSetIterator docItr, int startDoc, int endDoc) {
+            try {
+                BytesRefBuilder value = null;
+                for (int doc = startDoc; doc < endDoc; doc = docItr.nextDoc()) {
+                    final BytesRef innerValue = values.get(doc);
+                    if (innerValue != null) {
+                        if (value == null) {
+                            builder.copyBytes(innerValue);
+                            value = builder;
+                        } else {
+                            final BytesRef max = value.get().compareTo(innerValue) > 0 ? value.get() : innerValue;
+                            if (max == innerValue) {
+                                value.copyBytes(max);
+                            }
+                        }
+                    }
+                }
+                return value == null ? null : value.get();
+            } catch (IOException ioException) {
+                throw new RuntimeException(ioException);
             }
         }
 
         @Override
-        protected int pick(RandomAccessOrds values) {
+        protected int pick(RandomAccessOrds values, int doc) {
+            values.setDocument(doc);
             final int count = values.cardinality();
-            if (count > 0) {
-                return (int) values.ordAt(count - 1);
-            } else {
-                return -1;
+            return count > 0 ? (int)values.ordAt(count - 1) : -1;
+        }
+
+        @Override
+        protected int pick(SortedDocValues values, DocIdSetIterator docItr, int startDoc, int endDoc) {
+            try {
+                int ord = -1;
+                for (int doc = startDoc; doc < endDoc; doc = docItr.nextDoc()) {
+                    final int innerOrd = values.getOrd(doc);
+                    if (innerOrd != -1) {
+                        ord = Math.max(ord, innerOrd);
+                    }
+                }
+                return ord;
+            } catch (IOException ioException) {
+                throw new RuntimeException(ioException);
             }
+        }
+
+        @Override
+        protected double pick(UnsortedNumericDoubleValues values, double missingValue, int doc) {
+            values.setDocument(doc);
+            int count = values.count();
+            double max = Double.MIN_VALUE;
+            for (int index = 0; index < count; ++index) {
+                max = Math.max(values.valueAt(index), max);
+            }
+            return count > 0 ? max : missingValue;
         }
     };
-
-    /**
-     * Applies the sort mode and returns the result. This method is meant to be
-     * a binary function that is commonly used in a loop to find the relevant
-     * value for the sort mode in a list of values. For instance if the sort mode
-     * is {@link MultiValueMode#MAX} this method is equivalent to {@link Math#max(double, double)}.
-     *
-     * Note: all implementations are idempotent.
-     *
-     * @param a an argument
-     * @param b another argument
-     * @return the result of the function.
-     */
-    public double apply(double a, double b) {
-        throw new UnsupportedOperationException();
-    }
-
-    /**
-     * Applies the sort mode and returns the result. This method is meant to be
-     * a binary function that is commonly used in a loop to find the relevant
-     * value for the sort mode in a list of values. For instance if the sort mode
-     * is {@link MultiValueMode#MAX} this method is equivalent to {@link Math#max(long, long)}.
-     *
-     * Note: all implementations are idempotent.
-     *
-     * @param a an argument
-     * @param b another argument
-     * @return the result of the function.
-     */
-    public long apply(long a, long b) {
-        throw new UnsupportedOperationException();
-    }
-
-    public int applyOrd(int ord1, int ord2) {
-        throw new UnsupportedOperationException();
-    }
-
-    public BytesRef apply(BytesRef a, BytesRef b) {
-        throw new UnsupportedOperationException();
-    }
-
-    /**
-     * Returns an initial value for the sort mode that is guaranteed to have no impact if passed
-     * to {@link #apply(double, double)}. This value should be used as the initial value if the
-     * sort mode is applied to a non-empty list of values. For instance:
-     * <pre>
-     *     double relevantValue = sortMode.startDouble();
-     *     for (int i = 0; i < array.length; i++) {
-     *         relevantValue = sortMode.apply(array[i], relevantValue);
-     *     }
-     * </pre>
-     *
-     * Note: This method return <code>0</code> by default.
-     *
-     * @return an initial value for the sort mode.
-     */
-    public double startDouble() {
-        return 0;
-    }
-
-    /**
-     * Returns an initial value for the sort mode that is guaranteed to have no impact if passed
-     * to {@link #apply(long, long)}. This value should be used as the initial value if the
-     * sort mode is applied to a non-empty list of values. For instance:
-     * <pre>
-     *     long relevantValue = sortMode.startLong();
-     *     for (int i = 0; i < array.length; i++) {
-     *         relevantValue = sortMode.apply(array[i], relevantValue);
-     *     }
-     * </pre>
-     *
-     * Note: This method return <code>0</code> by default.
-     * @return an initial value for the sort mode.
-     */
-    public long startLong() {
-        return 0;
-    }
-
-    /**
-     * Returns the aggregated value based on the sort mode. For instance if {@link MultiValueMode#AVG} is used
-     * this method divides the given value by the number of values. The default implementation returns
-     * the first argument.
-     *
-     * Note: all implementations are idempotent.
-     */
-    public double reduce(double a, int numValues) {
-        return a;
-    }
-
-    /**
-     * Returns the aggregated value based on the sort mode. For instance if {@link MultiValueMode#AVG} is used
-     * this method divides the given value by the number of values. The default implementation returns
-     * the first argument.
-     *
-     * Note: all implementations are idempotent.
-     */
-    public long reduce(long a, int numValues) {
-        return a;
-    }
 
     /**
      * A case insensitive version of {@link #valueOf(String)}
@@ -424,20 +513,7 @@ public enum MultiValueMode {
         try {
             return valueOf(sortMode.toUpperCase(Locale.ROOT));
         } catch (Throwable t) {
-            throw new IllegalArgumentException("Illegal sort_mode " + sortMode);
-        }
-    }
-
-    protected long pick(SortedNumericDocValues values, long missingValue) {
-        final int count = values.count();
-        if (count == 0) {
-            return missingValue;
-        } else {
-            long aggregate = startLong();
-            for (int i = 0; i < count; ++i) {
-                aggregate = apply(aggregate, values.valueAt(i));
-            }
-            return reduce(aggregate, count);
+            throw new IllegalArgumentException("Illegal sort mode: " + sortMode);
         }
     }
 
@@ -445,6 +521,8 @@ public enum MultiValueMode {
      * Return a {@link NumericDocValues} instance that can be used to sort documents
      * with this mode and the provided values. When a document has no value,
      * <code>missingValue</code> is returned.
+     *
+     * Allowed Modes: SUM, AVG, MEDIAN, MIN, MAX
      */
     public NumericDocValues select(final SortedNumericDocValues values, final long missingValue) {
         final NumericDocValues singleton = DocValues.unwrapSingleton(values);
@@ -468,11 +546,14 @@ public enum MultiValueMode {
             return new NumericDocValues() {
                 @Override
                 public long get(int docID) {
-                    values.setDocument(docID);
-                    return pick(values, missingValue);
+                    return pick(values, missingValue, docID);
                 }
             };
         }
+    }
+
+    protected long pick(SortedNumericDocValues values, long missingValue, int doc) {
+        throw new IllegalArgumentException("Unsupported sort mode: " + this);
     }
 
     /**
@@ -482,7 +563,10 @@ public enum MultiValueMode {
      * For every root document, the values of its inner documents will be aggregated.
      * If none of the inner documents has a value, then <code>missingValue</code> is returned.
      *
+     * Allowed Modes: SUM, AVG, MIN, MAX
+     *
      * NOTE: Calling the returned instance on docs that are not root docs is illegal
+     *       The returned instance can only be evaluate the current and upcoming docs
      */
     public NumericDocValues select(final SortedNumericDocValues values, final long missingValue, final BitSet rootDocs, final DocIdSet innerDocSet, int maxDoc) throws IOException {
         if (rootDocs == null || innerDocSet == null) {
@@ -502,9 +586,6 @@ public enum MultiValueMode {
             public long get(int rootDoc) {
                 assert rootDocs.get(rootDoc) : "can only sort root documents";
                 assert rootDoc >= lastSeenRootDoc : "can only evaluate current and upcoming root docs";
-                // If via compareBottom this method has previously invoked for the same rootDoc then we need to use the
-                // last seen value, because innerDocs can't re-iterate over nested child docs it has already emitted,
-                // because DocIdSetIterator can only advance forwards.
                 if (rootDoc == lastSeenRootDoc) {
                     return lastEmittedValue;
                 }
@@ -517,24 +598,8 @@ public enum MultiValueMode {
                         firstNestedDoc = innerDocs.advance(prevRootDoc + 1);
                     }
 
-                    long accumulated = startLong();
-                    int numValues = 0;
-
-                    for (int doc = firstNestedDoc; doc < rootDoc; doc = innerDocs.nextDoc()) {
-                        values.setDocument(doc);
-                        final int count = values.count();
-                        for (int i = 0; i < count; ++i) {
-                            final long value = values.valueAt(i);
-                            accumulated = apply(accumulated, value);
-                        }
-                        numValues += count;
-                    }
                     lastSeenRootDoc = rootDoc;
-                    if (numValues == 0) {
-                        lastEmittedValue = missingValue;
-                    } else {
-                        lastEmittedValue = reduce(accumulated, numValues);
-                    }
+                    lastEmittedValue = pick(values, missingValue, innerDocs, firstNestedDoc, rootDoc);
                     return lastEmittedValue;
                 } catch (IOException e) {
                     throw new RuntimeException(e);
@@ -543,23 +608,16 @@ public enum MultiValueMode {
         };
     }
 
-    protected double pick(SortedNumericDoubleValues values, double missingValue) {
-        final int count = values.count();
-        if (count == 0) {
-            return missingValue;
-        } else {
-            double aggregate = startDouble();
-            for (int i = 0; i < count; ++i) {
-                aggregate = apply(aggregate, values.valueAt(i));
-            }
-            return reduce(aggregate, count);
-        }
+    protected long pick(SortedNumericDocValues values, long missingValue, DocIdSetIterator docItr, int startDoc, int endDoc) {
+        throw new IllegalArgumentException("Unsupported sort mode: " + this);
     }
 
     /**
      * Return a {@link NumericDoubleValues} instance that can be used to sort documents
      * with this mode and the provided values. When a document has no value,
      * <code>missingValue</code> is returned.
+     *
+     * Allowed Modes: SUM, AVG, MEDIAN, MIN, MAX
      */
     public NumericDoubleValues select(final SortedNumericDoubleValues values, final double missingValue) {
         final NumericDoubleValues singleton = FieldData.unwrapSingleton(values);
@@ -583,11 +641,14 @@ public enum MultiValueMode {
             return new NumericDoubleValues() {
                 @Override
                 public double get(int docID) {
-                    values.setDocument(docID);
-                    return pick(values, missingValue);
+                    return pick(values, missingValue, docID);
                 }
             };
         }
+    }
+
+    protected double pick(SortedNumericDoubleValues values, double missingValue, int doc) {
+        throw new IllegalArgumentException("Unsupported sort mode: " + this);
     }
 
     /**
@@ -597,13 +658,15 @@ public enum MultiValueMode {
      * For every root document, the values of its inner documents will be aggregated.
      * If none of the inner documents has a value, then <code>missingValue</code> is returned.
      *
+     * Allowed Modes: SUM, AVG, MIN, MAX
+     *
      * NOTE: Calling the returned instance on docs that are not root docs is illegal
+     *       The returned instance can only be evaluate the current and upcoming docs
      */
     public NumericDoubleValues select(final SortedNumericDoubleValues values, final double missingValue, final BitSet rootDocs, final DocIdSet innerDocSet, int maxDoc) throws IOException {
         if (rootDocs == null || innerDocSet == null) {
             return select(FieldData.emptySortedNumericDoubles(maxDoc), missingValue);
         }
-
         final DocIdSetIterator innerDocs = innerDocSet.iterator();
         if (innerDocs == null) {
             return select(FieldData.emptySortedNumericDoubles(maxDoc), missingValue);
@@ -630,25 +693,8 @@ public enum MultiValueMode {
                         firstNestedDoc = innerDocs.advance(prevRootDoc + 1);
                     }
 
-                    double accumulated = startDouble();
-                    int numValues = 0;
-
-                    for (int doc = firstNestedDoc; doc > prevRootDoc && doc < rootDoc; doc = innerDocs.nextDoc()) {
-                        values.setDocument(doc);
-                        final int count = values.count();
-                        for (int i = 0; i < count; ++i) {
-                            final double value = values.valueAt(i);
-                            accumulated = apply(accumulated, value);
-                        }
-                        numValues += count;
-                    }
-
                     lastSeenRootDoc = rootDoc;
-                    if (numValues == 0) {
-                        lastEmittedValue = missingValue;
-                    } else {
-                        lastEmittedValue = reduce(accumulated, numValues);
-                    }
+                    lastEmittedValue = pick(values, missingValue, innerDocs, firstNestedDoc, rootDoc);
                     return lastEmittedValue;
                 } catch (IOException e) {
                     throw new RuntimeException(e);
@@ -657,7 +703,7 @@ public enum MultiValueMode {
         };
     }
 
-    protected BytesRef pick(SortedBinaryDocValues values, BytesRef missingValue) {
+    protected double pick(SortedNumericDoubleValues values, double missingValue, DocIdSetIterator docItr, int startDoc, int endDoc) {
         throw new IllegalArgumentException("Unsupported sort mode: " + this);
     }
 
@@ -665,6 +711,8 @@ public enum MultiValueMode {
      * Return a {@link BinaryDocValues} instance that can be used to sort documents
      * with this mode and the provided values. When a document has no value,
      * <code>missingValue</code> is returned.
+     *
+     * Allowed Modes: MIN, MAX
      */
     public BinaryDocValues select(final SortedBinaryDocValues values, final BytesRef missingValue) {
         final BinaryDocValues singleton = FieldData.unwrapSingleton(values);
@@ -688,11 +736,14 @@ public enum MultiValueMode {
             return new BinaryDocValues() {
                 @Override
                 public BytesRef get(int docID) {
-                    values.setDocument(docID);
-                    return pick(values, missingValue);
+                    return pick(values, missingValue, docID);
                 }
             };
         }
+    }
+
+    protected BytesRef pick(SortedBinaryDocValues values, BytesRef missingValue, int doc) {
+        throw new IllegalArgumentException("Unsupported sort mode: " + this);
     }
 
     /**
@@ -702,28 +753,24 @@ public enum MultiValueMode {
      * For every root document, the values of its inner documents will be aggregated.
      * If none of the inner documents has a value, then <code>missingValue</code> is returned.
      *
+     * Allowed Modes: MIN, MAX
+     *
      * NOTE: Calling the returned instance on docs that are not root docs is illegal
+     *       The returned instance can only be evaluate the current and upcoming docs
      */
     public BinaryDocValues select(final SortedBinaryDocValues values, final BytesRef missingValue, final BitSet rootDocs, final DocIdSet innerDocSet, int maxDoc) throws IOException {
         if (rootDocs == null || innerDocSet == null) {
             return select(FieldData.emptySortedBinary(maxDoc), missingValue);
         }
-
         final DocIdSetIterator innerDocs = innerDocSet.iterator();
         if (innerDocs == null) {
             return select(FieldData.emptySortedBinary(maxDoc), missingValue);
         }
+        final BinaryDocValues selectedValues = select(values, null);
 
-        final BinaryDocValues selectedValues = select(values, new BytesRef());
-        final Bits docsWithValue;
-        if (FieldData.unwrapSingleton(values) != null) {
-            docsWithValue = FieldData.unwrapSingletonBits(values);
-        } else {
-            docsWithValue = FieldData.docsWithValue(values, maxDoc);
-        }
         return new BinaryDocValues() {
 
-            final BytesRefBuilder spare = new BytesRefBuilder();
+            final BytesRefBuilder builder = new BytesRefBuilder();
 
             int lastSeenRootDoc = 0;
             BytesRef lastEmittedValue = missingValue;
@@ -745,29 +792,10 @@ public enum MultiValueMode {
                         firstNestedDoc = innerDocs.advance(prevRootDoc + 1);
                     }
 
-                    BytesRefBuilder accumulated = null;
-
-                    for (int doc = firstNestedDoc; doc > prevRootDoc && doc < rootDoc; doc = innerDocs.nextDoc()) {
-                        values.setDocument(doc);
-                        final BytesRef innerValue = selectedValues.get(doc);
-                        if (innerValue.length > 0 || docsWithValue == null || docsWithValue.get(doc)) {
-                            if (accumulated == null) {
-                                spare.copyBytes(innerValue);
-                                accumulated = spare;
-                            } else {
-                                final BytesRef applied = apply(accumulated.get(), innerValue);
-                                if (applied == innerValue) {
-                                    accumulated.copyBytes(innerValue);
-                                }
-                            }
-                        }
-                    }
-
                     lastSeenRootDoc = rootDoc;
-                    if (accumulated == null) {
+                    lastEmittedValue = pick(selectedValues, builder, innerDocs, firstNestedDoc, rootDoc);
+                    if (lastEmittedValue == null) {
                         lastEmittedValue = missingValue;
-                    } else {
-                        lastEmittedValue = accumulated.get();
                     }
                     return lastEmittedValue;
                 } catch (IOException e) {
@@ -777,13 +805,15 @@ public enum MultiValueMode {
         };
     }
 
-    protected int pick(RandomAccessOrds values) {
+    protected BytesRef pick(BinaryDocValues values, BytesRefBuilder builder, DocIdSetIterator docItr, int startDoc, int endDoc) {
         throw new IllegalArgumentException("Unsupported sort mode: " + this);
     }
 
     /**
      * Return a {@link SortedDocValues} instance that can be used to sort documents
      * with this mode and the provided values.
+     *
+     * Allowed Modes: MIN, MAX
      */
     public SortedDocValues select(final RandomAccessOrds values) {
         if (values.getValueCount() >= Integer.MAX_VALUE) {
@@ -797,8 +827,7 @@ public enum MultiValueMode {
             return new SortedDocValues() {
                 @Override
                 public int getOrd(int docID) {
-                    values.setDocument(docID);
-                    return pick(values);
+                    return pick(values, docID);
                 }
 
                 @Override
@@ -808,10 +837,14 @@ public enum MultiValueMode {
 
                 @Override
                 public int getValueCount() {
-                    return (int) values.getValueCount();
+                    return (int)values.getValueCount();
                 }
             };
         }
+    }
+
+    protected int pick(RandomAccessOrds values, int doc) {
+        throw new IllegalArgumentException("Unsupported sort mode: " + this);
     }
 
     /**
@@ -820,19 +853,21 @@ public enum MultiValueMode {
      *
      * For every root document, the values of its inner documents will be aggregated.
      *
+     * Allowed Modes: MIN, MAX
+     *
      * NOTE: Calling the returned instance on docs that are not root docs is illegal
+     *       The returned instance can only be evaluate the current and upcoming docs
      */
     public SortedDocValues select(final RandomAccessOrds values, final BitSet rootDocs, final DocIdSet innerDocSet) throws IOException {
         if (rootDocs == null || innerDocSet == null) {
             return select(DocValues.emptySortedSet());
         }
-
         final DocIdSetIterator innerDocs = innerDocSet.iterator();
         if (innerDocs == null) {
             return select(DocValues.emptySortedSet());
         }
-
         final SortedDocValues selectedValues = select(values);
+
         return new SortedDocValues() {
 
             int lastSeenRootDoc = 0;
@@ -864,25 +899,46 @@ public enum MultiValueMode {
                     } else {
                         firstNestedDoc = innerDocs.advance(prevRootDoc + 1);
                     }
-                    int ord = -1;
-
-                    for (int doc = firstNestedDoc; doc > prevRootDoc && doc < rootDoc; doc = innerDocs.nextDoc()) {
-                        final int innerOrd = selectedValues.getOrd(doc);
-                        if (innerOrd != -1) {
-                            if (ord == -1) {
-                                ord = innerOrd;
-                            } else {
-                                ord = applyOrd(ord, innerOrd);
-                            }
-                        }
-                    }
 
                     lastSeenRootDoc = rootDoc;
-                    return lastEmittedOrd = ord;
+                    return lastEmittedOrd = pick(selectedValues, innerDocs, firstNestedDoc, rootDoc);
                 } catch (IOException e) {
                     throw new RuntimeException(e);
                 }
             }
         };
+    }
+
+    protected int pick(SortedDocValues values, DocIdSetIterator docItr, int startDoc, int endDoc) {
+        throw new IllegalArgumentException("Unsupported sort mode: " + this);
+    }
+
+    /**
+     * Return a {@link NumericDoubleValues} instance that can be used to sort documents
+     * with this mode and the provided values. When a document has no value,
+     * <code>missingValue</code> is returned.
+     *
+     * Allowed Modes: SUM, AVG, MIN, MAX
+     */
+    public NumericDoubleValues select(final UnsortedNumericDoubleValues values, final double missingValue) {
+        return new NumericDoubleValues() {
+            @Override
+            public double get(int docID) {
+                return pick(values, missingValue, docID);
+            }
+        };
+    }
+
+    protected double pick(UnsortedNumericDoubleValues values, final double missingValue, int doc) {
+        throw new IllegalArgumentException("Unsupported sort mode: " + this);
+    }
+
+    /**
+     * Interface allowing custom value generators to be used in MultiValueMode.
+     */
+    public interface UnsortedNumericDoubleValues {
+        int count();
+        void setDocument(int docId);
+        double valueAt(int index);
     }
 }

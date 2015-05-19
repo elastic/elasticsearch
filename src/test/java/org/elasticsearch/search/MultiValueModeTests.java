@@ -32,8 +32,6 @@ import org.elasticsearch.test.ElasticsearchTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.HashSet;
-import java.util.Set;
 
 public class MultiValueModeTests extends ElasticsearchTestCase {
 
@@ -124,23 +122,39 @@ public class MultiValueModeTests extends ElasticsearchTestCase {
     private void verify(SortedNumericDocValues values, int maxDoc) {
         for (long missingValue : new long[] { 0, randomLong() }) {
             for (MultiValueMode mode : MultiValueMode.values()) {
-                if (MultiValueMode.MEDIAN.equals(mode)) {
-                    continue;
-                }
                 final NumericDocValues selected = mode.select(values, missingValue);
                 for (int i = 0; i < maxDoc; ++i) {
                     final long actual = selected.get(i);
-                    long expected;
+                    long expected = 0;
                     values.setDocument(i);
                     int numValues = values.count();
                     if (numValues == 0) {
                         expected = missingValue;
                     } else {
-                        expected = mode.startLong();
-                        for (int j = 0; j < numValues; ++j) {
-                            expected = mode.apply(expected, values.valueAt(j));
+                        if (mode == MultiValueMode.MAX) {
+                            expected = Long.MIN_VALUE;
+                        } else if (mode == MultiValueMode.MIN) {
+                            expected = Long.MAX_VALUE;
                         }
-                        expected = mode.reduce(expected, numValues);
+                        for (int j = 0; j < numValues; ++j) {
+                            if (mode == MultiValueMode.SUM || mode == MultiValueMode.AVG) {
+                                expected += values.valueAt(j);
+                            } else if (mode == MultiValueMode.MIN) {
+                                expected = Math.min(expected, values.valueAt(j));
+                            } else if (mode == MultiValueMode.MAX) {
+                                expected = Math.max(expected, values.valueAt(j));
+                            }
+                        }
+                        if (mode == MultiValueMode.AVG) {
+                            expected = numValues > 1 ? Math.round((double)expected/(double)numValues) : expected;
+                        } else if (mode == MultiValueMode.MEDIAN) {
+                            int value = numValues/2;
+                            if (numValues % 2 == 0) {
+                                expected = Math.round((values.valueAt(value - 1) + values.valueAt(value))/2.0);
+                            } else {
+                                expected = values.valueAt(value);
+                            }
+                        }
                     }
 
                     assertEquals(mode.toString() + " docId=" + i, expected, actual);
@@ -151,27 +165,35 @@ public class MultiValueModeTests extends ElasticsearchTestCase {
 
     private void verify(SortedNumericDocValues values, int maxDoc, FixedBitSet rootDocs, FixedBitSet innerDocs) throws IOException {
         for (long missingValue : new long[] { 0, randomLong() }) {
-            for (MultiValueMode mode : MultiValueMode.values()) {
-                if (MultiValueMode.MEDIAN.equals(mode)) {
-                    continue;
-                }
+            for (MultiValueMode mode : new MultiValueMode[] {MultiValueMode.MIN, MultiValueMode.MAX, MultiValueMode.SUM, MultiValueMode.AVG}) {
                 final NumericDocValues selected = mode.select(values, missingValue, rootDocs, new BitDocIdSet(innerDocs), maxDoc);
                 int prevRoot = -1;
                 for (int root = rootDocs.nextSetBit(0); root != -1; root = root + 1 < maxDoc ? rootDocs.nextSetBit(root + 1) : -1) {
                     final long actual = selected.get(root);
-                    long expected = mode.startLong();
+                    long expected = 0;
+                    if (mode == MultiValueMode.MAX) {
+                        expected = Long.MIN_VALUE;
+                    } else if (mode == MultiValueMode.MIN) {
+                        expected = Long.MAX_VALUE;
+                    }
                     int numValues = 0;
                     for (int child = innerDocs.nextSetBit(prevRoot + 1); child != -1 && child < root; child = innerDocs.nextSetBit(child + 1)) {
                         values.setDocument(child);
                         for (int j = 0; j < values.count(); ++j) {
-                            expected = mode.apply(expected, values.valueAt(j));
+                            if (mode == MultiValueMode.SUM || mode == MultiValueMode.AVG) {
+                                expected += values.valueAt(j);
+                            } else if (mode == MultiValueMode.MIN) {
+                                expected = Math.min(expected, values.valueAt(j));
+                            } else if (mode == MultiValueMode.MAX) {
+                                expected = Math.max(expected, values.valueAt(j));
+                            }
                             ++numValues;
                         }
                     }
                     if (numValues == 0) {
                         expected = missingValue;
-                    } else {
-                        expected = mode.reduce(expected, numValues);
+                    } else if (mode == MultiValueMode.AVG) {
+                        expected = numValues > 1 ? Math.round((double) expected / (double) numValues) : expected;
                     }
 
                     assertEquals(mode.toString() + " docId=" + root, expected, actual);
@@ -253,17 +275,36 @@ public class MultiValueModeTests extends ElasticsearchTestCase {
                 final NumericDoubleValues selected = mode.select(values, missingValue);
                 for (int i = 0; i < maxDoc; ++i) {
                     final double actual = selected.get(i);
-                    double expected;
+                    double expected = 0.0;
                     values.setDocument(i);
                     int numValues = values.count();
                     if (numValues == 0) {
                         expected = missingValue;
                     } else {
-                        expected = mode.startLong();
-                        for (int j = 0; j < numValues; ++j) {
-                            expected = mode.apply(expected, values.valueAt(j));
+                        if (mode == MultiValueMode.MAX) {
+                            expected = Long.MIN_VALUE;
+                        } else if (mode == MultiValueMode.MIN) {
+                            expected = Long.MAX_VALUE;
                         }
-                        expected = mode.reduce(expected, numValues);
+                        for (int j = 0; j < numValues; ++j) {
+                            if (mode == MultiValueMode.SUM || mode == MultiValueMode.AVG) {
+                                expected += values.valueAt(j);
+                            } else if (mode == MultiValueMode.MIN) {
+                                expected = Math.min(expected, values.valueAt(j));
+                            } else if (mode == MultiValueMode.MAX) {
+                                expected = Math.max(expected, values.valueAt(j));
+                            }
+                        }
+                        if (mode == MultiValueMode.AVG) {
+                            expected = expected/numValues;
+                        } else if (mode == MultiValueMode.MEDIAN) {
+                            int value = numValues/2;
+                            if (numValues % 2 == 0) {
+                                expected = (values.valueAt(value - 1) + values.valueAt(value))/2.0;
+                            } else {
+                                expected = values.valueAt(value);
+                            }
+                        }
                     }
 
                     assertEquals(mode.toString() + " docId=" + i, expected, actual, 0.1);
@@ -274,27 +315,35 @@ public class MultiValueModeTests extends ElasticsearchTestCase {
 
     private void verify(SortedNumericDoubleValues values, int maxDoc, FixedBitSet rootDocs, FixedBitSet innerDocs) throws IOException {
         for (long missingValue : new long[] { 0, randomLong() }) {
-            for (MultiValueMode mode : MultiValueMode.values()) {
-                if (MultiValueMode.MEDIAN.equals(mode)) {
-                    continue;
-                }
+            for (MultiValueMode mode : new MultiValueMode[] {MultiValueMode.MIN, MultiValueMode.MAX, MultiValueMode.SUM, MultiValueMode.AVG}) {
                 final NumericDoubleValues selected = mode.select(values, missingValue, rootDocs, new BitDocIdSet(innerDocs), maxDoc);
                 int prevRoot = -1;
                 for (int root = rootDocs.nextSetBit(0); root != -1; root = root + 1 < maxDoc ? rootDocs.nextSetBit(root + 1) : -1) {
                     final double actual = selected.get(root);
-                    double expected = mode.startLong();
+                    double expected = 0.0;
+                    if (mode == MultiValueMode.MAX) {
+                        expected = Long.MIN_VALUE;
+                    } else if (mode == MultiValueMode.MIN) {
+                        expected = Long.MAX_VALUE;
+                    }
                     int numValues = 0;
                     for (int child = innerDocs.nextSetBit(prevRoot + 1); child != -1 && child < root; child = innerDocs.nextSetBit(child + 1)) {
                         values.setDocument(child);
                         for (int j = 0; j < values.count(); ++j) {
-                            expected = mode.apply(expected, values.valueAt(j));
+                            if (mode == MultiValueMode.SUM || mode == MultiValueMode.AVG) {
+                                expected += values.valueAt(j);
+                            } else if (mode == MultiValueMode.MIN) {
+                                expected = Math.min(expected, values.valueAt(j));
+                            } else if (mode == MultiValueMode.MAX) {
+                                expected = Math.max(expected, values.valueAt(j));
+                            }
                             ++numValues;
                         }
                     }
                     if (numValues == 0) {
                         expected = missingValue;
-                    } else {
-                        expected = mode.reduce(expected, numValues);
+                    } else if (mode == MultiValueMode.AVG) {
+                        expected = expected/numValues;
                     }
 
                     assertEquals(mode.toString() + " docId=" + root, expected, actual, 0.1);
@@ -386,7 +435,11 @@ public class MultiValueModeTests extends ElasticsearchTestCase {
                             if (expected == null) {
                                 expected = BytesRef.deepCopyOf(values.valueAt(j));
                             } else {
-                                expected = mode.apply(expected, BytesRef.deepCopyOf(values.valueAt(j)));
+                                if (mode == MultiValueMode.MIN) {
+                                    expected = expected.compareTo(values.valueAt(j)) <= 0 ? expected : BytesRef.deepCopyOf(values.valueAt(j));
+                                } else if (mode == MultiValueMode.MAX) {
+                                    expected = expected.compareTo(values.valueAt(j)) > 0 ? expected : BytesRef.deepCopyOf(values.valueAt(j));
+                                }
                             }
                         }
                         if (expected == null) {
@@ -414,9 +467,12 @@ public class MultiValueModeTests extends ElasticsearchTestCase {
                             if (expected == null) {
                                 expected = BytesRef.deepCopyOf(values.valueAt(j));
                             } else {
-                                expected = mode.apply(expected, values.valueAt(j));
+                                if (mode == MultiValueMode.MIN) {
+                                    expected = expected.compareTo(values.valueAt(j)) <= 0 ? expected : BytesRef.deepCopyOf(values.valueAt(j));
+                                } else if (mode == MultiValueMode.MAX) {
+                                    expected = expected.compareTo(values.valueAt(j)) > 0 ? expected : BytesRef.deepCopyOf(values.valueAt(j));
+                                }
                             }
-                            expected = mode.apply(expected, BytesRef.deepCopyOf(values.valueAt(j)));
                         }
                     }
                     if (expected == null) {
@@ -525,7 +581,11 @@ public class MultiValueModeTests extends ElasticsearchTestCase {
                     if (expected == -1) {
                         expected = (int) values.ordAt(j);
                     } else {
-                        expected = mode.applyOrd(expected, (int) values.ordAt(j));
+                        if (mode == MultiValueMode.MIN) {
+                            expected = Math.min(expected, (int)values.ordAt(j));
+                        } else if (mode == MultiValueMode.MAX) {
+                            expected = Math.max(expected, (int)values.ordAt(j));
+                        }
                     }
                 }
 
@@ -547,7 +607,11 @@ public class MultiValueModeTests extends ElasticsearchTestCase {
                         if (expected == -1) {
                             expected = (int) values.ordAt(j);
                         } else {
-                            expected = mode.applyOrd(expected, (int) values.ordAt(j));
+                            if (mode == MultiValueMode.MIN) {
+                                expected = Math.min(expected, (int)values.ordAt(j));
+                            } else if (mode == MultiValueMode.MAX) {
+                                expected = Math.max(expected, (int)values.ordAt(j));
+                            }
                         }
                     }
                 }
@@ -555,6 +619,117 @@ public class MultiValueModeTests extends ElasticsearchTestCase {
                 assertEquals(mode.toString() + " docId=" + root, expected, actual);
 
                 prevRoot = root;
+            }
+        }
+    }
+
+    public void testUnsortedSingleValuedDoubles() throws Exception  {
+        final int numDocs = scaledRandomIntBetween(1, 100);
+        final double[] array = new double[numDocs];
+        final FixedBitSet docsWithValue = randomBoolean() ? null : new FixedBitSet(numDocs);
+        for (int i = 0; i < array.length; ++i) {
+            if (randomBoolean()) {
+                array[i] = randomDouble();
+                if (docsWithValue != null) {
+                    docsWithValue.set(i);
+                }
+            } else if (docsWithValue != null && randomBoolean()) {
+                docsWithValue.set(i);
+            }
+        }
+        final NumericDoubleValues singleValues = new NumericDoubleValues() {
+            @Override
+            public double get(int docID) {
+                return array[docID];
+            }
+        };
+        final SortedNumericDoubleValues singletonValues = FieldData.singleton(singleValues, docsWithValue);
+        final MultiValueMode.UnsortedNumericDoubleValues multiValues = new MultiValueMode.UnsortedNumericDoubleValues() {
+            int doc;
+
+            @Override
+            public int count() {
+                return singletonValues.count();
+            }
+
+            @Override
+            public void setDocument(int doc) {
+                singletonValues.setDocument(doc);
+            }
+
+            @Override
+            public double valueAt(int index) {
+                return Math.cos(singletonValues.valueAt(index));
+            }
+        };
+        verify(multiValues, numDocs);
+    }
+
+    public void testUnsortedMultiValuedDoubles() throws Exception  {
+        final int numDocs = scaledRandomIntBetween(1, 100);
+        final double[][] array = new double[numDocs][];
+        for (int i = 0; i < numDocs; ++i) {
+            final double[] values = new double[randomInt(4)];
+            for (int j = 0; j < values.length; ++j) {
+                values[j] = randomDouble();
+            }
+            Arrays.sort(values);
+            array[i] = values;
+        }
+        final MultiValueMode.UnsortedNumericDoubleValues multiValues = new MultiValueMode.UnsortedNumericDoubleValues() {
+            int doc;
+
+            @Override
+            public int count() {
+                return array[doc].length;
+            }
+
+            @Override
+            public void setDocument(int doc) {
+                this.doc = doc;
+            }
+
+            @Override
+            public double valueAt(int index) {
+                return Math.sin(array[doc][index]);
+            }
+        };
+        verify(multiValues, numDocs);
+    }
+
+    private void verify(MultiValueMode.UnsortedNumericDoubleValues values, int maxDoc) {
+        for (double missingValue : new double[] { 0, randomDouble() }) {
+            for (MultiValueMode mode : new MultiValueMode[] {MultiValueMode.MIN, MultiValueMode.MAX, MultiValueMode.SUM, MultiValueMode.AVG}) {
+                final NumericDoubleValues selected = mode.select(values, missingValue);
+                for (int i = 0; i < maxDoc; ++i) {
+                    final double actual = selected.get(i);
+                    double expected = 0.0;
+                    values.setDocument(i);
+                    int numValues = values.count();
+                    if (numValues == 0) {
+                        expected = missingValue;
+                    } else {
+                        if (mode == MultiValueMode.MAX) {
+                            expected = Long.MIN_VALUE;
+                        } else if (mode == MultiValueMode.MIN) {
+                            expected = Long.MAX_VALUE;
+                        }
+                        for (int j = 0; j < numValues; ++j) {
+                            if (mode == MultiValueMode.SUM || mode == MultiValueMode.AVG) {
+                                expected += values.valueAt(j);
+                            } else if (mode == MultiValueMode.MIN) {
+                                expected = Math.min(expected, values.valueAt(j));
+                            } else if (mode == MultiValueMode.MAX) {
+                                expected = Math.max(expected, values.valueAt(j));
+                            }
+                        }
+                        if (mode == MultiValueMode.AVG) {
+                            expected = expected/numValues;
+                        }
+                    }
+
+                    assertEquals(mode.toString() + " docId=" + i, expected, actual, 0.1);
+                }
             }
         }
     }

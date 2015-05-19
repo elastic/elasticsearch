@@ -652,16 +652,6 @@ public class PercolateContext extends SearchContext {
     }
 
     @Override
-    public MapperService.SmartNameFieldMappers smartFieldMappers(String name) {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public FieldMappers smartNameFieldMappers(String name) {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
     public FieldMapper smartNameFieldMapper(String name) {
         return mapperService().smartNameFieldMapper(name, types);
     }

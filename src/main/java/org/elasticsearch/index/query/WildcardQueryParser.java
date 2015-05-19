@@ -25,7 +25,7 @@ import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.query.support.QueryParsers;
 
 import java.io.IOException;
@@ -93,10 +93,10 @@ public class WildcardQueryParser implements QueryParser {
         }
 
         BytesRef valueBytes;
-        MapperService.SmartNameFieldMappers smartNameFieldMappers = parseContext.smartFieldMappers(fieldName);
-        if (smartNameFieldMappers != null && smartNameFieldMappers.hasMapper()) {
-            fieldName = smartNameFieldMappers.mapper().names().indexName();
-            valueBytes = smartNameFieldMappers.mapper().indexedValueForSearch(value);
+        FieldMapper mapper = parseContext.fieldMapper(fieldName);
+        if (mapper != null) {
+            fieldName = mapper.names().indexName();
+            valueBytes = mapper.indexedValueForSearch(value);
         } else {
             valueBytes = new BytesRef(value);
         }

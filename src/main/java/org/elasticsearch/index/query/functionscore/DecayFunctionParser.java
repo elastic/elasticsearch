@@ -40,7 +40,6 @@ import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
@@ -152,12 +151,11 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
 
         // now, the field must exist, else we cannot read the value for
         // the doc later
-        MapperService.SmartNameFieldMappers smartMappers = parseContext.smartFieldMappers(fieldName);
-        if (smartMappers == null || !smartMappers.hasMapper()) {
+        FieldMapper mapper = parseContext.fieldMapper(fieldName);
+        if (mapper == null) {
             throw new QueryParsingException(parseContext, "Unknown field [" + fieldName + "]");
         }
 
-        FieldMapper<?> mapper = smartMappers.fieldMappers().mapper();
         // dates and time need special handling
         parser.nextToken();
         if (mapper instanceof DateFieldMapper) {

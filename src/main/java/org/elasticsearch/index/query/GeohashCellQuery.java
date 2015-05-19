@@ -32,7 +32,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
 
@@ -237,12 +236,11 @@ public class GeohashCellQuery {
                 throw new QueryParsingException(parseContext, "no geohash value provided to geohash_cell filter");
             }
 
-            MapperService.SmartNameFieldMappers smartMappers = parseContext.smartFieldMappers(fieldName);
-            if (smartMappers == null || !smartMappers.hasMapper()) {
+            FieldMapper mapper = parseContext.fieldMapper(fieldName);
+            if (mapper == null) {
                 throw new QueryParsingException(parseContext, "failed to find geo_point field [" + fieldName + "]");
             }
 
-            FieldMapper<?> mapper = smartMappers.mapper();
             if (!(mapper instanceof GeoPointFieldMapper)) {
                 throw new QueryParsingException(parseContext, "field [" + fieldName + "] is not a geo_point field");
             }

@@ -29,7 +29,6 @@ import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
 import org.elasticsearch.index.search.geo.GeoDistanceRangeQuery;
 
@@ -148,11 +147,10 @@ public class GeoDistanceQueryParser implements QueryParser {
             GeoUtils.normalizePoint(point, normalizeLat, normalizeLon);
         }
 
-        MapperService.SmartNameFieldMappers smartMappers = parseContext.smartFieldMappers(fieldName);
-        if (smartMappers == null || !smartMappers.hasMapper()) {
+        FieldMapper mapper = parseContext.fieldMapper(fieldName);
+        if (mapper == null) {
             throw new QueryParsingException(parseContext, "failed to find geo_point field [" + fieldName + "]");
         }
-        FieldMapper<?> mapper = smartMappers.mapper();
         if (!(mapper instanceof GeoPointFieldMapper)) {
             throw new QueryParsingException(parseContext, "field [" + fieldName + "] is not a geo_point field");
         }

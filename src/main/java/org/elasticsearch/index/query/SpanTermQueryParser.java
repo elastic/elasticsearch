@@ -26,7 +26,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.FieldMapper;
 
 import java.io.IOException;
 
@@ -93,12 +93,10 @@ public class SpanTermQueryParser implements QueryParser {
         }
 
         BytesRef valueBytes = null;
-        MapperService.SmartNameFieldMappers smartNameFieldMappers = parseContext.smartFieldMappers(fieldName);
-        if (smartNameFieldMappers != null) {
-            if (smartNameFieldMappers.hasMapper()) {
-                fieldName = smartNameFieldMappers.mapper().names().indexName();
-                valueBytes = smartNameFieldMappers.mapper().indexedValueForSearch(value);
-            }
+        FieldMapper mapper = parseContext.fieldMapper(fieldName);
+        if (mapper != null) {
+            fieldName = mapper.names().indexName();
+            valueBytes = mapper.indexedValueForSearch(value);
         }
         if (valueBytes == null) {
             valueBytes = new BytesRef(value);

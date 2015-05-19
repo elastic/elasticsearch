@@ -693,14 +693,13 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         }
 
         public MetadataSnapshot(StreamInput in) throws IOException {
-
-            int size = in.readVInt();
-            ImmutableMap.Builder<String, StoreFileMetaData> metadataBuilder = ImmutableMap.builder();
+            final int size = in.readVInt();
+            final ImmutableMap.Builder<String, StoreFileMetaData> metadataBuilder = ImmutableMap.builder();
             for (int i = 0; i < size; i++) {
                 StoreFileMetaData meta = StoreFileMetaData.readStoreFileMetaData(in);
                 metadataBuilder.put(meta.name(), meta);
             }
-            ImmutableMap.Builder<String, String> commitUserDataBuilder = ImmutableMap.builder();
+            final ImmutableMap.Builder<String, String> commitUserDataBuilder = ImmutableMap.builder();
             int num = in.readVInt();
             for (int i = num; i > 0; i--) {
                 commitUserDataBuilder.put(in.readString(), in.readString());
@@ -712,16 +711,19 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             assert metadata.isEmpty() || numSegmentFiles() == 1 : "numSegmentFiles: " + numSegmentFiles();
         }
 
+        /**
+         * Returns the number of documents in this store snapshot
+         */
         public long getNumDocs() {
             return numDocs;
         }
 
-        public static class LoadedMetadata {
-            ImmutableMap<String, StoreFileMetaData> fileMetadata;
-            ImmutableMap<String, String> userData;
-            long numDocs;
+        static class LoadedMetadata {
+            final ImmutableMap<String, StoreFileMetaData> fileMetadata;
+            final ImmutableMap<String, String> userData;
+            final long numDocs;
 
-            public LoadedMetadata(ImmutableMap<String, StoreFileMetaData> fileMetadata, ImmutableMap<String, String> userData, long numDocs) {
+            LoadedMetadata(ImmutableMap<String, StoreFileMetaData> fileMetadata, ImmutableMap<String, String> userData, long numDocs) {
                 this.fileMetadata = fileMetadata;
                 this.userData = userData;
                 this.numDocs = numDocs;

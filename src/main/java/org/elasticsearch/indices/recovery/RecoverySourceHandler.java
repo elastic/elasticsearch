@@ -210,8 +210,8 @@ public class RecoverySourceHandler {
             final boolean recoverWithSyncId = recoverySourceSyncId != null &&
                     recoverySourceSyncId.equals(recoveryTargetSyncId);
             if (recoverWithSyncId) {
-                long numDocsTarget = request.metadataSnapshot().getNumDocs();
-                long numDocsSource = recoverySourceMetadata.getNumDocs();
+                final long numDocsTarget = request.metadataSnapshot().getNumDocs();
+                final long numDocsSource = recoverySourceMetadata.getNumDocs();
                 if (numDocsTarget != numDocsSource) {
                     throw new IllegalStateException("try to recover " + request.shardId() + " from primary shard with sync id but number of docs differ: " + numDocsTarget + " (" + request.sourceNode().getName() + ", primary) vs " + numDocsSource + "(" + request.targetNode().getName() + ")");
                 }

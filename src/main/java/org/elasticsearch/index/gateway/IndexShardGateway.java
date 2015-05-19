@@ -37,6 +37,7 @@ import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -53,7 +54,6 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 public class IndexShardGateway extends AbstractIndexShardComponent implements Closeable {
 
-    private final ThreadPool threadPool;
     private final MappingUpdatedAction mappingUpdatedAction;
     private final IndexService indexService;
     private final IndexShard indexShard;
@@ -63,10 +63,9 @@ public class IndexShardGateway extends AbstractIndexShardComponent implements Cl
 
 
     @Inject
-    public IndexShardGateway(ShardId shardId, @IndexSettings Settings indexSettings, ThreadPool threadPool, MappingUpdatedAction mappingUpdatedAction,
+    public IndexShardGateway(ShardId shardId, @IndexSettings Settings indexSettings, MappingUpdatedAction mappingUpdatedAction,
                              IndexService indexService, IndexShard indexShard) {
         super(shardId, indexSettings);
-        this.threadPool = threadPool;
         this.mappingUpdatedAction = mappingUpdatedAction;
         this.indexService = indexService;
         this.indexShard = indexShard;
@@ -82,16 +81,17 @@ public class IndexShardGateway extends AbstractIndexShardComponent implements Cl
         long version = -1;
         final Map<String, Mapping> typesToUpdate;
         SegmentInfos si = null;
-        indexShard.store().incRef();
+        final Store store = indexShard.store();
+        store.incRef();
         try {
             try {
-                indexShard.store().failIfCorrupted();
+                store.failIfCorrupted();
                 try {
-                    si = Lucene.readSegmentInfos(indexShard.store().directory());
+                    si = store.readLastCommittedSegmentsInfo();
                 } catch (Throwable e) {
                     String files = "_unknown_";
                     try {
-                        files = Arrays.toString(indexShard.store().directory().listAll());
+                        files = Arrays.toString(store.directory().listAll());
                     } catch (Throwable e1) {
                         files += " (failure=" + ExceptionsHelper.detailedMessage(e1) + ")";
                     }
@@ -106,7 +106,7 @@ public class IndexShardGateway extends AbstractIndexShardComponent implements Cl
                         // it exists on the directory, but shouldn't exist on the FS, its a leftover (possibly dangling)
                         // its a "new index create" API, we have to do something, so better to clean it than use same data
                         logger.trace("cleaning existing shard, shouldn't exists");
-                        IndexWriter writer = new IndexWriter(indexShard.store().directory(), new IndexWriterConfig(Lucene.STANDARD_ANALYZER).setOpenMode(IndexWriterConfig.OpenMode.CREATE));
+                        IndexWriter writer = new IndexWriter(store.directory(), new IndexWriterConfig(Lucene.STANDARD_ANALYZER).setOpenMode(IndexWriterConfig.OpenMode.CREATE));
                         writer.close();
                         recoveryState.getTranslog().totalOperations(0);
                     }
@@ -120,7 +120,7 @@ public class IndexShardGateway extends AbstractIndexShardComponent implements Cl
             try {
                 final RecoveryState.Index index = recoveryState.getIndex();
                 if (si != null) {
-                    final Directory directory = indexShard.store().directory();
+                    final Directory directory = store.directory();
                     for (String name : Lucene.files(si)) {
                         long length = directory.fileLength(name);
                         index.addFileDetail(name, length, true);
@@ -143,7 +143,7 @@ public class IndexShardGateway extends AbstractIndexShardComponent implements Cl
         } catch (EngineException e) {
             throw new IndexShardGatewayRecoveryException(shardId, "failed to recovery from gateway", e);
         } finally {
-            indexShard.store().decRef();
+            store.decRef();
         }
     }
 

@@ -1191,48 +1191,4 @@ public class StoreTest extends ElasticsearchTestCase {
         }
         assertThat(outStoreFileMetaData.syncId(), equalTo(inStoreFileMetaData.syncId()));
     }
-
-    public void testMarkCorruptedOnTruncatedSegmentsFile() throws IOException {
-        IndexWriterConfig iwc = newIndexWriterConfig();
-        final ShardId shardId = new ShardId(new Index("index"), 1);
-        DirectoryService directoryService = new LuceneManagedDirectoryService(random());
-        Store store = new Store(shardId, ImmutableSettings.EMPTY, directoryService, new DummyShardLock(shardId));
-        IndexWriter writer = new IndexWriter(store.directory(), iwc);
-
-        int numDocs = 1 + random().nextInt(10);
-        List<Document> docs = new ArrayList<>();
-        for (int i = 0; i < numDocs; i++) {
-            Document doc = new Document();
-            doc.add(new StringField("id", "" + i, random().nextBoolean() ? Field.Store.YES : Field.Store.NO));
-            doc.add(new TextField("body", TestUtil.randomRealisticUnicodeString(random()), random().nextBoolean() ? Field.Store.YES : Field.Store.NO));
-            doc.add(new SortedDocValuesField("dv", new BytesRef(TestUtil.randomRealisticUnicodeString(random()))));
-            docs.add(doc);
-        }
-        for (Document d : docs) {
-            writer.addDocument(d);
-        }
-        writer.commit();
-        writer.close();
-        MockDirectoryWrapper leaf = DirectoryUtils.getLeaf(store.directory(), MockDirectoryWrapper.class);
-        if (leaf != null) {
-            leaf.setPreventDoubleWrite(false); // I do this on purpose
-        }
-        SegmentInfos segmentCommitInfos = store.readLastCommittedSegmentsInfo();
-        try (IndexOutput out = store.directory().createOutput(segmentCommitInfos.getSegmentsFileName(), IOContext.DEFAULT)) {
-            // empty file
-        }
-
-        try {
-            if (randomBoolean()) {
-                store.getMetadata();
-            } else {
-                store.readLastCommittedSegmentsInfo();
-            }
-            fail("corrupted segments_N file");
-        } catch (CorruptIndexException ex) {
-            // expected
-        }
-        assertTrue(store.isMarkedCorrupted());
-        store.close();
-    }
 }

@@ -43,7 +43,9 @@ public final class CommitStats implements Streamable, ToXContent {
         userData = MapBuilder.<String, String>newMapBuilder().putAll(segmentInfos.getUserData()).immutableMap();
         // lucene calls the current generation, last generation.
         generation = segmentInfos.getLastGeneration();
-        id = Base64.encodeBytes(segmentInfos.getId());
+        if (segmentInfos.getId() != null) { // id is only written starting with Lucene 5.0
+            id = Base64.encodeBytes(segmentInfos.getId());
+        }
     }
 
     private CommitStats() {

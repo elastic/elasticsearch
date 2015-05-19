@@ -77,7 +77,9 @@ public class InternalEngine extends Engine {
     private final FailEngineOnMergeFailure mergeSchedulerFailureListener;
     private final MergeSchedulerListener mergeSchedulerListener;
 
-    /** When we last pruned expired tombstones from versionMap.deletes: */
+    /**
+     * When we last pruned expired tombstones from versionMap.deletes:
+     */
     private volatile long lastDeleteVersionPruneTimeMSec;
 
     private final ShardIndexingService indexingService;
@@ -152,7 +154,7 @@ public class InternalEngine extends Engine {
             try {
                 if (skipInitialTranslogRecovery) {
                     // make sure we point at the latest translog from now on..
-                    commitIndexWriter(writer, translog);
+                    commitIndexWriter(writer, translog, lastCommittedSegmentInfos.getUserData().get(SYNC_COMMIT_ID));
                 } else {
                     recoverFromTranslog(engineConfig, translogGeneration);
                 }
@@ -234,10 +236,12 @@ public class InternalEngine extends Engine {
 
         // flush if we recovered something or if we have references to older translogs
         // note: if opsRecovered == 0 and we have older translogs it means they are corrupted or 0 length.
-        if (opsRecovered > 0 || translog.isCurrent(translogGeneration) == false) {
+        if (opsRecovered > 0) {
             logger.trace("flushing post recovery from translog. ops recovered [{}]. committed translog id [{}]. current id [{}]",
                     opsRecovered, translogGeneration == null ? null : translogGeneration.translogFileGeneration, translog.currentFileGeneration());
             flush(true, true);
+        } else if (translog.isCurrent(translogGeneration) == false){
+            commitIndexWriter(indexWriter, translog, lastCommittedSegmentInfos.getUserData().get(Engine.SYNC_COMMIT_ID));
         }
     }
 
@@ -674,13 +678,47 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public void flush() throws EngineException {
-        flush(false, false);
+    public SyncedFlushResult syncFlush(String syncId, CommitId expectedCommitId) throws EngineException {
+        // best effort attempt before we acquire locks
+        ensureOpen();
+        if (indexWriter.hasUncommittedChanges()) {
+            logger.trace("can't sync commit [{}]. have pending changes", syncId);
+            return SyncedFlushResult.PENDING_OPERATIONS;
+        }
+        if (expectedCommitId.idsEqual(lastCommittedSegmentInfos.getId()) == false) {
+            logger.trace("can't sync commit [{}]. current commit id is not equal to expected.", syncId);
+            return SyncedFlushResult.COMMIT_MISMATCH;
+        }
+        try (ReleasableLock lock = writeLock.acquire()) {
+            ensureOpen();
+            if (indexWriter.hasUncommittedChanges()) {
+                logger.trace("can't sync commit [{}]. have pending changes", syncId);
+                return SyncedFlushResult.PENDING_OPERATIONS;
+            }
+            if (expectedCommitId.idsEqual(lastCommittedSegmentInfos.getId()) == false) {
+                logger.trace("can't sync commit [{}]. current commit id is not equal to expected.", syncId);
+                return SyncedFlushResult.COMMIT_MISMATCH;
+            }
+            logger.trace("starting sync commit [{}]", syncId);
+            commitIndexWriter(indexWriter, translog, syncId);
+            logger.debug("successfully sync committed. sync id [{}].", syncId);
+            lastCommittedSegmentInfos = store.readLastCommittedSegmentsInfo();
+            return SyncedFlushResult.SUCCESS;
+        } catch (IOException ex) {
+            maybeFailEngine("sync commit", ex);
+            throw new EngineException(shardId, "failed to sync commit", ex);
+        }
     }
 
     @Override
-    public void flush(boolean force, boolean waitIfOngoing) throws EngineException {
+    public CommitId flush() throws EngineException {
+        return flush(false, false);
+    }
+
+    @Override
+    public CommitId flush(boolean force, boolean waitIfOngoing) throws EngineException {
         ensureOpen();
+        final byte[] newCommitId;
         /*
          * Unfortunately the lock order is important here. We have to acquire the readlock first otherwise
          * if we are flushing at the end of the recovery while holding the write lock we can deadlock if:
@@ -736,6 +774,7 @@ public class InternalEngine extends Engine {
                 } finally {
                     store.decRef();
                 }
+                newCommitId = lastCommittedSegmentInfos.getId();
             } catch (FlushFailedEngineException ex) {
                 maybeFailEngine("flush", ex);
                 throw ex;
@@ -748,6 +787,7 @@ public class InternalEngine extends Engine {
         if (engineConfig.isEnableGcDeletes()) {
             pruneDeletedTombstones();
         }
+        return new CommitId(newCommitId);
     }
 
     private void pruneDeletedTombstones() {
@@ -981,7 +1021,8 @@ public class InternalEngine extends Engine {
             boolean verbose = false;
             try {
                 verbose = Boolean.parseBoolean(System.getProperty("tests.verbose"));
-            } catch (Throwable ignore) {}
+            } catch (Throwable ignore) {
+            }
             iwc.setInfoStream(verbose ? InfoStream.getDefault() : new LoggerInfoStream(logger));
             iwc.setMergeScheduler(mergeScheduler.newMergeScheduler());
             MergePolicy mergePolicy = mergePolicyProvider.getMergePolicy();
@@ -1031,10 +1072,8 @@ public class InternalEngine extends Engine {
             throw ex;
         }
     }
-
     /** Extended SearcherFactory that warms the segments if needed when acquiring a new searcher */
     final static class SearchFactory extends EngineSearcherFactory {
-
         private final IndicesWarmer warmer;
         private final ShardId shardId;
         private final ESLogger logger;
@@ -1164,19 +1203,25 @@ public class InternalEngine extends Engine {
         }
     }
 
-
-    private void commitIndexWriter(IndexWriter writer, Translog translog) throws IOException {
+    private void commitIndexWriter(IndexWriter writer, Translog translog, String syncId) throws IOException {
         try {
             Translog.TranslogGeneration translogGeneration = translog.getGeneration();
-            logger.trace("committing writer with translog id [{}] ", translogGeneration.translogFileGeneration);
+            logger.trace("committing writer with translog id [{}]  and sync id [{}] ", translogGeneration.translogFileGeneration, syncId);
             Map<String, String> commitData = new HashMap<>(2);
             commitData.put(Translog.TRANSLOG_GENERATION_KEY, Long.toString(translogGeneration.translogFileGeneration));
             commitData.put(Translog.TRANSLOG_UUID_KEY, translogGeneration.translogUUID);
+            if (syncId != null) {
+                commitData.put(Engine.SYNC_COMMIT_ID, syncId);
+            }
             indexWriter.setCommitData(commitData);
             writer.commit();
         } catch (Throwable ex) {
             failEngine("lucene commit failed", ex);
             throw ex;
         }
+    }
+
+    private void commitIndexWriter(IndexWriter writer, Translog translog) throws IOException {
+        commitIndexWriter(writer, translog, null);
     }
 }

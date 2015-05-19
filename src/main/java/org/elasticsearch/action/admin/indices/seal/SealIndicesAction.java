@@ -17,39 +17,29 @@
  * under the License.
  */
 
-package org.elasticsearch.action;
+package org.elasticsearch.action.admin.indices.seal;
 
-import java.util.concurrent.CountDownLatch;
+import org.elasticsearch.action.Action;
+import org.elasticsearch.client.ElasticsearchClient;
 
 /**
- * An action listener that allows passing in a {@link CountDownLatch} that
- * will be counted down after onResponse or onFailure is called
  */
-public class LatchedActionListener<T> implements ActionListener<T> {
+public class SealIndicesAction extends Action<SealIndicesRequest, SealIndicesResponse, SealIndicesRequestBuilder> {
 
-    private final ActionListener<T> delegate;
-    private final CountDownLatch latch;
+    public static final SealIndicesAction INSTANCE = new SealIndicesAction();
+    public static final String NAME = "indices:admin/seal";
 
-    public LatchedActionListener(ActionListener<T> delegate, CountDownLatch latch) {
-        this.delegate = delegate;
-        this.latch = latch;
+    private SealIndicesAction() {
+        super(NAME);
     }
 
     @Override
-    public void onResponse(T t) {
-        try {
-            delegate.onResponse(t);
-        } finally {
-            latch.countDown();
-        }
+    public SealIndicesResponse newResponse() {
+        return new SealIndicesResponse();
     }
 
     @Override
-    public void onFailure(Throwable e) {
-        try {
-            delegate.onFailure(e);
-        } finally {
-            latch.countDown();
-        }
+    public SealIndicesRequestBuilder newRequestBuilder(ElasticsearchClient client) {
+        return new SealIndicesRequestBuilder(client, this);
     }
 }

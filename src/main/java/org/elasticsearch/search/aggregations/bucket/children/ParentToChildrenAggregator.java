@@ -26,7 +26,7 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.lucene.docset.DocIdSets;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.common.util.LongObjectPagedHashMap;
 import org.elasticsearch.index.search.child.ConstantScorer;
@@ -110,7 +110,7 @@ public class ParentToChildrenAggregator extends SingleBucketAggregator {
         final SortedDocValues globalOrdinals = valuesSource.globalOrdinalsValues(parentType, ctx);
         assert globalOrdinals != null;
         Scorer parentScorer = parentFilter.scorer(ctx, null);
-        final Bits parentDocs = DocIdSets.asSequentialAccessBits(ctx.reader().maxDoc(), parentScorer);
+        final Bits parentDocs = Lucene.asSequentialAccessBits(ctx.reader().maxDoc(), parentScorer);
         if (childFilter.scorer(ctx, null) != null) {
             replay.add(ctx);
         }

@@ -26,7 +26,7 @@ import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.join.BitDocIdSetFilter;
 import org.apache.lucene.util.BitDocIdSet;
 import org.apache.lucene.util.BitSet;
-import org.elasticsearch.common.lucene.docset.DocIdSets;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
@@ -72,7 +72,7 @@ public class ReverseNestedAggregator extends SingleBucketAggregator {
         // must belong to parent docs that is alive. For this reason acceptedDocs can be null here.
         BitDocIdSet docIdSet = parentFilter.getDocIdSet(ctx);
         final BitSet parentDocs;
-        if (DocIdSets.isEmpty(docIdSet)) {
+        if (Lucene.isEmpty(docIdSet)) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         } else {
             parentDocs = docIdSet.bits();

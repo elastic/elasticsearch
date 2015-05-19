@@ -39,7 +39,7 @@ import org.apache.lucene.util.ToStringUtils;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.IndexCacheableQuery;
-import org.elasticsearch.common.lucene.docset.DocIdSets;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.NoopCollector;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.FloatArray;
@@ -248,7 +248,7 @@ public class ParentQuery extends IndexCacheableQuery {
         @Override
         public Scorer scorer(LeafReaderContext context, Bits acceptDocs) throws IOException {
             DocIdSet childrenDocSet = childrenFilter.getDocIdSet(context, acceptDocs);
-            if (DocIdSets.isEmpty(childrenDocSet)) {
+            if (Lucene.isEmpty(childrenDocSet)) {
                 return null;
             }
             final DocIdSetIterator childIterator = childrenDocSet.iterator();

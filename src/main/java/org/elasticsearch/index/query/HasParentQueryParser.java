@@ -187,7 +187,7 @@ public class HasParentQueryParser implements QueryParser {
                     parentsFilter.add(documentMapper.typeFilter(), BooleanClause.Occur.SHOULD);
                 }
             }
-            parentFilter = new QueryWrapperFilter(parentsFilter);
+            parentFilter = parentsFilter;
         }
 
         if (parentFilter == null) {

@@ -27,6 +27,7 @@ import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.store.*;
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
@@ -65,6 +66,7 @@ import org.elasticsearch.indices.recovery.RecoveryTarget;
 import org.elasticsearch.monitor.fs.FsStats;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.index.merge.NoMergePolicyProvider;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.store.MockFSDirectoryService;
@@ -73,6 +75,9 @@ import org.elasticsearch.transport.*;
 import org.junit.Test;
 
 import java.io.*;
+import java.nio.file.DirectoryStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
@@ -501,12 +506,91 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
         assertThat(corruptedFile, notNullValue());
     }
 
+    /**
+     * This test verifies that if we corrupt a replica, we can still get to green, even though
+     * listing its store fails. Note, we need to make sure that replicas are allocated on all data
+     * nodes, so that replica won't be sneaky and allocated on a node that doesn't have a corrupted
+     * replica.
+     */
+    @Test
+    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/11226")
+    public void testReplicaCorruption() throws Exception {
+        int numDocs = scaledRandomIntBetween(100, 1000);
+        internalCluster().ensureAtLeastNumDataNodes(2);
+
+        assertAcked(prepareCreate("test").setSettings(ImmutableSettings.builder()
+                        .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, cluster().numDataNodes() - 1)
+                        .put(MergePolicyModule.MERGE_POLICY_TYPE_KEY, NoMergePolicyProvider.class)
+                        .put(MockFSDirectoryService.CHECK_INDEX_ON_CLOSE, false) // no checkindex - we corrupt shards on purpose
+                        .put(TranslogService.INDEX_TRANSLOG_DISABLE_FLUSH, true) // no translog based flush - it might change the .liv / segments.N files
+                        .put("indices.recovery.concurrent_streams", 10)
+        ));
+        ensureGreen();
+        IndexRequestBuilder[] builders = new IndexRequestBuilder[numDocs];
+        for (int i = 0; i < builders.length; i++) {
+            builders[i] = client().prepareIndex("test", "type").setSource("field", "value");
+        }
+        indexRandom(true, builders);
+        ensureGreen();
+        assertAllSuccessful(client().admin().indices().prepareFlush().setForce(true).setWaitIfOngoing(true).execute().actionGet());
+        // we have to flush at least once here since we don't corrupt the translog
+        CountResponse countResponse = client().prepareCount().get();
+        assertHitCount(countResponse, numDocs);
+
+        final Map<String, List<File>> filesToCorrupt = findFilesToCorruptForReplica();
+        internalCluster().fullRestart(new InternalTestCluster.RestartCallback() {
+            @Override
+            public Settings onNodeStopped(String nodeName) throws Exception {
+                List<File> paths = filesToCorrupt.get(nodeName);
+                if (paths != null) {
+                    for (File path : paths) {
+                        try (OutputStream os = new FileOutputStream(path)) {
+                            os.write(0);
+                        }
+                        logger.info("corrupting file {} on node {}", path, nodeName);
+                    }
+                }
+                return null;
+            }
+        });
+        ensureGreen();
+    }
+
     private int numShards(String... index) {
         ClusterState state = client().admin().cluster().prepareState().get().getState();
         GroupShardsIterator shardIterators = state.getRoutingNodes().getRoutingTable().activePrimaryShardsGrouped(index, false);
         return shardIterators.size();
     }
 
+    private Map<String, List<File>> findFilesToCorruptForReplica() throws IOException {
+        Map<String, List<File>> filesToNodes = new HashMap<>();
+        ClusterState state = client().admin().cluster().prepareState().get().getState();
+        for (ShardRouting shardRouting : state.getRoutingTable().allShards("test")) {
+            if (shardRouting.primary() == true) {
+                continue;
+            }
+            assertTrue(shardRouting.assignedToNode());
+            NodesStatsResponse nodeStatses = client().admin().cluster().prepareNodesStats(shardRouting.currentNodeId()).setFs(true).get();
+            NodeStats nodeStats = nodeStatses.getNodes()[0];
+            List<File> files = new ArrayList<>();
+            filesToNodes.put(nodeStats.getNode().getName(), files);
+            for (FsStats.Info info : nodeStats.getFs()) {
+                String path = info.getPath();
+                final String relativeDataLocationPath = "indices/test/" + Integer.toString(shardRouting.getId()) + "/index";
+                File file = new File(path, relativeDataLocationPath);
+                files.addAll(Arrays.asList(file.listFiles(new FileFilter() {
+                    @Override
+                    public boolean accept(File pathname) {
+                        if (pathname.getName().startsWith("segments_")) {
+                            return true;
+                        }
+                        return false; // no dirs no write.locks
+                    }
+                })));
+            }
+        }
+        return filesToNodes;
+    }
 
     private ShardRouting corruptRandomPrimaryFile() throws IOException {
         return corruptRandomPrimaryFile(true);

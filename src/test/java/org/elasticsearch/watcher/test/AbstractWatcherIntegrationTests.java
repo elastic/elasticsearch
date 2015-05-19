@@ -285,24 +285,6 @@ public abstract class AbstractWatcherIntegrationTests extends ElasticsearchInteg
         return internalTestCluster().getInstance(WatchRecord.Parser.class);
     }
 
-    protected void assertWatchWithExactPerformedActionsCount(final String watchName, final long expectedWatchActionsWithActionPerformed) throws Exception {
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                ClusterState state = client().admin().cluster().prepareState().get().getState();
-                String[] watchHistoryIndices = state.metaData().concreteIndices(IndicesOptions.lenientExpandOpen(), HistoryStore.INDEX_PREFIX + "*");
-                assertThat(watchHistoryIndices, not(emptyArray()));
-                for (String index : watchHistoryIndices) {
-                    IndexRoutingTable routingTable = state.getRoutingTable().index(index);
-                    assertThat(routingTable, notNullValue());
-                    assertThat(routingTable.allPrimaryShardsActive(), is(true));
-                }
-
-                assertThat(findNumberOfPerformedActions(watchName), equalTo(expectedWatchActionsWithActionPerformed));
-            }
-        });
-    }
-
     protected void assertWatchWithMinimumPerformedActionsCount(final String watchName, final long minimumExpectedWatchActionsWithActionPerformed) throws Exception {
         assertWatchWithMinimumPerformedActionsCount(watchName, minimumExpectedWatchActionsWithActionPerformed, true);
     }

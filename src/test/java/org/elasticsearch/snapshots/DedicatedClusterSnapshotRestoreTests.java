@@ -56,9 +56,15 @@ import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.indices.ttl.IndicesTTLService;
 import org.elasticsearch.repositories.RepositoryMissingException;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.action.admin.cluster.repositories.get.RestGetRepositoriesAction;
+import org.elasticsearch.rest.action.admin.cluster.state.RestClusterStateAction;
 import org.elasticsearch.snapshots.mockstore.MockRepositoryModule;
 import org.elasticsearch.snapshots.mockstore.MockRepositoryPlugin;
 import org.elasticsearch.test.InternalTestCluster;
+import org.elasticsearch.test.rest.FakeRestRequest;
 import org.junit.Ignore;
 import org.junit.Test;
 
@@ -70,6 +76,7 @@ import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static com.google.common.collect.Lists.newArrayList;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
@@ -620,6 +627,64 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
                 .setType("fs").setSettings(Settings.settingsBuilder()
                 .put("location", randomRepoPath())).get();
 
+    }
+
+    @Test
+    public void testThatSensitiveRepositorySettingsAreNotExposed() throws Exception {
+        Settings nodeSettings = settingsBuilder().put("plugin.types", MockRepositoryPlugin.class.getName()).build();
+        logger.info("--> start two nodes");
+        internalCluster().startNodesAsync(2, nodeSettings).get();
+        // Register mock repositories
+        client().admin().cluster().preparePutRepository("test-repo")
+                .setType("mock").setSettings(Settings.settingsBuilder()
+                        .put("location", randomRepoPath())
+                        .put("secret.mock.username", "notsecretusername")
+                        .put("secret.mock.password", "verysecretpassword")
+        ).get();
+
+        RestGetRepositoriesAction getRepoAction = internalCluster().getInstance(RestGetRepositoriesAction.class);
+        RestRequest getRepoRequest = new FakeRestRequest();
+        getRepoRequest.params().put("repository", "test-repo");
+        final CountDownLatch getRepoLatch = new CountDownLatch(1);
+        final AtomicReference<AssertionError> getRepoError = new AtomicReference<>();
+        getRepoAction.handleRequest(getRepoRequest, new RestChannel(getRepoRequest, true) {
+            @Override
+            public void sendResponse(RestResponse response) {
+                try {
+                    assertThat(response.content().toUtf8(), containsString("notsecretusername"));
+                    assertThat(response.content().toUtf8(), not(containsString("verysecretpassword")));
+                } catch (AssertionError ex) {
+                    getRepoError.set(ex);
+                }
+                getRepoLatch.countDown();
+            }
+        });
+        assertTrue(getRepoLatch.await(1, TimeUnit.SECONDS));
+        if (getRepoError.get() != null) {
+            throw getRepoError.get();
+        }
+
+        RestClusterStateAction clusterStateAction = internalCluster().getInstance(RestClusterStateAction.class);
+        RestRequest clusterStateRequest = new FakeRestRequest();
+        final CountDownLatch clusterStateLatch = new CountDownLatch(1);
+        final AtomicReference<AssertionError> clusterStateError = new AtomicReference<>();
+        clusterStateAction.handleRequest(clusterStateRequest, new RestChannel(clusterStateRequest, true) {
+            @Override
+            public void sendResponse(RestResponse response) {
+                try {
+                    assertThat(response.content().toUtf8(), containsString("notsecretusername"));
+                    assertThat(response.content().toUtf8(), not(containsString("verysecretpassword")));
+                } catch (AssertionError ex) {
+                    clusterStateError.set(ex);
+                }
+                clusterStateLatch.countDown();
+            }
+        });
+        assertTrue(clusterStateLatch.await(1, TimeUnit.SECONDS));
+        if (clusterStateError.get() != null) {
+            throw clusterStateError.get();
+        }
+        
     }
 
     @Test

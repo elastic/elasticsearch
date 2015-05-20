@@ -19,8 +19,16 @@
 
 package org.elasticsearch.snapshots.mockstore;
 
+import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.plugins.AbstractPlugin;
 import org.elasticsearch.repositories.RepositoriesModule;
+
+import java.util.Collection;
+
+import static com.google.common.collect.Lists.newArrayList;
 
 public class MockRepositoryPlugin extends AbstractPlugin {
 
@@ -37,4 +45,27 @@ public class MockRepositoryPlugin extends AbstractPlugin {
     public void onModule(RepositoriesModule repositoriesModule) {
         repositoriesModule.registerRepository("mock", MockRepositoryModule.class);
     }
+
+    @Override
+    public Collection<Class<? extends Module>> modules() {
+        Collection<Class<? extends Module>> modules = newArrayList();
+        modules.add(SettingsFilteringModule.class);
+        return modules;
+    }
+
+    public static class SettingsFilteringModule extends AbstractModule {
+
+        @Override
+        protected void configure() {
+            bind(SettingsFilteringService.class).asEagerSingleton();
+        }
+    }
+
+    public static class SettingsFilteringService {
+        @Inject
+        public SettingsFilteringService(SettingsFilter settingsFilter) {
+            settingsFilter.addFilter("secret.mock.password");
+        }
+    }
+
 }

@@ -47,7 +47,7 @@ public final class CompressedString {
         } else {
             BytesArray bytesArray = data.toBytesArray();
             this.bytes = CompressorFactory.defaultCompressor().compress(bytesArray.array(), bytesArray.arrayOffset(), bytesArray.length());
-            assert CompressorFactory.compressor(bytes) == CompressorFactory.defaultCompressor();
+            assert CompressorFactory.compressor(bytes) != null;
         }
 
     }

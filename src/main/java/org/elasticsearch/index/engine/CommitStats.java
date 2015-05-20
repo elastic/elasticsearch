@@ -94,7 +94,7 @@ public final class CommitStats implements Streamable, ToXContent {
         }
         userData = builder.immutableMap();
         generation = in.readLong();
-        id = in.readString();
+        id = in.readOptionalString();
         numDocs = in.readInt();
     }
 
@@ -106,7 +106,7 @@ public final class CommitStats implements Streamable, ToXContent {
             out.writeString(entry.getValue());
         }
         out.writeLong(generation);
-        out.writeString(id);
+        out.writeOptionalString(id);
         out.writeInt(numDocs);
     }
 

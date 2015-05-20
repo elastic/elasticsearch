@@ -1177,17 +1177,17 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                     byte[] localClusterStateBytes = ClusterState.Builder.toBytes(localClusterState);
                     // remove local node reference
                     localClusterState = ClusterState.Builder.fromBytes(localClusterStateBytes, null);
-                    Map<String, Object> localStateMap = convertToMap(localClusterState);
-                    int localClusterStateSize = localClusterState.toString().length();
+                    final Map<String, Object> localStateMap = convertToMap(localClusterState);
+                    final int localClusterStateSize = localClusterState.toString().length();
                     // Check that the non-master node has the same version of the cluster state as the master and that this node didn't disconnect from the master
                     if (masterClusterState.version() == localClusterState.version() && localClusterState.nodes().nodes().containsKey(masterId)) {
                         try {
-                            assertThat(masterClusterState.uuid(), equalTo(localClusterState.uuid()));
+                            assertEquals("clusterstate UUID does not match", masterClusterState.uuid(), localClusterState.uuid());
                             // We cannot compare serialization bytes since serialization order of maps is not guaranteed
                             // but we can compare serialization sizes - they should be the same
-                            assertThat(masterClusterStateSize, equalTo(localClusterStateSize));
+                            assertEquals("clusterstate size does not match", masterClusterStateSize, localClusterStateSize);
                             // Compare JSON serialization
-                            assertThat(mapsEqualIgnoringArrayOrder(masterStateMap, localStateMap), equalTo(true));
+                            assertTrue("clusterstate JSON serialization does not match", mapsEqualIgnoringArrayOrder(masterStateMap, localStateMap));
                         } catch (AssertionError error) {
                             logger.error("Cluster state from master:\n{}\nLocal cluster state:\n{}", masterClusterState.toString(), localClusterState.toString());
                             throw error;

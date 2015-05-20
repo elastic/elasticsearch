@@ -420,6 +420,7 @@ public class RecoverySourceHandler {
                                     for (StoreFileMetaData md : metadata) {
                                         logger.debug("{} checking integrity for file {} after remove corruption exception", shard.shardId(), md);
                                         if (store.checkIntegrityNoException(md) == false) { // we are corrupted on the primary -- fail!
+                                            shard.engine().failEngine("recovery", corruptIndexException);
                                             logger.warn("{} Corrupted file detected {} checksum mismatch", shard.shardId(), md);
                                             throw corruptIndexException;
                                         }

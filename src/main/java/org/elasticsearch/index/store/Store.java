@@ -422,6 +422,30 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
     }
 
     /**
+     * Returns <code>true</code> iff the given location contains an index an the index
+     * can be successfully opened. This includes reading the segment infos and possible
+     * corruption markers.
+     */
+    public static boolean canOpenIndex(ESLogger logger, File... indexLocations) throws IOException {
+        final Directory[] dirs = new Directory[indexLocations.length];
+        try {
+            for (int i = 0; i < indexLocations.length; i++) {
+                dirs[i] = new SimpleFSDirectory(indexLocations[i]);
+            }
+            final Directory dir = dirs.length == 1 ? dirs[0] : new DistributorDirectory(dirs);
+            failIfCorrupted(dir, new ShardId("", 1));
+            Lucene.readSegmentInfos(dir);
+            return true;
+        } catch (Exception ex) {
+            logger.trace("Can't open index for path [{}]", ex, indexLocations);
+            return false;
+        } finally {
+            IOUtils.close(dirs);
+        }
+
+    }
+
+    /**
      * The returned IndexOutput might validate the files checksum if the file has been written with a newer lucene version
      * and the metadata holds the necessary information to detect that it was been written by Lucene 4.8 or newer. If it has only
      * a legacy checksum, returned IndexOutput will not verify the checksum.

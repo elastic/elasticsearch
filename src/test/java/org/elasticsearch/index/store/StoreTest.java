@@ -29,6 +29,8 @@ import org.apache.lucene.index.*;
 import org.apache.lucene.store.*;
 import org.apache.lucene.util.*;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -45,9 +47,11 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.file.NoSuchFileException;
+import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -57,6 +61,8 @@ import static com.carrotsearch.randomizedtesting.RandomizedTest.*;
 import static org.hamcrest.Matchers.*;
 
 public class StoreTest extends ElasticsearchLuceneTestCase {
+
+    private final ESLogger logger = Loggers.getLogger(getClass());
 
     @BeforeClass
     public static void before() {
@@ -1299,6 +1305,43 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
             // expected
         }
         assertTrue(store.isMarkedCorrupted());
+        store.close();
+    }
+
+    public void testCanOpenIndex() throws IOException {
+        IndexWriterConfig iwc =  newIndexWriterConfig(random(), TEST_VERSION_CURRENT, new MockAnalyzer(random())).setCodec(actualDefaultCodec());
+        File tempDir = createTempDir();
+        final BaseDirectoryWrapper dir = newFSDirectory(tempDir);
+        assertFalse(Store.canOpenIndex(logger, tempDir));
+        IndexWriter writer = new IndexWriter(dir, iwc);
+        Document doc = new Document();
+        doc.add(new StringField("id", "1", random().nextBoolean() ? Field.Store.YES : Field.Store.NO));
+        writer.addDocument(doc);
+        writer.commit();
+        writer.close();
+        assertTrue(Store.canOpenIndex(logger, tempDir));
+
+        final ShardId shardId = new ShardId(new Index("index"), 1);
+        DirectoryService directoryService = new DirectoryService(shardId, ImmutableSettings.EMPTY) {
+            @Override
+            public void renameFile(Directory dir, String from, String to) throws IOException {
+
+            }
+
+            @Override
+            public Directory[] build() throws IOException {
+                return new Directory[] {dir};
+            }
+
+            @Override
+            public long throttleTimeInNanos() {
+                return 0;
+            }
+
+        };
+        Store store = new Store(shardId, ImmutableSettings.EMPTY, directoryService, randomDistributor(directoryService), new DummyShardLock(shardId));
+        store.markStoreCorrupted(new CorruptIndexException("foo", new IOException()));
+        assertFalse(Store.canOpenIndex(logger, tempDir));
         store.close();
     }
 }

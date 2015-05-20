@@ -19,6 +19,7 @@
 
 package org.elasticsearch.gateway.local.state.shards;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionFuture;
@@ -27,6 +28,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.*;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
@@ -34,10 +36,14 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.Store;
+import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.File;
 import java.io.IOException;
 import java.util.List;
 import java.util.Set;
@@ -49,12 +55,13 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
 public class TransportNodesListGatewayStartedShards extends TransportNodesOperationAction<TransportNodesListGatewayStartedShards.Request, TransportNodesListGatewayStartedShards.NodesLocalGatewayStartedShards, TransportNodesListGatewayStartedShards.NodeRequest, TransportNodesListGatewayStartedShards.NodeLocalGatewayStartedShards> {
 
     public static final String ACTION_NAME = "internal:gateway/local/started_shards";
-
+    private final NodeEnvironment nodeEnvironment;
     private LocalGatewayShardsState shardsState;
 
     @Inject
-    public TransportNodesListGatewayStartedShards(Settings settings, ClusterName clusterName, ThreadPool threadPool, ClusterService clusterService, TransportService transportService, ActionFilters actionFilters) {
+    public TransportNodesListGatewayStartedShards(Settings settings, ClusterName clusterName, ThreadPool threadPool, ClusterService clusterService, TransportService transportService, ActionFilters actionFilters, NodeEnvironment nodeEnvironment) {
         super(settings, ACTION_NAME, clusterName, threadPool, clusterService, transportService, actionFilters);
+        this.nodeEnvironment = nodeEnvironment;
     }
 
     TransportNodesListGatewayStartedShards initGateway(LocalGatewayShardsState shardsState) {
@@ -117,16 +124,46 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesOperat
     @Override
     protected NodeLocalGatewayStartedShards nodeOperation(NodeRequest request) throws ElasticsearchException {
         try {
-            logger.trace("{} loading local shard state info", request.shardId);
-            ShardStateInfo shardStateInfo = shardsState.loadShardInfo(request.shardId);
+            ShardId shardId = request.shardId;
+            logger.trace("{} loading local shard state info", shardId);
+            ShardStateInfo shardStateInfo = shardsState.loadShardInfo(shardId);
             if (shardStateInfo != null) {
-                logger.debug("{} shard state info found: [{}]", request.shardId, shardStateInfo);
+                final IndexMetaData metaData = clusterService.state().metaData().index(shardId.index().name()); // it's a mystery why this is sometimes null
+                if (metaData != null && canOpenIndex(shardId, metaData) == false) {
+                    logger.trace("{} can't open index for shard", shardId);
+                    return new NodeLocalGatewayStartedShards(clusterService.localNode(), -1);
+                }
+                logger.debug("{} shard state info found: [{}]", shardId, shardStateInfo);
                 return new NodeLocalGatewayStartedShards(clusterService.localNode(), shardStateInfo.version);
             }
-            logger.trace("{} no local shard info found", request.shardId);
+            logger.trace("{} no local shard info found", shardId);
             return new NodeLocalGatewayStartedShards(clusterService.localNode(), -1);
         } catch (Exception e) {
             throw new ElasticsearchException("failed to load started shards", e);
+        }
+    }
+
+    private boolean canOpenIndex(ShardId shardId, IndexMetaData metaData) throws IOException {
+        // try and see if we an list unallocated
+        if (metaData == null) {
+            return false;
+        }
+        File[] shardLocations = nodeEnvironment.shardDataLocations(shardId, metaData.settings());
+        File[] shardIndexLocations = new File[shardLocations.length];
+        for (int i = 0; i < shardLocations.length; i++) {
+            shardIndexLocations[i] = new File(shardLocations[i], "index");
+        }
+        boolean exists = false;
+        for (File shardIndexLocation : shardIndexLocations) {
+            if (shardIndexLocation.exists()) {
+                exists = true;
+                break;
+            }
+        }
+        if (exists) {
+            return Store.canOpenIndex(logger, shardIndexLocations);
+        } else {
+            return false;
         }
     }
 

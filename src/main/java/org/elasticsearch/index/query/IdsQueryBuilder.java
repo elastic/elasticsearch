@@ -79,7 +79,7 @@ public class IdsQueryBuilder extends QueryBuilder<IdsQueryBuilder> implements Bo
     /**
      * Returns the ids for the query.
      */
-    public Collection<String> ids() {
+    public Set<String> ids() {
         return this.ids;
     }
 

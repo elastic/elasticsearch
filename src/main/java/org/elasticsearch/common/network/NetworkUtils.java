@@ -60,8 +60,8 @@ public abstract class NetworkUtils {
         localAddress = localAddressX;
     }
 
-    public static Boolean defaultReuseAddress() {
-        return OsUtils.WINDOWS ? null : true;
+    public static boolean defaultReuseAddress() {
+        return OsUtils.WINDOWS ? false : true;
     }
 
     public static boolean isIPv4() {

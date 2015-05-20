@@ -21,6 +21,7 @@ package org.elasticsearch.fieldstats;
 
 import org.elasticsearch.action.fieldstats.FieldStats;
 import org.elasticsearch.action.fieldstats.FieldStatsResponse;
+import org.elasticsearch.action.fieldstats.IndexConstraint;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 
@@ -28,6 +29,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
+import static org.elasticsearch.action.fieldstats.IndexConstraint.Comparison.*;
+import static org.elasticsearch.action.fieldstats.IndexConstraint.Property.MAX;
+import static org.elasticsearch.action.fieldstats.IndexConstraint.Property.MIN;
 import static org.hamcrest.Matchers.*;
 
 /**
@@ -189,6 +193,170 @@ public class FieldStatsTests extends ElasticsearchSingleNodeTest {
         assertThat(result.getShardFailures()[0].reason(), either(containsString("field [field1] doesn't exist")).or(containsString("field [field2] doesn't exist")));
         assertThat(result.getIndicesMergedFieldStats().get("_all").get("field1").getMinValue(), equalTo("a"));
         assertThat(result.getIndicesMergedFieldStats().get("_all").get("field1").getMaxValue(), equalTo("b"));
+    }
+
+    public void testNumberFiltering() {
+        createIndex("test1", Settings.EMPTY, "type", "value", "type=long");
+        client().prepareIndex("test1", "test").setSource("value", 1).get();
+        createIndex("test2", Settings.EMPTY, "type", "value", "type=long");
+        client().prepareIndex("test2", "test").setSource("value", 3).get();
+        client().admin().indices().prepareRefresh().get();
+
+        FieldStatsResponse response = client().prepareFieldStats()
+                .setFields("value")
+                .setLevel("indices")
+                .get();
+        assertThat(response.getIndicesMergedFieldStats().size(), equalTo(2));
+        assertThat(response.getIndicesMergedFieldStats().get("test1").get("value").getMinValue(), equalTo("1"));
+        assertThat(response.getIndicesMergedFieldStats().get("test2").get("value").getMinValue(), equalTo("3"));
+
+        response = client().prepareFieldStats()
+                .setFields("value")
+                .setIndexContraints(new IndexConstraint("value", MIN, GTE, "-1"), new IndexConstraint("value", MAX, LTE, "0"))
+                .setLevel("indices")
+                .get();
+        assertThat(response.getIndicesMergedFieldStats().size(), equalTo(0));
+
+        response = client().prepareFieldStats()
+                .setFields("value")
+                .setIndexContraints(new IndexConstraint("value", MIN, GTE, "0"), new IndexConstraint("value", MAX, LT, "1"))
+                .setLevel("indices")
+                .get();
+        assertThat(response.getIndicesMergedFieldStats().size(), equalTo(0));
+
+        response = client().prepareFieldStats()
+                .setFields("value")
+                .setIndexContraints(new IndexConstraint("value", MIN, GTE, "0"), new IndexConstraint("value", MAX, LTE, "1"))
+                .setLevel("indices")
+                .get();
+        assertThat(response.getIndicesMergedFieldStats().size(), equalTo(1));
+        assertThat(response.getIndicesMergedFieldStats().get("test1").get("value").getMinValue(), equalTo("1"));
+
+        response = client().prepareFieldStats()
+                .setFields("value")
+                .setIndexContraints(new IndexConstraint("value", MIN, GTE, "1"), new IndexConstraint("value", MAX, LTE,  "2"))
+                .setLevel("indices")
+                .get();
+        assertThat(response.getIndicesMergedFieldStats().size(), equalTo(1));
+        assertThat(response.getIndicesMergedFieldStats().get("test1").get("value").getMinValue(), equalTo("1"));
+
+        response = client().prepareFieldStats()
+                .setFields("value")
+                .setIndexContraints(new IndexConstraint("value", MIN, GT, "1"), new IndexConstraint("value", MAX, LTE, "2"))
+                .setLevel("indices")
+                .get();
+        assertThat(response.getIndicesMergedFieldStats().size(), equalTo(0));
+
+        response = client().prepareFieldStats()
+                .setFields("value")
+                .setIndexContraints(new IndexConstraint("value", MIN, GT, "2"), new IndexConstraint("value", MAX, LTE, "3"))
+                .setLevel("indices")
+                .get();
+        assertThat(response.getIndicesMergedFieldStats().size(), equalTo(1));
+        assertThat(response.getIndicesMergedFieldStats().get("test2").get("value").getMinValue(), equalTo("3"));
+
+        response = client().prepareFieldStats()
+                .setFields("value")
+                .setIndexContraints(new IndexConstraint("value", MIN, GTE, "3"), new IndexConstraint("value", MAX, LTE, "4"))
+                .setLevel("indices")
+                .get();
+        assertThat(response.getIndicesMergedFieldStats().size(), equalTo(1));
+        assertThat(response.getIndicesMergedFieldStats().get("test2").get("value").getMinValue(), equalTo("3"));
+
+        response = client().prepareFieldStats()
+                .setFields("value")
+                .setIndexContraints(new IndexConstraint("value", MIN, GT, "3"), new IndexConstraint("value", MAX, LTE, "4"))
+                .setLevel("indices")
+                .get();
+        assertThat(response.getIndicesMergedFieldStats().size(), equalTo(0));
+
+        response = client().prepareFieldStats()
+                .setFields("value")
+                .setIndexContraints(new IndexConstraint("value", MIN, GTE,  "1"), new IndexConstraint("value", MAX, LTE, "3"))
+                .setLevel("indices")
+                .get();
+        assertThat(response.getIndicesMergedFieldStats().size(), equalTo(2));
+        assertThat(response.getIndicesMergedFieldStats().get("test1").get("value").getMinValue(), equalTo("1"));
+        assertThat(response.getIndicesMergedFieldStats().get("test2").get("value").getMinValue(), equalTo("3"));
+
+        response = client().prepareFieldStats()
+                .setFields("value")
+                .setIndexContraints(new IndexConstraint("value", MIN, GT, "1"), new IndexConstraint("value", MAX, LT, "3"))
+                .setLevel("indices")
+                .get();
+        assertThat(response.getIndicesMergedFieldStats().size(), equalTo(0));
+    }
+
+    public void testDateFiltering() {
+        createIndex("test1", Settings.EMPTY, "type", "value", "type=date");
+        client().prepareIndex("test1", "test").setSource("value", "2014-01-01T00:00:00.000Z").get();
+        createIndex("test2", Settings.EMPTY, "type", "value", "type=date");
+        client().prepareIndex("test2", "test").setSource("value", "2014-01-02T00:00:00.000Z").get();
+        client().admin().indices().prepareRefresh().get();
+
+        FieldStatsResponse response = client().prepareFieldStats()
+                .setFields("value")
+                .setLevel("indices")
+                .get();
+        assertThat(response.getIndicesMergedFieldStats().size(), equalTo(2));
+        assertThat(response.getIndicesMergedFieldStats().get("test1").get("value").getMinValue(), equalTo("2014-01-01T00:00:00.000Z"));
+        assertThat(response.getIndicesMergedFieldStats().get("test2").get("value").getMinValue(), equalTo("2014-01-02T00:00:00.000Z"));
+
+        response = client().prepareFieldStats()
+                .setFields("value")
+                .setIndexContraints(new IndexConstraint("value", MIN, GTE, "2013-12-30T00:00:00.000Z"), new IndexConstraint("value", MAX, LTE, "2013-12-31T00:00:00.000Z"))
+                .setLevel("indices")
+                .get();
+        assertThat(response.getIndicesMergedFieldStats().size(), equalTo(0));
+
+        response = client().prepareFieldStats()
+                .setFields("value")
+                .setIndexContraints(new IndexConstraint("value", MIN, GTE, "2013-12-31T00:00:00.000Z"), new IndexConstraint("value", MAX, LTE, "2014-01-01T00:00:00.000Z"))
+                .setLevel("indices")
+                .get();
+        assertThat(response.getIndicesMergedFieldStats().size(), equalTo(1));
+        assertThat(response.getIndicesMergedFieldStats().get("test1").get("value").getMinValue(), equalTo("2014-01-01T00:00:00.000Z"));
+
+        response = client().prepareFieldStats()
+                .setFields("value")
+                .setIndexContraints(new IndexConstraint("value", MIN, GT, "2014-01-01T00:00:00.000Z"), new IndexConstraint("value", MAX, LTE, "2014-01-02T00:00:00.000Z"))
+                .setLevel("indices")
+                .get();
+        assertThat(response.getIndicesMergedFieldStats().size(), equalTo(1));
+        assertThat(response.getIndicesMergedFieldStats().get("test2").get("value").getMinValue(), equalTo("2014-01-02T00:00:00.000Z"));
+
+        response = client().prepareFieldStats()
+                .setFields("value")
+                .setIndexContraints(new IndexConstraint("value", MIN, GT, "2014-01-02T00:00:00.000Z"), new IndexConstraint("value", MAX, LTE, "2014-01-03T00:00:00.000Z"))
+                .setLevel("indices")
+                .get();
+        assertThat(response.getIndicesMergedFieldStats().size(), equalTo(0));
+
+        response = client().prepareFieldStats()
+                .setFields("value")
+                .setIndexContraints(new IndexConstraint("value", MIN, GTE, "2014-01-01T23:00:00.000Z"), new IndexConstraint("value", MAX, LTE, "2014-01-02T01:00:00.000Z"))
+                .setLevel("indices")
+                .get();
+        assertThat(response.getIndicesMergedFieldStats().size(), equalTo(1));
+        assertThat(response.getIndicesMergedFieldStats().get("test2").get("value").getMinValue(), equalTo("2014-01-02T00:00:00.000Z"));
+
+        response = client().prepareFieldStats()
+                .setFields("value")
+                .setIndexContraints(new IndexConstraint("value", MIN, GTE, "2014-01-01T00:00:00.000Z"))
+                .setLevel("indices")
+                .get();
+        assertThat(response.getIndicesMergedFieldStats().size(), equalTo(2));
+        assertThat(response.getIndicesMergedFieldStats().get("test1").get("value").getMinValue(), equalTo("2014-01-01T00:00:00.000Z"));
+        assertThat(response.getIndicesMergedFieldStats().get("test2").get("value").getMinValue(), equalTo("2014-01-02T00:00:00.000Z"));
+
+        response = client().prepareFieldStats()
+                .setFields("value")
+                .setIndexContraints(new IndexConstraint("value", MAX, LTE, "2014-01-02T00:00:00.000Z"))
+                .setLevel("indices")
+                .get();
+        assertThat(response.getIndicesMergedFieldStats().size(), equalTo(2));
+        assertThat(response.getIndicesMergedFieldStats().get("test1").get("value").getMinValue(), equalTo("2014-01-01T00:00:00.000Z"));
+        assertThat(response.getIndicesMergedFieldStats().get("test2").get("value").getMinValue(), equalTo("2014-01-02T00:00:00.000Z"));
     }
 
 }

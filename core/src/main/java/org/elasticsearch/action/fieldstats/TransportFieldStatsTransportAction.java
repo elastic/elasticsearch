@@ -47,10 +47,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
 public class TransportFieldStatsTransportAction extends TransportBroadcastAction<FieldStatsRequest, FieldStatsResponse, FieldStatsShardRequest, FieldStatsShardResponse> {
@@ -86,7 +83,7 @@ public class TransportFieldStatsTransportAction extends TransportBroadcastAction
                 } else if ("indices".equals(request.level())) {
                     indexName = shardResponse.getIndex();
                 } else {
-                    // should already have been catched by the FieldStatsRequest#validate(...)
+                    // should already have been caught by the FieldStatsRequest#validate(...)
                     throw new IllegalArgumentException("Illegal level option [" + request.level() + "]");
                 }
 
@@ -104,7 +101,6 @@ public class TransportFieldStatsTransportAction extends TransportBroadcastAction
                                     "trying to merge the field stats of field [" + entry.getKey() + "] from index [" + shardResponse.getIndex() + "] but the field type is incompatible, try to set the 'level' option to 'indices'"
                             );
                         }
-
                         existing.append(entry.getValue());
                     } else {
                         indexMergedFieldStats.put(entry.getKey(), entry.getValue());
@@ -112,6 +108,28 @@ public class TransportFieldStatsTransportAction extends TransportBroadcastAction
                 }
             }
         }
+
+        if (request.getIndexConstraints().length != 0) {
+            Set<String> fieldStatFields = new HashSet<>(Arrays.asList(request.getFields()));
+            for (IndexConstraint indexConstraint : request.getIndexConstraints()) {
+                Iterator<Map.Entry<String, Map<String, FieldStats>>> iterator = indicesMergedFieldStats.entrySet().iterator();
+                while (iterator.hasNext()) {
+                    Map.Entry<String, Map<String, FieldStats>> entry = iterator.next();
+                    FieldStats indexConstraintFieldStats = entry.getValue().get(indexConstraint.getField());
+                    if (indexConstraintFieldStats.match(indexConstraint)) {
+                        // If the field stats didn't occur in the list of fields in the original request we need to remove the
+                        // field stats, because it was never requested and was only needed to validate the index constraint
+                        if (fieldStatFields.contains(indexConstraint.getField()) == false) {
+                            entry.getValue().remove(indexConstraint.getField());
+                        }
+                    } else {
+                        // The index constraint didn't match, so we remove all the field stats of the index we're checking
+                        iterator.remove();
+                    }
+                }
+            }
+        }
+
         return new FieldStatsResponse(shardsResponses.length(), successfulShards, failedShards, shardFailures, indicesMergedFieldStats);
     }
 

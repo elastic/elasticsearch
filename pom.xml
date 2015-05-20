@@ -7,7 +7,7 @@
 
     <groupId>org.elasticsearch</groupId>
     <artifactId>elasticsearch-watcher</artifactId>
-    <version>1.0.0-Beta1-SNAPSHOT</version>
+    <version>1.0.0-Beta1</version>
 
     <scm>
         <connection>scm:git:git@github.com:elastic/elasticsearch-watcher.git</connection>

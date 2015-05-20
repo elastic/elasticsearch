@@ -74,6 +74,7 @@ import org.elasticsearch.index.cache.filter.FilterCacheModule;
 import org.elasticsearch.index.cache.filter.FilterCacheModule.FilterCacheSettings;
 import org.elasticsearch.index.cache.filter.index.IndexFilterCache;
 import org.elasticsearch.index.cache.filter.none.NoneFilterCache;
+import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineClosedException;
 import org.elasticsearch.index.shard.IndexShard;
@@ -993,9 +994,10 @@ public final class InternalTestCluster extends TestCluster {
             for (IndexService indexService : indexServices) {
                 for (IndexShard indexShard : indexService) {
                     try {
-                        String syncId = indexShard.engine().commitStats().getUserData().get(Engine.SYNC_COMMIT_ID);
+                        CommitStats commitStats = indexShard.engine().commitStats();
+                        String syncId = commitStats.getUserData().get(Engine.SYNC_COMMIT_ID);
                         if (syncId != null) {
-                            long liveDocsOnShard = indexShard.docStats().getCount() - indexShard.docStats().getDeleted();
+                            long liveDocsOnShard = commitStats.getNumDocs();
                             if (docsOnShards.get(syncId) != null) {
                                 assertThat("sync id is equal but number of docs does not match on node " + nodeAndClient.name + ". expected " + docsOnShards.get(syncId) + " but got " + liveDocsOnShard, docsOnShards.get(syncId), equalTo(liveDocsOnShard));
                             } else {

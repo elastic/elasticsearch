@@ -146,7 +146,7 @@ public class Lucene {
     }
 
     /**
-     * Returns the number of document in the index referenced by this {@link SegmentInfos}
+     * Returns the number of documents in the index referenced by this {@link SegmentInfos}
      */
     public static int getNumDocs(SegmentInfos info) {
         int numDocs = 0;

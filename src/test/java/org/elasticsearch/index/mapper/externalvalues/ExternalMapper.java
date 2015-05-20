@@ -236,7 +236,7 @@ public class ExternalMapper extends AbstractFieldMapper<Object> {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(name());
+        builder.startObject(names().shortName());
         builder.field("type", mapperName);
         multiFields.toXContent(builder, params);
         builder.endObject();

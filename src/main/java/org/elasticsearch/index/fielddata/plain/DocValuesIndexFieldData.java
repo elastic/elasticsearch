@@ -97,7 +97,7 @@ public abstract class DocValuesIndexFieldData {
             final Settings fdSettings = mapper.fieldDataType().getSettings();
             final Map<String, Settings> filter = fdSettings.getGroups("filter");
             if (filter != null && !filter.isEmpty()) {
-                throw new IllegalArgumentException("Doc values field data doesn't support filters [" + fieldNames.name() + "]");
+                throw new IllegalArgumentException("Doc values field data doesn't support filters [" + fieldNames.fullName() + "]");
             }
 
             if (BINARY_INDEX_FIELD_NAMES.contains(fieldNames.indexName())) {

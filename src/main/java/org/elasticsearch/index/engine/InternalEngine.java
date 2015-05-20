@@ -1224,4 +1224,5 @@ public class InternalEngine extends Engine {
     private void commitIndexWriter(IndexWriter writer, Translog translog) throws IOException {
         commitIndexWriter(writer, translog, null);
     }
+
 }

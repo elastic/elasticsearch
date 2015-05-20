@@ -24,6 +24,7 @@ import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
@@ -37,6 +38,7 @@ public final class CommitStats implements Streamable, ToXContent {
     private Map<String, String> userData;
     private long generation;
     private String id; // lucene commit id in base 64;
+    private int numDocs;
 
     public CommitStats(SegmentInfos segmentInfos) {
         // clone the map to protect against concurrent changes
@@ -46,6 +48,7 @@ public final class CommitStats implements Streamable, ToXContent {
         if (segmentInfos.getId() != null) { // id is only written starting with Lucene 5.0
             id = Base64.encodeBytes(segmentInfos.getId());
         }
+        numDocs = Lucene.getNumDocs(segmentInfos);
     }
 
     private CommitStats() {
@@ -76,6 +79,13 @@ public final class CommitStats implements Streamable, ToXContent {
         return id;
     }
 
+    /**
+     * Returns the number of documents in the in this commit
+     */
+    public int getNumDocs() {
+        return numDocs;
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
         MapBuilder<String, String> builder = MapBuilder.newMapBuilder();
@@ -85,6 +95,7 @@ public final class CommitStats implements Streamable, ToXContent {
         userData = builder.immutableMap();
         generation = in.readLong();
         id = in.readString();
+        numDocs = in.readInt();
     }
 
     @Override
@@ -96,6 +107,7 @@ public final class CommitStats implements Streamable, ToXContent {
         }
         out.writeLong(generation);
         out.writeString(id);
+        out.writeInt(numDocs);
     }
 
     static final class Fields {
@@ -103,6 +115,8 @@ public final class CommitStats implements Streamable, ToXContent {
         static final XContentBuilderString USER_DATA = new XContentBuilderString("user_data");
         static final XContentBuilderString ID = new XContentBuilderString("id");
         static final XContentBuilderString COMMIT = new XContentBuilderString("commit");
+        static final XContentBuilderString NUM_DOCS = new XContentBuilderString("num_docs");
+
     }
 
     @Override
@@ -111,6 +125,7 @@ public final class CommitStats implements Streamable, ToXContent {
         builder.field(Fields.ID, id);
         builder.field(Fields.GENERATION, generation);
         builder.field(Fields.USER_DATA, userData);
+        builder.field(Fields.NUM_DOCS, numDocs);
         builder.endObject();
         return builder;
     }

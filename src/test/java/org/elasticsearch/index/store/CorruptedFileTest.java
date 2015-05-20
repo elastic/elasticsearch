@@ -517,6 +517,8 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
     public void testReplicaCorruption() throws Exception {
         int numDocs = scaledRandomIntBetween(100, 1000);
         internalCluster().ensureAtLeastNumDataNodes(2);
+        // we rely on the test to have replicas on all nodes, make sure there are too many to time out
+        internalCluster().ensureAtMostNumDataNodes(4);
 
         assertAcked(prepareCreate("test").setSettings(ImmutableSettings.builder()
                         .put(GatewayAllocator.INDEX_RECOVERY_INITIAL_SHARDS, "one")

@@ -145,20 +145,21 @@ public class IdsQueryBuilder extends QueryBuilder<IdsQueryBuilder> implements Bo
     }
 
     public Query toQuery(QueryParseContext parseContext) throws IOException, QueryParsingException {
+        Query query;
         if (this.ids.isEmpty()) {
-            return Queries.newMatchNoDocsQuery();
-        }
-
-        Collection<String> typesForQuery;
-        if (types == null || types.length == 0) {
-            typesForQuery = parseContext.queryTypes();
-        } else if (types.length == 1 && MetaData.ALL.equals(types[0])) {
-            typesForQuery = parseContext.mapperService().types();
+             query = Queries.newMatchNoDocsQuery();
         } else {
-            typesForQuery = Sets.newHashSet(types);
-        }
+            Collection<String> typesForQuery;
+            if (types == null || types.length == 0) {
+                typesForQuery = parseContext.queryTypes();
+            } else if (types.length == 1 && MetaData.ALL.equals(types[0])) {
+                typesForQuery = parseContext.mapperService().types();
+            } else {
+                typesForQuery = Sets.newHashSet(types);
+            }
 
-        TermsQuery query = new TermsQuery(UidFieldMapper.NAME, Uid.createUidsForTypesAndIds(typesForQuery, ids));
+            query = new TermsQuery(UidFieldMapper.NAME, Uid.createUidsForTypesAndIds(typesForQuery, ids));
+        }
         query.setBoost(boost);
         if (queryName != null) {
             parseContext.addNamedQuery(queryName, query);

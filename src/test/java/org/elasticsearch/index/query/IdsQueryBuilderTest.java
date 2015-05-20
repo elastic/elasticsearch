@@ -20,7 +20,6 @@
 package org.elasticsearch.index.query;
 
 
-import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
 import org.apache.lucene.queries.TermsQuery;
 import org.apache.lucene.search.Query;
@@ -33,8 +32,9 @@ import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.util.Collection;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
 
 public class IdsQueryBuilderTest extends BaseQueryTestCase<IdsQueryBuilder> {
 
@@ -58,40 +58,44 @@ public class IdsQueryBuilderTest extends BaseQueryTestCase<IdsQueryBuilder> {
     }
 
     @Override
-    protected void assertLuceneQuery(IdsQueryBuilder queryBuilder, Query query, QueryParseContext context) throws IOException {
+    protected Query createExpectedQuery(IdsQueryBuilder queryBuilder, QueryParseContext context) throws IOException {
+        Query expectedQuery;
         if (queryBuilder.ids().size() == 0) {
-            assertThat(query, equalTo(Queries.newMatchNoDocsQuery()));
+            expectedQuery = Queries.newMatchNoDocsQuery();
         } else {
-            assertThat(query.getBoost(), is(queryBuilder.boost()));
-            assertThat(query, is(instanceOf(TermsQuery.class)));
             String[] typesForQuery;
-            if (queryBuilder.types().length > 0 && MetaData.isAllTypes(queryBuilder.types()) == false) {
-                typesForQuery = queryBuilder.types();
-            } else if (MetaData.isAllTypes(QueryParseContext.getTypes())) {
-                typesForQuery = currentTypes;
+            if (queryBuilder.types() == null || queryBuilder.types().length == 0) {
+                Collection<String> queryTypes = context.queryTypes();
+                typesForQuery = queryTypes.toArray(new String[queryTypes.size()]);
+            } else if (queryBuilder.types().length == 1 && MetaData.ALL.equals(queryBuilder.types()[0])) {
+                typesForQuery = getCurrentTypes();
             } else {
-                typesForQuery = QueryParseContext.getTypes();
+                typesForQuery = queryBuilder.types();
             }
-            TermsQuery expectedQuery = new TermsQuery(UidFieldMapper.NAME, Uid.createTypeUids(Sets.newHashSet(typesForQuery), queryBuilder.ids()));
-            expectedQuery.setBoost(queryBuilder.boost());
-            assertThat((TermsQuery) query, equalTo(expectedQuery));
-            if (queryBuilder.queryName() != null) {
-                ImmutableMap<String, Query> namedFilters = context.copyNamedFilters();
-                Query namedQuery = namedFilters.get(queryBuilder.queryName());
-                assertThat(namedQuery, sameInstance(query));
-            }
+            expectedQuery = new TermsQuery(UidFieldMapper.NAME, Uid.createUidsForTypesAndIds(Sets.newHashSet(typesForQuery), queryBuilder.ids()));
+        }
+        expectedQuery.setBoost(queryBuilder.boost());
+        return expectedQuery;
+    }
+
+    @Override
+    protected void assertLuceneQuery(IdsQueryBuilder queryBuilder, Query query, QueryParseContext context) {
+        assertThat(query.getBoost(), equalTo(queryBuilder.boost()));
+        if (queryBuilder.queryName() != null) {
+            Query namedQuery = context.copyNamedFilters().get(queryBuilder.queryName());
+            assertThat(namedQuery, equalTo(query));
         }
     }
 
     @Override
     protected IdsQueryBuilder createTestQueryBuilder() {
         String[] types;
-        if (currentTypes.length > 0 && randomBoolean()) {
-            int numberOfTypes = randomIntBetween(1, currentTypes.length);
+        if (getCurrentTypes().length > 0 && randomBoolean()) {
+            int numberOfTypes = randomIntBetween(1, getCurrentTypes().length);
             types = new String[numberOfTypes];
             for (int i = 0; i < numberOfTypes; i++) {
                 if (frequently()) {
-                    types[i] = randomFrom(currentTypes);
+                    types[i] = randomFrom(getCurrentTypes());
                 } else {
                     types[i] = randomAsciiOfLengthBetween(1, 10);
                 }

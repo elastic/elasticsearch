@@ -70,6 +70,7 @@ public class SpanTermQueryBuilder extends BaseTermQueryBuilder<SpanTermQueryBuil
     @Override
     public Query toQuery(QueryParseContext context) {
         BytesRef valueBytes = null;
+        String fieldName = this.fieldName;
         FieldMapper mapper = context.fieldMapper(fieldName);
         if (mapper != null) {
             fieldName = mapper.names().indexName();
@@ -78,7 +79,7 @@ public class SpanTermQueryBuilder extends BaseTermQueryBuilder<SpanTermQueryBuil
         if (valueBytes == null) {
             valueBytes = BytesRefs.toBytesRef(this.value);
         }
-        
+
         SpanTermQuery query = new SpanTermQuery(new Term(fieldName, valueBytes));
         query.setBoost(boost);
         if (queryName != null) {

@@ -22,17 +22,20 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 
-import java.io.IOException;
-
-import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.equalTo;
 
 public class MatchAllQueryBuilderTest extends BaseQueryTestCase<MatchAllQueryBuilder> {
 
     @Override
-    protected void assertLuceneQuery(MatchAllQueryBuilder queryBuilder, Query query, QueryParseContext context) throws IOException {
-        assertThat(query, instanceOf(MatchAllDocsQuery.class));
-        assertThat(query.getBoost(), is(queryBuilder.boost()));
+    protected Query createExpectedQuery(MatchAllQueryBuilder queryBuilder, QueryParseContext context) {
+        MatchAllDocsQuery matchAllDocsQuery = new MatchAllDocsQuery();
+        matchAllDocsQuery.setBoost(queryBuilder.boost());
+        return matchAllDocsQuery;
+    }
+
+    @Override
+    protected void assertLuceneQuery(MatchAllQueryBuilder queryBuilder, Query query, QueryParseContext context) {
+        assertThat(query.getBoost(), equalTo(queryBuilder.boost()));
     }
 
     @Override

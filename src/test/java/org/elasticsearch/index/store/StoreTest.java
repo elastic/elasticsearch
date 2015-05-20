@@ -56,6 +56,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.file.NoSuchFileException;
+import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -1233,6 +1234,37 @@ public class StoreTest extends ElasticsearchTestCase {
             // expected
         }
         assertTrue(store.isMarkedCorrupted());
+        store.close();
+    }
+
+    public void testCanOpenIndex() throws IOException {
+        IndexWriterConfig iwc = newIndexWriterConfig();
+        Path tempDir = createTempDir();
+        final BaseDirectoryWrapper dir = newFSDirectory(tempDir);
+        assertFalse(Store.canOpenIndex(logger, tempDir));
+        IndexWriter writer = new IndexWriter(dir, iwc);
+        Document doc = new Document();
+        doc.add(new StringField("id", "1", random().nextBoolean() ? Field.Store.YES : Field.Store.NO));
+        writer.addDocument(doc);
+        writer.commit();
+        writer.close();
+        assertTrue(Store.canOpenIndex(logger, tempDir));
+
+        final ShardId shardId = new ShardId(new Index("index"), 1);
+        DirectoryService directoryService = new DirectoryService(shardId, ImmutableSettings.EMPTY) {
+            @Override
+            public long throttleTimeInNanos() {
+                return 0;
+            }
+
+            @Override
+            public Directory newDirectory() throws IOException {
+                return dir;
+            }
+        };
+        Store store = new Store(shardId, ImmutableSettings.EMPTY, directoryService, new DummyShardLock(shardId));
+        store.markStoreCorrupted(new CorruptIndexException("foo", "bar"));
+        assertFalse(Store.canOpenIndex(logger, tempDir));
         store.close();
     }
 }

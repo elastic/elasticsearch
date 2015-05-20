@@ -638,9 +638,7 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public <V> V putHeader(String key, V value) {
-        return value;
-    }
+    public <V> void putHeader(String key, V value) {}
 
     @Override
     public <V> V getHeader(String key) {

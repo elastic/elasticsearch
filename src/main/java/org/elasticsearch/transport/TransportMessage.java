@@ -26,13 +26,12 @@ import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.transport.TransportAddress;
 
 import java.io.IOException;
-import java.util.HashMap;
 
 /**
  * The transport message is also a {@link ContextAndHeaderHolder context holder} that holds <b>transient</b> context, that is,
  * the context is not serialized with message.
  */
-public abstract class TransportMessage<TM extends TransportMessage<TM>> extends ContextAndHeaderHolder<TM> implements Streamable {
+public abstract class TransportMessage<TM extends TransportMessage<TM>> extends ContextAndHeaderHolder implements Streamable {
 
     private TransportAddress remoteAddress;
 
@@ -40,13 +39,7 @@ public abstract class TransportMessage<TM extends TransportMessage<TM>> extends 
     }
 
     protected TransportMessage(TM message) {
-        // create a new copy of the headers/context, since we are creating a new request
-        // which might have its headers/context changed in the context of that specific request
-
-        if (message.headers != null) {
-            this.headers = new HashMap<>(message.headers);
-        }
-        copyContextFrom(message);
+        copyContextAndHeadersFrom(message);
     }
 
     public void remoteAddress(TransportAddress remoteAddress) {

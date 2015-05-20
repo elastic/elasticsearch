@@ -788,8 +788,8 @@ public class DefaultSearchContext extends SearchContext {
     }
 
     @Override
-    public <V> V putHeader(String key, V value) {
-        return request.putHeader(key, value);
+    public <V> void putHeader(String key, V value) {
+        request.putHeader(key, value);
     }
 
     @Override

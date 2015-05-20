@@ -1170,7 +1170,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                 // remove local node reference
                 masterClusterState = ClusterState.Builder.fromBytes(masterClusterStateBytes, null);
                 Map<String, Object> masterStateMap = convertToMap(masterClusterState);
-                int masterClusterStateSize = ClusterState.Builder.toBytes(masterClusterState).length;
+                int masterClusterStateSize = masterClusterState.toString().length();
                 String masterId = masterClusterState.nodes().masterNodeId();
                 for (Client client : cluster()) {
                     ClusterState localClusterState = client.admin().cluster().prepareState().all().setLocal(true).get().getState();
@@ -1178,7 +1178,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                     // remove local node reference
                     localClusterState = ClusterState.Builder.fromBytes(localClusterStateBytes, null);
                     Map<String, Object> localStateMap = convertToMap(localClusterState);
-                    int localClusterStateSize = localClusterStateBytes.length;
+                    int localClusterStateSize = localClusterState.toString().length();
                     // Check that the non-master node has the same version of the cluster state as the master and that this node didn't disconnect from the master
                     if (masterClusterState.version() == localClusterState.version() && localClusterState.nodes().nodes().containsKey(masterId)) {
                         try {

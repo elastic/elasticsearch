@@ -28,7 +28,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
  */
 public class SettingsFilter extends AbstractComponent {
 
-    public static interface Filter {
+    public interface Filter {
 
         void filter(ImmutableSettings.Builder settings);
     }

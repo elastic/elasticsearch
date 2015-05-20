@@ -451,7 +451,14 @@ public class ClusterState implements ToXContent {
 
             for (ObjectObjectCursor<String, MetaData.Custom> cursor : metaData.customs()) {
                 builder.startObject(cursor.key);
-                MetaData.lookupFactorySafe(cursor.key).toXContent(cursor.value, builder, params);
+                MetaData.Custom.Factory<MetaData.Custom> factory = MetaData.lookupFactorySafe(cursor.key);
+                // Some components (RepositoriseMetaData for example) are using settings filters.
+                // Check if this is such component
+                if (factory instanceof MetaData.Custom.ToXFilteredContent) {
+                    ((MetaData.Custom.ToXFilteredContent)factory).toXContent(cursor.value, builder, params, settingsFilter);
+                } else {
+                    factory.toXContent(cursor.value, builder, params);
+                }
                 builder.endObject();
             }
 

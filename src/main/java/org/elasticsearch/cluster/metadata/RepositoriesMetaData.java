@@ -25,6 +25,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.loader.SettingsLoader;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -83,7 +84,7 @@ public class RepositoriesMetaData implements MetaData.Custom {
     /**
      * Repository metadata factory
      */
-    public static class Factory extends MetaData.Custom.Factory<RepositoriesMetaData> {
+    public static class Factory extends MetaData.Custom.Factory<RepositoriesMetaData> implements ToXFilteredContent<RepositoriesMetaData> {
 
         /**
          * {@inheritDoc}
@@ -167,8 +168,13 @@ public class RepositoriesMetaData implements MetaData.Custom {
          */
         @Override
         public void toXContent(RepositoriesMetaData customIndexMetaData, XContentBuilder builder, ToXContent.Params params) throws IOException {
+            toXContent(customIndexMetaData, builder, params, null);
+        }
+
+        @Override
+        public void toXContent(RepositoriesMetaData customIndexMetaData, XContentBuilder builder, ToXContent.Params params, SettingsFilter settingsFilter) throws IOException {
             for (RepositoryMetaData repository : customIndexMetaData.repositories()) {
-                toXContent(repository, builder, params);
+                toXContent(repository, builder, params, settingsFilter);
             }
         }
 
@@ -177,25 +183,20 @@ public class RepositoriesMetaData implements MetaData.Custom {
             return MetaData.API_AND_GATEWAY;
         }
 
-        /**
-         * Serializes information about a single repository
-         *
-         * @param repository repository metadata
-         * @param builder    XContent builder
-         * @param params     serialization parameters
-         * @throws IOException
-         */
-        public void toXContent(RepositoryMetaData repository, XContentBuilder builder, ToXContent.Params params) throws IOException {
+        public void toXContent(RepositoryMetaData repository, XContentBuilder builder, ToXContent.Params params, SettingsFilter filter) throws IOException {
             builder.startObject(repository.name(), XContentBuilder.FieldCaseConversion.NONE);
             builder.field("type", repository.type());
             builder.startObject("settings");
-            for (Map.Entry<String, String> settingEntry : repository.settings().getAsMap().entrySet()) {
-                builder.field(settingEntry.getKey(), settingEntry.getValue());
+            final Settings settings;
+            if (filter != null) {
+                settings = filter.filterSettings(repository.settings());
+            } else {
+                settings = repository.settings();
             }
+            settings.toXContent(builder, params);
             builder.endObject();
-
             builder.endObject();
-        }
+         }
     }
 
 }

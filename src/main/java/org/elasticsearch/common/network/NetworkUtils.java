@@ -58,8 +58,8 @@ public abstract class NetworkUtils {
         localAddress = localAddressX;
     }
 
-    public static Boolean defaultReuseAddress() {
-        return Constants.WINDOWS ? null : true;
+    public static boolean defaultReuseAddress() {
+        return Constants.WINDOWS ? false : true;
     }
 
     public static boolean isIPv4() {

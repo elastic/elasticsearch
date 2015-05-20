@@ -116,7 +116,7 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
 
     protected final String tcpNoDelay;
     protected final String tcpKeepAlive;
-    protected final Boolean reuseAddress;
+    protected final boolean reuseAddress;
 
     protected final ByteSizeValue tcpSendBufferSize;
     protected final ByteSizeValue tcpReceiveBufferSize;
@@ -240,10 +240,8 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
         }
         serverBootstrap.setOption("receiveBufferSizePredictorFactory", receiveBufferSizePredictorFactory);
         serverBootstrap.setOption("child.receiveBufferSizePredictorFactory", receiveBufferSizePredictorFactory);
-        if (reuseAddress != null) {
-            serverBootstrap.setOption("reuseAddress", reuseAddress);
-            serverBootstrap.setOption("child.reuseAddress", reuseAddress);
-        }
+        serverBootstrap.setOption("reuseAddress", reuseAddress);
+        serverBootstrap.setOption("child.reuseAddress", reuseAddress);
 
         // Bind and start to accept incoming connections.
         InetAddress hostAddressX;

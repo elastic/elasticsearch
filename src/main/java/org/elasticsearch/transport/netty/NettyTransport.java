@@ -345,10 +345,8 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
 
         clientBootstrap.setOption("receiveBufferSizePredictorFactory", receiveBufferSizePredictorFactory);
 
-        Boolean reuseAddress = settings.getAsBoolean("transport.netty.reuse_address", settings.getAsBoolean(TCP_REUSE_ADDRESS, NetworkUtils.defaultReuseAddress()));
-        if (reuseAddress != null) {
-            clientBootstrap.setOption("reuseAddress", reuseAddress);
-        }
+        boolean reuseAddress = settings.getAsBoolean("transport.netty.reuse_address", settings.getAsBoolean(TCP_REUSE_ADDRESS, NetworkUtils.defaultReuseAddress()));
+        clientBootstrap.setOption("reuseAddress", reuseAddress);
 
         return clientBootstrap;
     }
@@ -376,10 +374,8 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
             fallbackSettingsBuilder.put("tcp_keep_alive", fallbackTcpKeepAlive);
         }
 
-        Boolean fallbackReuseAddress = settings.getAsBoolean("transport.netty.reuse_address", settings.getAsBoolean(TCP_REUSE_ADDRESS, NetworkUtils.defaultReuseAddress()));
-        if (fallbackReuseAddress != null) {
-            fallbackSettingsBuilder.put("reuse_address", fallbackReuseAddress);
-        }
+        boolean fallbackReuseAddress = settings.getAsBoolean("transport.netty.reuse_address", settings.getAsBoolean(TCP_REUSE_ADDRESS, NetworkUtils.defaultReuseAddress()));
+        fallbackSettingsBuilder.put("reuse_address", fallbackReuseAddress);
 
         ByteSizeValue fallbackTcpSendBufferSize = settings.getAsBytesSize("transport.netty.tcp_send_buffer_size", settings.getAsBytesSize(TCP_SEND_BUFFER_SIZE, TCP_DEFAULT_SEND_BUFFER_SIZE));
         if (fallbackTcpSendBufferSize != null) {
@@ -442,7 +438,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         String publishHost = settings.get("publish_host");
         String tcpNoDelay = settings.get("tcp_no_delay");
         String tcpKeepAlive = settings.get("tcp_keep_alive");
-        Boolean reuseAddress = settings.getAsBoolean("reuse_address", NetworkUtils.defaultReuseAddress());
+        boolean reuseAddress = settings.getAsBoolean("reuse_address", NetworkUtils.defaultReuseAddress());
         ByteSizeValue tcpSendBufferSize = settings.getAsBytesSize("tcp_send_buffer_size", TCP_DEFAULT_SEND_BUFFER_SIZE);
         ByteSizeValue tcpReceiveBufferSize = settings.getAsBytesSize("tcp_receive_buffer_size", TCP_DEFAULT_RECEIVE_BUFFER_SIZE);
 
@@ -478,10 +474,8 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         }
         serverBootstrap.setOption("receiveBufferSizePredictorFactory", receiveBufferSizePredictorFactory);
         serverBootstrap.setOption("child.receiveBufferSizePredictorFactory", receiveBufferSizePredictorFactory);
-        if (reuseAddress != null) {
-            serverBootstrap.setOption("reuseAddress", reuseAddress);
-            serverBootstrap.setOption("child.reuseAddress", reuseAddress);
-        }
+        serverBootstrap.setOption("reuseAddress", reuseAddress);
+        serverBootstrap.setOption("child.reuseAddress", reuseAddress);
 
         serverBootstraps.put(name, serverBootstrap);
     }

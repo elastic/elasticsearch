@@ -211,8 +211,8 @@ public abstract class BaseTermQueryBuilder<QB extends BaseTermQueryBuilder<QB>> 
     @Override
     public QB readFrom(StreamInput in) throws IOException {
         QB emptyBuilder = createBuilder(in.readString(), in.readGenericValue());
-        emptyBuilder.boost(in.readFloat());
-        emptyBuilder.queryName(in.readOptionalString());
+        emptyBuilder.boost = in.readFloat();
+        emptyBuilder.queryName = in.readOptionalString();
         return emptyBuilder;
     }
 

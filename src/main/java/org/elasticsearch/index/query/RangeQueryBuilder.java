@@ -341,14 +341,14 @@ public class RangeQueryBuilder extends MultiTermQueryBuilder<RangeQueryBuilder> 
     @Override
     public RangeQueryBuilder readFrom(StreamInput in) throws IOException {
         RangeQueryBuilder rangeQueryBuilder = new RangeQueryBuilder(in.readString());
-        rangeQueryBuilder.from(in.readGenericValue());
-        rangeQueryBuilder.to(in.readGenericValue());
-        rangeQueryBuilder.includeLower(in.readBoolean());
-        rangeQueryBuilder.includeUpper(in.readBoolean());
-        rangeQueryBuilder.timeZone(in.readOptionalString());
-        rangeQueryBuilder.format(in.readOptionalString());
-        rangeQueryBuilder.boost(in.readFloat());
-        rangeQueryBuilder.queryName(in.readOptionalString());
+        rangeQueryBuilder.from = in.readGenericValue();
+        rangeQueryBuilder.to = in.readGenericValue();
+        rangeQueryBuilder.includeLower = in.readBoolean();
+        rangeQueryBuilder.includeUpper = in.readBoolean();
+        rangeQueryBuilder.timeZone = in.readOptionalString();
+        rangeQueryBuilder.format = in.readOptionalString();
+        rangeQueryBuilder.boost = in.readFloat();
+        rangeQueryBuilder.queryName = in.readOptionalString();
         return rangeQueryBuilder;
     }
 

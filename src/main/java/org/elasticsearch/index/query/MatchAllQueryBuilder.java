@@ -66,7 +66,6 @@ public class MatchAllQueryBuilder extends QueryBuilder<MatchAllQueryBuilder> imp
         if (this.boost == 1.0f) {
             return Queries.newMatchAllQuery();
         }
-
         MatchAllDocsQuery query = new MatchAllDocsQuery();
         query.setBoost(boost);
         return query;
@@ -92,7 +91,7 @@ public class MatchAllQueryBuilder extends QueryBuilder<MatchAllQueryBuilder> imp
     @Override
     public MatchAllQueryBuilder readFrom(StreamInput in) throws IOException {
         MatchAllQueryBuilder matchAllQueryBuilder = new MatchAllQueryBuilder();
-        matchAllQueryBuilder.boost(in.readFloat());
+        matchAllQueryBuilder.boost = in.readFloat();
         return matchAllQueryBuilder;
     }
 

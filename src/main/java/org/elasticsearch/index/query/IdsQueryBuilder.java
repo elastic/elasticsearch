@@ -177,8 +177,8 @@ public class IdsQueryBuilder extends QueryBuilder<IdsQueryBuilder> implements Bo
     public IdsQueryBuilder readFrom(StreamInput in) throws IOException {
         IdsQueryBuilder idsQueryBuilder = new IdsQueryBuilder(in.readStringArray());
         idsQueryBuilder.addIds(in.readStringArray());
-        idsQueryBuilder.queryName(in.readOptionalString());
-        idsQueryBuilder.boost(in.readFloat());
+        idsQueryBuilder.queryName = in.readOptionalString();
+        idsQueryBuilder.boost = in.readFloat();
         return idsQueryBuilder;
     }
 

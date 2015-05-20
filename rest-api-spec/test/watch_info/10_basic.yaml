@@ -3,4 +3,4 @@
   - do: {watcher.info: {}}
   - is_true:    version.build_hash
   - is_true:    version.build_timestamp
-  - is_false:    version.build_snapshot
+  - is_true:    version.build_snapshot

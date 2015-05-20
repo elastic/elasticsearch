@@ -316,33 +316,9 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
         Injector shardInjector = null;
         try {
 
-            
-
             ShardPath path = ShardPath.loadShardPath(logger, nodeEnv, shardId, indexSettings);
             if (path == null) {
-
-                long totFreeSpace = 0;
-                for (NodeEnvironment.NodePath nodePath : nodeEnv.nodePaths()) {
-                    totFreeSpace += nodePath.fileStore.getUsableSpace();
-                }
-
-                // Very rough heurisic of how much disk space we expect the shard will use over its lifetime, the max of current average
-                // shard size across the cluster and 5% of the total available free space on this node:
-                long estShardSizeInBytes = Math.max(avgShardSizeInBytes, (long) (totFreeSpace/20.0));
-
-                // Just collate predicted disk usage on each path.data:
-                Map<Path,Long> estReserveBytes = new HashMap<>();
-                for(Tuple<IndexShard,Injector> shardInjectorTuple : shards.values()) {
-                    IndexShard shard = shardInjectorTuple.v1();
-                    // Remove indices/<index>/<shardID> subdirs from the statePath to get back to the path.data:
-                    Path nodeDataPath = shard.shardPath().getShardStatePath().getParent().getParent().getParent();
-                    Long curBytes = estReserveBytes.get(nodeDataPath);
-                    if (curBytes == null) {
-                        curBytes = 0L;
-                    }
-                    estReserveBytes.put(nodeDataPath, curBytes + estShardSizeInBytes);
-                }
-                path = ShardPath.selectNewPathForShard(nodeEnv, shardId, indexSettings, estReserveBytes);
+                path = ShardPath.selectNewPathForShard(nodeEnv, shardId, indexSettings, avgShardSizeInBytes, this);
                 logger.debug("{} creating using a new path [{}]", shardId, path);
             } else {
                 logger.debug("{} creating using an existing path [{}]", shardId, path);

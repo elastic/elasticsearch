@@ -29,6 +29,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
 
 import java.util.Map;
@@ -51,12 +52,20 @@ public class RestFieldStatsAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) throws Exception {
+        if (RestActions.hasBodyContent(request) && request.hasParam("fields")) {
+            throw new IllegalArgumentException("can't specify a request body and [fields] request parameter, either specify a request body or the [fields] request parameter");
+        }
+
         final FieldStatsRequest fieldStatsRequest = new FieldStatsRequest();
         fieldStatsRequest.indices(Strings.splitStringByCommaToArray(request.param("index")));
         fieldStatsRequest.indicesOptions(IndicesOptions.fromRequest(request, fieldStatsRequest.indicesOptions()));
-        fieldStatsRequest.fields(Strings.splitStringByCommaToArray(request.param("fields")));
         fieldStatsRequest.level(request.param("level", FieldStatsRequest.DEFAULT_LEVEL));
+        if (RestActions.hasBodyContent(request)) {
+            fieldStatsRequest.source(RestActions.getRestContent(request));
+        } else {
+            fieldStatsRequest.setFields(Strings.splitStringByCommaToArray(request.param("fields")));
+        }
 
         client.fieldStats(fieldStatsRequest, new RestBuilderListener<FieldStatsResponse>(channel) {
             @Override

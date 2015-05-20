@@ -22,18 +22,19 @@ package org.elasticsearch.fieldstats;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.fieldstats.FieldStats;
 import org.elasticsearch.action.fieldstats.FieldStatsResponse;
+import org.elasticsearch.action.fieldstats.IndexConstraint;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.ExecutionException;
 
+import static org.elasticsearch.action.fieldstats.IndexConstraint.Comparison.*;
+import static org.elasticsearch.action.fieldstats.IndexConstraint.Property.MAX;
+import static org.elasticsearch.action.fieldstats.IndexConstraint.Property.MIN;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.*;
 
 /**
  */
@@ -205,7 +206,118 @@ public class FieldStatsIntegrationTests extends ElasticsearchIntegrationTest {
         assertThat(response.getIndicesMergedFieldStats().get("test2").get("value").getMaxValue(), equalTo("b"));
     }
 
-    private void indexRange(String index, long from, long to) throws ExecutionException, InterruptedException {
+    public void testFieldStatsFiltering() throws Exception {
+        assertAcked(prepareCreate("test1").addMapping(
+                "test", "value", "type=long"
+        ));
+        assertAcked(prepareCreate("test2").addMapping(
+                "test", "value", "type=long"
+        ));
+        assertAcked(prepareCreate("test3").addMapping(
+                "test", "value", "type=long"
+        ));
+        ensureGreen("test1", "test2", "test3");
+
+        indexRange("test1", -10, 100);
+        indexRange("test2", 101, 200);
+        indexRange("test3", 201, 300);
+
+        FieldStatsResponse response = client().prepareFieldStats()
+                .setFields("value")
+                .setIndexContraints(new IndexConstraint("value", MIN, GTE, "200"), new IndexConstraint("value", MAX , LTE, "300"))
+                .setLevel("indices")
+                .get();
+        assertAllSuccessful(response);
+        assertThat(response.getAllFieldStats(), nullValue());
+        assertThat(response.getIndicesMergedFieldStats().size(), equalTo(1));
+        assertThat(response.getIndicesMergedFieldStats().get("test3").get("value").getMinValue(), equalTo(Long.toString(201)));
+        assertThat(response.getIndicesMergedFieldStats().get("test3").get("value").getMaxValue(), equalTo(Long.toString(300)));
+
+        response = client().prepareFieldStats()
+                .setFields("value")
+                .setIndexContraints(new IndexConstraint("value", MAX, LTE, "200"))
+                .setLevel("indices")
+                .get();
+        assertAllSuccessful(response);
+        assertThat(response.getAllFieldStats(), nullValue());
+        assertThat(response.getIndicesMergedFieldStats().size(), equalTo(2));
+        assertThat(response.getIndicesMergedFieldStats().get("test1").get("value").getMinValue(), equalTo(Long.toString(-10)));
+        assertThat(response.getIndicesMergedFieldStats().get("test1").get("value").getMaxValue(), equalTo(Long.toString(100)));
+        assertThat(response.getIndicesMergedFieldStats().get("test2").get("value").getMinValue(), equalTo(Long.toString(101)));
+        assertThat(response.getIndicesMergedFieldStats().get("test2").get("value").getMaxValue(), equalTo(Long.toString(200)));
+
+        response = client().prepareFieldStats()
+                .setFields("value")
+                .setIndexContraints(new IndexConstraint("value", MIN, GTE, "100"))
+                .setLevel("indices")
+                .get();
+        assertAllSuccessful(response);
+        assertThat(response.getAllFieldStats(), nullValue());
+        assertThat(response.getIndicesMergedFieldStats().size(), equalTo(2));
+        assertThat(response.getIndicesMergedFieldStats().get("test2").get("value").getMinValue(), equalTo(Long.toString(101)));
+        assertThat(response.getIndicesMergedFieldStats().get("test2").get("value").getMaxValue(), equalTo(Long.toString(200)));
+        assertThat(response.getIndicesMergedFieldStats().get("test3").get("value").getMinValue(), equalTo(Long.toString(201)));
+        assertThat(response.getIndicesMergedFieldStats().get("test3").get("value").getMaxValue(), equalTo(Long.toString(300)));
+
+        response = client().prepareFieldStats()
+                .setFields("value")
+                .setIndexContraints(new IndexConstraint("value", MIN, GTE, "-20"), new IndexConstraint("value", MAX, LT, "-10"))
+                .setLevel("indices")
+                .get();
+        assertAllSuccessful(response);
+        assertThat(response.getAllFieldStats(), nullValue());
+        assertThat(response.getIndicesMergedFieldStats().size(), equalTo(0));
+
+        response = client().prepareFieldStats()
+                .setFields("value")
+                .setIndexContraints(new IndexConstraint("value", MIN, GTE, "-100"), new IndexConstraint("value", MAX, LTE, "-20"))
+                .setLevel("indices")
+                .get();
+        assertAllSuccessful(response);
+        assertThat(response.getAllFieldStats(), nullValue());
+        assertThat(response.getIndicesMergedFieldStats().size(), equalTo(0));
+
+        response = client().prepareFieldStats()
+                .setFields("value")
+                .setIndexContraints(new IndexConstraint("value", MIN, GTE, "100"), new IndexConstraint("value", MAX, LTE, "200"))
+                .setLevel("indices")
+                .get();
+        assertAllSuccessful(response);
+        assertThat(response.getAllFieldStats(), nullValue());
+        assertThat(response.getIndicesMergedFieldStats().size(), equalTo(1));
+        assertThat(response.getIndicesMergedFieldStats().get("test2").get("value").getMinValue(), equalTo(Long.toString(101)));
+        assertThat(response.getIndicesMergedFieldStats().get("test2").get("value").getMaxValue(), equalTo(Long.toString(200)));
+
+        response = client().prepareFieldStats()
+                .setFields("value")
+                .setIndexContraints(new IndexConstraint("value", MIN, GTE, "150"), new IndexConstraint("value", MAX, LTE, "300"))
+                .setLevel("indices")
+                .get();
+        assertAllSuccessful(response);
+        assertThat(response.getAllFieldStats(), nullValue());
+        assertThat(response.getIndicesMergedFieldStats().size(), equalTo(1));
+        assertThat(response.getIndicesMergedFieldStats().get("test3").get("value").getMinValue(), equalTo(Long.toString(201)));
+        assertThat(response.getIndicesMergedFieldStats().get("test3").get("value").getMaxValue(), equalTo(Long.toString(300)));
+    }
+
+    public void testIncompatibleFilter() throws Exception {
+        assertAcked(prepareCreate("test1").addMapping(
+                "test", "value", "type=long"
+        ));
+        indexRange("test1", -10, 100);
+        try {
+            client().prepareFieldStats()
+                    .setFields("value")
+                    .setIndexContraints(new IndexConstraint("value", MAX, LTE, "abc"))
+                    .setLevel("indices")
+                    .get();
+            fail("exception should have been thrown, because value abc is incompatible");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), equalTo("For input string: \"abc\""));
+        }
+    }
+
+    private void indexRange(String index, long from, long to) throws Exception {
         List<IndexRequestBuilder> requests = new ArrayList<>();
         for (long value = from; value <= to; value++) {
             requests.add(client().prepareIndex(index, "test").setSource("value", value));

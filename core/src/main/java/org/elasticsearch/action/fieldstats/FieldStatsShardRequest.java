@@ -25,6 +25,9 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Set;
 
 /**
  */
@@ -37,7 +40,12 @@ public class FieldStatsShardRequest extends BroadcastShardRequest {
 
     public FieldStatsShardRequest(ShardId shardId, FieldStatsRequest request) {
         super(shardId, request);
-        this.fields = request.fields();
+        Set<String> fields = new HashSet<>();
+        fields.addAll(Arrays.asList(request.getFields()));
+        for (IndexConstraint indexConstraint : request.getIndexConstraints()) {
+            fields.add(indexConstraint.getField());
+        }
+        this.fields = fields.toArray(new String[fields.size()]);
     }
 
     public String[] getFields() {

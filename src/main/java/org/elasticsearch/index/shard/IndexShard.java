@@ -534,7 +534,7 @@ public class IndexShard extends AbstractIndexShardComponent {
     public Engine.Delete prepareDelete(String type, String id, long version, VersionType versionType, Engine.Operation.Origin origin) {
         long startTime = System.nanoTime();
         final DocumentMapper documentMapper = docMapper(type).v1();
-        return new Engine.Delete(type, id, documentMapper.uidMapper().term(type, id), version, versionType, origin, startTime, false);
+        return new Engine.Delete(type, id, documentMapper.uidMapper().term(Uid.createUid(type, id)), version, versionType, origin, startTime, false);
     }
 
     public void delete(Engine.Delete delete) {

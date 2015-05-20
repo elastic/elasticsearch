@@ -133,7 +133,7 @@ public class TypeFieldMapper extends AbstractFieldMapper<String> implements Root
         if (fieldType.indexOptions() == IndexOptions.NONE) {
             return new ConstantScoreQuery(new PrefixQuery(new Term(UidFieldMapper.NAME, Uid.typePrefixAsBytes(BytesRefs.toBytesRef(value)))));
         }
-        return new ConstantScoreQuery(new TermQuery(names().createIndexNameTerm(BytesRefs.toBytesRef(value))));
+        return new ConstantScoreQuery(new TermQuery(createTerm(value)));
     }
 
     @Override

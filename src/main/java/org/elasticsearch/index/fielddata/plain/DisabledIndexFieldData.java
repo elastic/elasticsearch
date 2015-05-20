@@ -61,7 +61,7 @@ public final class DisabledIndexFieldData extends AbstractIndexFieldData<AtomicF
     }
 
     private IllegalStateException fail() {
-        return new IllegalStateException("Field data loading is forbidden on " + getFieldNames().name());
+        return new IllegalStateException("Field data loading is forbidden on " + getFieldNames().fullName());
     }
 
 }

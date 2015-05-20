@@ -38,6 +38,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.loader.SettingsLoader;
 import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.index.Index;
@@ -92,6 +93,10 @@ public class MetaData implements Iterable<IndexMetaData> {
             public EnumSet<XContentContext> context() {
                 return API_ONLY;
             }
+        }
+
+        interface ToXFilteredContent<T extends Custom> {
+            void toXContent(T customIndexMetaData, XContentBuilder builder, ToXContent.Params params, SettingsFilter settingsFilter) throws IOException;
         }
     }
 

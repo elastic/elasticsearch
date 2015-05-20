@@ -252,22 +252,23 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
                 Settings fallbackSettings = createFallbackSettings();
                 Settings defaultSettings = profiles.get(DEFAULT_PROFILE);
 
-                // loop through all profiles and strart them app, special handling for default one
+                // loop through all profiles and start them up, special handling for default one
                 for (Map.Entry<String, Settings> entry : profiles.entrySet()) {
                     Settings profileSettings = entry.getValue();
                     String name = entry.getKey();
 
-                    if (DEFAULT_PROFILE.equals(name)) {
+                    if (!Strings.hasLength(name)) {
+                        logger.info("transport profile configured without a name. skipping profile with settings [{}]", profileSettings.toDelimitedString(','));
+                        continue;
+                    } else if (DEFAULT_PROFILE.equals(name)) {
                         profileSettings = settingsBuilder()
                                 .put(profileSettings)
                                 .put("port", profileSettings.get("port", this.settings.get("transport.tcp.port", DEFAULT_PORT_RANGE)))
                                 .build();
-                    } else {
+                    } else if (profileSettings.get("port") == null) {
                         // if profile does not have a port, skip it
-                        if (profileSettings.get("port") == null) {
-                            logger.info("No port configured for profile [{}], not binding", name);
-                            continue;
-                        }
+                        logger.info("No port configured for profile [{}], not binding", name);
+                        continue;
                     }
 
                     // merge fallback settings with default settings with profile settings so we have complete settings with default values

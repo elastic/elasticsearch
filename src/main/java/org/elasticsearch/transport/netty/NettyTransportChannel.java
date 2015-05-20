@@ -61,6 +61,7 @@ public class NettyTransportChannel implements TransportChannel {
         this.profileName = profileName;
     }
 
+    @Override
     public String getProfileName() {
         return profileName;
     }

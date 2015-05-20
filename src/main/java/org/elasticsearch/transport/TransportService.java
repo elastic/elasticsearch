@@ -20,7 +20,6 @@
 package org.elasticsearch.transport;
 
 import com.google.common.collect.ImmutableMap;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.settings.ClusterDynamicSettings;
 import org.elasticsearch.cluster.settings.DynamicSettings;
@@ -55,6 +54,8 @@ import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_
  *
  */
 public class TransportService extends AbstractLifecycleComponent<TransportService> {
+
+    public static final String DIRECT_RESPONSE_PROFILE = ".direct";
 
     private final AtomicBoolean started = new AtomicBoolean(false);
     protected final Transport transport;
@@ -720,6 +721,11 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
         @Override
         public String action() {
             return action;
+        }
+
+        @Override
+        public String getProfileName() {
+            return DIRECT_RESPONSE_PROFILE;
         }
 
         @Override

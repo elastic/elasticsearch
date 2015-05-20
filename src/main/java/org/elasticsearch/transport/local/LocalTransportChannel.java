@@ -22,7 +22,6 @@ package org.elasticsearch.transport.local;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.ThrowableObjectOutputStream;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.transport.*;
 import org.elasticsearch.transport.support.TransportStatus;
 
@@ -33,6 +32,8 @@ import java.io.NotSerializableException;
  *
  */
 public class LocalTransportChannel implements TransportChannel {
+
+    private static final String LOCAL_TRANSPORT_PROFILE = "default";
 
     private final LocalTransport sourceTransport;
     private final TransportServiceAdapter sourceTransportServiceAdapter;
@@ -54,6 +55,11 @@ public class LocalTransportChannel implements TransportChannel {
     @Override
     public String action() {
         return action;
+    }
+
+    @Override
+    public String getProfileName() {
+        return LOCAL_TRANSPORT_PROFILE;
     }
 
     @Override

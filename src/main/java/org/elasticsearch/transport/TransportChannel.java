@@ -28,6 +28,8 @@ public interface TransportChannel {
 
     String action();
 
+    String getProfileName();
+
     void sendResponse(TransportResponse response) throws IOException;
 
     void sendResponse(TransportResponse response, TransportResponseOptions options) throws IOException;

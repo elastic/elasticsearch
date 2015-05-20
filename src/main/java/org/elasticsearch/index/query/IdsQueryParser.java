@@ -121,7 +121,7 @@ public class IdsQueryParser implements QueryParser {
             types = parseContext.mapperService().types();
         }
 
-        TermsQuery query = new TermsQuery(UidFieldMapper.NAME, Uid.createTypeUids(types, ids));
+        TermsQuery query = new TermsQuery(UidFieldMapper.NAME, Uid.createUidsForTypesAndIds(types, ids));
         query.setBoost(boost);
         if (queryName != null) {
             parseContext.addNamedQuery(queryName, query);

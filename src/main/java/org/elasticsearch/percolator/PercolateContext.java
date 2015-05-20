@@ -45,7 +45,6 @@ import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.FieldMappers;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.query.IndexQueryParserService;
@@ -683,7 +682,7 @@ public class PercolateContext extends SearchContext {
 
     @Override
     public <V> V putInContext(Object key, Object value) {
-        assert false : "percolatocontext does not support contexts & headers";
+        assert false : "percolatecontext does not support contexts & headers";
         return null;
     }
 
@@ -724,13 +723,12 @@ public class PercolateContext extends SearchContext {
 
     @Override
     public void copyContextFrom(HasContext other) {
-        assert false : "percolatocontext does not support contexts & headers";
+        assert false : "percolatecontext does not support contexts & headers";
     }
 
     @Override
-    public <V> V putHeader(String key, V value) {
-        assert false : "percolatocontext does not support contexts & headers";
-        return value;
+    public <V> void putHeader(String key, V value) {
+        assert false : "percolatecontext does not support contexts & headers";
     }
 
     @Override
@@ -750,11 +748,11 @@ public class PercolateContext extends SearchContext {
 
     @Override
     public void copyHeadersFrom(HasHeaders from) {
-        assert false : "percolatocontext does not support contexts & headers";
+        assert false : "percolatecontext does not support contexts & headers";
     }
 
     @Override
     public void copyContextAndHeadersFrom(HasContextAndHeaders other) {
-        assert false : "percolatocontext does not support contexts & headers";
+        assert false : "percolatecontext does not support contexts & headers";
     }
 }

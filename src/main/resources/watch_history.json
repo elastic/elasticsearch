@@ -139,6 +139,14 @@
                 "script" : {
                   "type" : "object",
                   "enabled" : false
+                },
+                "always" : {
+                  "type" : "object",
+                  "enabled" : false
+                },
+                "never" : {
+                  "type" : "object",
+                  "enabled" : false
                 }
               }
             },

@@ -86,9 +86,8 @@ public class WatchExecutionResult implements ToXContent {
                     .endObject();
         }
         if (conditionResult != null) {
-            builder.startObject(Field.CONDITION.getPreferredName())
-                    .field(conditionResult.type(), conditionResult, params)
-                    .endObject();
+            builder.field(Field.CONDITION.getPreferredName());
+            ConditionRegistry.writeResult(conditionResult, builder, params);
         }
         if (throttleResult != null && throttleResult.throttle()) {
             builder.field(Field.THROTTLED.getPreferredName(), throttleResult.throttle());

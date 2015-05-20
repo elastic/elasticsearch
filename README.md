@@ -210,7 +210,10 @@ In order to restrict the Elasticsearch snapshot process to the minimum required 
     "Statement": [
         {
             "Action": [
-                "s3:ListBucket"
+                "s3:ListBucket",
+                "s3:GetBucketLocation",
+                "s3:ListBucketMultipartUploads",
+                "s3:ListBucketVersions"
             ],
             "Effect": "Allow",
             "Resource": [
@@ -221,7 +224,9 @@ In order to restrict the Elasticsearch snapshot process to the minimum required 
             "Action": [
                 "s3:GetObject",
                 "s3:PutObject",
-                "s3:DeleteObject"
+                "s3:DeleteObject",
+                "s3:AbortMultipartUpload",
+                "s3:ListMultipartUploadParts"
             ],
             "Effect": "Allow",
             "Resource": [
@@ -231,7 +236,6 @@ In order to restrict the Elasticsearch snapshot process to the minimum required 
     ],
     "Version": "2012-10-17"
 }
-
 ```
 
 You may further restrict the permissions by specifying a prefix within the bucket, in this example, named "foo".
@@ -241,7 +245,10 @@ You may further restrict the permissions by specifying a prefix within the bucke
     "Statement": [
         {
             "Action": [
-                "s3:ListBucket"
+                "s3:ListBucket",
+                "s3:GetBucketLocation",
+                "s3:ListBucketMultipartUploads",
+                "s3:ListBucketVersions"
             ],
             "Condition": {
                 "StringLike": {
@@ -259,7 +266,9 @@ You may further restrict the permissions by specifying a prefix within the bucke
             "Action": [
                 "s3:GetObject",
                 "s3:PutObject",
-                "s3:DeleteObject"
+                "s3:DeleteObject",
+                "s3:AbortMultipartUpload",
+                "s3:ListMultipartUploadParts"
             ],
             "Effect": "Allow",
             "Resource": [
@@ -269,7 +278,6 @@ You may further restrict the permissions by specifying a prefix within the bucke
     ],
     "Version": "2012-10-17"
 }
-
 ```
 
 The bucket needs to exist to register a repository for snapshots. If you did not create the bucket then the repository registration will fail. If you want elasticsearch to create the bucket instead, you can add the permission to create a specific bucket like this:

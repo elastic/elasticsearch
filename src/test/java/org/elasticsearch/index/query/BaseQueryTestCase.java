@@ -231,9 +231,11 @@ public abstract class BaseQueryTestCase<QB extends QueryBuilder<QB>> extends Ela
 
     /**
      * Run after default equality comparison between lucene expected query and result of {@link QueryBuilder#toQuery(QueryParseContext)}.
-     * Can contain additional assertions that are query specific.
+     * Can contain additional assertions that are query specific. Empty default implementation.
      */
-    protected abstract void assertLuceneQuery(QB queryBuilder, Query query, QueryParseContext context);
+    protected void assertLuceneQuery(QB queryBuilder, Query query, QueryParseContext context) {
+
+    }
 
     /**
      * Test serialization and deserialization of the test query.

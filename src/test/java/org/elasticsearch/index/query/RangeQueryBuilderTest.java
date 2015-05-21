@@ -130,7 +130,6 @@ public class RangeQueryBuilderTest extends BaseQueryTestCase<RangeQueryBuilder> 
 
     @Override
     protected void assertLuceneQuery(RangeQueryBuilder queryBuilder, Query query, QueryParseContext context) {
-        assertThat(query.getBoost(), equalTo(queryBuilder.boost()));
         if (queryBuilder.queryName() != null) {
             Query namedQuery = context.copyNamedFilters().get(queryBuilder.queryName());
             assertThat(namedQuery, equalTo(query));

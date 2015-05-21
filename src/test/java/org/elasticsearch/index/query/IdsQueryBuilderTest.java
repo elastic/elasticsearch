@@ -80,7 +80,6 @@ public class IdsQueryBuilderTest extends BaseQueryTestCase<IdsQueryBuilder> {
 
     @Override
     protected void assertLuceneQuery(IdsQueryBuilder queryBuilder, Query query, QueryParseContext context) {
-        assertThat(query.getBoost(), equalTo(queryBuilder.boost()));
         if (queryBuilder.queryName() != null) {
             Query namedQuery = context.copyNamedFilters().get(queryBuilder.queryName());
             assertThat(namedQuery, equalTo(query));

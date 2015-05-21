@@ -22,8 +22,6 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 
-import static org.hamcrest.Matchers.equalTo;
-
 public class MatchAllQueryBuilderTest extends BaseQueryTestCase<MatchAllQueryBuilder> {
 
     @Override
@@ -31,11 +29,6 @@ public class MatchAllQueryBuilderTest extends BaseQueryTestCase<MatchAllQueryBui
         MatchAllDocsQuery matchAllDocsQuery = new MatchAllDocsQuery();
         matchAllDocsQuery.setBoost(queryBuilder.boost());
         return matchAllDocsQuery;
-    }
-
-    @Override
-    protected void assertLuceneQuery(MatchAllQueryBuilder queryBuilder, Query query, QueryParseContext context) {
-        assertThat(query.getBoost(), equalTo(queryBuilder.boost()));
     }
 
     @Override

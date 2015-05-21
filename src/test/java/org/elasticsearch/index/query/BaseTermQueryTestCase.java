@@ -125,7 +125,6 @@ public abstract class BaseTermQueryTestCase<QB extends BaseTermQueryBuilder<QB>>
 
     @Override
     protected void assertLuceneQuery(QB queryBuilder, Query query, QueryParseContext context) {
-        assertThat(query.getBoost(), equalTo(queryBuilder.boost()));
         if (queryBuilder.queryName() != null) {
             Query namedQuery = context.copyNamedFilters().get(queryBuilder.queryName());
             assertThat(namedQuery, equalTo(query));

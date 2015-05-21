@@ -24,7 +24,6 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
-import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
@@ -42,7 +41,7 @@ import java.util.List;
 /**
  *
  */
-public interface FieldMapper<T> extends Mapper {
+public interface FieldMapper extends Mapper {
 
     String DOC_VALUES_FORMAT = "doc_values_format";
 
@@ -195,7 +194,7 @@ public interface FieldMapper<T> extends Mapper {
     /**
      * Returns the actual value of the field.
      */
-    T value(Object value);
+    Object value(Object value);
 
     /**
      * Returns the value that will be used as a result for search. Can be only of specific types... .

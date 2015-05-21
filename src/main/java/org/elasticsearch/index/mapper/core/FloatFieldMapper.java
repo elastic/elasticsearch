@@ -67,7 +67,7 @@ import static org.elasticsearch.index.mapper.core.TypeParsers.parseNumberField;
 /**
  *
  */
-public class FloatFieldMapper extends NumberFieldMapper<Float> {
+public class FloatFieldMapper extends NumberFieldMapper {
 
     public static final String CONTENT_TYPE = "float";
 

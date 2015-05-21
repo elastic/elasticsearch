@@ -39,7 +39,7 @@ public final class DisabledIndexFieldData extends AbstractIndexFieldData<AtomicF
 
     public static class Builder implements IndexFieldData.Builder {
         @Override
-        public IndexFieldData<AtomicFieldData> build(Index index, @IndexSettings Settings indexSettings, FieldMapper<?> mapper,
+        public IndexFieldData<AtomicFieldData> build(Index index, @IndexSettings Settings indexSettings, FieldMapper mapper,
                                                         IndexFieldDataCache cache, CircuitBreakerService breakerService, MapperService mapperService) {
             // Ignore Circuit Breaker
             return new DisabledIndexFieldData(index, indexSettings, mapper.names(), mapper.fieldDataType(), cache);

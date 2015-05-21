@@ -74,7 +74,7 @@ public abstract class FieldsVisitor extends StoredFieldVisitor {
 
     public void postProcess(DocumentMapper documentMapper) {
         for (Map.Entry<String, List<Object>> entry : fields().entrySet()) {
-            FieldMapper<?> fieldMapper = documentMapper.mappers().indexName(entry.getKey()).mapper();
+            FieldMapper fieldMapper = documentMapper.mappers().indexName(entry.getKey()).mapper();
             if (fieldMapper == null) {
                 continue;
             }

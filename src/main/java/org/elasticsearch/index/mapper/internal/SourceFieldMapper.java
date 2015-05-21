@@ -66,7 +66,7 @@ import static org.elasticsearch.index.mapper.MapperBuilders.source;
 /**
  *
  */
-public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements RootMapper {
+public class SourceFieldMapper extends AbstractFieldMapper implements RootMapper {
 
     public static final String NAME = "_source";
 

@@ -67,7 +67,7 @@ import static org.elasticsearch.index.mapper.core.TypeParsers.parseMultiField;
 /**
  *
  */
-public class CompletionFieldMapper extends AbstractFieldMapper<String> {
+public class CompletionFieldMapper extends AbstractFieldMapper {
 
     public static final String CONTENT_TYPE = "completion";
 

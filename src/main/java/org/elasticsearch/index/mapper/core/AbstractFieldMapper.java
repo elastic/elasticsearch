@@ -78,7 +78,7 @@ import java.util.TreeMap;
 /**
  *
  */
-public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
+public abstract class AbstractFieldMapper implements FieldMapper {
 
     public static class Defaults {
         public static final FieldType FIELD_TYPE = new FieldType();
@@ -879,7 +879,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
         public void merge(Mapper mergeWith, MergeResult mergeResult) throws MergeMappingException {
             AbstractFieldMapper mergeWithMultiField = (AbstractFieldMapper) mergeWith;
 
-            List<FieldMapper<?>> newFieldMappers = null;
+            List<FieldMapper> newFieldMappers = null;
             ImmutableOpenMap.Builder<String, FieldMapper> newMappersBuilder = null;
 
             for (ObjectCursor<FieldMapper> cursor : mergeWithMultiField.multiFields.mappers.values()) {

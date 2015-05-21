@@ -225,7 +225,7 @@ public class IndexFieldDataService extends AbstractIndexComponent {
     }
 
     @SuppressWarnings("unchecked")
-    public <IFD extends IndexFieldData<?>> IFD getForField(FieldMapper<?> mapper) {
+    public <IFD extends IndexFieldData<?>> IFD getForField(FieldMapper mapper) {
         final FieldMapper.Names fieldNames = mapper.names();
         final FieldDataType type = mapper.fieldDataType();
         if (type == null) {

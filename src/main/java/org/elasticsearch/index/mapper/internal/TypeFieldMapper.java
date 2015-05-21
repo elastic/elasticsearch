@@ -56,7 +56,7 @@ import static org.elasticsearch.index.mapper.core.TypeParsers.parseField;
 /**
  *
  */
-public class TypeFieldMapper extends AbstractFieldMapper<String> implements RootMapper {
+public class TypeFieldMapper extends AbstractFieldMapper implements RootMapper {
 
     public static final String NAME = "_type";
 

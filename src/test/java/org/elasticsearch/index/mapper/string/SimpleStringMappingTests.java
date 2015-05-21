@@ -281,7 +281,7 @@ public class SimpleStringMappingTests extends ElasticsearchSingleNodeTest {
     }
     
     private Map<String, Object> getSerializedMap(String fieldName, DocumentMapper mapper) throws Exception {
-        FieldMapper<?> fieldMapper = mapper.mappers().smartNameFieldMapper(fieldName);
+        FieldMapper fieldMapper = mapper.mappers().smartNameFieldMapper(fieldName);
         XContentBuilder builder = JsonXContent.contentBuilder().startObject();
         fieldMapper.toXContent(builder, ToXContent.EMPTY_PARAMS).endObject();
         builder.close();
@@ -525,7 +525,7 @@ public class SimpleStringMappingTests extends ElasticsearchSingleNodeTest {
                 .endObject().endObject().string();
 
         DocumentMapper defaultMapper = parser.parse(mapping);
-        FieldMapper<?> mapper = defaultMapper.mappers().getMapper("field");
+        FieldMapper mapper = defaultMapper.mappers().getMapper("field");
         assertNotNull(mapper);
         assertTrue(mapper instanceof StringFieldMapper);
         assertEquals(Queries.newMatchNoDocsQuery(), mapper.termsQuery(Collections.emptyList(), null));

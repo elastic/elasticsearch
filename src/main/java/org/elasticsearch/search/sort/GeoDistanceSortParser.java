@@ -139,7 +139,7 @@ public class GeoDistanceSortParser implements SortParser {
             throw new IllegalArgumentException("sort_mode [sum] isn't supported for sorting by geo distance");
         }
 
-        FieldMapper<?> mapper = context.smartNameFieldMapper(fieldName);
+        FieldMapper mapper = context.smartNameFieldMapper(fieldName);
         if (mapper == null) {
             throw new IllegalArgumentException("failed to find mapper for [" + fieldName + "] for geo distance based sort");
         }

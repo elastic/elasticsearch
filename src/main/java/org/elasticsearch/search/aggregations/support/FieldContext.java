@@ -29,7 +29,7 @@ public class FieldContext {
 
     private final String field;
     private final IndexFieldData<?> indexFieldData;
-    private final FieldMapper<?> mapper;
+    private final FieldMapper mapper;
 
     /**
      * Constructs a field data context for the given field and its index field data

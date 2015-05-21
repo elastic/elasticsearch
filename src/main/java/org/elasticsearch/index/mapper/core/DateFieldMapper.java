@@ -71,7 +71,7 @@ import static org.elasticsearch.index.mapper.MapperBuilders.dateField;
 import static org.elasticsearch.index.mapper.core.TypeParsers.parseDateTimeFormatter;
 import static org.elasticsearch.index.mapper.core.TypeParsers.parseNumberField;
 
-public class DateFieldMapper extends NumberFieldMapper<Long> {
+public class DateFieldMapper extends NumberFieldMapper {
 
     public static final String CONTENT_TYPE = "date";
 

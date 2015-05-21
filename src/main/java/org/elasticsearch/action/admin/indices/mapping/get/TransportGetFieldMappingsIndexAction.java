@@ -201,8 +201,8 @@ public class TransportGetFieldMappingsIndexAction extends TransportSingleCustomO
                 }
                 for (Iterator<FieldMapper<?>> it = remainingFieldMappers.iterator(); it.hasNext(); ) {
                     final FieldMapper<?> fieldMapper = it.next();
-                    if (Regex.simpleMatch(field, fieldMapper.names().name())) {
-                        addFieldMapper(fieldMapper.names().name(), fieldMapper, fieldMappings, request.includeDefaults());
+                    if (Regex.simpleMatch(field, fieldMapper.names().shortName())) {
+                        addFieldMapper(fieldMapper.names().shortName(), fieldMapper, fieldMappings, request.includeDefaults());
                         it.remove();
                     }
                 }

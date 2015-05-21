@@ -184,12 +184,8 @@ public class UidFieldMapper extends AbstractFieldMapper<Uid> implements RootMapp
         return Uid.createUid(value.toString());
     }
 
-    public Term term(String type, String id) {
-        return term(Uid.createUid(type, id));
-    }
-
     public Term term(String uid) {
-        return names().createIndexNameTerm(uid);
+        return createTerm(uid);
     }
 
     @Override

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.mapper.core;
 
-import com.carrotsearch.hppc.ObjectHashSet;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.google.common.base.Function;
@@ -33,7 +32,6 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.queries.TermsQuery;
-import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PrefixQuery;
@@ -261,7 +259,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
         }
 
         protected Names buildNames(BuilderContext context) {
-            return new Names(name, buildIndexName(context), buildIndexNameClean(context), buildFullName(context), context.path().sourcePath());
+            return new Names(name, buildIndexName(context), buildIndexNameClean(context), buildFullName(context));
         }
 
         protected String buildIndexName(BuilderContext context) {
@@ -364,7 +362,8 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
 
     @Override
     public String name() {
-        return names.name();
+        // TODO: cleanup names so Mapper knows about paths, so that it is always clear whether we are using short or full name
+        return names.shortName();
     }
 
     @Override
@@ -475,7 +474,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
 
     @Override
     public Query termQuery(Object value, @Nullable QueryParseContext context) {
-        return new TermQuery(names().createIndexNameTerm(indexedValueForSearch(value)));
+        return new TermQuery(createTerm(value));
     }
 
     @Override
@@ -509,12 +508,12 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
 
     @Override
     public Query fuzzyQuery(String value, Fuzziness fuzziness, int prefixLength, int maxExpansions, boolean transpositions) {
-        return new FuzzyQuery(names.createIndexNameTerm(indexedValueForSearch(value)), fuzziness.asDistance(value), prefixLength, maxExpansions, transpositions);
+        return new FuzzyQuery(createTerm(value), fuzziness.asDistance(value), prefixLength, maxExpansions, transpositions);
     }
 
     @Override
     public Query prefixQuery(Object value, @Nullable MultiTermQuery.RewriteMethod method, @Nullable QueryParseContext context) {
-        PrefixQuery query = new PrefixQuery(names().createIndexNameTerm(indexedValueForSearch(value)));
+        PrefixQuery query = new PrefixQuery(createTerm(value));
         if (method != null) {
             query.setRewriteMethod(method);
         }
@@ -523,11 +522,15 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
 
     @Override
     public Query regexpQuery(Object value, int flags, int maxDeterminizedStates, @Nullable MultiTermQuery.RewriteMethod method, @Nullable QueryParseContext context) {
-        RegexpQuery query = new RegexpQuery(names().createIndexNameTerm(indexedValueForSearch(value)), flags, maxDeterminizedStates);
+        RegexpQuery query = new RegexpQuery(createTerm(value), flags, maxDeterminizedStates);
         if (method != null) {
             query.setRewriteMethod(method);
         }
         return query;
+    }
+
+    protected Term createTerm(Object value) {
+        return new Term(names.indexName(), indexedValueForSearch(value));
     }
 
     @Override
@@ -629,7 +632,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(names.name());
+        builder.startObject(names.shortName());
         boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
         doXContentBody(builder, includeDefaults, params);
         return builder.endObject();
@@ -638,8 +641,8 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
     protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
 
         builder.field("type", contentType());
-        if (indexCreatedBefore2x && (includeDefaults || !names.name().equals(names.indexNameClean()))) {
-            builder.field("index_name", names.indexNameClean());
+        if (indexCreatedBefore2x && (includeDefaults || !names.shortName().equals(names.originalIndexName()))) {
+            builder.field("index_name", names.originalIndexName());
         }
 
         if (includeDefaults || boost != 1.0f) {
@@ -864,7 +867,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
             ContentPath.Type origPathType = context.path().pathType();
             context.path().pathType(pathType);
 
-            context.path().add(mainField.name());
+            context.path().add(mainField.names().shortName());
             for (ObjectCursor<FieldMapper> cursor : mappers.values()) {
                 cursor.value.parse(context);
             }
@@ -881,7 +884,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
 
             for (ObjectCursor<FieldMapper> cursor : mergeWithMultiField.multiFields.mappers.values()) {
                 FieldMapper mergeWithMapper = cursor.value;
-                Mapper mergeIntoMapper = mappers.get(mergeWithMapper.name());
+                Mapper mergeIntoMapper = mappers.get(mergeWithMapper.names().shortName());
                 if (mergeIntoMapper == null) {
                     // no mapping, simply add it if not simulating
                     if (!mergeResult.simulate()) {
@@ -892,7 +895,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
                         if (newMappersBuilder == null) {
                             newMappersBuilder = ImmutableOpenMap.builder(mappers);
                         }
-                        newMappersBuilder.put(mergeWithMapper.name(), mergeWithMapper);
+                        newMappersBuilder.put(mergeWithMapper.names().shortName(), mergeWithMapper);
                         if (mergeWithMapper instanceof AbstractFieldMapper) {
                             if (newFieldMappers == null) {
                                 newFieldMappers = new ArrayList<>(2);

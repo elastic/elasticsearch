@@ -56,7 +56,7 @@ public class SourceSimpleFragmentsBuilder extends SimpleFragmentsBuilder {
         SourceLookup sourceLookup = searchContext.lookup().source();
         sourceLookup.setSegmentAndDocument((LeafReaderContext) reader.getContext(), docId);
 
-        List<Object> values = sourceLookup.extractRawValues(hitContext.getSourcePath(mapper.names().sourcePath()));
+        List<Object> values = sourceLookup.extractRawValues(hitContext.getSourcePath(mapper.names().fullName()));
         if (values.isEmpty()) {
             return EMPTY_FIELDS;
         }

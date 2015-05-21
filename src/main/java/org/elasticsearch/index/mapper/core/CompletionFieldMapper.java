@@ -461,7 +461,7 @@ public class CompletionFieldMapper extends AbstractFieldMapper<String> {
     
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(name())
+        builder.startObject(names().shortName())
                 .field(Fields.TYPE, CONTENT_TYPE);
         
         builder.field(Fields.ANALYZER, indexAnalyzer.name());

@@ -44,41 +44,34 @@ import java.util.List;
  */
 public interface FieldMapper<T> extends Mapper {
 
-    public static final String DOC_VALUES_FORMAT = "doc_values_format";
+    String DOC_VALUES_FORMAT = "doc_values_format";
 
-    public static class Names {
+    class Names {
 
-        private final String name;
+        private final String shortName;
 
         private final String indexName;
 
-        private final String indexNameClean;
+        private final String originalIndexName;
 
         private final String fullName;
-
-        private final String sourcePath;
 
         public Names(String name) {
             this(name, name, name, name);
         }
 
-        public Names(String name, String indexName, String indexNameClean, String fullName) {
-            this(name, indexName, indexNameClean, fullName, fullName);
-        }
-
-        public Names(String name, String indexName, String indexNameClean, String fullName, @Nullable String sourcePath) {
-            this.name = name;
+        public Names(String shortName, String indexName, String originalIndexName, String fullName) {
+            this.shortName = shortName;
             this.indexName = indexName;
-            this.indexNameClean = indexNameClean;
+            this.originalIndexName = originalIndexName;
             this.fullName = fullName;
-            this.sourcePath = sourcePath == null ? this.fullName : sourcePath;
         }
 
         /**
          * The logical name of the field.
          */
-        public String name() {
-            return name;
+        public String shortName() {
+            return shortName;
         }
 
         /**
@@ -90,10 +83,10 @@ public interface FieldMapper<T> extends Mapper {
         }
 
         /**
-         * The cleaned index name, before any "path" modifications performed on it.
+         * The original index name, before any "path" modifications performed on it.
          */
-        public String indexNameClean() {
-            return indexNameClean;
+        public String originalIndexName() {
+            return originalIndexName;
         }
 
         /**
@@ -101,27 +94,6 @@ public interface FieldMapper<T> extends Mapper {
          */
         public String fullName() {
             return fullName;
-        }
-
-        /**
-         * The dot path notation to extract the value from source.
-         */
-        public String sourcePath() {
-            return sourcePath;
-        }
-
-        /**
-         * Creates a new index term based on the provided value.
-         */
-        public Term createIndexNameTerm(String value) {
-            return new Term(indexName, value);
-        }
-
-        /**
-         * Creates a new index term based on the provided value.
-         */
-        public Term createIndexNameTerm(BytesRef value) {
-            return new Term(indexName, value);
         }
 
         @Override
@@ -132,25 +104,23 @@ public interface FieldMapper<T> extends Mapper {
 
             if (!fullName.equals(names.fullName)) return false;
             if (!indexName.equals(names.indexName)) return false;
-            if (!indexNameClean.equals(names.indexNameClean)) return false;
-            if (!name.equals(names.name)) return false;
-            if (!sourcePath.equals(names.sourcePath)) return false;
+            if (!originalIndexName.equals(names.originalIndexName)) return false;
+            if (!shortName.equals(names.shortName)) return false;
 
             return true;
         }
 
         @Override
         public int hashCode() {
-            int result = name.hashCode();
+            int result = shortName.hashCode();
             result = 31 * result + indexName.hashCode();
-            result = 31 * result + indexNameClean.hashCode();
+            result = 31 * result + originalIndexName.hashCode();
             result = 31 * result + fullName.hashCode();
-            result = 31 * result + sourcePath.hashCode();
             return result;
         }
     }
 
-    public static enum Loading {
+    enum Loading {
         LAZY {
             @Override
             public String toString() {
@@ -220,7 +190,7 @@ public interface FieldMapper<T> extends Mapper {
     /**
      * List of fields where this field should be copied to
      */
-    public AbstractFieldMapper.CopyTo copyTo();
+    AbstractFieldMapper.CopyTo copyTo();
 
     /**
      * Returns the actual value of the field.
@@ -285,7 +255,7 @@ public interface FieldMapper<T> extends Mapper {
      *
      * @return If the field is available before indexing or not.
      * */
-    public boolean isGenerated();
+    boolean isGenerated();
 
     /**
      * Parse using the provided {@link ParseContext} and return a mapping

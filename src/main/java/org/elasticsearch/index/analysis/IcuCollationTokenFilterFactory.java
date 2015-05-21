@@ -34,9 +34,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.settings.IndexSettings;
 
 import java.io.IOException;
-import java.net.URISyntaxException;
 import java.nio.file.Files;
-import java.nio.file.Paths;
 
 /**
  * An ICU based collation token filter. There are two ways to configure collation:
@@ -60,15 +58,11 @@ public class IcuCollationTokenFilterFactory extends AbstractTokenFilterFactory {
         Collator collator;
         String rules = settings.get("rules");
         if (rules != null) {
-            FailedToResolveConfigException failureToResolve = null;
+            Exception failureToResolve = null;
             try {
-                rules = Streams.copyToString(Files.newBufferedReader(Paths.get(environment.resolveConfig(rules).toURI()), Charsets.UTF_8));
-            } catch (FailedToResolveConfigException e) {
+                rules = Streams.copyToString(Files.newBufferedReader(environment.configFile().resolve(rules), Charsets.UTF_8));
+            } catch (FailedToResolveConfigException | IOException | SecurityException e) {
                 failureToResolve = e;
-            } catch (IOException e) {
-                throw new IllegalArgumentException("Failed to load collation rules", e);
-            } catch (URISyntaxException e) {
-                throw new IllegalArgumentException("Failed to load collation rules", e);
             }
             try {
                 collator = new RuleBasedCollator(rules);

@@ -26,6 +26,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.license.core.License;
 import org.elasticsearch.license.core.LicenseVerifier;
@@ -352,12 +353,12 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
 
         // cancel all notifications
         for (ScheduledFuture scheduledNotification : scheduledNotifications) {
-            scheduledNotification.cancel(true);
+            FutureUtils.cancel(scheduledNotification);
         }
 
         for (Queue<ScheduledFuture> queue : eventNotificationsMap.values()) {
             for (ScheduledFuture scheduledFuture : queue) {
-                scheduledFuture.cancel(true);
+                FutureUtils.cancel(scheduledFuture);
             }
             queue.clear();
         }
@@ -927,7 +928,7 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
                 ScheduledFuture notification = notificationQueue.peek();
                 if (notification != null) {
                     // cancel
-                    notification.cancel(true);
+                    FutureUtils.cancel(notification);
                     notificationQueue.poll();
                 }
             }

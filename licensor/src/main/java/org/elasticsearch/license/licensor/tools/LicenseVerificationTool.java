@@ -19,12 +19,10 @@ import org.elasticsearch.license.core.License;
 import org.elasticsearch.license.core.LicenseVerifier;
 import org.elasticsearch.license.core.Licenses;
 
-import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -46,7 +44,7 @@ public class LicenseVerificationTool extends CliTool {
 
     @Override
     protected Command parse(String s, CommandLine commandLine) throws Exception {
-        return LicenseVerifier.parse(terminal, commandLine);
+        return LicenseVerifier.parse(terminal, commandLine, env);
     }
 
     public static class LicenseVerifier extends Command {
@@ -67,7 +65,7 @@ public class LicenseVerificationTool extends CliTool {
             this.publicKeyPath = publicKeyPath;
         }
 
-        public static Command parse(Terminal terminal, CommandLine commandLine) throws IOException {
+        public static Command parse(Terminal terminal, CommandLine commandLine, Environment environment) throws IOException {
             String publicKeyPathString = commandLine.getOptionValue("publicKeyPath");
             String[] licenseSources = commandLine.getOptionValues("license");
             String[] licenseSourceFiles = commandLine.getOptionValues("licenseFile");
@@ -81,7 +79,7 @@ public class LicenseVerificationTool extends CliTool {
 
             if (licenseSourceFiles != null) {
                 for (String licenseFilePath : licenseSourceFiles) {
-                    Path licensePath = Paths.get(licenseFilePath);
+                    Path licensePath = environment.homeFile().resolve(licenseFilePath);
                     if (!Files.exists(licensePath)) {
                         return exitCmd(ExitStatus.USAGE, terminal, licenseFilePath + " does not exist");
                     }
@@ -93,7 +91,7 @@ public class LicenseVerificationTool extends CliTool {
                 return exitCmd(ExitStatus.USAGE, terminal, "no license provided");
             }
 
-            Path publicKeyPath = Paths.get(publicKeyPathString);
+            Path publicKeyPath = environment.homeFile().resolve(publicKeyPathString);
             if (!Files.exists(publicKeyPath)) {
                 return exitCmd(ExitStatus.USAGE, terminal, publicKeyPath + " does not exist");
             }

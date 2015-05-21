@@ -15,7 +15,6 @@ import org.elasticsearch.env.Environment;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.NoSuchAlgorithmException;
@@ -40,7 +39,7 @@ public class KeyPairGeneratorTool extends CliTool {
 
     @Override
     protected Command parse(String s, CommandLine commandLine) throws Exception {
-        return KeyGenerator.parse(terminal, commandLine);
+        return KeyGenerator.parse(terminal, commandLine, env);
     }
 
     public static class KeyGenerator extends Command {
@@ -60,9 +59,9 @@ public class KeyPairGeneratorTool extends CliTool {
             this.publicKeyPath = publicKeyPath;
         }
 
-        public static Command parse(Terminal terminal, CommandLine commandLine) {
-            Path publicKeyPath = Paths.get(commandLine.getOptionValue("publicKeyPath"));
-            Path privateKeyPath = Paths.get(commandLine.getOptionValue("privateKeyPath"));
+        public static Command parse(Terminal terminal, CommandLine commandLine, Environment environment) {
+            Path publicKeyPath = environment.homeFile().resolve(commandLine.getOptionValue("publicKeyPath"));
+            Path privateKeyPath = environment.homeFile().resolve(commandLine.getOptionValue("privateKeyPath"));
 
             if (Files.exists(privateKeyPath)) {
                 return exitCmd(ExitStatus.USAGE, terminal, privateKeyPath + " already exists");

@@ -13,6 +13,8 @@
 
     <properties>
         <license.basedir combine.self="override">${project.parent.basedir}</license.basedir>
+        <elasticsearch.assembly.descriptor>${basedir}/src/main/assemblies/exec.xml</elasticsearch.assembly.descriptor>
+        <elasticsearch.assembly.appendId>true</elasticsearch.assembly.appendId>
     </properties>
 
     <dependencies>
@@ -24,34 +26,10 @@
     </dependencies>
 
     <build>
-        <resources>
-            <resource>
-                <directory>src/main/resources</directory>
-                <filtering>true</filtering>
-            </resource>
-        </resources>
-
         <plugins>
             <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-assembly-plugin</artifactId>
-                <configuration>
-                    <outputDirectory>${project.build.directory}/releases/</outputDirectory>
-                </configuration>
-                <executions>
-                    <execution>
-                        <id>exec</id>
-                        <phase>package</phase>
-                        <goals>
-                            <goal>single</goal>
-                        </goals>
-                        <configuration>
-                            <appendAssemblyId>true</appendAssemblyId>
-                            <descriptors>
-                                <descriptor>${basedir}/src/main/assemblies/exec.xml</descriptor>
-                            </descriptors>
-                        </configuration>
-                    </execution>
-                </executions>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
@@ -72,10 +50,6 @@
                         </configuration>
                     </execution>
                 </executions>
-            </plugin>
-            <plugin>
-                <groupId>com.carrotsearch.randomizedtesting</groupId>
-                <artifactId>junit4-maven-plugin</artifactId>
             </plugin>
         </plugins>
     </build>

@@ -24,7 +24,6 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -45,7 +44,7 @@ public class LicenseGeneratorTool extends CliTool {
 
     @Override
     protected Command parse(String s, CommandLine commandLine) throws Exception {
-        return LicenseGenerator.parse(terminal, commandLine);
+        return LicenseGenerator.parse(terminal, commandLine, env);
     }
 
     public static class LicenseGenerator extends Command {
@@ -69,9 +68,9 @@ public class LicenseGeneratorTool extends CliTool {
             this.publicKeyFilePath = publicKeyFilePath;
         }
 
-        public static Command parse(Terminal terminal, CommandLine commandLine) throws IOException {
-            Path publicKeyPath = Paths.get(commandLine.getOptionValue("publicKeyPath"));
-            Path privateKeyPath = Paths.get(commandLine.getOptionValue("privateKeyPath"));
+        public static Command parse(Terminal terminal, CommandLine commandLine, Environment environment) throws IOException {
+            Path publicKeyPath = environment.homeFile().resolve(commandLine.getOptionValue("publicKeyPath"));
+            Path privateKeyPath = environment.homeFile().resolve(commandLine.getOptionValue("privateKeyPath"));
             String[] licenseSpecSources = commandLine.getOptionValues("license");
             String[] licenseSpecSourceFiles = commandLine.getOptionValues("licenseFile");
 
@@ -90,7 +89,7 @@ public class LicenseGeneratorTool extends CliTool {
 
             if (licenseSpecSourceFiles != null) {
                 for (String licenseSpecFilePath : licenseSpecSourceFiles) {
-                    Path licenseSpecPath = Paths.get(licenseSpecFilePath);
+                    Path licenseSpecPath = environment.homeFile().resolve(licenseSpecFilePath);
                     if (!Files.exists(licenseSpecPath)) {
                         return exitCmd(ExitStatus.USAGE, terminal, licenseSpecFilePath + " does not exist");
                     }

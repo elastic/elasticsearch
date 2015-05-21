@@ -20,12 +20,4 @@
             <version>2.0.0-SNAPSHOT</version>
         </dependency>
     </dependencies>
-    <build>
-        <plugins>
-            <plugin>
-                <groupId>com.carrotsearch.randomizedtesting</groupId>
-                <artifactId>junit4-maven-plugin</artifactId>
-            </plugin>
-        </plugins>
-    </build>
 </project>

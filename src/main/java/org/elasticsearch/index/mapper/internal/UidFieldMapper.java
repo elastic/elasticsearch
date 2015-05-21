@@ -52,7 +52,7 @@ import static org.elasticsearch.index.mapper.core.TypeParsers.parseField;
 /**
  *
  */
-public class UidFieldMapper extends AbstractFieldMapper<Uid> implements RootMapper {
+public class UidFieldMapper extends AbstractFieldMapper implements RootMapper {
 
     public static final String NAME = "_uid";
 

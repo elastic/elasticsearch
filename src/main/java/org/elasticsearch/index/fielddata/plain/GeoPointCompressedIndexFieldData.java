@@ -52,7 +52,7 @@ public class GeoPointCompressedIndexFieldData extends AbstractIndexGeoPointField
     public static class Builder implements IndexFieldData.Builder {
 
         @Override
-        public IndexFieldData<?> build(Index index, @IndexSettings Settings indexSettings, FieldMapper<?> mapper, IndexFieldDataCache cache,
+        public IndexFieldData<?> build(Index index, @IndexSettings Settings indexSettings, FieldMapper mapper, IndexFieldDataCache cache,
                                        CircuitBreakerService breakerService, MapperService mapperService) {
             FieldDataType type = mapper.fieldDataType();
             final String precisionAsString = type.getSettings().get(PRECISION_KEY);

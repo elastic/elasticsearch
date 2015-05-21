@@ -839,7 +839,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             final MapperService mapperService = indexShard.mapperService();
             final ObjectSet<String> warmUp = new ObjectHashSet<>();
             for (DocumentMapper docMapper : mapperService.docMappers(false)) {
-                for (FieldMapper<?> fieldMapper : docMapper.mappers()) {
+                for (FieldMapper fieldMapper : docMapper.mappers()) {
                     final String indexName = fieldMapper.names().indexName();
                     if (fieldMapper.fieldType().indexOptions() != IndexOptions.NONE && !fieldMapper.fieldType().omitNorms() && fieldMapper.normsLoading(defaultLoading) == Loading.EAGER) {
                         warmUp.add(indexName);
@@ -893,9 +893,9 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         @Override
         public TerminationHandle warmNewReaders(final IndexShard indexShard, IndexMetaData indexMetaData, final WarmerContext context, ThreadPool threadPool) {
             final MapperService mapperService = indexShard.mapperService();
-            final Map<String, FieldMapper<?>> warmUp = new HashMap<>();
+            final Map<String, FieldMapper> warmUp = new HashMap<>();
             for (DocumentMapper docMapper : mapperService.docMappers(false)) {
-                for (FieldMapper<?> fieldMapper : docMapper.mappers()) {
+                for (FieldMapper fieldMapper : docMapper.mappers()) {
                     final FieldDataType fieldDataType = fieldMapper.fieldDataType();
                     if (fieldDataType == null) {
                         continue;
@@ -915,7 +915,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             final Executor executor = threadPool.executor(executor());
             final CountDownLatch latch = new CountDownLatch(context.searcher().reader().leaves().size() * warmUp.size());
             for (final LeafReaderContext ctx : context.searcher().reader().leaves()) {
-                for (final FieldMapper<?> fieldMapper : warmUp.values()) {
+                for (final FieldMapper fieldMapper : warmUp.values()) {
                     executor.execute(new Runnable() {
 
                         @Override
@@ -947,9 +947,9 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         @Override
         public TerminationHandle warmTopReader(final IndexShard indexShard, IndexMetaData indexMetaData, final WarmerContext context, ThreadPool threadPool) {
             final MapperService mapperService = indexShard.mapperService();
-            final Map<String, FieldMapper<?>> warmUpGlobalOrdinals = new HashMap<>();
+            final Map<String, FieldMapper> warmUpGlobalOrdinals = new HashMap<>();
             for (DocumentMapper docMapper : mapperService.docMappers(false)) {
-                for (FieldMapper<?> fieldMapper : docMapper.mappers()) {
+                for (FieldMapper fieldMapper : docMapper.mappers()) {
                     final FieldDataType fieldDataType = fieldMapper.fieldDataType();
                     if (fieldDataType == null) {
                         continue;
@@ -967,7 +967,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             final IndexFieldDataService indexFieldDataService = indexShard.indexFieldDataService();
             final Executor executor = threadPool.executor(executor());
             final CountDownLatch latch = new CountDownLatch(warmUpGlobalOrdinals.size());
-            for (final FieldMapper<?> fieldMapper : warmUpGlobalOrdinals.values()) {
+            for (final FieldMapper fieldMapper : warmUpGlobalOrdinals.values()) {
                 executor.execute(new Runnable() {
                     @Override
                     public void run() {

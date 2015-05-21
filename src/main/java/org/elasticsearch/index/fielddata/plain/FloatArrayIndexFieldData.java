@@ -71,7 +71,7 @@ public class FloatArrayIndexFieldData extends AbstractIndexFieldData<AtomicNumer
     public static class Builder implements IndexFieldData.Builder {
 
         @Override
-        public IndexFieldData<?> build(Index index, @IndexSettings Settings indexSettings, FieldMapper<?> mapper, IndexFieldDataCache cache,
+        public IndexFieldData<?> build(Index index, @IndexSettings Settings indexSettings, FieldMapper mapper, IndexFieldDataCache cache,
                                        CircuitBreakerService breakerService, MapperService mapperService) {
             return new FloatArrayIndexFieldData(index, indexSettings, mapper.names(), mapper.fieldDataType(), cache, breakerService);
         }

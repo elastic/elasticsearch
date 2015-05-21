@@ -73,7 +73,7 @@ abstract class QueryCollector extends SimpleCollector {
         this.logger = logger;
         this.queries = context.percolateQueries();
         this.searcher = context.docSearcher();
-        final FieldMapper<?> uidMapper = context.mapperService().smartNameFieldMapper(UidFieldMapper.NAME);
+        final FieldMapper uidMapper = context.mapperService().smartNameFieldMapper(UidFieldMapper.NAME);
         this.uidFieldData = context.fieldData().getForField(uidMapper);
         this.isNestedDoc = isNestedDoc;
 

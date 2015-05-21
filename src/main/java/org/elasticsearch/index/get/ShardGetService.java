@@ -242,7 +242,7 @@ public class ShardGetService extends AbstractIndexShardComponent {
                                 searchLookup.source().setSource(source.source);
                             }
 
-                            FieldMapper<?> fieldMapper = docMapper.mappers().smartNameFieldMapper(field);
+                            FieldMapper fieldMapper = docMapper.mappers().smartNameFieldMapper(field);
                             if (fieldMapper == null) {
                                 if (docMapper.objectMappers().get(field) != null) {
                                     // Only fail if we know it is a object field, missing paths / fields shouldn't fail.
@@ -314,7 +314,7 @@ public class ShardGetService extends AbstractIndexShardComponent {
         }
     }
 
-    protected boolean shouldGetFromSource(boolean ignoreErrorsOnGeneratedFields, DocumentMapper docMapper, FieldMapper<?> fieldMapper) {
+    protected boolean shouldGetFromSource(boolean ignoreErrorsOnGeneratedFields, DocumentMapper docMapper, FieldMapper fieldMapper) {
         if (!fieldMapper.isGenerated()) {
             //if the field is always there we check if either source mapper is enabled, in which case we get the field
             // from source, or, if the field is stored, in which case we have to get if from source here also (we are in the translog phase, doc not indexed yet, we annot access the stored fields)

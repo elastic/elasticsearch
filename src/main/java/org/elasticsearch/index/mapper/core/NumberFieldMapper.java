@@ -61,7 +61,7 @@ import java.util.List;
 /**
  *
  */
-public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldMapper<T> implements AllFieldMapper.IncludeInAll {
+public abstract class NumberFieldMapper extends AbstractFieldMapper implements AllFieldMapper.IncludeInAll {
 
     public static class Defaults extends AbstractFieldMapper.Defaults {
         

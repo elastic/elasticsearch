@@ -34,11 +34,11 @@ public abstract class MergeResult {
         this.simulate = simulate;
     }
 
-    public abstract void addFieldMappers(Collection<FieldMapper<?>> fieldMappers);
+    public abstract void addFieldMappers(Collection<FieldMapper> fieldMappers);
 
     public abstract void addObjectMappers(Collection<ObjectMapper> objectMappers);
 
-    public abstract Collection<FieldMapper<?>> getNewFieldMappers();
+    public abstract Collection<FieldMapper> getNewFieldMappers();
 
     public abstract Collection<ObjectMapper> getNewObjectMappers();
 

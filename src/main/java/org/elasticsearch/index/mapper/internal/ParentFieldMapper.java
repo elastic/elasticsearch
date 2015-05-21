@@ -60,7 +60,7 @@ import static org.elasticsearch.index.mapper.MapperBuilders.parent;
 /**
  *
  */
-public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements RootMapper {
+public class ParentFieldMapper extends AbstractFieldMapper implements RootMapper {
 
     public static final String NAME = "_parent";
 

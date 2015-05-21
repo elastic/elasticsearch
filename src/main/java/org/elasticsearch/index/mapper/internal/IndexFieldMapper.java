@@ -50,7 +50,7 @@ import static org.elasticsearch.index.mapper.core.TypeParsers.parseField;
 /**
  *
  */
-public class IndexFieldMapper extends AbstractFieldMapper<String> implements RootMapper {
+public class IndexFieldMapper extends AbstractFieldMapper implements RootMapper {
 
     public static final String NAME = "_index";
 

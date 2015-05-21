@@ -62,7 +62,7 @@ import static org.elasticsearch.index.mapper.core.TypeParsers.parseNumberField;
 /**
  *
  */
-public class LongFieldMapper extends NumberFieldMapper<Long> {
+public class LongFieldMapper extends NumberFieldMapper {
 
     public static final String CONTENT_TYPE = "long";
 

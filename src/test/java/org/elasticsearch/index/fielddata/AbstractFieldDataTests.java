@@ -65,7 +65,7 @@ public abstract class AbstractFieldDataTests extends ElasticsearchSingleNodeTest
     }
 
     public <IFD extends IndexFieldData<?>> IFD getForField(FieldDataType type, String fieldName, boolean docValues) {
-        final FieldMapper<?> mapper;
+        final FieldMapper mapper;
         final BuilderContext context = new BuilderContext(indexService.settingsService().getSettings(), new ContentPath(1));
         if (type.getType().equals("string")) {
             mapper = MapperBuilders.stringField(fieldName).tokenized(false).docValues(docValues).fieldDataSettings(type.getSettings()).build(context);

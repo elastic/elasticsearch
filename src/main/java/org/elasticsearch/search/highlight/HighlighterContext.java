@@ -31,12 +31,12 @@ public class HighlighterContext {
 
     public final String fieldName;
     public final SearchContextHighlight.Field field;
-    public final FieldMapper<?> mapper;
+    public final FieldMapper mapper;
     public final SearchContext context;
     public final FetchSubPhase.HitContext hitContext;
     public final HighlightQuery query;
 
-    public HighlighterContext(String fieldName, SearchContextHighlight.Field field, FieldMapper<?> mapper, SearchContext context,
+    public HighlighterContext(String fieldName, SearchContextHighlight.Field field, FieldMapper mapper, SearchContext context,
             FetchSubPhase.HitContext hitContext, HighlightQuery query) {
         this.fieldName = fieldName;
         this.field = field;

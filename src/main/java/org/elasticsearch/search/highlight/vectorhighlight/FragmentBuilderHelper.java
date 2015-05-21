@@ -46,7 +46,7 @@ public final class FragmentBuilderHelper {
      * Fixes problems with broken analysis chains if positions and offsets are messed up that can lead to
      * {@link StringIndexOutOfBoundsException} in the {@link FastVectorHighlighter}
      */
-    public static WeightedFragInfo fixWeightedFragInfo(FieldMapper<?> mapper, Field[] values, WeightedFragInfo fragInfo) {
+    public static WeightedFragInfo fixWeightedFragInfo(FieldMapper mapper, Field[] values, WeightedFragInfo fragInfo) {
         assert fragInfo != null : "FragInfo must not be null";
         assert mapper.names().indexName().equals(values[0].name()) : "Expected FieldMapper for field " + values[0].name();
         if (!fragInfo.getSubInfos().isEmpty() && (containsBrokenAnalysis(mapper.indexAnalyzer()))) {

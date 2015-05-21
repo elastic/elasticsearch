@@ -44,7 +44,7 @@ import java.util.Map;
 import static org.elasticsearch.index.mapper.MapperBuilders.version;
 
 /** Mapper for the _version field. */
-public class VersionFieldMapper extends AbstractFieldMapper<Long> implements RootMapper {
+public class VersionFieldMapper extends AbstractFieldMapper implements RootMapper {
 
     public static final String NAME = "_version";
     public static final String CONTENT_TYPE = "_version";

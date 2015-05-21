@@ -151,11 +151,13 @@ public abstract class BaseQueryTestCase<QB extends QueryBuilder<QB>> extends Ela
                 types[i] = randomFrom(currentTypes);
             }
         } else {
-            /*TODO if (randomBoolean()) {
+            /* norelease waiting for a fix on master that restores support for _all type
+            if (randomBoolean()) {
                 types = new String[]{MetaData.ALL};
             } else {
-
-            }*/
+                types = new String[0];
+            }
+            */
             types = new String[0];
         }
         //some query (e.g. range query) have a different behaviour depending on whether the current search context is set or not

@@ -47,6 +47,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.analysis.AnalysisService;
@@ -100,6 +101,7 @@ public class MapperService extends AbstractIndexComponent  {
     // under the write lock and read operations (document parsing) need to be
     // performed under the read lock
     final ReentrantReadWriteLock mappingLock = new ReentrantReadWriteLock();
+    private final ReleasableLock mappingWriteLock = new ReleasableLock(mappingLock.writeLock());
 
     private volatile FieldMappersLookup fieldMappers;
     private volatile ImmutableOpenMap<String, ObjectMappers> fullPathObjectMappers = ImmutableOpenMap.of();
@@ -217,11 +219,8 @@ public class MapperService extends AbstractIndexComponent  {
             DocumentMapper mapper = documentParser.parseCompressed(type, mappingSource);
             // still add it as a document mapper so we have it registered and, for example, persisted back into
             // the cluster meta data if needed, or checked for existence
-            mappingLock.writeLock().lock();
-            try {
+            try (ReleasableLock lock = mappingWriteLock.acquire()) {
                 mappers = newMapBuilder(mappers).put(type, mapper).map();
-            } finally {
-                mappingLock.writeLock().unlock();
             }
             try {
                 defaultMappingSource = mappingSource.string();
@@ -237,8 +236,7 @@ public class MapperService extends AbstractIndexComponent  {
     // never expose this to the outside world, we need to reparse the doc mapper so we get fresh
     // instances of field mappers to properly remove existing doc mapper
     private DocumentMapper merge(DocumentMapper mapper) {
-        mappingLock.writeLock().lock();
-        try {
+        try (ReleasableLock lock = mappingWriteLock.acquire()) {
             if (mapper.type().length() == 0) {
                 throw new InvalidTypeNameException("mapping type name is empty");
             }
@@ -287,8 +285,6 @@ public class MapperService extends AbstractIndexComponent  {
                 mappers = newMapBuilder(mappers).put(mapper.type(), mapper).map();
                 return mapper;
             }
-        } finally {
-            mappingLock.writeLock().unlock();
         }
     }
 

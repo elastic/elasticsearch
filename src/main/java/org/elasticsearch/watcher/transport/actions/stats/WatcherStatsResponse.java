@@ -17,6 +17,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.watcher.execution.WatchExecutionSnapshot;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
@@ -121,6 +122,7 @@ public class WatcherStatsResponse extends ActionResponse implements ToXContent {
 
         if (in.readBoolean()) {
             int size = in.readVInt();
+            snapshots = new ArrayList<>(size);
             for (int i = 0; i < size; i++) {
                 snapshots.add(new WatchExecutionSnapshot(in));
             }

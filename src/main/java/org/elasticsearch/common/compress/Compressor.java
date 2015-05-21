@@ -38,25 +38,17 @@ public interface Compressor {
 
     boolean isCompressed(BytesReference bytes);
 
-    boolean isCompressed(byte[] data, int offset, int length);
-
     boolean isCompressed(ChannelBuffer buffer);
 
+    StreamInput streamInput(StreamInput in) throws IOException;
+
+    StreamOutput streamOutput(StreamOutput out) throws IOException;
+
+    /**
+     * @deprecated Used for backward comp. since we now use Lucene compressed codec.
+     */
+    @Deprecated
     boolean isCompressed(IndexInput in) throws IOException;
-
-    /**
-     * Uncompress the provided data, data can be detected as compressed using {@link #isCompressed(byte[], int, int)}.
-     */
-    byte[] uncompress(byte[] data, int offset, int length) throws IOException;
-
-    /**
-     * Compresses the provided data, data can be detected as compressed using {@link #isCompressed(byte[], int, int)}.
-     */
-    byte[] compress(byte[] data, int offset, int length) throws IOException;
-
-    CompressedStreamInput streamInput(StreamInput in) throws IOException;
-
-    CompressedStreamOutput streamOutput(StreamOutput out) throws IOException;
 
     /**
      * @deprecated Used for backward comp. since we now use Lucene compressed codec.

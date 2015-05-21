@@ -21,7 +21,6 @@ package org.elasticsearch.common.compress.lzf;
 
 import com.ning.compress.lzf.ChunkDecoder;
 import com.ning.compress.lzf.LZFChunk;
-import com.ning.compress.lzf.LZFEncoder;
 import com.ning.compress.lzf.util.ChunkDecoderFactory;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -70,14 +69,6 @@ public class LZFCompressor implements Compressor {
     }
 
     @Override
-    public boolean isCompressed(byte[] data, int offset, int length) {
-        return length >= 3 &&
-                data[offset] == LZFChunk.BYTE_Z &&
-                data[offset + 1] == LZFChunk.BYTE_V &&
-                (data[offset + 2] == LZFChunk.BLOCK_TYPE_COMPRESSED || data[offset + 2] == LZFChunk.BLOCK_TYPE_NON_COMPRESSED);
-    }
-
-    @Override
     public boolean isCompressed(ChannelBuffer buffer) {
         int offset = buffer.readerIndex();
         return buffer.readableBytes() >= 3 &&
@@ -101,16 +92,6 @@ public class LZFCompressor implements Compressor {
         }
         in.seek(currentPointer);
         return true;
-    }
-
-    @Override
-    public byte[] uncompress(byte[] data, int offset, int length) throws IOException {
-        return decoder.decode(data, offset, length);
-    }
-
-    @Override
-    public byte[] compress(byte[] data, int offset, int length) throws IOException {
-        return LZFEncoder.safeEncode(data, offset, length);
     }
 
     @Override

@@ -43,7 +43,7 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.compress.CompressedString;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.regex.Regex;
@@ -214,7 +214,7 @@ public class MapperService extends AbstractIndexComponent  {
         typeListeners.remove(listener);
     }
 
-    public DocumentMapper merge(String type, CompressedString mappingSource, boolean applyDefault) {
+    public DocumentMapper merge(String type, CompressedXContent mappingSource, boolean applyDefault) {
         if (DEFAULT_MAPPING.equals(type)) {
             // verify we can parse it
             DocumentMapper mapper = documentParser.parseCompressed(type, mappingSource);
@@ -293,7 +293,7 @@ public class MapperService extends AbstractIndexComponent  {
 
     private boolean assertSerialization(DocumentMapper mapper) {
         // capture the source now, it may change due to concurrent parsing
-        final CompressedString mappingSource = mapper.mappingSource();
+        final CompressedXContent mappingSource = mapper.mappingSource();
         DocumentMapper newMapper = parse(mapper.type(), mappingSource, false);
 
         if (newMapper.mappingSource().equals(mappingSource) == false) {
@@ -328,7 +328,7 @@ public class MapperService extends AbstractIndexComponent  {
         this.fieldMappers = this.fieldMappers.copyAndAddAll(fieldMappers);
     }
 
-    public DocumentMapper parse(String mappingType, CompressedString mappingSource, boolean applyDefault) throws MapperParsingException {
+    public DocumentMapper parse(String mappingType, CompressedXContent mappingSource, boolean applyDefault) throws MapperParsingException {
         String defaultMappingSource;
         if (PercolatorService.TYPE_NAME.equals(mappingType)) {
             defaultMappingSource = this.defaultPercolatorMappingSource;

@@ -547,7 +547,7 @@ public class MapperService extends AbstractIndexComponent  {
     }
 
     public FieldMapper smartNameFieldMapper(String smartName, @Nullable String[] types) {
-        if (types == null || types.length == 0) {
+        if (types == null || types.length == 0 || types.length == 1 && types[0].equals("_all")) {
             return smartNameFieldMapper(smartName);
         }
         for (String type : types) {

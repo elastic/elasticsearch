@@ -34,6 +34,7 @@ import org.apache.lucene.util.Version;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -1234,6 +1235,7 @@ public class StoreTest extends ElasticsearchTestCase {
             // expected
         }
         assertTrue(store.isMarkedCorrupted());
+        Lucene.cleanLuceneIndex(store.directory()); // we have to remove the index since it's corrupted and might fail the MocKDirWrapper checkindex call
         store.close();
     }
 

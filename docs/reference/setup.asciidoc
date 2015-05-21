@@ -79,7 +79,6 @@ in a production environment, this configuration is prefered.
 
 Please see https://www.elastic.co/guide/en/elasticsearch/reference/1.x/setup-service.html[Elasticsearch as a Service] for more setup-information, such as 
 configuring the elasticsearch service to start on bootup.
-
 --
 
 include::setup/configuration.asciidoc[]

@@ -109,7 +109,7 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesOperat
             if (shardStateMetaData != null) {
                 final IndexMetaData metaData = clusterService.state().metaData().index(shardId.index().name()); // it's a mystery why this is sometimes null
                 if (metaData != null && canOpenIndex(request.getShardId(), metaData) == false) {
-                    logger.trace("{} can't open index for shard", shardId);
+                    logger.trace("{} can't open index for shard [{}]", shardId, shardStateMetaData);
                     return new NodeGatewayStartedShards(clusterService.localNode(), -1);
                 }
                 // old shard metadata doesn't have the actual index UUID so we need to check if the actual uuid in the metadata

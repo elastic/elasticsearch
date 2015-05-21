@@ -624,7 +624,7 @@ public abstract class AbstractWatcherIntegrationTests extends ElasticsearchInteg
 
         public static final String ROLES =
                 "test:\n" + // a user for the test infra.
-                "  cluster: cluster:monitor/state, cluster:monitor/health, indices:admin/template/delete, cluster:admin/repository/delete, indices:admin/template/put, cluster:monitor/stats\n" +
+                "  cluster: cluster:monitor/state, cluster:monitor/health, cluster:monitor/stats, cluster:admin/settings/update, cluster:admin/repository/delete, indices:admin/template/get, indices:admin/template/put, indices:admin/template/delete\n" +
                 "  indices:\n" +
                 "    '*': all\n" +
                 "\n" +

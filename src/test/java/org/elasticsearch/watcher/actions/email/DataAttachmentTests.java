@@ -29,7 +29,7 @@ public class DataAttachmentTests extends ElasticsearchTestCase {
         Attachment attachment = DataAttachment.JSON.create(data);
         InputStream input = attachment.bodyPart().getDataHandler().getInputStream();
         String content = Streams.copyToString(new InputStreamReader(input, Charsets.UTF_8));
-        assertThat(content, is("{\n  \"key\" : \"value\"" + System.lineSeparator() + "}"));
+        assertThat(content, is("{" + System.lineSeparator() + "  \"key\" : \"value\"" + System.lineSeparator() + "}"));
     }
 
     @Test
@@ -38,6 +38,6 @@ public class DataAttachmentTests extends ElasticsearchTestCase {
         Attachment attachment = DataAttachment.YAML.create(data);
         InputStream input = attachment.bodyPart().getDataHandler().getInputStream();
         String content = Streams.copyToString(new InputStreamReader(input, Charsets.UTF_8));
-        assertThat(content, is("---\nkey: \"value\"" + System.lineSeparator()));
+        assertThat(content, is("---" + System.lineSeparator() + "key: \"value\"" + System.lineSeparator()));
     }
 }

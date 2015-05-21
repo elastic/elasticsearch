@@ -35,7 +35,7 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.QueryWrapperFilter;
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchGenerationException;
@@ -372,11 +372,11 @@ public class MapperService extends AbstractIndexComponent  {
                 BooleanQuery bq = new BooleanQuery();
                 bq.add(percolatorType, Occur.MUST_NOT);
                 bq.add(Queries.newNonNestedFilter(), Occur.MUST);
-                return new QueryWrapperFilter(bq);
+                return new ConstantScoreQuery(bq);
             } else if (hasNested) {
                 return Queries.newNonNestedFilter();
             } else if (filterPercolateType) {
-                return new QueryWrapperFilter(Queries.not(percolatorType));
+                return new ConstantScoreQuery(Queries.not(percolatorType));
             } else {
                 return null;
             }
@@ -390,7 +390,7 @@ public class MapperService extends AbstractIndexComponent  {
                 BooleanQuery bq = new BooleanQuery();
                 bq.add(percolatorType, Occur.MUST_NOT);
                 bq.add(filter, Occur.MUST);
-                return new QueryWrapperFilter(bq);
+                return new ConstantScoreQuery(bq);
             } else {
                 return filter;
             }
@@ -420,9 +420,9 @@ public class MapperService extends AbstractIndexComponent  {
                 BooleanQuery bq = new BooleanQuery();
                 bq.add(percolatorType, Occur.MUST_NOT);
                 bq.add(termsFilter, Occur.MUST);
-                return new QueryWrapperFilter(bq);
+                return new ConstantScoreQuery(bq);
             } else {
-                return new QueryWrapperFilter(termsFilter);
+                return termsFilter;
             }
         } else {
             // Current bool filter requires that at least one should clause matches, even with a must clause.
@@ -442,19 +442,21 @@ public class MapperService extends AbstractIndexComponent  {
                 bool.add(Queries.newNonNestedFilter(), BooleanClause.Occur.MUST);
             }
 
-            return new QueryWrapperFilter(bool);
+            return new ConstantScoreQuery(bool);
         }
     }
 
     /**
-     * Returns {@link FieldMappers} for all the {@link FieldMapper}s that are registered
-     * under the given indexName across all the different {@link DocumentMapper} types.
+     * Returns an {@link FieldMapper} which has the given index name.
      *
-     * @param indexName The indexName to return all the {@link FieldMappers} for across all {@link DocumentMapper}s.
-     * @return All the {@link FieldMappers} across all {@link DocumentMapper}s for the given indexName.
+     * If multiple types have fields with the same index name, the first is returned.
      */
-    public FieldMappers indexName(String indexName) {
-        return fieldMappers.indexName(indexName);
+    public FieldMapper indexName(String indexName) {
+        FieldMappers mappers = fieldMappers.indexName(indexName);
+        if (mappers == null) {
+            return null;
+        }
+        return mappers.mapper();
     }
 
     /**
@@ -464,15 +466,12 @@ public class MapperService extends AbstractIndexComponent  {
      * @param fullName The full name
      * @return All teh {@link FieldMappers} across all the {@link DocumentMapper}s for the given fullName.
      */
-    public FieldMappers fullName(String fullName) {
-        return fieldMappers.fullName(fullName);
-    }
-
-    /**
-     * Returns objects mappers based on the full path of the object.
-     */
-    public ObjectMappers objectMapper(String path) {
-        return fullPathObjectMappers.get(path);
+    public FieldMapper fullName(String fullName) {
+        FieldMappers mappers = fieldMappers.fullName(fullName);
+        if (mappers == null) {
+            return null;
+        }
+        return mappers.mapper();
     }
 
     /**
@@ -510,7 +509,7 @@ public class MapperService extends AbstractIndexComponent  {
 
     public SmartNameObjectMapper smartNameObjectMapper(String smartName, @Nullable String[] types) {
         if (types == null || types.length == 0 || types.length == 1 && types[0].equals("_all")) {
-            ObjectMappers mappers = objectMapper(smartName);
+            ObjectMappers mappers = fullPathObjectMappers.get(smartName);
             if (mappers != null) {
                 return new SmartNameObjectMapper(mappers.mapper(), guessDocMapper(smartName));
             }
@@ -537,61 +536,17 @@ public class MapperService extends AbstractIndexComponent  {
         return null;
     }
 
-    /**
-     * Same as {@link #smartNameFieldMappers(String)} but returns the first field mapper for it. Returns
-     * <tt>null</tt> if there is none.
-     */
     public FieldMapper smartNameFieldMapper(String smartName) {
-        FieldMappers fieldMappers = smartNameFieldMappers(smartName);
-        if (fieldMappers != null) {
-            return fieldMappers.mapper();
-        }
-        return null;
-    }
-
-    public FieldMapper smartNameFieldMapper(String smartName, @Nullable String[] types) {
-        FieldMappers fieldMappers = smartNameFieldMappers(smartName, types);
-        if (fieldMappers != null) {
-            return fieldMappers.mapper();
-        }
-        return null;
-    }
-
-    public FieldMappers smartNameFieldMappers(String smartName, @Nullable String[] types) {
-        if (types == null || types.length == 0) {
-            return smartNameFieldMappers(smartName);
-        }
-        for (String type : types) {
-            DocumentMapper documentMapper = mappers.get(type);
-            // we found a mapper
-            if (documentMapper != null) {
-                // see if we find a field for it
-                FieldMappers mappers = documentMapper.mappers().smartName(smartName);
-                if (mappers != null) {
-                    return mappers;
-                }
-            }
-        }
-        return null;
-    }
-
-    /**
-     * Same as {@link #smartName(String)}, except it returns just the field mappers.
-     */
-    public FieldMappers smartNameFieldMappers(String smartName) {
-        FieldMappers mappers = fullName(smartName);
-        if (mappers != null) {
-            return mappers;
+        FieldMapper mapper = fullName(smartName);
+        if (mapper != null) {
+            return mapper;
         }
         return indexName(smartName);
     }
 
-    public SmartNameFieldMappers smartName(String smartName, @Nullable String[] types) {
+    public FieldMapper smartNameFieldMapper(String smartName, @Nullable String[] types) {
         if (types == null || types.length == 0) {
-            return smartName(smartName);
-        }
-        if (types.length == 1 && types[0].equals("_all")) {
-            return smartName(smartName);
+            return smartNameFieldMapper(smartName);
         }
         for (String type : types) {
             DocumentMapper documentMapper = mappers.get(type);
@@ -600,29 +555,9 @@ public class MapperService extends AbstractIndexComponent  {
                 // see if we find a field for it
                 FieldMappers mappers = documentMapper.mappers().smartName(smartName);
                 if (mappers != null) {
-                    return new SmartNameFieldMappers(this, mappers, documentMapper, false);
+                    return mappers.mapper();
                 }
             }
-        }
-        return null;
-    }
-
-    /**
-     * Returns smart field mappers based on a smart name. A smart name is any of full name or index name.
-     * <p/>
-     * <p>It will first try to find it based on the full name (with the dots if its a compound name). If
-     * it is not found, will try and find it based on the indexName (which can be controlled in the mapping).
-     * <p/>
-     * <p>If nothing is found, returns null.
-     */
-    public SmartNameFieldMappers smartName(String smartName) {
-        FieldMappers fieldMappers = fullName(smartName);
-        if (fieldMappers != null) {
-            return new SmartNameFieldMappers(this, fieldMappers, null, false);
-        }
-        fieldMappers = indexName(smartName);
-        if (fieldMappers != null) {
-            return new SmartNameFieldMappers(this, fieldMappers, null, false);
         }
         return null;
     }
@@ -671,7 +606,7 @@ public class MapperService extends AbstractIndexComponent  {
         } else {
             do {
                 String objectPath = fieldName.substring(0, indexOf);
-                ObjectMappers objectMappers = objectMapper(objectPath);
+                ObjectMappers objectMappers = fullPathObjectMappers.get(objectPath);
                 if (objectMappers == null) {
                     indexOf = objectPath.lastIndexOf('.');
                     continue;
@@ -725,78 +660,6 @@ public class MapperService extends AbstractIndexComponent  {
         }
     }
 
-    public static class SmartNameFieldMappers {
-        private final MapperService mapperService;
-        private final FieldMappers fieldMappers;
-        private final DocumentMapper docMapper;
-
-        public SmartNameFieldMappers(MapperService mapperService, FieldMappers fieldMappers, @Nullable DocumentMapper docMapper, boolean explicitTypeInName) {
-            this.mapperService = mapperService;
-            this.fieldMappers = fieldMappers;
-            this.docMapper = docMapper;
-        }
-
-        /**
-         * Has at least one mapper for the field.
-         */
-        public boolean hasMapper() {
-            return !fieldMappers.isEmpty();
-        }
-
-        /**
-         * The first mapper for the smart named field.
-         */
-        public FieldMapper mapper() {
-            return fieldMappers.mapper();
-        }
-
-        /**
-         * All the field mappers for the smart name field.
-         */
-        public FieldMappers fieldMappers() {
-            return fieldMappers;
-        }
-
-        /**
-         * If the smart name was a typed field, with a type that we resolved, will return
-         * <tt>true</tt>.
-         */
-        public boolean hasDocMapper() {
-            return docMapper != null;
-        }
-
-        /**
-         * If the smart name was a typed field, with a type that we resolved, will return
-         * the document mapper for it.
-         */
-        public DocumentMapper docMapper() {
-            return docMapper;
-        }
-
-        /**
-         * The best effort search analyzer associated with this field.
-         */
-        public Analyzer searchAnalyzer() {
-            if (hasMapper()) {
-                Analyzer analyzer = mapper().searchAnalyzer();
-                if (analyzer != null) {
-                    return analyzer;
-                }
-            }
-            return mapperService.searchAnalyzer();
-        }
-
-        public Analyzer searchQuoteAnalyzer() {
-            if (hasMapper()) {
-                Analyzer analyzer = mapper().searchQuoteAnalyzer();
-                if (analyzer != null) {
-                    return analyzer;
-                }
-            }
-            return mapperService.searchQuoteAnalyzer();
-        }
-    }
-
     final class SmartIndexNameSearchAnalyzer extends DelegatingAnalyzerWrapper {
 
         private final Analyzer defaultAnalyzer;
@@ -808,14 +671,9 @@ public class MapperService extends AbstractIndexComponent  {
 
         @Override
         protected Analyzer getWrappedAnalyzer(String fieldName) {
-            FieldMappers mappers = fieldMappers.fullName(fieldName);
-            if (mappers != null && mappers.mapper() != null && mappers.mapper().searchAnalyzer() != null) {
-                return mappers.mapper().searchAnalyzer();
-            }
-
-            mappers = fieldMappers.indexName(fieldName);
-            if (mappers != null && mappers.mapper() != null && mappers.mapper().searchAnalyzer() != null) {
-                return mappers.mapper().searchAnalyzer();
+            FieldMapper mapper = smartNameFieldMapper(fieldName);
+            if (mapper != null && mapper.searchAnalyzer() != null) {
+                return mapper.searchAnalyzer();
             }
             return defaultAnalyzer;
         }
@@ -832,14 +690,9 @@ public class MapperService extends AbstractIndexComponent  {
 
         @Override
         protected Analyzer getWrappedAnalyzer(String fieldName) {
-            FieldMappers mappers = fieldMappers.fullName(fieldName);
-            if (mappers != null && mappers.mapper() != null && mappers.mapper().searchQuoteAnalyzer() != null) {
-                return mappers.mapper().searchQuoteAnalyzer();
-            }
-
-            mappers = fieldMappers.indexName(fieldName);
-            if (mappers != null && mappers.mapper() != null && mappers.mapper().searchQuoteAnalyzer() != null) {
-                return mappers.mapper().searchQuoteAnalyzer();
+            FieldMapper mapper = smartNameFieldMapper(fieldName);
+            if (mapper != null && mapper.searchQuoteAnalyzer() != null) {
+                return mapper.searchQuoteAnalyzer();
             }
             return defaultAnalyzer;
         }

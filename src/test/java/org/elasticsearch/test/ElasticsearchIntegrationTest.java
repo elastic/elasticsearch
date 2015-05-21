@@ -49,6 +49,7 @@ import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.optimize.OptimizeResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentResponse;
+import org.elasticsearch.action.admin.indices.seal.SealIndicesResponse;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequestBuilder;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -92,6 +93,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.discovery.zen.elect.ElectMasterService;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.fielddata.FieldDataType;
@@ -876,24 +878,13 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
             @Override
             public void run() {
                 for (Client client : clients()) {
+                    ClusterHealthResponse clusterHealth = client.admin().cluster().prepareHealth().setLocal(true).get();
+                    assertThat("client " + client  + " still has in flight fetch", clusterHealth.getNumberOfInFlightFetch(), equalTo(0));
                     PendingClusterTasksResponse pendingTasks = client.admin().cluster().preparePendingClusterTasks().setLocal(true).get();
                     assertThat("client " + client + " still has pending tasks " + pendingTasks.prettyPrint(), pendingTasks, Matchers.emptyIterable());
+                    clusterHealth = client.admin().cluster().prepareHealth().setLocal(true).get();
+                    assertThat("client " + client  + " still has in flight fetch", clusterHealth.getNumberOfInFlightFetch(), equalTo(0));
                 }
-            }
-        });
-        assertNoTimeout(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).get());
-    }
-
-    /**
-     * Waits until the elected master node has no pending tasks.
-     */
-    public void waitNoPendingTasksOnMaster() throws Exception {
-        assertNoTimeout(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).get());
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                PendingClusterTasksResponse pendingTasks = client().admin().cluster().preparePendingClusterTasks().setLocal(true).get();
-                assertThat("master still has pending tasks " + pendingTasks.prettyPrint(), pendingTasks, Matchers.emptyIterable());
             }
         });
         assertNoTimeout(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).get());
@@ -1169,24 +1160,24 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                 // remove local node reference
                 masterClusterState = ClusterState.Builder.fromBytes(masterClusterStateBytes, null);
                 Map<String, Object> masterStateMap = convertToMap(masterClusterState);
-                int masterClusterStateSize = ClusterState.Builder.toBytes(masterClusterState).length;
+                int masterClusterStateSize = masterClusterState.toString().length();
                 String masterId = masterClusterState.nodes().masterNodeId();
                 for (Client client : cluster()) {
                     ClusterState localClusterState = client.admin().cluster().prepareState().all().setLocal(true).get().getState();
                     byte[] localClusterStateBytes = ClusterState.Builder.toBytes(localClusterState);
                     // remove local node reference
                     localClusterState = ClusterState.Builder.fromBytes(localClusterStateBytes, null);
-                    Map<String, Object> localStateMap = convertToMap(localClusterState);
-                    int localClusterStateSize = localClusterStateBytes.length;
+                    final Map<String, Object> localStateMap = convertToMap(localClusterState);
+                    final int localClusterStateSize = localClusterState.toString().length();
                     // Check that the non-master node has the same version of the cluster state as the master and that this node didn't disconnect from the master
                     if (masterClusterState.version() == localClusterState.version() && localClusterState.nodes().nodes().containsKey(masterId)) {
                         try {
-                            assertThat(masterClusterState.uuid(), equalTo(localClusterState.uuid()));
+                            assertEquals("clusterstate UUID does not match", masterClusterState.uuid(), localClusterState.uuid());
                             // We cannot compare serialization bytes since serialization order of maps is not guaranteed
                             // but we can compare serialization sizes - they should be the same
-                            assertThat(masterClusterStateSize, equalTo(localClusterStateSize));
+                            assertEquals("clusterstate size does not match", masterClusterStateSize, localClusterStateSize);
                             // Compare JSON serialization
-                            assertThat(mapsEqualIgnoringArrayOrder(masterStateMap, localStateMap), equalTo(true));
+                            assertTrue("clusterstate JSON serialization does not match", mapsEqualIgnoringArrayOrder(masterStateMap, localStateMap));
                         } catch (AssertionError error) {
                             logger.error("Cluster state from master:\n{}\nLocal cluster state:\n{}", masterClusterState.toString(), localClusterState.toString());
                             throw error;
@@ -1518,8 +1509,13 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                 client().admin().indices().prepareRefresh(indices).setIndicesOptions(IndicesOptions.lenientExpandOpen()).execute(
                         new LatchedActionListener<RefreshResponse>(newLatch(inFlightAsyncOperations)));
             } else if (maybeFlush && rarely()) {
-                client().admin().indices().prepareFlush(indices).setIndicesOptions(IndicesOptions.lenientExpandOpen()).execute(
-                        new LatchedActionListener<FlushResponse>(newLatch(inFlightAsyncOperations)));
+                if (randomBoolean()) {
+                    client().admin().indices().prepareFlush(indices).setIndicesOptions(IndicesOptions.lenientExpandOpen()).execute(
+                            new LatchedActionListener<FlushResponse>(newLatch(inFlightAsyncOperations)));
+                } else {
+                    client().admin().indices().prepareSealIndices(indices).execute(
+                            new LatchedActionListener<SealIndicesResponse>(newLatch(inFlightAsyncOperations)));
+                }
             } else if (rarely()) {
                 client().admin().indices().prepareOptimize(indices).setIndicesOptions(IndicesOptions.lenientExpandOpen()).setMaxNumSegments(between(1, 10)).setFlush(maybeFlush && randomBoolean()).execute(
                         new LatchedActionListener<OptimizeResponse>(newLatch(inFlightAsyncOperations)));
@@ -1849,6 +1845,27 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         }
 
         return timeZone;
+    }
+
+    /**
+     * Returns path to a random directory that can be used to create a temporary file system repo
+     */
+    public Path randomRepoPath() {
+        return randomRepoPath(internalCluster().getDefaultSettings());
+    }
+
+    /**
+     * Returns path to a random directory that can be used to create a temporary file system repo
+     */
+    public static Path randomRepoPath(Settings settings) {
+        Environment environment = new Environment(settings);
+        Path[] repoFiles = environment.repoFiles();
+        assert repoFiles.length > 0;
+        Path path;
+        do {
+            path = repoFiles[0].resolve(randomAsciiOfLength(10));
+        } while (Files.exists(path));
+        return path;
     }
 
     protected NumShards getNumShards(String index) {

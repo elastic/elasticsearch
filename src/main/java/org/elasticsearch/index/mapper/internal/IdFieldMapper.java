@@ -187,7 +187,7 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements RootMa
         if (fieldType.indexOptions() != IndexOptions.NONE || context == null) {
             return super.termQuery(value, context);
         }
-        final BytesRef[] uids = Uid.createTypeUids(context.queryTypes(), value);
+        final BytesRef[] uids = Uid.createUidsForTypesAndId(context.queryTypes(), value);
         if (uids.length == 1) {
             return new TermQuery(new Term(UidFieldMapper.NAME, uids[0]));
         } else {
@@ -200,7 +200,7 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements RootMa
         if (fieldType.indexOptions() != IndexOptions.NONE || context == null) {
             return super.termsQuery(values, context);
         }
-        return new TermsQuery(UidFieldMapper.NAME, Uid.createTypeUids(context.queryTypes(), values));
+        return new TermsQuery(UidFieldMapper.NAME, Uid.createUidsForTypesAndIds(context.queryTypes(), values));
     }
 
     @Override

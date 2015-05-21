@@ -61,7 +61,7 @@ class RecoveryCleanFilesRequest extends TransportRequest {
         super.readFrom(in);
         recoveryId = in.readLong();
         shardId = ShardId.readShardId(in);
-        snapshotFiles = Store.MetadataSnapshot.read(in);
+        snapshotFiles = new Store.MetadataSnapshot(in);
         totalTranslogOps = in.readVInt();
     }
 

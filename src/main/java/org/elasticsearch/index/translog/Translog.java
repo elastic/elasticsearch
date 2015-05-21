@@ -110,7 +110,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     private volatile ScheduledFuture<?> syncScheduler;
     // this is a concurrent set and is not protected by any of the locks. The main reason
     // is that is being accessed by two separate classes (additions & reading are done by FsTranslog, remove by FsView when closed)
-    private final Set<FsView> outstandingViews = ConcurrentCollections.newConcurrentSet();
+    private final Set<View> outstandingViews = ConcurrentCollections.newConcurrentSet();
     private BigArrays bigArrays;
     protected final ReleasableLock readLock;
     protected final ReleasableLock writeLock;
@@ -121,6 +121,15 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     private final AtomicBoolean closed = new AtomicBoolean();
     private final TranslogConfig config;
     private final String translogUUID;
+    private Callback<View> onViewClose = new Callback<View>() {
+        @Override
+        public void handle(View view) {
+            logger.trace("closing view starting at translog [{}]", view.minTranslogGeneration());
+            boolean removed = outstandingViews.remove(view);
+            assert removed : "View was never set but was supposed to be removed";
+        }
+    };
+
 
 
     /**
@@ -413,17 +422,22 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
 
     /**
-     * Read the Operation object from the given location.
+     * Read the Operation object from the given location. This method will try to read the given location from
+     * the current or from the currently committing translog file. If the location is in a file that has already
+     * been closed or even removed the method will return <code>null</code> instead.
      */
     public Translog.Operation read(Location location) {
         try (ReleasableLock lock = readLock.acquire()) {
             final TranslogReader reader;
-            if (current.getGeneration() == location.generation) {
+            final long currentGeneration = current.getGeneration();
+            if (currentGeneration == location.generation) {
                 reader = current;
             } else if (currentCommittingTranslog != null && currentCommittingTranslog.getGeneration() == location.generation) {
                 reader = currentCommittingTranslog;
+            } else if (currentGeneration < location.generation) {
+                throw new IllegalStateException("location generation [" + location.generation + "] is greater than the current generation [" + currentGeneration + "]");
             } else {
-                throw new IllegalStateException("Can't read from translog location" + location);
+                return null;
             }
             return reader.read(location);
         } catch (IOException e) {
@@ -440,10 +454,18 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      * @see org.elasticsearch.index.translog.Translog.Delete
      */
     public Location add(Operation operation) throws TranslogException {
-        ReleasableBytesStreamOutput out = new ReleasableBytesStreamOutput(bigArrays);
+        final ReleasableBytesStreamOutput out = new ReleasableBytesStreamOutput(bigArrays);
         try {
-            writeOperation(out, operation);
-            ReleasablePagedBytesReference bytes = out.bytes();
+            final BufferedChecksumStreamOutput checksumStreamOutput = new BufferedChecksumStreamOutput(out);
+            final long start = out.position();
+            out.skip(RamUsageEstimator.NUM_BYTES_INT);
+            writeOperationNoSize(checksumStreamOutput, operation);
+            final long end = out.position();
+            final int operationSize = (int) (end - RamUsageEstimator.NUM_BYTES_INT - start);
+            out.seek(start);
+            out.writeInt(operationSize);
+            out.seek(end);
+            final ReleasablePagedBytesReference bytes = out.bytes();
             try (ReleasableLock lock = readLock.acquire()) {
                 Location location = current.add(bytes);
                 if (config.isSyncOnEachOperation()) {
@@ -475,7 +497,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         }
     }
 
-    private Snapshot createSnapshot(TranslogReader... translogs) {
+    private static Snapshot createSnapshot(TranslogReader... translogs) {
         Snapshot[] snapshots = new Snapshot[translogs.length];
         boolean success = false;
         try {
@@ -507,7 +529,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                     translogs.add(currentCommittingTranslog.clone());
                 }
                 translogs.add(current.newReaderFromWriter());
-                FsView view = new FsView(translogs);
+                View view = new View(translogs, onViewClose);
                 // this is safe as we know that no new translog is being made at the moment
                 // (we hold a read lock) and the view will be notified of any future one
                 outstandingViews.add(view);
@@ -615,16 +637,18 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      * a view into the translog, capturing all translog file at the moment of creation
      * and updated with any future translog.
      */
-    class FsView implements View {
+    public static final class View implements Closeable {
+        public static final Translog.View EMPTY_VIEW = new View(Collections.EMPTY_LIST, null);
 
         boolean closed;
         // last in this list is always FsTranslog.current
         final List<TranslogReader> orderedTranslogs;
+        private final Callback<View> onClose;
 
-        FsView(List<TranslogReader> orderedTranslogs) {
-            assert orderedTranslogs.isEmpty() == false;
+        View(List<TranslogReader> orderedTranslogs, Callback<View> onClose) {
             // clone so we can safely mutate..
             this.orderedTranslogs = new ArrayList<>(orderedTranslogs);
+            this.onClose = onClose;
         }
 
         /**
@@ -647,13 +671,15 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             orderedTranslogs.add(newCurrent);
         }
 
-        @Override
+        /** this smallest translog generation in this view */
         public synchronized long minTranslogGeneration() {
             ensureOpen();
             return orderedTranslogs.get(0).getGeneration();
         }
 
-        @Override
+        /**
+         * The total number of operations in the view.
+         */
         public synchronized int totalOperations() {
             int ops = 0;
             for (TranslogReader translog : orderedTranslogs) {
@@ -667,7 +693,9 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             return ops;
         }
 
-        @Override
+        /**
+         * Returns the size in bytes of the files behind the view.
+         */
         public synchronized long sizeInBytes() {
             long size = 0;
             for (TranslogReader translog : orderedTranslogs) {
@@ -676,6 +704,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             return size;
         }
 
+        /** create a snapshot from this view */
         public synchronized Snapshot snapshot() {
             ensureOpen();
             return createSnapshot(orderedTranslogs.toArray(new TranslogReader[orderedTranslogs.size()]));
@@ -690,15 +719,19 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
         @Override
         public void close() {
-            List<TranslogReader> toClose = new ArrayList<>();
+            final List<TranslogReader> toClose = new ArrayList<>();
             try {
                 synchronized (this) {
                     if (closed == false) {
-                        logger.trace("closing view starting at translog [{}]", minTranslogGeneration());
-                        closed = true;
-                        outstandingViews.remove(this);
-                        toClose.addAll(orderedTranslogs);
-                        orderedTranslogs.clear();
+                        try {
+                            if (onClose != null) {
+                                onClose.handle(this);
+                            }
+                        } finally {
+                            closed = true;
+                            toClose.addAll(orderedTranslogs);
+                            orderedTranslogs.clear();
+                        }
                     }
                 }
             } finally {
@@ -748,7 +781,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         public final long translogLocation;
         public final int size;
 
-        public Location(long generation, long translogLocation, int size) {
+        Location(long generation, long translogLocation, int size) {
             this.generation = generation;
             this.translogLocation = translogLocation;
             this.size = size;
@@ -813,27 +846,6 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
          * Returns the next operation in the snapshot or <code>null</code> if we reached the end.
          */
         Translog.Operation next() throws IOException;
-
-    }
-
-    /** a view into the current translog that receives all operations from the moment created */
-    public interface View extends Releasable {
-
-        /**
-         * The total number of operations in the view.
-         */
-        int totalOperations();
-
-        /**
-         * Returns the size in bytes of the files behind the view.
-         */
-        long sizeInBytes();
-
-        /** create a snapshot from this view */
-        Snapshot snapshot();
-
-        /** this smallest translog generation in this view */
-        long minTranslogGeneration();
 
     }
 
@@ -1548,29 +1560,17 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         }
     }
 
-    public static Snapshot snapshotFromStream(StreamInput input, final int numOps) {
+    /**
+     * Reads a list of operations written with {@link #writeOperations(StreamOutput, List)}
+     */
+    public static List<Operation> readOperations(StreamInput input) throws IOException {
+        ArrayList<Operation> operations = new ArrayList<>();
+        int numOps = input.readInt();
         final BufferedChecksumStreamInput checksumStreamInput = new BufferedChecksumStreamInput(input);
-        return new Snapshot() {
-            int read = 0;
-            @Override
-            public int estimatedTotalOperations() {
-                return numOps;
-            }
-
-            @Override
-            public Operation next() throws IOException {
-                if (read < numOps) {
-                    read++;
-                    return readOperation(checksumStreamInput);
-                }
-                return null;
-            }
-
-            @Override
-            public void close() {
-                // doNothing
-            }
-        };
+        for (int i = 0; i < numOps; i++) {
+            operations.add(readOperation(checksumStreamInput));
+        }
+        return operations;
     }
 
     static Translog.Operation readOperation(BufferedChecksumStreamInput in) throws IOException {
@@ -1603,24 +1603,39 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         return operation;
     }
 
-    public static void writeOperation(StreamOutput outStream, Translog.Operation op) throws IOException {
-        //TODO lets get rid of this crazy double writing here.
+    /**
+     * Writes all operations in the given iterable to the given output stream including the size of the array
+     * use {@link #readOperations(StreamInput)} to read it back.
+     */
+    public static void writeOperations(StreamOutput outStream, List<Operation> toWrite) throws IOException {
+        final ReleasableBytesStreamOutput out = new ReleasableBytesStreamOutput(BigArrays.NON_RECYCLING_INSTANCE);
+        try {
+            outStream.writeInt(toWrite.size());
+            final BufferedChecksumStreamOutput checksumStreamOutput = new BufferedChecksumStreamOutput(out);
+            for (Operation op : toWrite) {
+                out.reset();
+                final long start = out.position();
+                out.skip(RamUsageEstimator.NUM_BYTES_INT);
+                writeOperationNoSize(checksumStreamOutput, op);
+                long end = out.position();
+                int operationSize = (int) (out.position() - RamUsageEstimator.NUM_BYTES_INT - start);
+                out.seek(start);
+                out.writeInt(operationSize);
+                out.seek(end);
+                ReleasablePagedBytesReference bytes = out.bytes();
+                bytes.writeTo(outStream);
+            }
+        } finally {
+            Releasables.close(out.bytes());
+        }
 
-        // We first write to a NoopStreamOutput to get the size of the
-        // operation. We could write to a byte array and then send that as an
-        // alternative, but here we choose to use CPU over allocating new
-        // byte arrays.
-        NoopStreamOutput noopOut = new NoopStreamOutput();
-        noopOut.writeByte(op.opType().id());
-        op.writeTo(noopOut);
-        noopOut.writeInt(0); // checksum holder
-        int size = noopOut.getCount();
+    }
 
+    public static void writeOperationNoSize(BufferedChecksumStreamOutput out, Translog.Operation op) throws IOException {
         // This BufferedChecksumStreamOutput remains unclosed on purpose,
         // because closing it closes the underlying stream, which we don't
         // want to do here.
-        BufferedChecksumStreamOutput out = new BufferedChecksumStreamOutput(outStream);
-        outStream.writeInt(size); // opSize is not checksummed
+        out.resetDigest();
         out.writeByte(op.opType().id());
         op.writeTo(out);
         long checksum = out.getChecksum();
@@ -1666,7 +1681,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             current = createWriter(current.getGeneration() + 1);
             // notify all outstanding views of the new translog (no views are created now as
             // we hold a write lock).
-            for (FsView view : outstandingViews) {
+            for (View view : outstandingViews) {
                 view.onNewTranslog(currentCommittingTranslog.clone(), current.newReaderFromWriter());
             }
             IOUtils.close(oldCurrent);
@@ -1759,5 +1774,11 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         }
     }
 
+    /**
+     * The number of currently open views
+     */
+    int getNumOpenViews() {
+        return outstandingViews.size();
+    }
 
 }

@@ -186,7 +186,7 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
 
     @Override
     public void verify(String seed) {
-        BlobContainer testBlobContainer = blobStore.blobContainer(basePath);;
+        BlobContainer testBlobContainer = blobStore.blobContainer(basePath);
         DiscoveryNode localNode = clusterService.localNode();
         if (testBlobContainer.blobExists(testBlobPrefix(seed) + "-master")) {
             try (OutputStream outputStream = testBlobContainer.createOutput(testBlobPrefix(seed) + "-" + localNode.getId())) {
@@ -232,7 +232,7 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
      * Serializes snapshot to JSON
      *
      * @param snapshot snapshot
-     * @param stream the stream to output the snapshot JSON represetation to
+     * @param stream   the stream to output the snapshot JSON represetation to
      * @throws IOException if an IOException occurs
      */
     public static void writeSnapshot(BlobStoreIndexShardSnapshot snapshot, OutputStream stream) throws IOException {
@@ -247,7 +247,7 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
      * @param stream JSON
      * @return snapshot
      * @throws IOException if an IOException occurs
-     * */
+     */
     public static BlobStoreIndexShardSnapshot readSnapshot(InputStream stream) throws IOException {
         try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(stream)) {
             parser.nextToken();
@@ -314,7 +314,7 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
         public BlobStoreIndexShardSnapshot loadSnapshot() {
             BlobStoreIndexShardSnapshot snapshot;
             try (InputStream stream = blobContainer.openInput(snapshotBlobName(snapshotId))) {
-                    snapshot = readSnapshot(stream);
+                snapshot = readSnapshot(stream);
             } catch (IOException ex) {
                 throw new IndexShardRestoreFailedException(shardId, "failed to read shard snapshot file", ex);
             }
@@ -472,7 +472,7 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
                         // don't have this hash we try to read that hash from the blob store
                         // in a bwc compatible way.
                         maybeRecalculateMetadataHash(blobContainer, fileInfo, metadata);
-                    }  catch (Throwable e) {
+                    } catch (Throwable e) {
                         logger.warn("{} Can't calculate hash from blob for file [{}] [{}]", e, shardId, fileInfo.physicalName(), fileInfo.metadata());
                     }
                     if (fileInfo == null || !fileInfo.isSame(md) || !snapshotFileExistsInBlobs(fileInfo, blobs)) {
@@ -550,7 +550,7 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
             try (IndexInput indexInput = store.openVerifyingInput(file, IOContext.READONCE, fileInfo.metadata())) {
                 for (int i = 0; i < fileInfo.numberOfParts(); i++) {
                     final InputStreamIndexInput inputStreamIndexInput = new InputStreamIndexInput(indexInput, fileInfo.partBytes());
-                    InputStream inputStream = snapshotRateLimiter == null ? inputStreamIndexInput :  new RateLimitingInputStream(inputStreamIndexInput, snapshotRateLimiter, snapshotThrottleListener);
+                    InputStream inputStream = snapshotRateLimiter == null ? inputStreamIndexInput : new RateLimitingInputStream(inputStreamIndexInput, snapshotRateLimiter, snapshotThrottleListener);
                     inputStream = new AbortableInputStream(inputStream, fileInfo.physicalName());
                     try (OutputStream output = blobContainer.createOutput(fileInfo.partName(i))) {
                         int len;
@@ -727,14 +727,14 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
                         // don't have this hash we try to read that hash from the blob store
                         // in a bwc compatible way.
                         maybeRecalculateMetadataHash(blobContainer, fileInfo, recoveryTargetMetadata);
-                    }  catch (Throwable e) {
+                    } catch (Throwable e) {
                         // if the index is broken we might not be able to read it
                         logger.warn("{} Can't calculate hash from blog for file [{}] [{}]", e, shardId, fileInfo.physicalName(), fileInfo.metadata());
                     }
                     snapshotMetaData.put(fileInfo.metadata().name(), fileInfo.metadata());
                     fileInfos.put(fileInfo.metadata().name(), fileInfo);
                 }
-                final Store.MetadataSnapshot sourceMetaData = new Store.MetadataSnapshot(snapshotMetaData);
+                final Store.MetadataSnapshot sourceMetaData = new Store.MetadataSnapshot(snapshotMetaData, Collections.EMPTY_MAP, 0);
                 final Store.RecoveryDiff diff = sourceMetaData.recoveryDiff(recoveryTargetMetadata);
                 for (StoreFileMetaData md : diff.identical) {
                     FileInfo fileInfo = fileInfos.get(md.name());
@@ -804,8 +804,8 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
                 try (final IndexOutput indexOutput = store.createVerifyingOutput(fileInfo.physicalName(), fileInfo.metadata(), IOContext.DEFAULT)) {
                     final byte[] buffer = new byte[BUFFER_SIZE];
                     int length;
-                    while((length=stream.read(buffer))>0){
-                        indexOutput.writeBytes(buffer,0,length);
+                    while ((length = stream.read(buffer)) > 0) {
+                        indexOutput.writeBytes(buffer, 0, length);
                         recoveryState.getIndex().addRecoveredBytesToFile(fileInfo.name(), length);
                         if (restoreRateLimiter != null) {
                             rateLimiterListener.onRestorePause(restoreRateLimiter.pause(length));
@@ -838,7 +838,7 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
         }
 
     }
-    
+
     public interface RateLimiterListener {
         void onRestorePause(long nanos);
 

@@ -38,7 +38,7 @@ import org.apache.lucene.search.join.BitDocIdSetCachingWrapperFilter;
 import org.apache.lucene.search.join.BitDocIdSetFilter;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.search.fetch.FetchSubPhase;
-import org.elasticsearch.search.fetch.innerhits.InnerHitsContext.NestedInnerHits.NestedChildrenFilter;
+import org.elasticsearch.search.fetch.innerhits.InnerHitsContext.NestedInnerHits.NestedChildrenQuery;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
@@ -87,7 +87,7 @@ public class NestedChildrenFilterTest extends ElasticsearchTestCase {
             for (int parentDoc = parents.nextDoc(); parentDoc != DocIdSetIterator.NO_MORE_DOCS ; parentDoc = parents.nextDoc()) {
                 int expectedChildDocs = leaf.reader().document(parentDoc).getField("num_child_docs").numericValue().intValue();
                 hitContext.reset(null, leaf, parentDoc, searcher);
-                NestedChildrenFilter nestedChildrenFilter = new NestedChildrenFilter(parentFilter, childFilter, hitContext);
+                NestedChildrenQuery nestedChildrenFilter = new NestedChildrenQuery(parentFilter, childFilter, hitContext);
                 TotalHitCountCollector totalHitCountCollector = new TotalHitCountCollector();
                 searcher.search(new ConstantScoreQuery(nestedChildrenFilter), totalHitCountCollector);
                 assertThat(totalHitCountCollector.getTotalHits(), equalTo(expectedChildDocs));

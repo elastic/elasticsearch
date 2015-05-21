@@ -30,7 +30,6 @@ import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
 import org.joda.time.DateTimeZone;
 
@@ -283,34 +282,30 @@ public class RangeQueryBuilder extends MultiTermQueryBuilder implements Streamab
     @Override
     public Query toQuery(QueryParseContext parseContext) throws QueryParsingException, IOException {
         Query query = null;
-        MapperService.SmartNameFieldMappers smartNameFieldMappers = parseContext.smartFieldMappers(this.fieldName);
-        if (smartNameFieldMappers != null) {
-            if (smartNameFieldMappers.hasMapper()) {
-                FieldMapper<?> mapper = smartNameFieldMappers.mapper();
-                if (mapper instanceof DateFieldMapper) {
-                    if ((from instanceof Number || to instanceof Number) && timeZone != null) {
-                        throw new QueryParsingException(parseContext,
-                                "[range] time_zone when using ms since epoch format as it's UTC based can not be applied to [" + this.fieldName
-                                        + "]");
-                    }
-                    DateMathParser forcedDateParser = null;
-                    if (this.format  != null) {
-                        forcedDateParser = new DateMathParser(Joda.forPattern(this.format), DateFieldMapper.Defaults.TIME_UNIT);
-                    }
-                    DateTimeZone dateTimeZone = null;
-                    if (this.timeZone != null) {
-                        dateTimeZone = DateTimeZone.forID(this.timeZone);
-                    }
-                    query = ((DateFieldMapper) mapper).rangeQuery(from, to, includeLower, includeUpper, dateTimeZone, forcedDateParser, parseContext);
-                } else  {
-                    if (timeZone != null) {
-                        throw new QueryParsingException(parseContext, "[range] time_zone can not be applied to non date field ["
-                                + this.fieldName + "]");
-                    }
-                    //LUCENE 4 UPGRADE Mapper#rangeQuery should use bytesref as well?
-                    query = mapper.rangeQuery(from, to, includeLower, includeUpper, parseContext);
+        FieldMapper mapper = parseContext.fieldMapper(this.fieldName);
+        if (mapper != null) {
+            if (mapper instanceof DateFieldMapper) {
+                if ((from instanceof Number || to instanceof Number) && timeZone != null) {
+                    throw new QueryParsingException(parseContext,
+                            "[range] time_zone when using ms since epoch format as it's UTC based can not be applied to [" + this.fieldName
+                                    + "]");
                 }
-
+                DateMathParser forcedDateParser = null;
+                if (this.format  != null) {
+                    forcedDateParser = new DateMathParser(Joda.forPattern(this.format), DateFieldMapper.Defaults.TIME_UNIT);
+                }
+                DateTimeZone dateTimeZone = null;
+                if (this.timeZone != null) {
+                    dateTimeZone = DateTimeZone.forID(this.timeZone);
+                }
+                query = ((DateFieldMapper) mapper).rangeQuery(from, to, includeLower, includeUpper, dateTimeZone, forcedDateParser, parseContext);
+            } else  {
+                if (timeZone != null) {
+                    throw new QueryParsingException(parseContext, "[range] time_zone can not be applied to non date field ["
+                            + this.fieldName + "]");
+                }
+                //LUCENE 4 UPGRADE Mapper#rangeQuery should use bytesref as well?
+                query = mapper.rangeQuery(from, to, includeLower, includeUpper, parseContext);
             }
         }
         if (query == null) {

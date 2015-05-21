@@ -166,8 +166,8 @@ public class DynamicMappingTests extends ElasticsearchSingleNodeTest {
     public void testDynamicMappingOnEmptyString() throws Exception {
         IndexService service = createIndex("test");
         client().prepareIndex("test", "type").setSource("empty_field", "").get();
-        FieldMappers mappers = service.mapperService().fullName("empty_field");
-        assertTrue(mappers != null && mappers.isEmpty() == false);
+        FieldMapper mapper = service.mapperService().fullName("empty_field");
+        assertNotNull(mapper);
     }
 
     public void testTypeNotCreatedOnIndexFailure() throws IOException, InterruptedException {
@@ -198,7 +198,7 @@ public class DynamicMappingTests extends ElasticsearchSingleNodeTest {
         Settings settings = ImmutableSettings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
         ParseContext.InternalParseContext ctx = new ParseContext.InternalParseContext("test", settings, parser, mapper, new ContentPath(0));
         SourceToParse source = SourceToParse.source(builder.bytes());
-        ctx.reset(XContentHelper.createParser(source.source()), new ParseContext.Document(), source, null);
+        ctx.reset(XContentHelper.createParser(source.source()), new ParseContext.Document(), source);
         assertEquals(XContentParser.Token.START_OBJECT, ctx.parser().nextToken());
         ctx.parser().nextToken();
         return DocumentParser.parseObject(ctx, mapper.root());

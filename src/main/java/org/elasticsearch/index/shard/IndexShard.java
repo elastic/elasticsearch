@@ -534,7 +534,7 @@ public class IndexShard extends AbstractIndexShardComponent {
     public Engine.Delete prepareDelete(String type, String id, long version, VersionType versionType, Engine.Operation.Origin origin) {
         long startTime = System.nanoTime();
         final DocumentMapper documentMapper = docMapper(type).v1();
-        return new Engine.Delete(type, id, documentMapper.uidMapper().term(type, id), version, versionType, origin, startTime, false);
+        return new Engine.Delete(type, id, documentMapper.uidMapper().term(Uid.createUid(type, id)), version, versionType, origin, startTime, false);
     }
 
     public void delete(Engine.Delete delete) {
@@ -689,17 +689,28 @@ public class IndexShard extends AbstractIndexShardComponent {
         return completionStats;
     }
 
-    public void flush(FlushRequest request) {
+    public Engine.SyncedFlushResult syncFlush(String syncId, Engine.CommitId expectedCommitId) {
+        verifyStartedOrRecovering();
+        logger.trace("trying to sync flush. sync id [{}]. expected commit id [{}]]", syncId, expectedCommitId);
+        return engine().syncFlush(syncId, expectedCommitId);
+    }
+
+    public Engine.CommitId flush(FlushRequest request) throws ElasticsearchException {
+        boolean waitIfOngoing = request.waitIfOngoing();
+        boolean force = request.force();
+        if (logger.isTraceEnabled()) {
+            logger.trace("flush with {}", request);
+        }
         // we allows flush while recovering, since we allow for operations to happen
         // while recovering, and we want to keep the translog at bay (up to deletes, which
         // we don't gc).
         verifyStartedOrRecovering();
-        if (logger.isTraceEnabled()) {
-            logger.trace("flush with {}", request);
-        }
+
         long time = System.nanoTime();
-        engine().flush(request.force(), request.waitIfOngoing());
+        Engine.CommitId commitId = engine().flush(force, waitIfOngoing);
         flushMetric.inc(System.nanoTime() - time);
+        return commitId;
+
     }
 
     public void optimize(OptimizeRequest optimize) {
@@ -999,6 +1010,7 @@ public class IndexShard extends AbstractIndexShardComponent {
 
     public void markAsInactive() {
         updateBufferSize(EngineConfig.INACTIVE_SHARD_INDEXING_BUFFER, TranslogConfig.INACTIVE_SHARD_TRANSLOG_BUFFER);
+        indicesLifecycle.onShardInactive(this);
     }
 
     public final boolean isFlushOnClose() {
@@ -1387,4 +1399,5 @@ public class IndexShard extends AbstractIndexShardComponent {
             return defaultValue;
         }
     }
+
 }

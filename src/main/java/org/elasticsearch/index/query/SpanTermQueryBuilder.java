@@ -24,7 +24,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.spans.SpanTermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.BytesRefs;
-import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.FieldMapper;
 
 /**
  * A Span Query that matches documents containing a term.
@@ -68,12 +68,10 @@ public class SpanTermQueryBuilder extends BaseTermQueryBuilder<SpanTermQueryBuil
     @Override
     public Query toQuery(QueryParseContext context) {
         BytesRef valueBytes = null;
-        MapperService.SmartNameFieldMappers smartNameFieldMappers = context.smartFieldMappers(fieldName);
-        if (smartNameFieldMappers != null) {
-            if (smartNameFieldMappers.hasMapper()) {
-                fieldName = smartNameFieldMappers.mapper().names().indexName();
-                valueBytes = smartNameFieldMappers.mapper().indexedValueForSearch(value);
-            }
+        FieldMapper mapper = context.fieldMapper(fieldName);
+        if (mapper != null) {
+            fieldName = mapper.names().indexName();
+            valueBytes = mapper.indexedValueForSearch(value);
         }
         if (valueBytes == null) {
             valueBytes = BytesRefs.toBytesRef(this.value);

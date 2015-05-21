@@ -20,6 +20,8 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexException;
@@ -92,8 +94,8 @@ public class SearchPhaseExecutionException extends ElasticsearchException {
         builder.field("grouped", group); // notify that it's grouped
         builder.field("failed_shards");
         builder.startArray();
-        ShardSearchFailure[] failures = params.paramAsBoolean("group_shard_failures", true) ? groupBy(shardFailures) : shardFailures;
-        for (ShardSearchFailure failure : failures) {
+        ShardOperationFailedException[] failures = params.paramAsBoolean("group_shard_failures", true) ? ExceptionsHelper.groupBy(shardFailures) : shardFailures;
+        for (ShardOperationFailedException failure : failures) {
             builder.startObject();
             failure.toXContent(builder, params);
             builder.endObject();
@@ -103,25 +105,11 @@ public class SearchPhaseExecutionException extends ElasticsearchException {
 
     }
 
-    private ShardSearchFailure[] groupBy(ShardSearchFailure[] failures) {
-        List<ShardSearchFailure> uniqueFailures = new ArrayList<>();
-        Set<GroupBy> reasons = new HashSet<>();
-        for (ShardSearchFailure failure : failures) {
-            GroupBy reason = new GroupBy(failure.getCause());
-            if (reasons.contains(reason) == false) {
-                reasons.add(reason);
-                uniqueFailures.add(failure);
-            }
-        }
-        return uniqueFailures.toArray(new ShardSearchFailure[0]);
-
-    }
-
     @Override
     public ElasticsearchException[] guessRootCauses() {
-        ShardSearchFailure[] failures = groupBy(shardFailures);
+        ShardOperationFailedException[] failures = ExceptionsHelper.groupBy(shardFailures);
         List<ElasticsearchException> rootCauses = new ArrayList<>(failures.length);
-        for (ShardSearchFailure failure : failures) {
+        for (ShardOperationFailedException failure : failures) {
             ElasticsearchException[] guessRootCauses = ElasticsearchException.guessRootCauses(failure.getCause());
             rootCauses.addAll(Arrays.asList(guessRootCauses));
         }
@@ -131,43 +119,5 @@ public class SearchPhaseExecutionException extends ElasticsearchException {
     @Override
     public String toString() {
         return buildMessage(phaseName, getMessage(), shardFailures);
-    }
-
-    static class GroupBy {
-        final String reason;
-        final Index index;
-        final Class<? extends Throwable> causeType;
-
-        public GroupBy(Throwable t) {
-            if (t instanceof IndexException) {
-                index = ((IndexException) t).index();
-            } else {
-                index = null;
-            }
-            reason = t.getMessage();
-            causeType = t.getClass();
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-
-            GroupBy groupBy = (GroupBy) o;
-
-            if (!causeType.equals(groupBy.causeType)) return false;
-            if (index != null ? !index.equals(groupBy.index) : groupBy.index != null) return false;
-            if (reason != null ? !reason.equals(groupBy.reason) : groupBy.reason != null) return false;
-
-            return true;
-        }
-
-        @Override
-        public int hashCode() {
-            int result = reason != null ? reason.hashCode() : 0;
-            result = 31 * result + (index != null ? index.hashCode() : 0);
-            result = 31 * result + causeType.hashCode();
-            return result;
-        }
     }
 }

@@ -33,20 +33,21 @@ import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.status.*;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksResponse;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.ClusterService;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ProcessedClusterStateUpdateTask;
+import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.metadata.*;
 import org.elasticsearch.cluster.metadata.SnapshotMetaData.Entry;
 import org.elasticsearch.cluster.metadata.SnapshotMetaData.ShardSnapshotStatus;
 import org.elasticsearch.cluster.metadata.SnapshotMetaData.State;
 import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
+import org.elasticsearch.cluster.service.PendingClusterTask;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -56,6 +57,7 @@ import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.snapshots.mockstore.MockRepositoryModule;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
 
 import java.nio.channels.SeekableByteChannel;
@@ -72,6 +74,7 @@ import java.util.concurrent.TimeUnit;
 import static com.google.common.collect.Lists.newArrayList;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
+import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.index.shard.IndexShard.INDEX_REFRESH_INTERVAL;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
@@ -87,7 +90,7 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
         logger.info("-->  creating repository");
         assertAcked(client.admin().cluster().preparePutRepository("test-repo")
                 .setType("fs").setSettings(ImmutableSettings.settingsBuilder()
-                        .put("location", createTempDir())
+                        .put("location", randomRepoPath())
                         .put("compress", randomBoolean())
                         .put("chunk_size", randomIntBetween(100, 1000))));
 
@@ -182,7 +185,7 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
         String indexName = "testindex";
         String repoName = "test-restore-snapshot-repo";
         String snapshotName = "test-restore-snapshot";
-        String absolutePath = createTempDir().toAbsolutePath().toString();
+        String absolutePath = randomRepoPath().toAbsolutePath().toString();
         logger.info("Path [{}]", absolutePath);
         String restoredIndexName = indexName + "-restored";
         String typeName = "actions";
@@ -228,7 +231,7 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
         logger.info("-->  creating repository");
         assertAcked(client.admin().cluster().preparePutRepository("test-repo")
                 .setType("fs").setSettings(ImmutableSettings.settingsBuilder()
-                        .put("location", createTempDir())
+                        .put("location", randomRepoPath())
                         .put("compress", randomBoolean())
                         .put("chunk_size", randomIntBetween(100, 1000))));
 
@@ -277,7 +280,7 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
         logger.info("-->  creating repository");
         assertAcked(client.admin().cluster().preparePutRepository("test-repo")
                 .setType("fs").setSettings(ImmutableSettings.settingsBuilder()
-                        .put("location", createTempDir())
+                        .put("location", randomRepoPath())
                         .put("compress", randomBoolean())
                         .put("chunk_size", randomIntBetween(100, 1000))));
 
@@ -325,7 +328,7 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
 
         logger.info("-->  creating repository");
         PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
-                .setType("fs").setSettings(ImmutableSettings.settingsBuilder().put("location", createTempDir())).get();
+                .setType("fs").setSettings(ImmutableSettings.settingsBuilder().put("location", randomRepoPath())).get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
 
         logger.info("--> snapshot");
@@ -342,7 +345,7 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
 
         logger.info("-->  creating repository");
         assertAcked(client.admin().cluster().preparePutRepository("test-repo")
-                .setType("fs").setSettings(ImmutableSettings.settingsBuilder().put("location", createTempDir())));
+                .setType("fs").setSettings(ImmutableSettings.settingsBuilder().put("location", randomRepoPath())));
 
         logger.info("--> create test indices");
         createIndex("test-idx-1", "test-idx-2", "test-idx-3");
@@ -398,7 +401,7 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
 
         logger.info("-->  creating repository");
         assertAcked(client.admin().cluster().preparePutRepository("test-repo")
-                .setType("fs").setSettings(ImmutableSettings.settingsBuilder().put("location", createTempDir())));
+                .setType("fs").setSettings(ImmutableSettings.settingsBuilder().put("location", randomRepoPath())));
 
         logger.info("-->  creating test template");
         assertThat(client.admin().indices().preparePutTemplate("test-template").setTemplate("te*").addMapping("test-mapping", "{}").get().isAcknowledged(), equalTo(true));
@@ -430,7 +433,7 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
         Client client = client();
 
         logger.info("-->  creating repository");
-        Path location = createTempDir();
+        Path location = randomRepoPath();
         assertAcked(client.admin().cluster().preparePutRepository("test-repo")
                 .setType("fs").setSettings(ImmutableSettings.settingsBuilder().put("location", location)));
 
@@ -512,7 +515,7 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
         assertAcked(client.admin().cluster().preparePutRepository("test-repo")
                 .setType(MockRepositoryModule.class.getCanonicalName()).setSettings(
                         ImmutableSettings.settingsBuilder()
-                                .put("location", createTempDir())
+                                .put("location", randomRepoPath())
                                 .put("random", randomAsciiOfLength(10))
                                 .put("random_control_io_exception_rate", 0.2))
                 .setVerify(false));
@@ -562,7 +565,7 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
         assertAcked(client.admin().cluster().preparePutRepository("test-repo")
                 .setType(MockRepositoryModule.class.getCanonicalName()).setSettings(
                         ImmutableSettings.settingsBuilder()
-                                .put("location", createTempDir())
+                                .put("location", randomRepoPath())
                                 .put("random", randomAsciiOfLength(10))
                                 .put("random_data_file_io_exception_rate", 0.3)));
 
@@ -624,7 +627,7 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
 
     @Test
     public void dataFileFailureDuringRestoreTest() throws Exception {
-        Path repositoryLocation = createTempDir();
+        Path repositoryLocation = randomRepoPath();
         Client client = client();
         logger.info("-->  creating repository");
         assertAcked(client.admin().cluster().preparePutRepository("test-repo")
@@ -666,7 +669,7 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
 
     @Test
     public void deletionOfFailingToRecoverIndexShouldStopRestore() throws Exception {
-        Path repositoryLocation = createTempDir();
+        Path repositoryLocation = randomRepoPath();
         Client client = client();
         logger.info("-->  creating repository");
         assertAcked(client.admin().cluster().preparePutRepository("test-repo")
@@ -735,7 +738,7 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
         logger.info("-->  creating repository");
         assertAcked(client.admin().cluster().preparePutRepository("test-repo")
                 .setType("fs").setSettings(ImmutableSettings.settingsBuilder()
-                        .put("location", createTempDir())));
+                        .put("location", randomRepoPath())));
 
         logger.info("-->  creating index that cannot be allocated");
         prepareCreate("test-idx", 2, ImmutableSettings.builder().put(FilterAllocationDecider.INDEX_ROUTING_INCLUDE_GROUP + ".tag", "nowhere").put("index.number_of_shards", 3)).get();
@@ -753,7 +756,7 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
         final int numberOfSnapshots = between(5, 15);
         Client client = client();
 
-        Path repo = createTempDir();
+        Path repo = randomRepoPath();
         logger.info("-->  creating repository at " + repo.toAbsolutePath());
         assertAcked(client.admin().cluster().preparePutRepository("test-repo")
                 .setType("fs").setSettings(ImmutableSettings.settingsBuilder()
@@ -810,7 +813,7 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
     public void deleteSnapshotWithMissingIndexAndShardMetadataTest() throws Exception {
         Client client = client();
 
-        Path repo = createTempDir();
+        Path repo = randomRepoPath();
         logger.info("-->  creating repository at " + repo.toAbsolutePath());
         assertAcked(client.admin().cluster().preparePutRepository("test-repo")
                 .setType("fs").setSettings(ImmutableSettings.settingsBuilder()
@@ -849,7 +852,7 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
     public void deleteSnapshotWithMissingMetadataTest() throws Exception {
         Client client = client();
 
-        Path repo = createTempDir();
+        Path repo = randomRepoPath();
         logger.info("-->  creating repository at " + repo.toAbsolutePath());
         assertAcked(client.admin().cluster().preparePutRepository("test-repo")
                 .setType("fs").setSettings(ImmutableSettings.settingsBuilder()
@@ -884,7 +887,7 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
     public void deleteSnapshotWithCorruptedSnapshotFileTest() throws Exception {
         Client client = client();
 
-        Path repo = createTempDir();
+        Path repo = randomRepoPath();
         logger.info("-->  creating repository at " + repo.toAbsolutePath());
         assertAcked(client.admin().cluster().preparePutRepository("test-repo")
                 .setType("fs").setSettings(ImmutableSettings.settingsBuilder()
@@ -929,7 +932,7 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
         logger.info("-->  creating repository");
         assertAcked(client.admin().cluster().preparePutRepository("test-repo")
                 .setType("fs").setSettings(ImmutableSettings.settingsBuilder()
-                        .put("location", createTempDir())));
+                        .put("location", randomRepoPath())));
 
         createIndex("test-idx", "test-idx-closed");
         ensureGreen();
@@ -967,7 +970,7 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
         logger.info("-->  creating repository");
         assertAcked(client.admin().cluster().preparePutRepository("test-repo")
                 .setType("fs").setSettings(ImmutableSettings.settingsBuilder()
-                        .put("location", createTempDir())));
+                        .put("location", randomRepoPath())));
 
         createIndex("test-idx");
         ensureGreen();
@@ -988,7 +991,7 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
         logger.info("-->  creating repository");
         assertAcked(client.admin().cluster().preparePutRepository("test-repo")
                 .setType("fs").setSettings(ImmutableSettings.settingsBuilder()
-                        .put("location", createTempDir())));
+                        .put("location", randomRepoPath())));
 
         createIndex("test-idx-1", "test-idx-2", "test-idx-3");
         ensureGreen();
@@ -1104,7 +1107,7 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
     @Test
     public void moveShardWhileSnapshottingTest() throws Exception {
         Client client = client();
-        Path repositoryLocation = createTempDir();
+        Path repositoryLocation = randomRepoPath();
         logger.info("-->  creating repository");
         assertAcked(client.admin().cluster().preparePutRepository("test-repo")
                 .setType(MockRepositoryModule.class.getCanonicalName()).setSettings(
@@ -1166,7 +1169,7 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
     @Test
     public void deleteRepositoryWhileSnapshottingTest() throws Exception {
         Client client = client();
-        Path repositoryLocation = createTempDir();
+        Path repositoryLocation = randomRepoPath();
         logger.info("-->  creating repository");
         PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
                 .setType(MockRepositoryModule.class.getCanonicalName()).setSettings(
@@ -1251,7 +1254,7 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
         Client client = client();
 
         logger.info("-->  creating repository");
-        Path repositoryLocation = createTempDir();
+        Path repositoryLocation = randomRepoPath();
         assertAcked(client.admin().cluster().preparePutRepository("test-repo")
                 .setType("fs").setSettings(ImmutableSettings.settingsBuilder()
                         .put("location", repositoryLocation)
@@ -1309,7 +1312,7 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
         Client client = client();
 
         logger.info("-->  creating repository");
-        Path repositoryLocation = createTempDir();
+        Path repositoryLocation = randomRepoPath();
         boolean throttleSnapshot = randomBoolean();
         boolean throttleRestore = randomBoolean();
         assertAcked(client.admin().cluster().preparePutRepository("test-repo")
@@ -1367,7 +1370,7 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
     @Test
     public void snapshotStatusTest() throws Exception {
         Client client = client();
-        Path repositoryLocation = createTempDir();
+        Path repositoryLocation = randomRepoPath();
         logger.info("-->  creating repository");
         PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
                 .setType(MockRepositoryModule.class.getCanonicalName()).setSettings(
@@ -1470,7 +1473,7 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
         logger.info("-->  creating repository");
         assertAcked(client.admin().cluster().preparePutRepository("test-repo")
                 .setType("fs").setSettings(ImmutableSettings.settingsBuilder()
-                        .put("location", createTempDir())
+                        .put("location", randomRepoPath())
                         .put("compress", randomBoolean())
                         .put("chunk_size", randomIntBetween(100, 1000))));
 
@@ -1518,7 +1521,7 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
         logger.info("-->  creating repository");
         assertAcked(client.admin().cluster().preparePutRepository("test-repo")
                 .setType("fs").setSettings(ImmutableSettings.settingsBuilder()
-                        .put("location", createTempDir())
+                        .put("location", randomRepoPath())
                         .put("compress", randomBoolean())
                         .put("chunk_size", randomIntBetween(100, 1000))));
 
@@ -1556,7 +1559,7 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
             SnapshotStatus snapshotStatus = client.admin().cluster().prepareSnapshotStatus("test-repo").setSnapshots("test-1").get().getSnapshots().get(0);
             List<SnapshotIndexShardStatus> shards = snapshotStatus.getShards();
             for (SnapshotIndexShardStatus status : shards) {
-                assertThat(status.getStats().getProcessedFiles(), equalTo(1)); // we flush before the snapshot such that we have to process the segments_N files
+                assertThat(status.getStats().getProcessedFiles(), equalTo(0));
             }
         }
 
@@ -1581,7 +1584,7 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
         logger.info("-->  creating repository");
         assertAcked(client.admin().cluster().preparePutRepository("test-repo")
                 .setType("fs").setSettings(ImmutableSettings.settingsBuilder()
-                        .put("location", createTempDir())
+                        .put("location", randomRepoPath())
                         .put("compress", randomBoolean())
                         .put("chunk_size", randomIntBetween(100, 1000))));
 
@@ -1698,7 +1701,7 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
         logger.info("-->  creating repository");
         assertAcked(client.admin().cluster().preparePutRepository("test-repo")
                 .setType(MockRepositoryModule.class.getCanonicalName()).setSettings(ImmutableSettings.settingsBuilder()
-                        .put("location", createTempDir())
+                        .put("location", randomRepoPath())
                         .put("compress", randomBoolean())
                         .put("chunk_size", randomIntBetween(100, 1000))
                         .put("block_on_init", true)
@@ -1750,7 +1753,7 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
         logger.info("-->  creating repository");
         assertAcked(client.admin().cluster().preparePutRepository("test-repo")
                 .setType(MockRepositoryModule.class.getCanonicalName()).setSettings(ImmutableSettings.settingsBuilder()
-                                .put("location", createTempDir())
+                                .put("location", randomRepoPath())
                                 .put("compress", randomBoolean())
                                 .put("chunk_size", randomIntBetween(100, 1000))
                 ));
@@ -1819,5 +1822,217 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
                 return client().admin().cluster().prepareHealth(index).execute().actionGet().getRelocatingShards() > 0;
             }
         }, timeout.millis(), TimeUnit.MILLISECONDS);
+    }
+
+    @Test
+    @TestLogging("cluster:DEBUG")
+    public void batchingShardUpdateTaskTest() throws Exception {
+
+        final Client client = client();
+
+        logger.info("-->  creating repository");
+        assertAcked(client.admin().cluster().preparePutRepository("test-repo")
+                .setType("fs").setSettings(ImmutableSettings.settingsBuilder()
+                        .put("location", randomRepoPath())
+                        .put("compress", randomBoolean())
+                        .put("chunk_size", randomIntBetween(100, 1000))));
+
+        assertAcked(prepareCreate("test-idx", 0, settingsBuilder().put("number_of_shards", between(1, 20))
+                .put("number_of_replicas", 0)));
+        ensureGreen();
+
+        logger.info("--> indexing some data");
+        final int numdocs = randomIntBetween(10, 100);
+        IndexRequestBuilder[] builders = new IndexRequestBuilder[numdocs];
+        for (int i = 0; i < builders.length; i++) {
+            builders[i] = client().prepareIndex("test-idx", "type1", Integer.toString(i)).setSource("field1", "bar " + i);
+        }
+        indexRandom(true, builders);
+        flushAndRefresh();
+
+        final int numberOfShards = getNumShards("test-idx").numPrimaries;
+        logger.info("number of shards: {}", numberOfShards);
+
+        final ClusterService clusterService = internalCluster().clusterService(internalCluster().getMasterName());
+        BlockingClusterStateListener snapshotListener = new BlockingClusterStateListener(clusterService, "update_snapshot [", "update snapshot state", Priority.HIGH);
+        try {
+            clusterService.addFirst(snapshotListener);
+            logger.info("--> snapshot");
+            ListenableActionFuture<CreateSnapshotResponse> snapshotFuture = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap").setWaitForCompletion(true).setIndices("test-idx").execute();
+
+            // Await until shard updates are in pending state.
+            assertTrue(waitForPendingTasks("update snapshot state", numberOfShards));
+            snapshotListener.unblock();
+
+            // Check that the snapshot was successful
+            CreateSnapshotResponse createSnapshotResponse = snapshotFuture.actionGet();
+            assertEquals(SnapshotState.SUCCESS, createSnapshotResponse.getSnapshotInfo().state());
+            assertEquals(numberOfShards, createSnapshotResponse.getSnapshotInfo().totalShards());
+            assertEquals(numberOfShards, createSnapshotResponse.getSnapshotInfo().successfulShards());
+
+        } finally {
+            clusterService.remove(snapshotListener);
+        }
+
+        // Check that we didn't timeout
+        assertFalse(snapshotListener.timedOut());
+        // Check that cluster state update task was called only once
+        assertEquals(1, snapshotListener.count());
+
+        logger.info("--> close indices");
+        client.admin().indices().prepareClose("test-idx").get();
+
+        BlockingClusterStateListener restoreListener = new BlockingClusterStateListener(clusterService, "restore_snapshot[", "update snapshot state", Priority.HIGH);
+
+        try {
+            clusterService.addFirst(restoreListener);
+            logger.info("--> restore snapshot");
+            ListenableActionFuture<RestoreSnapshotResponse> futureRestore = client.admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap").setWaitForCompletion(true).execute();
+
+            // Await until shard updates are in pending state.
+            assertTrue(waitForPendingTasks("update snapshot state", numberOfShards));
+            restoreListener.unblock();
+
+            RestoreSnapshotResponse restoreSnapshotResponse = futureRestore.actionGet();
+            assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), equalTo(numberOfShards));
+
+        } finally {
+            clusterService.remove(restoreListener);
+        }
+
+        // Check that we didn't timeout
+        assertFalse(restoreListener.timedOut());
+        // Check that cluster state update task was called only once
+        assertEquals(1, restoreListener.count());
+    }
+
+    private boolean waitForPendingTasks(final String taskPrefix, final int expectedCount) throws InterruptedException {
+        return awaitBusy(new Predicate<Object>() {
+            @Override
+            public boolean apply(Object o) {
+                PendingClusterTasksResponse tasks = client().admin().cluster().preparePendingClusterTasks().get();
+                int count = 0;
+                for(PendingClusterTask task : tasks) {
+                    if (task.getSource().toString().startsWith(taskPrefix)) {
+                        count++;
+                    }
+                }
+                return expectedCount == count;
+            }
+        });
+    }
+
+    /**
+     * Cluster state task that blocks waits for the blockOn task to show up and then blocks execution not letting
+     * any cluster state update task to be performed unless they have priority higher then passThroughPriority.
+     *
+     * This class is useful to testing of cluster state update task batching for lower priority tasks.
+     */
+    public class BlockingClusterStateListener implements ClusterStateListener {
+
+        private final Predicate<ClusterChangedEvent> blockOn;
+
+        private final Predicate<ClusterChangedEvent> countOn;
+
+        private final ClusterService clusterService;
+
+        private final CountDownLatch latch;
+
+        private final Priority passThroughPriority;
+
+        private int count;
+
+        private boolean timedOut;
+
+        private final TimeValue timeout;
+
+        private long stopWaitingAt = -1;
+
+        public BlockingClusterStateListener(ClusterService clusterService, String blockOn, String countOn, Priority passThroughPriority) {
+            this(clusterService, blockOn, countOn, passThroughPriority, TimeValue.timeValueSeconds(10));
+        }
+
+        public BlockingClusterStateListener(ClusterService clusterService, final String blockOn, final String countOn, Priority passThroughPriority, TimeValue timeout) {
+            this.clusterService = clusterService;
+            this.blockOn = new Predicate<ClusterChangedEvent>() {
+                @Override
+                public boolean apply(ClusterChangedEvent clusterChangedEvent) {
+                    return clusterChangedEvent.source().startsWith(blockOn);
+                }
+            };
+            this.countOn = new Predicate<ClusterChangedEvent>() {
+                @Override
+                public boolean apply(ClusterChangedEvent clusterChangedEvent) {
+                    return clusterChangedEvent.source().startsWith(countOn);
+                }
+            };
+            this.latch = new CountDownLatch(1);
+            this.passThroughPriority = passThroughPriority;
+            this.timeout = timeout;
+
+        }
+
+        public void unblock() {
+            latch.countDown();
+        }
+
+        @Override
+        public void clusterChanged(ClusterChangedEvent event) {
+            if (blockOn.apply(event)) {
+                logger.info("blocking cluster state tasks on [{}]", event.source());
+                assert stopWaitingAt < 0; // Make sure we are the first time here
+                stopWaitingAt = System.currentTimeMillis() + timeout.getMillis();
+                addBlock();
+            }
+            if (countOn.apply(event)) {
+                count++;
+            }
+        }
+
+        private void addBlock() {
+            // We should block after this task - add blocking cluster state update task
+            clusterService.submitStateUpdateTask("test_block", passThroughPriority, new ClusterStateUpdateTask() {
+                @Override
+                public ClusterState execute(ClusterState currentState) throws Exception {
+                    while(System.currentTimeMillis() < stopWaitingAt) {
+                        for (PendingClusterTask task : clusterService.pendingTasks()) {
+                            if (task.getSource().string().equals("test_block") == false && passThroughPriority.sameOrAfter(task.getPriority())) {
+                                // There are other higher priority tasks in the queue and let them pass through and then set the block again
+                                logger.info("passing through cluster state task {}", task.getSource());
+                                addBlock();
+                                return currentState;
+                            }
+                        }
+                        try {
+                            logger.info("wating....");
+                            if (latch.await(Math.min(100, timeout.millis()), TimeUnit.MILLISECONDS)){
+                                // Done waiting - unblock
+                                logger.info("unblocked");
+                                return currentState;
+                            }
+                            logger.info("done wating....");
+                        } catch (InterruptedException ex) {
+                            Thread.currentThread().interrupt();
+                        }
+                    }
+                    timedOut = true;
+                    return currentState;
+                }
+
+                @Override
+                public void onFailure(String source, Throwable t) {
+                    logger.warn("failed to execute [{}]", t, source);
+                }
+            });
+
+        }
+
+        public int count() {
+            return count;
+        }
+
+        public boolean timedOut() {
+            return timedOut;
+        }
     }
 }

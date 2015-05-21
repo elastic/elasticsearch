@@ -269,9 +269,7 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper<String> {
                 if (!customBoost()) {
                     field.setBoost(boost);
                 }
-                if (context.listener().beforeFieldAdded(this, field, context)) {
-                    context.doc().add(field);
-                }
+                context.doc().add(field);
             }
         } catch (Exception e) {
             throw new MapperParsingException("failed to parse [" + names.fullName() + "]", e);

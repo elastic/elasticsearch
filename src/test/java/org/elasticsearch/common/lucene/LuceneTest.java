@@ -30,8 +30,7 @@ import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -272,6 +271,55 @@ public class LuceneTest extends ElasticsearchTestCase {
         assertTrue(files.toString(), files.contains("_1.si"));
         writer.close();
         dir.close();
+    }
 
+    public void testNumDocs() throws IOException {
+        MockDirectoryWrapper dir = newMockDirectory();
+        dir.setEnableVirusScanner(false);
+        IndexWriterConfig iwc = newIndexWriterConfig();
+        IndexWriter writer = new IndexWriter(dir, iwc);
+        Document doc = new Document();
+        doc.add(new TextField("id", "1", random().nextBoolean() ? Field.Store.YES : Field.Store.NO));
+        writer.addDocument(doc);
+        writer.commit();
+        SegmentInfos segmentCommitInfos = Lucene.readSegmentInfos(dir);
+        assertEquals(1, Lucene.getNumDocs(segmentCommitInfos));
+
+        doc = new Document();
+        doc.add(new TextField("id", "2", random().nextBoolean() ? Field.Store.YES : Field.Store.NO));
+        writer.addDocument(doc);
+
+        doc = new Document();
+        doc.add(new TextField("id", "3", random().nextBoolean() ? Field.Store.YES : Field.Store.NO));
+        writer.addDocument(doc);
+        segmentCommitInfos = Lucene.readSegmentInfos(dir);
+        assertEquals(1, Lucene.getNumDocs(segmentCommitInfos));
+        writer.commit();
+        segmentCommitInfos = Lucene.readSegmentInfos(dir);
+        assertEquals(3, Lucene.getNumDocs(segmentCommitInfos));
+        writer.deleteDocuments(new Term("id", "2"));
+        writer.commit();
+        segmentCommitInfos = Lucene.readSegmentInfos(dir);
+        assertEquals(2, Lucene.getNumDocs(segmentCommitInfos));
+
+        int numDocsToIndex = randomIntBetween(10, 50);
+        List<Term> deleteTerms = new ArrayList<>();
+        for (int i = 0; i < numDocsToIndex; i++) {
+            doc = new Document();
+            doc.add(new TextField("id", "extra_" + i, random().nextBoolean() ? Field.Store.YES : Field.Store.NO));
+            deleteTerms.add(new Term("id", "extra_" + i));
+            writer.addDocument(doc);
+        }
+        int numDocsToDelete = randomIntBetween(0, numDocsToIndex);
+        Collections.shuffle(deleteTerms, random());
+        for (int i = 0; i < numDocsToDelete; i++) {
+            Term remove = deleteTerms.remove(0);
+            writer.deleteDocuments(remove);
+        }
+        writer.commit();
+        segmentCommitInfos = Lucene.readSegmentInfos(dir);
+        assertEquals(2 + deleteTerms.size(), Lucene.getNumDocs(segmentCommitInfos));
+        writer.close();
+        dir.close();
     }
 }

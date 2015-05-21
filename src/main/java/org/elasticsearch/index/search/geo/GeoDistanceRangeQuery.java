@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.search.geo;
 
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ConstantScoreScorer;
 import org.apache.lucene.search.ConstantScoreWeight;
@@ -126,10 +127,15 @@ public class GeoDistanceRangeQuery extends Query {
     }
 
     @Override
+    public Query rewrite(IndexReader reader) throws IOException {
+        return super.rewrite(reader);
+    }
+
+    @Override
     public Weight createWeight(IndexSearcher searcher, boolean needsScores) throws IOException {
         final Weight boundingBoxWeight;
         if (boundingBoxFilter != null) {
-            boundingBoxWeight = boundingBoxFilter.createWeight(searcher, false);
+            boundingBoxWeight = searcher.createNormalizedWeight(boundingBoxFilter, false);
         } else {
             boundingBoxWeight = null;
         }

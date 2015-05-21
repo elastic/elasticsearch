@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.test;
 
+import com.carrotsearch.hppc.ObjectObjectAssociativeContainer;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
@@ -25,6 +26,10 @@ import org.apache.lucene.search.Sort;
 import org.apache.lucene.util.Counter;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
+import org.elasticsearch.common.HasContext;
+import org.elasticsearch.common.HasContextAndHeaders;
+import org.elasticsearch.common.HasHeaders;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.analysis.AnalysisService;
@@ -59,7 +64,9 @@ import org.elasticsearch.search.scan.ScanContext;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 
 public class TestSearchContext extends SearchContext {
 
@@ -545,16 +552,6 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public MapperService.SmartNameFieldMappers smartFieldMappers(String name) {
-        return null;
-    }
-
-    @Override
-    public FieldMappers smartNameFieldMappers(String name) {
-        return null;
-    }
-
-    @Override
     public FieldMapper<?> smartNameFieldMapper(String name) {
         if (mapperService() != null) {
             return mapperService().smartNameFieldMapper(name, types());
@@ -597,4 +594,70 @@ public class TestSearchContext extends SearchContext {
         throw new UnsupportedOperationException();
     }
 
+    @Override
+    public <V> V putInContext(Object key, Object value) {
+        return null;
+    }
+
+    @Override
+    public void putAllInContext(ObjectObjectAssociativeContainer<Object, Object> map) {
+    }
+
+    @Override
+    public <V> V getFromContext(Object key) {
+        return null;
+    }
+
+    @Override
+    public <V> V getFromContext(Object key, V defaultValue) {
+        return defaultValue;
+    }
+
+    @Override
+    public boolean hasInContext(Object key) {
+        return false;
+    }
+
+    @Override
+    public int contextSize() {
+        return 0;
+    }
+
+    @Override
+    public boolean isContextEmpty() {
+        return true;
+    }
+
+    @Override
+    public ImmutableOpenMap<Object, Object> getContext() {
+        return ImmutableOpenMap.of();
+    }
+
+    @Override
+    public void copyContextFrom(HasContext other) {
+    }
+
+    @Override
+    public <V> void putHeader(String key, V value) {}
+
+    @Override
+    public <V> V getHeader(String key) {
+        return null;
+    }
+
+    @Override
+    public boolean hasHeader(String key) {
+        return false;
+    }
+
+    @Override
+    public Set<String> getHeaders() {
+        return Collections.EMPTY_SET;
+    }
+
+    @Override
+    public void copyHeadersFrom(HasHeaders from) {}
+
+    @Override
+    public void copyContextAndHeadersFrom(HasContextAndHeaders other) {}
 }

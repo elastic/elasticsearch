@@ -21,6 +21,7 @@ package org.elasticsearch.test.discovery;
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 import com.google.common.primitives.Ints;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.network.NetworkUtils;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.InternalTestCluster;
@@ -28,6 +29,7 @@ import org.elasticsearch.test.SettingsSource;
 import org.elasticsearch.transport.local.LocalTransport;
 
 import java.io.IOException;
+import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.util.HashSet;
 import java.util.Set;
@@ -146,7 +148,11 @@ public class ClusterDiscoveryConfiguration extends SettingsSource {
             for (int i = 0; i < unicastHostPorts.length; i++) {
                 boolean foundPortInRange = false;
                 while (tries < 1000 && !foundPortInRange) {
-                    try (ServerSocket socket = new ServerSocket(nextPort)) {
+                    try (ServerSocket serverSocket = new ServerSocket()) {
+                        // Set SO_REUSEADDR as we may bind here and not be able to reuse the address immediately without it.
+                        serverSocket.setReuseAddress(NetworkUtils.defaultReuseAddress());
+                        serverSocket.bind(new InetSocketAddress(nextPort));
+
                         // bind was a success
                         foundPortInRange = true;
                         unicastHostPorts[i] = nextPort;

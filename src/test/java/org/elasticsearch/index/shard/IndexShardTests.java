@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.index.shard;
 
+import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.MutableShardRouting;
@@ -28,6 +29,7 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.indices.IndicesService;
@@ -41,6 +43,8 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
@@ -257,8 +261,25 @@ public class IndexShardTests extends ElasticsearchSingleNodeTest {
         indexShard.decrementOperationCounter();
         indexShard.decrementOperationCounter();
         assertEquals(1, indexShard.getOperationsCount());
+    }
 
-
+    @Test
+    public void testMarkAsInactiveTriggersSyncedFlush() throws Exception {
+        assertAcked(client().admin().indices().prepareCreate("test")
+                .setSettings(SETTING_NUMBER_OF_SHARDS, 1, SETTING_NUMBER_OF_REPLICAS, 0));
+        client().prepareIndex("test", "test").setSource("{}").get();
+        ensureGreen("test");
+        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        indicesService.indexService("test").shard(0).markAsInactive();
+        assertBusy(new Runnable() { // should be very very quick
+            @Override
+            public void run() {
+                IndexStats indexStats = client().admin().indices().prepareStats("test").get().getIndex("test");
+                assertNotNull(indexStats.getShards()[0].getCommitStats().getUserData().get(Engine.SYNC_COMMIT_ID));
+            }
+        });
+        IndexStats indexStats = client().admin().indices().prepareStats("test").get().getIndex("test");
+        assertNotNull(indexStats.getShards()[0].getCommitStats().getUserData().get(Engine.SYNC_COMMIT_ID));
     }
 
     public static ShardStateMetaData load(ESLogger logger, Path... shardPaths) throws IOException {

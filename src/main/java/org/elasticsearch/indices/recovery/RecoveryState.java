@@ -26,6 +26,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -47,16 +48,24 @@ public class RecoveryState implements ToXContent, Streamable {
     public static enum Stage {
         INIT((byte) 0),
 
-        /** recovery of lucene files, either reusing local ones are copying new ones */
+        /**
+         * recovery of lucene files, either reusing local ones are copying new ones
+         */
         INDEX((byte) 1),
 
-        /** potentially running check index */
+        /**
+         * potentially running check index
+         */
         VERIFY_INDEX((byte) 2),
 
-        /**  starting up the engine, replaying the translog */
+        /**
+         * starting up the engine, replaying the translog
+         */
         TRANSLOG((byte) 3),
 
-        /** performing final task after all translog ops have been done */
+        /**
+         * performing final task after all translog ops have been done
+         */
         FINALIZE((byte) 4),
 
         DONE((byte) 5);
@@ -497,7 +506,9 @@ public class RecoveryState implements ToXContent, Streamable {
             assert total == UNKNOWN || total >= recovered : "total, if known, should be > recovered. total [" + total + "], recovered [" + recovered + "]";
         }
 
-        /** returns the total number of translog operations recovered so far */
+        /**
+         * returns the total number of translog operations recovered so far
+         */
         public synchronized int recoveredOperations() {
             return recovered;
         }
@@ -590,22 +601,30 @@ public class RecoveryState implements ToXContent, Streamable {
             recovered += bytes;
         }
 
-        /** file name * */
+        /**
+         * file name *
+         */
         public String name() {
             return name;
         }
 
-        /** file length * */
+        /**
+         * file length *
+         */
         public long length() {
             return length;
         }
 
-        /** number of bytes recovered for this file (so far). 0 if the file is reused * */
+        /**
+         * number of bytes recovered for this file (so far). 0 if the file is reused *
+         */
         public long recovered() {
             return recovered;
         }
 
-        /** returns true if the file is reused from a local copy */
+        /**
+         * returns true if the file is reused from a local copy
+         */
         public boolean reused() {
             return reused;
         }
@@ -732,12 +751,16 @@ public class RecoveryState implements ToXContent, Streamable {
             return TimeValue.timeValueNanos(targetThrottleTimeInNanos);
         }
 
-        /** total number of files that are part of this recovery, both re-used and recovered */
+        /**
+         * total number of files that are part of this recovery, both re-used and recovered
+         */
         public synchronized int totalFileCount() {
             return fileDetails.size();
         }
 
-        /** total number of files to be recovered (potentially not yet done) */
+        /**
+         * total number of files to be recovered (potentially not yet done)
+         */
         public synchronized int totalRecoverFiles() {
             int total = 0;
             for (File file : fileDetails.values()) {
@@ -749,7 +772,9 @@ public class RecoveryState implements ToXContent, Streamable {
         }
 
 
-        /** number of file that were recovered (excluding on ongoing files) */
+        /**
+         * number of file that were recovered (excluding on ongoing files)
+         */
         public synchronized int recoveredFileCount() {
             int count = 0;
             for (File file : fileDetails.values()) {
@@ -760,7 +785,9 @@ public class RecoveryState implements ToXContent, Streamable {
             return count;
         }
 
-        /** percent of recovered (i.e., not reused) files out of the total files to be recovered */
+        /**
+         * percent of recovered (i.e., not reused) files out of the total files to be recovered
+         */
         public synchronized float recoveredFilesPercent() {
             int total = 0;
             int recovered = 0;
@@ -783,7 +810,9 @@ public class RecoveryState implements ToXContent, Streamable {
             }
         }
 
-        /** total number of bytes in th shard */
+        /**
+         * total number of bytes in th shard
+         */
         public synchronized long totalBytes() {
             long total = 0;
             for (File file : fileDetails.values()) {
@@ -792,7 +821,9 @@ public class RecoveryState implements ToXContent, Streamable {
             return total;
         }
 
-        /** total number of bytes recovered so far, including both existing and reused */
+        /**
+         * total number of bytes recovered so far, including both existing and reused
+         */
         public synchronized long recoveredBytes() {
             long recovered = 0;
             for (File file : fileDetails.values()) {
@@ -801,7 +832,9 @@ public class RecoveryState implements ToXContent, Streamable {
             return recovered;
         }
 
-        /** total bytes of files to be recovered (potentially not yet done) */
+        /**
+         * total bytes of files to be recovered (potentially not yet done)
+         */
         public synchronized long totalRecoverBytes() {
             long total = 0;
             for (File file : fileDetails.values()) {
@@ -822,7 +855,9 @@ public class RecoveryState implements ToXContent, Streamable {
             return total;
         }
 
-        /** percent of bytes recovered out of total files bytes *to be* recovered */
+        /**
+         * percent of bytes recovered out of total files bytes *to be* recovered
+         */
         public synchronized float recoveredBytesPercent() {
             long total = 0;
             long recovered = 0;

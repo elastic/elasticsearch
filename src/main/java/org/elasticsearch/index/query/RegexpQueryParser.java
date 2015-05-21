@@ -24,11 +24,10 @@ import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.RegexpQuery;
 import org.apache.lucene.util.automaton.Operations;
-import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.query.support.QueryParsers;
 
 import java.io.IOException;
@@ -109,9 +108,9 @@ public class RegexpQueryParser extends BaseQueryParserTemp {
         MultiTermQuery.RewriteMethod method = QueryParsers.parseRewriteMethod(rewriteMethod, null);
 
         Query query = null;
-        MapperService.SmartNameFieldMappers smartNameFieldMappers = parseContext.smartFieldMappers(fieldName);
-        if (smartNameFieldMappers != null && smartNameFieldMappers.hasMapper()) {
-            query = smartNameFieldMappers.mapper().regexpQuery(value, flagsValue, maxDeterminizedStates, method, parseContext);
+        FieldMapper mapper = parseContext.fieldMapper(fieldName);
+        if (mapper != null) {
+            query = mapper.regexpQuery(value, flagsValue, maxDeterminizedStates, method, parseContext);
         }
         if (query == null) {
             RegexpQuery regexpQuery = new RegexpQuery(new Term(fieldName, BytesRefs.toBytesRef(value)), flagsValue, maxDeterminizedStates);

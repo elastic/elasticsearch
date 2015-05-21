@@ -21,6 +21,7 @@ package org.elasticsearch.snapshots;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
@@ -44,6 +45,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardRepository;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotAndRestoreService;
@@ -58,6 +60,7 @@ import org.elasticsearch.transport.*;
 
 import java.io.IOException;
 import java.util.*;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Condition;
@@ -107,6 +110,7 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
 
     private final CopyOnWriteArrayList<SnapshotCompletionListener> snapshotCompletionListeners = new CopyOnWriteArrayList<>();
 
+    private final BlockingQueue<UpdateIndexShardSnapshotStatusRequest> updatedSnapshotStateQueue = ConcurrentCollections.newBlockingQueue();
 
     @Inject
     public SnapshotsService(Settings settings, ClusterService clusterService, RepositoriesService repositoriesService, ThreadPool threadPool,
@@ -935,20 +939,51 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
      * @param request update shard status request
      */
     private void innerUpdateSnapshotState(final UpdateIndexShardSnapshotStatusRequest request) {
+        logger.trace("received updated snapshot restore state [{}]", request);
+        updatedSnapshotStateQueue.add(request);
+
         clusterService.submitStateUpdateTask("update snapshot state", new ClusterStateUpdateTask() {
+            private final List<UpdateIndexShardSnapshotStatusRequest> drainedRequests = new ArrayList<>();
+
             @Override
             public ClusterState execute(ClusterState currentState) {
-                MetaData metaData = currentState.metaData();
-                MetaData.Builder mdBuilder = MetaData.builder(currentState.metaData());
-                SnapshotMetaData snapshots = metaData.custom(SnapshotMetaData.TYPE);
+
+                if (request.processed) {
+                    return currentState;
+                }
+
+                updatedSnapshotStateQueue.drainTo(drainedRequests);
+
+                final int batchSize = drainedRequests.size();
+
+                // nothing to process (a previous event has processed it already)
+                if (batchSize == 0) {
+                    return currentState;
+                }
+
+                final MetaData metaData = currentState.metaData();
+                final SnapshotMetaData snapshots = metaData.custom(SnapshotMetaData.TYPE);
                 if (snapshots != null) {
-                    boolean changed = false;
-                    ArrayList<SnapshotMetaData.Entry> entries = newArrayList();
+                    int changedCount = 0;
+                    final List<SnapshotMetaData.Entry> entries = newArrayList();
                     for (SnapshotMetaData.Entry entry : snapshots.entries()) {
-                        if (entry.snapshotId().equals(request.snapshotId())) {
-                            HashMap<ShardId, ShardSnapshotStatus> shards = newHashMap(entry.shards());
-                            logger.trace("[{}] Updating shard [{}] with status [{}]", request.snapshotId(), request.shardId(), request.status().state());
-                            shards.put(request.shardId(), request.status());
+                        HashMap<ShardId, ShardSnapshotStatus> shards = null;
+
+                        for (int i = 0; i < batchSize; i++) {
+                            final UpdateIndexShardSnapshotStatusRequest updateSnapshotState = drainedRequests.get(i);
+                            updateSnapshotState.processed = true;
+
+                            if (entry.snapshotId().equals(updateSnapshotState.snapshotId())) {
+                                logger.trace("[{}] Updating shard [{}] with status [{}]", updateSnapshotState.snapshotId(), updateSnapshotState.shardId(), updateSnapshotState.status().state());
+                                if (shards == null) {
+                                    shards = newHashMap(entry.shards());
+                                }
+                                shards.put(updateSnapshotState.shardId(), updateSnapshotState.status());
+                                changedCount++;
+                            }
+                        }
+
+                        if (shards != null) {
                             if (!completed(shards.values())) {
                                 entries.add(new SnapshotMetaData.Entry(entry, ImmutableMap.copyOf(shards)));
                             } else {
@@ -960,14 +995,15 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
                                 endSnapshot(updatedEntry);
                                 logger.info("snapshot [{}] is done", updatedEntry.snapshotId());
                             }
-                            changed = true;
                         } else {
                             entries.add(entry);
                         }
                     }
-                    if (changed) {
-                        snapshots = new SnapshotMetaData(entries.toArray(new SnapshotMetaData.Entry[entries.size()]));
-                        mdBuilder.putCustom(SnapshotMetaData.TYPE, snapshots);
+                    if (changedCount > 0) {
+                        logger.trace("changed cluster state triggered by {} snapshot state updates", changedCount);
+
+                        final SnapshotMetaData updatedSnapshots = new SnapshotMetaData(entries.toArray(new SnapshotMetaData.Entry[entries.size()]));
+                        final MetaData.Builder mdBuilder = MetaData.builder(currentState.metaData()).putCustom(SnapshotMetaData.TYPE, updatedSnapshots);
                         return ClusterState.builder(currentState).metaData(mdBuilder).build();
                     }
                 }
@@ -976,7 +1012,9 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
 
             @Override
             public void onFailure(String source, Throwable t) {
-                logger.warn("[{}][{}] failed to update snapshot status to [{}]", t, request.snapshotId(), request.shardId(), request.status());
+                for (UpdateIndexShardSnapshotStatusRequest request : drainedRequests) {
+                    logger.warn("[{}][{}] failed to update snapshot status to [{}]", t, request.snapshotId(), request.shardId(), request.status());
+                }
             }
         });
     }
@@ -1562,6 +1600,8 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
         private ShardId shardId;
         private SnapshotMetaData.ShardSnapshotStatus status;
 
+        volatile boolean processed; // state field, no need to serialize
+
         private UpdateIndexShardSnapshotStatusRequest() {
 
         }
@@ -1598,6 +1638,12 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
 
         public SnapshotMetaData.ShardSnapshotStatus status() {
             return status;
+        }
+
+        @Override
+        public String toString()
+        {
+            return "" + snapshotId + ", shardId [" + shardId + "], status [" + status.state() + "]";
         }
     }
 

@@ -31,7 +31,6 @@ import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.MapperService;
 
 import java.io.IOException;
 
@@ -163,11 +162,9 @@ public class CommonTermsQueryParser extends BaseQueryParserTemp {
         if (value == null) {
             throw new QueryParsingException(parseContext, "No text specified for text query");
         }
-        FieldMapper<?> mapper = null;
         String field;
-        MapperService.SmartNameFieldMappers smartNameFieldMappers = parseContext.smartFieldMappers(fieldName);
-        if (smartNameFieldMappers != null && smartNameFieldMappers.hasMapper()) {
-            mapper = smartNameFieldMappers.mapper();
+        FieldMapper<?> mapper = parseContext.fieldMapper(fieldName);
+        if (mapper != null) {
             field = mapper.names().indexName();
         } else {
             field = fieldName;
@@ -178,8 +175,8 @@ public class CommonTermsQueryParser extends BaseQueryParserTemp {
             if (mapper != null) {
                 analyzer = mapper.searchAnalyzer();
             }
-            if (analyzer == null && smartNameFieldMappers != null) {
-                analyzer = smartNameFieldMappers.searchAnalyzer();
+            if (analyzer == null && mapper != null) {
+                analyzer = parseContext.getSearchAnalyzer(mapper);
             }
             if (analyzer == null) {
                 analyzer = parseContext.mapperService().searchAnalyzer();
@@ -193,7 +190,7 @@ public class CommonTermsQueryParser extends BaseQueryParserTemp {
 
         ExtendedCommonTermsQuery commonsQuery = new ExtendedCommonTermsQuery(highFreqOccur, lowFreqOccur, maxTermFrequency, disableCoords, mapper);
         commonsQuery.setBoost(boost);
-        Query query = parseQueryString(commonsQuery, value.toString(), field, parseContext, analyzer, lowFreqMinimumShouldMatch, highFreqMinimumShouldMatch, smartNameFieldMappers);
+        Query query = parseQueryString(commonsQuery, value.toString(), field, parseContext, analyzer, lowFreqMinimumShouldMatch, highFreqMinimumShouldMatch);
         if (queryName != null) {
             parseContext.addNamedQuery(queryName, query);
         }
@@ -202,7 +199,7 @@ public class CommonTermsQueryParser extends BaseQueryParserTemp {
 
 
     private final Query parseQueryString(ExtendedCommonTermsQuery query, String queryString, String field, QueryParseContext parseContext,
-            Analyzer analyzer, String lowFreqMinimumShouldMatch, String highFreqMinimumShouldMatch, MapperService.SmartNameFieldMappers smartNameFieldMappers) throws IOException {
+            Analyzer analyzer, String lowFreqMinimumShouldMatch, String highFreqMinimumShouldMatch) throws IOException {
         // Logic similar to QueryParser#getFieldQuery
         int count = 0;
         try (TokenStream source = analyzer.tokenStream(field, queryString.toString())) {

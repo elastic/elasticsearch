@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.internal;
 
+import com.carrotsearch.hppc.ObjectObjectAssociativeContainer;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 
@@ -33,7 +34,11 @@ import org.apache.lucene.search.Sort;
 import org.apache.lucene.util.Counter;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
+import org.elasticsearch.common.HasContext;
+import org.elasticsearch.common.HasContextAndHeaders;
+import org.elasticsearch.common.HasHeaders;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.search.function.BoostScoreFunction;
@@ -72,6 +77,7 @@ import org.elasticsearch.search.suggest.SuggestionSearchContext;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 
 /**
  *
@@ -79,101 +85,56 @@ import java.util.List;
 public class DefaultSearchContext extends SearchContext {
 
     private final long id;
-
     private final ShardSearchRequest request;
-
     private final SearchShardTarget shardTarget;
     private final Counter timeEstimateCounter;
-
     private SearchType searchType;
-
     private final Engine.Searcher engineSearcher;
-
     private final ScriptService scriptService;
-
     private final PageCacheRecycler pageCacheRecycler;
-
     private final BigArrays bigArrays;
-
     private final IndexShard indexShard;
-
     private final IndexService indexService;
-
     private final ContextIndexSearcher searcher;
-
     private final DfsSearchResult dfsResult;
-
     private final QuerySearchResult queryResult;
-
     private final FetchSearchResult fetchResult;
-
     // lazy initialized only if needed
     private ScanContext scanContext;
-
     private float queryBoost = 1.0f;
-
     // timeout in millis
     private long timeoutInMillis = -1;
-
     // terminate after count
     private int terminateAfter = DEFAULT_TERMINATE_AFTER;
-
-
     private List<String> groupStats;
-
     private Scroll scroll;
-
     private boolean explain;
-
     private boolean version = false; // by default, we don't return versions
-
     private List<String> fieldNames;
     private FieldDataFieldsContext fieldDataFields;
     private ScriptFieldsContext scriptFields;
     private FetchSourceContext fetchSourceContext;
-
     private int from = -1;
-
     private int size = -1;
-
     private Sort sort;
-
     private Float minimumScore;
-
     private boolean trackScores = false; // when sorting, track scores as well...
-
     private ParsedQuery originalQuery;
-
     private Query query;
-
     private ParsedQuery postFilter;
-
     private Query aliasFilter;
-
     private int[] docIdsToLoad;
-
     private int docsIdsToLoadFrom;
-
     private int docsIdsToLoadSize;
-
     private SearchContextAggregations aggregations;
-
     private SearchContextHighlight highlight;
-
     private SuggestionSearchContext suggest;
-
     private List<RescoreSearchContext> rescore;
-
     private SearchLookup searchLookup;
-
     private boolean queryRewritten;
-
     private volatile long keepAlive;
-
     private ScoreDoc lastEmittedDoc;
-
     private volatile long lastAccessTime = -1;
-
     private InnerHitsContext innerHitsContext;
 
     public DefaultSearchContext(long id, ShardSearchRequest request, SearchShardTarget shardTarget,
@@ -752,16 +713,6 @@ public class DefaultSearchContext extends SearchContext {
     }
 
     @Override
-    public MapperService.SmartNameFieldMappers smartFieldMappers(String name) {
-        return mapperService().smartName(name, request.types());
-    }
-
-    @Override
-    public FieldMappers smartNameFieldMappers(String name) {
-        return mapperService().smartNameFieldMappers(name, request.types());
-    }
-
-    @Override
     public FieldMapper smartNameFieldMapper(String name) {
         return mapperService().smartNameFieldMapper(name, request.types());
     }
@@ -789,5 +740,80 @@ public class DefaultSearchContext extends SearchContext {
     @Override
     public InnerHitsContext innerHits() {
         return innerHitsContext;
+    }
+
+    @Override
+    public <V> V putInContext(Object key, Object value) {
+        return request.putInContext(key, value);
+    }
+
+    @Override
+    public void putAllInContext(ObjectObjectAssociativeContainer<Object, Object> map) {
+        request.putAllInContext(map);
+    }
+
+    @Override
+    public <V> V getFromContext(Object key) {
+        return request.getFromContext(key);
+    }
+
+    @Override
+    public <V> V getFromContext(Object key, V defaultValue) {
+        return request.getFromContext(key, defaultValue);
+    }
+
+    @Override
+    public boolean hasInContext(Object key) {
+        return request.hasInContext(key);
+    }
+
+    @Override
+    public int contextSize() {
+        return request.contextSize();
+    }
+
+    @Override
+    public boolean isContextEmpty() {
+        return request.isContextEmpty();
+    }
+
+    @Override
+    public ImmutableOpenMap<Object, Object> getContext() {
+        return request.getContext();
+    }
+
+    @Override
+    public void copyContextFrom(HasContext other) {
+        request.copyContextFrom(other);
+    }
+
+    @Override
+    public <V> void putHeader(String key, V value) {
+        request.putHeader(key, value);
+    }
+
+    @Override
+    public <V> V getHeader(String key) {
+        return request.getHeader(key);
+    }
+
+    @Override
+    public boolean hasHeader(String key) {
+        return request.hasHeader(key);
+    }
+
+    @Override
+    public Set<String> getHeaders() {
+        return request.getHeaders();
+    }
+
+    @Override
+    public void copyHeadersFrom(HasHeaders from) {
+        request.copyHeadersFrom(from);
+    }
+
+    @Override
+    public void copyContextAndHeadersFrom(HasContextAndHeaders other) {
+        request.copyContextAndHeadersFrom(other);
     }
 }

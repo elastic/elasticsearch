@@ -51,6 +51,10 @@ public class TransportMessageTests extends ElasticsearchTestCase {
         assertThat((String) message.getHeader("key1"), equalTo("value1"));
         assertThat((String) message.getHeader("key2"), equalTo("value2"));
         assertThat(message.isContextEmpty(), is(true));
+
+        // ensure that casting is not needed
+        String key1 = message.getHeader("key1");
+        assertThat(key1, is("value1"));
     }
 
     @Test
@@ -66,6 +70,18 @@ public class TransportMessageTests extends ElasticsearchTestCase {
         assertThat((String) m2.getHeader("key1"), equalTo("value1"));
         assertThat((String) m2.getHeader("key2"), equalTo("value2"));
         assertThat((String) m2.getFromContext("key3"), equalTo("value3"));
+
+        // ensure that casting is not needed
+        String key3 = m2.getFromContext("key3");
+        assertThat(key3, is("value3"));
+        testContext(m2, "key3", "value3");
+    }
+
+    // ensure that generic arg like this is not needed: TransportMessage<?> transportMessage
+    private void testContext(TransportMessage transportMessage, String key, String expectedValue) {
+        String result = transportMessage.getFromContext(key);
+        assertThat(result, is(expectedValue));
+
     }
 
     private static class Message extends TransportMessage<Message> {

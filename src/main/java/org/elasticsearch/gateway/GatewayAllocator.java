@@ -20,15 +20,14 @@
 package org.elasticsearch.gateway;
 
 import com.carrotsearch.hppc.ObjectLongHashMap;
-import com.carrotsearch.hppc.ObjectHashSet;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-import com.carrotsearch.hppc.predicates.ObjectPredicate;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import org.apache.lucene.util.CollectionUtil;
-import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.action.FailedNodeException;
+import org.elasticsearch.action.support.nodes.NodeOperationResponse;
+import org.elasticsearch.action.support.nodes.NodesOperationResponse;
+import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -37,21 +36,23 @@ import org.elasticsearch.cluster.routing.MutableShardRouting;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.FailedRerouteAllocation;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.StartedRerouteAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.indices.store.TransportNodesListShardStoreMetaData;
-import org.elasticsearch.transport.ConnectTransportException;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentMap;
@@ -63,42 +64,74 @@ public class GatewayAllocator extends AbstractComponent {
 
     public static final String INDEX_RECOVERY_INITIAL_SHARDS = "index.recovery.initial_shards";
 
-    private final TransportNodesListGatewayStartedShards listGatewayStartedShards;
-
-    private final TransportNodesListShardStoreMetaData listShardStoreMetaData;
-
-    private final ConcurrentMap<ShardId, Map<DiscoveryNode, TransportNodesListShardStoreMetaData.StoreFilesMetaData>> cachedStores = ConcurrentCollections.newConcurrentMap();
-
-    private final ConcurrentMap<ShardId, ObjectLongHashMap<DiscoveryNode>> cachedShardsState = ConcurrentCollections.newConcurrentMap();
-
-    private final TimeValue listTimeout;
-
     private final String initialShards;
 
-    @Inject
-    public GatewayAllocator(Settings settings,
-                            TransportNodesListGatewayStartedShards listGatewayStartedShards, TransportNodesListShardStoreMetaData listShardStoreMetaData) {
-        super(settings);
-        this.listGatewayStartedShards = listGatewayStartedShards;
-        this.listShardStoreMetaData = listShardStoreMetaData;
+    private final TransportNodesListGatewayStartedShards startedAction;
+    private final TransportNodesListShardStoreMetaData storeAction;
+    private ClusterService clusterService;
+    private AllocationService allocationService;
 
-        this.listTimeout = settings.getAsTime("gateway.list_timeout", settings.getAsTime("gateway.local.list_timeout", TimeValue.timeValueSeconds(30)));
+    private final ConcurrentMap<ShardId, AsyncShardFetch<TransportNodesListGatewayStartedShards.NodeGatewayStartedShards>> asyncFetchStarted = ConcurrentCollections.newConcurrentMap();
+    private final ConcurrentMap<ShardId, AsyncShardFetch<TransportNodesListShardStoreMetaData.NodeStoreFilesMetaData>> asyncFetchStore = ConcurrentCollections.newConcurrentMap();
+
+    @Inject
+    public GatewayAllocator(Settings settings, TransportNodesListGatewayStartedShards startedAction, TransportNodesListShardStoreMetaData storeAction) {
+        super(settings);
+        this.startedAction = startedAction;
+        this.storeAction = storeAction;
+
         this.initialShards = settings.get("gateway.initial_shards", settings.get("gateway.local.initial_shards", "quorum"));
 
-        logger.debug("using initial_shards [{}], list_timeout [{}]", initialShards, listTimeout);
+        logger.debug("using initial_shards [{}]", initialShards);
+    }
+
+    public void setReallocation(final ClusterService clusterService, final AllocationService allocationService) {
+        this.clusterService = clusterService;
+        this.allocationService = allocationService;
+        clusterService.add(new ClusterStateListener() {
+            @Override
+            public void clusterChanged(ClusterChangedEvent event) {
+                boolean cleanCache = false;
+                DiscoveryNode localNode = event.state().nodes().localNode();
+                if (localNode != null) {
+                    if (localNode.masterNode() == true && event.localNodeMaster() == false) {
+                        cleanCache = true;
+                    }
+                } else {
+                    cleanCache = true;
+                }
+                if (cleanCache) {
+                    Releasables.close(asyncFetchStarted.values());
+                    asyncFetchStarted.clear();
+                    Releasables.close(asyncFetchStore.values());
+                    asyncFetchStore.clear();
+                }
+            }
+        });
+    }
+
+    public int getNumberOfInFlightFetch() {
+        int count = 0;
+        for (AsyncShardFetch<TransportNodesListGatewayStartedShards.NodeGatewayStartedShards> fetch : asyncFetchStarted.values()) {
+            count += fetch.getNumberOfInFlightFetches();
+        }
+        for (AsyncShardFetch<TransportNodesListShardStoreMetaData.NodeStoreFilesMetaData> fetch : asyncFetchStore.values()) {
+            count += fetch.getNumberOfInFlightFetches();
+        }
+        return count;
     }
 
     public void applyStartedShards(StartedRerouteAllocation allocation) {
-        for (ShardRouting shardRouting : allocation.startedShards()) {
-            cachedStores.remove(shardRouting.shardId());
-            cachedShardsState.remove(shardRouting.shardId());
+        for (ShardRouting shard : allocation.startedShards()) {
+            Releasables.close(asyncFetchStarted.remove(shard.shardId()));
+            Releasables.close(asyncFetchStore.remove(shard.shardId()));
         }
     }
 
     public void applyFailedShards(FailedRerouteAllocation allocation) {
-        for (ShardRouting failedShard : allocation.failedShards()) {
-            cachedStores.remove(failedShard.shardId());
-            cachedShardsState.remove(failedShard.shardId());
+        for (ShardRouting shard : allocation.failedShards()) {
+            Releasables.close(asyncFetchStarted.remove(shard.shardId()));
+            Releasables.close(asyncFetchStore.remove(shard.shardId()));
         }
     }
 
@@ -131,7 +164,37 @@ public class GatewayAllocator extends AbstractComponent {
                 continue;
             }
 
-            ObjectLongHashMap<DiscoveryNode> nodesState = buildShardStates(nodes, shard, metaData.index(shard.index()));
+            AsyncShardFetch<TransportNodesListGatewayStartedShards.NodeGatewayStartedShards> fetch = asyncFetchStarted.get(shard.shardId());
+            if (fetch == null) {
+                fetch = new InternalAsyncFetch<>(logger, shard.shardId(), startedAction, clusterService, allocationService);
+                asyncFetchStarted.put(shard.shardId(), fetch);
+            }
+            AsyncShardFetch.FetchResult<TransportNodesListGatewayStartedShards.NodeGatewayStartedShards> shardState = fetch.fetchData(nodes, metaData, allocation.getIgnoreNodes(shard.shardId()));
+            if (shardState.hasData() == false) {
+                // still fetching data, remove from the unassigned, and try the next
+                unassignedIterator.remove();
+                routingNodes.ignoredUnassigned().add(shard);
+                continue;
+            }
+            shardState.processAllocation(allocation);
+
+            IndexMetaData indexMetaData = metaData.index(shard.getIndex());
+
+            /**
+             * Build a map of DiscoveryNodes to shard state number for the given shard.
+             * A state of -1 means the shard does not exist on the node, where any
+             * shard state >= 0 is the state version of the shard on that node's disk.
+             *
+             * A shard on shared storage will return at least shard state 0 for all
+             * nodes, indicating that the shard can be allocated to any node.
+             */
+            ObjectLongHashMap<DiscoveryNode> nodesState = new ObjectLongHashMap<>();
+            for (TransportNodesListGatewayStartedShards.NodeGatewayStartedShards nodeShardState : shardState.getData().values()) {
+                long version = nodeShardState.version();
+                // -1 version means it does not exists, which is what the API returns, and what we expect to
+                logger.trace("[{}] on node [{}] has version [{}] of shard", shard, nodeShardState.getNode(), version);
+                nodesState.put(nodeShardState.getNode(), version);
+            }
 
             int numberOfAllocationsFound = 0;
             long highestVersion = -1;
@@ -140,7 +203,6 @@ public class GatewayAllocator extends AbstractComponent {
             assert !nodesState.containsKey(null);
             final Object[] keys = nodesState.keys;
             final long[] values = nodesState.values;
-            IndexMetaData indexMetaData = routingNodes.metaData().index(shard.index());
             Settings idxSettings = indexMetaData.settings();
             for (int i = 0; i < keys.length; i++) {
                 if (keys[i] == null) {
@@ -312,6 +374,9 @@ public class GatewayAllocator extends AbstractComponent {
         unassignedIterator = routingNodes.unassigned().iterator();
         while (unassignedIterator.hasNext()) {
             MutableShardRouting shard = unassignedIterator.next();
+            if (shard.primary()) {
+                continue;
+            }
 
             // pre-check if it can be allocated to any node that currently exists, so we won't list the store for it for nothing
             boolean canBeAllocatedToAtLeastOneNode = false;
@@ -330,18 +395,33 @@ public class GatewayAllocator extends AbstractComponent {
             }
 
             if (!canBeAllocatedToAtLeastOneNode) {
+                // still fetching data, remove from the unassigned, and try the next
+                unassignedIterator.remove();
+                routingNodes.ignoredUnassigned().add(shard);
                 continue;
             }
 
-            Map<DiscoveryNode, TransportNodesListShardStoreMetaData.StoreFilesMetaData> shardStores = buildShardStores(nodes, shard);
+            AsyncShardFetch<TransportNodesListShardStoreMetaData.NodeStoreFilesMetaData> fetch = asyncFetchStore.get(shard.shardId());
+            if (fetch == null) {
+                fetch = new InternalAsyncFetch<>(logger, shard.shardId(), storeAction, clusterService, allocationService);
+                asyncFetchStore.put(shard.shardId(), fetch);
+            }
+            AsyncShardFetch.FetchResult<TransportNodesListShardStoreMetaData.NodeStoreFilesMetaData> shardStores = fetch.fetchData(nodes, metaData, allocation.getIgnoreNodes(shard.shardId()));
+            if (shardStores.hasData() == false) {
+                // still fetching data, remove from the unassigned, and try the next
+                unassignedIterator.remove();
+                routingNodes.ignoredUnassigned().add(shard);
+                continue; // still fetching
+            }
+            shardStores.processAllocation(allocation);
 
             long lastSizeMatched = 0;
             DiscoveryNode lastDiscoNodeMatched = null;
             RoutingNode lastNodeMatched = null;
 
-            for (Map.Entry<DiscoveryNode, TransportNodesListShardStoreMetaData.StoreFilesMetaData> nodeStoreEntry : shardStores.entrySet()) {
+            for (Map.Entry<DiscoveryNode, TransportNodesListShardStoreMetaData.NodeStoreFilesMetaData> nodeStoreEntry : shardStores.getData().entrySet()) {
                 DiscoveryNode discoNode = nodeStoreEntry.getKey();
-                TransportNodesListShardStoreMetaData.StoreFilesMetaData storeFilesMetaData = nodeStoreEntry.getValue();
+                TransportNodesListShardStoreMetaData.StoreFilesMetaData storeFilesMetaData = nodeStoreEntry.getValue().storeFilesMetaData();
                 logger.trace("{}: checking node [{}]", shard, discoNode);
 
                 if (storeFilesMetaData == null) {
@@ -373,21 +453,35 @@ public class GatewayAllocator extends AbstractComponent {
                         assert primaryShard.active();
                         DiscoveryNode primaryNode = nodes.get(primaryShard.currentNodeId());
                         if (primaryNode != null) {
-                            TransportNodesListShardStoreMetaData.StoreFilesMetaData primaryNodeStore = shardStores.get(primaryNode);
-                            if (primaryNodeStore != null && primaryNodeStore.allocated()) {
-                                long sizeMatched = 0;
+                            TransportNodesListShardStoreMetaData.NodeStoreFilesMetaData primaryNodeFilesStore = shardStores.getData().get(primaryNode);
+                            if (primaryNodeFilesStore != null) {
+                                TransportNodesListShardStoreMetaData.StoreFilesMetaData primaryNodeStore = primaryNodeFilesStore.storeFilesMetaData();
+                                if (primaryNodeStore != null && primaryNodeStore.allocated()) {
+                                    long sizeMatched = 0;
 
-                                for (StoreFileMetaData storeFileMetaData : storeFilesMetaData) {
-                                    if (primaryNodeStore.fileExists(storeFileMetaData.name()) && primaryNodeStore.file(storeFileMetaData.name()).isSame(storeFileMetaData)) {
-                                        sizeMatched += storeFileMetaData.length();
+                                    String primarySyncId = primaryNodeStore.syncId();
+                                    String replicaSyncId = storeFilesMetaData.syncId();
+                                    // see if we have a sync id we can make use of
+                                    if (replicaSyncId != null && replicaSyncId.equals(primarySyncId)) {
+                                        logger.trace("{}: node [{}] has same sync id {} as primary", shard, discoNode.name(), replicaSyncId);
+                                        lastNodeMatched = node;
+                                        lastSizeMatched = Long.MAX_VALUE;
+                                        lastDiscoNodeMatched = discoNode;
+                                    } else {
+                                        for (StoreFileMetaData storeFileMetaData : storeFilesMetaData) {
+                                            String metaDataFileName = storeFileMetaData.name();
+                                            if (primaryNodeStore.fileExists(metaDataFileName) && primaryNodeStore.file(metaDataFileName).isSame(storeFileMetaData)) {
+                                                sizeMatched += storeFileMetaData.length();
+                                            }
+                                        }
+                                        logger.trace("{}: node [{}] has [{}/{}] bytes of re-usable data",
+                                                shard, discoNode.name(), new ByteSizeValue(sizeMatched), sizeMatched);
+                                        if (sizeMatched > lastSizeMatched) {
+                                            lastSizeMatched = sizeMatched;
+                                            lastDiscoNodeMatched = discoNode;
+                                            lastNodeMatched = node;
+                                        }
                                     }
-                                }
-                                logger.trace("{}: node [{}] has [{}/{}] bytes of re-usable data",
-                                        shard, discoNode.name(), new ByteSizeValue(sizeMatched), sizeMatched);
-                                if (sizeMatched > lastSizeMatched) {
-                                    lastSizeMatched = sizeMatched;
-                                    lastDiscoNodeMatched = discoNode;
-                                    lastNodeMatched = node;
                                 }
                             }
                         }
@@ -419,104 +513,38 @@ public class GatewayAllocator extends AbstractComponent {
         return changed;
     }
 
-    /**
-     * Build a map of DiscoveryNodes to shard state number for the given shard.
-     * A state of -1 means the shard does not exist on the node, where any
-     * shard state >= 0 is the state version of the shard on that node's disk.
-     *
-     * A shard on shared storage will return at least shard state 0 for all
-     * nodes, indicating that the shard can be allocated to any node.
-     */
-    private ObjectLongHashMap<DiscoveryNode> buildShardStates(final DiscoveryNodes nodes, MutableShardRouting shard, IndexMetaData indexMetaData) {
-        ObjectLongHashMap<DiscoveryNode> shardStates = cachedShardsState.get(shard.shardId());
-        ObjectHashSet<String> nodeIds;
-        if (shardStates == null) {
-            shardStates = new ObjectLongHashMap<>();
-            cachedShardsState.put(shard.shardId(), shardStates);
-            nodeIds = new ObjectHashSet<>(nodes.dataNodes().keys());
-        } else {
-            // clean nodes that have failed
-            shardStates.keys().removeAll(new ObjectPredicate<DiscoveryNode>() {
+    static class InternalAsyncFetch<T extends NodeOperationResponse> extends AsyncShardFetch<T> {
+
+        private final ClusterService clusterService;
+        private final AllocationService allocationService;
+
+        public InternalAsyncFetch(ESLogger logger, ShardId shardId, List<? extends NodesOperationResponse<T>, T> action,
+                                  ClusterService clusterService, AllocationService allocationService) {
+            super(logger, shardId, action);
+            this.clusterService = clusterService;
+            this.allocationService = allocationService;
+        }
+
+        @Override
+        protected void reroute(ShardId shardId, String reason) {
+            clusterService.submitStateUpdateTask("async_shard_fetch(" + getClass().getSimpleName() + ") " + shardId + ", reasons (" + reason + ")", Priority.HIGH, new ClusterStateUpdateTask() {
                 @Override
-                public boolean apply(DiscoveryNode node) {
-                    return !nodes.nodeExists(node.id());
+                public ClusterState execute(ClusterState currentState) throws Exception {
+                    if (currentState.nodes().masterNode() == null) {
+                        return currentState;
+                    }
+                    RoutingAllocation.Result routingResult = allocationService.reroute(currentState);
+                    if (!routingResult.changed()) {
+                        return currentState;
+                    }
+                    return ClusterState.builder(currentState).routingResult(routingResult).build();
+                }
+
+                @Override
+                public void onFailure(String source, Throwable t) {
+                    logger.warn("failed to perform reroute post async fetch for {}", t, source);
                 }
             });
-            nodeIds = new ObjectHashSet<>();
-            // we have stored cached from before, see if the nodes changed, if they have, go fetch again
-            for (ObjectCursor<DiscoveryNode> cursor : nodes.dataNodes().values()) {
-                DiscoveryNode node = cursor.value;
-                if (!shardStates.containsKey(node)) {
-                    nodeIds.add(node.id());
-                }
-            }
         }
-        if (nodeIds.isEmpty()) {
-            return shardStates;
-        }
-
-        String[] nodesIdsArray = nodeIds.toArray(String.class);
-        TransportNodesListGatewayStartedShards.NodesGatewayStartedShards response = listGatewayStartedShards.list(shard.shardId(), indexMetaData.getUUID(), nodesIdsArray, listTimeout).actionGet();
-        logListActionFailures(shard, "state", response.failures());
-
-        for (TransportNodesListGatewayStartedShards.NodeGatewayStartedShards nodeShardState : response) {
-            long version = nodeShardState.version();
-            // -1 version means it does not exists, which is what the API returns, and what we expect to
-            logger.trace("[{}] on node [{}] has version [{}] of shard",
-                    shard, nodeShardState.getNode(), version);
-            shardStates.put(nodeShardState.getNode(), version);
-        }
-        return shardStates;
-    }
-
-    private void logListActionFailures(MutableShardRouting shard, String actionType, FailedNodeException[] failures) {
-        for (final FailedNodeException failure : failures) {
-            Throwable cause = ExceptionsHelper.unwrapCause(failure);
-            if (cause instanceof ConnectTransportException) {
-                continue;
-            }
-            // we log warn here. debug logs with full stack traces will be logged if debug logging is turned on for TransportNodeListGatewayStartedShards
-            logger.warn("{}: failed to list shard {} on node [{}]", failure, shard.shardId(), actionType, failure.nodeId());
-        }
-    }
-
-    private Map<DiscoveryNode, TransportNodesListShardStoreMetaData.StoreFilesMetaData> buildShardStores(DiscoveryNodes nodes, MutableShardRouting shard) {
-        Map<DiscoveryNode, TransportNodesListShardStoreMetaData.StoreFilesMetaData> shardStores = cachedStores.get(shard.shardId());
-        ObjectHashSet<String> nodesIds;
-        if (shardStores == null) {
-            shardStores = Maps.newHashMap();
-            cachedStores.put(shard.shardId(), shardStores);
-            nodesIds = new ObjectHashSet<>(nodes.dataNodes().keys());
-        } else {
-            nodesIds = new ObjectHashSet<>();
-            // clean nodes that have failed
-            for (Iterator<DiscoveryNode> it = shardStores.keySet().iterator(); it.hasNext(); ) {
-                DiscoveryNode node = it.next();
-                if (!nodes.nodeExists(node.id())) {
-                    it.remove();
-                }
-            }
-
-            for (ObjectCursor<DiscoveryNode> cursor : nodes.dataNodes().values()) {
-                DiscoveryNode node = cursor.value;
-                if (!shardStores.containsKey(node)) {
-                    nodesIds.add(node.id());
-                }
-            }
-        }
-
-        if (!nodesIds.isEmpty()) {
-            String[] nodesIdsArray = nodesIds.toArray(String.class);
-            TransportNodesListShardStoreMetaData.NodesStoreFilesMetaData nodesStoreFilesMetaData = listShardStoreMetaData.list(shard.shardId(), false, nodesIdsArray, listTimeout).actionGet();
-            logListActionFailures(shard, "stores", nodesStoreFilesMetaData.failures());
-
-            for (TransportNodesListShardStoreMetaData.NodeStoreFilesMetaData nodeStoreFilesMetaData : nodesStoreFilesMetaData) {
-                if (nodeStoreFilesMetaData.storeFilesMetaData() != null) {
-                    shardStores.put(nodeStoreFilesMetaData.getNode(), nodeStoreFilesMetaData.storeFilesMetaData());
-                }
-            }
-        }
-
-        return shardStores;
     }
 }

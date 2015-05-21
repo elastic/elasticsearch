@@ -22,14 +22,12 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.QueryWrapperFilter;
 import org.apache.lucene.search.TermRangeQuery;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.FieldMappers;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.internal.FieldNamesFieldMapper;
 
@@ -95,8 +93,7 @@ public class MissingQueryParser extends BaseQueryParserTemp {
             throw new QueryParsingException(parseContext, "missing must have either existence, or null_value, or both set to true");
         }
 
-        final FieldMappers fieldNamesMappers = parseContext.mapperService().fullName(FieldNamesFieldMapper.NAME);
-        final FieldNamesFieldMapper fieldNamesMapper = (FieldNamesFieldMapper)fieldNamesMappers.mapper();
+        final FieldNamesFieldMapper fieldNamesMapper = (FieldNamesFieldMapper)parseContext.mapperService().fullName(FieldNamesFieldMapper.NAME);
         MapperService.SmartNameObjectMapper smartNameObjectMapper = parseContext.smartObjectMapper(fieldPattern);
         if (smartNameObjectMapper != null && smartNameObjectMapper.hasMapper()) {
             // automatic make the object mapper pattern
@@ -112,26 +109,26 @@ public class MissingQueryParser extends BaseQueryParserTemp {
             return null;
         }
 
-        Filter existenceFilter = null;
+        Query existenceFilter = null;
         Query nullFilter = null;
 
         if (existence) {
             BooleanQuery boolFilter = new BooleanQuery();
             for (String field : fields) {
-                MapperService.SmartNameFieldMappers smartNameFieldMappers = parseContext.smartFieldMappers(field);
+                FieldMapper mapper = parseContext.fieldMapper(field);
                 Query filter = null;
                 if (fieldNamesMapper != null && fieldNamesMapper.enabled()) {
                     final String f;
-                    if (smartNameFieldMappers != null && smartNameFieldMappers.hasMapper()) {
-                        f = smartNameFieldMappers.mapper().names().indexName();
+                    if (mapper != null) {
+                        f = mapper.names().indexName();
                     } else {
                         f = field;
                     }
                     filter = fieldNamesMapper.termQuery(f, parseContext);
                 }
                 // if _field_names are not indexed, we need to go the slow way
-                if (filter == null && smartNameFieldMappers != null && smartNameFieldMappers.hasMapper()) {
-                    filter = smartNameFieldMappers.mapper().rangeQuery(null, null, true, true, parseContext);
+                if (filter == null && mapper != null) {
+                    filter = mapper.rangeQuery(null, null, true, true, parseContext);
                 }
                 if (filter == null) {
                     filter = new TermRangeQuery(field, null, null, true, true);
@@ -139,15 +136,15 @@ public class MissingQueryParser extends BaseQueryParserTemp {
                 boolFilter.add(filter, BooleanClause.Occur.SHOULD);
             }
 
-            existenceFilter = new QueryWrapperFilter(boolFilter);
-            existenceFilter = new QueryWrapperFilter(Queries.not(existenceFilter));;
+            existenceFilter = boolFilter;
+            existenceFilter = Queries.not(existenceFilter);;
         }
 
         if (nullValue) {
             for (String field : fields) {
-                MapperService.SmartNameFieldMappers smartNameFieldMappers = parseContext.smartFieldMappers(field);
-                if (smartNameFieldMappers != null && smartNameFieldMappers.hasMapper()) {
-                    nullFilter = smartNameFieldMappers.mapper().nullValueFilter();
+                FieldMapper mapper = parseContext.fieldMapper(field);
+                if (mapper != null) {
+                    nullFilter = mapper.nullValueFilter();
                 }
             }
         }

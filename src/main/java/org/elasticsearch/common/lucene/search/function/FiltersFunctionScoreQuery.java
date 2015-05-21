@@ -19,16 +19,24 @@
 
 package org.elasticsearch.common.lucene.search.function;
 
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.Explanation;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.ToStringUtils;
-import org.elasticsearch.common.lucene.docset.DocIdSets;
+import org.elasticsearch.common.lucene.Lucene;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Locale;
+import java.util.Set;
 
 /**
  * A query that allows for a pluggable boost function / filter. If it matches
@@ -169,7 +177,7 @@ public class FiltersFunctionScoreQuery extends Query {
                 FilterFunction filterFunction = filterFunctions[i];
                 functions[i] = filterFunction.function.getLeafScoreFunction(context);
                 Scorer filterScorer = filterWeights[i].scorer(context, null); // no need to apply accepted docs
-                docSets[i] = DocIdSets.asSequentialAccessBits(context.reader().maxDoc(), filterScorer);
+                docSets[i] = Lucene.asSequentialAccessBits(context.reader().maxDoc(), filterScorer);
             }
             return new FiltersFunctionFactorScorer(this, subQueryScorer, scoreMode, filterFunctions, maxBoost, functions, docSets, combineFunction, minScore);
         }
@@ -193,7 +201,7 @@ public class FiltersFunctionScoreQuery extends Query {
                     weightSum++;
                 }
 
-                Bits docSet = DocIdSets.asSequentialAccessBits(context.reader().maxDoc(),
+                Bits docSet = Lucene.asSequentialAccessBits(context.reader().maxDoc(),
                         filterWeights[i].scorer(context, null));
                 if (docSet.get(doc)) {
                     Explanation functionExplanation = filterFunction.function.getLeafScoreFunction(context).explainScore(doc, subQueryExpl);

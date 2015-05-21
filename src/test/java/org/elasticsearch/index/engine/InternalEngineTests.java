@@ -38,9 +38,9 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.MockDirectoryWrapper;
 import org.apache.lucene.util.IOUtils;
-import org.apache.lucene.util.LuceneTestCase.SuppressFileSystems;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.Base64;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -82,7 +82,6 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ElasticsearchTestCase;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.hamcrest.MatcherAssert;
 import org.junit.After;
@@ -102,8 +101,6 @@ import static org.elasticsearch.index.engine.Engine.Operation.Origin.PRIMARY;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.REPLICA;
 import static org.hamcrest.Matchers.*;
 
-// TODO: this guy isn't ready for mock filesystems yet
-@SuppressFileSystems("*")
 public class InternalEngineTests extends ElasticsearchTestCase {
 
     protected final ShardId shardId = new ShardId(new Index("index"), 1);
@@ -692,6 +689,69 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(1));
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(new TermQuery(new Term("value", "test")), 1));
         searchResult.close();
+    }
+
+    public void testSyncedFlush() throws IOException {
+        final String syncId = randomUnicodeOfCodepointLengthBetween(10, 20);
+        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, null);
+        engine.create(new Engine.Create(null, newUid("1"), doc));
+        Engine.CommitId commitID = engine.flush();
+        assertThat(commitID, equalTo(new Engine.CommitId(store.readLastCommittedSegmentsInfo().getId())));
+        byte[] wrongBytes = Base64.decode(commitID.toString());
+        wrongBytes[0] = (byte) ~wrongBytes[0];
+        Engine.CommitId wrongId = new Engine.CommitId(wrongBytes);
+        assertEquals("should fail to sync flush with wrong id (but no docs)", engine.syncFlush(syncId + "1", wrongId),
+                Engine.SyncedFlushResult.COMMIT_MISMATCH);
+        engine.create(new Engine.Create(null, newUid("2"), doc));
+        assertEquals("should fail to sync flush with right id but pending doc", engine.syncFlush(syncId + "2", commitID),
+                Engine.SyncedFlushResult.PENDING_OPERATIONS);
+        commitID = engine.flush();
+        assertEquals("should succeed to flush commit with right id and no pending doc", engine.syncFlush(syncId, commitID),
+                Engine.SyncedFlushResult.SUCCESS);
+        assertEquals(store.readLastCommittedSegmentsInfo().getUserData().get(Engine.SYNC_COMMIT_ID), syncId);
+        assertEquals(engine.getLastCommittedSegmentInfos().getUserData().get(Engine.SYNC_COMMIT_ID), syncId);
+    }
+
+    public void testSycnedFlushSurvivesEngineRestart() throws IOException {
+        final String syncId = randomUnicodeOfCodepointLengthBetween(10, 20);
+        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, null);
+        engine.create(new Engine.Create(null, newUid("1"), doc));
+        final Engine.CommitId commitID = engine.flush();
+        assertEquals("should succeed to flush commit with right id and no pending doc", engine.syncFlush(syncId, commitID),
+                Engine.SyncedFlushResult.SUCCESS);
+        assertEquals(store.readLastCommittedSegmentsInfo().getUserData().get(Engine.SYNC_COMMIT_ID), syncId);
+        assertEquals(engine.getLastCommittedSegmentInfos().getUserData().get(Engine.SYNC_COMMIT_ID), syncId);
+        EngineConfig config = engine.config();
+        if (randomBoolean()) {
+            engine.close();
+        } else {
+            engine.flushAndClose();
+        }
+        engine = new InternalEngine(config, randomBoolean());
+        assertEquals(engine.getLastCommittedSegmentInfos().getUserData().get(Engine.SYNC_COMMIT_ID), syncId);
+    }
+
+    public void testSycnedFlushVanishesOnReplay() throws IOException {
+        final String syncId = randomUnicodeOfCodepointLengthBetween(10, 20);
+        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, null);
+        engine.create(new Engine.Create(null, newUid("1"), doc));
+        final Engine.CommitId commitID = engine.flush();
+        assertEquals("should succeed to flush commit with right id and no pending doc", engine.syncFlush(syncId, commitID),
+                Engine.SyncedFlushResult.SUCCESS);
+        assertEquals(store.readLastCommittedSegmentsInfo().getUserData().get(Engine.SYNC_COMMIT_ID), syncId);
+        assertEquals(engine.getLastCommittedSegmentInfos().getUserData().get(Engine.SYNC_COMMIT_ID), syncId);
+        doc = testParsedDocument("2", "2", "test", null, -1, -1, testDocumentWithTextField(), new BytesArray("{}"), null);
+        engine.create(new Engine.Create(null, newUid("2"), doc));
+        EngineConfig config = engine.config();
+        engine.close();
+        final MockDirectoryWrapper directory = DirectoryUtils.getLeaf(store.directory(), MockDirectoryWrapper.class);
+        if (directory != null) {
+            // since we rollback the IW we are writing the same segment files again after starting IW but MDW prevents
+            // this so we have to disable the check explicitly
+            directory.setPreventDoubleWrite(false);
+        }
+        engine = new InternalEngine(config, false);
+        assertNull("Sync ID must be gone since we have a document to replay", engine.getLastCommittedSegmentInfos().getUserData().get(Engine.SYNC_COMMIT_ID));
     }
 
     @Test
@@ -1555,9 +1615,8 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         // fake a new translog, causing the engine to point to a missing one.
         Translog translog = createTranslog();
         long id = translog.currentFileGeneration();
-        IOUtils.rm(translog.location().resolve(Translog.getFilename(id)));
-        // we have to re-open the translog because o.w. it will complain about commit information going backwards, which is OK as we did a fake markComitted
         translog.close();
+        IOUtils.rm(translog.location().resolve(Translog.getFilename(id)));
         try {
             engine = createEngine(store, primaryTranslogDir);
             fail("engine shouldn't start without a valid translog id");
@@ -1570,7 +1629,6 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         engine = createEngine(indexSettingsService, store, primaryTranslogDir, createMergeScheduler(indexSettingsService));
     }
 
-    @TestLogging("index.translog:TRACE")
     public void testTranslogReplayWithFailure() throws IOException {
         boolean canHaveDuplicates = true;
         boolean autoGeneratedId = true;
@@ -1817,8 +1875,6 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         translog.close();
 
         EngineConfig config = engine.config();
-        Path translogPath = config.getTranslogConfig().getTranslogPath();
-
         /* create a TranslogConfig that has been created with a different UUID */
         TranslogConfig translogConfig = new TranslogConfig(shardId, translog.location(), config.getIndexSettings(), Translog.Durabilty.REQUEST, BigArrays.NON_RECYCLING_INSTANCE, threadPool);
 
@@ -1839,5 +1895,4 @@ public class InternalEngineTests extends ElasticsearchTestCase {
             assertThat(topDocs.totalHits, equalTo(numDocs));
         }
     }
-
 }

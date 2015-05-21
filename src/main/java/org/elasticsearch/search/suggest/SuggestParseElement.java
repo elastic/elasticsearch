@@ -51,6 +51,7 @@ public final class SuggestParseElement implements SearchParseElement {
 
     public SuggestionSearchContext parseInternal(XContentParser parser, MapperService mapperService, IndexQueryParserService queryParserService, String index, int shardId) throws IOException {
         SuggestionSearchContext suggestionSearchContext = new SuggestionSearchContext();
+
         BytesRef globalText = null;
         String fieldName = null;
         Map<String, SuggestionContext> suggestionContexts = newHashMap();

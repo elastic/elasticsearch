@@ -177,6 +177,7 @@ A `RoutingMissingException` is now thrown instead.
 
 * The setting `index.mapping.allow_type_wrapper` has been removed.  Documents should always be sent without the type as the root element.
 * The delete mappings API has been removed. Mapping types can no longer be deleted.
+* The `ignore_conflicts` option of the put mappings API has been removed. Conflicts can't be ignored anymore.
 
 ==== Removed type prefix on field names in queries
 Types can no longer be specified on fields within queries.  Instead, specify type restrictions in the search request.
@@ -486,6 +487,18 @@ query to not compute scores and optionally caches the result.
 As a consequence the `query` filter serves no purpose anymore and is deprecated.
 
 === Snapshot and Restore
+
+Locations of file system repositories has to be now registered using `path.repo` setting. The `path.repo`
+setting can contain one or more repository locations:
+
+[source,yaml]
+---------------
+path.repo: ["/mnt/daily", "/mnt/weekly"]
+---------------
+
+If the file system repository location is specified as an absolute path it has to start with one of the locations
+specified in `path.repo`. If the location is specified as a relative path, it will be resolved against the first
+location specified in the `path.repo` setting.
 
 The obsolete parameters `expand_wildcards_open` and `expand_wildcards_close` are no longer
 supported by the snapshot and restore operations. These parameters have been replaced by

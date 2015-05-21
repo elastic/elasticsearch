@@ -39,6 +39,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldMappers;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.IndexShard;
@@ -133,12 +134,12 @@ public class TransportFieldStatsTransportAction extends TransportBroadcastOperat
         shard.readAllowed();
         try (Engine.Searcher searcher = shard.acquireSearcher("fieldstats")) {
             for (String field : request.getFields()) {
-                FieldMappers fieldMappers = mapperService.fullName(field);
-                if (fieldMappers != null) {
+                FieldMapper fieldMapper = mapperService.fullName(field);
+                if (fieldMapper != null) {
                     IndexReader reader = searcher.reader();
                     Terms terms = MultiFields.getTerms(reader, field);
                     if (terms != null) {
-                        fieldStats.put(field, fieldMappers.mapper().stats(terms, reader.maxDoc()));
+                        fieldStats.put(field, fieldMapper.stats(terms, reader.maxDoc()));
                     }
                 } else {
                     throw new IllegalArgumentException("field [" + field + "] doesn't exist");

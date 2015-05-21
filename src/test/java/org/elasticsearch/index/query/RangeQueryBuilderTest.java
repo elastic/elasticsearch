@@ -26,7 +26,6 @@ import org.elasticsearch.common.joda.DateMathParser;
 import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.MapperService.SmartNameFieldMappers;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
 import org.elasticsearch.index.mapper.core.DateFieldMapper.LateParsingQuery;
 import org.joda.time.DateTime;
@@ -167,8 +166,7 @@ public class RangeQueryBuilderTest extends BaseQueryTestCase<RangeQueryBuilder> 
     }
 
     private Long expectedDateLong(Object value, RangeQueryBuilder queryBuilder, QueryParseContext context) {
-        SmartNameFieldMappers smartFieldMappers = context.smartFieldMappers(queryBuilder.fieldName());
-        FieldMapper<?> mapper = smartFieldMappers.mapper();
+        FieldMapper mapper = context.fieldMapper(queryBuilder.fieldName());
         DateMathParser dateParser = null;
         if (queryBuilder.format()  != null) {
             dateParser = new DateMathParser(Joda.forPattern(queryBuilder.format()), DateFieldMapper.Defaults.TIME_UNIT);
@@ -183,5 +181,4 @@ public class RangeQueryBuilderTest extends BaseQueryTestCase<RangeQueryBuilder> 
         }
         return expectedDate;
     }
-
 }

@@ -22,6 +22,7 @@ package org.elasticsearch.index.query;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 
+import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.queryparser.classic.MapperQueryParser;
 import org.apache.lucene.queryparser.classic.QueryParserSettings;
 import org.apache.lucene.search.Filter;
@@ -299,32 +300,36 @@ public class QueryParseContext {
         }
     }
 
-    public FieldMapper fieldMapper(String name) {
-        FieldMappers fieldMappers = indexQueryParser.mapperService.smartNameFieldMappers(name, getTypes());
-        if (fieldMappers == null) {
-            return null;
-        }
-        return fieldMappers.mapper();
-    }
-
-    public String indexName(String name) {
-        FieldMapper smartMapper = fieldMapper(name);
-        if (smartMapper == null) {
-            return name;
-        }
-        return smartMapper.names().indexName();
-    }
-
     public List<String> simpleMatchToIndexNames(String pattern) {
         return indexQueryParser.mapperService.simpleMatchToIndexNames(pattern, getTypes());
     }
 
-    public MapperService.SmartNameFieldMappers smartFieldMappers(String name) {
-        return failIfFieldMappingNotFound(name, indexQueryParser.mapperService.smartName(name, getTypes()));
+    public FieldMapper fieldMapper(String name) {
+        return failIfFieldMappingNotFound(name, indexQueryParser.mapperService.smartNameFieldMapper(name, getTypes()));
     }
 
     public MapperService.SmartNameObjectMapper smartObjectMapper(String name) {
         return indexQueryParser.mapperService.smartNameObjectMapper(name, getTypes());
+    }
+
+    /** Gets the search analyzer for the given field, or the default if there is none present for the field
+     * TODO: remove this by moving defaults into mappers themselves
+     */
+    public Analyzer getSearchAnalyzer(FieldMapper mapper) {
+        if (mapper.searchAnalyzer() != null) {
+            return mapper.searchAnalyzer();
+        }
+        return mapperService().searchAnalyzer();
+    }
+
+    /** Gets the search quote nalyzer for the given field, or the default if there is none present for the field
+     * TODO: remove this by moving defaults into mappers themselves
+     */
+    public Analyzer getSearchQuoteAnalyzer(FieldMapper mapper) {
+        if (mapper.searchQuoteAnalyzer() != null) {
+            return mapper.searchQuoteAnalyzer();
+        }
+        return mapperService().searchQuoteAnalyzer();
     }
 
     public void setAllowUnmappedFields(boolean allowUnmappedFields) {
@@ -335,7 +340,7 @@ public class QueryParseContext {
         this.mapUnmappedFieldAsString = mapUnmappedFieldAsString;
     }
 
-    private MapperService.SmartNameFieldMappers failIfFieldMappingNotFound(String name, MapperService.SmartNameFieldMappers fieldMapping) {
+    private FieldMapper failIfFieldMappingNotFound(String name, FieldMapper fieldMapping) {
         if (allowUnmappedFields) {
             return fieldMapping;
         } else if (mapUnmappedFieldAsString){
@@ -343,7 +348,7 @@ public class QueryParseContext {
             // it would be better to pass the real index settings, but they are not easily accessible from here...
             Settings settings = ImmutableSettings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, indexQueryParser.getIndexCreatedVersion()).build();
             StringFieldMapper stringFieldMapper = builder.build(new Mapper.BuilderContext(settings, new ContentPath(1)));
-            return new MapperService.SmartNameFieldMappers(mapperService(), new FieldMappers(stringFieldMapper), null, false);
+            return stringFieldMapper;
         } else {
             Version indexCreatedVersion = indexQueryParser.getIndexCreatedVersion();
             if (fieldMapping == null && indexCreatedVersion.onOrAfter(Version.V_1_4_0_Beta1)) {

@@ -74,6 +74,9 @@ import org.elasticsearch.index.cache.filter.FilterCacheModule;
 import org.elasticsearch.index.cache.filter.FilterCacheModule.FilterCacheSettings;
 import org.elasticsearch.index.cache.filter.index.IndexFilterCache;
 import org.elasticsearch.index.cache.filter.none.NoneFilterCache;
+import org.elasticsearch.index.engine.CommitStats;
+import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.EngineClosedException;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardModule;
 import org.elasticsearch.index.shard.IndexShardState;
@@ -275,6 +278,7 @@ public final class InternalTestCluster extends TestCluster {
             }
         }
         builder.put("path.home", baseDir);
+        builder.put("path.repo", baseDir.resolve("repos"));
         builder.put("transport.tcp.port", BASE_PORT + "-" + (BASE_PORT+100));
         builder.put("http.port", BASE_PORT+101 + "-" + (BASE_PORT+200));
         builder.put("config.ignore_system_properties", true);
@@ -365,7 +369,7 @@ public final class InternalTestCluster extends TestCluster {
                 .put("cluster.routing.schedule", (30 + random.nextInt(50)) + "ms")
                 .put(SETTING_CLUSTER_NODE_SEED, seed);
         if (ENABLE_MOCK_MODULES && usually(random)) {
-            builder.put(IndexStoreModule.STORE_TYPE, MockFSIndexStoreModule.class.getName()); // no RAM dir for now!
+            builder.put(IndexStoreModule.STORE_TYPE, MockFSIndexStoreModule.class.getName());
             builder.put(IndexShardModule.ENGINE_FACTORY, MockEngineFactory.class);
             builder.put(PageCacheRecyclerModule.CACHE_IMPL, MockPageCacheRecyclerModule.class.getName());
             builder.put(BigArraysModule.IMPL, MockBigArraysModule.class.getName());
@@ -978,6 +982,35 @@ public final class InternalTestCluster extends TestCluster {
         // and not all docs have been purged after the test) and inherit from
         // ElasticsearchIntegrationTest must override beforeIndexDeletion() to avoid failures.
         assertShardIndexCounter();
+        //check that shards that have same sync id also contain same number of documents
+        assertSameSyncIdSameDocs();
+
+    }
+
+    private void assertSameSyncIdSameDocs() {
+        Map<String, Long> docsOnShards = new HashMap<>();
+        final Collection<NodeAndClient> nodesAndClients = nodes.values();
+        for (NodeAndClient nodeAndClient : nodesAndClients) {
+            IndicesService indexServices = getInstance(IndicesService.class, nodeAndClient.name);
+            for (IndexService indexService : indexServices) {
+                for (IndexShard indexShard : indexService) {
+                    try {
+                        CommitStats commitStats = indexShard.engine().commitStats();
+                        String syncId = commitStats.getUserData().get(Engine.SYNC_COMMIT_ID);
+                        if (syncId != null) {
+                            long liveDocsOnShard = commitStats.getNumDocs();
+                            if (docsOnShards.get(syncId) != null) {
+                                assertThat("sync id is equal but number of docs does not match on node " + nodeAndClient.name + ". expected " + docsOnShards.get(syncId) + " but got " + liveDocsOnShard, docsOnShards.get(syncId), equalTo(liveDocsOnShard));
+                            } else {
+                                docsOnShards.put(syncId, liveDocsOnShard);
+                            }
+                        }
+                    } catch (EngineClosedException e) {
+                        // nothing to do, shard is closed
+                    }
+                }
+            }
+        }
     }
 
     private void assertShardIndexCounter() {

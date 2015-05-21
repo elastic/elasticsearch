@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
+import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -215,6 +216,17 @@ public class RoutingAllocation {
         }
         Set<String> nodes = ignoredShardToNodes.get(shardId);
         return nodes != null && nodes.contains(nodeId);
+    }
+
+    public Set<String> getIgnoreNodes(ShardId shardId) {
+        if (ignoredShardToNodes == null) {
+            return ImmutableSet.of();
+        }
+        Set<String> ignore = ignoredShardToNodes.get(shardId);
+        if (ignore == null) {
+            return ImmutableSet.of();
+        }
+        return ImmutableSet.copyOf(ignore);
     }
 
     /**

@@ -40,6 +40,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.index.IndexShardMissingException;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.RecoveryEngineException;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
@@ -158,12 +159,12 @@ public class RecoveryTarget extends AbstractComponent {
         assert recoveryStatus.sourceNode() != null : "can't do a recovery without a source node";
 
         logger.trace("collecting local files for {}", recoveryStatus);
-        Map<String, StoreFileMetaData> existingFiles;
+        Store.MetadataSnapshot metadataSnapshot = null;
         try {
-            existingFiles = recoveryStatus.store().getMetadataOrEmpty().asMap();
+            metadataSnapshot = recoveryStatus.store().getMetadataOrEmpty();
         } catch (IOException e) {
             logger.warn("error while listing local files, recover as if there are none", e);
-            existingFiles = Store.MetadataSnapshot.EMPTY.asMap();
+            metadataSnapshot = Store.MetadataSnapshot.EMPTY;
         } catch (Exception e) {
             // this will be logged as warning later on...
             logger.trace("unexpected error while listing local files, failing recovery", e);
@@ -172,7 +173,7 @@ public class RecoveryTarget extends AbstractComponent {
             return;
         }
         final StartRecoveryRequest request = new StartRecoveryRequest(recoveryStatus.shardId(), recoveryStatus.sourceNode(), clusterService.localNode(),
-                false, existingFiles, recoveryStatus.state().getType(), recoveryStatus.recoveryId());
+                false, metadataSnapshot, recoveryStatus.state().getType(), recoveryStatus.recoveryId());
 
         final AtomicReference<RecoveryResponse> responseHolder = new AtomicReference<>();
         try {
@@ -262,7 +263,7 @@ public class RecoveryTarget extends AbstractComponent {
         }
     }
 
-    public static interface RecoveryListener {
+    public interface RecoveryListener {
         void onRecoveryDone(RecoveryState state);
 
         void onRecoveryFailure(RecoveryState state, RecoveryFailedException e, boolean sendShardFailure);
@@ -355,7 +356,11 @@ public class RecoveryTarget extends AbstractComponent {
                     // source shard since this index might be broken there as well? The Source can handle this and checks
                     // its content on disk if possible.
                     try {
-                        Lucene.cleanLuceneIndex(store.directory()); // clean up and delete all files
+                        try {
+                            store.removeCorruptionMarker();
+                        } finally {
+                            Lucene.cleanLuceneIndex(store.directory()); // clean up and delete all files
+                        }
                     } catch (Throwable e) {
                         logger.debug("Failed to clean lucene index", e);
                         ex.addSuppressed(e);

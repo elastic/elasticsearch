@@ -21,7 +21,7 @@ package org.elasticsearch.gateway;
 
 import com.google.common.collect.Lists;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.*;
@@ -29,15 +29,15 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.shard.ShardStateMetaData;
+import org.elasticsearch.index.store.Store;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -48,7 +48,8 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
 /**
  *
  */
-public class TransportNodesListGatewayStartedShards extends TransportNodesOperationAction<TransportNodesListGatewayStartedShards.Request, TransportNodesListGatewayStartedShards.NodesGatewayStartedShards, TransportNodesListGatewayStartedShards.NodeRequest, TransportNodesListGatewayStartedShards.NodeGatewayStartedShards> {
+public class TransportNodesListGatewayStartedShards extends TransportNodesOperationAction<TransportNodesListGatewayStartedShards.Request, TransportNodesListGatewayStartedShards.NodesGatewayStartedShards, TransportNodesListGatewayStartedShards.NodeRequest, TransportNodesListGatewayStartedShards.NodeGatewayStartedShards>
+        implements AsyncShardFetch.List<TransportNodesListGatewayStartedShards.NodesGatewayStartedShards, TransportNodesListGatewayStartedShards.NodeGatewayStartedShards> {
 
     public static final String ACTION_NAME = "internal:gateway/local/started_shards";
     private final NodeEnvironment nodeEnv;
@@ -56,12 +57,13 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesOperat
     @Inject
     public TransportNodesListGatewayStartedShards(Settings settings, ClusterName clusterName, ThreadPool threadPool, ClusterService clusterService, TransportService transportService, ActionFilters actionFilters, NodeEnvironment env) {
         super(settings, ACTION_NAME, clusterName, threadPool, clusterService, transportService, actionFilters,
-                Request.class, NodeRequest.class, ThreadPool.Names.GENERIC);
+                Request.class, NodeRequest.class, ThreadPool.Names.FETCH_SHARD_STARTED);
         this.nodeEnv = env;
     }
 
-    public ActionFuture<NodesGatewayStartedShards> list(ShardId shardId, String indexUUID, String[] nodesIds, @Nullable TimeValue timeout) {
-        return execute(new Request(shardId, indexUUID, nodesIds).timeout(timeout));
+    @Override
+    public void list(ShardId shardId, IndexMetaData indexMetaData, String[] nodesIds, ActionListener<NodesGatewayStartedShards> listener) {
+        execute(new Request(shardId, indexMetaData.getUUID(), nodesIds), listener);
     }
 
     @Override
@@ -105,6 +107,11 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesOperat
             logger.trace("{} loading local shard state info", shardId);
             ShardStateMetaData shardStateMetaData = ShardStateMetaData.FORMAT.loadLatestState(logger, nodeEnv.availableShardPaths(request.shardId));
             if (shardStateMetaData != null) {
+                final IndexMetaData metaData = clusterService.state().metaData().index(shardId.index().name()); // it's a mystery why this is sometimes null
+                if (metaData != null && canOpenIndex(request.getShardId(), metaData) == false) {
+                    logger.trace("{} can't open index for shard", shardId);
+                    return new NodeGatewayStartedShards(clusterService.localNode(), -1);
+                }
                 // old shard metadata doesn't have the actual index UUID so we need to check if the actual uuid in the metadata
                 // is equal to IndexMetaData.INDEX_UUID_NA_VALUE otherwise this shard doesn't belong to the requested index.
                 if (indexUUID.equals(shardStateMetaData.indexUUID) == false
@@ -120,6 +127,18 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesOperat
         } catch (Exception e) {
             throw new ElasticsearchException("failed to load started shards", e);
         }
+    }
+
+    private boolean canOpenIndex(ShardId shardId, IndexMetaData metaData) throws IOException {
+        // try and see if we an list unallocated
+        if (metaData == null) {
+            return false;
+        }
+        final ShardPath shardPath = ShardPath.loadShardPath(logger, nodeEnv, shardId, metaData.settings());
+        if (shardPath == null) {
+            return false;
+        }
+        return Store.canOpenIndex(logger, shardPath.resolveIndex());
     }
 
     @Override
@@ -174,6 +193,7 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesOperat
             this.failures = failures;
         }
 
+        @Override
         public FailedNodeException[] failures() {
             return failures;
         }

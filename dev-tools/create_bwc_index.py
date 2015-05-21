@@ -182,7 +182,7 @@ def generate_index(client, version, index_name):
       }
     }
     # completion type was added in 0.90.3
-    if version not in ['0.90.0.Beta1', '0.90.0.RC1', '0.90.0.RC2', '0.90.0', '0.90.1', '0.90.2']:
+    if not version.startswith('0.20') and version not in ['0.90.0.Beta1', '0.90.0.RC1', '0.90.0.RC2', '0.90.0', '0.90.1', '0.90.2']:
       mappings['analyzer_type1']['properties']['completion_with_index_analyzer'] = {
         'type': 'completion',
         'index_analyzer': 'standard'
@@ -257,7 +257,7 @@ def generate_index(client, version, index_name):
   logging.info('Running basic asserts on the data added')
   run_basic_asserts(client, index_name, 'doc', num_docs)
 
-def snapshot_index(client, cfg, version, repo_dir):
+def snapshot_index(client, version, repo_dir):
   # Add bogus persistent settings to make sure they can be restored
   client.cluster.put_settings(body={
     'persistent': {
@@ -361,7 +361,7 @@ def create_bwc_index(cfg, version):
     index_name = 'index-%s' % version.lower()
     generate_index(client, version, index_name)
     if snapshot_supported:
-      snapshot_index(client, cfg, version, repo_dir)
+      snapshot_index(client, version, repo_dir)
 
     # 10067: get a delete-by-query into the translog on upgrade.  We must do
     # this after the snapshot, because it calls flush.  Otherwise the index

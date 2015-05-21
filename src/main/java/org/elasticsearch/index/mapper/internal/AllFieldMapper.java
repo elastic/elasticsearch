@@ -193,7 +193,7 @@ public class AllFieldMapper extends AbstractFieldMapper<String> implements RootM
 
     @Override
     public Query termQuery(Object value, QueryParseContext context) {
-        return queryStringTermQuery(names().createIndexNameTerm(indexedValueForSearch(value)));
+        return queryStringTermQuery(createTerm(value));
     }
 
     @Override

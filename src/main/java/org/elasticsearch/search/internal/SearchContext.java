@@ -28,6 +28,9 @@ import org.apache.lucene.search.Sort;
 import org.apache.lucene.util.Counter;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
+import org.elasticsearch.common.HasContext;
+import org.elasticsearch.common.HasContextAndHeaders;
+import org.elasticsearch.common.HasHeaders;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
@@ -67,7 +70,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  */
-public abstract class SearchContext implements Releasable {
+public abstract class SearchContext implements Releasable, HasContextAndHeaders {
 
     private static ThreadLocal<SearchContext> current = new ThreadLocal<>();
     public final static int DEFAULT_TERMINATE_AFTER = 0;
@@ -339,10 +342,6 @@ public abstract class SearchContext implements Releasable {
     }
 
     public abstract ScanContext scanContext();
-
-    public abstract MapperService.SmartNameFieldMappers smartFieldMappers(String name);
-
-    public abstract FieldMappers smartNameFieldMappers(String name);
 
     public abstract FieldMapper smartNameFieldMapper(String name);
 

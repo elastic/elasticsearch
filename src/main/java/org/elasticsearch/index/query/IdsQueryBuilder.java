@@ -166,7 +166,7 @@ public class IdsQueryBuilder extends QueryBuilder implements Streamable, Boostab
             typesForQuery = parseContext.mapperService().types();
         }
 
-        TermsQuery query = new TermsQuery(UidFieldMapper.NAME, Uid.createTypeUids(typesForQuery, ids));
+        TermsQuery query = new TermsQuery(UidFieldMapper.NAME, Uid.createUidsForTypesAndIds(typesForQuery, ids));
         query.setBoost(boost);
         if (queryName != null) {
             parseContext.addNamedQuery(queryName, query);

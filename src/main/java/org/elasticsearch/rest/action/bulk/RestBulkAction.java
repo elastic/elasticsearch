@@ -19,6 +19,7 @@
 
 package org.elasticsearch.rest.action.bulk;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionWriteResponse;
 import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.bulk.BulkItemResponse;
@@ -102,7 +103,9 @@ public class RestBulkAction extends BaseRestHandler {
                     }
                     if (itemResponse.isFailed()) {
                         builder.field(Fields.STATUS, itemResponse.getFailure().getStatus().getStatus());
-                        builder.field(Fields.ERROR, itemResponse.getFailure().getMessage());
+                        builder.startObject(Fields.ERROR);
+                        ElasticsearchException.toXContent(builder, request, itemResponse.getFailure().getCause());
+                        builder.endObject();
                     } else {
                         ActionWriteResponse.ShardInfo shardInfo = itemResponse.getResponse().getShardInfo();
                         shardInfo.toXContent(builder, request);

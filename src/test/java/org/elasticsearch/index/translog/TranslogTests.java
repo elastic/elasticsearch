@@ -64,7 +64,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.regex.Matcher;
 
 import static com.google.common.collect.Lists.newArrayList;
 import static org.hamcrest.Matchers.*;
@@ -109,6 +108,7 @@ public class TranslogTests extends ElasticsearchTestCase {
     @After
     public void tearDown() throws Exception {
         try {
+            assertEquals("there are still open views", 0, translog.getNumOpenViews());
             translog.close();
         } finally {
             super.tearDown();
@@ -117,7 +117,7 @@ public class TranslogTests extends ElasticsearchTestCase {
 
     protected Translog create(Path path) throws IOException {
         Settings build = ImmutableSettings.settingsBuilder()
-                .put("index.translog.fs.type", TranslogWriter.Type.SIMPLE.name())
+                .put(TranslogConfig.INDEX_TRANSLOG_FS_TYPE, TranslogWriter.Type.SIMPLE.name())
                 .build();
         TranslogConfig translogConfig = new TranslogConfig(shardId, path, build, Translog.Durabilty.REQUEST, BigArrays.NON_RECYCLING_INSTANCE, null);
         return new Translog(translogConfig);
@@ -165,8 +165,18 @@ public class TranslogTests extends ElasticsearchTestCase {
         assertThat(translog.read(loc3).getSource().source.toBytesArray(), equalTo(new BytesArray(new byte[]{3})));
         translog.sync();
         assertThat(translog.read(loc3).getSource().source.toBytesArray(), equalTo(new BytesArray(new byte[]{3})));
-
-
+        translog.prepareCommit();
+        assertThat(translog.read(loc3).getSource().source.toBytesArray(), equalTo(new BytesArray(new byte[]{3})));
+        translog.commit();
+        assertNull(translog.read(loc1));
+        assertNull(translog.read(loc2));
+        assertNull(translog.read(loc3));
+        try {
+            translog.read(new Translog.Location(translog.currentFileGeneration() + 1, 17, 35));
+            fail("generation is greater than the current");
+        } catch (IllegalStateException ex) {
+            // expected
+        }
     }
 
     @Test
@@ -1024,23 +1034,18 @@ public class TranslogTests extends ElasticsearchTestCase {
 
     }
 
-
     public void testSnapshotFromStreamInput() throws IOException {
         BytesStreamOutput out = new BytesStreamOutput();
         List<Translog.Operation> ops = newArrayList();
         int translogOperations = randomIntBetween(10, 100);
         for (int op = 0; op < translogOperations; op++) {
             Translog.Create test = new Translog.Create("test", "" + op, Integer.toString(op).getBytes(Charset.forName("UTF-8")));
-            Translog.writeOperation(out, test);
             ops.add(test);
         }
-        Translog.Snapshot snapshot = Translog.snapshotFromStream(StreamInput.wrap(out.bytes()), ops.size());
-        assertEquals(ops.size(), snapshot.estimatedTotalOperations());
-        for (Translog.Operation op : ops) {
-            assertEquals(op, snapshot.next());
-        }
-        assertNull(snapshot.next());
-        // no need to close
+        Translog.writeOperations(out, ops);
+        final List<Translog.Operation> readOperations = Translog.readOperations(StreamInput.wrap(out.bytes()));
+        assertEquals(ops.size(), readOperations.size());
+        assertEquals(ops, readOperations);
     }
 
     public void testLocationHashCodeEquals() throws IOException {

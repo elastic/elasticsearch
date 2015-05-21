@@ -25,10 +25,9 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Terms;
-import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.NumericRangeQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.QueryWrapperFilter;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.NumericUtils;
@@ -203,14 +202,11 @@ public class IntegerFieldMapper extends NumberFieldMapper<Integer> {
     }
 
     @Override
-    public Filter nullValueFilter() {
+    public Query nullValueFilter() {
         if (nullValue == null) {
             return null;
         }
-        return new QueryWrapperFilter(NumericRangeQuery.newIntRange(names.indexName(), precisionStep,
-                nullValue,
-                nullValue,
-                true, true));
+        return new ConstantScoreQuery(termQuery(nullValue, null));
     }
 
     @Override

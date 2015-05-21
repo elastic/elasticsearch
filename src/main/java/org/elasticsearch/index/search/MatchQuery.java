@@ -30,7 +30,6 @@ import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.support.QueryParsers;
 
@@ -139,33 +138,25 @@ public class MatchQuery {
         return false;
     }
 
-    protected Analyzer getAnalyzer(FieldMapper mapper, MapperService.SmartNameFieldMappers smartNameFieldMappers) {
-        Analyzer analyzer = null;
+    protected Analyzer getAnalyzer(FieldMapper mapper) {
         if (this.analyzer == null) {
             if (mapper != null) {
-                analyzer = mapper.searchAnalyzer();
+                return parseContext.getSearchAnalyzer(mapper);
             }
-            if (analyzer == null && smartNameFieldMappers != null) {
-                analyzer = smartNameFieldMappers.searchAnalyzer();
-            }
-            if (analyzer == null) {
-                analyzer = parseContext.mapperService().searchAnalyzer();
-            }
+            return parseContext.mapperService().searchAnalyzer();
         } else {
-            analyzer = parseContext.mapperService().analysisService().analyzer(this.analyzer);
+            Analyzer analyzer = parseContext.mapperService().analysisService().analyzer(this.analyzer);
             if (analyzer == null) {
                 throw new IllegalArgumentException("No analyzer found for [" + this.analyzer + "]");
             }
+            return analyzer;
         }
-        return analyzer;
     }
 
     public Query parse(Type type, String fieldName, Object value) throws IOException {
-        FieldMapper mapper = null;
         final String field;
-        MapperService.SmartNameFieldMappers smartNameFieldMappers = parseContext.smartFieldMappers(fieldName);
-        if (smartNameFieldMappers != null && smartNameFieldMappers.hasMapper()) {
-            mapper = smartNameFieldMappers.mapper();
+        FieldMapper mapper = parseContext.fieldMapper(fieldName);
+        if (mapper != null) {
             field = mapper.names().indexName();
         } else {
             field = fieldName;
@@ -182,7 +173,8 @@ public class MatchQuery {
             }
             
         }
-        Analyzer analyzer = getAnalyzer(mapper, smartNameFieldMappers);
+        Analyzer analyzer = getAnalyzer(mapper);
+        assert analyzer != null;
         MatchQueryBuilder builder = new MatchQueryBuilder(analyzer, mapper);
         builder.setEnablePositionIncrements(this.enablePositionIncrements);
 

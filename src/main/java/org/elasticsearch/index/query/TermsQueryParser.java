@@ -20,7 +20,6 @@
 package org.elasticsearch.index.query;
 
 import com.google.common.collect.Lists;
-
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.TermsQuery;
 import org.apache.lucene.search.BooleanClause.Occur;
@@ -38,8 +37,8 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.cache.filter.terms.TermsLookup;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.List;
@@ -74,7 +73,6 @@ public class TermsQueryParser extends BaseQueryParserTemp {
     public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
-        MapperService.SmartNameFieldMappers smartNameFieldMappers;
         String queryName = null;
         String currentFieldName = null;
 
@@ -160,18 +158,16 @@ public class TermsQueryParser extends BaseQueryParserTemp {
             throw new QueryParsingException(parseContext, "terms query requires a field name, followed by array of terms");
         }
 
-        FieldMapper<?> fieldMapper = null;
-        smartNameFieldMappers = parseContext.smartFieldMappers(fieldName);
-        if (smartNameFieldMappers != null) {
-            if (smartNameFieldMappers.hasMapper()) {
-                fieldMapper = smartNameFieldMappers.mapper();
-                fieldName = fieldMapper.names().indexName();
-            }
+        FieldMapper<?> fieldMapper = parseContext.fieldMapper(fieldName);
+        if (fieldMapper != null) {
+            fieldName = fieldMapper.names().indexName();
         }
 
         if (lookupId != null) {
             final TermsLookup lookup = new TermsLookup(lookupIndex, lookupType, lookupId, lookupRouting, lookupPath, parseContext);
-            final GetResponse getResponse = client.get(new GetRequest(lookup.getIndex(), lookup.getType(), lookup.getId()).preference("_local").routing(lookup.getRouting())).actionGet();
+            GetRequest getRequest = new GetRequest(lookup.getIndex(), lookup.getType(), lookup.getId()).preference("_local").routing(lookup.getRouting());
+            getRequest.copyContextAndHeadersFrom(SearchContext.current());
+            final GetResponse getResponse = client.get(getRequest).actionGet();
             if (getResponse.isExists()) {
                 List<Object> values = XContentMapValues.extractRawValues(lookup.getPath(), getResponse.getSourceAsMap());
                 terms.addAll(values);

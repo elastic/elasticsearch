@@ -84,7 +84,7 @@ public class RestValidateQueryAction extends BaseRestHandler {
                 builder.startObject();
                 builder.field("valid", response.isValid());
 
-                buildBroadcastShardsHeader(builder, response);
+                buildBroadcastShardsHeader(builder, request, response);
 
                 if (response.getQueryExplanation() != null && !response.getQueryExplanation().isEmpty()) {
                     builder.startArray("explanations");

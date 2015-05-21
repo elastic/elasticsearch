@@ -20,8 +20,12 @@
 package org.elasticsearch.common.compress;
 
 import org.apache.lucene.util.TestUtil;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.test.ElasticsearchTestCase;
+import org.junit.Assert;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -40,6 +44,12 @@ public class CompressedStringTests extends ElasticsearchTestCase {
         simpleTests("lzf");
     }
 
+    private void assertEquals(CompressedString s1, CompressedString s2) {
+        Assert.assertEquals(s1, s2);
+        assertArrayEquals(s1.uncompressed(), s2.uncompressed());
+        assertEquals(s1.hashCode(), s2.hashCode());
+    }
+
     public void simpleTests(String compressor) throws IOException {
         CompressorFactory.configure(ImmutableSettings.settingsBuilder().put("compress.default.type", compressor).build());
         String str = "this is a simple string";
@@ -51,9 +61,9 @@ public class CompressedStringTests extends ElasticsearchTestCase {
         CompressedString cstr2 = new CompressedString(str2);
         assertThat(cstr2.string(), not(equalTo(str)));
         assertThat(new CompressedString(str2), not(equalTo(cstr)));
-        assertThat(new CompressedString(str2), equalTo(cstr2));
+        assertEquals(new CompressedString(str2), cstr2);
     }
-    
+
     public void testRandom() throws IOException {
         String compressor = "lzf";
         CompressorFactory.configure(ImmutableSettings.settingsBuilder().put("compress.default.type", compressor).build());
@@ -64,4 +74,40 @@ public class CompressedStringTests extends ElasticsearchTestCase {
             assertThat(compressedString.string(), equalTo(string));
         }
     }
+
+    public void testDifferentCompressedRepresentation() throws Exception {
+        byte[] b = "abcdefghijabcdefghij".getBytes("UTF-8");
+        CompressorFactory.defaultCompressor();
+
+        Compressor compressor = CompressorFactory.defaultCompressor();
+        BytesStreamOutput bout = new BytesStreamOutput();
+        StreamOutput out = compressor.streamOutput(bout);
+        out.writeBytes(b);
+        out.flush();
+        out.writeBytes(b);
+        out.close();
+        final BytesReference b1 = bout.bytes();
+
+        bout = new BytesStreamOutput();
+        out = compressor.streamOutput(bout);
+        out.writeBytes(b);
+        out.writeBytes(b);
+        out.close();
+        final BytesReference b2 = bout.bytes();
+
+        // because of the intermediate flush, the two compressed representations
+        // are different. It can also happen for other reasons like if hash tables
+        // of different size are being used
+        assertFalse(b1.equals(b2));
+        // we used the compressed representation directly and did not recompress
+        assertArrayEquals(b1.toBytes(), new CompressedString(b1).compressed());
+        assertArrayEquals(b2.toBytes(), new CompressedString(b2).compressed());
+        // but compressedstring instances are still equal
+        assertEquals(new CompressedString(b1), new CompressedString(b2));
+    }
+
+    public void testHashCode() throws IOException {
+        assertFalse(new CompressedString("a").hashCode() == new CompressedString("b").hashCode());
+    }
+
 }

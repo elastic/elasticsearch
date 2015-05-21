@@ -67,7 +67,7 @@ class DocumentParser implements Closeable {
         this.docMapper = docMapper;
     }
 
-    public ParsedDocument parseDocument(SourceToParse source, @Nullable DocumentMapper.ParseListener listener) throws MapperParsingException {
+    public ParsedDocument parseDocument(SourceToParse source) throws MapperParsingException {
         ParseContext.InternalParseContext context = cache.get();
 
         final Mapping mapping = docMapper.mapping();
@@ -84,7 +84,7 @@ class DocumentParser implements Closeable {
             if (mapping.sourceTransforms.length > 0) {
                 parser = transform(mapping, parser);
             }
-            context.reset(parser, new ParseContext.Document(), source, listener);
+            context.reset(parser, new ParseContext.Document(), source);
 
             // will result in START_OBJECT
             int countDownTokens = 0;
@@ -166,7 +166,7 @@ class DocumentParser implements Closeable {
         ParsedDocument doc = new ParsedDocument(context.uid(), context.version(), context.id(), context.type(), source.routing(), source.timestamp(), source.ttl(), context.docs(),
             context.source(), update).parent(source.parent());
         // reset the context to free up memory
-        context.reset(null, null, null, null);
+        context.reset(null, null, null);
         return doc;
     }
 

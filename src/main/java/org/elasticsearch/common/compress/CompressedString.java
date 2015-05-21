@@ -24,28 +24,20 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
 
 import java.io.IOException;
 import java.util.Arrays;
 
 /**
- *
+ * Similar class to the {@link String} class except that it internally stores
+ * data using a compressed representation in order to require less permanent
+ * memory. Note that the compressed string might still sometimes need to be
+ * decompressed in order to perform equality checks or to compute hash codes.
  */
-public class CompressedString implements Streamable {
+public final class CompressedString {
 
-    private byte[] bytes;
-
-    CompressedString() {
-    }
-
-    /**
-     * Constructor assuming the data provided is compressed (UTF8). It uses the provided
-     * array without copying it.
-     */
-    public CompressedString(byte[] compressed) {
-        this.bytes = compressed;
-    }
+    private final byte[] bytes;
+    private int hashCode;
 
     public CompressedString(BytesReference data) throws IOException {
         Compressor compressor = CompressorFactory.compressor(data);
@@ -55,40 +47,37 @@ public class CompressedString implements Streamable {
         } else {
             BytesArray bytesArray = data.toBytesArray();
             this.bytes = CompressorFactory.defaultCompressor().compress(bytesArray.array(), bytesArray.arrayOffset(), bytesArray.length());
+            assert CompressorFactory.compressor(bytes) != null;
         }
+
     }
 
-    /**
-     * Constructs a new compressed string, assuming the bytes are UTF8, by copying it over.
-     *
-     * @param data   The byte array
-     * @param offset Offset into the byte array
-     * @param length The length of the data
-     * @throws IOException
-     */
     public CompressedString(byte[] data, int offset, int length) throws IOException {
-        Compressor compressor = CompressorFactory.compressor(data, offset, length);
-        if (compressor != null) {
-            // already compressed...
-            this.bytes = Arrays.copyOfRange(data, offset, offset + length);
-        } else {
-            // default to LZF
-            this.bytes = CompressorFactory.defaultCompressor().compress(data, offset, length);
-        }
+        this(new BytesArray(data, offset, length));
+    }
+
+    public CompressedString(byte[] data) throws IOException {
+        this(data, 0, data.length);
     }
 
     public CompressedString(String str) throws IOException {
-        BytesRef result = new BytesRef(str);
-        this.bytes = CompressorFactory.defaultCompressor().compress(result.bytes, result.offset, result.length);
+        this(new BytesArray(new BytesRef(str)));
     }
 
+    /** Return the compressed bytes. */
     public byte[] compressed() {
         return this.bytes;
     }
 
-    public byte[] uncompressed() throws IOException {
+    /** Return the uncompressed bytes. */
+    public byte[] uncompressed() {
         Compressor compressor = CompressorFactory.compressor(bytes);
-        return compressor.uncompress(bytes, 0, bytes.length);
+        assert compressor != null;
+        try {
+            return compressor.uncompress(bytes, 0, bytes.length);
+        } catch (IOException e) {
+            throw new IllegalStateException("Cannot decompress compressed string", e);
+        }
     }
 
     public String string() throws IOException {
@@ -96,18 +85,11 @@ public class CompressedString implements Streamable {
     }
 
     public static CompressedString readCompressedString(StreamInput in) throws IOException {
-        CompressedString compressedString = new CompressedString();
-        compressedString.readFrom(in);
-        return compressedString;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        bytes = new byte[in.readVInt()];
+        byte[] bytes = new byte[in.readVInt()];
         in.readBytes(bytes, 0, bytes.length);
+        return new CompressedString(bytes);
     }
 
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(bytes.length);
         out.writeBytes(bytes);
@@ -120,14 +102,23 @@ public class CompressedString implements Streamable {
 
         CompressedString that = (CompressedString) o;
 
-        if (!Arrays.equals(bytes, that.bytes)) return false;
+        if (Arrays.equals(compressed(), that.compressed())) {
+            return true;
+        }
 
-        return true;
+        return Arrays.equals(uncompressed(), that.uncompressed());
     }
 
     @Override
     public int hashCode() {
-        return bytes != null ? Arrays.hashCode(bytes) : 0;
+        if (hashCode == 0) {
+            int h = Arrays.hashCode(uncompressed());
+            if (h == 0) {
+                h = 1;
+            }
+            hashCode = h;
+        }
+        return hashCode;
     }
 
     @Override

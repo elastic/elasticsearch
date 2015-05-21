@@ -61,7 +61,7 @@ public class SnapshotBlocksTests extends ElasticsearchIntegrationTest {
         logger.info("--> register a repository");
         assertAcked(client().admin().cluster().preparePutRepository(REPOSITORY_NAME)
                 .setType("fs")
-                .setSettings(ImmutableSettings.settingsBuilder().put("location",  createTempDir())));
+                .setSettings(ImmutableSettings.settingsBuilder().put("location",  randomRepoPath())));
 
         logger.info("--> verify the repository");
         VerifyRepositoryResponse verifyResponse = client().admin().cluster().prepareVerifyRepository(REPOSITORY_NAME).get();

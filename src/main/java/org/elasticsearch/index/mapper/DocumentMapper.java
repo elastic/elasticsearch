@@ -82,28 +82,6 @@ import java.util.concurrent.CopyOnWriteArrayList;
  */
 public class DocumentMapper implements ToXContent {
 
-    /**
-     * A listener to be called during the parse process.
-     */
-    public static interface ParseListener<ParseContext> {
-
-        public static final ParseListener EMPTY = new ParseListenerAdapter();
-
-        /**
-         * Called before a field is added to the document. Return <tt>true</tt> to include
-         * it in the document.
-         */
-        boolean beforeFieldAdded(FieldMapper fieldMapper, Field fieldable, ParseContext parseContent);
-    }
-
-    public static class ParseListenerAdapter implements ParseListener {
-
-        @Override
-        public boolean beforeFieldAdded(FieldMapper fieldMapper, Field fieldable, Object parseContext) {
-            return true;
-        }
-    }
-
     public static class Builder {
 
         private Map<Class<? extends RootMapper>, RootMapper> rootMappers = new LinkedHashMap<>();
@@ -341,13 +319,7 @@ public class DocumentMapper implements ToXContent {
     }
 
     public ParsedDocument parse(SourceToParse source) throws MapperParsingException {
-        return documentParser.parseDocument(source, null);
-    }
-
-    // NOTE: do not use this method, it will be removed in the future once
-    // https://github.com/elastic/elasticsearch/issues/10736 is done (MLT api is the only user of this listener)
-    public ParsedDocument parse(SourceToParse source, @Nullable ParseListener listener) throws MapperParsingException {
-        return documentParser.parseDocument(source, listener);
+        return documentParser.parseDocument(source);
     }
 
     /**
@@ -491,7 +463,7 @@ public class DocumentMapper implements ToXContent {
         return mergeResult;
     }
 
-    public CompressedString refreshSource() throws ElasticsearchGenerationException {
+    private void refreshSource() throws ElasticsearchGenerationException {
         try {
             BytesStreamOutput bStream = new BytesStreamOutput();
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON, CompressorFactory.defaultCompressor().streamOutput(bStream));
@@ -499,7 +471,7 @@ public class DocumentMapper implements ToXContent {
             toXContent(builder, ToXContent.EMPTY_PARAMS);
             builder.endObject();
             builder.close();
-            return mappingSource = new CompressedString(bStream.bytes());
+            mappingSource = new CompressedString(bStream.bytes());
         } catch (Exception e) {
             throw new ElasticsearchGenerationException("failed to serialize source for type [" + type + "]", e);
         }

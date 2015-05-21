@@ -20,15 +20,9 @@
 package org.elasticsearch.common;
 
 import com.carrotsearch.hppc.ObjectObjectAssociativeContainer;
-import com.carrotsearch.hppc.ObjectObjectHashMap;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 
-/**
- *
- */
-public class ContextHolder {
-
-    private ObjectObjectHashMap<Object, Object> context;
+public interface HasContext {
 
     /**
      * Attaches the given value to the context.
@@ -36,37 +30,19 @@ public class ContextHolder {
      * @return  The previous value that was associated with the given key in the context, or
      *          {@code null} if there was none.
      */
-    @SuppressWarnings("unchecked")
-    public final synchronized <V> V putInContext(Object key, Object value) {
-        if (context == null) {
-            context = new ObjectObjectHashMap<>(2);
-        }
-        return (V) context.put(key, value);
-    }
+    <V> V putInContext(Object key, Object value);
 
     /**
      * Attaches the given values to the context
      */
-    public final synchronized void putAllInContext(ObjectObjectAssociativeContainer<Object, Object> map) {
-        if (map == null) {
-            return;
-        }
-        if (context == null) {
-            context = new ObjectObjectHashMap<>(map);
-        } else {
-            context.putAll(map);
-        }
-    }
+    void putAllInContext(ObjectObjectAssociativeContainer<Object, Object> map);
 
     /**
      * @return  The context value that is associated with the given key
      *
      * @see     #putInContext(Object, Object)
      */
-    @SuppressWarnings("unchecked")
-    public final synchronized <V> V getFromContext(Object key) {
-        return context != null ? (V) context.get(key) : null;
-    }
+    <V> V getFromContext(Object key);
 
     /**
      * @param defaultValue  The default value that should be returned for the given key, if no
@@ -76,54 +52,31 @@ public class ContextHolder {
      *
      * @see     #putInContext(Object, Object)
      */
-    @SuppressWarnings("unchecked")
-    public final synchronized <V> V getFromContext(Object key, V defaultValue) {
-        V value = getFromContext(key);
-        return value == null ? defaultValue : value;
-    }
+    <V> V getFromContext(Object key, V defaultValue);
 
     /**
      * Checks if the context contains an entry with the given key
      */
-    public final synchronized boolean hasInContext(Object key) {
-        return context != null && context.containsKey(key);
-    }
+    boolean hasInContext(Object key);
 
     /**
      * @return  The number of values attached in the context.
      */
-    public final synchronized int contextSize() {
-        return context != null ? context.size() : 0;
-    }
+    int contextSize();
 
     /**
      * Checks if the context is empty.
      */
-    public final synchronized boolean isContextEmpty() {
-        return context == null || context.isEmpty();
-    }
+    boolean isContextEmpty();
 
     /**
      * @return  A safe immutable copy of the current context.
      */
-    public synchronized ImmutableOpenMap<Object, Object> getContext() {
-        return context != null ? ImmutableOpenMap.copyOf(context) : ImmutableOpenMap.of();
-    }
+    ImmutableOpenMap<Object, Object> getContext();
 
     /**
      * Copies the context from the given context holder to this context holder. Any shared keys between
      * the two context will be overridden by the given context holder.
      */
-    public synchronized void copyContextFrom(ContextHolder other) {
-        synchronized (other) {
-            if (other.context == null) {
-                return;
-            }
-            if (context == null) {
-                context = new ObjectObjectHashMap<>(other.context);
-            } else {
-                context.putAll(other.context);
-            }
-        }
-    }
+    void copyContextFrom(HasContext other);
 }

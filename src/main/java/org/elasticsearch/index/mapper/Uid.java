@@ -130,20 +130,19 @@ public final class Uid {
         return spare.get();
     }
 
-    public static BytesRef[] createTypeUids(Collection<String> types, Object ids) {
-        return createTypeUids(types, Collections.singletonList(ids));
+    public static BytesRef[] createUidsForTypesAndId(Collection<String> types, Object id) {
+        return createUidsForTypesAndIds(types, Collections.singletonList(id));
     }
 
-    public static BytesRef[] createTypeUids(Collection<String> types, List<? extends Object> ids) {
-        final int numIds = ids.size();
+    public static BytesRef[] createUidsForTypesAndIds(Collection<String> types, Collection<?> ids) {
         BytesRef[] uids = new BytesRef[types.size() * ids.size()];
         BytesRefBuilder typeBytes = new BytesRefBuilder();
         BytesRefBuilder idBytes = new BytesRefBuilder();
         int index = 0;
         for (String type : types) {
             typeBytes.copyChars(type);
-            for (int i = 0; i < numIds; i++, index++) {
-                uids[index] = Uid.createUidAsBytes(typeBytes.get(), BytesRefs.toBytesRef(ids.get(i), idBytes));
+            for (Object id : ids) {
+                uids[index++] = Uid.createUidAsBytes(typeBytes.get(), BytesRefs.toBytesRef(id, idBytes));
             }
         }
         return uids;

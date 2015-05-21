@@ -150,7 +150,7 @@ public class HasParentQueryParser extends BaseQueryParserTemp {
         }
 
         if (innerHits != null) {
-            InnerHitsContext.ParentChildInnerHits parentChildInnerHits = new InnerHitsContext.ParentChildInnerHits(innerHits.v2(), innerQuery, null, parentDocMapper);
+            InnerHitsContext.ParentChildInnerHits parentChildInnerHits = new InnerHitsContext.ParentChildInnerHits(innerHits.v2(), innerQuery, null, parseContext.mapperService(), parentDocMapper);
             String name = innerHits.v1() != null ? innerHits.v1() : parentType;
             parseContext.addInnerHits(name, parentChildInnerHits);
         }
@@ -187,7 +187,7 @@ public class HasParentQueryParser extends BaseQueryParserTemp {
                     parentsFilter.add(documentMapper.typeFilter(), BooleanClause.Occur.SHOULD);
                 }
             }
-            parentFilter = new QueryWrapperFilter(parentsFilter);
+            parentFilter = parentsFilter;
         }
 
         if (parentFilter == null) {

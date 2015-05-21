@@ -177,7 +177,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContent {
         if (isTerminatedEarly() != null) {
             builder.field(Fields.TERMINATED_EARLY, isTerminatedEarly());
         }
-        RestActions.buildBroadcastShardsHeader(builder, getTotalShards(), getSuccessfulShards(), getFailedShards(), getShardFailures());
+        RestActions.buildBroadcastShardsHeader(builder, params, getTotalShards(), getSuccessfulShards(), getFailedShards(), getShardFailures());
         internalResponse.toXContent(builder, params);
         return builder;
     }

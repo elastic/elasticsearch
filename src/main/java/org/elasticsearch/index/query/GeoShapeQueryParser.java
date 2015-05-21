@@ -19,15 +19,12 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.Query;
+import org.apache.lucene.search.*;
 import org.apache.lucene.spatial.prefix.PrefixTreeStrategy;
 import org.apache.lucene.spatial.prefix.RecursivePrefixTreeStrategy;
 import org.apache.lucene.spatial.query.SpatialArgs;
 import org.apache.lucene.spatial.query.SpatialOperation;
+import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.ShapeRelation;
@@ -35,9 +32,9 @@ import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.geo.GeoShapeFieldMapper;
 import org.elasticsearch.index.search.shape.ShapeFetchService;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 
@@ -116,7 +113,9 @@ public class GeoShapeQueryParser extends BaseQueryParserTemp {
                             } else if (type == null) {
                                 throw new QueryParsingException(parseContext, "Type for indexed shape not provided");
                             }
-                            shape = fetchService.fetch(id, type, index, shapePath);
+                            GetRequest getRequest = new GetRequest(index, type, id);
+                            getRequest.copyContextAndHeadersFrom(SearchContext.current());
+                            shape = fetchService.fetch(getRequest, shapePath);
                         } else {
                             throw new QueryParsingException(parseContext, "[geo_shape] query does not support [" + currentFieldName + "]");
                         }
@@ -139,12 +138,11 @@ public class GeoShapeQueryParser extends BaseQueryParserTemp {
             throw new QueryParsingException(parseContext, "No Shape Relation defined");
         }
 
-        MapperService.SmartNameFieldMappers smartNameFieldMappers = parseContext.smartFieldMappers(fieldName);
-        if (smartNameFieldMappers == null || !smartNameFieldMappers.hasMapper()) {
+        FieldMapper fieldMapper = parseContext.fieldMapper(fieldName);
+        if (fieldMapper == null) {
             throw new QueryParsingException(parseContext, "Failed to find geo_shape field [" + fieldName + "]");
         }
 
-        FieldMapper fieldMapper = smartNameFieldMappers.mapper();
         // TODO: This isn't the nicest way to check this
         if (!(fieldMapper instanceof GeoShapeFieldMapper)) {
             throw new QueryParsingException(parseContext, "Field [" + fieldName + "] is not a geo_shape");

@@ -39,6 +39,7 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexException;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.indices.IndexPrimaryShardNotAllocatedException;
 import org.elasticsearch.rest.RestStatus;
@@ -58,11 +59,14 @@ public class MetaDataIndexStateService extends AbstractComponent {
 
     private final AllocationService allocationService;
 
+    private final MetaDataIndexUpgradeService metaDataIndexUpgradeService;
+
     @Inject
-    public MetaDataIndexStateService(Settings settings, ClusterService clusterService, AllocationService allocationService) {
+    public MetaDataIndexStateService(Settings settings, ClusterService clusterService, AllocationService allocationService, MetaDataIndexUpgradeService metaDataIndexUpgradeService) {
         super(settings);
         this.clusterService = clusterService;
         this.allocationService = allocationService;
+        this.metaDataIndexUpgradeService = metaDataIndexUpgradeService;
     }
 
     public void closeIndex(final CloseIndexClusterStateUpdateRequest request, final ActionListener<ClusterStateUpdateResponse> listener) {
@@ -160,7 +164,15 @@ public class MetaDataIndexStateService extends AbstractComponent {
                 ClusterBlocks.Builder blocksBuilder = ClusterBlocks.builder()
                         .blocks(currentState.blocks());
                 for (String index : indicesToOpen) {
-                    mdBuilder.put(IndexMetaData.builder(currentState.metaData().index(index)).state(IndexMetaData.State.OPEN));
+                    IndexMetaData indexMetaData = IndexMetaData.builder(currentState.metaData().index(index)).state(IndexMetaData.State.OPEN).build();
+                    // The index might be closed because we couldn't import it due to old incompatible version
+                    // We need to check that this index can be upgraded to the current version
+                    try {
+                        indexMetaData = metaDataIndexUpgradeService.upgradeIndexMetaData(indexMetaData);
+                    } catch (Exception ex) {
+                        throw new IndexException(new Index(index), "cannot open the index due to upgrade failure", ex);
+                    }
+                    mdBuilder.put(indexMetaData, true);
                     blocksBuilder.removeIndexBlock(index, INDEX_CLOSED_BLOCK);
                 }
 

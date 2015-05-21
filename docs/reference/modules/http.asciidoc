@@ -36,8 +36,8 @@ from the outside. Defaults to the actual port assigned via `http.port`.
 
 |`http.host` |Used to set the `http.bind_host` and the `http.publish_host` Defaults to `http.host` or `network.host`.
 
-|`http.max_content_length` |The max content of an HTTP request. Defaults
-to `100mb`
+|`http.max_content_length` |The max content of an HTTP request. Defaults to
+`100mb`. If set to greater than `Integer.MAX_VALUE`, it will be reset to 100mb.
 
 |`http.max_initial_line_length` |The max length of an HTTP URL. Defaults
 to `4kb`

@@ -63,7 +63,7 @@ import static org.elasticsearch.index.mapper.core.TypeParsers.parseNumberField;
 /**
  *
  */
-public class ShortFieldMapper extends NumberFieldMapper<Short> {
+public class ShortFieldMapper extends NumberFieldMapper {
 
     public static final String CONTENT_TYPE = "short";
     public static final int DEFAULT_PRECISION_STEP = 8;

@@ -178,29 +178,29 @@ public class TransportGetFieldMappingsIndexAction extends TransportSingleCustomO
         final DocumentFieldMappers allFieldMappers = documentMapper.mappers();
         for (String field : request.fields()) {
             if (Regex.isMatchAllPattern(field)) {
-                for (FieldMapper<?> fieldMapper : allFieldMappers) {
+                for (FieldMapper fieldMapper : allFieldMappers) {
                     addFieldMapper(fieldMapper.names().fullName(), fieldMapper, fieldMappings, request.includeDefaults());
                 }
             } else if (Regex.isSimpleMatchPattern(field)) {
                 // go through the field mappers 3 times, to make sure we give preference to the resolve order: full name, index name, name.
                 // also make sure we only store each mapper once.
-                Collection<FieldMapper<?>> remainingFieldMappers = Lists.newLinkedList(allFieldMappers);
-                for (Iterator<FieldMapper<?>> it = remainingFieldMappers.iterator(); it.hasNext(); ) {
-                    final FieldMapper<?> fieldMapper = it.next();
+                Collection<FieldMapper> remainingFieldMappers = Lists.newLinkedList(allFieldMappers);
+                for (Iterator<FieldMapper> it = remainingFieldMappers.iterator(); it.hasNext(); ) {
+                    final FieldMapper fieldMapper = it.next();
                     if (Regex.simpleMatch(field, fieldMapper.names().fullName())) {
                         addFieldMapper(fieldMapper.names().fullName(), fieldMapper, fieldMappings, request.includeDefaults());
                         it.remove();
                     }
                 }
-                for (Iterator<FieldMapper<?>> it = remainingFieldMappers.iterator(); it.hasNext(); ) {
-                    final FieldMapper<?> fieldMapper = it.next();
+                for (Iterator<FieldMapper> it = remainingFieldMappers.iterator(); it.hasNext(); ) {
+                    final FieldMapper fieldMapper = it.next();
                     if (Regex.simpleMatch(field, fieldMapper.names().indexName())) {
                         addFieldMapper(fieldMapper.names().indexName(), fieldMapper, fieldMappings, request.includeDefaults());
                         it.remove();
                     }
                 }
-                for (Iterator<FieldMapper<?>> it = remainingFieldMappers.iterator(); it.hasNext(); ) {
-                    final FieldMapper<?> fieldMapper = it.next();
+                for (Iterator<FieldMapper> it = remainingFieldMappers.iterator(); it.hasNext(); ) {
+                    final FieldMapper fieldMapper = it.next();
                     if (Regex.simpleMatch(field, fieldMapper.names().shortName())) {
                         addFieldMapper(fieldMapper.names().shortName(), fieldMapper, fieldMappings, request.includeDefaults());
                         it.remove();
@@ -209,7 +209,7 @@ public class TransportGetFieldMappingsIndexAction extends TransportSingleCustomO
 
             } else {
                 // not a pattern
-                FieldMapper<?> fieldMapper = allFieldMappers.smartNameFieldMapper(field);
+                FieldMapper fieldMapper = allFieldMappers.smartNameFieldMapper(field);
                 if (fieldMapper != null) {
                     addFieldMapper(field, fieldMapper, fieldMappings, request.includeDefaults());
                 } else if (request.probablySingleFieldRequest()) {
@@ -220,7 +220,7 @@ public class TransportGetFieldMappingsIndexAction extends TransportSingleCustomO
         return fieldMappings.immutableMap();
     }
 
-    private void addFieldMapper(String field, FieldMapper<?> fieldMapper, MapBuilder<String, FieldMappingMetaData> fieldMappings, boolean includeDefaults) {
+    private void addFieldMapper(String field, FieldMapper fieldMapper, MapBuilder<String, FieldMappingMetaData> fieldMappings, boolean includeDefaults) {
         if (fieldMappings.containsKey(field)) {
             return;
         }

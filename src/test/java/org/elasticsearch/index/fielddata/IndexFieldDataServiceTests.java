@@ -61,7 +61,7 @@ public class IndexFieldDataServiceTests extends ElasticsearchSingleNodeTest {
                 assertTrue(fd instanceof PagedBytesIndexFieldData);
             }
 
-            for (FieldMapper<?> mapper : Arrays.asList(
+            for (FieldMapper mapper : Arrays.asList(
                     new ByteFieldMapper.Builder("int").docValues(docValues).build(ctx),
                     new ShortFieldMapper.Builder("int").docValues(docValues).build(ctx),
                     new IntegerFieldMapper.Builder("int").docValues(docValues).build(ctx),
@@ -107,7 +107,7 @@ public class IndexFieldDataServiceTests extends ElasticsearchSingleNodeTest {
         assertTrue(fd instanceof FSTBytesIndexFieldData);
 
         final Settings fdSettings = ImmutableSettings.builder().put("format", "array").build();
-        for (FieldMapper<?> mapper : Arrays.asList(
+        for (FieldMapper mapper : Arrays.asList(
                 new ByteFieldMapper.Builder("int").fieldDataSettings(DOC_VALUES_SETTINGS).fieldDataSettings(fdSettings).build(ctx),
                 new ShortFieldMapper.Builder("int").fieldDataSettings(DOC_VALUES_SETTINGS).fieldDataSettings(fdSettings).build(ctx),
                 new IntegerFieldMapper.Builder("int").fieldDataSettings(DOC_VALUES_SETTINGS).fieldDataSettings(fdSettings).build(ctx),

@@ -48,7 +48,7 @@ public class PostingsHighlighter implements Highlighter {
     @Override
     public HighlightField highlight(HighlighterContext highlighterContext) {
 
-        FieldMapper<?> fieldMapper = highlighterContext.mapper;
+        FieldMapper fieldMapper = highlighterContext.mapper;
         SearchContextHighlight.Field field = highlighterContext.field;
         if (fieldMapper.fieldType().indexOptions() != IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS) {
             throw new IllegalArgumentException("the field [" + highlighterContext.fieldName + "] should be indexed with positions and offsets in the postings list to be used with postings highlighter");
@@ -169,7 +169,7 @@ public class PostingsHighlighter implements Highlighter {
     }
 
     private static class HighlighterEntry {
-        Map<FieldMapper<?>, MapperHighlighterEntry> mappers = Maps.newHashMap();
+        Map<FieldMapper, MapperHighlighterEntry> mappers = Maps.newHashMap();
     }
 
     private static class MapperHighlighterEntry {

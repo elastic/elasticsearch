@@ -600,7 +600,7 @@ class DocumentParser implements Closeable {
     }
 
     /** Creates instances of the fields that the current field should be copied to */
-    private static void parseCopyFields(ParseContext context, FieldMapper<?> fieldMapper, ImmutableList<String> copyToFields) throws IOException {
+    private static void parseCopyFields(ParseContext context, FieldMapper fieldMapper, ImmutableList<String> copyToFields) throws IOException {
         if (!context.isWithinCopyTo() && copyToFields.isEmpty() == false) {
             context = context.createCopyToContext();
             for (String field : copyToFields) {

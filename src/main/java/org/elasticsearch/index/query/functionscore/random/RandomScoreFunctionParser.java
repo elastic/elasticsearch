@@ -82,7 +82,7 @@ public class RandomScoreFunctionParser implements ScoreFunctionParser {
             }
         }
 
-        final FieldMapper<?> mapper = SearchContext.current().mapperService().smartNameFieldMapper("_uid");
+        final FieldMapper mapper = SearchContext.current().mapperService().smartNameFieldMapper("_uid");
         if (mapper == null) {
             // mapper could be null if we are on a shard with no docs yet, so this won't actually be used
             return new RandomScoreFunction();

@@ -186,7 +186,7 @@ public class QueryParseContext {
         return indexQueryParser.bitsetFilterCache.getBitDocIdSetFilter(filter);
     }
 
-    public <IFD extends IndexFieldData<?>> IFD getForField(FieldMapper<?> mapper) {
+    public <IFD extends IndexFieldData<?>> IFD getForField(FieldMapper mapper) {
         return indexQueryParser.fieldDataService.getForField(mapper);
     }
 

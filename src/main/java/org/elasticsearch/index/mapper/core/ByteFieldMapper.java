@@ -61,7 +61,7 @@ import static org.elasticsearch.index.mapper.core.TypeParsers.parseNumberField;
 /**
  *
  */
-public class ByteFieldMapper extends NumberFieldMapper<Byte> {
+public class ByteFieldMapper extends NumberFieldMapper {
 
     public static final String CONTENT_TYPE = "byte";
 

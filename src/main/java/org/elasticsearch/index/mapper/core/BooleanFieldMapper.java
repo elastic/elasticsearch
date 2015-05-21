@@ -54,7 +54,7 @@ import static org.elasticsearch.index.mapper.core.TypeParsers.parseField;
 /**
  * A field mapper for boolean fields.
  */
-public class BooleanFieldMapper extends AbstractFieldMapper<Boolean> {
+public class BooleanFieldMapper extends AbstractFieldMapper {
 
     public static final String CONTENT_TYPE = "boolean";
 

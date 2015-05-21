@@ -49,7 +49,7 @@ public class FieldMappersLookupTests extends ElasticsearchTestCase {
         assertNull(lookup.smartName("foo"));
         assertNull(lookup.smartNameFieldMapper("foo"));
         assertNull(lookup.get("foo"));
-        Iterator<FieldMapper<?>> itr = lookup.iterator();
+        Iterator<FieldMapper> itr = lookup.iterator();
         assertNotNull(itr);
         assertFalse(itr.hasNext());
     }
@@ -141,7 +141,7 @@ public class FieldMappersLookupTests extends ElasticsearchTestCase {
         lookup = lookup.copyAndAddAll(newList(f1));
 
         try {
-            Iterator<FieldMapper<?>> itr = lookup.iterator();
+            Iterator<FieldMapper> itr = lookup.iterator();
             assertTrue(itr.hasNext());
             assertEquals(f1, itr.next());
             itr.remove();
@@ -168,12 +168,12 @@ public class FieldMappersLookupTests extends ElasticsearchTestCase {
         }
     }
 
-    static List<FieldMapper<?>> newList(FieldMapper<?>... mapper) {
+    static List<FieldMapper> newList(FieldMapper... mapper) {
         return Lists.newArrayList(mapper);
     }
 
     // this sucks how much must be overriden just do get a dummy field mapper...
-    static class FakeFieldMapper extends AbstractFieldMapper<String> {
+    static class FakeFieldMapper extends AbstractFieldMapper {
         static Settings dummySettings = ImmutableSettings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
         public FakeFieldMapper(String fullName, String indexName) {
             super(new Names(fullName, indexName, indexName, fullName), 1.0f, AbstractFieldMapper.Defaults.FIELD_TYPE, null, null, null, null, null, null, dummySettings, null, null);

@@ -43,7 +43,7 @@ public enum MapperUtils {
             }
 
             @Override
-            public void addFieldMappers(Collection<FieldMapper<?>> fieldMappers) {
+            public void addFieldMappers(Collection<FieldMapper> fieldMappers) {
                 // no-op
             }
 
@@ -53,7 +53,7 @@ public enum MapperUtils {
             }
 
             @Override
-            public Collection<FieldMapper<?>> getNewFieldMappers() {
+            public Collection<FieldMapper> getNewFieldMappers() {
                 throw new UnsupportedOperationException("Strict merge result does not support new field mappers");
             }
 
@@ -86,13 +86,13 @@ public enum MapperUtils {
     }
 
     /** Split mapper and its descendants into object and field mappers. */
-    public static void collect(Mapper mapper, Collection<ObjectMapper> objectMappers, Collection<FieldMapper<?>> fieldMappers) {
+    public static void collect(Mapper mapper, Collection<ObjectMapper> objectMappers, Collection<FieldMapper> fieldMappers) {
         if (mapper instanceof RootObjectMapper) {
             // root mapper isn't really an object mapper
         } else if (mapper instanceof ObjectMapper) {
             objectMappers.add((ObjectMapper)mapper);
-        } else if (mapper instanceof FieldMapper<?>) {
-            fieldMappers.add((FieldMapper<?>)mapper);
+        } else if (mapper instanceof FieldMapper) {
+            fieldMappers.add((FieldMapper)mapper);
         }
         for (Mapper child : mapper) {
             collect(child, objectMappers, fieldMappers);

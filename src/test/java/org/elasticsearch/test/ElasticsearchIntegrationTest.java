@@ -92,6 +92,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.discovery.zen.elect.ElectMasterService;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.fielddata.FieldDataType;
@@ -1109,8 +1110,8 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
      */
     public void setMinimumMasterNodes(int n) {
         assertTrue(client().admin().cluster().prepareUpdateSettings().setTransientSettings(
-            settingsBuilder().put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES, n))
-            .get().isAcknowledged());
+                settingsBuilder().put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES, n))
+                .get().isAcknowledged());
     }
 
     /**
@@ -1811,6 +1812,32 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         }
 
         return timeZone;
+    }
+
+    /**
+     * Returns path to a random directory that can be used to create a temporary file system repo
+     */
+    public File randomRepoPath() {
+        if (currentCluster instanceof InternalTestCluster) {
+            return randomRepoPath(((InternalTestCluster) currentCluster).getDefaultSettings());
+        } else if (currentCluster instanceof CompositeTestCluster) {
+            return randomRepoPath(((CompositeTestCluster) currentCluster).internalCluster().getDefaultSettings());
+        }
+        throw new UnsupportedOperationException("unsupported cluster type");
+    }
+
+    /**
+     * Returns path to a random directory that can be used to create a temporary file system repo
+     */
+    public static File randomRepoPath(Settings settings) {
+        Environment environment = new Environment(settings);
+        File[] repoFiles = environment.repoFiles();
+        assert repoFiles.length > 0;
+        File path;
+        do {
+            path = new File(repoFiles[0], randomAsciiOfLength(10));
+        } while (path.exists());
+        return path;
     }
 
     protected NumShards getNumShards(String index) {

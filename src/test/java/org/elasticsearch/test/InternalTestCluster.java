@@ -202,6 +202,8 @@ public final class InternalTestCluster extends TestCluster {
 
     private final boolean hasFilterCache;
 
+    private final File repoPath;
+
     /**
      * All nodes started by the cluster will have their name set to nodePrefix followed by a positive number
      */
@@ -277,6 +279,8 @@ public final class InternalTestCluster extends TestCluster {
         }
         builder.put("bootstrap.sigar", rarely(random));
         final int basePort = 9300 + (100 * (jvmOrdinal+1));
+        repoPath = new File(new File(new File("work").getAbsoluteFile(), "repos"), clusterName);
+        builder.put("path.repo", repoPath.getAbsolutePath());
         builder.put("transport.tcp.port", basePort + "-" + (basePort+100));
         builder.put("http.port", basePort+101 + "-" + (basePort+200));
         builder.put("config.ignore_system_properties", true);
@@ -979,6 +983,7 @@ public final class InternalTestCluster extends TestCluster {
     @Override
     public synchronized void afterTest() throws IOException {
         wipeDataDirectories();
+        wipeRepositoryDirectories();
         randomlyResetClients(); /* reset all clients - each test gets its own client based on the Random instance created above. */
     }
 
@@ -1042,6 +1047,17 @@ public final class InternalTestCluster extends TestCluster {
             final Collection<NodeAndClient> nodesAndClients = nodes.values();
             for (NodeAndClient nodeAndClient : nodesAndClients) {
                 nodeAndClient.resetClient();
+            }
+        }
+    }
+
+    private void wipeRepositoryDirectories() {
+        if (repoPath.exists()) {
+            assertThat(repoPath.getAbsolutePath(), containsString(clusterName));
+            if (FileSystemUtils.deleteRecursively(repoPath)) {
+                logger.info("Successfully wiped repository directory for node location: {}", repoPath);
+            } else {
+                logger.info("Failed to wipe data directory for node location: {}", repoPath);
             }
         }
     }

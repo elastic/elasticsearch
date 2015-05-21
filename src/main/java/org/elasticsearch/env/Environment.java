@@ -30,6 +30,7 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.nio.file.FileSystem;
 
 import static org.elasticsearch.common.Strings.cleanPath;
 import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
@@ -50,6 +51,8 @@ public class Environment {
     private final File[] dataFiles;
 
     private final File[] dataWithClusterFiles;
+
+    private final File[] repoFiles;
 
     private final File configFile;
 
@@ -99,6 +102,16 @@ public class Environment {
         } else {
             dataFiles = new File[]{new File(homeFile, "data")};
             dataWithClusterFiles = new File[]{new File(new File(homeFile, "data"), ClusterName.clusterNameFromSettings(settings).value())};
+        }
+
+        String[] repoPaths = settings.getAsArray("path.repo");
+        if (repoPaths.length > 0) {
+            repoFiles = new File[repoPaths.length];
+            for (int i = 0; i < repoPaths.length; i++) {
+                repoFiles[i] = new File(repoPaths[i]);
+            }
+        } else {
+            repoFiles = new File[0];
         }
 
         if (settings.get("path.logs") != null) {
@@ -157,6 +170,22 @@ public class Environment {
     }
 
     /**
+     * The shared filesystem repo locations.
+     */
+    public File[] repoFiles() {
+        return repoFiles;
+    }
+
+    /**
+     * Resolves the specified location against the list of configured repository roots
+     *
+     * If the specified location doesn't match any of the roots, returns null.
+     */
+    public File resolveRepoFile(String location) {
+        return resolve(repoFiles, location);
+    }
+
+    /**
      * The config location.
      */
     public File configFile() {
@@ -212,4 +241,31 @@ public class Environment {
         }
         throw new FailedToResolveConfigException("Failed to resolve config path [" + origPath + "], tried file path [" + f1 + "], path file [" + f2 + "], and classpath");
     }
+
+    /**
+     * Tries to resolve the given path against the list of available roots.
+     *
+     * If path starts with one of the listed roots, it returned back by this method, otherwise null is returned.
+     */
+    public static File resolve(File[] roots, String path) {
+        for (File root : roots) {
+            File file = new File(path);
+            final File normalizedPath;
+            try {
+                if (file.isAbsolute()) {
+                    normalizedPath = file.getCanonicalFile();
+                } else {
+                    normalizedPath = new File(root, path).getCanonicalFile();
+                }
+            } catch (IOException ex) {
+                continue;
+            }
+            if(normalizedPath.getAbsolutePath().startsWith(root.getAbsolutePath())) {
+                return normalizedPath;
+            }
+        }
+        return null;
+    }
+
+
 }

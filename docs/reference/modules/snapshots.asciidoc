@@ -9,16 +9,14 @@ backends are available via officially supported repository plugins.
 === Repositories
 
 Before any snapshot or restore operation can be performed a snapshot repository should be registered in
-Elasticsearch. The following command registers a shared file system repository with the name `my_backup` that
-will use location `/mount/backups/my_backup` to store snapshots.
+Elasticsearch. The repository settings are repository-type specific. See below for details.
 
 [source,js]
 -----------------------------------
 $ curl -XPUT 'http://localhost:9200/_snapshot/my_backup' -d '{
-    "type": "fs",
+    "type": "REPOSITORY TYPE",
     "settings": {
-        "location": "/mount/backups/my_backup",
-        "compress": true
+        ... repository specific settings ...
     }
 }'
 -----------------------------------
@@ -60,9 +58,48 @@ $ curl -XGET 'http://localhost:9200/_snapshot/_all'
 [float]
 ===== Shared File System Repository
 
-The shared file system repository (`"type": "fs"`) uses the shared file system to store snapshots. The path
-specified in the `location` parameter should point to the same location in the shared filesystem and be accessible
-on all data and master nodes. The following settings are supported:
+The shared file system repository (`"type": "fs"`) uses the shared file system to store snapshots. In order to register
+the shared file system repository it is necessary to mount the same shared filesystem to the same location on all
+master and data nodes. This location (or one of its parent directories) has to be registered in the `path.repo`
+setting on all master and data nodes.
+
+Assuming that the shared filesystem is mounted to `/mount/backups/my_backup`, the following setting should be added to
+`elasticsearch.yml` file:
+
+[source,yaml]
+--------------
+path.repo: ["/mount/backups", "/mount/longterm_backups"]
+--------------
+
+After all nodes are restarted, the following command can be used to register the shared file system repository with
+the name `my_backup`:
+
+[source,js]
+-----------------------------------
+$ curl -XPUT 'http://localhost:9200/_snapshot/my_backup' -d '{
+    "type": "fs",
+    "settings": {
+        "location": "/mount/backups/my_backup",
+        "compress": true
+    }
+}'
+-----------------------------------
+
+If the repository location is specified as a relative path this path will be resolved against the first path specified
+in `path.repo`:
+
+[source,js]
+-----------------------------------
+$ curl -XPUT 'http://localhost:9200/_snapshot/my_backup' -d '{
+    "type": "fs",
+    "settings": {
+        "location": "my_backup",
+        "compress": true
+    }
+}'
+-----------------------------------
+
+The following settings are supported:
 
 [horizontal]
 `location`:: Location of the snapshots. Mandatory.

@@ -33,7 +33,6 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.test.ElasticsearchBackwardsCompatIntegrationTest;
-import org.junit.Ignore;
 import org.junit.Test;
 
 import java.io.File;
@@ -56,7 +55,7 @@ public class SnapshotBackwardsCompatibilityTest extends ElasticsearchBackwardsCo
         logger.info("-->  creating repository");
         assertAcked(client().admin().cluster().preparePutRepository("test-repo")
                 .setType("fs").setSettings(ImmutableSettings.settingsBuilder()
-                        .put("location", newTempDir(LifecycleScope.SUITE).getAbsolutePath())
+                        .put("location", randomRepoPath().getAbsolutePath())
                         .put("compress", randomBoolean())
                         .put("chunk_size", randomIntBetween(100, 1000))));
         String[] indicesBefore = new String[randomIntBetween(2,5)];
@@ -162,7 +161,7 @@ public class SnapshotBackwardsCompatibilityTest extends ElasticsearchBackwardsCo
 
     public void testSnapshotMoreThanOnce() throws ExecutionException, InterruptedException, IOException {
         Client client = client();
-        final File tempDir = newTempDir(LifecycleScope.SUITE).getAbsoluteFile();
+        final File tempDir = randomRepoPath().getAbsoluteFile();
         logger.info("-->  creating repository");
         assertAcked(client.admin().cluster().preparePutRepository("test-repo")
                 .setType("fs").setSettings(ImmutableSettings.settingsBuilder()

@@ -75,8 +75,13 @@ public class InternalTestClusterTests extends ElasticsearchTestCase {
         Map<String, String> entries1 = right.getAsMap();
         assertThat(entries0.size(), equalTo(entries1.size()));
         for (Map.Entry<String, String> entry : entries0) {
-            if(entry.getKey().equals(ClusterName.SETTING) && compareClusterName == false) {
-                continue;
+            if (compareClusterName == false) {
+                if(entry.getKey().equals(ClusterName.SETTING)) {
+                    continue;
+                }
+                if(entry.getKey().equals("path.repo")) {
+                    continue;
+                }
             }
             assertThat(entries1, hasEntry(entry.getKey(), entry.getValue()));
         }

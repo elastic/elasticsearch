@@ -15,3 +15,18 @@ The More Like This API query has been deprecated and will be removed in 2.0. Ins
 The `top_children` query has been deprecated and will be removed in 2.0. Instead the `has_child` query should be used.
 The `top_children` query isn't always faster than the `has_child` query and the `top_children` query is often inaccurate.
 The total hits and any aggregations in the same search request will likely be off.
+
+[float]
+=== Snapshot and Restore
+
+Locations of file system repositories has to be now registered using `path.repo` setting. The `path.repo`
+setting can contain one or more repository locations:
+
+[source,yaml]
+---------------
+path.repo: ["/mnt/daily", "/mnt/weekly"]
+---------------
+
+If the file system repository location is specified as an absolute path it has to start with one of the locations
+specified in `path.repo`. If the location is specified as a relative path, it will be resolved against the first
+location specified in the `path.repo` setting.

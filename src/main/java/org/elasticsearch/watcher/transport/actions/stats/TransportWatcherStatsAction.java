@@ -69,6 +69,9 @@ public class TransportWatcherStatsAction extends WatcherTransportAction<WatcherS
         if (request.includeCurrentWatches()) {
             statsResponse.setSnapshots(executionService.currentExecutions());
         }
+        if (request.includePendingWatches()) {
+            statsResponse.setQueuedWatches(executionService.queuedWatches());
+        }
 
         listener.onResponse(statsResponse);
     }

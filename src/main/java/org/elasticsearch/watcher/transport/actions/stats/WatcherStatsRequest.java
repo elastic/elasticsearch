@@ -18,6 +18,7 @@ import java.io.IOException;
 public class WatcherStatsRequest extends MasterNodeOperationRequest<WatcherStatsRequest> {
 
     private boolean includeCurrentWatches;
+    private boolean includePendingWatches;
 
     public WatcherStatsRequest() {
     }
@@ -30,6 +31,14 @@ public class WatcherStatsRequest extends MasterNodeOperationRequest<WatcherStats
         this.includeCurrentWatches = currentWatches;
     }
 
+    public boolean includePendingWatches() {
+        return includePendingWatches;
+    }
+
+    public void includePendingWatches(boolean includePendingWatches) {
+        this.includePendingWatches = includePendingWatches;
+    }
+
     @Override
     public ActionRequestValidationException validate() {
         return null;
@@ -39,11 +48,13 @@ public class WatcherStatsRequest extends MasterNodeOperationRequest<WatcherStats
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         includeCurrentWatches = in.readBoolean();
+        includePendingWatches = in.readBoolean();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
+        out.writeBoolean(includeCurrentWatches);
         out.writeBoolean(includeCurrentWatches);
     }
 

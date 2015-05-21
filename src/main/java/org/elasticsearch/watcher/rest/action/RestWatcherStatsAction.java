@@ -12,13 +12,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
-import org.elasticsearch.rest.action.support.RestToXContentListener;
 import org.elasticsearch.watcher.client.WatcherClient;
 import org.elasticsearch.watcher.rest.WatcherRestHandler;
-import org.elasticsearch.watcher.transport.actions.stats.WatcherStatsResponse;
 import org.elasticsearch.watcher.transport.actions.stats.WatcherStatsRequest;
+import org.elasticsearch.watcher.transport.actions.stats.WatcherStatsResponse;
 
-import java.util.Locale;
 import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -38,10 +36,12 @@ public class RestWatcherStatsAction extends WatcherRestHandler {
         Set<String> metrics = Strings.splitStringByCommaToSet(restRequest.param("metric", ""));
 
         WatcherStatsRequest request = new WatcherStatsRequest();
-        if (metrics.size() == 1 && metrics.contains("_all")) {
+        if (metrics.contains("_all")) {
             request.includeCurrentWatches(true);
+            request.includePendingWatches(true);
         } else {
-            request.includeCurrentWatches(metrics.contains("executing_watches"));
+            request.includeCurrentWatches(metrics.contains("queued_watches"));
+            request.includePendingWatches(metrics.contains("pending_watches"));
         }
 
         client.watcherStats(request, new RestBuilderListener<WatcherStatsResponse>(restChannel) {

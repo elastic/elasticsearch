@@ -127,10 +127,31 @@ public class ExecutionService extends AbstractComponent {
         Collections.sort(currentExecutions, new Comparator<WatchExecutionSnapshot>() {
             @Override
             public int compare(WatchExecutionSnapshot e1, WatchExecutionSnapshot e2) {
-                return -e1.executionTime().compareTo(e2.executionTime());
+                return e1.executionTime().compareTo(e2.executionTime());
             }
         });
         return currentExecutions;
+    }
+
+    public List<QueuedWatch> queuedWatches() {
+        List<Runnable> snapshot = new ArrayList<>(executor.queue());
+        if (snapshot.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        List<QueuedWatch> queuedWatches = new ArrayList<>(snapshot.size());
+        for (Runnable task : snapshot) {
+            WatchExecutionTask executionTask = (WatchExecutionTask) task;
+            queuedWatches.add(new QueuedWatch(executionTask.ctx));
+        }
+        // Lets show the execution that pending the longest first:
+        Collections.sort(queuedWatches, new Comparator<QueuedWatch>() {
+            @Override
+            public int compare(QueuedWatch e1, QueuedWatch e2) {
+                return e1.executionTime().compareTo(e2.executionTime());
+            }
+        });
+        return queuedWatches;
     }
 
     void processEventsAsync(Iterable<TriggerEvent> events) throws WatcherException {

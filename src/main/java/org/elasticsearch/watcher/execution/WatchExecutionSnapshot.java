@@ -82,8 +82,8 @@ public class WatchExecutionSnapshot implements Streamable, ToXContent {
         watchRecordId = in.readString();
         triggeredTime = new DateTime(in.readVLong(), DateTimeZone.UTC);
         executionTime = new DateTime(in.readVLong(), DateTimeZone.UTC);
-        int size = in.readVInt();
         phase = ExecutionPhase.parse(in.readString());
+        int size = in.readVInt();
         executionStackTrace = new StackTraceElement[size];
         for (int i = 0; i < size; i++) {
             String declaringClass = in.readString();

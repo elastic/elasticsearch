@@ -88,7 +88,7 @@ public class SimpleDateMappingTests extends ElasticsearchSingleNodeTest {
         assertNotNull(doc.dynamicMappingsUpdate());
         client().admin().indices().preparePutMapping("test-0").setType("type").setSource(doc.dynamicMappingsUpdate().toString()).get();
 
-        FieldMapper<?> fieldMapper = defaultMapper.mappers().smartNameFieldMapper("date_field1");
+        FieldMapper fieldMapper = defaultMapper.mappers().smartNameFieldMapper("date_field1");
         assertThat(fieldMapper, instanceOf(DateFieldMapper.class));
         fieldMapper = defaultMapper.mappers().smartNameFieldMapper("date_field2");
         assertThat(fieldMapper, instanceOf(DateFieldMapper.class));

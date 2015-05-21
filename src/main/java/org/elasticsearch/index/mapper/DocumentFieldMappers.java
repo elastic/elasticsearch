@@ -34,7 +34,7 @@ import java.util.Map;
 /**
  *
  */
-public final class DocumentFieldMappers implements Iterable<FieldMapper<?>> {
+public final class DocumentFieldMappers implements Iterable<FieldMapper> {
 
     private final FieldMappersLookup fieldMappers;
 
@@ -55,23 +55,23 @@ public final class DocumentFieldMappers implements Iterable<FieldMapper<?>> {
         this.searchQuoteAnalyzer = searchQuoteAnalyzer;
     }
 
-    public DocumentFieldMappers copyAndAllAll(Collection<FieldMapper<?>> newMappers) {
+    public DocumentFieldMappers copyAndAllAll(Collection<FieldMapper> newMappers) {
         FieldMappersLookup fieldMappers = this.fieldMappers.copyAndAddAll(newMappers);
-        FieldNameAnalyzer indexAnalyzer = this.indexAnalyzer.copyAndAddAll(Collections2.transform(newMappers, new Function<FieldMapper<?>, Map.Entry<String, Analyzer>>() {
+        FieldNameAnalyzer indexAnalyzer = this.indexAnalyzer.copyAndAddAll(Collections2.transform(newMappers, new Function<FieldMapper, Map.Entry<String, Analyzer>>() {
             @Override
-            public Map.Entry<String, Analyzer> apply(FieldMapper<?> input) {
+            public Map.Entry<String, Analyzer> apply(FieldMapper input) {
                 return Maps.immutableEntry(input.names().indexName(), input.indexAnalyzer());
             }
         }));
-        FieldNameAnalyzer searchAnalyzer = this.searchAnalyzer.copyAndAddAll(Collections2.transform(newMappers, new Function<FieldMapper<?>, Map.Entry<String, Analyzer>>() {
+        FieldNameAnalyzer searchAnalyzer = this.searchAnalyzer.copyAndAddAll(Collections2.transform(newMappers, new Function<FieldMapper, Map.Entry<String, Analyzer>>() {
             @Override
-            public Map.Entry<String, Analyzer> apply(FieldMapper<?> input) {
+            public Map.Entry<String, Analyzer> apply(FieldMapper input) {
                 return Maps.immutableEntry(input.names().indexName(), input.searchAnalyzer());
             }
         }));
-        FieldNameAnalyzer searchQuoteAnalyzer = this.searchQuoteAnalyzer.copyAndAddAll(Collections2.transform(newMappers, new Function<FieldMapper<?>, Map.Entry<String, Analyzer>>() {
+        FieldNameAnalyzer searchQuoteAnalyzer = this.searchQuoteAnalyzer.copyAndAddAll(Collections2.transform(newMappers, new Function<FieldMapper, Map.Entry<String, Analyzer>>() {
             @Override
-            public Map.Entry<String, Analyzer> apply(FieldMapper<?> input) {
+            public Map.Entry<String, Analyzer> apply(FieldMapper input) {
                 return Maps.immutableEntry(input.names().indexName(), input.searchQuoteAnalyzer());
             }
         }));
@@ -113,7 +113,7 @@ public final class DocumentFieldMappers implements Iterable<FieldMapper<?>> {
         return fieldMappers.smartName(name);
     }
 
-    public FieldMapper<?> smartNameFieldMapper(String name) {
+    public FieldMapper smartNameFieldMapper(String name) {
         return fieldMappers.smartNameFieldMapper(name);
     }
 
@@ -145,7 +145,7 @@ public final class DocumentFieldMappers implements Iterable<FieldMapper<?>> {
         return this.searchQuoteAnalyzer;
     }
 
-    public Iterator<FieldMapper<?>> iterator() {
+    public Iterator<FieldMapper> iterator() {
         return fieldMappers.iterator();
     }
 }

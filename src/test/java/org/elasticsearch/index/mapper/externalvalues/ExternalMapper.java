@@ -60,7 +60,7 @@ import static org.elasticsearch.index.mapper.core.TypeParsers.parseMultiField;
  * .point GeoPoint type
  * .shape GeoShape type
  */
-public class ExternalMapper extends AbstractFieldMapper<Object> {
+public class ExternalMapper extends AbstractFieldMapper {
     /**
      * Returns the actual value of the field.
      *

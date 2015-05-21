@@ -196,7 +196,7 @@ public class DocumentMapper implements ToXContent {
 
         // collect all the mappers for this type
         List<ObjectMapper> newObjectMappers = new ArrayList<>();
-        List<FieldMapper<?>> newFieldMappers = new ArrayList<>();
+        List<FieldMapper> newFieldMappers = new ArrayList<>();
         for (RootMapper rootMapper : this.mapping.rootMappers) {
             if (rootMapper instanceof FieldMapper) {
                 newFieldMappers.add((FieldMapper) rootMapper);
@@ -387,7 +387,7 @@ public class DocumentMapper implements ToXContent {
         return DocumentParser.transformSourceAsMap(mapping, sourceAsMap);
     }
 
-    private void addFieldMappers(Collection<FieldMapper<?>> fieldMappers) {
+    private void addFieldMappers(Collection<FieldMapper> fieldMappers) {
         assert mappingLock.isWriteLockedByCurrentThread();
         this.fieldMappers = this.fieldMappers.copyAndAllAll(fieldMappers);
         mapperService.addFieldMappers(fieldMappers);
@@ -410,11 +410,11 @@ public class DocumentMapper implements ToXContent {
         return new MergeResult(simulate) {
 
             final List<String> conflicts = new ArrayList<>();
-            final List<FieldMapper<?>> newFieldMappers = new ArrayList<>();
+            final List<FieldMapper> newFieldMappers = new ArrayList<>();
             final List<ObjectMapper> newObjectMappers = new ArrayList<>();
 
             @Override
-            public void addFieldMappers(Collection<FieldMapper<?>> fieldMappers) {
+            public void addFieldMappers(Collection<FieldMapper> fieldMappers) {
                 assert simulate() == false;
                 newFieldMappers.addAll(fieldMappers);
             }
@@ -426,7 +426,7 @@ public class DocumentMapper implements ToXContent {
             }
 
             @Override
-            public Collection<FieldMapper<?>> getNewFieldMappers() {
+            public Collection<FieldMapper> getNewFieldMappers() {
                 return newFieldMappers;
             }
 

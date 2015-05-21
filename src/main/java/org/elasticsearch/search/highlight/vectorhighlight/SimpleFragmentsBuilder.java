@@ -29,9 +29,9 @@ import org.elasticsearch.index.mapper.FieldMapper;
  * that corrects offsets for broken analysis chains. 
  */
 public class SimpleFragmentsBuilder extends org.apache.lucene.search.vectorhighlight.SimpleFragmentsBuilder {
-    protected final FieldMapper<?> mapper;
+    protected final FieldMapper mapper;
 
-    public SimpleFragmentsBuilder(FieldMapper<?> mapper,
+    public SimpleFragmentsBuilder(FieldMapper mapper,
                                         String[] preTags, String[] postTags, BoundaryScanner boundaryScanner) {
         super(preTags, postTags, boundaryScanner);
         this.mapper = mapper;

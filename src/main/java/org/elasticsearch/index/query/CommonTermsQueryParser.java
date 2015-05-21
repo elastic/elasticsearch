@@ -163,7 +163,7 @@ public class CommonTermsQueryParser implements QueryParser {
             throw new QueryParsingException(parseContext, "No text specified for text query");
         }
         String field;
-        FieldMapper<?> mapper = parseContext.fieldMapper(fieldName);
+        FieldMapper mapper = parseContext.fieldMapper(fieldName);
         if (mapper != null) {
             field = mapper.names().indexName();
         } else {

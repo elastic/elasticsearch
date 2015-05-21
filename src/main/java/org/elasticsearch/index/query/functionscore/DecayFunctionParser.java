@@ -162,8 +162,8 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
             return parseDateVariable(fieldName, parser, parseContext, (DateFieldMapper) mapper, mode);
         } else if (mapper instanceof GeoPointFieldMapper) {
             return parseGeoVariable(fieldName, parser, parseContext, (GeoPointFieldMapper) mapper, mode);
-        } else if (mapper instanceof NumberFieldMapper<?>) {
-            return parseNumberVariable(fieldName, parser, parseContext, (NumberFieldMapper<?>) mapper, mode);
+        } else if (mapper instanceof NumberFieldMapper) {
+            return parseNumberVariable(fieldName, parser, parseContext, (NumberFieldMapper) mapper, mode);
         } else {
             throw new QueryParsingException(parseContext, "Field " + fieldName + " is of type " + mapper.fieldType()
                     + ", but only numeric types are supported.");
@@ -171,7 +171,7 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
     }
 
     private AbstractDistanceScoreFunction parseNumberVariable(String fieldName, XContentParser parser, QueryParseContext parseContext,
-            NumberFieldMapper<?> mapper, MultiValueMode mode) throws IOException {
+            NumberFieldMapper mapper, MultiValueMode mode) throws IOException {
         XContentParser.Token token;
         String parameterName = null;
         double scale = 0;

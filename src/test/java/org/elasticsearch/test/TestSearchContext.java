@@ -552,7 +552,7 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public FieldMapper<?> smartNameFieldMapper(String name) {
+    public FieldMapper smartNameFieldMapper(String name) {
         if (mapperService() != null) {
             return mapperService().smartNameFieldMapper(name, types());
         }
@@ -560,7 +560,7 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public FieldMapper<?> smartNameFieldMapperFromAnyType(String name) {
+    public FieldMapper smartNameFieldMapperFromAnyType(String name) {
         if (mapperService() != null) {
             return mapperService().smartNameFieldMapper(name);
         }

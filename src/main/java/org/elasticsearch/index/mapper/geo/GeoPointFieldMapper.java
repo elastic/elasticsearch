@@ -82,7 +82,7 @@ import static org.elasticsearch.index.mapper.core.TypeParsers.parsePathType;
  * "lon" : 2.1
  * }
  */
-public class GeoPointFieldMapper extends AbstractFieldMapper<GeoPoint> implements ArrayValueMapperParser {
+public class GeoPointFieldMapper extends AbstractFieldMapper implements ArrayValueMapperParser {
 
     public static final String CONTENT_TYPE = "geo_point";
 

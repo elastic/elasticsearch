@@ -62,7 +62,7 @@ public class GeoPointBinaryDVIndexFieldData extends DocValuesIndexFieldData impl
     public static class Builder implements IndexFieldData.Builder {
 
         @Override
-        public IndexFieldData<?> build(Index index, Settings indexSettings, FieldMapper<?> mapper, IndexFieldDataCache cache,
+        public IndexFieldData<?> build(Index index, Settings indexSettings, FieldMapper mapper, IndexFieldDataCache cache,
                                        CircuitBreakerService breakerService, MapperService mapperService) {
             // Ignore breaker
             final FieldMapper.Names fieldNames = mapper.names();

@@ -66,7 +66,7 @@ import static org.elasticsearch.index.mapper.core.TypeParsers.parseNumberField;
 /**
  *
  */
-public class DoubleFieldMapper extends NumberFieldMapper<Double> {
+public class DoubleFieldMapper extends NumberFieldMapper {
 
     public static final String CONTENT_TYPE = "double";
 

@@ -54,7 +54,7 @@ import static org.elasticsearch.index.mapper.core.TypeParsers.parseMultiField;
 /**
  *
  */
-public class StringFieldMapper extends AbstractFieldMapper<String> implements AllFieldMapper.IncludeInAll {
+public class StringFieldMapper extends AbstractFieldMapper implements AllFieldMapper.IncludeInAll {
 
     public static final String CONTENT_TYPE = "string";
 

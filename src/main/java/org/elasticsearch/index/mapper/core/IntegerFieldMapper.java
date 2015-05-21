@@ -62,7 +62,7 @@ import static org.elasticsearch.index.mapper.core.TypeParsers.parseNumberField;
 /**
  *
  */
-public class IntegerFieldMapper extends NumberFieldMapper<Integer> {
+public class IntegerFieldMapper extends NumberFieldMapper {
 
     public static final String CONTENT_TYPE = "integer";
 

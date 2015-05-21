@@ -91,7 +91,7 @@ public class HighlightPhase extends AbstractComponent implements FetchSubPhase {
             }
 
             for (String fieldName : fieldNamesToHighlight) {
-                FieldMapper<?> fieldMapper = getMapperForField(fieldName, context, hitContext);
+                FieldMapper fieldMapper = getMapperForField(fieldName, context, hitContext);
                 if (fieldMapper == null) {
                     continue;
                 }
@@ -130,7 +130,7 @@ public class HighlightPhase extends AbstractComponent implements FetchSubPhase {
         hitContext.hit().highlightFields(highlightFields);
     }
 
-    private FieldMapper<?> getMapperForField(String fieldName, SearchContext searchContext, HitContext hitContext) {
+    private FieldMapper getMapperForField(String fieldName, SearchContext searchContext, HitContext hitContext) {
         DocumentMapper documentMapper = searchContext.mapperService().documentMapper(hitContext.hit().type());
         // TODO: no need to lookup the doc mapper with unambiguous field names? just look at the mapper service
         return documentMapper.mappers().smartNameFieldMapper(fieldName);

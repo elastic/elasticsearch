@@ -225,7 +225,7 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<AtomicPare
     public static class Builder implements IndexFieldData.Builder {
 
         @Override
-        public IndexFieldData<?> build(Index index, @IndexSettings Settings indexSettings, FieldMapper<?> mapper,
+        public IndexFieldData<?> build(Index index, @IndexSettings Settings indexSettings, FieldMapper mapper,
                                        IndexFieldDataCache cache, CircuitBreakerService breakerService,
                                        MapperService mapperService) {
             return new ParentChildIndexFieldData(index, indexSettings, mapper.names(), mapper.fieldDataType(), cache,

@@ -40,13 +40,13 @@ import java.util.List;
  */
 public class SourceScoreOrderFragmentsBuilder extends ScoreOrderFragmentsBuilder {
 
-    private final FieldMapper<?> mapper;
+    private final FieldMapper mapper;
 
     private final SearchContext searchContext;
 
     private final FetchSubPhase.HitContext hitContext;
 
-    public SourceScoreOrderFragmentsBuilder(FieldMapper<?> mapper, SearchContext searchContext,
+    public SourceScoreOrderFragmentsBuilder(FieldMapper mapper, SearchContext searchContext,
                                             FetchSubPhase.HitContext hitContext, String[] preTags, String[] postTags, BoundaryScanner boundaryScanner) {
         super(preTags, postTags, boundaryScanner);
         this.mapper = mapper;

@@ -152,7 +152,7 @@ public class ExpressionScriptEngineService extends AbstractComponent implements 
                     throw new ExpressionScriptCompilationException("Variable [" + variable + "] does not follow an allowed format of either doc['field'] or doc['field'].method()");
                 }
 
-                FieldMapper<?> field = mapper.smartNameFieldMapper(fieldname);
+                FieldMapper field = mapper.smartNameFieldMapper(fieldname);
 
                 if (field == null) {
                     throw new ExpressionScriptCompilationException("Field [" + fieldname + "] used in expression does not exist in mappings");
@@ -174,7 +174,7 @@ public class ExpressionScriptEngineService extends AbstractComponent implements 
         return new ExpressionScript((Expression)compiledScript, bindings, specialValue);
     }
 
-    protected ValueSource getMethodValueSource(FieldMapper<?> field, IndexFieldData<?> fieldData, String fieldName, String methodName) {
+    protected ValueSource getMethodValueSource(FieldMapper field, IndexFieldData<?> fieldData, String fieldName, String methodName) {
         switch (methodName) {
             case GET_YEAR_METHOD:
                 return getDateMethodValueSource(field, fieldData, fieldName, methodName, Calendar.YEAR);
@@ -205,7 +205,7 @@ public class ExpressionScriptEngineService extends AbstractComponent implements 
         }
     }
 
-    protected ValueSource getDateMethodValueSource(FieldMapper<?> field, IndexFieldData<?> fieldData, String fieldName, String methodName, int calendarType) {
+    protected ValueSource getDateMethodValueSource(FieldMapper field, IndexFieldData<?> fieldData, String fieldName, String methodName, int calendarType) {
         if (!(field instanceof DateFieldMapper)) {
             throw new IllegalArgumentException("Member method [" + methodName + "] can only be used with a date field type, not the field [" + fieldName + "].");
         }

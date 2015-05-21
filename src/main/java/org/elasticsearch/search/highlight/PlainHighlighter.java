@@ -56,16 +56,16 @@ public class PlainHighlighter implements Highlighter {
         SearchContextHighlight.Field field = highlighterContext.field;
         SearchContext context = highlighterContext.context;
         FetchSubPhase.HitContext hitContext = highlighterContext.hitContext;
-        FieldMapper<?> mapper = highlighterContext.mapper;
+        FieldMapper mapper = highlighterContext.mapper;
 
         Encoder encoder = field.fieldOptions().encoder().equals("html") ? HighlightUtils.Encoders.HTML : HighlightUtils.Encoders.DEFAULT;
 
         if (!hitContext.cache().containsKey(CACHE_KEY)) {
-            Map<FieldMapper<?>, org.apache.lucene.search.highlight.Highlighter> mappers = Maps.newHashMap();
+            Map<FieldMapper, org.apache.lucene.search.highlight.Highlighter> mappers = Maps.newHashMap();
             hitContext.cache().put(CACHE_KEY, mappers);
         }
         @SuppressWarnings("unchecked")
-        Map<FieldMapper<?>, org.apache.lucene.search.highlight.Highlighter> cache = (Map<FieldMapper<?>, org.apache.lucene.search.highlight.Highlighter>) hitContext.cache().get(CACHE_KEY);
+        Map<FieldMapper, org.apache.lucene.search.highlight.Highlighter> cache = (Map<FieldMapper, org.apache.lucene.search.highlight.Highlighter>) hitContext.cache().get(CACHE_KEY);
 
         org.apache.lucene.search.highlight.Highlighter entry = cache.get(mapper);
         if (entry == null) {

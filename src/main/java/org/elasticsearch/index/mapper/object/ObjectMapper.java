@@ -513,7 +513,7 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll, Clonea
 
         List<Mapper> mappersToPut = new ArrayList<>();
         List<ObjectMapper> newObjectMappers = new ArrayList<>();
-        List<FieldMapper<?>> newFieldMappers = new ArrayList<>();
+        List<FieldMapper> newFieldMappers = new ArrayList<>();
         for (Mapper mapper : mergeWithObject) {
             Mapper mergeWithMapper = mapper;
             Mapper mergeIntoMapper = mappers.get(mergeWithMapper.name());

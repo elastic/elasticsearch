@@ -71,7 +71,7 @@ import static org.elasticsearch.index.mapper.MapperBuilders.geoShapeField;
  * ]
  * }
  */
-public class GeoShapeFieldMapper extends AbstractFieldMapper<String> {
+public class GeoShapeFieldMapper extends AbstractFieldMapper {
 
     public static final String CONTENT_TYPE = "geo_shape";
 

@@ -41,7 +41,7 @@ public class SourceSimpleFragmentsBuilder extends SimpleFragmentsBuilder {
 
     private final FetchSubPhase.HitContext hitContext;
 
-    public SourceSimpleFragmentsBuilder(FieldMapper<?> mapper, SearchContext searchContext,
+    public SourceSimpleFragmentsBuilder(FieldMapper mapper, SearchContext searchContext,
                                         FetchSubPhase.HitContext hitContext, String[] preTags, String[] postTags, BoundaryScanner boundaryScanner) {
         super(mapper, preTags, postTags, boundaryScanner);
         this.searchContext = searchContext;

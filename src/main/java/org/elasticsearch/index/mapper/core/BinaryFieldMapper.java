@@ -61,7 +61,7 @@ import static org.elasticsearch.index.mapper.core.TypeParsers.parseField;
 /**
  *
  */
-public class BinaryFieldMapper extends AbstractFieldMapper<BytesReference> {
+public class BinaryFieldMapper extends AbstractFieldMapper {
 
     public static final String CONTENT_TYPE = "binary";
 

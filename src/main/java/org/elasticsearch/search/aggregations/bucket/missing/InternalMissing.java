@@ -22,7 +22,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.InternalSingleBucketAggregation;
-import org.elasticsearch.search.aggregations.reducers.Reducer;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
 import java.util.List;
@@ -52,8 +52,8 @@ public class InternalMissing extends InternalSingleBucketAggregation implements 
     InternalMissing() {
     }
 
-    InternalMissing(String name, long docCount, InternalAggregations aggregations, List<Reducer> reducers, Map<String, Object> metaData) {
-        super(name, docCount, aggregations, reducers, metaData);
+    InternalMissing(String name, long docCount, InternalAggregations aggregations, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
+        super(name, docCount, aggregations, pipelineAggregators, metaData);
     }
 
     @Override
@@ -63,6 +63,6 @@ public class InternalMissing extends InternalSingleBucketAggregation implements 
 
     @Override
     protected InternalSingleBucketAggregation newAggregation(String name, long docCount, InternalAggregations subAggregations) {
-        return new InternalMissing(name, docCount, subAggregations, reducers(), getMetaData());
+        return new InternalMissing(name, docCount, subAggregations, pipelineAggregators(), getMetaData());
     }
 }

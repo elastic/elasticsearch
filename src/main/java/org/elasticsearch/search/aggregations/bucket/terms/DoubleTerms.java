@@ -27,7 +27,7 @@ import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.BucketStreamContext;
 import org.elasticsearch.search.aggregations.bucket.BucketStreams;
-import org.elasticsearch.search.aggregations.reducers.Reducer;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatterStreams;
 
@@ -162,8 +162,8 @@ public class DoubleTerms extends InternalTerms<DoubleTerms, DoubleTerms.Bucket> 
 
     public DoubleTerms(String name, Terms.Order order, @Nullable ValueFormatter formatter, int requiredSize, int shardSize,
             long minDocCount, List<? extends InternalTerms.Bucket> buckets, boolean showTermDocCountError, long docCountError,
-            long otherDocCount, List<Reducer> reducers, Map<String, Object> metaData) {
-        super(name, order, requiredSize, shardSize, minDocCount, buckets, showTermDocCountError, docCountError, otherDocCount, reducers,
+            long otherDocCount, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
+        super(name, order, requiredSize, shardSize, minDocCount, buckets, showTermDocCountError, docCountError, otherDocCount, pipelineAggregators,
                 metaData);
         this.formatter = formatter;
     }
@@ -176,7 +176,7 @@ public class DoubleTerms extends InternalTerms<DoubleTerms, DoubleTerms.Bucket> 
     @Override
     public DoubleTerms create(List<Bucket> buckets) {
         return new DoubleTerms(this.name, this.order, this.formatter, this.requiredSize, this.shardSize, this.minDocCount, buckets,
-                this.showTermDocCountError, this.docCountError, this.otherDocCount, this.reducers(), this.metaData);
+                this.showTermDocCountError, this.docCountError, this.otherDocCount, this.pipelineAggregators(), this.metaData);
     }
 
     @Override
@@ -189,7 +189,7 @@ public class DoubleTerms extends InternalTerms<DoubleTerms, DoubleTerms.Bucket> 
     protected DoubleTerms create(String name, List<org.elasticsearch.search.aggregations.bucket.terms.InternalTerms.Bucket> buckets,
             long docCountError, long otherDocCount, InternalTerms prototype) {
         return new DoubleTerms(name, prototype.order, ((DoubleTerms) prototype).formatter, prototype.requiredSize, prototype.shardSize,
-                prototype.minDocCount, buckets, prototype.showTermDocCountError, docCountError, otherDocCount, prototype.reducers(),
+                prototype.minDocCount, buckets, prototype.showTermDocCountError, docCountError, otherDocCount, prototype.pipelineAggregators(),
                 prototype.getMetaData());
     }
 

@@ -24,7 +24,7 @@ import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.metrics.percentiles.tdigest.TDigestState;
-import org.elasticsearch.search.aggregations.reducers.Reducer;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
 import java.io.IOException;
@@ -52,12 +52,12 @@ public class InternalPercentiles extends AbstractInternalPercentiles implements 
         AggregationStreams.registerStream(STREAM, TYPE.stream());
     }
 
-    InternalPercentiles() {} // for serialization
+    InternalPercentiles() {
+    } // for serialization
 
     public InternalPercentiles(String name, double[] percents, TDigestState state, boolean keyed, @Nullable ValueFormatter formatter,
-            List<Reducer> reducers,
-            Map<String, Object> metaData) {
-        super(name, percents, state, keyed, formatter, reducers, metaData);
+            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
+        super(name, percents, state, keyed, formatter, pipelineAggregators, metaData);
     }
 
     @Override
@@ -82,8 +82,8 @@ public class InternalPercentiles extends AbstractInternalPercentiles implements 
 
     @Override
     protected AbstractInternalPercentiles createReduced(String name, double[] keys, TDigestState merged, boolean keyed,
-            List<Reducer> reducers, Map<String, Object> metaData) {
-        return new InternalPercentiles(name, keys, merged, keyed, valueFormatter, reducers, metaData);
+            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
+        return new InternalPercentiles(name, keys, merged, keyed, valueFormatter, pipelineAggregators, metaData);
     }
 
     @Override

@@ -27,7 +27,7 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregator;
-import org.elasticsearch.search.aggregations.reducers.Reducer;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 
 import java.io.IOException;
@@ -39,9 +39,9 @@ import java.util.Map;
  */
 public class GlobalAggregator extends SingleBucketAggregator {
 
-    public GlobalAggregator(String name, AggregatorFactories subFactories, AggregationContext aggregationContext, List<Reducer> reducers,
+    public GlobalAggregator(String name, AggregatorFactories subFactories, AggregationContext aggregationContext, List<PipelineAggregator> pipelineAggregators,
             Map<String, Object> metaData) throws IOException {
-        super(name, subFactories, aggregationContext, null, reducers, metaData);
+        super(name, subFactories, aggregationContext, null, pipelineAggregators, metaData);
     }
 
     @Override
@@ -59,7 +59,7 @@ public class GlobalAggregator extends SingleBucketAggregator {
     @Override
     public InternalAggregation buildAggregation(long owningBucketOrdinal) throws IOException {
         assert owningBucketOrdinal == 0 : "global aggregator can only be a top level aggregator";
-        return new InternalGlobal(name, bucketDocCount(owningBucketOrdinal), bucketAggregations(owningBucketOrdinal), reducers(),
+        return new InternalGlobal(name, bucketDocCount(owningBucketOrdinal), bucketAggregations(owningBucketOrdinal), pipelineAggregators(),
                 metaData());
     }
 
@@ -76,7 +76,7 @@ public class GlobalAggregator extends SingleBucketAggregator {
 
         @Override
         public Aggregator createInternal(AggregationContext context, Aggregator parent, boolean collectsFromSingleBucket,
-                List<Reducer> reducers, Map<String, Object> metaData) throws IOException {
+                List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
             if (parent != null) {
                 throw new AggregationExecutionException("Aggregation [" + parent.name() + "] cannot have a global " +
                         "sub-aggregation [" + name + "]. Global aggregations can only be defined as top level aggregations");
@@ -84,7 +84,7 @@ public class GlobalAggregator extends SingleBucketAggregator {
             if (collectsFromSingleBucket == false) {
                 throw new IllegalStateException();
             }
-            return new GlobalAggregator(name, factories, context, reducers, metaData);
+            return new GlobalAggregator(name, factories, context, pipelineAggregators, metaData);
         }
 
     }

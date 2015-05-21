@@ -26,7 +26,7 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.BucketStreamContext;
 import org.elasticsearch.search.aggregations.bucket.BucketStreams;
 import org.elasticsearch.search.aggregations.bucket.range.InternalRange;
-import org.elasticsearch.search.aggregations.reducers.Reducer;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
 import java.io.IOException;
@@ -110,13 +110,13 @@ public class InternalGeoDistance extends InternalRange<InternalGeoDistance.Bucke
 
         @Override
         public InternalGeoDistance create(String name, List<Bucket> ranges, @Nullable ValueFormatter formatter, boolean keyed,
-                List<Reducer> reducers, Map<String, Object> metaData) {
-            return new InternalGeoDistance(name, ranges, formatter, keyed, reducers, metaData);
+                List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
+            return new InternalGeoDistance(name, ranges, formatter, keyed, pipelineAggregators, metaData);
         }
 
         @Override
         public InternalGeoDistance create(List<Bucket> ranges, InternalGeoDistance prototype) {
-            return new InternalGeoDistance(prototype.name, ranges, prototype.formatter, prototype.keyed, prototype.reducers(),
+            return new InternalGeoDistance(prototype.name, ranges, prototype.formatter, prototype.keyed, prototype.pipelineAggregators(),
                     prototype.metaData);
         }
 
@@ -134,9 +134,9 @@ public class InternalGeoDistance extends InternalRange<InternalGeoDistance.Bucke
 
     InternalGeoDistance() {} // for serialization
 
-    public InternalGeoDistance(String name, List<Bucket> ranges, @Nullable ValueFormatter formatter, boolean keyed, List<Reducer> reducers,
+    public InternalGeoDistance(String name, List<Bucket> ranges, @Nullable ValueFormatter formatter, boolean keyed, List<PipelineAggregator> pipelineAggregators,
             Map<String, Object> metaData) {
-        super(name, ranges, formatter, keyed, reducers, metaData);
+        super(name, ranges, formatter, keyed, pipelineAggregators, metaData);
     }
 
     @Override

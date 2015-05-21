@@ -27,7 +27,7 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.BucketStreamContext;
 import org.elasticsearch.search.aggregations.bucket.BucketStreams;
-import org.elasticsearch.search.aggregations.reducers.Reducer;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -153,8 +153,8 @@ public class StringTerms extends InternalTerms<StringTerms, StringTerms.Bucket> 
 
     public StringTerms(String name, Terms.Order order, int requiredSize, int shardSize, long minDocCount,
             List<? extends InternalTerms.Bucket> buckets, boolean showTermDocCountError, long docCountError, long otherDocCount,
-            List<Reducer> reducers, Map<String, Object> metaData) {
-        super(name, order, requiredSize, shardSize, minDocCount, buckets, showTermDocCountError, docCountError, otherDocCount, reducers,
+            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
+        super(name, order, requiredSize, shardSize, minDocCount, buckets, showTermDocCountError, docCountError, otherDocCount, pipelineAggregators,
                 metaData);
     }
 
@@ -166,7 +166,7 @@ public class StringTerms extends InternalTerms<StringTerms, StringTerms.Bucket> 
     @Override
     public StringTerms create(List<Bucket> buckets) {
         return new StringTerms(this.name, this.order, this.requiredSize, this.shardSize, this.minDocCount, buckets,
-                this.showTermDocCountError, this.docCountError, this.otherDocCount, this.reducers(), this.metaData);
+                this.showTermDocCountError, this.docCountError, this.otherDocCount, this.pipelineAggregators(), this.metaData);
     }
 
     @Override
@@ -178,7 +178,7 @@ public class StringTerms extends InternalTerms<StringTerms, StringTerms.Bucket> 
     protected StringTerms create(String name, List<org.elasticsearch.search.aggregations.bucket.terms.InternalTerms.Bucket> buckets,
             long docCountError, long otherDocCount, InternalTerms prototype) {
         return new StringTerms(name, prototype.order, prototype.requiredSize, prototype.shardSize, prototype.minDocCount, buckets,
-                prototype.showTermDocCountError, docCountError, otherDocCount, prototype.reducers(), prototype.getMetaData());
+                prototype.showTermDocCountError, docCountError, otherDocCount, prototype.pipelineAggregators(), prototype.getMetaData());
     }
 
     @Override

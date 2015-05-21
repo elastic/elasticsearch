@@ -30,7 +30,7 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.terms.support.BucketPriorityQueue;
-import org.elasticsearch.search.aggregations.reducers.Reducer;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
 import java.util.ArrayList;
@@ -124,9 +124,9 @@ public abstract class InternalTerms<A extends InternalTerms, B extends InternalT
     protected InternalTerms() {} // for serialization
 
     protected InternalTerms(String name, Terms.Order order, int requiredSize, int shardSize, long minDocCount,
-            List<? extends Bucket> buckets, boolean showTermDocCountError, long docCountError, long otherDocCount, List<Reducer> reducers,
+            List<? extends Bucket> buckets, boolean showTermDocCountError, long docCountError, long otherDocCount, List<PipelineAggregator> pipelineAggregators,
             Map<String, Object> metaData) {
-        super(name, reducers, metaData);
+        super(name, pipelineAggregators, metaData);
         this.order = order;
         this.requiredSize = requiredSize;
         this.shardSize = shardSize;

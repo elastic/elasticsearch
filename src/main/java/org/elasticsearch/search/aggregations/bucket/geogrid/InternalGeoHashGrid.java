@@ -32,7 +32,7 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.BucketStreamContext;
 import org.elasticsearch.search.aggregations.bucket.BucketStreams;
-import org.elasticsearch.search.aggregations.reducers.Reducer;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -171,9 +171,9 @@ public class InternalGeoHashGrid extends InternalMultiBucketAggregation<Internal
     InternalGeoHashGrid() {
     } // for serialization
 
-    public InternalGeoHashGrid(String name, int requiredSize, Collection<Bucket> buckets, List<Reducer> reducers,
+    public InternalGeoHashGrid(String name, int requiredSize, Collection<Bucket> buckets, List<PipelineAggregator> pipelineAggregators,
             Map<String, Object> metaData) {
-        super(name, reducers, metaData);
+        super(name, pipelineAggregators, metaData);
         this.requiredSize = requiredSize;
         this.buckets = buckets;
     }
@@ -185,7 +185,7 @@ public class InternalGeoHashGrid extends InternalMultiBucketAggregation<Internal
 
     @Override
     public InternalGeoHashGrid create(List<Bucket> buckets) {
-        return new InternalGeoHashGrid(this.name, this.requiredSize, buckets, this.reducers(), this.metaData);
+        return new InternalGeoHashGrid(this.name, this.requiredSize, buckets, this.pipelineAggregators(), this.metaData);
     }
 
     @Override
@@ -229,7 +229,7 @@ public class InternalGeoHashGrid extends InternalMultiBucketAggregation<Internal
         for (int i = ordered.size() - 1; i >= 0; i--) {
             list[i] = ordered.pop();
         }
-        return new InternalGeoHashGrid(getName(), requiredSize, Arrays.asList(list), reducers(), getMetaData());
+        return new InternalGeoHashGrid(getName(), requiredSize, Arrays.asList(list), pipelineAggregators(), getMetaData());
     }
 
     @Override

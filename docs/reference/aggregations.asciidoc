@@ -23,7 +23,7 @@ it is often easier to break them into two main families:
 <<search-aggregations-metrics, _Metric_>>::
 				Aggregations that keep track and compute metrics over a set of documents.
 
-<<search-aggregations-reducer, _Reducer_>>::
+<<search-aggregations-pipeline, _Pipeline_>>::
 				Aggregations that aggregate the output of other aggregations and their associated metrics
 
 The interesting part comes next. Since each bucket effectively defines a document set (all documents belonging to
@@ -100,6 +100,6 @@ include::aggregations/metrics.asciidoc[]
 
 include::aggregations/bucket.asciidoc[]
 
-include::aggregations/reducer.asciidoc[]
+include::aggregations/pipeline.asciidoc[]
 
 include::aggregations/misc.asciidoc[]

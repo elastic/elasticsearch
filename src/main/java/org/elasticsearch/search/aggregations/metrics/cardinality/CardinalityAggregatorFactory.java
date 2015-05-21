@@ -22,7 +22,7 @@ package org.elasticsearch.search.aggregations.metrics.cardinality;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregator;
-import org.elasticsearch.search.aggregations.reducers.Reducer;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
@@ -48,18 +48,18 @@ final class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory<V
     }
 
     @Override
-    protected Aggregator createUnmapped(AggregationContext context, Aggregator parent, List<Reducer> reducers, Map<String, Object> metaData)
+    protected Aggregator createUnmapped(AggregationContext context, Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
             throws IOException {
-        return new CardinalityAggregator(name, null, true, precision(parent), config.formatter(), context, parent, reducers, metaData);
+        return new CardinalityAggregator(name, null, true, precision(parent), config.formatter(), context, parent, pipelineAggregators, metaData);
     }
 
     @Override
     protected Aggregator doCreateInternal(ValuesSource valuesSource, AggregationContext context, Aggregator parent,
-            boolean collectsFromSingleBucket, List<Reducer> reducers, Map<String, Object> metaData) throws IOException {
+            boolean collectsFromSingleBucket, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
         if (!(valuesSource instanceof ValuesSource.Numeric) && !rehash) {
             throw new AggregationExecutionException("Turning off rehashing for cardinality aggregation [" + name + "] on non-numeric values in not allowed");
         }
-        return new CardinalityAggregator(name, valuesSource, rehash, precision(parent), config.formatter(), context, parent, reducers,
+        return new CardinalityAggregator(name, valuesSource, rehash, precision(parent), config.formatter(), context, parent, pipelineAggregators,
                 metaData);
     }
 

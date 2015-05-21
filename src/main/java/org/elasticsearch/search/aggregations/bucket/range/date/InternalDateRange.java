@@ -26,7 +26,7 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.BucketStreamContext;
 import org.elasticsearch.search.aggregations.bucket.BucketStreams;
 import org.elasticsearch.search.aggregations.bucket.range.InternalRange;
-import org.elasticsearch.search.aggregations.reducers.Reducer;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
@@ -122,13 +122,13 @@ public class InternalDateRange extends InternalRange<InternalDateRange.Bucket, I
 
         @Override
         public InternalDateRange create(String name, List<InternalDateRange.Bucket> ranges, ValueFormatter formatter, boolean keyed,
-                List<Reducer> reducers, Map<String, Object> metaData) {
-            return new InternalDateRange(name, ranges, formatter, keyed, reducers, metaData);
+                List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
+            return new InternalDateRange(name, ranges, formatter, keyed, pipelineAggregators, metaData);
         }
 
         @Override
         public InternalDateRange create(List<Bucket> ranges, InternalDateRange prototype) {
-            return new InternalDateRange(prototype.name, ranges, prototype.formatter, prototype.keyed, prototype.reducers(),
+            return new InternalDateRange(prototype.name, ranges, prototype.formatter, prototype.keyed, prototype.pipelineAggregators(),
                     prototype.metaData);
         }
 
@@ -147,8 +147,8 @@ public class InternalDateRange extends InternalRange<InternalDateRange.Bucket, I
     InternalDateRange() {} // for serialization
 
     InternalDateRange(String name, List<InternalDateRange.Bucket> ranges, @Nullable ValueFormatter formatter, boolean keyed,
-            List<Reducer> reducers, Map<String, Object> metaData) {
-        super(name, ranges, formatter, keyed, reducers, metaData);
+            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
+        super(name, ranges, formatter, keyed, pipelineAggregators, metaData);
     }
 
     @Override

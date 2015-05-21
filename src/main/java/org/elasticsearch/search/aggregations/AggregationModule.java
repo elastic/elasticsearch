@@ -56,14 +56,14 @@ import org.elasticsearch.search.aggregations.metrics.stats.extended.ExtendedStat
 import org.elasticsearch.search.aggregations.metrics.sum.SumParser;
 import org.elasticsearch.search.aggregations.metrics.tophits.TopHitsParser;
 import org.elasticsearch.search.aggregations.metrics.valuecount.ValueCountParser;
-import org.elasticsearch.search.aggregations.reducers.Reducer;
-import org.elasticsearch.search.aggregations.reducers.bucketmetrics.avg.AvgBucketParser;
-import org.elasticsearch.search.aggregations.reducers.bucketmetrics.max.MaxBucketParser;
-import org.elasticsearch.search.aggregations.reducers.bucketmetrics.min.MinBucketParser;
-import org.elasticsearch.search.aggregations.reducers.bucketmetrics.sum.SumBucketParser;
-import org.elasticsearch.search.aggregations.reducers.derivative.DerivativeParser;
-import org.elasticsearch.search.aggregations.reducers.movavg.MovAvgParser;
-import org.elasticsearch.search.aggregations.reducers.movavg.models.MovAvgModelModule;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.avg.AvgBucketParser;
+import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.max.MaxBucketParser;
+import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.min.MinBucketParser;
+import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.sum.SumBucketParser;
+import org.elasticsearch.search.aggregations.pipeline.derivative.DerivativeParser;
+import org.elasticsearch.search.aggregations.pipeline.movavg.MovAvgParser;
+import org.elasticsearch.search.aggregations.pipeline.movavg.models.MovAvgModelModule;
 
 import java.util.List;
 
@@ -73,7 +73,7 @@ import java.util.List;
 public class AggregationModule extends AbstractModule implements SpawnModules{
 
     private List<Class<? extends Aggregator.Parser>> aggParsers = Lists.newArrayList();
-    private List<Class<? extends Reducer.Parser>> reducerParsers = Lists.newArrayList();
+    private List<Class<? extends PipelineAggregator.Parser>> pipelineAggParsers = Lists.newArrayList();
 
     public AggregationModule() {
         aggParsers.add(AvgParser.class);
@@ -108,12 +108,12 @@ public class AggregationModule extends AbstractModule implements SpawnModules{
         aggParsers.add(ScriptedMetricParser.class);
         aggParsers.add(ChildrenParser.class);
 
-        reducerParsers.add(DerivativeParser.class);
-        reducerParsers.add(MaxBucketParser.class);
-        reducerParsers.add(MinBucketParser.class);
-        reducerParsers.add(AvgBucketParser.class);
-        reducerParsers.add(SumBucketParser.class);
-        reducerParsers.add(MovAvgParser.class);
+        pipelineAggParsers.add(DerivativeParser.class);
+        pipelineAggParsers.add(MaxBucketParser.class);
+        pipelineAggParsers.add(MinBucketParser.class);
+        pipelineAggParsers.add(AvgBucketParser.class);
+        pipelineAggParsers.add(SumBucketParser.class);
+        pipelineAggParsers.add(MovAvgParser.class);
     }
 
     /**
@@ -131,9 +131,9 @@ public class AggregationModule extends AbstractModule implements SpawnModules{
         for (Class<? extends Aggregator.Parser> parser : aggParsers) {
             multibinderAggParser.addBinding().to(parser);
         }
-        Multibinder<Reducer.Parser> multibinderReducerParser = Multibinder.newSetBinder(binder(), Reducer.Parser.class);
-        for (Class<? extends Reducer.Parser> parser : reducerParsers) {
-            multibinderReducerParser.addBinding().to(parser);
+        Multibinder<PipelineAggregator.Parser> multibinderPipelineAggParser = Multibinder.newSetBinder(binder(), PipelineAggregator.Parser.class);
+        for (Class<? extends PipelineAggregator.Parser> parser : pipelineAggParsers) {
+            multibinderPipelineAggParser.addBinding().to(parser);
         }
         bind(AggregatorParsers.class).asEagerSingleton();
         bind(AggregationParseElement.class).asEagerSingleton();

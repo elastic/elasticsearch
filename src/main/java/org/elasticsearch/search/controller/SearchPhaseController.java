@@ -44,8 +44,8 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.reducers.Reducer;
-import org.elasticsearch.search.aggregations.reducers.SiblingReducer;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.pipeline.SiblingPipelineAggregator;
 import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.fetch.FetchSearchResult;
@@ -409,11 +409,11 @@ public class SearchPhaseController extends AbstractComponent {
         }
 
         if (aggregations != null) {
-            List<SiblingReducer> reducers = firstResult.reducers();
-            if (reducers != null) {
-                List<InternalAggregation> newAggs = new ArrayList<>(Lists.transform(aggregations.asList(), Reducer.AGGREGATION_TRANFORM_FUNCTION));
-                for (SiblingReducer reducer : reducers) {
-                    InternalAggregation newAgg = reducer.doReduce(new InternalAggregations(newAggs), new ReduceContext(bigArrays,
+            List<SiblingPipelineAggregator> pipelineAggregators = firstResult.pipelineAggregators();
+            if (pipelineAggregators != null) {
+                List<InternalAggregation> newAggs = new ArrayList<>(Lists.transform(aggregations.asList(), PipelineAggregator.AGGREGATION_TRANFORM_FUNCTION));
+                for (SiblingPipelineAggregator pipelineAggregator : pipelineAggregators) {
+                    InternalAggregation newAgg = pipelineAggregator.doReduce(new InternalAggregations(newAggs), new ReduceContext(bigArrays,
                             scriptService));
                     newAggs.add(newAgg);
                 }

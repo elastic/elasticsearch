@@ -23,7 +23,7 @@ import org.apache.lucene.search.Scorer;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ObjectArray;
-import org.elasticsearch.search.aggregations.reducers.Reducer;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.internal.SearchContext.Lifetime;
 
@@ -86,7 +86,7 @@ public abstract class AggregatorFactory {
     }
 
     protected abstract Aggregator createInternal(AggregationContext context, Aggregator parent, boolean collectsFromSingleBucket,
-            List<Reducer> reducers, Map<String, Object> metaData) throws IOException;
+            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException;
 
     /**
      * Creates the aggregator
@@ -99,7 +99,7 @@ public abstract class AggregatorFactory {
      * @return                      The created aggregator
      */
     public final Aggregator create(AggregationContext context, Aggregator parent, boolean collectsFromSingleBucket) throws IOException {
-        return createInternal(context, parent, collectsFromSingleBucket, this.factories.createReducers(), this.metaData);
+        return createInternal(context, parent, collectsFromSingleBucket, this.factories.createPipelineAggregators(), this.metaData);
     }
 
     public void doValidate() {

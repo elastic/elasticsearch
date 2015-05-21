@@ -228,7 +228,7 @@ public class SyncedFlushService extends AbstractComponent {
 
                             @Override
                             public void handleException(TransportException exp) {
-                                logger.debug("{} unexpected error while retrieving inflight op count", shardId);
+                                logger.debug("{} unexpected error while retrieving inflight op count", exp, shardId);
                                 listener.onFailure(exp);
                             }
 
@@ -257,7 +257,7 @@ public class SyncedFlushService extends AbstractComponent {
             }
             final Engine.CommitId expectedCommitId = expectedCommitIds.get(shard.currentNodeId());
             if (expectedCommitId == null) {
-                logger.trace("{} can't resolve expected commit id for {}, skipping for sync id [{}]. shard routing {}", shardId, syncId, shard);
+                logger.trace("{} can't resolve expected commit id for node {}, skipping for sync id [{}]. shard routing {}", shardId, shard.currentNodeId(), syncId, shard);
                 results.put(shard, new SyncedFlushResponse("no commit id from pre-sync flush"));
                 contDownAndSendResponseIfDone(syncId, shards, shardId, listener, countDown, results);
                 continue;
@@ -358,7 +358,7 @@ public class SyncedFlushService extends AbstractComponent {
 
                 @Override
                 public void onFailure(Throwable e) {
-                    logger.trace("{} error while performing pre synced flush on [{}], skipping", shardId, e, shard);
+                    logger.trace("{} error while performing pre synced flush on [{}], skipping", e, shardId, shard);
                     if (countDown.countDown()) {
                         listener.onResponse(commitIds);
                     }

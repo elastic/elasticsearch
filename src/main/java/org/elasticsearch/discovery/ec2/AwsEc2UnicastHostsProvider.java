@@ -75,7 +75,7 @@ public class AwsEc2UnicastHostsProvider extends AbstractComponent implements Uni
         this.client = awsEc2Service.client();
         this.version = version;
 
-        this.hostType = HostType.valueOf(settings.get("discovery.ec2.host_type", "private_ip").toUpperCase());
+        this.hostType = HostType.valueOf(settings.get("discovery.ec2.host_type", "private_ip").toUpperCase(Locale.ROOT));
 
         this.bindAnyGroup = settings.getAsBoolean("discovery.ec2.any_group", true);
         this.groups = ImmutableSet.copyOf(settings.getAsArray("discovery.ec2.groups"));

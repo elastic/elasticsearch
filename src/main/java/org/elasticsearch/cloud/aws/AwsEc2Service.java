@@ -19,12 +19,15 @@
 
 package org.elasticsearch.cloud.aws;
 
+import java.util.Locale;
+
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.Protocol;
 import com.amazonaws.auth.*;
 import com.amazonaws.internal.StaticCredentialsProvider;
 import com.amazonaws.services.ec2.AmazonEC2;
 import com.amazonaws.services.ec2.AmazonEC2Client;
+
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cloud.aws.network.Ec2NameResolver;
 import org.elasticsearch.cloud.aws.node.Ec2CustomNodeAttributes;
@@ -65,8 +68,8 @@ public class AwsEc2Service extends AbstractLifecycleComponent<AwsEc2Service> {
         // the response metadata cache is only there for diagnostics purposes,
         // but can force objects from every response to the old generation.
         clientConfiguration.setResponseMetadataCacheSize(0);
-        String protocol = settings.get("cloud.aws.protocol", "https").toLowerCase();
-        protocol = settings.get("cloud.aws.ec2.protocol", protocol).toLowerCase();
+        String protocol = settings.get("cloud.aws.protocol", "https").toLowerCase(Locale.ROOT);
+        protocol = settings.get("cloud.aws.ec2.protocol", protocol).toLowerCase(Locale.ROOT);
         if ("http".equals(protocol)) {
             clientConfiguration.setProtocol(Protocol.HTTP);
         } else if ("https".equals(protocol)) {
@@ -123,7 +126,7 @@ public class AwsEc2Service extends AbstractLifecycleComponent<AwsEc2Service> {
             logger.debug("using explicit ec2 endpoint [{}]", endpoint);
             client.setEndpoint(endpoint);
         } else if (settings.get("cloud.aws.region") != null) {
-            String region = settings.get("cloud.aws.region").toLowerCase();
+            String region = settings.get("cloud.aws.region").toLowerCase(Locale.ROOT);
             String endpoint;
             if (region.equals("us-east-1") || region.equals("us-east")) {
                 endpoint = "ec2.us-east-1.amazonaws.com";

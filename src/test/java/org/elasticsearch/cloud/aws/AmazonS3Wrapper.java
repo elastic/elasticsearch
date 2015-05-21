@@ -35,9 +35,12 @@ import java.net.URL;
 import java.util.Date;
 import java.util.List;
 
+import org.elasticsearch.common.SuppressForbidden;
+
 /**
  *
  */
+@SuppressForbidden(reason = "implements AWS api that uses java.io.File!")
 public class AmazonS3Wrapper implements AmazonS3 {
 
     protected AmazonS3 delegate;

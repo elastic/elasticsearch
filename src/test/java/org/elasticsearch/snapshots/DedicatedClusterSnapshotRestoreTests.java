@@ -41,6 +41,7 @@ import org.elasticsearch.cluster.ProcessedClusterStateUpdateTask;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.MetaData.Custom;
+import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -538,8 +539,12 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
     @Test
     public void restoreIndexWithShardsMissingInLocalGateway() throws Exception {
         logger.info("--> start 2 nodes");
-        internalCluster().startNode();
-        internalCluster().startNode();
+        Settings nodeSettings = settingsBuilder()
+                .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE, EnableAllocationDecider.Rebalance.NONE)
+                .build();
+
+        internalCluster().startNode(nodeSettings);
+        internalCluster().startNode(nodeSettings);
         cluster().wipeIndices("_all");
 
         logger.info("--> create repository");

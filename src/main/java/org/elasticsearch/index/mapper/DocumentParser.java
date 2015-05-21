@@ -30,6 +30,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -61,9 +62,9 @@ class DocumentParser implements Closeable {
     private final Settings indexSettings;
     private final DocumentMapperParser docMapperParser;
     private final DocumentMapper docMapper;
-    private final Lock parseLock;
+    private final ReleasableLock parseLock;
 
-    public DocumentParser(String index, Settings indexSettings, DocumentMapperParser docMapperParser, DocumentMapper docMapper, Lock parseLock) {
+    public DocumentParser(String index, Settings indexSettings, DocumentMapperParser docMapperParser, DocumentMapper docMapper, ReleasableLock parseLock) {
         this.index = index;
         this.indexSettings = indexSettings;
         this.docMapperParser = docMapperParser;
@@ -72,11 +73,8 @@ class DocumentParser implements Closeable {
     }
 
     public ParsedDocument parseDocument(SourceToParse source) throws MapperParsingException {
-        parseLock.lock();
-        try {
+        try (ReleasableLock lock = parseLock.acquire()){
             return innerParseDocument(source);
-        } finally {
-            parseLock.unlock();
         }
     }
 

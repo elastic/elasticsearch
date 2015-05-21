@@ -42,6 +42,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.StringAndBytesText;
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -164,6 +165,7 @@ public class DocumentMapper implements ToXContent {
 
     private final Query typeFilter;
 
+    private final ReleasableLock mappingWriteLock;
     private final ReentrantReadWriteLock mappingLock;
 
     public DocumentMapper(MapperService mapperService, String index, @Nullable Settings indexSettings, DocumentMapperParser docMapperParser,
@@ -181,9 +183,10 @@ public class DocumentMapper implements ToXContent {
                 rootMappers.values().toArray(new RootMapper[rootMappers.values().size()]),
                 sourceTransforms.toArray(new SourceTransform[sourceTransforms.size()]),
                 meta);
-        this.documentParser = new DocumentParser(index, indexSettings, docMapperParser, this, mappingLock.readLock());
+        this.documentParser = new DocumentParser(index, indexSettings, docMapperParser, this, new ReleasableLock(mappingLock.readLock()));
 
         this.typeFilter = typeMapper().termQuery(type, null);
+        this.mappingWriteLock = new ReleasableLock(mappingLock.writeLock());
         this.mappingLock = mappingLock;
 
         if (rootMapper(ParentFieldMapper.class).active()) {
@@ -391,16 +394,17 @@ public class DocumentMapper implements ToXContent {
     }
 
     private void addObjectMappers(Collection<ObjectMapper> objectMappers) {
-        assert mappingLock.isWriteLockedByCurrentThread();
-        MapBuilder<String, ObjectMapper> builder = MapBuilder.newMapBuilder(this.objectMappers);
-        for (ObjectMapper objectMapper : objectMappers) {
-            builder.put(objectMapper.fullPath(), objectMapper);
-            if (objectMapper.nested().isNested()) {
-                hasNestedObjects = true;
+        try (ReleasableLock lock = mappingWriteLock.acquire()) {
+            MapBuilder<String, ObjectMapper> builder = MapBuilder.newMapBuilder(this.objectMappers);
+            for (ObjectMapper objectMapper : objectMappers) {
+                builder.put(objectMapper.fullPath(), objectMapper);
+                if (objectMapper.nested().isNested()) {
+                    hasNestedObjects = true;
+                }
             }
+            this.objectMappers = builder.immutableMap();
+            mapperService.addObjectMappers(objectMappers);
         }
-        this.objectMappers = builder.immutableMap();
-        mapperService.addObjectMappers(objectMappers);
     }
 
     private MergeResult newMergeContext(boolean simulate) {
@@ -451,8 +455,7 @@ public class DocumentMapper implements ToXContent {
     }
 
     public MergeResult merge(Mapping mapping, boolean simulate) {
-        mappingLock.writeLock().lock();
-        try {
+        try (ReleasableLock lock = mappingWriteLock.acquire()) {
             final MergeResult mergeResult = newMergeContext(simulate);
             this.mapping.merge(mapping, mergeResult);
             if (simulate == false) {
@@ -461,8 +464,6 @@ public class DocumentMapper implements ToXContent {
                 refreshSource();
             }
             return mergeResult;
-        } finally {
-            mappingLock.writeLock().unlock();
         }
     }
 

@@ -38,6 +38,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.net.InetAddress;
+import java.util.Locale;
 import java.util.List;
 
 /**
@@ -113,11 +114,11 @@ public class AzureUnicastHostsProvider extends AbstractComponent implements Unic
 
         this.refreshInterval = settings.getAsTime(Discovery.REFRESH, TimeValue.timeValueSeconds(0));
 
-        String strHostType = settings.get(Discovery.HOST_TYPE, HostType.PRIVATE_IP.name()).toUpperCase();
+        String strHostType = settings.get(Discovery.HOST_TYPE, HostType.PRIVATE_IP.name()).toUpperCase(Locale.ROOT);
         HostType tmpHostType = HostType.fromString(strHostType);
         if (tmpHostType == null) {
             logger.warn("wrong value for [{}]: [{}]. falling back to [{}]...", Discovery.HOST_TYPE,
-                    strHostType, HostType.PRIVATE_IP.name().toLowerCase());
+                    strHostType, HostType.PRIVATE_IP.name().toLowerCase(Locale.ROOT));
             tmpHostType = HostType.PRIVATE_IP;
         }
         this.hostType = tmpHostType;

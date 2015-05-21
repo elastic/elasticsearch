@@ -47,6 +47,7 @@ import org.junit.*;
 
 import java.net.URISyntaxException;
 import java.util.concurrent.TimeUnit;
+import java.util.Locale;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -68,7 +69,7 @@ public class AzureSnapshotRestoreITest extends AbstractAzureTest {
     }
 
     private static String getContainerName() {
-        String testName = "snapshot-itest-".concat(RandomizedTest.getContext().getRunnerSeedAsString().toLowerCase());
+        String testName = "snapshot-itest-".concat(RandomizedTest.getContext().getRunnerSeedAsString().toLowerCase(Locale.ROOT));
         return testName.contains(" ") ? Strings.split(testName, " ")[0] : testName;
     }
 

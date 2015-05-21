@@ -33,6 +33,7 @@ import java.io.InputStreamReader;
 import java.net.InetAddress;
 import java.net.URL;
 import java.net.URLConnection;
+import java.nio.charset.StandardCharsets;
 
 /**
  * Resolves certain ec2 related 'meta' hostnames into an actual hostname
@@ -101,7 +102,7 @@ public class Ec2NameResolver extends AbstractComponent implements CustomNameReso
             urlConnection = url.openConnection();
             urlConnection.setConnectTimeout(2000);
             in = urlConnection.getInputStream();
-            BufferedReader urlReader = new BufferedReader(new InputStreamReader(in));
+            BufferedReader urlReader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
 
             String metadataResult = urlReader.readLine();
             if (metadataResult == null || metadataResult.length() == 0) {

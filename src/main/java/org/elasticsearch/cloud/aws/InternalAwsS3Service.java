@@ -26,6 +26,7 @@ import com.amazonaws.http.IdleConnectionReaper;
 import com.amazonaws.internal.StaticCredentialsProvider;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
+
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -33,6 +34,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -93,8 +95,8 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent<AwsS3Servic
         // but can force objects from every response to the old generation.
         clientConfiguration.setResponseMetadataCacheSize(0);
         if (protocol == null) {
-            protocol = settings.get("cloud.aws.protocol", "https").toLowerCase();
-            protocol = settings.get("cloud.aws.s3.protocol", protocol).toLowerCase();
+            protocol = settings.get("cloud.aws.protocol", "https").toLowerCase(Locale.ROOT);
+            protocol = settings.get("cloud.aws.s3.protocol", protocol).toLowerCase(Locale.ROOT);
         }
 
         if ("http".equals(protocol)) {
@@ -163,7 +165,7 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent<AwsS3Servic
             endpoint = settings.get("cloud.aws.s3.endpoint");
             logger.debug("using explicit s3 endpoint [{}]", endpoint);
         } else if (settings.get("cloud.aws.region") != null) {
-            String region = settings.get("cloud.aws.region").toLowerCase();
+            String region = settings.get("cloud.aws.region").toLowerCase(Locale.ROOT);
             endpoint = getEndpoint(region);
             logger.debug("using s3 region [{}], with endpoint [{}]", region, endpoint);
         }

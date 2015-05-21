@@ -5,13 +5,11 @@
  */
 package org.elasticsearch.license.licensor.tools;
 
-import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.cli.CliTool;
 import org.elasticsearch.common.cli.CliToolConfig;
 import org.elasticsearch.common.cli.Terminal;
 import org.elasticsearch.common.cli.commons.CommandLine;
 import org.elasticsearch.common.collect.ImmutableSet;
-import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -46,10 +44,9 @@ public class LicenseGeneratorTool extends CliTool {
 
     @Override
     protected Command parse(String s, CommandLine commandLine) throws Exception {
-        return LicenseGenerator.parse(terminal, commandLine);
+        return LicenseGenerator.parse(terminal, commandLine, env);
     }
 
-    @SuppressForbidden(reason = "command line tool")
     public static class LicenseGenerator extends Command {
 
         private static final CliToolConfig.Cmd CMD = cmd(NAME, LicenseGenerator.class)
@@ -71,9 +68,9 @@ public class LicenseGeneratorTool extends CliTool {
             this.publicKeyFilePath = publicKeyFilePath;
         }
 
-        public static Command parse(Terminal terminal, CommandLine commandLine) throws IOException {
-            Path publicKeyPath = PathUtils.get(commandLine.getOptionValue("publicKeyPath"));
-            Path privateKeyPath = PathUtils.get(commandLine.getOptionValue("privateKeyPath"));
+        public static Command parse(Terminal terminal, CommandLine commandLine, Environment environment) throws IOException {
+            Path publicKeyPath = environment.homeFile().resolve(commandLine.getOptionValue("publicKeyPath"));
+            Path privateKeyPath = environment.homeFile().resolve(commandLine.getOptionValue("privateKeyPath"));
             String[] licenseSpecSources = commandLine.getOptionValues("license");
             String[] licenseSpecSourceFiles = commandLine.getOptionValues("licenseFile");
 
@@ -92,7 +89,7 @@ public class LicenseGeneratorTool extends CliTool {
 
             if (licenseSpecSourceFiles != null) {
                 for (String licenseSpecFilePath : licenseSpecSourceFiles) {
-                    Path licenseSpecPath = PathUtils.get(licenseSpecFilePath);
+                    Path licenseSpecPath = environment.homeFile().resolve(licenseSpecFilePath);
                     if (!Files.exists(licenseSpecPath)) {
                         return exitCmd(ExitStatus.USAGE, terminal, licenseSpecFilePath + " does not exist");
                     }

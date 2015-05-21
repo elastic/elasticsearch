@@ -67,12 +67,15 @@ environment variable.
 [[JAVA_HOME]]
 === JAVA_HOME environment varriable for *NIX Systems
 The `JAVA_HOME` environment variable can be configured for the elasticsearch 
-process by editing `/etc/default/elasticsearch` to include 
+process by the following
 
 [source,sh]
 --------------------------------------------------
 JAVA_HOME=/path/to/java
 --------------------------------------------------
+
+The location of the configuration file will vary with your *NIX distribution.
+For Debian Systems add `JAVA_HOME` to `/etc/default/elasticsearch`.
 
 If you're planning on running Elasticsearch as a Service on a *NIX system, 
 in a production environment, this configuration is prefered.

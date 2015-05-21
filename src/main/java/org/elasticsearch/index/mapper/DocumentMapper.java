@@ -394,17 +394,16 @@ public class DocumentMapper implements ToXContent {
     }
 
     private void addObjectMappers(Collection<ObjectMapper> objectMappers) {
-        try (ReleasableLock lock = mappingWriteLock.acquire()) {
-            MapBuilder<String, ObjectMapper> builder = MapBuilder.newMapBuilder(this.objectMappers);
-            for (ObjectMapper objectMapper : objectMappers) {
-                builder.put(objectMapper.fullPath(), objectMapper);
-                if (objectMapper.nested().isNested()) {
-                    hasNestedObjects = true;
-                }
+        assert mappingLock.isWriteLockedByCurrentThread();
+        MapBuilder<String, ObjectMapper> builder = MapBuilder.newMapBuilder(this.objectMappers);
+        for (ObjectMapper objectMapper : objectMappers) {
+            builder.put(objectMapper.fullPath(), objectMapper);
+            if (objectMapper.nested().isNested()) {
+                hasNestedObjects = true;
             }
-            this.objectMappers = builder.immutableMap();
-            mapperService.addObjectMappers(objectMappers);
         }
+        this.objectMappers = builder.immutableMap();
+        mapperService.addObjectMappers(objectMappers);
     }
 
     private MergeResult newMergeContext(boolean simulate) {

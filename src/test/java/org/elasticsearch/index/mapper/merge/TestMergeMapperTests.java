@@ -20,26 +20,30 @@
 package org.elasticsearch.index.mapper.merge;
 
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.analysis.FieldNameAnalyzer;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.index.mapper.DocumentFieldMappers;
+import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.DocumentMapperParser;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.Mapping;
+import org.elasticsearch.index.mapper.MergeResult;
+import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.junit.Test;
 
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  *
@@ -154,62 +158,63 @@ public class TestMergeMapperTests extends ElasticsearchSingleNodeTest {
         assertThat(((StringFieldMapper) (existing.mappers().getMapper("field"))).getIgnoreAbove(), equalTo(14));
     }
 
-    public void testConcurrentMergeTest() throws IOException, BrokenBarrierException, InterruptedException {
+    public void testConcurrentMergeTest() throws Throwable {
         final MapperService mapperService = createIndex("test").mapperService();
-        final AtomicInteger counter = new AtomicInteger(0);
-        Tuple<DocumentMapper, Mapping> docMapper = mapperService.documentMapperWithAutoCreate("test");
-        final DocumentMapper documentMapper = docMapper.v1();
-        int id = counter.incrementAndGet();
-        ParsedDocument doc = documentMapper.parse("test", Integer.toString(id), new BytesArray("{ \"test_field_" + id + "\" : \"test\" }"));
-        if (docMapper.v2() != null) {
-            doc.addDynamicMappingsUpdate(docMapper.v2());
-        }
-        Mapping mapping = doc.dynamicMappingsUpdate();
-        mapperService.merge("test", new CompressedString(mapping.toString()), false);
+        mapperService.merge("test", new CompressedString("{\"test\":{}}"), true);
+        final DocumentMapper documentMapper = mapperService.documentMapper("test");
+
+        DocumentFieldMappers dfm = documentMapper.mappers();
         try {
-            int nextID = counter.get() + 1;
-            DocumentFieldMappers mappers = mapperService.documentMapper("test").mappers();
-            FieldMapper mapper = mappers.getMapper("test_field_" + nextID);
-            assertNull(mapper);
-            ((FieldNameAnalyzer)mappers.indexAnalyzer()).getWrappedAnalyzer("test_field_" + nextID);
-            fail("field not there yet");
-        } catch (IllegalArgumentException ex) {
-            assertEquals(ex.getMessage(), "Field [test_field_2] has no associated analyzer");
+            ((FieldNameAnalyzer) dfm.indexAnalyzer()).getWrappedAnalyzer("non_existing_field");
+            fail();
+        } catch (IllegalArgumentException e) {
+            // ok that's expected
         }
+
         final AtomicBoolean stopped = new AtomicBoolean(false);
         final CyclicBarrier barrier = new CyclicBarrier(2);
+        final AtomicReference<String> lastIntroducedFieldName = new AtomicReference<>();
+        final AtomicReference<Throwable> error = new AtomicReference<>();
         final Thread updater = new Thread() {
             @Override
             public void run() {
                 try {
                     barrier.await();
-                    for (int i = 0; i < 10000; i++) {
-                        Tuple<DocumentMapper, Mapping> docMapper = mapperService.documentMapperWithAutoCreate("test");
-                        int id = counter.incrementAndGet();
-                        ParsedDocument doc = documentMapper.parse("test", Integer.toString(id), new BytesArray("{ \"test_field_" + id + "\" : \"test\" }"));
-                        if (docMapper.v2() != null) {
-                            doc.addDynamicMappingsUpdate(docMapper.v2());
-                        }
-                        Mapping mapping = doc.dynamicMappingsUpdate();
-                        mapperService.merge("test", new CompressedString(mapping.toString()), false);
+                    for (int i = 0; i < 200 && stopped.get() == false; i++) {
+                        final String fieldName = Integer.toString(i);
+                        ParsedDocument doc = documentMapper.parse("test", fieldName, new BytesArray("{ \"" + fieldName + "\" : \"test\" }"));
+                        Mapping update = doc.dynamicMappingsUpdate();
+                        assert update != null;
+                        lastIntroducedFieldName.set(fieldName);
+                        mapperService.merge("test", new CompressedString(update.toString()), false);
                     }
-                } catch (Exception ex) {
-
+                } catch (Throwable t) {
+                    error.set(t);
                 } finally {
                     stopped.set(true);
                 }
             }
         };
         updater.start();
-        barrier.await();
-        while(stopped.get() == false) {
-            List<ObjectMapper> newObjectMappers = new ArrayList<>();
-            List<FieldMapper<?>> newFieldMappers = new ArrayList<>();
-            MapperUtils.collect(mapperService.documentMapper("test").root(), newObjectMappers, newFieldMappers);
-            DocumentFieldMappers dfm = mapperService.documentMapper("test").mappers();
-            for (FieldMapper<?> fieldMapper : newFieldMappers) {
-                ((FieldNameAnalyzer) dfm.indexAnalyzer()).getWrappedAnalyzer(fieldMapper.name());
+        try {
+            barrier.await();
+            while(stopped.get() == false) {
+                final String fieldName = lastIntroducedFieldName.get();
+                final BytesReference source = new BytesArray("{ \"" + fieldName + "\" : \"test\" }");
+                ParsedDocument parsedDoc = documentMapper.parse("test", "random", source);
+                if (parsedDoc.dynamicMappingsUpdate() != null) {
+                    // not in the mapping yet, try again
+                    continue;
+                }
+                dfm = documentMapper.mappers();
+                ((FieldNameAnalyzer) dfm.indexAnalyzer()).getWrappedAnalyzer(fieldName);
             }
+        } finally {
+            stopped.set(true);
+            updater.join();
+        }
+        if (error.get() != null) {
+            throw error.get();
         }
     }
 }

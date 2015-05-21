@@ -63,6 +63,23 @@ known-bad version of Java is used. added[1.5.0]
 The version of Java to use can be configured by setting the `JAVA_HOME`
 environment variable.
 
+[float]
+[[JAVA_HOME]]
+=== JAVA_HOME environment varriable for *NIX Systems
+The `JAVA_HOME` environment variable can be configured for the elasticsearch 
+process by editing `/etc/default/elasticsearch` to include 
+
+[source,sh]
+--------------------------------------------------
+JAVA_HOME=/path/to/java
+--------------------------------------------------
+
+If you're planning on running Elasticsearch as a Service on a *NIX system, 
+in a production environment, this configuration is prefered.
+
+Please see https://www.elastic.co/guide/en/elasticsearch/reference/1.x/setup-service.html[Elasticsearch as a Service] for more setup-information, such as 
+configuring the elasticsearch service to start on bootup.
+
 --
 
 include::setup/configuration.asciidoc[]

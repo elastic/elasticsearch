@@ -21,9 +21,9 @@ package org.elasticsearch.common.compress;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
+
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.compress.lzf.LZFCompressor;
@@ -32,6 +32,8 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.jboss.netty.buffer.ChannelBuffer;
 
 import java.io.IOException;
@@ -92,14 +94,6 @@ public class CompressorFactory {
         return compressor(bytes) != null;
     }
 
-    public static boolean isCompressed(byte[] data) {
-        return compressor(data, 0, data.length) != null;
-    }
-
-    public static boolean isCompressed(byte[] data, int offset, int length) {
-        return compressor(data, offset, length) != null;
-    }
-
     public static boolean isCompressed(IndexInput in) throws IOException {
         return compressor(in) != null;
     }
@@ -108,35 +102,29 @@ public class CompressorFactory {
     public static Compressor compressor(BytesReference bytes) {
         for (Compressor compressor : compressors) {
             if (compressor.isCompressed(bytes)) {
+                // bytes should be either detected as compressed or as xcontent,
+                // if we have bytes that can be either detected as compressed or
+                // as a xcontent, we have a problem
+                assert XContentFactory.xContentType(bytes) == null;
                 return compressor;
             }
         }
-        return null;
-    }
 
-    @Nullable
-    public static Compressor compressor(byte[] data) {
-        return compressor(data, 0, data.length);
-    }
-
-    @Nullable
-    public static Compressor compressor(byte[] data, int offset, int length) {
-        for (Compressor compressor : compressors) {
-            if (compressor.isCompressed(data, offset, length)) {
-                return compressor;
-            }
+        XContentType contentType = XContentFactory.xContentType(bytes);
+        if (contentType == null) {
+            throw new NotXContentException("Compressor detection can only be called on some xcontent bytes or compressed xcontent bytes");
         }
+
         return null;
     }
 
-    @Nullable
     public static Compressor compressor(ChannelBuffer buffer) {
         for (Compressor compressor : compressors) {
             if (compressor.isCompressed(buffer)) {
                 return compressor;
             }
         }
-        return null;
+        throw new NotCompressedException();
     }
 
     @Nullable
@@ -158,16 +146,30 @@ public class CompressorFactory {
      */
     public static BytesReference uncompressIfNeeded(BytesReference bytes) throws IOException {
         Compressor compressor = compressor(bytes);
+        BytesReference uncompressed;
         if (compressor != null) {
-            if (bytes.hasArray()) {
-                return new BytesArray(compressor.uncompress(bytes.array(), bytes.arrayOffset(), bytes.length()));
-            }
-            StreamInput compressed = compressor.streamInput(bytes.streamInput());
-            BytesStreamOutput bStream = new BytesStreamOutput();
-            Streams.copy(compressed, bStream);
-            compressed.close();
-            return bStream.bytes();
+            uncompressed = uncompress(bytes, compressor);
+        } else {
+            uncompressed = bytes;
         }
-        return bytes;
+
+        return uncompressed;
+    }
+
+    /** Decompress the provided {@link BytesReference}. */
+    public static BytesReference uncompress(BytesReference bytes) throws IOException {
+        Compressor compressor = compressor(bytes);
+        if (compressor == null) {
+            throw new IllegalArgumentException("Bytes are not compressed");
+        }
+        return uncompress(bytes, compressor);
+    }
+
+    private static BytesReference uncompress(BytesReference bytes, Compressor compressor) throws IOException {
+        StreamInput compressed = compressor.streamInput(bytes.streamInput());
+        BytesStreamOutput bStream = new BytesStreamOutput();
+        Streams.copy(compressed, bStream);
+        compressed.close();
+        return bStream.bytes();
     }
 }

@@ -22,6 +22,7 @@ package org.elasticsearch.index.mapper.source;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -51,7 +52,7 @@ public class CompressSourceMappingTests extends ElasticsearchSingleNodeTest {
                 .field("field2", "value2")
                 .endObject().bytes());
         BytesRef bytes = doc.rootDoc().getBinaryValue("_source");
-        assertThat(CompressorFactory.isCompressed(bytes.bytes, bytes.offset, bytes.length), equalTo(false));
+        assertThat(CompressorFactory.isCompressed(new BytesArray(bytes)), equalTo(false));
     }
 
     @Test
@@ -68,7 +69,7 @@ public class CompressSourceMappingTests extends ElasticsearchSingleNodeTest {
                 .endObject().bytes());
 
         BytesRef bytes = doc.rootDoc().getBinaryValue("_source");
-        assertThat(CompressorFactory.isCompressed(bytes.bytes, bytes.offset, bytes.length), equalTo(true));
+        assertThat(CompressorFactory.isCompressed(new BytesArray(bytes)), equalTo(true));
     }
 
     @Test
@@ -84,7 +85,7 @@ public class CompressSourceMappingTests extends ElasticsearchSingleNodeTest {
                 .endObject().bytes());
 
         BytesRef bytes = doc.rootDoc().getBinaryValue("_source");
-        assertThat(CompressorFactory.isCompressed(bytes.bytes, bytes.offset, bytes.length), equalTo(false));
+        assertThat(CompressorFactory.isCompressed(new BytesArray(bytes)), equalTo(false));
 
         doc = documentMapper.parse("type", "1", XContentFactory.jsonBuilder().startObject()
                 .field("field1", "value1")
@@ -95,6 +96,6 @@ public class CompressSourceMappingTests extends ElasticsearchSingleNodeTest {
                 .endObject().bytes());
 
         bytes = doc.rootDoc().getBinaryValue("_source");
-        assertThat(CompressorFactory.isCompressed(bytes.bytes, bytes.offset, bytes.length), equalTo(true));
+        assertThat(CompressorFactory.isCompressed(new BytesArray(bytes)), equalTo(true));
     }
 }

@@ -23,7 +23,7 @@ import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.compress.CompressedString;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -45,7 +45,7 @@ public class AliasMetaData extends AbstractDiffable<AliasMetaData> {
 
     private final String alias;
 
-    private final CompressedString filter;
+    private final CompressedXContent filter;
 
     private final String indexRouting;
 
@@ -53,7 +53,7 @@ public class AliasMetaData extends AbstractDiffable<AliasMetaData> {
 
     private final Set<String> searchRoutingValues;
 
-    private AliasMetaData(String alias, CompressedString filter, String indexRouting, String searchRouting) {
+    private AliasMetaData(String alias, CompressedXContent filter, String indexRouting, String searchRouting) {
         this.alias = alias;
         this.filter = filter;
         this.indexRouting = indexRouting;
@@ -77,11 +77,11 @@ public class AliasMetaData extends AbstractDiffable<AliasMetaData> {
         return alias();
     }
 
-    public CompressedString filter() {
+    public CompressedXContent filter() {
         return filter;
     }
 
-    public CompressedString getFilter() {
+    public CompressedXContent getFilter() {
         return filter();
     }
 
@@ -176,9 +176,9 @@ public class AliasMetaData extends AbstractDiffable<AliasMetaData> {
     @Override
     public AliasMetaData readFrom(StreamInput in) throws IOException {
         String alias = in.readString();
-        CompressedString filter = null;
+        CompressedXContent filter = null;
         if (in.readBoolean()) {
-            filter = CompressedString.readCompressedString(in);
+            filter = CompressedXContent.readCompressedString(in);
         }
         String indexRouting = null;
         if (in.readBoolean()) {
@@ -195,7 +195,7 @@ public class AliasMetaData extends AbstractDiffable<AliasMetaData> {
 
         private final String alias;
 
-        private CompressedString filter;
+        private CompressedXContent filter;
 
         private String indexRouting;
 
@@ -217,7 +217,7 @@ public class AliasMetaData extends AbstractDiffable<AliasMetaData> {
             return alias;
         }
 
-        public Builder filter(CompressedString filter) {
+        public Builder filter(CompressedXContent filter) {
             this.filter = filter;
             return this;
         }
@@ -244,7 +244,7 @@ public class AliasMetaData extends AbstractDiffable<AliasMetaData> {
             }
             try {
                 XContentBuilder builder = XContentFactory.jsonBuilder().map(filter);
-                this.filter = new CompressedString(builder.bytes());
+                this.filter = new CompressedXContent(builder.bytes());
                 return this;
             } catch (IOException e) {
                 throw new ElasticsearchGenerationException("Failed to build json for alias request", e);
@@ -324,7 +324,7 @@ public class AliasMetaData extends AbstractDiffable<AliasMetaData> {
                     }
                 } else if (token == XContentParser.Token.VALUE_EMBEDDED_OBJECT) {
                     if ("filter".equals(currentFieldName)) {
-                        builder.filter(new CompressedString(parser.binaryValue()));
+                        builder.filter(new CompressedXContent(parser.binaryValue()));
                     }
                 } else if (token == XContentParser.Token.VALUE_STRING) {
                     if ("routing".equals(currentFieldName)) {

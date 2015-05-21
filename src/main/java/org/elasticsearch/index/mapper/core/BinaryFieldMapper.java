@@ -36,6 +36,9 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
+import org.elasticsearch.common.compress.NotXContentException;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -144,10 +147,16 @@ public class BinaryFieldMapper extends AbstractFieldMapper {
         }
         try {
             if (indexCreatedBefore2x) {
-                return CompressorFactory.uncompressIfNeeded(bytes);
-            } else {
-                return bytes;
+                try {
+                    return CompressorFactory.uncompressIfNeeded(bytes);
+                } catch (NotXContentException e) {
+                    // This is a BUG! We try to decompress by detecting a header in
+                    // the stored bytes but since we accept arbitrary bytes, we have
+                    // no guarantee that uncompressed bytes will be detected as
+                    // compressed!
+                }
             }
+            return bytes;
         } catch (IOException e) {
             throw new ElasticsearchParseException("failed to decompress source", e);
         }

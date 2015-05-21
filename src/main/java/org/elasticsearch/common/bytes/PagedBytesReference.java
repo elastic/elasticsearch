@@ -352,6 +352,7 @@ public class PagedBytesReference implements BytesReference {
         private final int offset;
         private final int length;
         private int pos;
+        private int mark;
 
         public PagedBytesReferenceStreamInput(ByteArray bytearray, int offset, int length) {
             this.bytearray = bytearray;
@@ -421,8 +422,18 @@ public class PagedBytesReference implements BytesReference {
         }
 
         @Override
+        public boolean markSupported() {
+            return true;
+        }
+
+        @Override
+        public void mark(int readlimit) {
+            this.mark = pos;
+        }
+
+        @Override
         public void reset() throws IOException {
-            pos = 0;
+            pos = mark;
         }
 
         @Override

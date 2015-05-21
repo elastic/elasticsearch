@@ -24,8 +24,8 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 import com.google.common.io.ByteStreams;
+
 import org.apache.lucene.store.RateLimiter;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -35,6 +35,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.compress.CompressorFactory;
@@ -407,7 +408,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
             BlobContainer indexMetaDataBlobContainer = blobStore().blobContainer(indexPath);
             try (InputStream blob = indexMetaDataBlobContainer.openInput(snapshotBlobName(snapshotId))) {
                 byte[] data = ByteStreams.toByteArray(blob);
-                try (XContentParser parser = XContentHelper.createParser(data, 0, data.length)) {
+                try (XContentParser parser = XContentHelper.createParser(new BytesArray(data))) {
                     XContentParser.Token token;
                     if ((token = parser.nextToken()) == XContentParser.Token.START_OBJECT) {
                         IndexMetaData indexMetaData = IndexMetaData.Builder.fromXContent(parser);
@@ -459,7 +460,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
      * @throws IOException parse exceptions
      */
     public Snapshot readSnapshot(byte[] data) throws IOException {
-        try (XContentParser parser = XContentHelper.createParser(data, 0, data.length)) {
+        try (XContentParser parser = XContentHelper.createParser(new BytesArray(data))) {
             XContentParser.Token token;
             if ((token = parser.nextToken()) == XContentParser.Token.START_OBJECT) {
                 if ((token = parser.nextToken()) == XContentParser.Token.FIELD_NAME) {
@@ -484,7 +485,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
      * @throws IOException parse exceptions
      */
     private MetaData readMetaData(byte[] data) throws IOException {
-        try (XContentParser parser = XContentHelper.createParser(data, 0, data.length)) {
+        try (XContentParser parser = XContentHelper.createParser(new BytesArray(data))) {
             XContentParser.Token token;
             if ((token = parser.nextToken()) == XContentParser.Token.START_OBJECT) {
                 if ((token = parser.nextToken()) == XContentParser.Token.FIELD_NAME) {
@@ -608,7 +609,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
         try (InputStream blob = snapshotsBlobContainer.openInput(SNAPSHOTS_FILE)) {
             final byte[] data = ByteStreams.toByteArray(blob);
             ArrayList<SnapshotId> snapshots = new ArrayList<>();
-            try (XContentParser parser = XContentHelper.createParser(data, 0, data.length)) {
+            try (XContentParser parser = XContentHelper.createParser(new BytesArray(data))) {
                 if (parser.nextToken() == XContentParser.Token.START_OBJECT) {
                     if (parser.nextToken() == XContentParser.Token.FIELD_NAME) {
                         String currentFieldName = parser.currentName();

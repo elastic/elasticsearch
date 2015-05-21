@@ -82,7 +82,7 @@ public class BinaryMappingTests extends ElasticsearchSingleNodeTest {
             new BytesArray(binaryValue1).writeTo(compressed);
         }
         final byte[] binaryValue2 = out.bytes().toBytes();
-        assertTrue(CompressorFactory.isCompressed(binaryValue2));
+        assertTrue(CompressorFactory.isCompressed(new BytesArray(binaryValue2)));
         
         for (byte[] value : Arrays.asList(binaryValue1, binaryValue2)) {
             ParsedDocument doc = mapper.parse("type", "id", XContentFactory.jsonBuilder().startObject().field("field", value).endObject().bytes());
@@ -114,7 +114,7 @@ public class BinaryMappingTests extends ElasticsearchSingleNodeTest {
             new BytesArray(original).writeTo(compressed);
         }
         final byte[] binaryValue = out.bytes().toBytes();
-        assertTrue(CompressorFactory.isCompressed(binaryValue));
+        assertTrue(CompressorFactory.isCompressed(new BytesArray(binaryValue)));
         
         ParsedDocument doc = mapper.parse("type", "id", XContentFactory.jsonBuilder().startObject().field("field", binaryValue).endObject().bytes());
         BytesRef indexedValue = doc.rootDoc().getBinaryValue("field");

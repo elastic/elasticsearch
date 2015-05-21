@@ -17,13 +17,15 @@
  * under the License.
  */
 
-package org.elasticsearch.common.compress.lzf;
+package org.elasticsearch.common.compress;
 
-import org.elasticsearch.common.compress.CompressorContext;
+/** Exception indicating that we were expecting something compressed, which
+ *  was not compressed or corrupted so that the compression format could not
+ *  be detected. */
+public class NotCompressedException extends RuntimeException {
 
-/**
- */
-public class LZFCompressorContext implements CompressorContext {
+    public NotCompressedException() {
+        super();
+    }
 
-    public static final LZFCompressorContext INSTANCE = new LZFCompressorContext();
 }

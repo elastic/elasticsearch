@@ -27,7 +27,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.compress.CompressedString;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.joda.Joda;
@@ -450,7 +450,7 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
         {
             MappingMetaData.Timestamp timestamp = new MappingMetaData.Timestamp(true, null,
                     TimestampFieldMapper.DEFAULT_DATE_TIME_FORMAT, null, null);
-            MappingMetaData expected = new MappingMetaData("type", new CompressedString("{}".getBytes(StandardCharsets.UTF_8)),
+            MappingMetaData expected = new MappingMetaData("type", new CompressedXContent("{}".getBytes(StandardCharsets.UTF_8)),
                     new MappingMetaData.Id(null), new MappingMetaData.Routing(false, null), timestamp, false);
 
             BytesStreamOutput out = new BytesStreamOutput();
@@ -467,7 +467,7 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
         {
             MappingMetaData.Timestamp timestamp = new MappingMetaData.Timestamp(true, null,
                     TimestampFieldMapper.DEFAULT_DATE_TIME_FORMAT, "now", null);
-            MappingMetaData expected = new MappingMetaData("type", new CompressedString("{}".getBytes(StandardCharsets.UTF_8)),
+            MappingMetaData expected = new MappingMetaData("type", new CompressedXContent("{}".getBytes(StandardCharsets.UTF_8)),
                     new MappingMetaData.Id(null), new MappingMetaData.Routing(false, null), timestamp, false);
 
             BytesStreamOutput out = new BytesStreamOutput();
@@ -484,7 +484,7 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
         {
             MappingMetaData.Timestamp timestamp = new MappingMetaData.Timestamp(true, null,
                     TimestampFieldMapper.DEFAULT_DATE_TIME_FORMAT, "now", false);
-            MappingMetaData expected = new MappingMetaData("type", new CompressedString("{}".getBytes(StandardCharsets.UTF_8)),
+            MappingMetaData expected = new MappingMetaData("type", new CompressedXContent("{}".getBytes(StandardCharsets.UTF_8)),
                     new MappingMetaData.Id(null), new MappingMetaData.Routing(false, null), timestamp, false);
 
             BytesStreamOutput out = new BytesStreamOutput();
@@ -652,7 +652,7 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
                     .endObject()
                 .endObject().endObject().string();
         // This was causing a NPE
-        new MappingMetaData(new CompressedString(mapping));
+        new MappingMetaData(new CompressedXContent(mapping));
     }
 
     @Test

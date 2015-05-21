@@ -31,7 +31,7 @@ import org.apache.lucene.util.BitDocIdSet;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
-import org.elasticsearch.common.compress.CompressedString;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
@@ -67,8 +67,8 @@ public abstract class AbstractChildTests extends ElasticsearchSingleNodeTest {
         MapperService mapperService = indexService.mapperService();
         // Parent/child parsers require that the parent and child type to be presented in mapping
         // Sometimes we want a nested object field in the parent type that triggers nonNestedDocsFilter to be used
-        mapperService.merge(parentType, new CompressedString(PutMappingRequest.buildFromSimplifiedDef(parentType, "nested_field", random().nextBoolean() ? "type=nested" : "type=object").string()), true);
-        mapperService.merge(childType, new CompressedString(PutMappingRequest.buildFromSimplifiedDef(childType, "_parent", "type=" + parentType, CHILD_SCORE_NAME, "type=double,doc_values=false").string()), true);
+        mapperService.merge(parentType, new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef(parentType, "nested_field", random().nextBoolean() ? "type=nested" : "type=object").string()), true);
+        mapperService.merge(childType, new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef(childType, "_parent", "type=" + parentType, CHILD_SCORE_NAME, "type=double,doc_values=false").string()), true);
         return createSearchContext(indexService);
     }
     

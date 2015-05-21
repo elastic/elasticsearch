@@ -32,7 +32,7 @@ import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.compress.CompressedString;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
@@ -91,11 +91,11 @@ public class MetaDataMappingService extends AbstractComponent {
 
     static class UpdateTask extends MappingTask {
         final String type;
-        final CompressedString mappingSource;
+        final CompressedXContent mappingSource;
         final String nodeId; // null fr unknown
         final ActionListener<ClusterStateUpdateResponse> listener;
 
-        UpdateTask(String index, String indexUUID, String type, CompressedString mappingSource, String nodeId, ActionListener<ClusterStateUpdateResponse> listener) {
+        UpdateTask(String index, String indexUUID, String type, CompressedXContent mappingSource, String nodeId, ActionListener<ClusterStateUpdateResponse> listener) {
             super(index, indexUUID);
             this.type = type;
             this.mappingSource = mappingSource;
@@ -254,7 +254,7 @@ public class MetaDataMappingService extends AbstractComponent {
                 UpdateTask updateTask = (UpdateTask) task;
                 try {
                     String type = updateTask.type;
-                    CompressedString mappingSource = updateTask.mappingSource;
+                    CompressedXContent mappingSource = updateTask.mappingSource;
 
                     MappingMetaData mappingMetaData = builder.mapping(type);
                     if (mappingMetaData != null && mappingMetaData.source().equals(mappingSource)) {
@@ -376,9 +376,9 @@ public class MetaDataMappingService extends AbstractComponent {
                         DocumentMapper existingMapper = indexService.mapperService().documentMapper(request.type());
                         if (MapperService.DEFAULT_MAPPING.equals(request.type())) {
                             // _default_ types do not go through merging, but we do test the new settings. Also don't apply the old default
-                            newMapper = indexService.mapperService().parse(request.type(), new CompressedString(request.source()), false);
+                            newMapper = indexService.mapperService().parse(request.type(), new CompressedXContent(request.source()), false);
                         } else {
-                            newMapper = indexService.mapperService().parse(request.type(), new CompressedString(request.source()), existingMapper == null);
+                            newMapper = indexService.mapperService().parse(request.type(), new CompressedXContent(request.source()), existingMapper == null);
                             if (existingMapper != null) {
                                 // first, simulate
                                 MergeResult mergeResult = existingMapper.merge(newMapper.mapping(), true);
@@ -415,12 +415,12 @@ public class MetaDataMappingService extends AbstractComponent {
                             continue;
                         }
 
-                        CompressedString existingSource = null;
+                        CompressedXContent existingSource = null;
                         if (existingMappers.containsKey(entry.getKey())) {
                             existingSource = existingMappers.get(entry.getKey()).mappingSource();
                         }
                         DocumentMapper mergedMapper = indexService.mapperService().merge(newMapper.type(), newMapper.mappingSource(), false);
-                        CompressedString updatedSource = mergedMapper.mappingSource();
+                        CompressedXContent updatedSource = mergedMapper.mappingSource();
 
                         if (existingSource != null) {
                             if (existingSource.equals(updatedSource)) {

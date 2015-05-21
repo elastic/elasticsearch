@@ -26,10 +26,9 @@ import java.io.IOException;
 
 /**
  */
-public abstract class CompressedStreamOutput<T extends CompressorContext> extends StreamOutput {
+public abstract class CompressedStreamOutput extends StreamOutput {
 
     private final StreamOutput out;
-    protected final T context;
 
     protected byte[] uncompressed;
     protected int uncompressedLength;
@@ -37,9 +36,8 @@ public abstract class CompressedStreamOutput<T extends CompressorContext> extend
 
     private boolean closed;
 
-    public CompressedStreamOutput(StreamOutput out, T context) throws IOException {
+    public CompressedStreamOutput(StreamOutput out) throws IOException {
         this.out = out;
-        this.context = context;
         super.setVersion(out.getVersion());
         writeHeader(out);
     }

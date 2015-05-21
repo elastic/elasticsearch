@@ -30,7 +30,7 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
-import org.elasticsearch.search.aggregations.reducers.Reducer;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
@@ -53,8 +53,9 @@ public class AvgAggregator extends NumericMetricsAggregator.SingleValue {
     ValueFormatter formatter;
 
     public AvgAggregator(String name, ValuesSource.Numeric valuesSource, @Nullable ValueFormatter formatter,
-            AggregationContext context, Aggregator parent, List<Reducer> reducers, Map<String, Object> metaData) throws IOException {
-        super(name, context, parent, reducers, metaData);
+ AggregationContext context,
+            Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
+        super(name, context, parent, pipelineAggregators, metaData);
         this.valuesSource = valuesSource;
         this.formatter = formatter;
         if (valuesSource != null) {
@@ -105,12 +106,12 @@ public class AvgAggregator extends NumericMetricsAggregator.SingleValue {
         if (valuesSource == null || bucket >= sums.size()) {
             return buildEmptyAggregation();
         }
-        return new InternalAvg(name, sums.get(bucket), counts.get(bucket), formatter, reducers(), metaData());
+        return new InternalAvg(name, sums.get(bucket), counts.get(bucket), formatter, pipelineAggregators(), metaData());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalAvg(name, 0.0, 0l, formatter, reducers(), metaData());
+        return new InternalAvg(name, 0.0, 0l, formatter, pipelineAggregators(), metaData());
     }
 
     public static class Factory extends ValuesSourceAggregatorFactory.LeafOnly<ValuesSource.Numeric> {
@@ -120,15 +121,17 @@ public class AvgAggregator extends NumericMetricsAggregator.SingleValue {
         }
 
         @Override
-        protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent, List<Reducer> reducers,
+        protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent,
+                List<PipelineAggregator> pipelineAggregators,
                 Map<String, Object> metaData) throws IOException {
-            return new AvgAggregator(name, null, config.formatter(), aggregationContext, parent, reducers, metaData);
+            return new AvgAggregator(name, null, config.formatter(), aggregationContext, parent, pipelineAggregators, metaData);
         }
 
         @Override
         protected Aggregator doCreateInternal(ValuesSource.Numeric valuesSource, AggregationContext aggregationContext, Aggregator parent,
-                boolean collectsFromSingleBucket, List<Reducer> reducers, Map<String, Object> metaData) throws IOException {
-            return new AvgAggregator(name, valuesSource, config.formatter(), aggregationContext, parent, reducers, metaData);
+                boolean collectsFromSingleBucket, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
+                throws IOException {
+            return new AvgAggregator(name, valuesSource, config.formatter(), aggregationContext, parent, pipelineAggregators, metaData);
         }
     }
 

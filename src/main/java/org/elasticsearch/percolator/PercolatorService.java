@@ -86,8 +86,8 @@ import org.elasticsearch.search.aggregations.AggregationPhase;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.reducers.Reducer;
-import org.elasticsearch.search.aggregations.reducers.SiblingReducer;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.pipeline.SiblingPipelineAggregator;
 import org.elasticsearch.search.highlight.HighlightField;
 import org.elasticsearch.search.highlight.HighlightPhase;
 import org.elasticsearch.search.internal.SearchContext;
@@ -852,11 +852,11 @@ public class PercolatorService extends AbstractComponent {
         }
         InternalAggregations aggregations = InternalAggregations.reduce(aggregationsList, new ReduceContext(bigArrays, scriptService));
         if (aggregations != null) {
-            List<SiblingReducer> reducers = shardResults.get(0).reducers();
-            if (reducers != null) {
-                List<InternalAggregation> newAggs = new ArrayList<>(Lists.transform(aggregations.asList(), Reducer.AGGREGATION_TRANFORM_FUNCTION));
-                for (SiblingReducer reducer : reducers) {
-                    InternalAggregation newAgg = reducer.doReduce(new InternalAggregations(newAggs), new ReduceContext(bigArrays,
+            List<SiblingPipelineAggregator> pipelineAggregators = shardResults.get(0).pipelineAggregators();
+            if (pipelineAggregators != null) {
+                List<InternalAggregation> newAggs = new ArrayList<>(Lists.transform(aggregations.asList(), PipelineAggregator.AGGREGATION_TRANFORM_FUNCTION));
+                for (SiblingPipelineAggregator pipelineAggregator : pipelineAggregators) {
+                    InternalAggregation newAgg = pipelineAggregator.doReduce(new InternalAggregations(newAggs), new ReduceContext(bigArrays,
                             scriptService));
                     newAggs.add(newAgg);
                 }

@@ -31,8 +31,8 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.search.aggregations.reducers.Reducer;
-import org.elasticsearch.search.aggregations.reducers.ReducerStreams;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorStreams;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
 
 import java.io.IOException;
@@ -115,7 +115,7 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, St
 
     protected Map<String, Object> metaData;
 
-    private List<Reducer> reducers;
+    private List<PipelineAggregator> pipelineAggregators;
 
     /** Constructs an un initialized addAggregation (used for serialization) **/
     protected InternalAggregation() {}
@@ -125,9 +125,9 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, St
      *
      * @param name The name of the get.
      */
-    protected InternalAggregation(String name, List<Reducer> reducers, Map<String, Object> metaData) {
+    protected InternalAggregation(String name, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
         this.name = name;
-        this.reducers = reducers;
+        this.pipelineAggregators = pipelineAggregators;
         this.metaData = metaData;
     }
 
@@ -149,8 +149,8 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, St
      */
     public final InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         InternalAggregation aggResult = doReduce(aggregations, reduceContext);
-        for (Reducer reducer : reducers) {
-            aggResult = reducer.reduce(aggResult, reduceContext);
+        for (PipelineAggregator pipelineAggregator : pipelineAggregators) {
+            aggResult = pipelineAggregator.reduce(aggResult, reduceContext);
         }
         return aggResult;
     }
@@ -188,8 +188,8 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, St
         return metaData;
     }
 
-    public List<Reducer> reducers() {
-        return reducers;
+    public List<PipelineAggregator> pipelineAggregators() {
+        return pipelineAggregators;
     }
 
     @Override
@@ -210,10 +210,10 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, St
     public final void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
         out.writeGenericValue(metaData);
-        out.writeVInt(reducers.size());
-        for (Reducer reducer : reducers) {
-            out.writeBytesReference(reducer.type().stream());
-            reducer.writeTo(out);
+        out.writeVInt(pipelineAggregators.size());
+        for (PipelineAggregator pipelineAggregator : pipelineAggregators) {
+            out.writeBytesReference(pipelineAggregator.type().stream());
+            pipelineAggregator.writeTo(out);
         }
         doWriteTo(out);
     }
@@ -226,13 +226,13 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, St
         metaData = in.readMap();
         int size = in.readVInt();
         if (size == 0) {
-            reducers = ImmutableList.of();
+            pipelineAggregators = ImmutableList.of();
         } else {
-            reducers = Lists.newArrayListWithCapacity(size);
+            pipelineAggregators = Lists.newArrayListWithCapacity(size);
             for (int i = 0; i < size; i++) {
                 BytesReference type = in.readBytesReference();
-                Reducer reducer = ReducerStreams.stream(type).readResult(in);
-                reducers.add(reducer);
+                PipelineAggregator pipelineAggregator = PipelineAggregatorStreams.stream(type).readResult(in);
+                pipelineAggregators.add(pipelineAggregator);
             }
         }
         doReadFrom(in);

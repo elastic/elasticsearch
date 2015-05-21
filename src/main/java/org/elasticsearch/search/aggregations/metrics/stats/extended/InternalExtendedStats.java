@@ -27,7 +27,7 @@ import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.stats.InternalStats;
-import org.elasticsearch.search.aggregations.reducers.Reducer;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
 import java.io.IOException;
@@ -69,8 +69,9 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
     InternalExtendedStats() {} // for serialization
 
     public InternalExtendedStats(String name, long count, double sum, double min, double max, double sumOfSqrs,
-            double sigma, @Nullable ValueFormatter formatter, List<Reducer> reducers, Map<String, Object> metaData) {
-        super(name, count, sum, min, max, formatter, reducers, metaData);
+ double sigma,
+            @Nullable ValueFormatter formatter, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
+        super(name, count, sum, min, max, formatter, pipelineAggregators, metaData);
         this.sumOfSqrs = sumOfSqrs;
         this.sigma = sigma;
     }
@@ -153,7 +154,7 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
         }
         final InternalStats stats = super.doReduce(aggregations, reduceContext);
         return new InternalExtendedStats(name, stats.getCount(), stats.getSum(), stats.getMin(), stats.getMax(), sumOfSqrs, sigma,
-                valueFormatter, reducers(), getMetaData());
+                valueFormatter, pipelineAggregators(), getMetaData());
     }
 
     @Override

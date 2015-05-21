@@ -31,7 +31,7 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.BucketStreamContext;
 import org.elasticsearch.search.aggregations.bucket.BucketStreams;
-import org.elasticsearch.search.aggregations.reducers.Reducer;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatterStreams;
 
@@ -231,9 +231,9 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
             return TYPE.name();
         }
 
-        public R create(String name, List<B> ranges, @Nullable ValueFormatter formatter, boolean keyed, List<Reducer> reducers,
+        public R create(String name, List<B> ranges, @Nullable ValueFormatter formatter, boolean keyed, List<PipelineAggregator> pipelineAggregators,
                 Map<String, Object> metaData) {
-            return (R) new InternalRange<>(name, ranges, formatter, keyed, reducers, metaData);
+            return (R) new InternalRange<>(name, ranges, formatter, keyed, pipelineAggregators, metaData);
         }
 
         public B createBucket(String key, double from, double to, long docCount, InternalAggregations aggregations, boolean keyed,
@@ -242,7 +242,7 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
         }
 
         public R create(List<B> ranges, R prototype) {
-            return (R) new InternalRange<>(prototype.name, ranges, prototype.formatter, prototype.keyed, prototype.reducers(),
+            return (R) new InternalRange<>(prototype.name, ranges, prototype.formatter, prototype.keyed, prototype.pipelineAggregators(),
                     prototype.metaData);
         }
 
@@ -260,9 +260,9 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
 
     public InternalRange() {} // for serialization
 
-    public InternalRange(String name, List<B> ranges, @Nullable ValueFormatter formatter, boolean keyed, List<Reducer> reducers,
+    public InternalRange(String name, List<B> ranges, @Nullable ValueFormatter formatter, boolean keyed, List<PipelineAggregator> pipelineAggregators,
             Map<String, Object> metaData) {
-        super(name, reducers, metaData);
+        super(name, pipelineAggregators, metaData);
         this.ranges = ranges;
         this.formatter = formatter;
         this.keyed = keyed;
@@ -311,7 +311,7 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
         for (int i = 0; i < this.ranges.size(); ++i) {
             ranges.add((B) rangeList[i].get(0).reduce(rangeList[i], reduceContext));
         }
-        return getFactory().create(name, ranges, formatter, keyed, reducers(), getMetaData());
+        return getFactory().create(name, ranges, formatter, keyed, pipelineAggregators(), getMetaData());
     }
 
     @Override

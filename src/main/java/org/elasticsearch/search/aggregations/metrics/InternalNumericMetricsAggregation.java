@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.elasticsearch.search.aggregations.reducers.Reducer;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
 import java.util.List;
@@ -35,8 +35,8 @@ public abstract class InternalNumericMetricsAggregation extends InternalMetricsA
 
         protected SingleValue() {}
 
-        protected SingleValue(String name, List<Reducer> reducers, Map<String, Object> metaData) {
-            super(name, reducers, metaData);
+        protected SingleValue(String name, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
+            super(name, pipelineAggregators, metaData);
         }
 
         @Override
@@ -65,8 +65,8 @@ public abstract class InternalNumericMetricsAggregation extends InternalMetricsA
 
         protected MultiValue() {}
 
-        protected MultiValue(String name, List<Reducer> reducers, Map<String, Object> metaData) {
-            super(name, reducers, metaData);
+        protected MultiValue(String name, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
+            super(name, pipelineAggregators, metaData);
         }
 
         public abstract double value(String name);
@@ -93,8 +93,8 @@ public abstract class InternalNumericMetricsAggregation extends InternalMetricsA
 
     private InternalNumericMetricsAggregation() {} // for serialization
 
-    private InternalNumericMetricsAggregation(String name, List<Reducer> reducers, Map<String, Object> metaData) {
-        super(name, reducers, metaData);
+    private InternalNumericMetricsAggregation(String name, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
+        super(name, pipelineAggregators, metaData);
     }
 
 }

@@ -34,7 +34,7 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
-import org.elasticsearch.search.aggregations.reducers.Reducer;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 
 import java.io.IOException;
@@ -62,9 +62,9 @@ public class FiltersAggregator extends BucketsAggregator {
     private final boolean keyed;
 
     public FiltersAggregator(String name, AggregatorFactories factories, List<KeyedFilter> filters, boolean keyed, AggregationContext aggregationContext,
-            Aggregator parent, List<Reducer> reducers, Map<String, Object> metaData)
+            Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
             throws IOException {
-        super(name, factories, aggregationContext, parent, reducers, metaData);
+        super(name, factories, aggregationContext, parent, pipelineAggregators, metaData);
         this.keyed = keyed;
         this.keys = new String[filters.size()];
         this.filters = new Weight[filters.size()];
@@ -103,7 +103,7 @@ public class FiltersAggregator extends BucketsAggregator {
             InternalFilters.Bucket bucket = new InternalFilters.Bucket(keys[i], bucketDocCount(bucketOrd), bucketAggregations(bucketOrd), keyed);
             buckets.add(bucket);
         }
-        return new InternalFilters(name, buckets, keyed, reducers(), metaData());
+        return new InternalFilters(name, buckets, keyed, pipelineAggregators(), metaData());
     }
 
     @Override
@@ -114,7 +114,7 @@ public class FiltersAggregator extends BucketsAggregator {
             InternalFilters.Bucket bucket = new InternalFilters.Bucket(keys[i], 0, subAggs, keyed);
             buckets.add(bucket);
         }
-        return new InternalFilters(name, buckets, keyed, reducers(), metaData());
+        return new InternalFilters(name, buckets, keyed, pipelineAggregators(), metaData());
     }
 
     final long bucketOrd(long owningBucketOrdinal, int filterOrd) {
@@ -134,8 +134,8 @@ public class FiltersAggregator extends BucketsAggregator {
 
         @Override
         public Aggregator createInternal(AggregationContext context, Aggregator parent, boolean collectsFromSingleBucket,
-                List<Reducer> reducers, Map<String, Object> metaData) throws IOException {
-            return new FiltersAggregator(name, factories, filters, keyed, context, parent, reducers, metaData);
+                List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
+            return new FiltersAggregator(name, factories, filters, keyed, context, parent, pipelineAggregators, metaData);
         }
     }
 

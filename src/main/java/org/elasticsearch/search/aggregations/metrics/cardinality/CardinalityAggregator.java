@@ -42,7 +42,7 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
-import org.elasticsearch.search.aggregations.reducers.Reducer;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
@@ -68,8 +68,8 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
     private ValueFormatter formatter;
 
     public CardinalityAggregator(String name, ValuesSource valuesSource, boolean rehash, int precision, @Nullable ValueFormatter formatter,
-            AggregationContext context, Aggregator parent, List<Reducer> reducers, Map<String, Object> metaData) throws IOException {
-        super(name, context, parent, reducers, metaData);
+            AggregationContext context, Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
+        super(name, context, parent, pipelineAggregators, metaData);
         this.valuesSource = valuesSource;
         this.rehash = rehash;
         this.precision = precision;
@@ -158,12 +158,12 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
         // this Aggregator (and its HLL++ counters) is released.
         HyperLogLogPlusPlus copy = new HyperLogLogPlusPlus(precision, BigArrays.NON_RECYCLING_INSTANCE, 1);
         copy.merge(0, counts, owningBucketOrdinal);
-        return new InternalCardinality(name, copy, formatter, reducers(), metaData());
+        return new InternalCardinality(name, copy, formatter, pipelineAggregators(), metaData());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalCardinality(name, null, formatter, reducers(), metaData());
+        return new InternalCardinality(name, null, formatter, pipelineAggregators(), metaData());
     }
 
     @Override

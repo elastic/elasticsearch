@@ -18,8 +18,8 @@
  */
 package org.elasticsearch.search.aggregations;
 
-import org.elasticsearch.search.aggregations.reducers.Reducer;
-import org.elasticsearch.search.aggregations.reducers.ReducerFactory;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
 
@@ -41,23 +41,23 @@ public class AggregatorFactories {
 
     private AggregatorFactory parent;
     private AggregatorFactory[] factories;
-    private List<ReducerFactory> reducerFactories;
+    private List<PipelineAggregatorFactory> pipelineAggregatorFactories;
 
     public static Builder builder() {
         return new Builder();
     }
 
-    private AggregatorFactories(AggregatorFactory[] factories, List<ReducerFactory> reducers) {
+    private AggregatorFactories(AggregatorFactory[] factories, List<PipelineAggregatorFactory> pipelineAggregators) {
         this.factories = factories;
-        this.reducerFactories = reducers;
+        this.pipelineAggregatorFactories = pipelineAggregators;
     }
 
-    public List<Reducer> createReducers() throws IOException {
-        List<Reducer> reducers = new ArrayList<>();
-        for (ReducerFactory factory : this.reducerFactories) {
-            reducers.add(factory.create());
+    public List<PipelineAggregator> createPipelineAggregators() throws IOException {
+        List<PipelineAggregator> pipelineAggregators = new ArrayList<>();
+        for (PipelineAggregatorFactory factory : this.pipelineAggregatorFactories) {
+            pipelineAggregators.add(factory.create());
         }
-        return reducers;
+        return pipelineAggregators;
     }
 
     /**
@@ -103,8 +103,8 @@ public class AggregatorFactories {
         for (AggregatorFactory factory : factories) {
             factory.validate();
         }
-        for (ReducerFactory factory : reducerFactories) {
-            factory.validate(parent, factories, reducerFactories);
+        for (PipelineAggregatorFactory factory : pipelineAggregatorFactories) {
+            factory.validate(parent, factories, pipelineAggregatorFactories);
         }
     }
 
@@ -112,10 +112,10 @@ public class AggregatorFactories {
 
         private static final AggregatorFactory[] EMPTY_FACTORIES = new AggregatorFactory[0];
         private static final Aggregator[] EMPTY_AGGREGATORS = new Aggregator[0];
-        private static final List<ReducerFactory> EMPTY_REDUCERS = new ArrayList<>();
+        private static final List<PipelineAggregatorFactory> EMPTY_PIPELINE_AGGREGATORS = new ArrayList<>();
 
         private Empty() {
-            super(EMPTY_FACTORIES, EMPTY_REDUCERS);
+            super(EMPTY_FACTORIES, EMPTY_PIPELINE_AGGREGATORS);
         }
 
         @Override
@@ -134,7 +134,7 @@ public class AggregatorFactories {
 
         private final Set<String> names = new HashSet<>();
         private final List<AggregatorFactory> factories = new ArrayList<>();
-        private final List<ReducerFactory> reducerFactories = new ArrayList<>();
+        private final List<PipelineAggregatorFactory> pipelineAggregatorFactories = new ArrayList<>();
 
         public Builder addAggregator(AggregatorFactory factory) {
             if (!names.add(factory.name)) {
@@ -144,43 +144,43 @@ public class AggregatorFactories {
             return this;
         }
 
-        public Builder addReducer(ReducerFactory reducerFactory) {
-            this.reducerFactories.add(reducerFactory);
+        public Builder addPipelineAggregator(PipelineAggregatorFactory pipelineAggregatorFactory) {
+            this.pipelineAggregatorFactories.add(pipelineAggregatorFactory);
             return this;
         }
 
         public AggregatorFactories build() {
-            if (factories.isEmpty() && reducerFactories.isEmpty()) {
+            if (factories.isEmpty() && pipelineAggregatorFactories.isEmpty()) {
                 return EMPTY;
             }
-            List<ReducerFactory> orderedReducers = resolveReducerOrder(this.reducerFactories, this.factories);
-            return new AggregatorFactories(factories.toArray(new AggregatorFactory[factories.size()]), orderedReducers);
+            List<PipelineAggregatorFactory> orderedpipelineAggregators = resolvePipelineAggregatorOrder(this.pipelineAggregatorFactories, this.factories);
+            return new AggregatorFactories(factories.toArray(new AggregatorFactory[factories.size()]), orderedpipelineAggregators);
         }
 
-        private List<ReducerFactory> resolveReducerOrder(List<ReducerFactory> reducerFactories, List<AggregatorFactory> aggFactories) {
-            Map<String, ReducerFactory> reducerFactoriesMap = new HashMap<>();
-            for (ReducerFactory factory : reducerFactories) {
-                reducerFactoriesMap.put(factory.getName(), factory);
+        private List<PipelineAggregatorFactory> resolvePipelineAggregatorOrder(List<PipelineAggregatorFactory> pipelineAggregatorFactories, List<AggregatorFactory> aggFactories) {
+            Map<String, PipelineAggregatorFactory> pipelineAggregatorFactoriesMap = new HashMap<>();
+            for (PipelineAggregatorFactory factory : pipelineAggregatorFactories) {
+                pipelineAggregatorFactoriesMap.put(factory.getName(), factory);
             }
             Set<String> aggFactoryNames = new HashSet<>();
             for (AggregatorFactory aggFactory : aggFactories) {
                 aggFactoryNames.add(aggFactory.name);
             }
-            List<ReducerFactory> orderedReducers = new LinkedList<>();
-            List<ReducerFactory> unmarkedFactories = new ArrayList<ReducerFactory>(reducerFactories);
-            Set<ReducerFactory> temporarilyMarked = new HashSet<ReducerFactory>();
+            List<PipelineAggregatorFactory> orderedPipelineAggregatorrs = new LinkedList<>();
+            List<PipelineAggregatorFactory> unmarkedFactories = new ArrayList<PipelineAggregatorFactory>(pipelineAggregatorFactories);
+            Set<PipelineAggregatorFactory> temporarilyMarked = new HashSet<PipelineAggregatorFactory>();
             while (!unmarkedFactories.isEmpty()) {
-                ReducerFactory factory = unmarkedFactories.get(0);
-                resolveReducerOrder(aggFactoryNames, reducerFactoriesMap, orderedReducers, unmarkedFactories, temporarilyMarked, factory);
+                PipelineAggregatorFactory factory = unmarkedFactories.get(0);
+                resolvePipelineAggregatorOrder(aggFactoryNames, pipelineAggregatorFactoriesMap, orderedPipelineAggregatorrs, unmarkedFactories, temporarilyMarked, factory);
             }
-            return orderedReducers;
+            return orderedPipelineAggregatorrs;
         }
 
-        private void resolveReducerOrder(Set<String> aggFactoryNames, Map<String, ReducerFactory> reducerFactoriesMap,
-                List<ReducerFactory> orderedReducers, List<ReducerFactory> unmarkedFactories, Set<ReducerFactory> temporarilyMarked,
-                ReducerFactory factory) {
+        private void resolvePipelineAggregatorOrder(Set<String> aggFactoryNames, Map<String, PipelineAggregatorFactory> pipelineAggregatorFactoriesMap,
+                List<PipelineAggregatorFactory> orderedPipelineAggregators, List<PipelineAggregatorFactory> unmarkedFactories, Set<PipelineAggregatorFactory> temporarilyMarked,
+                PipelineAggregatorFactory factory) {
             if (temporarilyMarked.contains(factory)) {
-                throw new IllegalStateException("Cyclical dependancy found with reducer [" + factory.getName() + "]");
+                throw new IllegalStateException("Cyclical dependancy found with pipeline aggregator [" + factory.getName() + "]");
             } else if (unmarkedFactories.contains(factory)) {
                 temporarilyMarked.add(factory);
                 String[] bucketsPaths = factory.getBucketsPaths();
@@ -190,9 +190,9 @@ public class AggregatorFactories {
                     if (bucketsPath.equals("_count") || bucketsPath.equals("_key") || aggFactoryNames.contains(firstAggName)) {
                         continue;
                     } else {
-                        ReducerFactory matchingFactory = reducerFactoriesMap.get(firstAggName);
+                        PipelineAggregatorFactory matchingFactory = pipelineAggregatorFactoriesMap.get(firstAggName);
                         if (matchingFactory != null) {
-                            resolveReducerOrder(aggFactoryNames, reducerFactoriesMap, orderedReducers, unmarkedFactories,
+                            resolvePipelineAggregatorOrder(aggFactoryNames, pipelineAggregatorFactoriesMap, orderedPipelineAggregators, unmarkedFactories,
                                     temporarilyMarked, matchingFactory);
                         } else {
                             throw new IllegalStateException("No aggregation found for path [" + bucketsPath + "]");
@@ -201,7 +201,7 @@ public class AggregatorFactories {
                 }
                 unmarkedFactories.remove(factory);
                 temporarilyMarked.remove(factory);
-                orderedReducers.add(factory);
+                orderedPipelineAggregators.add(factory);
             }
         }
     }

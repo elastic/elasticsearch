@@ -25,7 +25,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
-import org.elasticsearch.search.aggregations.reducers.Reducer;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatterStreams;
 
@@ -57,8 +57,9 @@ public class InternalSum extends InternalNumericMetricsAggregation.SingleValue i
 
     InternalSum() {} // for serialization
 
-    InternalSum(String name, double sum, @Nullable ValueFormatter formatter, List<Reducer> reducers, Map<String, Object> metaData) {
-        super(name, reducers, metaData);
+    InternalSum(String name, double sum, @Nullable ValueFormatter formatter, List<PipelineAggregator> pipelineAggregators,
+            Map<String, Object> metaData) {
+        super(name, pipelineAggregators, metaData);
         this.sum = sum;
         this.valueFormatter = formatter;
     }
@@ -84,7 +85,7 @@ public class InternalSum extends InternalNumericMetricsAggregation.SingleValue i
         for (InternalAggregation aggregation : aggregations) {
             sum += ((InternalSum) aggregation).sum;
         }
-        return new InternalSum(name, sum, valueFormatter, reducers(), getMetaData());
+        return new InternalSum(name, sum, valueFormatter, pipelineAggregators(), getMetaData());
     }
 
     @Override

@@ -31,7 +31,7 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalMetricsAggregation;
-import org.elasticsearch.search.aggregations.reducers.Reducer;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.InternalSearchHits;
 
@@ -66,9 +66,9 @@ public class InternalTopHits extends InternalMetricsAggregation implements TopHi
     InternalTopHits() {
     }
 
-    public InternalTopHits(String name, int from, int size, TopDocs topDocs, InternalSearchHits searchHits, List<Reducer> reducers,
-            Map<String, Object> metaData) {
-        super(name, reducers, metaData);
+    public InternalTopHits(String name, int from, int size, TopDocs topDocs, InternalSearchHits searchHits,
+            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
+        super(name, pipelineAggregators, metaData);
         this.from = from;
         this.size = size;
         this.topDocs = topDocs;
@@ -124,7 +124,7 @@ public class InternalTopHits extends InternalMetricsAggregation implements TopHi
             }
             return new InternalTopHits(name, from, size, reducedTopDocs, new InternalSearchHits(hits, reducedTopDocs.totalHits,
                     reducedTopDocs.getMaxScore()),
-                    reducers(), getMetaData());
+                    pipelineAggregators(), getMetaData());
         } catch (IOException e) {
             throw ExceptionsHelper.convertToElastic(e);
         }

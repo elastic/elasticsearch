@@ -26,9 +26,9 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.reducers.Reducer;
-import org.elasticsearch.search.aggregations.reducers.ReducerStreams;
-import org.elasticsearch.search.aggregations.reducers.SiblingReducer;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorStreams;
+import org.elasticsearch.search.aggregations.pipeline.SiblingPipelineAggregator;
 import org.elasticsearch.search.suggest.Suggest;
 
 import java.io.IOException;
@@ -49,7 +49,7 @@ public class QuerySearchResult extends QuerySearchResultProvider {
     private int size;
     private TopDocs topDocs;
     private InternalAggregations aggregations;
-    private List<SiblingReducer> reducers;
+    private List<SiblingPipelineAggregator> pipelineAggregators;
     private Suggest suggest;
     private boolean searchTimedOut;
     private Boolean terminatedEarly = null;
@@ -120,12 +120,12 @@ public class QuerySearchResult extends QuerySearchResultProvider {
         this.aggregations = aggregations;
     }
 
-    public List<SiblingReducer> reducers() {
-        return reducers;
+    public List<SiblingPipelineAggregator> pipelineAggregators() {
+        return pipelineAggregators;
     }
 
-    public void reducers(List<SiblingReducer> reducers) {
-        this.reducers = reducers;
+    public void pipelineAggregators(List<SiblingPipelineAggregator> pipelineAggregators) {
+        this.pipelineAggregators = pipelineAggregators;
     }
 
     public Suggest suggest() {
@@ -178,13 +178,13 @@ public class QuerySearchResult extends QuerySearchResultProvider {
         }
         if (in.readBoolean()) {
             int size = in.readVInt();
-            List<SiblingReducer> reducers = new ArrayList<>(size);
+            List<SiblingPipelineAggregator> pipelineAggregators = new ArrayList<>(size);
             for (int i = 0; i < size; i++) {
                 BytesReference type = in.readBytesReference();
-                Reducer reducer = ReducerStreams.stream(type).readResult(in);
-                reducers.add((SiblingReducer) reducer);
+                PipelineAggregator pipelineAggregator = PipelineAggregatorStreams.stream(type).readResult(in);
+                pipelineAggregators.add((SiblingPipelineAggregator) pipelineAggregator);
             }
-            this.reducers = reducers;
+            this.pipelineAggregators = pipelineAggregators;
         }
         if (in.readBoolean()) {
             suggest = Suggest.readSuggest(Suggest.Fields.SUGGEST, in);
@@ -211,14 +211,14 @@ public class QuerySearchResult extends QuerySearchResultProvider {
             out.writeBoolean(true);
             aggregations.writeTo(out);
         }
-        if (reducers == null) {
+        if (pipelineAggregators == null) {
             out.writeBoolean(false);
         } else {
             out.writeBoolean(true);
-            out.writeVInt(reducers.size());
-            for (Reducer reducer : reducers) {
-                out.writeBytesReference(reducer.type().stream());
-                reducer.writeTo(out);
+            out.writeVInt(pipelineAggregators.size());
+            for (PipelineAggregator pipelineAggregator : pipelineAggregators) {
+                out.writeBytesReference(pipelineAggregator.type().stream());
+                pipelineAggregator.writeTo(out);
             }
         }
         if (suggest == null) {

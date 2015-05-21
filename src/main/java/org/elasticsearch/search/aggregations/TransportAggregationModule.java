@@ -59,16 +59,16 @@ import org.elasticsearch.search.aggregations.metrics.stats.extended.InternalExte
 import org.elasticsearch.search.aggregations.metrics.sum.InternalSum;
 import org.elasticsearch.search.aggregations.metrics.tophits.InternalTopHits;
 import org.elasticsearch.search.aggregations.metrics.valuecount.InternalValueCount;
-import org.elasticsearch.search.aggregations.reducers.InternalSimpleValue;
-import org.elasticsearch.search.aggregations.reducers.bucketmetrics.InternalBucketMetricValue;
-import org.elasticsearch.search.aggregations.reducers.bucketmetrics.avg.AvgBucketReducer;
-import org.elasticsearch.search.aggregations.reducers.bucketmetrics.max.MaxBucketReducer;
-import org.elasticsearch.search.aggregations.reducers.bucketmetrics.min.MinBucketReducer;
-import org.elasticsearch.search.aggregations.reducers.bucketmetrics.sum.SumBucketReducer;
-import org.elasticsearch.search.aggregations.reducers.derivative.DerivativeReducer;
-import org.elasticsearch.search.aggregations.reducers.derivative.InternalDerivative;
-import org.elasticsearch.search.aggregations.reducers.movavg.MovAvgReducer;
-import org.elasticsearch.search.aggregations.reducers.movavg.models.TransportMovAvgModelModule;
+import org.elasticsearch.search.aggregations.pipeline.InternalSimpleValue;
+import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.InternalBucketMetricValue;
+import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.avg.AvgBucketPipelineAggregator;
+import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.max.MaxBucketPipelineAggregator;
+import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.min.MinBucketPipelineAggregator;
+import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.sum.SumBucketPipelineAggregator;
+import org.elasticsearch.search.aggregations.pipeline.derivative.DerivativePipelineAggregator;
+import org.elasticsearch.search.aggregations.pipeline.derivative.InternalDerivative;
+import org.elasticsearch.search.aggregations.pipeline.movavg.MovAvgPipelineAggregator;
+import org.elasticsearch.search.aggregations.pipeline.movavg.models.TransportMovAvgModelModule;
 
 /**
  * A module that registers all the transport streams for the addAggregation
@@ -117,16 +117,16 @@ public class TransportAggregationModule extends AbstractModule implements SpawnM
         InternalGeoBounds.registerStream();
         InternalChildren.registerStream();
 
-        // Reducers
-        DerivativeReducer.registerStreams();
+        // Pipeline Aggregations
+        DerivativePipelineAggregator.registerStreams();
         InternalDerivative.registerStreams();
         InternalSimpleValue.registerStreams();
         InternalBucketMetricValue.registerStreams();
-        MaxBucketReducer.registerStreams();
-        MinBucketReducer.registerStreams();
-        AvgBucketReducer.registerStreams();
-        SumBucketReducer.registerStreams();
-        MovAvgReducer.registerStreams();
+        MaxBucketPipelineAggregator.registerStreams();
+        MinBucketPipelineAggregator.registerStreams();
+        AvgBucketPipelineAggregator.registerStreams();
+        SumBucketPipelineAggregator.registerStreams();
+        MovAvgPipelineAggregator.registerStreams();
     }
 
     @Override

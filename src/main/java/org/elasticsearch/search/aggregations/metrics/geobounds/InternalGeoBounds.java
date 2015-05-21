@@ -26,7 +26,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalMetricsAggregation;
-import org.elasticsearch.search.aggregations.reducers.Reducer;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
 import java.util.List;
@@ -57,8 +57,8 @@ public class InternalGeoBounds extends InternalMetricsAggregation implements Geo
     
     InternalGeoBounds(String name, double top, double bottom, double posLeft, double posRight,
             double negLeft, double negRight, boolean wrapLongitude,
-            List<Reducer> reducers, Map<String, Object> metaData) {
-        super(name, reducers, metaData);
+            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
+        super(name, pipelineAggregators, metaData);
         this.top = top;
         this.bottom = bottom;
         this.posLeft = posLeft;
@@ -104,7 +104,7 @@ public class InternalGeoBounds extends InternalMetricsAggregation implements Geo
                 negRight = bounds.negRight;
             }
         }
-        return new InternalGeoBounds(name, top, bottom, posLeft, posRight, negLeft, negRight, wrapLongitude, reducers(), getMetaData());
+        return new InternalGeoBounds(name, top, bottom, posLeft, posRight, negLeft, negRight, wrapLongitude, pipelineAggregators(), getMetaData());
     }
 
     @Override

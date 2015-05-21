@@ -38,11 +38,10 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
-import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
+import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.metrics.MetricsAggregator;
-import org.elasticsearch.search.aggregations.reducers.Reducer;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.FetchSearchResult;
@@ -73,8 +72,8 @@ public class TopHitsAggregator extends MetricsAggregator {
     final LongObjectPagedHashMap<TopDocsAndLeafCollector> topDocsCollectors;
 
     public TopHitsAggregator(FetchPhase fetchPhase, SubSearchContext subSearchContext, String name, AggregationContext context,
-            Aggregator parent, List<Reducer> reducers, Map<String, Object> metaData) throws IOException {
-        super(name, context, parent, reducers, metaData);
+            Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
+        super(name, context, parent, pipelineAggregators, metaData);
         this.fetchPhase = fetchPhase;
         topDocsCollectors = new LongObjectPagedHashMap<>(1, context.bigArrays());
         this.subSearchContext = subSearchContext;
@@ -157,7 +156,7 @@ public class TopHitsAggregator extends MetricsAggregator {
                     searchHitFields.sortValues(fieldDoc.fields);
                 }
             }
-            topHits = new InternalTopHits(name, subSearchContext.from(), subSearchContext.size(), topDocs, fetchResult.hits(), reducers(),
+            topHits = new InternalTopHits(name, subSearchContext.from(), subSearchContext.size(), topDocs, fetchResult.hits(), pipelineAggregators(),
                     metaData());
         }
         return topHits;
@@ -171,7 +170,7 @@ public class TopHitsAggregator extends MetricsAggregator {
         } else {
             topDocs = Lucene.EMPTY_TOP_DOCS;
         }
-        return new InternalTopHits(name, subSearchContext.from(), subSearchContext.size(), topDocs, InternalSearchHits.empty(), reducers(), metaData());
+        return new InternalTopHits(name, subSearchContext.from(), subSearchContext.size(), topDocs, InternalSearchHits.empty(), pipelineAggregators(), metaData());
     }
 
     @Override
@@ -192,8 +191,8 @@ public class TopHitsAggregator extends MetricsAggregator {
 
         @Override
         public Aggregator createInternal(AggregationContext aggregationContext, Aggregator parent, boolean collectsFromSingleBucket,
-                List<Reducer> reducers, Map<String, Object> metaData) throws IOException {
-            return new TopHitsAggregator(fetchPhase, subSearchContext, name, aggregationContext, parent, reducers, metaData);
+                List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
+            return new TopHitsAggregator(fetchPhase, subSearchContext, name, aggregationContext, parent, pipelineAggregators, metaData);
         }
 
         @Override

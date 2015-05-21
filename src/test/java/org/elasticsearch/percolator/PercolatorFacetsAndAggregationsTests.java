@@ -28,8 +28,8 @@ import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms.Order;
-import org.elasticsearch.search.aggregations.reducers.ReducerBuilders;
-import org.elasticsearch.search.aggregations.reducers.bucketmetrics.InternalBucketMetricValue;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilders;
+import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.InternalBucketMetricValue;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
@@ -117,7 +117,7 @@ public class PercolatorFacetsAndAggregationsTests extends ElasticsearchIntegrati
 
     @Test
     // Just test the integration with facets and aggregations, not the facet and aggregation functionality!
-    public void testAggregationsAndReducers() throws Exception {
+    public void testAggregationsAndPipelineAggregations() throws Exception {
         assertAcked(prepareCreate("test").addMapping("type", "field1", "type=string", "field2", "type=string"));
         ensureGreen();
 
@@ -162,7 +162,7 @@ public class PercolatorFacetsAndAggregationsTests extends ElasticsearchIntegrati
                 percolateRequestBuilder.setOnlyCount(countOnly);
             }
 
-            percolateRequestBuilder.addAggregation(ReducerBuilders.maxBucket("max_a").setBucketsPaths("a>_count"));
+            percolateRequestBuilder.addAggregation(PipelineAggregatorBuilders.maxBucket("max_a").setBucketsPaths("a>_count"));
 
             PercolateResponse response = percolateRequestBuilder.execute().actionGet();
             assertMatchCount(response, expectedCount[i % numUniqueQueries]);
@@ -241,7 +241,7 @@ public class PercolatorFacetsAndAggregationsTests extends ElasticsearchIntegrati
                 percolateRequestBuilder.setOnlyCount(countOnly);
             }
 
-            percolateRequestBuilder.addAggregation(ReducerBuilders.maxBucket("max_terms").setBucketsPaths("terms>_count"));
+            percolateRequestBuilder.addAggregation(PipelineAggregatorBuilders.maxBucket("max_terms").setBucketsPaths("terms>_count"));
 
             PercolateResponse response = percolateRequestBuilder.execute().actionGet();
             assertMatchCount(response, numQueries);

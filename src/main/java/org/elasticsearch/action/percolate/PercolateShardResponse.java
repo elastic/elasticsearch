@@ -28,9 +28,9 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.percolator.PercolateContext;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.reducers.Reducer;
-import org.elasticsearch.search.aggregations.reducers.ReducerStreams;
-import org.elasticsearch.search.aggregations.reducers.SiblingReducer;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorStreams;
+import org.elasticsearch.search.aggregations.pipeline.SiblingPipelineAggregator;
 import org.elasticsearch.search.highlight.HighlightField;
 import org.elasticsearch.search.query.QuerySearchResult;
 
@@ -56,7 +56,7 @@ public class PercolateShardResponse extends BroadcastShardOperationResponse {
     private int requestedSize;
 
     private InternalAggregations aggregations;
-    private List<SiblingReducer> reducers;
+    private List<SiblingPipelineAggregator> pipelineAggregators;
 
     PercolateShardResponse() {
         hls = new ArrayList<>();
@@ -75,7 +75,7 @@ public class PercolateShardResponse extends BroadcastShardOperationResponse {
             if (result.aggregations() != null) {
                 this.aggregations = (InternalAggregations) result.aggregations();
             }
-            this.reducers = result.reducers();
+            this.pipelineAggregators = result.pipelineAggregators();
         }
     }
 
@@ -119,8 +119,8 @@ public class PercolateShardResponse extends BroadcastShardOperationResponse {
         return aggregations;
     }
 
-    public List<SiblingReducer> reducers() {
-        return reducers;
+    public List<SiblingPipelineAggregator> pipelineAggregators() {
+        return pipelineAggregators;
     }
 
     public byte percolatorTypeId() {
@@ -156,14 +156,14 @@ public class PercolateShardResponse extends BroadcastShardOperationResponse {
         }
         aggregations = InternalAggregations.readOptionalAggregations(in);
         if (in.readBoolean()) {
-            int reducersSize = in.readVInt();
-            List<SiblingReducer> reducers = new ArrayList<>(reducersSize);
-            for (int i = 0; i < reducersSize; i++) {
+            int pipelineAggregatorsSize = in.readVInt();
+            List<SiblingPipelineAggregator> pipelineAggregators = new ArrayList<>(pipelineAggregatorsSize);
+            for (int i = 0; i < pipelineAggregatorsSize; i++) {
                 BytesReference type = in.readBytesReference();
-                Reducer reducer = ReducerStreams.stream(type).readResult(in);
-                reducers.add((SiblingReducer) reducer);
+                PipelineAggregator pipelineAggregator = PipelineAggregatorStreams.stream(type).readResult(in);
+                pipelineAggregators.add((SiblingPipelineAggregator) pipelineAggregator);
             }
-            this.reducers = reducers;
+            this.pipelineAggregators = pipelineAggregators;
         }
     }
 
@@ -190,14 +190,14 @@ public class PercolateShardResponse extends BroadcastShardOperationResponse {
             }
         }
         out.writeOptionalStreamable(aggregations);
-        if (reducers == null) {
+        if (pipelineAggregators == null) {
             out.writeBoolean(false);
         } else {
             out.writeBoolean(true);
-            out.writeVInt(reducers.size());
-            for (Reducer reducer : reducers) {
-                out.writeBytesReference(reducer.type().stream());
-                reducer.writeTo(out);
+            out.writeVInt(pipelineAggregators.size());
+            for (PipelineAggregator pipelineAggregator : pipelineAggregators) {
+                out.writeBytesReference(pipelineAggregator.type().stream());
+                pipelineAggregator.writeTo(out);
             }
         }
     }

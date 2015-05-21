@@ -756,7 +756,7 @@ public class IndexShard extends AbstractIndexShardComponent {
             } finally {
                 final Engine engine = this.currentEngineReference.getAndSet(null);
                 try {
-                    if (flushEngine && this.flushOnClose) {
+                    if (engine != null && flushEngine && this.flushOnClose) {
                         engine.flushAndClose();
                     }
                 } finally {

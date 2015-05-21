@@ -34,6 +34,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.plugins.AbstractPlugin;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
@@ -163,7 +164,7 @@ public class ClusterInfoServiceTests extends ElasticsearchIntegrationTest {
         ClusterInfo info = listener.get();
         assertNotNull("info should not be null", info);
         Map<String, DiskUsage> usages = info.getNodeDiskUsages();
-        Map<String, Long> shardSizes = info.getShardSizes();
+        Map<ShardId, Long> shardSizes = info.getShardSizes();
         assertNotNull(usages);
         assertNotNull(shardSizes);
         assertThat("some usages are populated", usages.values().size(), Matchers.equalTo(2));
@@ -176,6 +177,17 @@ public class ClusterInfoServiceTests extends ElasticsearchIntegrationTest {
             logger.info("--> shard size: {}", size);
             assertThat("shard size is greater than 0", size, greaterThan(0L));
         }
+        // Make sure the stats show up in the cluster state
+        assertBusy(new Runnable() {
+            @Override
+            public void run() {
+                ClusterState state = client().admin().cluster().prepareState().get().getState();
+                ClusterInfo cInfo = state.custom(ClusterInfo.TYPE);
+                assertThat(cInfo.getIndexClassification().get("test"), Matchers.equalTo(ClusterInfo.IndexSize.MEDIUM));
+                assertThat(cInfo.getShardSizes().get(new ShardId("test", 0)), Matchers.greaterThan(0L));
+                assertThat(cInfo.getNodeDiskUsages().size(), Matchers.greaterThan(0));
+            }
+        });
     }
 
     @Test

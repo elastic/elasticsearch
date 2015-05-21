@@ -92,7 +92,7 @@ public class RareClusterStateTests extends ElasticsearchIntegrationTest {
                         .nodes(DiscoveryNodes.EMPTY_NODES)
                         .build()
         );
-        ClusterInfo clusterInfo = new ClusterInfo(ImmutableMap.<String, DiskUsage>of(), ImmutableMap.<String, Long>of());
+        ClusterInfo clusterInfo = new ClusterInfo();
 
         RoutingAllocation routingAllocation = new RoutingAllocation(allocationDeciders, routingNodes, current.nodes(), clusterInfo);
         allocator.allocateUnassigned(routingAllocation);

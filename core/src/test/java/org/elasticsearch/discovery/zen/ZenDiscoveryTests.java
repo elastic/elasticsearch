@@ -24,10 +24,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
-import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.ClusterService;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Priority;
@@ -128,6 +125,7 @@ public class ZenDiscoveryTests extends ElasticsearchIntegrationTest {
         Settings defaultSettings = Settings.builder()
                 .put(FaultDetection.SETTING_PING_TIMEOUT, "1s")
                 .put(FaultDetection.SETTING_PING_RETRIES, "1")
+                .put(InternalClusterInfoService.INTERNAL_CLUSTER_INFO_ENABLED, false)
                 .put("discovery.type", "zen")
                 .build();
 

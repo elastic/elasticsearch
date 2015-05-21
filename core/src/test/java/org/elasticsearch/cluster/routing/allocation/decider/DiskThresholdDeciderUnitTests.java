@@ -47,9 +47,7 @@ public class DiskThresholdDeciderUnitTests extends ElasticsearchTestCase {
         ClusterInfoService cis = new ClusterInfoService() {
             @Override
             public ClusterInfo getClusterInfo() {
-                Map<String, DiskUsage> usages = new HashMap<>();
-                Map<String, Long> shardSizes = new HashMap<>();
-                return new ClusterInfo(ImmutableMap.copyOf(usages), ImmutableMap.copyOf(shardSizes));
+                return new ClusterInfo();
             }
 
             @Override

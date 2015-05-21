@@ -121,6 +121,7 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
         // register non plugin custom parts
         registerPrototype(SnapshotsInProgress.TYPE, SnapshotsInProgress.PROTO);
         registerPrototype(RestoreInProgress.TYPE, RestoreInProgress.PROTO);
+        registerPrototype(ClusterInfo.TYPE, ClusterInfo.PROTO);
     }
 
     @Nullable
@@ -289,6 +290,12 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
         sb.append(nodes().prettyPrint());
         sb.append(routingTable().prettyPrint());
         sb.append(readOnlyRoutingNodes().prettyPrint());
+        sb.append("custom:").append("\n");
+        for (ObjectObjectCursor<String, Custom> cursor : customs) {
+            sb.append(cursor.key).append(":\n");
+            sb.append(cursor.value.toString()).append("\n");
+        }
+        sb.append("\n");
         return sb.toString();
     }
 

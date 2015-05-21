@@ -35,7 +35,7 @@ public class EmptyClusterInfoService extends AbstractComponent implements Cluste
 
     private EmptyClusterInfoService() {
         super(Settings.EMPTY);
-        emptyClusterInfo = new ClusterInfo(ImmutableMap.<String, DiskUsage>of(), ImmutableMap.<String, Long>of());
+        emptyClusterInfo = new ClusterInfo();
     }
 
     public static EmptyClusterInfoService getInstance() {

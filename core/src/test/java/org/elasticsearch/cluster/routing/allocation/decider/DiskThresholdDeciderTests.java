@@ -74,10 +74,11 @@ public class DiskThresholdDeciderTests extends ElasticsearchAllocationTestCase {
         usages.put("node3", new DiskUsage("node3", "node3", 100, 60)); // 40% used
         usages.put("node4", new DiskUsage("node4", "node4", 100, 80)); // 20% used
 
-        Map<String, Long> shardSizes = new HashMap<>();
-        shardSizes.put("[test][0][p]", 10L); // 10 bytes
-        shardSizes.put("[test][0][r]", 10L);
-        final ClusterInfo clusterInfo = new ClusterInfo(ImmutableMap.copyOf(usages), ImmutableMap.copyOf(shardSizes));
+        Map<ShardId, Long> shardSizes = new HashMap<>();
+        shardSizes.put(new ShardId("test", 0), 10L); // 10 bytes
+        final ClusterInfo clusterInfo = new ClusterInfo(ImmutableMap.copyOf(usages),
+                ImmutableMap.copyOf(shardSizes),
+                ImmutableMap.<String, ClusterInfo.IndexSize>of());
 
         AllocationDeciders deciders = new AllocationDeciders(Settings.EMPTY,
                 new HashSet<>(Arrays.asList(
@@ -269,10 +270,11 @@ public class DiskThresholdDeciderTests extends ElasticsearchAllocationTestCase {
         usages.put("node4", new DiskUsage("node4", "n4", 100, 80)); // 20% used
         usages.put("node5", new DiskUsage("node5", "n5", 100, 85)); // 15% used
 
-        Map<String, Long> shardSizes = new HashMap<>();
-        shardSizes.put("[test][0][p]", 10L); // 10 bytes
-        shardSizes.put("[test][0][r]", 10L);
-        final ClusterInfo clusterInfo = new ClusterInfo(ImmutableMap.copyOf(usages), ImmutableMap.copyOf(shardSizes));
+        Map<ShardId, Long> shardSizes = new HashMap<>();
+        shardSizes.put(new ShardId("test", 0), 10L); // 10 bytes
+        final ClusterInfo clusterInfo = new ClusterInfo(ImmutableMap.copyOf(usages),
+                ImmutableMap.copyOf(shardSizes),
+                ImmutableMap.<String, ClusterInfo.IndexSize>of());
 
         AllocationDeciders deciders = new AllocationDeciders(Settings.EMPTY,
                 new HashSet<>(Arrays.asList(
@@ -334,7 +336,9 @@ public class DiskThresholdDeciderTests extends ElasticsearchAllocationTestCase {
 
         // Make node without the primary now habitable to replicas
         usages.put(nodeWithoutPrimary, new DiskUsage(nodeWithoutPrimary, "", 100, 35)); // 65% used
-        final ClusterInfo clusterInfo2 = new ClusterInfo(ImmutableMap.copyOf(usages), ImmutableMap.copyOf(shardSizes));
+        final ClusterInfo clusterInfo2 = new ClusterInfo(ImmutableMap.copyOf(usages),
+                ImmutableMap.copyOf(shardSizes),
+                ImmutableMap.<String, ClusterInfo.IndexSize>of());
         cis = new ClusterInfoService() {
             @Override
             public ClusterInfo getClusterInfo() {
@@ -531,9 +535,11 @@ public class DiskThresholdDeciderTests extends ElasticsearchAllocationTestCase {
         usages.put("node1", new DiskUsage("node1", "n1", 100, 31)); // 69% used
         usages.put("node2", new DiskUsage("node2", "n2", 100, 1));  // 99% used
 
-        Map<String, Long> shardSizes = new HashMap<>();
-        shardSizes.put("[test][0][p]", 10L); // 10 bytes
-        final ClusterInfo clusterInfo = new ClusterInfo(ImmutableMap.copyOf(usages), ImmutableMap.copyOf(shardSizes));
+        Map<ShardId, Long> shardSizes = new HashMap<>();
+        shardSizes.put(new ShardId("test", 0), 10L); // 10 bytes
+        final ClusterInfo clusterInfo = new ClusterInfo(ImmutableMap.copyOf(usages),
+                ImmutableMap.copyOf(shardSizes),
+                ImmutableMap.<String, ClusterInfo.IndexSize>of());
 
         AllocationDeciders deciders = new AllocationDeciders(Settings.EMPTY,
                 new HashSet<>(Arrays.asList(
@@ -597,10 +603,11 @@ public class DiskThresholdDeciderTests extends ElasticsearchAllocationTestCase {
         usages.put("node2", new DiskUsage("node2", "node2", 100, 50)); // 50% used
         usages.put("node3", new DiskUsage("node3", "node3", 100, 0));  // 100% used
 
-        Map<String, Long> shardSizes = new HashMap<>();
-        shardSizes.put("[test][0][p]", 10L); // 10 bytes
-        shardSizes.put("[test][0][r]", 10L); // 10 bytes
-        final ClusterInfo clusterInfo = new ClusterInfo(ImmutableMap.copyOf(usages), ImmutableMap.copyOf(shardSizes));
+        Map<ShardId, Long> shardSizes = new HashMap<>();
+        shardSizes.put(new ShardId("test", 0), 10L); // 10 bytes
+        final ClusterInfo clusterInfo = new ClusterInfo(ImmutableMap.copyOf(usages),
+                ImmutableMap.copyOf(shardSizes),
+                ImmutableMap.<String, ClusterInfo.IndexSize>of());
 
         AllocationDeciders deciders = new AllocationDeciders(Settings.EMPTY,
                 new HashSet<>(Arrays.asList(
@@ -699,12 +706,12 @@ public class DiskThresholdDeciderTests extends ElasticsearchAllocationTestCase {
         usages.put("node2", new DiskUsage("node2", "n2", 100, 40)); // 60% used
         usages.put("node2", new DiskUsage("node3", "n3", 100, 40)); // 60% used
 
-        Map<String, Long> shardSizes = new HashMap<>();
-        shardSizes.put("[test][0][p]", 14L); // 14 bytes
-        shardSizes.put("[test][0][r]", 14L);
-        shardSizes.put("[test2][0][p]", 1L); // 1 bytes
-        shardSizes.put("[test2][0][r]", 1L);
-        final ClusterInfo clusterInfo = new ClusterInfo(ImmutableMap.copyOf(usages), ImmutableMap.copyOf(shardSizes));
+        Map<ShardId, Long> shardSizes = new HashMap<>();
+        shardSizes.put(new ShardId("test", 0), 14L); // 14 bytes
+        shardSizes.put(new ShardId("test2", 0), 1L); // 1 bytes
+        final ClusterInfo clusterInfo = new ClusterInfo(ImmutableMap.copyOf(usages),
+                ImmutableMap.copyOf(shardSizes),
+                ImmutableMap.<String, ClusterInfo.IndexSize>of());
 
         AllocationDeciders deciders = new AllocationDeciders(Settings.EMPTY,
                 new HashSet<>(Arrays.asList(
@@ -804,10 +811,12 @@ public class DiskThresholdDeciderTests extends ElasticsearchAllocationTestCase {
         usages.put("node1", new DiskUsage("node1", "n1", 100, 20)); // 80% used
         usages.put("node2", new DiskUsage("node2", "n2", 100, 100)); // 0% used
 
-        Map<String, Long> shardSizes = new HashMap<>();
-        shardSizes.put("[test][0][p]", 40L);
-        shardSizes.put("[test][1][p]", 40L);
-        final ClusterInfo clusterInfo = new ClusterInfo(ImmutableMap.copyOf(usages), ImmutableMap.copyOf(shardSizes));
+        Map<ShardId, Long> shardSizes = new HashMap<>();
+        shardSizes.put(new ShardId("test", 0), 40L);
+        shardSizes.put(new ShardId("test", 1), 40L);
+        final ClusterInfo clusterInfo = new ClusterInfo(ImmutableMap.copyOf(usages),
+                ImmutableMap.copyOf(shardSizes),
+                ImmutableMap.<String, ClusterInfo.IndexSize>of());
 
         DiskThresholdDecider diskThresholdDecider = new DiskThresholdDecider(diskSettings);
         MetaData metaData = MetaData.builder()

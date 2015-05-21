@@ -34,11 +34,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.RatioValue;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.node.settings.NodeSettingsService;
 
 import java.util.Map;
-
-import static org.elasticsearch.cluster.InternalClusterInfoService.shardIdentifierFromRouting;
 
 /**
  * The {@link DiskThresholdDecider} checks that the node a shard is potentially
@@ -276,7 +275,7 @@ public class DiskThresholdDecider extends AllocationDecider {
      * If subtractShardsMovingAway is set then the size of shards moving away is subtracted from the total size
      * of all shards
      */
-    public long sizeOfRelocatingShards(RoutingNode node, Map<String, Long> shardSizes, boolean subtractShardsMovingAway) {
+    public long sizeOfRelocatingShards(RoutingNode node, Map<ShardId, Long> shardSizes, boolean subtractShardsMovingAway) {
         long totalSize = 0;
         for (ShardRouting routing : node.shardsWithState(ShardRoutingState.RELOCATING, ShardRoutingState.INITIALIZING)) {
             if (routing.initializing() && routing.relocatingNodeId() != null) {
@@ -288,8 +287,8 @@ public class DiskThresholdDecider extends AllocationDecider {
         return totalSize;
     }
 
-    private long getShardSize(ShardRouting routing, Map<String, Long> shardSizes) {
-        Long shardSize = shardSizes.get(shardIdentifierFromRouting(routing));
+    private long getShardSize(ShardRouting routing, Map<ShardId, Long> shardSizes) {
+        Long shardSize = shardSizes.get(routing.shardId());
         return shardSize == null ? 0 : shardSize;
     }
 
@@ -322,7 +321,7 @@ public class DiskThresholdDecider extends AllocationDecider {
 
         // Fail open if there are no disk usages available
         Map<String, DiskUsage> usages = clusterInfo.getNodeDiskUsages();
-        Map<String, Long> shardSizes = clusterInfo.getShardSizes();
+        Map<ShardId, Long> shardSizes = clusterInfo.getShardSizes();
         if (usages.isEmpty()) {
             if (logger.isTraceEnabled()) {
                 logger.trace("Unable to determine disk usages for disk-aware allocation, allowing allocation");
@@ -432,7 +431,7 @@ public class DiskThresholdDecider extends AllocationDecider {
         }
 
         // Secondly, check that allocating the shard to this node doesn't put it above the high watermark
-        Long shardSize = shardSizes.get(shardIdentifierFromRouting(shardRouting));
+        Long shardSize = shardSizes.get(shardRouting.shardId());
         shardSize = shardSize == null ? 0 : shardSize;
         double freeSpaceAfterShard = this.freeDiskPercentageAfterShardAssigned(usage, shardSize);
         long freeBytesAfterShard = freeBytes - shardSize;
@@ -490,7 +489,7 @@ public class DiskThresholdDecider extends AllocationDecider {
         }
 
         if (includeRelocations) {
-            Map<String, Long> shardSizes = clusterInfo.getShardSizes();
+            Map<ShardId, Long> shardSizes = clusterInfo.getShardSizes();
             long relocatingShardsSize = sizeOfRelocatingShards(node, shardSizes, true);
             DiskUsage usageIncludingRelocations = new DiskUsage(node.nodeId(), node.node().name(),
                     usage.getTotalBytes(), usage.getFreeBytes() - relocatingShardsSize);

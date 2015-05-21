@@ -76,8 +76,32 @@ public class DiskUsage {
     }
 
     @Override
+    public int hashCode() {
+        return nodeId.hashCode() ^
+                31 * nodeName.hashCode() ^
+                31 * Long.hashCode(freeBytes) ^
+                31 * Long.hashCode(totalBytes);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null) {
+            return false;
+        }
+        if (obj instanceof DiskUsage) {
+            DiskUsage other = (DiskUsage) obj;
+            return nodeId.equals(other.nodeId) &&
+                    nodeName.equals(other.nodeName) &&
+                    freeBytes == other.freeBytes &&
+                    totalBytes == other.totalBytes;
+        } else {
+            return false;
+        }
+    }
+
+    @Override
     public String toString() {
-        return "[" + nodeId + "][" + nodeName + "] free: " + new ByteSizeValue(getFreeBytes()) +
-                "[" + Strings.format1Decimals(getFreeDiskAsPercentage(), "%") + "]";
+        return "[" + nodeId + "][" + nodeName + "] used: " + new ByteSizeValue(getUsedBytes()) +
+                "[" + Strings.format1Decimals(getUsedDiskAsPercentage(), "%") + "]";
     }
 }

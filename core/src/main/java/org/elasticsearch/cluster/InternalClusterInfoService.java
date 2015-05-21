@@ -37,8 +37,10 @@ import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.monitor.fs.FsStats;
 import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -61,15 +63,20 @@ import java.util.concurrent.TimeUnit;
  */
 public class InternalClusterInfoService extends AbstractComponent implements ClusterInfoService, LocalNodeMasterListener, ClusterStateListener {
 
+    /** Whether information about the cluster should be gathered */
+    public static final String INTERNAL_CLUSTER_INFO_ENABLED = "cluster.info.update.enabled";
+    /** How often node disk usage and shard sizes should be fetched */
     public static final String INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL = "cluster.info.update.interval";
+    /** How long to wait for a response for node disk and shard sizes */
     public static final String INTERNAL_CLUSTER_INFO_TIMEOUT = "cluster.info.update.timeout";
 
-    private volatile TimeValue updateFrequency;
-
     private volatile ImmutableMap<String, DiskUsage> usages;
-    private volatile ImmutableMap<String, Long> shardSizes;
+    private volatile ImmutableMap<ShardId, Long> shardSizes = ImmutableMap.of();
+    private volatile ImmutableMap<String, Long> indexSizes = ImmutableMap.of();
+    private volatile IndexClassification indexClassification = new IndexClassification();
     private volatile boolean isMaster = false;
     private volatile boolean enabled;
+    private volatile TimeValue updateFrequency;
     private volatile TimeValue fetchTimeout;
     private final TransportNodesStatsAction transportNodesStatsAction;
     private final TransportIndicesStatsAction transportIndicesStatsAction;
@@ -80,8 +87,8 @@ public class InternalClusterInfoService extends AbstractComponent implements Clu
     @Inject
     public InternalClusterInfoService(Settings settings, NodeSettingsService nodeSettingsService,
                                       TransportNodesStatsAction transportNodesStatsAction,
-                                      TransportIndicesStatsAction transportIndicesStatsAction, ClusterService clusterService,
-                                      ThreadPool threadPool) {
+                                      TransportIndicesStatsAction transportIndicesStatsAction,
+                                      ClusterService clusterService, ThreadPool threadPool) {
         super(settings);
         this.usages = ImmutableMap.of();
         this.shardSizes = ImmutableMap.of();
@@ -91,7 +98,7 @@ public class InternalClusterInfoService extends AbstractComponent implements Clu
         this.threadPool = threadPool;
         this.updateFrequency = settings.getAsTime(INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL, TimeValue.timeValueSeconds(30));
         this.fetchTimeout = settings.getAsTime(INTERNAL_CLUSTER_INFO_TIMEOUT, TimeValue.timeValueSeconds(15));
-        this.enabled = settings.getAsBoolean(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED, true);
+        this.enabled = settings.getAsBoolean(INTERNAL_CLUSTER_INFO_ENABLED, true);
         nodeSettingsService.addListener(new ApplySettings());
 
         // Add InternalClusterInfoService to listen for Master changes
@@ -105,7 +112,7 @@ public class InternalClusterInfoService extends AbstractComponent implements Clu
         public void onRefreshSettings(Settings settings) {
             TimeValue newUpdateFrequency = settings.getAsTime(INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL, null);
             // ClusterInfoService is only enabled if the DiskThresholdDecider is enabled
-            Boolean newEnabled = settings.getAsBoolean(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED, null);
+            Boolean newEnabled = settings.getAsBoolean(INTERNAL_CLUSTER_INFO_ENABLED, null);
 
             if (newUpdateFrequency != null) {
                 if (newUpdateFrequency.getMillis() < TimeValue.timeValueSeconds(10).getMillis()) {
@@ -123,9 +130,9 @@ public class InternalClusterInfoService extends AbstractComponent implements Clu
                 InternalClusterInfoService.this.fetchTimeout = newFetchTimeout;
             }
 
-
-            // We don't log about enabling it here, because the DiskThresholdDecider will already be logging about enable/disable
             if (newEnabled != null) {
+                logger.info("updating cluster info service enabled [{}] from [{}] to [{}]",
+                        INTERNAL_CLUSTER_INFO_ENABLED, enabled, newEnabled);
                 InternalClusterInfoService.this.enabled = newEnabled;
             }
         }
@@ -209,7 +216,7 @@ public class InternalClusterInfoService extends AbstractComponent implements Clu
 
     @Override
     public ClusterInfo getClusterInfo() {
-        return new ClusterInfo(usages, shardSizes);
+        return new ClusterInfo(usages, shardSizes, indexClassification);
     }
 
     @Override
@@ -357,16 +364,30 @@ public class InternalClusterInfoService extends AbstractComponent implements Clu
                 @Override
                 public void onResponse(IndicesStatsResponse indicesStatsResponse) {
                     ShardStats[] stats = indicesStatsResponse.getShards();
-                    HashMap<String, Long> newShardSizes = new HashMap<>();
+                    HashMap<ShardId, Long> newShardSizes = new HashMap<>();
+                    HashMap<String, Long> newIndexSizes = new HashMap<>();
                     for (ShardStats s : stats) {
                         long size = s.getStats().getStore().sizeInBytes();
-                        String sid = shardIdentifierFromRouting(s.getShardRouting());
-                        if (logger.isTraceEnabled()) {
-                            logger.trace("shard: {} size: {}", sid, size);
+                        ShardRouting routing = s.getShardRouting();
+                        if (routing.primary()) {
+                            // Only track primary shards in the shard sizes map
+                            if (logger.isTraceEnabled()) {
+                                logger.trace("{} size: [{}/{}]",
+                                        routing.shardId(), size, new ByteSizeValue(size));
+                            }
+                            newShardSizes.put(routing.shardId(), size);
                         }
-                        newShardSizes.put(sid, size);
+                        // Add this shard to the index size
+                        // TODO use .getOrDefault(s.getIndex(), 0L) once we update to Java 8
+                        Long indexSize = newIndexSizes.get(s.getIndex());
+                        if (indexSize == null) {
+                            indexSize = 0L;
+                        }
+                        indexSize += size;
+                        newIndexSizes.put(s.getIndex(), indexSize);
                     }
                     shardSizes = ImmutableMap.copyOf(newShardSizes);
+                    indexSizes = ImmutableMap.copyOf(newIndexSizes);
                 }
 
                 @Override
@@ -399,21 +420,41 @@ public class InternalClusterInfoService extends AbstractComponent implements Clu
                 logger.warn("Failed to update shard information for ClusterInfoUpdateJob within 15s timeout");
             }
 
+            indexClassification = IndexClassification.classifyIndices(indexSizes, logger);
+
+            final ClusterInfo newClusterInfo = getClusterInfo();
             for (Listener l : listeners) {
                 try {
-                    l.onNewInfo(getClusterInfo());
+                    l.onNewInfo(newClusterInfo);
                 } catch (Exception e) {
                     logger.info("Failed executing ClusterInfoService listener", e);
                 }
             }
-        }
-    }
 
-    /**
-     * Method that incorporates the ShardId for the shard into a string that
-     * includes a 'p' or 'r' depending on whether the shard is a primary.
-     */
-    public static String shardIdentifierFromRouting(ShardRouting shardRouting) {
-        return shardRouting.shardId().toString() + "[" + (shardRouting.primary() ? "p" : "r") + "]";
+            clusterService.submitStateUpdateTask("update_cluster_info", new ClusterStateUpdateTask() {
+                @Override
+                public ClusterState execute(ClusterState currentState) throws Exception {
+                    ClusterInfo currentInfo = currentState.custom(ClusterInfo.TYPE);
+                    // Disk usage is always changing, so only update the
+                    // cluster state if the classifications or shard sizes
+                    // have changed
+                    if (currentInfo != null && currentInfo.getShardSizes() != null &&
+                            currentInfo.getIndexClassification() != null &&
+                            newClusterInfo.getShardSizes().equals(currentInfo.getShardSizes())
+                            && newClusterInfo.getIndexClassification().equals(currentInfo.getIndexClassification())) {
+                        return currentState;
+                    } else {
+                        ClusterState.Builder builder = ClusterState.builder(currentState);
+                        builder.putCustom(ClusterInfo.TYPE, newClusterInfo);
+                        return builder.build();
+                    }
+                }
+
+                @Override
+                public void onFailure(String source, Throwable t) {
+                    logger.warn("Failed to update cluster state with new cluster info", t);
+                }
+            });
+        }
     }
 }

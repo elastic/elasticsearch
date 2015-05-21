@@ -44,7 +44,9 @@ import org.elasticsearch.search.warmer.IndexWarmersMetaData;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.cluster.metadata.AliasMetaData.newAliasMetaDataBuilder;
 import static org.elasticsearch.test.XContentTestUtils.convertToMap;
@@ -630,7 +632,7 @@ public class ClusterStateDiffTests extends ElasticsearchIntegrationTest {
 
             @Override
             public ClusterState.Custom randomCreate(String name) {
-                switch (randomIntBetween(0, 1)) {
+                switch (randomIntBetween(0, 2)) {
                     case 0:
                         return new SnapshotsInProgress(new SnapshotsInProgress.Entry(
                                 new SnapshotId(randomName("repo"), randomName("snap")),
@@ -645,6 +647,14 @@ public class ClusterStateDiffTests extends ElasticsearchIntegrationTest {
                                 RestoreInProgress.State.fromValue((byte) randomIntBetween(0, 3)),
                                 ImmutableList.<String>of(),
                                 ImmutableMap.<ShardId, RestoreInProgress.ShardRestoreStatus>of()));
+                    case 2:
+                        Map<String, DiskUsage> usages = new HashMap<>();
+                        Map<ShardId, Long> sizes = new HashMap<>();
+                        Map<String, ClusterInfo.IndexSize> classifications = new HashMap<>();
+                        usages.put("node1", new DiskUsage("nodeid", "node1", 100, 50));
+                        sizes.put(new ShardId("test", 0), 100L);
+                        classifications.put("test", ClusterInfo.IndexSize.MEDIUM);
+                        return new ClusterInfo(usages, sizes, classifications);
                     default:
                         throw new IllegalArgumentException("Shouldn't be here");
                 }

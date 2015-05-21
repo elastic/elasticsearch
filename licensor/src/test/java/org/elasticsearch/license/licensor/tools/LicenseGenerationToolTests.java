@@ -19,7 +19,6 @@ import org.junit.Test;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.*;
 
 import static org.elasticsearch.common.cli.CliTool.ExitStatus;
@@ -32,16 +31,16 @@ import static org.hamcrest.core.IsEqual.equalTo;
 
 public class LicenseGenerationToolTests extends CliToolTestCase {
 
-    protected String pubKeyPath = null;
-    protected String priKeyPath = null;
+    protected Path pubKeyPath = null;
+    protected Path priKeyPath = null;
     protected Path homeDir = null;
 
 
     @Before
     public void setup() throws Exception {
         logger.error("project.basedir [{}]", System.getProperty("project.basedir"));
-        pubKeyPath = getDataPath(TestUtils.PUBLIC_KEY_RESOURCE).toString();
-        priKeyPath = getDataPath(TestUtils.PRIVATE_KEY_RESOURCE).toString();
+        pubKeyPath = getDataPath(TestUtils.PUBLIC_KEY_RESOURCE);
+        priKeyPath = getDataPath(TestUtils.PRIVATE_KEY_RESOURCE);
         homeDir = createTempDir();
     }
 
@@ -51,8 +50,8 @@ public class LicenseGenerationToolTests extends CliToolTestCase {
         LicenseGeneratorTool licenseGeneratorTool = new LicenseGeneratorTool();
         Command command = licenseGeneratorTool.parse(LicenseGeneratorTool.NAME,
                 new String[] {"--license",  TestUtils.generateLicenseSpecString(Arrays.asList(inputLicenseSpec)),
-                        "--publicKeyPath", pubKeyPath.concat("invalid"),
-                        "--privateKeyPath", priKeyPath });
+                        "--publicKeyPath", pubKeyPath.toString().concat("invalid"),
+                        "--privateKeyPath", priKeyPath.toString() });
 
         assertThat(command, instanceOf(Command.Exit.class));
         Command.Exit exitCommand = (Command.Exit) command;
@@ -60,8 +59,8 @@ public class LicenseGenerationToolTests extends CliToolTestCase {
 
         command = licenseGeneratorTool.parse(LicenseGeneratorTool.NAME,
                 new String[] {"--license", TestUtils.generateLicenseSpecString(Arrays.asList(inputLicenseSpec)),
-                        "--privateKeyPath", priKeyPath.concat("invalid"),
-                        "--publicKeyPath", pubKeyPath });
+                        "--privateKeyPath", priKeyPath.toString().concat("invalid"),
+                        "--publicKeyPath", pubKeyPath.toString() });
 
         assertThat(command, instanceOf(Command.Exit.class));
         exitCommand = (Command.Exit) command;
@@ -72,8 +71,8 @@ public class LicenseGenerationToolTests extends CliToolTestCase {
     public void testParsingMissingLicenseSpec() throws Exception {
         LicenseGeneratorTool licenseGeneratorTool = new LicenseGeneratorTool();
         Command command = licenseGeneratorTool.parse(LicenseGeneratorTool.NAME,
-                new String[] { "--publicKeyPath", pubKeyPath,
-                        "--privateKeyPath", priKeyPath });
+                new String[] { "--publicKeyPath", pubKeyPath.toString(),
+                        "--privateKeyPath", priKeyPath.toString() });
 
         assertThat(command, instanceOf(Command.Exit.class));
         Command.Exit exitCommand = (Command.Exit) command;
@@ -89,7 +88,7 @@ public class LicenseGenerationToolTests extends CliToolTestCase {
             licenseGeneratorTool.parse(LicenseGeneratorTool.NAME,
                     new String[] { "--license", TestUtils.generateLicenseSpecString(Arrays.asList(inputLicenseSpec)),
                             ((pubKeyMissing) ? "--privateKeyPath" : "--publicKeyPath"),
-                            ((pubKeyMissing) ? priKeyPath : pubKeyPath) });
+                            ((pubKeyMissing) ? priKeyPath.toString() : pubKeyPath.toString()) });
             fail("missing argument: " + ((pubKeyMissing) ? "publicKeyPath" : "privateKeyPath") + " should throw an exception");
         } catch (MissingOptionException e) {
             assertThat(e.getMessage(), containsString((pubKeyMissing) ? "pub" : "pri"));
@@ -102,13 +101,13 @@ public class LicenseGenerationToolTests extends CliToolTestCase {
         LicenseGeneratorTool licenseGeneratorTool = new LicenseGeneratorTool();
         Command command = licenseGeneratorTool.parse(LicenseGeneratorTool.NAME,
                 new String[]{"--license", TestUtils.generateLicenseSpecString(Arrays.asList(inputLicenseSpec)),
-                        "--publicKeyPath", pubKeyPath,
-                        "--privateKeyPath", priKeyPath });
+                        "--publicKeyPath", pubKeyPath.toString(),
+                        "--privateKeyPath", priKeyPath.toString() });
 
         assertThat(command, instanceOf(LicenseGenerator.class));
         LicenseGenerator licenseGenerator = (LicenseGenerator) command;
-        assertThat(licenseGenerator.publicKeyFilePath, equalTo(Paths.get(pubKeyPath)));
-        assertThat(licenseGenerator.privateKeyFilePath, equalTo(Paths.get(priKeyPath)));
+        assertThat(licenseGenerator.publicKeyFilePath, equalTo(pubKeyPath));
+        assertThat(licenseGenerator.privateKeyFilePath, equalTo(priKeyPath));
         assertThat(licenseGenerator.licenseSpecs.size(), equalTo(1));
         License outputLicenseSpec = licenseGenerator.licenseSpecs.iterator().next();
 
@@ -124,13 +123,13 @@ public class LicenseGenerationToolTests extends CliToolTestCase {
         LicenseGeneratorTool licenseGeneratorTool = new LicenseGeneratorTool();
         Command command = licenseGeneratorTool.parse(LicenseGeneratorTool.NAME,
                 new String[] { "--licenseFile", tempFile.toAbsolutePath().toString(),
-                        "--publicKeyPath", pubKeyPath,
-                        "--privateKeyPath", priKeyPath });
+                        "--publicKeyPath", pubKeyPath.toString(),
+                        "--privateKeyPath", priKeyPath.toString() });
 
         assertThat(command, instanceOf(LicenseGenerator.class));
         LicenseGenerator licenseGenerator = (LicenseGenerator) command;
-        assertThat(licenseGenerator.publicKeyFilePath, equalTo(Paths.get(pubKeyPath)));
-        assertThat(licenseGenerator.privateKeyFilePath, equalTo(Paths.get(priKeyPath)));
+        assertThat(licenseGenerator.publicKeyFilePath, equalTo(pubKeyPath));
+        assertThat(licenseGenerator.privateKeyFilePath, equalTo(priKeyPath));
         assertThat(licenseGenerator.licenseSpecs.size(), equalTo(1));
         License outputLicenseSpec = licenseGenerator.licenseSpecs.iterator().next();
 
@@ -148,13 +147,13 @@ public class LicenseGenerationToolTests extends CliToolTestCase {
         LicenseGeneratorTool licenseGeneratorTool = new LicenseGeneratorTool();
         Command command = licenseGeneratorTool.parse(LicenseGeneratorTool.NAME,
                 new String[] { "--license", TestUtils.generateLicenseSpecString(new ArrayList<>(inputLicenseSpecs.values())),
-                        "--publicKeyPath", pubKeyPath,
-                        "--privateKeyPath", priKeyPath });
+                        "--publicKeyPath", pubKeyPath.toString(),
+                        "--privateKeyPath", priKeyPath.toString() });
 
         assertThat(command, instanceOf(LicenseGenerator.class));
         LicenseGenerator licenseGenerator = (LicenseGenerator) command;
-        assertThat(licenseGenerator.publicKeyFilePath, equalTo(Paths.get(pubKeyPath)));
-        assertThat(licenseGenerator.privateKeyFilePath, equalTo(Paths.get(priKeyPath)));
+        assertThat(licenseGenerator.publicKeyFilePath, equalTo(pubKeyPath));
+        assertThat(licenseGenerator.privateKeyFilePath, equalTo(priKeyPath));
         assertThat(licenseGenerator.licenseSpecs.size(), equalTo(inputLicenseSpecs.size()));
 
         for (License outputLicenseSpec : licenseGenerator.licenseSpecs) {
@@ -174,7 +173,7 @@ public class LicenseGenerationToolTests extends CliToolTestCase {
         }
         List<License> licenseSpecs = Licenses.fromSource(TestUtils.generateLicenseSpecString(new ArrayList<>(inputLicenseSpecs.values())).getBytes(StandardCharsets.UTF_8), false);
 
-        String output = runLicenseGenerationTool(Paths.get(pubKeyPath), Paths.get(priKeyPath), new HashSet<>(licenseSpecs), ExitStatus.OK);
+        String output = runLicenseGenerationTool(pubKeyPath, priKeyPath, new HashSet<>(licenseSpecs), ExitStatus.OK);
         List<License> outputLicenses = Licenses.fromSource(output.getBytes(StandardCharsets.UTF_8), true);
         assertThat(outputLicenses.size(), equalTo(inputLicenseSpecs.size()));
 

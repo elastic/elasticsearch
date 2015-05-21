@@ -5,11 +5,13 @@
  */
 package org.elasticsearch.license.licensor.tools;
 
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.cli.CliTool;
 import org.elasticsearch.common.cli.CliToolConfig;
 import org.elasticsearch.common.cli.Terminal;
 import org.elasticsearch.common.cli.commons.CommandLine;
 import org.elasticsearch.common.collect.ImmutableSet;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -24,7 +26,6 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -48,6 +49,7 @@ public class LicenseGeneratorTool extends CliTool {
         return LicenseGenerator.parse(terminal, commandLine);
     }
 
+    @SuppressForbidden(reason = "command line tool")
     public static class LicenseGenerator extends Command {
 
         private static final CliToolConfig.Cmd CMD = cmd(NAME, LicenseGenerator.class)
@@ -70,8 +72,8 @@ public class LicenseGeneratorTool extends CliTool {
         }
 
         public static Command parse(Terminal terminal, CommandLine commandLine) throws IOException {
-            Path publicKeyPath = Paths.get(commandLine.getOptionValue("publicKeyPath"));
-            Path privateKeyPath = Paths.get(commandLine.getOptionValue("privateKeyPath"));
+            Path publicKeyPath = PathUtils.get(commandLine.getOptionValue("publicKeyPath"));
+            Path privateKeyPath = PathUtils.get(commandLine.getOptionValue("privateKeyPath"));
             String[] licenseSpecSources = commandLine.getOptionValues("license");
             String[] licenseSpecSourceFiles = commandLine.getOptionValues("licenseFile");
 
@@ -90,7 +92,7 @@ public class LicenseGeneratorTool extends CliTool {
 
             if (licenseSpecSourceFiles != null) {
                 for (String licenseSpecFilePath : licenseSpecSourceFiles) {
-                    Path licenseSpecPath = Paths.get(licenseSpecFilePath);
+                    Path licenseSpecPath = PathUtils.get(licenseSpecFilePath);
                     if (!Files.exists(licenseSpecPath)) {
                         return exitCmd(ExitStatus.USAGE, terminal, licenseSpecFilePath + " does not exist");
                     }

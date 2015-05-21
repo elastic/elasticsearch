@@ -6,6 +6,8 @@
 package org.elasticsearch.license.licensor;
 
 import org.elasticsearch.common.Base64;
+import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.collect.ImmutableSet;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -19,7 +21,6 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.security.*;
 import java.util.Collections;
 import java.util.Set;
@@ -28,6 +29,7 @@ import java.util.Set;
  * Responsible for generating a license signature according to
  * the signature spec and sign it with the provided encrypted private key
  */
+@SuppressForbidden(reason = "can we avoid bare string paths and resolve from Environment or similar?")
 public class LicenseSigner {
 
     private final static int MAGIC_LENGTH = 13;
@@ -37,7 +39,7 @@ public class LicenseSigner {
     private final Path privateKeyPath;
 
     public LicenseSigner(final String privateKeyPath, final String publicKeyPath) {
-        this(Paths.get(privateKeyPath), Paths.get(publicKeyPath));
+        this(PathUtils.get(privateKeyPath), PathUtils.get(publicKeyPath));
     }
 
     public LicenseSigner(final Path privateKeyPath, final Path publicKeyPath) {

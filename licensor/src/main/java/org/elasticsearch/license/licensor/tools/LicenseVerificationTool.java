@@ -9,11 +9,13 @@ import org.elasticsearch.common.cli.CliTool;
 import org.elasticsearch.common.cli.CliToolConfig;
 import org.elasticsearch.common.cli.Terminal;
 import org.elasticsearch.common.cli.commons.CommandLine;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.license.core.License;
 import org.elasticsearch.license.core.LicenseVerifier;
@@ -24,7 +26,6 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -49,6 +50,7 @@ public class LicenseVerificationTool extends CliTool {
         return LicenseVerifier.parse(terminal, commandLine);
     }
 
+    @SuppressForbidden(reason = "command line tool")
     public static class LicenseVerifier extends Command {
 
         private static final CliToolConfig.Cmd CMD = cmd(NAME, LicenseVerifier.class)
@@ -81,7 +83,7 @@ public class LicenseVerificationTool extends CliTool {
 
             if (licenseSourceFiles != null) {
                 for (String licenseFilePath : licenseSourceFiles) {
-                    Path licensePath = Paths.get(licenseFilePath);
+                    Path licensePath = PathUtils.get(licenseFilePath);
                     if (!Files.exists(licensePath)) {
                         return exitCmd(ExitStatus.USAGE, terminal, licenseFilePath + " does not exist");
                     }
@@ -93,7 +95,7 @@ public class LicenseVerificationTool extends CliTool {
                 return exitCmd(ExitStatus.USAGE, terminal, "no license provided");
             }
 
-            Path publicKeyPath = Paths.get(publicKeyPathString);
+            Path publicKeyPath = PathUtils.get(publicKeyPathString);
             if (!Files.exists(publicKeyPath)) {
                 return exitCmd(ExitStatus.USAGE, terminal, publicKeyPath + " does not exist");
             }

@@ -5,17 +5,18 @@
  */
 package org.elasticsearch.license.licensor.tools;
 
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.cli.CliTool;
 import org.elasticsearch.common.cli.CliToolConfig;
 import org.elasticsearch.common.cli.Terminal;
 import org.elasticsearch.common.cli.commons.CommandLine;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.env.Environment;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.NoSuchAlgorithmException;
@@ -43,6 +44,7 @@ public class KeyPairGeneratorTool extends CliTool {
         return KeyGenerator.parse(terminal, commandLine);
     }
 
+    @SuppressForbidden(reason = "command line tool")
     public static class KeyGenerator extends Command {
 
         private static final CliToolConfig.Cmd CMD = cmd(NAME, KeyGenerator.class)
@@ -61,8 +63,8 @@ public class KeyPairGeneratorTool extends CliTool {
         }
 
         public static Command parse(Terminal terminal, CommandLine commandLine) {
-            Path publicKeyPath = Paths.get(commandLine.getOptionValue("publicKeyPath"));
-            Path privateKeyPath = Paths.get(commandLine.getOptionValue("privateKeyPath"));
+            Path publicKeyPath = PathUtils.get(commandLine.getOptionValue("publicKeyPath"));
+            Path privateKeyPath = PathUtils.get(commandLine.getOptionValue("privateKeyPath"));
 
             if (Files.exists(privateKeyPath)) {
                 return exitCmd(ExitStatus.USAGE, terminal, privateKeyPath + " already exists");

@@ -144,7 +144,7 @@ public class TokenCountFieldMapper extends IntegerFieldMapper {
             if (valueAndBoost.value() == null) {
                 count = nullValue();
             } else {
-                count = countPositions(analyzer.analyzer().tokenStream(name(), valueAndBoost.value()));
+                count = countPositions(analyzer.analyzer().tokenStream(names().shortName(), valueAndBoost.value()));
             }
             addIntegerFields(context, fields, count, valueAndBoost.boost());
         }

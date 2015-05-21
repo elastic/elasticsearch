@@ -515,7 +515,7 @@ public class GeoPointFieldMapper extends AbstractFieldMapper<GeoPoint> implement
     public Mapper parse(ParseContext context) throws IOException {
         ContentPath.Type origPathType = context.path().pathType();
         context.path().pathType(pathType);
-        context.path().add(name());
+        context.path().add(names().shortName());
 
         GeoPoint sparse = context.parseExternalValue(GeoPoint.class);
         

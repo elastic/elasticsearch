@@ -1849,7 +1849,7 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
             ListenableActionFuture<CreateSnapshotResponse> snapshotFuture = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap").setWaitForCompletion(true).setIndices("test-idx").execute();
 
             // Await until shard updates are in pending state.
-            assertTrue(waitForPendingTasks("update snapshot state", numberOfShards));
+            assertBusyPendingTasks("update snapshot state", numberOfShards);
             snapshotListener.unblock();
 
             // Check that the snapshot was successful
@@ -1878,7 +1878,7 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
             ListenableActionFuture<RestoreSnapshotResponse> futureRestore = client.admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap").setWaitForCompletion(true).execute();
 
             // Await until shard updates are in pending state.
-            assertTrue(waitForPendingTasks("update snapshot state", numberOfShards));
+            assertBusyPendingTasks("update snapshot state", numberOfShards);
             restoreListener.unblock();
 
             RestoreSnapshotResponse restoreSnapshotResponse = futureRestore.actionGet();
@@ -1894,10 +1894,10 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
         assertEquals(1, restoreListener.count());
     }
 
-    private boolean waitForPendingTasks(final String taskPrefix, final int expectedCount) throws InterruptedException {
-        return awaitBusy(new Predicate<Object>() {
+    private void assertBusyPendingTasks(final String taskPrefix, final int expectedCount) throws Exception {
+        assertBusy(new Runnable() {
             @Override
-            public boolean apply(Object o) {
+            public void run() {
                 PendingClusterTasksResponse tasks = client().admin().cluster().preparePendingClusterTasks().get();
                 int count = 0;
                 for(PendingClusterTask task : tasks) {
@@ -1905,7 +1905,7 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
                         count++;
                     }
                 }
-                return expectedCount == count;
+                assertThat(count, equalTo(expectedCount));
             }
         });
     }
@@ -1919,21 +1919,13 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
     public class BlockingClusterStateListener implements ClusterStateListener {
 
         private final Predicate<ClusterChangedEvent> blockOn;
-
         private final Predicate<ClusterChangedEvent> countOn;
-
         private final ClusterService clusterService;
-
         private final CountDownLatch latch;
-
         private final Priority passThroughPriority;
-
         private int count;
-
         private boolean timedOut;
-
         private final TimeValue timeout;
-
         private long stopWaitingAt = -1;
 
         public BlockingClusterStateListener(ClusterService clusterService, String blockOn, String countOn, Priority passThroughPriority) {

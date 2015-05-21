@@ -135,7 +135,7 @@ public abstract class ElasticsearchSingleNodeTest extends ElasticsearchTestCase 
                 .put("script.indexed", "on")
                 .put(EsExecutors.PROCESSORS, 1) // limit the number of threads created
             .put("http.enabled", false)
-                .put("index.store.type", "ram")
+                .put("index.store.type", localGateway ? "fs" : "ram")
             .put("config.ignore_system_properties", true) // make sure we get what we set :)
             .put("gateway.type", localGateway ? "local" : "none")).build();
         build.start();

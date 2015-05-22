@@ -234,10 +234,8 @@ Response:
 .Generating term vectors on the fly
 ==================================================
 
-added[1.4.0.Beta1]
-
 Term vectors which are not explicitly stored in the index are automatically
-computed on the fly. The following request returns all information and statistics for the
+computed on the fly added[1.4.0.Beta1]. The following request returns all information and statistics for the
 fields in document `1`, even though the terms haven't been explicitly stored in the index.
 Note that for the field `text`, the terms are not re-generated.
 
@@ -258,19 +256,15 @@ curl -XGET 'http://localhost:9200/twitter/tweet/1/_termvector?pretty=true' -d '{
 [example]
 --
 
-added[1.4.0.Beta1]
-
-Additionally, term vectors can also be generated for artificial documents,
+Additionally, term vectors can also be generated for artificial documents added[1.4.0.Beta1],
 that is for documents not present in the index. The syntax is similar to the
 <<search-percolate,percolator>> API. For example, the following request would
 return the same results as in example 1. The mapping used is determined by the
 `index` and `type`.
 
-[WARNING]
-======
-If dynamic mapping is turned on (default), the document fields not in the original
-mapping will be dynamically created.
-======
+*If dynamic mapping is turned on (default), the document fields not in the original
+mapping will be dynamically created.*
+
 
 [source,js]
 --------------------------------------------------

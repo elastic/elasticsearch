@@ -37,7 +37,7 @@ import java.security.Policy;
  * We use a template file (the one we test with), and add additional 
  * permissions based on the environment (data paths, etc)
  */
-class Security {
+final class Security {
        
     /** 
      * Initializes securitymanager for the environment

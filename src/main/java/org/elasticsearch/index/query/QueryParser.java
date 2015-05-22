@@ -59,4 +59,9 @@ public interface QueryParser {
      * @throws QueryParsingException
      */
     QueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException;
+
+    /**
+     * @return an empty {@link QueryBuilder} instance for this parser that can be used for deserialization
+     */
+    QueryBuilder getBuilderPrototype();
 }

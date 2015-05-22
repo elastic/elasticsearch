@@ -115,4 +115,9 @@ public class AndQueryParser extends BaseQueryParserTemp {
         }
         return query;
     }
+
+    @Override
+    public AndQueryBuilder getBuilderPrototype() {
+        return AndQueryBuilder.PROTOTYPE;
+    }
 }

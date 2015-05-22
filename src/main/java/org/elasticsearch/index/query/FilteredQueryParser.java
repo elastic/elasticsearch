@@ -118,4 +118,9 @@ public class FilteredQueryParser extends BaseQueryParserTemp {
         }
         return filteredQuery;
     }
+
+    @Override
+    public FilteredQueryBuilder getBuilderPrototype() {
+        return FilteredQueryBuilder.PROTOTYPE;
+    }
 }

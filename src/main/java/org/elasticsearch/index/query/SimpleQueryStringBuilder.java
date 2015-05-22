@@ -43,6 +43,7 @@ public class SimpleQueryStringBuilder extends QueryBuilder {
     private Boolean lenient;
     private Boolean analyzeWildcard;
     private Locale locale;
+    static final SimpleQueryStringBuilder PROTOTYPE = new SimpleQueryStringBuilder(null);
 
     /**
      * Operators for the default_operator

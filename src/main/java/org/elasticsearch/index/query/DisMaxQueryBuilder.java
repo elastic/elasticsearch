@@ -43,6 +43,8 @@ public class DisMaxQueryBuilder extends QueryBuilder implements BoostableQueryBu
 
     private String queryName;
 
+    static final DisMaxQueryBuilder PROTOTYPE = new DisMaxQueryBuilder();
+
     /**
      * Add a sub-query to this disjunction.
      */

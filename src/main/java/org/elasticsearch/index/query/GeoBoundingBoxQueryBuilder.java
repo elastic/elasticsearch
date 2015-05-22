@@ -44,6 +44,8 @@ public class GeoBoundingBoxQueryBuilder extends QueryBuilder {
     private String queryName;
     private String type;
 
+    static final GeoBoundingBoxQueryBuilder PROTOTYPE = new GeoBoundingBoxQueryBuilder(null);
+
     public GeoBoundingBoxQueryBuilder(String name) {
         this.name = name;
     }

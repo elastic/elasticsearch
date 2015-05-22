@@ -33,6 +33,7 @@ import org.elasticsearch.index.mapper.FieldMapper;
 public class SpanTermQueryBuilder extends BaseTermQueryBuilder<SpanTermQueryBuilder> implements SpanQueryBuilder {
 
     public static final String NAME = "span_term";
+    static final SpanTermQueryBuilder PROTOTYPE = new SpanTermQueryBuilder(null, null);
 
     /** @see BaseTermQueryBuilder#BaseTermQueryBuilder(String, String) */
     public SpanTermQueryBuilder(String name, String value) {

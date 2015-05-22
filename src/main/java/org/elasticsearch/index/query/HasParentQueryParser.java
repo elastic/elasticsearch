@@ -203,4 +203,9 @@ public class HasParentQueryParser extends BaseQueryParserTemp {
         }
     }
 
+    @Override
+    public HasParentQueryBuilder getBuilderPrototype() {
+        return HasParentQueryBuilder.PROTOTYPE;
+    }
+
 }

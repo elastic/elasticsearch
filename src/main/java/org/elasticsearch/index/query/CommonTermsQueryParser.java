@@ -219,4 +219,9 @@ public class CommonTermsQueryParser extends BaseQueryParserTemp {
         query.setHighFreqMinimumNumberShouldMatch(highFreqMinimumShouldMatch);
         return query;
     }
+
+    @Override
+    public CommonTermsQueryBuilder getBuilderPrototype() {
+        return CommonTermsQueryBuilder.PROTOTYPE;
+    }
 }

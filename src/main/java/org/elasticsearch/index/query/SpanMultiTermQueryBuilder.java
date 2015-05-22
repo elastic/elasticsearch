@@ -26,6 +26,7 @@ public class SpanMultiTermQueryBuilder extends QueryBuilder implements SpanQuery
 
     public static final String NAME = "span_multi";
     private MultiTermQueryBuilder multiTermQueryBuilder;
+    static final SpanMultiTermQueryBuilder PROTOTYPE = new SpanMultiTermQueryBuilder(null);
 
     public SpanMultiTermQueryBuilder(MultiTermQueryBuilder multiTermQueryBuilder) {
         this.multiTermQueryBuilder = multiTermQueryBuilder;

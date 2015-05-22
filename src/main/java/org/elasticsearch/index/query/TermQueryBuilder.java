@@ -31,6 +31,7 @@ import org.elasticsearch.index.mapper.FieldMapper;
 public class TermQueryBuilder extends BaseTermQueryBuilder<TermQueryBuilder> implements BoostableQueryBuilder<TermQueryBuilder> {
 
     public static final String NAME = "term";
+    static final TermQueryBuilder PROTOTYPE = new TermQueryBuilder(null, null);
 
     /** @see BaseTermQueryBuilder#BaseTermQueryBuilder(String, String) */
     public TermQueryBuilder(String fieldName, String value) {

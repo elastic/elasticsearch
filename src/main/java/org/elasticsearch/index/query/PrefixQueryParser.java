@@ -115,4 +115,9 @@ public class PrefixQueryParser extends BaseQueryParserTemp {
         }
         return  query;
     }
+
+    @Override
+    public PrefixQueryBuilder getBuilderPrototype() {
+        return PrefixQueryBuilder.PROTOTYPE;
+    }
 }

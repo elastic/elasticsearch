@@ -130,4 +130,9 @@ public class FuzzyQueryParser extends BaseQueryParserTemp {
         }
         return query;
     }
+
+    @Override
+    public FuzzyQueryBuilder getBuilderPrototype() {
+        return FuzzyQueryBuilder.PROTOTYPE;
+    }
 }

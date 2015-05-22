@@ -111,4 +111,9 @@ public class DisMaxQueryParser extends BaseQueryParserTemp {
         }
         return query;
     }
+
+    @Override
+    public DisMaxQueryBuilder getBuilderPrototype() {
+        return DisMaxQueryBuilder.PROTOTYPE;
+    }
 }

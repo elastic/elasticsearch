@@ -34,6 +34,8 @@ public class ExistsQueryBuilder extends QueryBuilder {
 
     private String queryName;
 
+    static final ExistsQueryBuilder PROTOTYPE = new ExistsQueryBuilder(null);
+
     public ExistsQueryBuilder(String name) {
         this.name = name;
     }

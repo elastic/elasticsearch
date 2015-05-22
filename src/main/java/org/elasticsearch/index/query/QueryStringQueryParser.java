@@ -245,4 +245,9 @@ public class QueryStringQueryParser extends BaseQueryParserTemp {
             throw new QueryParsingException(parseContext, "Failed to parse query [" + qpSettings.queryString() + "]", e);
         }
     }
+
+    @Override
+    public QueryStringQueryBuilder getBuilderPrototype() {
+        return QueryStringQueryBuilder.PROTOTYPE;
+    }
 }

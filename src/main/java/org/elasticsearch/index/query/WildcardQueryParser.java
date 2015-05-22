@@ -108,4 +108,9 @@ public class WildcardQueryParser extends BaseQueryParserTemp {
         }
         return wildcardQuery;
     }
+
+    @Override
+    public WildcardQueryBuilder getBuilderPrototype() {
+        return WildcardQueryBuilder.PROTOTYPE;
+    }
 }

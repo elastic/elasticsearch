@@ -189,4 +189,9 @@ public class ScriptQueryParser extends BaseQueryParserTemp {
             };
         }
     }
+
+    @Override
+    public ScriptQueryBuilder getBuilderPrototype() {
+        return ScriptQueryBuilder.PROTOTYPE;
+    }
 }

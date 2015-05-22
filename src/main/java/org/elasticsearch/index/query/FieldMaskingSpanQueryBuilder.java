@@ -35,6 +35,8 @@ public class FieldMaskingSpanQueryBuilder extends QueryBuilder implements SpanQu
 
     private String queryName;
 
+    static final FieldMaskingSpanQueryBuilder PROTOTYPE = new FieldMaskingSpanQueryBuilder(null, null);
+
     public FieldMaskingSpanQueryBuilder(SpanQueryBuilder queryBuilder, String field) {
         this.queryBuilder = queryBuilder;
         this.field = field;

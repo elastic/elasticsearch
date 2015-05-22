@@ -94,4 +94,9 @@ public class NotQueryParser extends BaseQueryParserTemp {
         }
         return notQuery;
     }
+
+    @Override
+    public NotQueryBuilder getBuilderPrototype() {
+        return NotQueryBuilder.PROTOTYPE;
+    }
 }

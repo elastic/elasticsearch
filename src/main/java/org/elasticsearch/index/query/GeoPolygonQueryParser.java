@@ -150,4 +150,9 @@ public class GeoPolygonQueryParser extends BaseQueryParserTemp {
         }
         return query;
     }
+
+    @Override
+    public GeoPolygonQueryBuilder getBuilderPrototype() {
+        return GeoPolygonQueryBuilder.PROTOTYPE;
+    }
 }

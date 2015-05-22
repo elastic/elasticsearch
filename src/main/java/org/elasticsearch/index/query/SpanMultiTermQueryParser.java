@@ -66,4 +66,9 @@ public class SpanMultiTermQueryParser extends BaseQueryParserTemp {
         parser.nextToken();
         return new SpanMultiTermQueryWrapper<>((MultiTermQuery) subQuery);
     }
+
+    @Override
+    public SpanMultiTermQueryBuilder getBuilderPrototype() {
+        return SpanMultiTermQueryBuilder.PROTOTYPE;
+    }
 }

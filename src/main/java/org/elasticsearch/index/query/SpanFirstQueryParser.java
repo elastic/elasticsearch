@@ -93,4 +93,9 @@ public class SpanFirstQueryParser extends BaseQueryParserTemp {
         }
         return query;
     }
+
+    @Override
+    public SpanFirstQueryBuilder getBuilderPrototype() {
+        return SpanFirstQueryBuilder.SPAN_FIRST_QUERY_BUILDER;
+    }
 }

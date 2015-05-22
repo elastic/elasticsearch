@@ -64,4 +64,9 @@ public class WrapperQueryParser extends BaseQueryParserTemp {
             return result;
         }
     }
+
+    @Override
+    public WrapperQueryBuilder getBuilderPrototype() {
+        return WrapperQueryBuilder.PROTOTYPE;
+    }
 }

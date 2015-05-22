@@ -152,6 +152,8 @@ public class MoreLikeThisQueryBuilder extends QueryBuilder implements BoostableQ
     private Boolean failOnUnsupportedField;
     private String queryName;
 
+    static final MoreLikeThisQueryBuilder PROTOTYPE = new MoreLikeThisQueryBuilder();
+
     /**
      * Constructs a new more like this query which uses the "_all" field.
      */

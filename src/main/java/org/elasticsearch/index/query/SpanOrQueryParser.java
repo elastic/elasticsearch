@@ -92,4 +92,9 @@ public class SpanOrQueryParser extends BaseQueryParserTemp {
         }
         return query;
     }
+
+    @Override
+    public SpanOrQueryBuilder getBuilderPrototype() {
+        return SpanOrQueryBuilder.PROTOTYPE;
+    }
 }

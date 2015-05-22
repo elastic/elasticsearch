@@ -80,6 +80,8 @@ public class MultiMatchQueryBuilder extends QueryBuilder implements BoostableQue
 
     private String queryName;
 
+    static final MultiMatchQueryBuilder PROTOTYPE = new MultiMatchQueryBuilder(null);
+
     public enum Type {
 
         /**

@@ -47,8 +47,9 @@ public class BoostingQueryBuilder extends QueryBuilder implements BoostableQuery
 
     private float boost = -1;
 
-    public BoostingQueryBuilder() {
+    static final BoostingQueryBuilder PROTOTYPE = new BoostingQueryBuilder();
 
+    public BoostingQueryBuilder() {
     }
 
     public BoostingQueryBuilder positive(QueryBuilder positiveQuery) {

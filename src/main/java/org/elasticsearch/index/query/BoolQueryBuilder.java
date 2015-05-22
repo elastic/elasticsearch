@@ -51,6 +51,8 @@ public class BoolQueryBuilder extends QueryBuilder implements BoostableQueryBuil
 
     private String queryName;
 
+    static final BoolQueryBuilder PROTOTYPE = new BoolQueryBuilder();
+
     /**
      * Adds a query that <b>must</b> appear in the matching documents and will
      * contribute to scoring.

@@ -35,8 +35,17 @@ public class NotQueryBuilder extends QueryBuilder {
 
     private String queryName;
 
+    static final NotQueryBuilder PROTOTYPE = new NotQueryBuilder();
+
     public NotQueryBuilder(QueryBuilder filter) {
         this.filter = Objects.requireNonNull(filter);
+    }
+
+    /**
+     * private constructor for internal use
+     */
+    private NotQueryBuilder() {
+        this.filter = null;
     }
 
     public NotQueryBuilder queryName(String queryName) {

@@ -49,6 +49,8 @@ public class FunctionScoreQueryBuilder extends QueryBuilder implements Boostable
     private ArrayList<ScoreFunctionBuilder> scoreFunctions = new ArrayList<>();
     private Float minScore = null;
 
+    static final FunctionScoreQueryBuilder PROTOTYPE = new FunctionScoreQueryBuilder();
+
     /**
      * Creates a function_score query that executes on documents that match query a query.
      * Query and filter will be wrapped into a filtered_query.

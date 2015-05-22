@@ -40,6 +40,8 @@ public class PrefixQueryBuilder extends MultiTermQueryBuilder implements Boostab
 
     private String queryName;
 
+    static final PrefixQueryBuilder PROTOTYPE = new PrefixQueryBuilder(null, null);
+
     /**
      * A Query that matches documents containing terms with a specified prefix.
      *

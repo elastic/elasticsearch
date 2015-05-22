@@ -41,6 +41,8 @@ public class FilteredQueryBuilder extends QueryBuilder implements BoostableQuery
 
     private String queryName;
 
+    static final FilteredQueryBuilder PROTOTYPE = new FilteredQueryBuilder(null, null);
+
     /**
      * A query that applies a filter to the results of another query.
      *

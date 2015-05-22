@@ -95,4 +95,9 @@ public class SpanContainingQueryParser extends BaseQueryParserTemp {
         }
         return query;
     }
+
+    @Override
+    public SpanContainingQueryBuilder getBuilderPrototype() {
+        return SpanContainingQueryBuilder.PROTOTYPE;
+    }
 }

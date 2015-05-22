@@ -172,4 +172,9 @@ public class MissingQueryParser extends BaseQueryParserTemp {
         }
         return new ConstantScoreQuery(filter);
     }
+
+    @Override
+    public MissingQueryBuilder getBuilderPrototype() {
+        return MissingQueryBuilder.PROTOTYPE;
+    }
 }

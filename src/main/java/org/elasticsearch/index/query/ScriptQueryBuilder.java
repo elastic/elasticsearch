@@ -38,6 +38,8 @@ public class ScriptQueryBuilder extends QueryBuilder {
 
     private String queryName;
 
+    static final ScriptQueryBuilder PROTOTYPE = new ScriptQueryBuilder(null);
+
     public ScriptQueryBuilder(String script) {
         this.script = script;
     }

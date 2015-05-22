@@ -94,6 +94,8 @@ public class MatchQueryBuilder extends QueryBuilder implements BoostableQueryBui
 
     private String queryName;
 
+    static final MatchQueryBuilder PROTOTYPE = new MatchQueryBuilder(null, null);
+
     /**
      * Constructs a new text query.
      */

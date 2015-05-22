@@ -126,4 +126,9 @@ public class SpanNotQueryParser extends BaseQueryParserTemp {
         }
         return query;
     }
+
+    @Override
+    public SpanNotQueryBuilder getBuilderPrototype() {
+        return SpanNotQueryBuilder.PROTOTYPE;
+    }
 }

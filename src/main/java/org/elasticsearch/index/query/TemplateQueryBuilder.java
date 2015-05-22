@@ -39,6 +39,8 @@ public class TemplateQueryBuilder extends QueryBuilder {
 
     private ScriptService.ScriptType templateType;
 
+    static final TemplateQueryBuilder PROTOTYPE = new TemplateQueryBuilder(null, null);
+
     /**
      * @param template the template to use for that query.
      * @param vars the parameters to fill the template with.

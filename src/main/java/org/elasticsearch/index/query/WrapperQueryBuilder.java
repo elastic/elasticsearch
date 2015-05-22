@@ -46,6 +46,7 @@ public class WrapperQueryBuilder extends QueryBuilder {
     private final byte[] source;
     private final int offset;
     private final int length;
+    static final WrapperQueryBuilder PROTOTYPE = new WrapperQueryBuilder(null, -1, -1);
 
     /**
      * Creates a query builder given a query provided as a string

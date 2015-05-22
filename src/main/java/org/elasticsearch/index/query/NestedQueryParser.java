@@ -161,4 +161,9 @@ public class NestedQueryParser extends BaseQueryParserTemp {
         }
 
     }
+
+    @Override
+    public NestedQueryBuilder getBuilderPrototype() {
+        return NestedQueryBuilder.PROTOTYPE;
+    }
 }

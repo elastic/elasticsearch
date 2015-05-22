@@ -34,6 +34,8 @@ public class SpanOrQueryBuilder extends QueryBuilder implements SpanQueryBuilder
 
     private String queryName;
 
+    static final SpanOrQueryBuilder PROTOTYPE = new SpanOrQueryBuilder();
+
     public SpanOrQueryBuilder clause(SpanQueryBuilder clause) {
         clauses.add(clause);
         return this;

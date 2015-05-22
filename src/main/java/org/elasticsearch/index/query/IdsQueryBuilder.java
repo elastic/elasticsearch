@@ -20,6 +20,7 @@
 package org.elasticsearch.index.query;
 
 import com.google.common.collect.Sets;
+
 import org.apache.lucene.queries.TermsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -48,6 +49,8 @@ public class IdsQueryBuilder extends QueryBuilder<IdsQueryBuilder> implements Bo
     private float boost = 1.0f;
 
     private String queryName;
+
+    static final IdsQueryBuilder PROTOTYPE = new IdsQueryBuilder();
 
     /**
      * Creates a new IdsQueryBuilder by optionally providing the types of the documents to look for

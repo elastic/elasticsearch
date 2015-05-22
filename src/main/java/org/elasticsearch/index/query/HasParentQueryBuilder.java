@@ -35,6 +35,7 @@ public class HasParentQueryBuilder extends QueryBuilder implements BoostableQuer
     private float boost = 1.0f;
     private String queryName;
     private QueryInnerHitBuilder innerHit = null;
+    static final HasParentQueryBuilder PROTOTYPE = new HasParentQueryBuilder(null, null);
 
     /**
      * @param parentType  The parent type

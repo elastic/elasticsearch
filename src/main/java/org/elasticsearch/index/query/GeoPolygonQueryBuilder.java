@@ -40,6 +40,8 @@ public class GeoPolygonQueryBuilder extends QueryBuilder {
 
     private String queryName;
 
+    static final GeoPolygonQueryBuilder PROTOTYPE = new GeoPolygonQueryBuilder(null);
+
     public GeoPolygonQueryBuilder(String name) {
         this.name = name;
     }

@@ -46,6 +46,8 @@ public class GeoDistanceQueryBuilder extends QueryBuilder {
 
     private String queryName;
 
+    static final GeoDistanceQueryBuilder PROTOTYPE = new GeoDistanceQueryBuilder(null);
+
     public GeoDistanceQueryBuilder(String name) {
         this.name = name;
     }

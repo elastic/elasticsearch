@@ -162,4 +162,9 @@ public class GeoDistanceQueryParser extends BaseQueryParserTemp {
         }
         return query;
     }
+
+    @Override
+    public GeoDistanceQueryBuilder getBuilderPrototype() {
+        return GeoDistanceQueryBuilder.PROTOTYPE;
+    }
 }

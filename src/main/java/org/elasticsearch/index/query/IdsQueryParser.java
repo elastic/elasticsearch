@@ -107,4 +107,9 @@ public class IdsQueryParser extends BaseQueryParser {
         query.validate();
         return query;
     }
+
+    @Override
+    public IdsQueryBuilder getBuilderPrototype() {
+        return IdsQueryBuilder.PROTOTYPE;
+    }
 }

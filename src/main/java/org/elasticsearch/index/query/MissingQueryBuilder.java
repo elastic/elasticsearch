@@ -38,6 +38,8 @@ public class MissingQueryBuilder extends QueryBuilder {
 
     private Boolean existence;
 
+    static final MissingQueryBuilder PROTOTYPE = new MissingQueryBuilder(null);
+
     public MissingQueryBuilder(String name) {
         this.name = name;
     }

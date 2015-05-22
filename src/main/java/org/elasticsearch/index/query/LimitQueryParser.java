@@ -64,4 +64,9 @@ public class LimitQueryParser extends BaseQueryParserTemp {
         // this filter is deprecated and parses to a filter that matches everything
         return Queries.newMatchAllQuery();
     }
+
+    @Override
+    public LimitQueryBuilder getBuilderPrototype() {
+        return LimitQueryBuilder.PROTOTYPE;
+    }
 }

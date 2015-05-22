@@ -191,6 +191,11 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
             assertEquals(XContentParser.Token.END_OBJECT, parseContext.parser().nextToken());
             return new DummyQueryBuilder();
         }
+
+        @Override
+        public DummyQueryBuilder getBuilderPrototype() {
+            return new DummyQueryBuilder();
+        }
     }
 
     private static class DummyQueryBuilder extends QueryBuilder {

@@ -33,6 +33,7 @@ public class SpanWithinQueryBuilder extends QueryBuilder implements SpanQueryBui
     private SpanQueryBuilder little;
     private float boost = -1;
     private String queryName;
+    static final SpanWithinQueryBuilder PROTOTYPE = new SpanWithinQueryBuilder();
 
     /**
      * Sets the little clause, it must be contained within {@code big} for a match.

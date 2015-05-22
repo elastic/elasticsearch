@@ -62,7 +62,7 @@ public class TypeQueryParser extends BaseQueryParserTemp {
         parser.nextToken();
 
         Query filter;
-        //LUCENE 4 UPGRADE document mapper should use bytesref as well? 
+        //LUCENE 4 UPGRADE document mapper should use bytesref as well?
         DocumentMapper documentMapper = parseContext.mapperService().documentMapper(type.utf8ToString());
         if (documentMapper == null) {
             filter = new TermQuery(new Term(TypeFieldMapper.NAME, type));
@@ -70,5 +70,10 @@ public class TypeQueryParser extends BaseQueryParserTemp {
             filter = documentMapper.typeFilter();
         }
         return filter;
+    }
+
+    @Override
+    public TypeQueryBuilder getBuilderPrototype() {
+        return TypeQueryBuilder.PROTOTYPE;
     }
 }

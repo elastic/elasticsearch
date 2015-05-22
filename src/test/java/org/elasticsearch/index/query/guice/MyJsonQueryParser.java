@@ -69,4 +69,9 @@ public class MyJsonQueryParser extends AbstractIndexComponent implements QueryPa
         Query query = parse(parseContext);
         return new QueryWrappingQueryBuilder(query);
     }
+
+    @Override
+    public QueryBuilder getBuilderPrototype() {
+        throw new UnsupportedOperationException("Not implemented in test class");
+    }
 }

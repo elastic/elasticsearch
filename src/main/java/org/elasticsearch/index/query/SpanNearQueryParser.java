@@ -106,4 +106,9 @@ public class SpanNearQueryParser extends BaseQueryParserTemp {
         }
         return query;
     }
+
+    @Override
+    public SpanNearQueryBuilder getBuilderPrototype() {
+        return SpanNearQueryBuilder.PROTOTYPE;
+    }
 }

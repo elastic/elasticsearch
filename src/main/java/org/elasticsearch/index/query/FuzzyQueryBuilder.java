@@ -50,6 +50,8 @@ public class FuzzyQueryBuilder extends MultiTermQueryBuilder implements Boostabl
 
     private String queryName;
 
+    static final FuzzyQueryBuilder PROTOTYPE = new FuzzyQueryBuilder(null, null);
+
     /**
      * Constructs a new term query.
      *

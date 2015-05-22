@@ -74,14 +74,14 @@ public class GeoBoundingBoxQueryParser extends BaseQueryParserTemp {
         double bottom = Double.NaN;
         double left = Double.NaN;
         double right = Double.NaN;
-        
+
         String queryName = null;
         String currentFieldName = null;
         XContentParser.Token token;
         boolean normalize = true;
 
         GeoPoint sparse = new GeoPoint();
-        
+
         String type = "memory";
 
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -148,7 +148,7 @@ public class GeoBoundingBoxQueryParser extends BaseQueryParserTemp {
         final GeoPoint bottomRight = new GeoPoint(bottom, right);
 
         if (normalize) {
-            // Special case: if the difference bettween the left and right is 360 and the right is greater than the left, we are asking for 
+            // Special case: if the difference bettween the left and right is 360 and the right is greater than the left, we are asking for
             // the complete longitude range so need to set longitude to the complete longditude range
             boolean completeLonRange = ((right - left) % 360 == 0 && right > left);
             GeoUtils.normalizePoint(topLeft, true, !completeLonRange);
@@ -183,5 +183,10 @@ public class GeoBoundingBoxQueryParser extends BaseQueryParserTemp {
             parseContext.addNamedQuery(queryName, filter);
         }
         return filter;
-    }    
+    }
+
+    @Override
+    public GeoBoundingBoxQueryBuilder getBuilderPrototype() {
+        return GeoBoundingBoxQueryBuilder.PROTOTYPE;
+    }
 }

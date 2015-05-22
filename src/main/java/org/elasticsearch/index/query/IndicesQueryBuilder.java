@@ -40,6 +40,8 @@ public class IndicesQueryBuilder extends QueryBuilder {
 
     private String queryName;
 
+    static final IndicesQueryBuilder PROTOTYPE = new IndicesQueryBuilder(null);
+
     public IndicesQueryBuilder(QueryBuilder queryBuilder, String... indices) {
         this.queryBuilder = queryBuilder;
         this.indices = indices;

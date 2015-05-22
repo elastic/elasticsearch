@@ -48,6 +48,8 @@ public class GeoDistanceRangeQueryBuilder extends QueryBuilder {
 
     private String optimizeBbox;
 
+    static final GeoDistanceRangeQueryBuilder PROTOTYPE = new GeoDistanceRangeQueryBuilder(null);
+
     public GeoDistanceRangeQueryBuilder(String name) {
         this.name = name;
     }

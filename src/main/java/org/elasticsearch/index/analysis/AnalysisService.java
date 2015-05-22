@@ -251,6 +251,11 @@ public class AnalysisService extends AbstractIndexComponent implements Closeable
         defaultSearchAnalyzer = analyzers.containsKey("default_search") ? analyzers.get("default_search") : analyzers.get("default");
         defaultSearchQuoteAnalyzer = analyzers.containsKey("default_search_quote") ? analyzers.get("default_search_quote") : defaultSearchAnalyzer;
 
+        for (Map.Entry<String, NamedAnalyzer> analyzer : analyzers.entrySet()) {
+            if (analyzer.getKey().startsWith("_")) {
+                throw new IllegalArgumentException("analyzer name must not start with _. got \"" + analyzer.getKey() + "\"");
+            }
+        }
         this.analyzers = ImmutableMap.copyOf(analyzers);
     }
 

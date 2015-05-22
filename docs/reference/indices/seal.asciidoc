@@ -1,32 +1,32 @@
 [[indices-seal]]
 == Seal
 
-The seal API allows to flush one or more indices and adds a marker to
-primaries and replicas if there are no pending write operations. The seal
-marker is used during recovery after a node restarts. If a replica is
-allocated on a node which already has a shard copy with the same seal as the
-primary then no files will be copied during recovery. Sealing is a best effort
-operation. If write operations are ongoing while the sealing is in progress
-then writing the seal might fail on some copies.
+The seal API flushes and adds a "seal" marker to the shards of one or more
+indices. The seal is used during recovery or restarts to skip the first and
+most costly phase of the process if all copies of the shard have the same seal.
+No segment files need to be copied and the transaction log replay phase of the
+recovery can start immediately which makes recovery much faster.
 
-A seal marks a point in time snapshot (a low level Lucene commit). This mark
-can be used to decide if the initial, rather resource heavy, recovery phase
-where segments or event the entire lucene index is copied over the network can
-be skipped. If the indices on both sides of the recovery have the same seal no
-segment files need to be copied and transaction log replay can start
-immediately. The seal breaks as soon as the shard issues a new lucene commit,
-uncommitted operations in the transaction log do not break the seal until they
-are committed.
+There are two important points about seals:
+1. They are best effort in that if there are any outstanding write operations
+while the seal operation is being performed then the shards which those writes
+target won't be sealed but all others will be. See below for more.
+2. The seal breaks as soon as the shard issues a new lucene commit. Uncommitted
+operations in the transaction log do not break the seal. That is because a seal
+marks a point in time snapshot of the segments, a low level lucene commit.
+Practically that means that every write operation on the index will remove the
+seal.
 
-[source,js]
+[source,bash]
 --------------------------------------------------
-curl -XPOST 'http://localhost:9200/twitter/_seal'
+$ curl -XPOST 'http://localhost:9200/twitter/_seal'
 --------------------------------------------------
 
-The response contains details about for which shards a seal was written and
-the reason in case of failure.
+The response contains details about which shards wrote the seal and the reason
+in case they failed to write the seal.
 
-Response in case all copies of a shard successfully wrote the seal:
+Here is what it looks like when all copies single shard index successfully
+wrote the seal:
 
 [source,js]
 --------------------------------------------------
@@ -44,7 +44,7 @@ Response in case all copies of a shard successfully wrote the seal:
 --------------------------------------------------
 
 
-Response in case some copies of a shard failed:
+Here is what it looks like when one copy fails:
 
 [source,js]
 --------------------------------------------------
@@ -62,7 +62,7 @@ Response in case some copies of a shard failed:
 --------------------------------------------------
 
 
-Response in case all copies of a shard failed:
+Sometimes the failures can be shard wide and they'll look like this:
 
 [source,js]
 --------------------------------------------------

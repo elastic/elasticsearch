@@ -38,6 +38,8 @@ public class DataAttachmentTests extends ElasticsearchTestCase {
         Attachment attachment = DataAttachment.YAML.create(data);
         InputStream input = attachment.bodyPart().getDataHandler().getInputStream();
         String content = Streams.copyToString(new InputStreamReader(input, Charsets.UTF_8));
-        assertThat(content, is("---" + System.lineSeparator() + "key: \"value\"" + System.lineSeparator()));
+        // the yaml factory in es always emits unix line breaks
+        // this seems to be a bug in jackson yaml factory that doesn't default to the platform line break
+        assertThat(content, is("---\nkey: \"value\"\n"));
     }
 }

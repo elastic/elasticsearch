@@ -25,6 +25,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Injector;
@@ -151,14 +152,11 @@ public abstract class BaseQueryTestCase<QB extends QueryBuilder<QB>> extends Ela
                 types[i] = randomFrom(currentTypes);
             }
         } else {
-            /* norelease waiting for a fix on master that restores support for _all type
             if (randomBoolean()) {
                 types = new String[]{MetaData.ALL};
             } else {
                 types = new String[0];
             }
-            */
-            types = new String[0];
         }
         //some query (e.g. range query) have a different behaviour depending on whether the current search context is set or not
         //which is why we randomly set the search context, which will internally also do QueryParseContext.setTypes(types)

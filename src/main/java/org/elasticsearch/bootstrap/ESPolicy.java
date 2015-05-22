@@ -29,7 +29,7 @@ import java.security.ProtectionDomain;
 import java.security.URIParameter;
 
 /** custom policy for union of static and dynamic permissions */
-public class ESPolicy extends Policy {
+final class ESPolicy extends Policy {
     
     /** template policy file, the one used in tests */
     static final String POLICY_RESOURCE = "security.policy";

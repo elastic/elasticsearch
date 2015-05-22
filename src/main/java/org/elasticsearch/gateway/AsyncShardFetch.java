@@ -58,6 +58,7 @@ public abstract class AsyncShardFetch<T extends NodeOperationResponse> implement
     }
 
     protected final ESLogger logger;
+    protected final String type;
     private final ShardId shardId;
     private final List<NodesOperationResponse<T>, T> action;
     private final Map<String, NodeEntry<T>> cache = new HashMap<>();
@@ -65,8 +66,9 @@ public abstract class AsyncShardFetch<T extends NodeOperationResponse> implement
     private boolean closed;
 
     @SuppressWarnings("unchecked")
-    protected AsyncShardFetch(ESLogger logger, ShardId shardId, List<? extends NodesOperationResponse<T>, T> action) {
+    protected AsyncShardFetch(ESLogger logger, String type, ShardId shardId, List<? extends NodesOperationResponse<T>, T> action) {
         this.logger = logger;
+        this.type = type;
         this.shardId = shardId;
         this.action = (List<NodesOperationResponse<T>, T>) action;
     }
@@ -148,7 +150,7 @@ public abstract class AsyncShardFetch<T extends NodeOperationResponse> implement
             // if at least one node failed, make sure to have a protective reroute
             // here, just case this round won't find anything, and we need to retry fetching data
             if (failedNodes.isEmpty() == false || allIgnoreNodes.isEmpty() == false) {
-                reroute(shardId, "at_least_one_node_failed");
+                reroute(shardId, "nodes failed [" + failedNodes.size() + "], ignored [" + allIgnoreNodes.size() + "]");
             }
             return new FetchResult<>(shardId, fetchData, failedNodes, allIgnoreNodes);
         }
@@ -184,7 +186,7 @@ public abstract class AsyncShardFetch<T extends NodeOperationResponse> implement
                     if (unwrappedCause instanceof EsRejectedExecutionException || unwrappedCause instanceof ReceiveTimeoutTransportException || unwrappedCause instanceof ElasticsearchTimeoutException) {
                         nodeEntry.restartFetching();
                     } else {
-                        logger.warn("{}: failed to list shard for {} on node [{}]", failure, shardId, getClass().getSimpleName(), failure.nodeId());
+                        logger.warn("{}: failed to list shard for {} on node [{}]", failure, shardId, type, failure.nodeId());
                         nodeEntry.doneFetching(failure.getCause());
                     }
                 }

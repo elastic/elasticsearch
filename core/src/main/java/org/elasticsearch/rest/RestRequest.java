@@ -120,7 +120,7 @@ public abstract class RestRequest extends ContextAndHeaderHolder implements ToXC
         try {
             return Long.parseLong(sValue);
         } catch (NumberFormatException e) {
-            throw new IllegalArgumentException("Failed to parse int parameter [" + key + "] with value [" + sValue + "]", e);
+            throw new IllegalArgumentException("Failed to parse long parameter [" + key + "] with value [" + sValue + "]", e);
         }
     }
 

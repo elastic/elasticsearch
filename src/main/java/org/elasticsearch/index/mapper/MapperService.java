@@ -39,6 +39,7 @@ import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchGenerationException;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.Tuple;
@@ -493,7 +494,7 @@ public class MapperService extends AbstractIndexComponent  {
             return ImmutableList.of(pattern);
         }
         
-        if (types == null || types.length == 0 || types.length == 1 && types[0].equals("_all")) {
+        if (MetaData.isAllTypes(types)) {
             return fieldMappers.simpleMatchToIndexNames(pattern);
         }
 

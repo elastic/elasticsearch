@@ -32,7 +32,7 @@
 
     <properties>
         <lucene.version>5.2.0</lucene.version>
-        <lucene.snapshot.revision>1680200</lucene.snapshot.revision>
+        <lucene.snapshot.revision>1681024</lucene.snapshot.revision>
         <lucene.maven.version>5.2.0-snapshot-${lucene.snapshot.revision}</lucene.maven.version>
         <testframework.version>2.1.14</testframework.version>
         <tests.jvms>auto</tests.jvms>

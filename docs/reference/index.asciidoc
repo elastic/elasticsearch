@@ -1,5 +1,5 @@
 [[elasticsearch-reference]]
-= Reference
+= Elasticsearch Reference
 
 :version:   1.5.2
 :branch:    1.5

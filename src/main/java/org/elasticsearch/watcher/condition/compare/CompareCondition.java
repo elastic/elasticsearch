@@ -10,7 +10,7 @@ import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.watcher.condition.Condition;
-import org.elasticsearch.watcher.support.WatcherDateUtils;
+import org.elasticsearch.watcher.support.WatcherDateTimeUtils;
 import org.elasticsearch.watcher.support.xcontent.WatcherXContentUtils;
 
 import java.io.IOException;
@@ -282,7 +282,7 @@ public class CompareCondition implements Condition {
                 }
                 if (v1 instanceof String) {
                     try {
-                        v1 = WatcherDateUtils.parseDate((String) v1);
+                        v1 = WatcherDateTimeUtils.parseDate((String) v1);
                     } catch (Exception e) {
                         return null;
                     }

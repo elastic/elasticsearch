@@ -14,13 +14,6 @@ import org.elasticsearch.watcher.execution.WatchExecutionContext;
  */
 public interface Throttler {
 
-    Throttler NO_THROTTLE = new Throttler() {
-        @Override
-        public Result throttle(String actionId, WatchExecutionContext ctx) {
-            return Result.NO;
-        }
-    };
-
     Result throttle(String actionId, WatchExecutionContext ctx);
 
     class Result {

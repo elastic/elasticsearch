@@ -75,18 +75,6 @@ public class BootStrapTests extends AbstractWatcherIntegrationTests {
                         .endObject())
                 .get();
 
-        // no actions field:
-        client().prepareIndex(WatchStore.INDEX, WatchStore.DOC_TYPE, "_id1")
-                .setSource(jsonBuilder().startObject()
-                        .startObject(Watch.Field.TRIGGER.getPreferredName())
-                            .startObject("schedule")
-                                .field("interval", "1s")
-                            .endObject()
-                        .endObject()
-                        .endObject())
-                .get();
-
-
         // invalid interval
         client().prepareIndex(WatchStore.INDEX, WatchStore.DOC_TYPE, "_id2")
                 .setSource(jsonBuilder().startObject()

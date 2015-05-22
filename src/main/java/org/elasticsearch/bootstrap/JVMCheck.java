@@ -28,7 +28,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 /** Checks that the JVM is ok and won't cause index corruption */
-public class JVMCheck {
+final class JVMCheck {
     
     /**
      * URL with latest JVM recommendations
@@ -43,7 +43,7 @@ public class JVMCheck {
     /**
      * Metadata and messaging for hotspot bugs.
      */
-    static class HotspotBug {
+    static final class HotspotBug {
         
         /** OpenJDK bug URL */
         final String bugUrl;
@@ -130,10 +130,5 @@ public class JVMCheck {
             sb.append(" for current recommendations.");
             throw new RuntimeException(sb.toString());
         }
-    }
-    
-    /** Command line driver for convenience */
-    public static void main(String args[]) {
-        check();
     }
 }

@@ -422,8 +422,11 @@ public class PluginsService extends AbstractComponent {
         // Trying JVM plugins: looking for es-plugin.properties files
         try {
             Enumeration<URL> pluginUrls = settings.getClassLoader().getResources(esPluginPropertiesFile);
-            while (pluginUrls.hasMoreElements()) {
-                URL pluginUrl = pluginUrls.nextElement();
+
+            // use a set for uniqueness as some classloaders such as groovy's can return the same URL multiple times and
+            // these plugins should only be loaded once
+            HashSet<URL> uniqueUrls = new HashSet<>(Collections.list(pluginUrls));
+            for (URL pluginUrl : uniqueUrls) {
                 Properties pluginProps = new Properties();
                 InputStream is = null;
                 try {

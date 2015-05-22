@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.common.compress;
+package org.elasticsearch.common.compress.lzf;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamOutput;

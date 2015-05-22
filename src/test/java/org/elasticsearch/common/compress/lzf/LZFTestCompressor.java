@@ -17,37 +17,18 @@
  * under the License.
  */
 
-package org.elasticsearch.common.compress;
+package org.elasticsearch.common.compress.lzf;
 
-import org.apache.lucene.store.IndexInput;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.jboss.netty.buffer.ChannelBuffer;
 
 import java.io.IOException;
 
-/**
- */
-public interface Compressor {
+// LZF compressor with write support, for testing only
+public class LZFTestCompressor extends LZFCompressor {
 
-    boolean isCompressed(BytesReference bytes);
+    @Override
+    public StreamOutput streamOutput(StreamOutput out) throws IOException {
+        return new LZFCompressedStreamOutput(out);
+    }
 
-    boolean isCompressed(ChannelBuffer buffer);
-
-    StreamInput streamInput(StreamInput in) throws IOException;
-
-    StreamOutput streamOutput(StreamOutput out) throws IOException;
-
-    /**
-     * @deprecated Used for backward comp. since we now use Lucene compressed codec.
-     */
-    @Deprecated
-    boolean isCompressed(IndexInput in) throws IOException;
-
-    /**
-     * @deprecated Used for backward comp. since we now use Lucene compressed codec.
-     */
-    @Deprecated
-    CompressedIndexInput indexInput(IndexInput in) throws IOException;
 }

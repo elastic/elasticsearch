@@ -23,7 +23,7 @@ import com.ning.compress.BufferRecycler;
 import com.ning.compress.lzf.ChunkEncoder;
 import com.ning.compress.lzf.LZFChunk;
 import com.ning.compress.lzf.util.ChunkEncoderFactory;
-import org.elasticsearch.common.compress.CompressedStreamOutput;
+
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;

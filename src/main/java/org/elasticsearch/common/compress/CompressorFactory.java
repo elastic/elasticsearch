@@ -19,70 +19,36 @@
 
 package org.elasticsearch.common.compress;
 
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Lists;
-
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.MapBuilder;
+import org.elasticsearch.common.compress.deflate.DeflateCompressor;
 import org.elasticsearch.common.compress.lzf.LZFCompressor;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.jboss.netty.buffer.ChannelBuffer;
 
 import java.io.IOException;
-import java.util.List;
-import java.util.Locale;
 
 /**
  */
 public class CompressorFactory {
 
-    private static final LZFCompressor LZF = new LZFCompressor();
-
     private static final Compressor[] compressors;
-    private static final ImmutableMap<String, Compressor> compressorsByType;
-    private static Compressor defaultCompressor;
+    private static volatile Compressor defaultCompressor;
 
     static {
-        List<Compressor> compressorsX = Lists.newArrayList();
-        compressorsX.add(LZF);
-
-        compressors = compressorsX.toArray(new Compressor[compressorsX.size()]);
-        MapBuilder<String, Compressor> compressorsByTypeX = MapBuilder.newMapBuilder();
-        for (Compressor compressor : compressors) {
-            compressorsByTypeX.put(compressor.type(), compressor);
-        }
-        compressorsByType = compressorsByTypeX.immutableMap();
-
-        defaultCompressor = LZF;
+        compressors = new Compressor[] {
+                new LZFCompressor(),
+                new DeflateCompressor()
+        };
+        defaultCompressor = new DeflateCompressor();
     }
 
-    public static synchronized void configure(Settings settings) {
-        for (Compressor compressor : compressors) {
-            compressor.configure(settings);
-        }
-        String defaultType = settings.get("compress.default.type", "lzf").toLowerCase(Locale.ENGLISH);
-        boolean found = false;
-        for (Compressor compressor : compressors) {
-            if (defaultType.equalsIgnoreCase(compressor.type())) {
-                defaultCompressor = compressor;
-                found = true;
-                break;
-            }
-        }
-        if (!found) {
-            Loggers.getLogger(CompressorFactory.class).warn("failed to find default type [{}]", defaultType);
-        }
-    }
-
-    public static synchronized void setDefaultCompressor(Compressor defaultCompressor) {
+    public static void setDefaultCompressor(Compressor defaultCompressor) {
         CompressorFactory.defaultCompressor = defaultCompressor;
     }
 
@@ -94,6 +60,10 @@ public class CompressorFactory {
         return compressor(bytes) != null;
     }
 
+    /**
+     * @deprecated we don't compress lucene indexes anymore and rely on lucene codecs
+     */
+    @Deprecated
     public static boolean isCompressed(IndexInput in) throws IOException {
         return compressor(in) != null;
     }
@@ -127,6 +97,10 @@ public class CompressorFactory {
         throw new NotCompressedException();
     }
 
+    /**
+     * @deprecated we don't compress lucene indexes anymore and rely on lucene codecs
+     */
+    @Deprecated
     @Nullable
     public static Compressor compressor(IndexInput in) throws IOException {
         for (Compressor compressor : compressors) {
@@ -135,10 +109,6 @@ public class CompressorFactory {
             }
         }
         return null;
-    }
-
-    public static Compressor compressor(String type) {
-        return compressorsByType.get(type);
     }
 
     /**
@@ -160,7 +130,7 @@ public class CompressorFactory {
     public static BytesReference uncompress(BytesReference bytes) throws IOException {
         Compressor compressor = compressor(bytes);
         if (compressor == null) {
-            throw new IllegalArgumentException("Bytes are not compressed");
+            throw new NotCompressedException();
         }
         return uncompress(bytes, compressor);
     }

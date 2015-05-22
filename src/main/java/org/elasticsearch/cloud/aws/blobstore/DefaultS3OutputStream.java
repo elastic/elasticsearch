@@ -44,10 +44,10 @@ import java.util.List;
  * <p/>
  * Quick facts about S3:
  * <p/>
- * Maximum object size:	                5 TB
- * Maximum number of parts per upload:	10,000
+ * Maximum object size:                 5 TB
+ * Maximum number of parts per upload:  10,000
  * Part numbers:                        1 to 10,000 (inclusive)
- * Part size:	                        5 MB to 5 GB, last part can be < 5 MB
+ * Part size:                           5 MB to 5 GB, last part can be < 5 MB
  * <p/>
  * See http://docs.aws.amazon.com/AmazonS3/latest/dev/qfacts.html
  * See http://docs.aws.amazon.com/AmazonS3/latest/dev/uploadobjusingmpu.html
@@ -120,7 +120,7 @@ public class DefaultS3OutputStream extends S3OutputStream {
     }
 
     protected void doUpload(S3BlobStore blobStore, String bucketName, String blobName, InputStream is, int length,
-                            boolean serverSideEncryption) throws AmazonS3Exception {
+            boolean serverSideEncryption) throws AmazonS3Exception {
         ObjectMetadata md = new ObjectMetadata();
         if (serverSideEncryption) {
             md.setSSEAlgorithm(ObjectMetadata.AES_256_SERVER_SIDE_ENCRYPTION);
@@ -202,15 +202,15 @@ public class DefaultS3OutputStream extends S3OutputStream {
     }
 
     protected PartETag doUploadMultipart(S3BlobStore blobStore, String bucketName, String blobName, String uploadId, InputStream is,
-                                         int length, boolean lastPart) throws AmazonS3Exception {
+            int length, boolean lastPart) throws AmazonS3Exception {
         UploadPartRequest request = new UploadPartRequest()
-                .withBucketName(bucketName)
-                .withKey(blobName)
-                .withUploadId(uploadId)
-                .withPartNumber(multipartChunks)
-                .withInputStream(is)
-                .withPartSize(length)
-                .withLastPart(lastPart);
+        .withBucketName(bucketName)
+        .withKey(blobName)
+        .withUploadId(uploadId)
+        .withPartNumber(multipartChunks)
+        .withInputStream(is)
+        .withPartSize(length)
+        .withLastPart(lastPart);
 
         UploadPartResult response = blobStore.client().uploadPart(request);
         return response.getPartETag();

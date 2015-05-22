@@ -52,21 +52,21 @@ public class IcuFoldingTokenFilterFactory extends AbstractTokenFilterFactory {
     }
 
     @Override public TokenStream create(TokenStream tokenStream) {
-    	
-    	// The ICUFoldingFilter is in fact implemented as a ICUNormalizer2Filter.
-    	// ICUFoldingFilter lacks a constructor for adding filtering so we implemement it here
-    	if (unicodeSetFilter != null) { 
-    		Normalizer2 base = Normalizer2.getInstance(
-     		       ICUFoldingFilter.class.getResourceAsStream("utr30.nrm"),
-     		       "utr30", Normalizer2.Mode.COMPOSE);
-    		UnicodeSet unicodeSet = new UnicodeSet(unicodeSetFilter);
 
-    		unicodeSet.freeze();
-    		Normalizer2 filtered = new FilteredNormalizer2(base, unicodeSet);
-    		return new org.apache.lucene.analysis.icu.ICUNormalizer2Filter(tokenStream, filtered); 
-    	}
-    	else {
-    		 return new ICUFoldingFilter(tokenStream);
-    	}
+        // The ICUFoldingFilter is in fact implemented as a ICUNormalizer2Filter.
+        // ICUFoldingFilter lacks a constructor for adding filtering so we implemement it here
+        if (unicodeSetFilter != null) { 
+            Normalizer2 base = Normalizer2.getInstance(
+                    ICUFoldingFilter.class.getResourceAsStream("utr30.nrm"),
+                    "utr30", Normalizer2.Mode.COMPOSE);
+            UnicodeSet unicodeSet = new UnicodeSet(unicodeSetFilter);
+
+            unicodeSet.freeze();
+            Normalizer2 filtered = new FilteredNormalizer2(base, unicodeSet);
+            return new org.apache.lucene.analysis.icu.ICUNormalizer2Filter(tokenStream, filtered); 
+        }
+        else {
+            return new ICUFoldingFilter(tokenStream);
+        }
     }
 }

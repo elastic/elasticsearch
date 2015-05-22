@@ -188,11 +188,7 @@ public class IdFieldMapper extends AbstractFieldMapper implements RootMapper {
             return super.termQuery(value, context);
         }
         final BytesRef[] uids = Uid.createUidsForTypesAndId(context.queryTypes(), value);
-        if (uids.length == 1) {
-            return new TermQuery(new Term(UidFieldMapper.NAME, uids[0]));
-        } else {
-            return new TermsQuery(UidFieldMapper.NAME, uids);
-        }
+        return new TermsQuery(UidFieldMapper.NAME, uids);
     }
 
     @Override

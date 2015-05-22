@@ -519,18 +519,4 @@ public class SimpleStringMappingTests extends ElasticsearchSingleNodeTest {
         assertTrue(mergeResult.buildConflicts()[0].contains("cannot enable norms"));
     }
 
-    public void testTermsQuery() throws Exception {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").startObject("field").field("type", "string").field("index", "not_analyzed").endObject().endObject()
-                .endObject().endObject().string();
-
-        DocumentMapper defaultMapper = parser.parse(mapping);
-        FieldMapper mapper = defaultMapper.mappers().getMapper("field");
-        assertNotNull(mapper);
-        assertTrue(mapper instanceof StringFieldMapper);
-        assertEquals(Queries.newMatchNoDocsQuery(), mapper.termsQuery(Collections.emptyList(), null));
-        assertEquals(new TermQuery(new Term("field", "value")), mapper.termsQuery(Collections.singletonList("value"), null));
-        assertEquals(new TermsQuery(new Term("field", "value1"), new Term("field", "value2")), mapper.termsQuery(Arrays.asList("value1", "value2"), null));
-    }
-
 }

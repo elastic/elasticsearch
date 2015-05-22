@@ -38,6 +38,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.process.JmxProcessProbe;
+import org.elasticsearch.monitor.sigar.SigarService;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeBuilder;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
@@ -85,7 +86,8 @@ public class Bootstrap {
     }
     
     /** initialize native resources */
-    public static void initializeNatives(boolean mlockAll, boolean ctrlHandler) {
+    public static void initializeNatives(boolean mlockAll, boolean ctrlHandler, boolean loadSigar) {
+        final ESLogger logger = Loggers.getLogger(Bootstrap.class);
         // mlockall if requested
         if (mlockAll) {
             if (Constants.WINDOWS) {
@@ -98,7 +100,7 @@ public class Bootstrap {
         // check if the user is running as root, and bail
         if (Natives.definitelyRunningAsRoot()) {
             if (Boolean.parseBoolean(System.getProperty("es.insecure.allow.root"))) {
-                Loggers.getLogger(Bootstrap.class).warn("running as ROOT user. this is a bad idea!");
+                logger.warn("running as ROOT user. this is a bad idea!");
             } else {
                 throw new RuntimeException("don't run elasticsearch as root.");
             }
@@ -110,9 +112,7 @@ public class Bootstrap {
                 @Override
                 public boolean handle(int code) {
                     if (CTRL_CLOSE_EVENT == code) {
-                        ESLogger logger = Loggers.getLogger(Bootstrap.class);
                         logger.info("running graceful exit on windows");
-
                         Bootstrap.INSTANCE.stop();
                         return true;
                     }
@@ -127,13 +127,17 @@ public class Bootstrap {
         } catch (Throwable ignored) {
             // we've already logged this.
         }
- 
-        // initialize sigar explicitly
-        try {
-            Sigar.load();
-            Loggers.getLogger(Bootstrap.class).trace("sigar libraries loaded successfully");
-        } catch (Throwable t) {
-            Loggers.getLogger(Bootstrap.class).trace("failed to load sigar libraries", t);
+
+        if (loadSigar) {
+            // initialize sigar explicitly
+            try {
+                Sigar.load();
+                logger.trace("sigar libraries loaded successfully");
+            } catch (Throwable t) {
+                logger.trace("failed to load sigar libraries", t);
+            }
+        } else {
+            logger.trace("sigar not loaded, disabled via settings");
         }
 
         // init lucene random seed. it will use /dev/urandom where available:
@@ -142,7 +146,8 @@ public class Bootstrap {
 
     private void setup(boolean addShutdownHook, Settings settings, Environment environment) throws Exception {
         initializeNatives(settings.getAsBoolean("bootstrap.mlockall", false), 
-                          settings.getAsBoolean("bootstrap.ctrlhandler", true));
+                          settings.getAsBoolean("bootstrap.ctrlhandler", true),
+                          settings.getAsBoolean("bootstrap.sigar", true));
 
         if (addShutdownHook) {
             Runtime.getRuntime().addShutdownHook(new Thread() {

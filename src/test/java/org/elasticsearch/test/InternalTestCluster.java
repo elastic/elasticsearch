@@ -90,6 +90,7 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.recovery.RecoverySettings;
+import org.elasticsearch.monitor.sigar.SigarService;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.plugins.PluginsService;
@@ -277,6 +278,7 @@ public final class InternalTestCluster extends TestCluster {
                 builder.put("path.data", dataPath.toString());
             }
         }
+        builder.put("bootstrap.sigar", rarely());
         builder.put("path.home", baseDir);
         builder.put("path.repo", baseDir.resolve("repos"));
         builder.put("transport.tcp.port", BASE_PORT + "-" + (BASE_PORT+100));

@@ -34,22 +34,23 @@ public class SigarService extends AbstractComponent {
     @Inject
     public SigarService(Settings settings) {
         super(settings);
-
         Sigar sigar = null;
-        try {
-            sigar = new Sigar();
-            // call it to make sure the library was loaded
-            sigar.getPid();
-            logger.trace("sigar loaded successfully");
-        } catch (Throwable t) {
-            logger.trace("failed to load sigar", t);
-            if (sigar != null) {
-                try {
-                    sigar.close();
-                } catch (Throwable t1) {
-                    // ignore
-                } finally {
-                    sigar = null;
+        if (settings.getAsBoolean("bootstrap.sigar", true)) {
+            try {
+                sigar = new Sigar();
+                // call it to make sure the library was loaded
+                sigar.getPid();
+                logger.trace("sigar loaded successfully");
+            } catch (Throwable t) {
+                logger.trace("failed to load sigar", t);
+                if (sigar != null) {
+                    try {
+                        sigar.close();
+                    } catch (Throwable t1) {
+                        // ignore
+                    } finally {
+                        sigar = null;
+                    }
                 }
             }
         }

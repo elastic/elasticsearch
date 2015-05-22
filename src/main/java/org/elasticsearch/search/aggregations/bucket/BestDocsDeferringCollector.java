@@ -31,7 +31,6 @@ import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ObjectArray;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.BucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 
@@ -57,7 +56,7 @@ public class BestDocsDeferringCollector extends DeferringBucketCollector impleme
     ObjectArray<PerParentBucketSamples> perBucketSamples;
     private int shardSize;
     private PerSegmentCollects perSegCollector;
-    private BigArrays bigArrays;
+    private final BigArrays bigArrays;
 
     /**
      * Sole constructor.
@@ -309,11 +308,7 @@ public class BestDocsDeferringCollector extends DeferringBucketCollector impleme
     public int getDocCount(long parentBucket) {
         PerParentBucketSamples sampler = perBucketSamples.get((int) parentBucket);
         if (sampler == null) {
-            if (parentBucket != 0) {
-                throw new AggregationExecutionException("Missing sample for parentBucket #" + parentBucket);
-            }
-            // A missing sample for parent 0 can occur if we are being used as
-            // the root aggregation and no docs were collected - the aggs
+            // There are conditions where no docs are collected and the aggs
             // framework still asks for doc count.
             return 0;
         }

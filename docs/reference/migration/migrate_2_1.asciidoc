@@ -25,3 +25,13 @@ GET /my_index/_search?scroll=2m
 Scroll requests sorted by `_doc` have been optimized to more efficiently resume
 from where the previous request stopped, so this will have the same performance
 characteristics as the former `scan` search type.
+
+=== Update changes
+
+==== Updates now `detect_noop` by default
+
+We've switched the default value of the `detect_noop` option from `false` to
+`true`. This means that Elasticsearch will ignore updates that don't change
+source unless you explicitly set `"detect_noop": false`. `detect_noop` was
+always computationally cheap compared to the expense of the update which can be
+thought of as a delete operation followed by an index operation.

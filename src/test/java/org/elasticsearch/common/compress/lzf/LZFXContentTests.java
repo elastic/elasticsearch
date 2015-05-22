@@ -17,16 +17,14 @@
  * under the License.
  */
 
-package org.elasticsearch.common.compress;
+package org.elasticsearch.common.compress.lzf;
 
-import org.elasticsearch.common.xcontent.XContent;
+import org.elasticsearch.common.compress.AbstractCompressedXContentTests;
 
-/** Exception indicating that we were expecting some {@link XContent} but could
- *  not detect its type. */
-public class NotXContentException extends RuntimeException {
+public class LZFXContentTests extends AbstractCompressedXContentTests {
 
-    public NotXContentException(String message) {
-        super(message);
+    public LZFXContentTests() {
+        super(new LZFTestCompressor());
     }
 
 }

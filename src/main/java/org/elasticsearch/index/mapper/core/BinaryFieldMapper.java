@@ -37,8 +37,6 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.compress.NotXContentException;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -150,10 +148,12 @@ public class BinaryFieldMapper extends AbstractFieldMapper {
                 try {
                     return CompressorFactory.uncompressIfNeeded(bytes);
                 } catch (NotXContentException e) {
-                    // This is a BUG! We try to decompress by detecting a header in
-                    // the stored bytes but since we accept arbitrary bytes, we have
-                    // no guarantee that uncompressed bytes will be detected as
-                    // compressed!
+                    // NOTE: previous versions of Elasticsearch used to try to detect if
+                    // data was compressed. However this could cause decompression failures
+                    // as a user may have submitted arbitrary data which looks like it is
+                    // compressed to elasticsearch but is not. So we removed the ability to
+                    // compress binary fields and keep this empty catch block for backward
+                    // compatibility with 1.x
                 }
             }
             return bytes;

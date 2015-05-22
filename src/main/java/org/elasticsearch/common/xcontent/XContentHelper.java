@@ -417,10 +417,10 @@ public class XContentHelper {
         Compressor compressor = CompressorFactory.compressor(source);
         if (compressor != null) {
             InputStream compressedStreamInput = compressor.streamInput(source.streamInput());
-            XContentType contentType = XContentFactory.xContentType(compressedStreamInput);
             if (compressedStreamInput.markSupported() == false) {
                 compressedStreamInput = new BufferedInputStream(compressedStreamInput);
             }
+            XContentType contentType = XContentFactory.xContentType(compressedStreamInput);
             if (contentType == builder.contentType()) {
                 builder.rawField(field, compressedStreamInput);
             } else {

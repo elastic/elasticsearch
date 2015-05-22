@@ -468,11 +468,11 @@ public class DocumentMapper implements ToXContent {
     private void refreshSource() throws ElasticsearchGenerationException {
         try {
             BytesStreamOutput bStream = new BytesStreamOutput();
-            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON, CompressorFactory.defaultCompressor().streamOutput(bStream));
-            builder.startObject();
-            toXContent(builder, ToXContent.EMPTY_PARAMS);
-            builder.endObject();
-            builder.close();
+            try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON, CompressorFactory.defaultCompressor().streamOutput(bStream))) {
+                builder.startObject();
+                toXContent(builder, ToXContent.EMPTY_PARAMS);
+                builder.endObject();
+            }
             mappingSource = new CompressedXContent(bStream.bytes());
         } catch (Exception e) {
             throw new ElasticsearchGenerationException("failed to serialize source for type [" + type + "]", e);

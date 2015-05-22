@@ -49,6 +49,18 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-assembly-plugin</artifactId>
             </plugin>
+            <plugin>
+                <groupId>com.mycila</groupId>
+                <artifactId>license-maven-plugin</artifactId>
+                <configuration>
+                    <excludes>
+                        <!-- TODO: https://github.com/elastic/elasticsearch-analysis-icu/issues/29 -->
+                        <exclude>**/IndexableBinaryStringTools.java</exclude>
+                        <exclude>**/ICUCollationKeyFilter.java</exclude>
+                        <exclude>**/TestIndexableBinaryStringTools.java</exclude>
+                    </excludes>
+                </configuration>
+            </plugin>
         </plugins>
     </build>
 

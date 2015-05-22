@@ -275,7 +275,7 @@ public final class InternalTestCluster extends TestCluster {
                 builder.put("path.data", dataPath.toString());
             }
         }
-        builder.put("bootstrap.sigar", rarely());
+        builder.put("bootstrap.sigar", rarely(random));
         final int basePort = 9300 + (100 * (jvmOrdinal+1));
         builder.put("transport.tcp.port", basePort + "-" + (basePort+100));
         builder.put("http.port", basePort+101 + "-" + (basePort+200));

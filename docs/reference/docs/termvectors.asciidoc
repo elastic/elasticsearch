@@ -89,8 +89,8 @@ numbers have no meaning in this context. By default, when requesting
 term vectors of artificial documents, a shard to get the statistics from
 is randomly selected. Use `routing` only to hit a particular shard.
 
-[float]
-=== Example 1
+.Returning stored term vectors
+==================================================
 
 First, we create an index that stores term vectors, payloads etc. :
 
@@ -229,8 +229,12 @@ Response:
 }
 --------------------------------------------------
 
-[float]
-=== Example 2 added[1.4.0.Beta1]
+==================================================
+
+.Generating term vectors on the fly
+==================================================
+
+added[1.4.0.Beta1]
 
 Term vectors which are not explicitly stored in the index are automatically
 computed on the fly. The following request returns all information and statistics for the
@@ -248,8 +252,13 @@ curl -XGET 'http://localhost:9200/twitter/tweet/1/_termvector?pretty=true' -d '{
 }'
 --------------------------------------------------
 
-[float]
-=== Example 3 added[1.4.0.Beta1]
+==================================================
+
+.Artificial documents
+[example]
+--
+
+added[1.4.0.Beta1]
 
 Additionally, term vectors can also be generated for artificial documents,
 that is for documents not present in the index. The syntax is similar to the
@@ -272,4 +281,4 @@ curl -XGET 'http://localhost:9200/twitter/tweet/_termvector' -d '{
   }
 }'
 --------------------------------------------------
-
+--

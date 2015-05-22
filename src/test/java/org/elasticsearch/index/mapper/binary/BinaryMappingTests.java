@@ -34,7 +34,6 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.core.BinaryFieldMapper;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -90,7 +89,7 @@ public class BinaryMappingTests extends ElasticsearchSingleNodeTest {
             ParsedDocument doc = mapper.parse("type", "id", XContentFactory.jsonBuilder().startObject().field("field", value).endObject().bytes());
             BytesRef indexedValue = doc.rootDoc().getBinaryValue("field");
             assertEquals(new BytesRef(value), indexedValue);
-            FieldMapper<?> fieldMapper = mapper.mappers().smartNameFieldMapper("field");
+            FieldMapper fieldMapper = mapper.mappers().smartNameFieldMapper("field");
             Object originalValue = fieldMapper.valueForSearch(indexedValue);
             assertEquals(new BytesArray(value), originalValue);
         }
@@ -121,7 +120,7 @@ public class BinaryMappingTests extends ElasticsearchSingleNodeTest {
         ParsedDocument doc = mapper.parse("type", "id", XContentFactory.jsonBuilder().startObject().field("field", binaryValue).endObject().bytes());
         BytesRef indexedValue = doc.rootDoc().getBinaryValue("field");
         assertEquals(new BytesRef(binaryValue), indexedValue);
-        FieldMapper<?> fieldMapper = mapper.mappers().smartNameFieldMapper("field");
+        FieldMapper fieldMapper = mapper.mappers().smartNameFieldMapper("field");
         Object originalValue = fieldMapper.valueForSearch(indexedValue);
         assertEquals(new BytesArray(original), originalValue);
     }

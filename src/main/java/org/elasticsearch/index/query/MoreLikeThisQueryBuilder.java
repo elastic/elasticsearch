@@ -132,6 +132,8 @@ public class MoreLikeThisQueryBuilder extends QueryBuilder implements BoostableQ
         }
     }
 
+    public static final String NAME = "mlt";
+
     private final String[] fields;
     private List<Item> docs = new ArrayList<>();
     private List<Item> ignoreDocs = new ArrayList<>();
@@ -369,7 +371,7 @@ public class MoreLikeThisQueryBuilder extends QueryBuilder implements BoostableQ
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         String likeFieldName = MoreLikeThisQueryParser.Fields.LIKE.getPreferredName();
-        builder.startObject(MoreLikeThisQueryParser.NAME);
+        builder.startObject(NAME);
         if (fields != null) {
             builder.startArray("fields");
             for (String field : fields) {
@@ -435,7 +437,7 @@ public class MoreLikeThisQueryBuilder extends QueryBuilder implements BoostableQ
     }
 
     @Override
-    protected String parserName() {
-        return MoreLikeThisQueryParser.NAME;
+    public String queryId() {
+        return NAME;
     }
 }

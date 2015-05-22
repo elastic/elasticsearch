@@ -45,7 +45,6 @@ import java.util.Set;
 
 public class HasParentQueryParser extends BaseQueryParserTemp {
 
-    public static final String NAME = "has_parent";
     private static final ParseField QUERY_FIELD = new ParseField("query", "filter");
 
     private final InnerHitsQueryParserHelper innerHitsQueryParserHelper;
@@ -57,7 +56,7 @@ public class HasParentQueryParser extends BaseQueryParserTemp {
 
     @Override
     public String[] names() {
-        return new String[]{NAME, Strings.toCamelCase(NAME)};
+        return new String[]{HasParentQueryBuilder.NAME, Strings.toCamelCase(HasParentQueryBuilder.NAME)};
     }
 
     @Override

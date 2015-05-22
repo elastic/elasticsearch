@@ -122,7 +122,7 @@ public class ContextAndHeaderTransportTests extends ElasticsearchIntegrationTest
                 .setSource(jsonBuilder().startObject().field("username", "foo").endObject()).get();
         transportClient().admin().indices().prepareRefresh(queryIndex, lookupIndex).get();
 
-        TermsLookupQueryBuilder termsLookupFilterBuilder = QueryBuilders.termsLookupQuery("username").lookupIndex(lookupIndex).lookupType("type").lookupId("1").lookupPath("followers");
+        TermsQueryBuilder termsLookupFilterBuilder = QueryBuilders.termsLookupQuery("username").lookupIndex(lookupIndex).lookupType("type").lookupId("1").lookupPath("followers");
         BoolQueryBuilder queryBuilder = QueryBuilders.boolQuery().must(QueryBuilders.matchAllQuery()).must(termsLookupFilterBuilder);
 
         SearchResponse searchResponse = transportClient()

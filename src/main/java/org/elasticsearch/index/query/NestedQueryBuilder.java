@@ -27,6 +27,8 @@ import java.util.Objects;
 
 public class NestedQueryBuilder extends QueryBuilder implements BoostableQueryBuilder<NestedQueryBuilder> {
 
+    public static final String NAME = "nested";
+
     private final QueryBuilder queryBuilder;
 
     private final String path;
@@ -79,7 +81,7 @@ public class NestedQueryBuilder extends QueryBuilder implements BoostableQueryBu
 
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(NestedQueryParser.NAME);
+        builder.startObject(NAME);
         builder.field("query");
         queryBuilder.toXContent(builder, params);
         builder.field("path", path);
@@ -101,7 +103,7 @@ public class NestedQueryBuilder extends QueryBuilder implements BoostableQueryBu
     }
 
     @Override
-    protected final String parserName() {
-        return NestedQueryParser.NAME;
+    public final String queryId() {
+        return NAME;
     }
 }

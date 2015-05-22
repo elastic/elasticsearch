@@ -30,6 +30,8 @@ import org.elasticsearch.index.mapper.FieldMapper;
  */
 public class TermQueryBuilder extends BaseTermQueryBuilder<TermQueryBuilder> implements BoostableQueryBuilder<TermQueryBuilder> {
 
+    public static final String NAME = "term";
+
     /** @see BaseTermQueryBuilder#BaseTermQueryBuilder(String, String) */
     public TermQueryBuilder(String fieldName, String value) {
         super(fieldName, (Object) value);
@@ -88,7 +90,7 @@ public class TermQueryBuilder extends BaseTermQueryBuilder<TermQueryBuilder> imp
     }
 
     @Override
-    protected String parserName() {
-        return TermQueryParser.NAME;
+    public String queryId() {
+        return NAME;
     }
 }

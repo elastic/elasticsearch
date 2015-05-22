@@ -28,6 +28,8 @@ import java.util.Locale;
 
 public class GeoDistanceQueryBuilder extends QueryBuilder {
 
+    public static final String NAME = "geo_distance";
+
     private final String name;
 
     private String distance;
@@ -99,7 +101,7 @@ public class GeoDistanceQueryBuilder extends QueryBuilder {
 
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(GeoDistanceQueryParser.NAME);
+        builder.startObject(NAME);
         if (geohash != null) {
             builder.field(name, geohash);
         } else {
@@ -119,7 +121,7 @@ public class GeoDistanceQueryBuilder extends QueryBuilder {
     }
 
     @Override
-    protected String parserName() {
-        return GeoDistanceQueryParser.NAME;
+    public String queryId() {
+        return NAME;
     }
 }

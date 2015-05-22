@@ -584,11 +584,10 @@ public abstract class QueryBuilders {
     }
 
     /**
-     * A terms lookup filter for the provided field name. A lookup terms filter can
-     * extract the terms to filter by from another doc in an index.
+     * A terms query that can extract the terms from another doc in an index.
      */
-    public static TermsLookupQueryBuilder termsLookupQuery(String name) {
-        return new TermsLookupQueryBuilder(name);
+    public static TermsQueryBuilder termsLookupQuery(String name) {
+        return new TermsQueryBuilder(name, (Object[]) null);
     }
 
     /**
@@ -674,7 +673,7 @@ public abstract class QueryBuilders {
     public static GeohashCellQuery.Builder geoHashCellQuery(String name, String geohash, boolean neighbors) {
         return new GeohashCellQuery.Builder(name, geohash, neighbors);
     }
-    
+
     /**
      * A filter to filter based on a polygon defined by a set of locations  / points.
      *

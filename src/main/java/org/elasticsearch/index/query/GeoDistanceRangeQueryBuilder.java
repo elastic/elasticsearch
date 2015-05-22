@@ -27,6 +27,8 @@ import java.util.Locale;
 
 public class GeoDistanceRangeQueryBuilder extends QueryBuilder {
 
+    public static final String NAME = "geo_distance_range";
+
     private final String name;
 
     private Object from;
@@ -135,7 +137,7 @@ public class GeoDistanceRangeQueryBuilder extends QueryBuilder {
 
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(GeoDistanceRangeQueryParser.NAME);
+        builder.startObject(NAME);
         if (geohash != null) {
             builder.field(name, geohash);
         } else {
@@ -158,7 +160,7 @@ public class GeoDistanceRangeQueryBuilder extends QueryBuilder {
     }
 
     @Override
-    protected String parserName() {
-        return GeoDistanceQueryParser.NAME;
+    public String queryId() {
+        return NAME;
     }
 }

@@ -47,15 +47,13 @@ import static com.google.common.collect.Maps.newHashMap;
  */
 public class ScriptQueryParser extends BaseQueryParserTemp {
 
-    public static final String NAME = "script";
-
     @Inject
     public ScriptQueryParser() {
     }
 
     @Override
     public String[] names() {
-        return new String[]{NAME};
+        return new String[]{ScriptQueryBuilder.NAME};
     }
 
     @Override

@@ -37,7 +37,6 @@ import java.io.IOException;
  */
 public class FuzzyQueryParser extends BaseQueryParserTemp {
 
-    public static final String NAME = "fuzzy";
     private static final Fuzziness DEFAULT_FUZZINESS = Fuzziness.AUTO;
     private static final ParseField FUZZINESS = Fuzziness.FIELD.withDeprecation("min_similarity");
 
@@ -48,7 +47,7 @@ public class FuzzyQueryParser extends BaseQueryParserTemp {
 
     @Override
     public String[] names() {
-        return new String[]{NAME};
+        return new String[]{FuzzyQueryBuilder.NAME};
     }
 
     @Override

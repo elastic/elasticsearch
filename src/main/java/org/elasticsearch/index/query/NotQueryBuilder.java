@@ -29,6 +29,8 @@ import java.util.Objects;
  */
 public class NotQueryBuilder extends QueryBuilder {
 
+    public static final String NAME = "not";
+
     private final QueryBuilder filter;
 
     private String queryName;
@@ -44,7 +46,7 @@ public class NotQueryBuilder extends QueryBuilder {
 
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(NotQueryParser.NAME);
+        builder.startObject(NAME);
         builder.field("query");
         filter.toXContent(builder, params);
         if (queryName != null) {
@@ -54,7 +56,7 @@ public class NotQueryBuilder extends QueryBuilder {
     }
 
     @Override
-    protected String parserName() {
-        return NotQueryParser.NAME;
+    public String queryId() {
+        return NAME;
     }
 }

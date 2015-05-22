@@ -37,6 +37,8 @@ import java.io.IOException;
  */
 public class BoostingQueryBuilder extends QueryBuilder implements BoostableQueryBuilder<BoostingQueryBuilder> {
 
+    public static final String NAME = "boosting";
+
     private QueryBuilder positiveQuery;
 
     private QueryBuilder negativeQuery;
@@ -81,7 +83,7 @@ public class BoostingQueryBuilder extends QueryBuilder implements BoostableQuery
         if (negativeBoost == -1) {
             throw new IllegalArgumentException("boosting query requires negativeBoost to be set");
         }
-        builder.startObject(BoostingQueryParser.NAME);
+        builder.startObject(NAME);
         builder.field("positive");
         positiveQuery.toXContent(builder, params);
         builder.field("negative");
@@ -96,7 +98,7 @@ public class BoostingQueryBuilder extends QueryBuilder implements BoostableQuery
     }
 
     @Override
-    protected String parserName() {
-        return BoostingQueryParser.NAME;
+    public String queryId() {
+        return NAME;
     }
 }

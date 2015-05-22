@@ -33,7 +33,6 @@ import java.io.IOException;
  */
 public class ConstantScoreQueryParser extends BaseQueryParserTemp {
 
-    public static final String NAME = "constant_score";
     private static final ParseField INNER_QUERY_FIELD = new ParseField("filter", "query");
 
     @Inject
@@ -42,7 +41,7 @@ public class ConstantScoreQueryParser extends BaseQueryParserTemp {
 
     @Override
     public String[] names() {
-        return new String[]{NAME, Strings.toCamelCase(NAME)};
+        return new String[]{ConstantScoreQueryBuilder.NAME, Strings.toCamelCase(ConstantScoreQueryBuilder.NAME)};
     }
 
     @Override

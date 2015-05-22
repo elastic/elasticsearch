@@ -33,15 +33,13 @@ import java.io.IOException;
 @Deprecated
 public class FQueryFilterParser extends BaseQueryParserTemp {
 
-    public static final String NAME = "fquery";
-
     @Inject
     public FQueryFilterParser() {
     }
 
     @Override
     public String[] names() {
-        return new String[]{NAME};
+        return new String[]{QueryFilterBuilder.FQUERY_NAME};
     }
 
     @Override

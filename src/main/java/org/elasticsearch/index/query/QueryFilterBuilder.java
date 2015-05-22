@@ -31,6 +31,11 @@ import java.io.IOException;
 @Deprecated
 public class QueryFilterBuilder extends QueryBuilder {
 
+    public static final String NAME = "query";
+
+    // this query builder creates query parsed by FQueryFilterParser in case queryName is set
+    public static final String FQUERY_NAME = "fquery";
+
     private final QueryBuilder queryBuilder;
 
     private String queryName;
@@ -55,10 +60,10 @@ public class QueryFilterBuilder extends QueryBuilder {
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         if (queryName == null) {
-            builder.field(QueryFilterParser.NAME);
+            builder.field(NAME);
             queryBuilder.toXContent(builder, params);
         } else {
-            builder.startObject(FQueryFilterParser.NAME);
+            builder.startObject(FQUERY_NAME);
             builder.field("query");
             queryBuilder.toXContent(builder, params);
             if (queryName != null) {
@@ -69,7 +74,7 @@ public class QueryFilterBuilder extends QueryBuilder {
     }
 
     @Override
-    protected String parserName() {
-        return QueryFilterParser.NAME;
+    public String queryId() {
+        return NAME;
     }
 }

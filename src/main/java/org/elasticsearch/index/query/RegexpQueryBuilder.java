@@ -29,6 +29,7 @@ import java.io.IOException;
  */
 public class RegexpQueryBuilder extends MultiTermQueryBuilder implements BoostableQueryBuilder<RegexpQueryBuilder> {
 
+    public static final String NAME = "regexp";
     private final String name;
     private final String regexp;
 
@@ -97,7 +98,7 @@ public class RegexpQueryBuilder extends MultiTermQueryBuilder implements Boostab
 
     @Override
     public void doXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(RegexpQueryParser.NAME);
+        builder.startObject(NAME);
         if (boost == -1 && rewrite == null && queryName != null) {
             builder.field(name, regexp);
         } else {
@@ -124,7 +125,7 @@ public class RegexpQueryBuilder extends MultiTermQueryBuilder implements Boostab
     }
 
     @Override
-    protected String parserName() {
-        return RegexpQueryParser.NAME;
+    public String queryId() {
+        return NAME;
     }
 }

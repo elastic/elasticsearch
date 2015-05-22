@@ -202,7 +202,7 @@ public class FunctionScoreQueryBuilder extends QueryBuilder implements Boostable
     }
 
     @Override
-    protected String parserName() {
+    public String queryId() {
         return FunctionScoreQueryParser.NAME;
     }
 }

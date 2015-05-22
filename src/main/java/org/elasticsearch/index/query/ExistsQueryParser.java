@@ -39,15 +39,13 @@ import java.util.List;
  */
 public class ExistsQueryParser extends BaseQueryParserTemp {
 
-    public static final String NAME = "exists";
-
     @Inject
     public ExistsQueryParser() {
     }
 
     @Override
     public String[] names() {
-        return new String[]{NAME};
+        return new String[]{ExistsQueryBuilder.NAME};
     }
 
     @Override

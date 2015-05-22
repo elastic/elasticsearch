@@ -25,6 +25,7 @@ import java.io.IOException;
 
 public class TypeQueryBuilder extends QueryBuilder {
 
+    public static final String NAME = "type";
     private final String type;
 
     public TypeQueryBuilder(String type) {
@@ -33,13 +34,13 @@ public class TypeQueryBuilder extends QueryBuilder {
 
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(TypeQueryParser.NAME);
+        builder.startObject(NAME);
         builder.field("value", type);
         builder.endObject();
     }
 
     @Override
-    protected String parserName() {
-        return TypeQueryParser.NAME;
+    public String queryId() {
+        return NAME;
     }
 }

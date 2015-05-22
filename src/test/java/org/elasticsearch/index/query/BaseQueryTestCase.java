@@ -199,9 +199,9 @@ public abstract class BaseQueryTestCase<QB extends QueryBuilder<QB>> extends Ela
         String contentString = testQuery.toString();
         XContentParser parser = XContentFactory.xContent(contentString).createParser(contentString);
         context.reset(parser);
-        assertQueryHeader(parser, testQuery.parserName());
+        assertQueryHeader(parser, testQuery.queryId());
 
-        QueryBuilder newQuery = queryParserService.queryParser(testQuery.parserName()).fromXContent(context);
+        QueryBuilder newQuery = queryParserService.queryParser(testQuery.queryId()).fromXContent(context);
         assertNotSame(newQuery, testQuery);
         assertEquals(newQuery, testQuery);
         assertEquals(newQuery.hashCode(), testQuery.hashCode());

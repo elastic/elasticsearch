@@ -31,6 +31,8 @@ import java.io.IOException;
  */
 public class GeoShapeQueryBuilder extends QueryBuilder {
 
+    public static final String NAME = "geo_shape";
+
     private final String name;
 
     private final ShapeBuilder shape;
@@ -46,7 +48,7 @@ public class GeoShapeQueryBuilder extends QueryBuilder {
     private String indexedShapePath;
 
     private ShapeRelation relation = null;
-    
+
     /**
      * Creates a new GeoShapeQueryBuilder whose Filter will be against the
      * given field name using the given Shape
@@ -148,7 +150,7 @@ public class GeoShapeQueryBuilder extends QueryBuilder {
 
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(GeoShapeQueryParser.NAME);
+        builder.startObject(NAME);
 
         builder.startObject(name);
 
@@ -185,7 +187,7 @@ public class GeoShapeQueryBuilder extends QueryBuilder {
     }
 
     @Override
-    protected String parserName() {
-        return GeoShapeQueryParser.NAME;
+    public String queryId() {
+        return NAME;
     }
 }

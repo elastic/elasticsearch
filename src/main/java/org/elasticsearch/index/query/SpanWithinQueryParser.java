@@ -33,15 +33,13 @@ import java.io.IOException;
  */
 public class SpanWithinQueryParser extends BaseQueryParserTemp {
 
-    public static final String NAME = "span_within";
-
     @Inject
     public SpanWithinQueryParser() {
     }
 
     @Override
     public String[] names() {
-        return new String[]{NAME, Strings.toCamelCase(NAME)};
+        return new String[]{SpanWithinQueryBuilder.NAME, Strings.toCamelCase(SpanWithinQueryBuilder.NAME)};
     }
 
     @Override

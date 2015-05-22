@@ -39,6 +39,8 @@ import java.util.Locale;
  */
 public class MultiMatchQueryBuilder extends QueryBuilder implements BoostableQueryBuilder<MultiMatchQueryBuilder> {
 
+    public static final String NAME = "multi_match";
+
     private final Object text;
 
     private final List<String> fields;
@@ -77,7 +79,6 @@ public class MultiMatchQueryBuilder extends QueryBuilder implements BoostableQue
     private MatchQueryBuilder.ZeroTermsQuery zeroTermsQuery = null;
 
     private String queryName;
-
 
     public enum Type {
 
@@ -332,7 +333,7 @@ public class MultiMatchQueryBuilder extends QueryBuilder implements BoostableQue
 
     @Override
     public void doXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(MultiMatchQueryParser.NAME);
+        builder.startObject(NAME);
 
         builder.field("query", text);
         builder.startArray("fields");
@@ -407,7 +408,7 @@ public class MultiMatchQueryBuilder extends QueryBuilder implements BoostableQue
     }
 
     @Override
-    protected String parserName() {
-        return MultiMatchQueryParser.NAME;
+    public String queryId() {
+        return NAME;
     }
 }

@@ -34,15 +34,13 @@ import java.io.IOException;
 @Deprecated
 public class FilteredQueryParser extends BaseQueryParserTemp {
 
-    public static final String NAME = "filtered";
-
     @Inject
     public FilteredQueryParser() {
     }
 
     @Override
     public String[] names() {
-        return new String[]{NAME};
+        return new String[]{FilteredQueryBuilder.NAME};
     }
 
     @Override

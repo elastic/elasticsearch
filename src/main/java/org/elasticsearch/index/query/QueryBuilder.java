@@ -50,6 +50,11 @@ public abstract class QueryBuilder<QB> extends ToXContentToBytes implements Writ
     }
 
     /**
+     * @return a unique name this query is identified with
+     */
+    public abstract String queryId();
+
+    /**
      * Converts this QueryBuilder to a lucene {@link Query}
      * @param parseContext additional information needed to construct the queries
      * @return the {@link Query}
@@ -58,15 +63,8 @@ public abstract class QueryBuilder<QB> extends ToXContentToBytes implements Writ
      */
     //norelease to be made abstract once all query builders override toQuery providing their own specific implementation.
     public Query toQuery(QueryParseContext parseContext) throws QueryParsingException, IOException {
-        return parseContext.indexQueryParserService().queryParser(parserName()).parse(parseContext);
+        return parseContext.indexQueryParserService().queryParser(queryId()).parse(parseContext);
     }
-
-    /**
-     * Temporary method that allows to retrieve the parser for each query.
-     * @return the name of the parser class the default {@link #toQuery(QueryParseContext)} method delegates to
-     */
-    //norelease to be removed once all query builders override toQuery providing their own specific implementation.
-    protected abstract String parserName();
 
     /**
      * Validate the query.

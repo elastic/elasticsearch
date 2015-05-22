@@ -28,6 +28,7 @@ import java.io.IOException;
  */
 public class SpanContainingQueryBuilder extends QueryBuilder implements SpanQueryBuilder, BoostableQueryBuilder<SpanContainingQueryBuilder> {
 
+    public static final String NAME = "span_containing";
     private SpanQueryBuilder big;
     private SpanQueryBuilder little;
     private float boost = -1;
@@ -71,7 +72,7 @@ public class SpanContainingQueryBuilder extends QueryBuilder implements SpanQuer
         if (little == null) {
             throw new IllegalArgumentException("Must specify little clause when building a span_containing query");
         }
-        builder.startObject(SpanContainingQueryParser.NAME);
+        builder.startObject(NAME);
 
         builder.field("big");
         big.toXContent(builder, params);
@@ -91,7 +92,7 @@ public class SpanContainingQueryBuilder extends QueryBuilder implements SpanQuer
     }
 
     @Override
-    protected String parserName() {
-        return SpanContainingQueryParser.NAME;
+    public String queryId() {
+        return NAME;
     }
 }

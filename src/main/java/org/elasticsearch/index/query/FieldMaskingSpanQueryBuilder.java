@@ -25,6 +25,8 @@ import java.io.IOException;
 
 public class FieldMaskingSpanQueryBuilder extends QueryBuilder implements SpanQueryBuilder, BoostableQueryBuilder<FieldMaskingSpanQueryBuilder> {
 
+    public static final String NAME = "field_masking_span";
+
     private final SpanQueryBuilder queryBuilder;
 
     private final String field;
@@ -32,7 +34,6 @@ public class FieldMaskingSpanQueryBuilder extends QueryBuilder implements SpanQu
     private float boost = -1;
 
     private String queryName;
-
 
     public FieldMaskingSpanQueryBuilder(SpanQueryBuilder queryBuilder, String field) {
         this.queryBuilder = queryBuilder;
@@ -55,7 +56,7 @@ public class FieldMaskingSpanQueryBuilder extends QueryBuilder implements SpanQu
 
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(FieldMaskingSpanQueryParser.NAME);
+        builder.startObject(NAME);
         builder.field("query");
         queryBuilder.toXContent(builder, params);
         builder.field("field", field);
@@ -69,7 +70,7 @@ public class FieldMaskingSpanQueryBuilder extends QueryBuilder implements SpanQu
     }
 
     @Override
-    protected String parserName() {
-        return FieldMaskingSpanQueryParser.NAME;
+    public String queryId() {
+        return NAME;
     }
 }

@@ -39,7 +39,6 @@ import java.io.IOException;
 
 public class NestedQueryParser extends BaseQueryParserTemp {
 
-    public static final String NAME = "nested";
     private static final ParseField FILTER_FIELD = new ParseField("filter").withAllDeprecated("query");
 
     private final InnerHitsQueryParserHelper innerHitsQueryParserHelper;
@@ -51,7 +50,7 @@ public class NestedQueryParser extends BaseQueryParserTemp {
 
     @Override
     public String[] names() {
-        return new String[]{NAME, Strings.toCamelCase(NAME)};
+        return new String[]{NestedQueryBuilder.NAME, Strings.toCamelCase(NestedQueryBuilder.NAME)};
     }
 
     @Override

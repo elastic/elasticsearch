@@ -35,15 +35,13 @@ import java.io.IOException;
  */
 public class WildcardQueryParser extends BaseQueryParserTemp {
 
-    public static final String NAME = "wildcard";
-
     @Inject
     public WildcardQueryParser() {
     }
 
     @Override
     public String[] names() {
-        return new String[]{NAME};
+        return new String[]{WildcardQueryBuilder.NAME};
     }
 
     @Override

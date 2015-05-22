@@ -20,6 +20,7 @@
 package org.elasticsearch.index.query;
 
 import com.google.common.collect.Lists;
+
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -32,6 +33,8 @@ import java.util.Collections;
  */
 @Deprecated
 public class OrQueryBuilder extends QueryBuilder {
+
+    public static final String NAME = "or";
 
     private ArrayList<QueryBuilder> filters = Lists.newArrayList();
 
@@ -56,7 +59,7 @@ public class OrQueryBuilder extends QueryBuilder {
 
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(OrQueryParser.NAME);
+        builder.startObject(NAME);
         builder.startArray("filters");
         for (QueryBuilder filter : filters) {
             filter.toXContent(builder, params);
@@ -69,7 +72,7 @@ public class OrQueryBuilder extends QueryBuilder {
     }
 
     @Override
-    protected String parserName() {
-        return OrQueryParser.NAME;
+    public String queryId() {
+        return NAME;
     }
 }

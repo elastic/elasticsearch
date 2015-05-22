@@ -28,6 +28,8 @@ import java.io.IOException;
  */
 public class ExistsQueryBuilder extends QueryBuilder {
 
+    public static final String NAME = "exists";
+
     private String name;
 
     private String queryName;
@@ -46,7 +48,7 @@ public class ExistsQueryBuilder extends QueryBuilder {
 
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(ExistsQueryParser.NAME);
+        builder.startObject(NAME);
         builder.field("field", name);
         if (queryName != null) {
             builder.field("_name", queryName);
@@ -55,7 +57,7 @@ public class ExistsQueryBuilder extends QueryBuilder {
     }
 
     @Override
-    protected String parserName() {
-        return ExistsQueryParser.NAME;
+    public String queryId() {
+        return NAME;
     }
 }

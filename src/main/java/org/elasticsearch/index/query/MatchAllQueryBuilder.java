@@ -33,6 +33,8 @@ import java.io.IOException;
  */
 public class MatchAllQueryBuilder extends QueryBuilder<MatchAllQueryBuilder> implements BoostableQueryBuilder<MatchAllQueryBuilder> {
 
+    public static final String NAME = "match_all";
+
     private float boost = 1.0f;
 
     /**
@@ -54,7 +56,7 @@ public class MatchAllQueryBuilder extends QueryBuilder<MatchAllQueryBuilder> imp
 
     @Override
     public void doXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(MatchAllQueryParser.NAME);
+        builder.startObject(NAME);
         if (boost != 1.0f) {
             builder.field("boost", boost);
         }
@@ -101,7 +103,7 @@ public class MatchAllQueryBuilder extends QueryBuilder<MatchAllQueryBuilder> imp
     }
 
     @Override
-    protected String parserName() {
-        return MatchAllQueryParser.NAME;
+    public String queryId() {
+        return NAME;
     }
 }

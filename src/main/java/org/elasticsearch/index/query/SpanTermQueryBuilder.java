@@ -32,6 +32,8 @@ import org.elasticsearch.index.mapper.FieldMapper;
  */
 public class SpanTermQueryBuilder extends BaseTermQueryBuilder<SpanTermQueryBuilder> implements SpanQueryBuilder {
 
+    public static final String NAME = "span_term";
+
     /** @see BaseTermQueryBuilder#BaseTermQueryBuilder(String, String) */
     public SpanTermQueryBuilder(String name, String value) {
         super(name, (Object) value);
@@ -63,11 +65,6 @@ public class SpanTermQueryBuilder extends BaseTermQueryBuilder<SpanTermQueryBuil
     }
 
     @Override
-    protected String parserName() {
-        return SpanTermQueryParser.NAME;
-    }
-
-    @Override
     public Query toQuery(QueryParseContext context) {
         BytesRef valueBytes = null;
         String fieldName = this.fieldName;
@@ -91,5 +88,10 @@ public class SpanTermQueryBuilder extends BaseTermQueryBuilder<SpanTermQueryBuil
     @Override
     protected SpanTermQueryBuilder createBuilder(String fieldName, Object value) {
         return new SpanTermQueryBuilder(fieldName, value);
+    }
+
+    @Override
+    public String queryId() {
+        return NAME;
     }
 }

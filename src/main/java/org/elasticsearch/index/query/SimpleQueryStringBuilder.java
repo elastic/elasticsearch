@@ -31,6 +31,7 @@ import java.util.Map;
  * query, but won't throw exceptions for any weird string syntax.
  */
 public class SimpleQueryStringBuilder extends QueryBuilder {
+    public static final String NAME = "simple_query_string";
     private Map<String, Float> fields = new HashMap<>();
     private String analyzer;
     private Operator operator;
@@ -142,7 +143,7 @@ public class SimpleQueryStringBuilder extends QueryBuilder {
 
     @Override
     public void doXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(SimpleQueryStringParser.NAME);
+        builder.startObject(NAME);
 
         builder.field("query", queryText);
 
@@ -200,7 +201,7 @@ public class SimpleQueryStringBuilder extends QueryBuilder {
     }
 
     @Override
-    protected String parserName() {
-        return SimpleQueryStringParser.NAME;
+    public String queryId() {
+        return NAME;
     }
 }

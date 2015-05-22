@@ -36,15 +36,13 @@ import static com.google.common.collect.Lists.newArrayList;
 @Deprecated
 public class AndQueryParser extends BaseQueryParserTemp {
 
-    public static final String NAME = "and";
-
     @Inject
     public AndQueryParser() {
     }
 
     @Override
     public String[] names() {
-        return new String[]{NAME};
+        return new String[]{AndQueryBuilder.NAME};
     }
 
     @Override

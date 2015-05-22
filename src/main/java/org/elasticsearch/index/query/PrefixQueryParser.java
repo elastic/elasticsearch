@@ -36,15 +36,13 @@ import java.io.IOException;
  */
 public class PrefixQueryParser extends BaseQueryParserTemp {
 
-    public static final String NAME = "prefix";
-
     @Inject
     public PrefixQueryParser() {
     }
 
     @Override
     public String[] names() {
-        return new String[]{NAME};
+        return new String[]{PrefixQueryBuilder.NAME};
     }
 
     @Override

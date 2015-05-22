@@ -26,6 +26,8 @@ import java.util.ArrayList;
 
 public class SpanOrQueryBuilder extends QueryBuilder implements SpanQueryBuilder, BoostableQueryBuilder<SpanOrQueryBuilder> {
 
+    public static final String NAME = "span_or";
+
     private ArrayList<SpanQueryBuilder> clauses = new ArrayList<>();
 
     private float boost = -1;
@@ -56,7 +58,7 @@ public class SpanOrQueryBuilder extends QueryBuilder implements SpanQueryBuilder
         if (clauses.isEmpty()) {
             throw new IllegalArgumentException("Must have at least one clause when building a spanOr query");
         }
-        builder.startObject(SpanOrQueryParser.NAME);
+        builder.startObject(NAME);
         builder.startArray("clauses");
         for (SpanQueryBuilder clause : clauses) {
             clause.toXContent(builder, params);
@@ -72,7 +74,7 @@ public class SpanOrQueryBuilder extends QueryBuilder implements SpanQueryBuilder
     }
 
     @Override
-    protected String parserName() {
-        return SpanOrQueryParser.NAME;
+    public String queryId() {
+        return NAME;
     }
 }

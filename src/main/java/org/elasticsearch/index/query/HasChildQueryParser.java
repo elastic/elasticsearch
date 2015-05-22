@@ -47,7 +47,6 @@ import java.io.IOException;
  */
 public class HasChildQueryParser extends BaseQueryParserTemp {
 
-    public static final String NAME = "has_child";
     private static final ParseField QUERY_FIELD = new ParseField("query", "filter");
 
     private final InnerHitsQueryParserHelper innerHitsQueryParserHelper;
@@ -59,7 +58,7 @@ public class HasChildQueryParser extends BaseQueryParserTemp {
 
     @Override
     public String[] names() {
-        return new String[] { NAME, Strings.toCamelCase(NAME) };
+        return new String[] { HasChildQueryBuilder.NAME, Strings.toCamelCase(HasChildQueryBuilder.NAME) };
     }
 
     @Override

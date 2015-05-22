@@ -33,6 +33,8 @@ import java.io.IOException;
  */
 public class WildcardQueryBuilder extends MultiTermQueryBuilder implements BoostableQueryBuilder<WildcardQueryBuilder> {
 
+    public static final String NAME = "wildcard";
+
     private final String name;
 
     private final String wildcard;
@@ -84,7 +86,7 @@ public class WildcardQueryBuilder extends MultiTermQueryBuilder implements Boost
 
     @Override
     public void doXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(WildcardQueryParser.NAME);
+        builder.startObject(NAME);
         if (boost == -1 && rewrite == null && queryName != null) {
             builder.field(name, wildcard);
         } else {
@@ -105,7 +107,7 @@ public class WildcardQueryBuilder extends MultiTermQueryBuilder implements Boost
     }
 
     @Override
-    protected String parserName() {
-        return WildcardQueryParser.NAME;
+    public String queryId() {
+        return NAME;
     }
 }

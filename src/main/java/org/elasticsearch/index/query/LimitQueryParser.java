@@ -29,15 +29,13 @@ import java.io.IOException;
 @Deprecated
 public class LimitQueryParser extends BaseQueryParserTemp {
 
-    public static final String NAME = "limit";
-
     @Inject
     public LimitQueryParser() {
     }
 
     @Override
     public String[] names() {
-        return new String[]{NAME};
+        return new String[]{LimitQueryBuilder.NAME};
     }
 
     @Override

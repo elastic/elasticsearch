@@ -44,6 +44,8 @@ import java.io.IOException;
  */
 public class CommonTermsQueryBuilder extends QueryBuilder implements BoostableQueryBuilder<CommonTermsQueryBuilder> {
 
+    public static final String NAME = "common";
+
     public static enum Operator {
         OR, AND
     }
@@ -161,7 +163,7 @@ public class CommonTermsQueryBuilder extends QueryBuilder implements BoostableQu
 
     @Override
     public void doXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(CommonTermsQueryParser.NAME);
+        builder.startObject(NAME);
         builder.startObject(name);
 
         builder.field("query", text);
@@ -202,7 +204,7 @@ public class CommonTermsQueryBuilder extends QueryBuilder implements BoostableQu
     }
 
     @Override
-    protected String parserName() {
-        return CommonTermsQueryParser.NAME;
+    public String queryId() {
+        return NAME;
     }
 }

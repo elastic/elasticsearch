@@ -25,6 +25,8 @@ import java.io.IOException;
 
 public class HasChildQueryBuilder extends QueryBuilder implements BoostableQueryBuilder<HasChildQueryBuilder> {
 
+    public static final String NAME = "has_child";
+
     private final QueryBuilder queryBuilder;
 
     private String childType;
@@ -109,7 +111,7 @@ public class HasChildQueryBuilder extends QueryBuilder implements BoostableQuery
 
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(HasChildQueryParser.NAME);
+        builder.startObject(NAME);
         builder.field("query");
         queryBuilder.toXContent(builder, params);
         builder.field("child_type", childType);
@@ -140,7 +142,7 @@ public class HasChildQueryBuilder extends QueryBuilder implements BoostableQuery
     }
 
     @Override
-    protected String parserName() {
-        return HasChildQueryParser.NAME;
+    public String queryId() {
+        return NAME;
     }
 }

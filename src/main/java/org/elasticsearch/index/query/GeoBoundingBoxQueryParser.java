@@ -53,7 +53,6 @@ public class GeoBoundingBoxQueryParser extends BaseQueryParserTemp {
     public static final String BOTTOMLEFT = "bottomLeft";
     public static final String BOTTOMRIGHT = "bottomRight";
 
-    public static final String NAME = "geo_bbox";
     public static final String FIELD = "field";
 
     @Inject
@@ -62,7 +61,7 @@ public class GeoBoundingBoxQueryParser extends BaseQueryParserTemp {
 
     @Override
     public String[] names() {
-        return new String[]{NAME, "geoBbox", "geo_bounding_box", "geoBoundingBox"};
+        return new String[]{GeoBoundingBoxQueryBuilder.NAME, "geoBbox", "geo_bounding_box", "geoBoundingBox"};
     }
 
     @Override

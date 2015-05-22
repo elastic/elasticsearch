@@ -48,7 +48,6 @@ import java.util.List;
  */
 public class TermsQueryParser extends BaseQueryParserTemp {
 
-    public static final String NAME = "terms";
     private static final ParseField MIN_SHOULD_MATCH_FIELD = new ParseField("min_match", "min_should_match").withAllDeprecated("Use [bool] query instead");
     private Client client;
 
@@ -61,7 +60,7 @@ public class TermsQueryParser extends BaseQueryParserTemp {
 
     @Override
     public String[] names() {
-        return new String[]{NAME, "in"};
+        return new String[]{TermsQueryBuilder.NAME, "in"};
     }
 
     @Inject(optional = true)
@@ -141,7 +140,7 @@ public class TermsQueryParser extends BaseQueryParserTemp {
                     // ignore
                 } else if (MIN_SHOULD_MATCH_FIELD.match(currentFieldName)) {
                     if (minShouldMatch != null) {
-                        throw new IllegalArgumentException("[" + currentFieldName + "] is not allowed in a filter context for the [" + NAME + "] query");
+                        throw new IllegalArgumentException("[" + currentFieldName + "] is not allowed in a filter context for the [" + TermsQueryBuilder.NAME + "] query");
                     }
                     minShouldMatch = parser.textOrNull();
                 } else if ("boost".equals(currentFieldName)) {

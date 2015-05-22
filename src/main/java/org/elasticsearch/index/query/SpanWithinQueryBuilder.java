@@ -28,6 +28,7 @@ import java.io.IOException;
  */
 public class SpanWithinQueryBuilder extends QueryBuilder implements SpanQueryBuilder, BoostableQueryBuilder<SpanWithinQueryBuilder> {
 
+    public static final String NAME = "span_within";
     private SpanQueryBuilder big;
     private SpanQueryBuilder little;
     private float boost = -1;
@@ -71,7 +72,7 @@ public class SpanWithinQueryBuilder extends QueryBuilder implements SpanQueryBui
         if (little == null) {
             throw new IllegalArgumentException("Must specify little clause when building a span_within query");
         }
-        builder.startObject(SpanWithinQueryParser.NAME);
+        builder.startObject(NAME);
 
         builder.field("big");
         big.toXContent(builder, params);
@@ -91,7 +92,7 @@ public class SpanWithinQueryBuilder extends QueryBuilder implements SpanQueryBui
     }
 
     @Override
-    protected String parserName() {
-        return SpanWithinQueryParser.NAME;
+    public String queryId() {
+        return NAME;
     }
 }

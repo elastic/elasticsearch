@@ -46,7 +46,9 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
 /**
- *
+ * This transport action is used to fetch the shard version from each node during primary allocation in {@link GatewayAllocator}.
+ * We use this to find out which node holds the latest shard version and which of them used to be a primary in order to allocate
+ * shards after node or cluster restarts.
  */
 public class TransportNodesListGatewayStartedShards extends TransportNodesOperationAction<TransportNodesListGatewayStartedShards.Request, TransportNodesListGatewayStartedShards.NodesGatewayStartedShards, TransportNodesListGatewayStartedShards.NodeRequest, TransportNodesListGatewayStartedShards.NodeGatewayStartedShards>
         implements AsyncShardFetch.List<TransportNodesListGatewayStartedShards.NodesGatewayStartedShards, TransportNodesListGatewayStartedShards.NodeGatewayStartedShards> {

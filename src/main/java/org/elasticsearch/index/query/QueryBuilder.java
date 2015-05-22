@@ -35,7 +35,7 @@ import java.io.IOException;
  * Base class for all classes producing lucene queries.
  * Supports conversion to BytesReference and creation of lucene Query objects.
  */
-public abstract class QueryBuilder<QB> extends ToXContentToBytes implements Writeable<QB> {
+public abstract class QueryBuilder<QB extends QueryBuilder> extends ToXContentToBytes implements Writeable<QB> {
 
     protected QueryBuilder() {
         super(XContentType.JSON);

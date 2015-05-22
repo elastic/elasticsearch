@@ -31,7 +31,7 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.bucket.terms.support.BucketPriorityQueue;
 import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
-import org.elasticsearch.search.aggregations.reducers.Reducer;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 
@@ -52,10 +52,10 @@ public class StringTermsAggregator extends AbstractStringTermsAggregator {
     public StringTermsAggregator(String name, AggregatorFactories factories, ValuesSource valuesSource,
             Terms.Order order, BucketCountThresholds bucketCountThresholds,
             IncludeExclude.StringFilter includeExclude, AggregationContext aggregationContext,
-            Aggregator parent, SubAggCollectionMode collectionMode, boolean showTermDocCountError, List<Reducer> reducers,
+            Aggregator parent, SubAggCollectionMode collectionMode, boolean showTermDocCountError, List<PipelineAggregator> pipelineAggregators,
             Map<String, Object> metaData) throws IOException {
 
-        super(name, factories, aggregationContext, parent, order, bucketCountThresholds, collectionMode, showTermDocCountError, reducers,
+        super(name, factories, aggregationContext, parent, order, bucketCountThresholds, collectionMode, showTermDocCountError, pipelineAggregators,
                 metaData);
         this.valuesSource = valuesSource;
         this.includeExclude = includeExclude;
@@ -164,7 +164,7 @@ public class StringTermsAggregator extends AbstractStringTermsAggregator {
         }
         
         return new StringTerms(name, order, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getShardSize(),
-                bucketCountThresholds.getMinDocCount(), Arrays.asList(list), showTermDocCountError, 0, otherDocCount, reducers(),
+                bucketCountThresholds.getMinDocCount(), Arrays.asList(list), showTermDocCountError, 0, otherDocCount, pipelineAggregators(),
                 metaData());
     }
 

@@ -26,7 +26,7 @@ import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
-import org.elasticsearch.search.aggregations.reducers.Reducer;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
@@ -45,9 +45,9 @@ public class DoubleTermsAggregator extends LongTermsAggregator {
     public DoubleTermsAggregator(String name, AggregatorFactories factories, ValuesSource.Numeric valuesSource, @Nullable ValueFormat format,
             Terms.Order order, BucketCountThresholds bucketCountThresholds,
             AggregationContext aggregationContext, Aggregator parent, SubAggCollectionMode collectionMode, boolean showTermDocCountError,
-            IncludeExclude.LongFilter longFilter, List<Reducer> reducers, Map<String, Object> metaData) throws IOException {
+            IncludeExclude.LongFilter longFilter, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
         super(name, factories, valuesSource, format, order, bucketCountThresholds, aggregationContext, parent, collectionMode,
-                showTermDocCountError, longFilter, reducers, metaData);
+                showTermDocCountError, longFilter, pipelineAggregators, metaData);
     }
 
     @Override
@@ -79,7 +79,7 @@ public class DoubleTermsAggregator extends LongTermsAggregator {
             buckets[i] = convertToDouble(buckets[i]);
         }
         return new DoubleTerms(terms.getName(), terms.order, terms.formatter, terms.requiredSize, terms.shardSize, terms.minDocCount,
-                Arrays.asList(buckets), terms.showTermDocCountError, terms.docCountError, terms.otherDocCount, terms.reducers(),
+                Arrays.asList(buckets), terms.showTermDocCountError, terms.docCountError, terms.otherDocCount, terms.pipelineAggregators(),
                 terms.getMetaData());
     }
 

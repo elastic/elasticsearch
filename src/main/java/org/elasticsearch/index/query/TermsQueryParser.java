@@ -158,7 +158,7 @@ public class TermsQueryParser extends BaseQueryParserTemp {
             throw new QueryParsingException(parseContext, "terms query requires a field name, followed by array of terms");
         }
 
-        FieldMapper<?> fieldMapper = parseContext.fieldMapper(fieldName);
+        FieldMapper fieldMapper = parseContext.fieldMapper(fieldName);
         if (fieldMapper != null) {
             fieldName = fieldMapper.names().indexName();
         }

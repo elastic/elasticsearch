@@ -33,7 +33,7 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.NonCollectingAggregator;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
-import org.elasticsearch.search.aggregations.reducers.Reducer;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
@@ -105,10 +105,10 @@ public class RangeAggregator extends BucketsAggregator {
                            List<Range> ranges,
                            boolean keyed,
                            AggregationContext aggregationContext,
-                           Aggregator parent, List<Reducer> reducers,
+                           Aggregator parent, List<PipelineAggregator> pipelineAggregators,
                            Map<String, Object> metaData) throws IOException {
 
-        super(name, factories, aggregationContext, parent, reducers, metaData);
+        super(name, factories, aggregationContext, parent, pipelineAggregators, metaData);
         assert valuesSource != null;
         this.valuesSource = valuesSource;
         this.formatter = format != null ? format.formatter() : null;
@@ -216,7 +216,7 @@ public class RangeAggregator extends BucketsAggregator {
             buckets.add(bucket);
         }
         // value source can be null in the case of unmapped fields
-        return rangeFactory.create(name, buckets, formatter, keyed, reducers(), metaData());
+        return rangeFactory.create(name, buckets, formatter, keyed, pipelineAggregators(), metaData());
     }
 
     @Override
@@ -230,7 +230,7 @@ public class RangeAggregator extends BucketsAggregator {
             buckets.add(bucket);
         }
         // value source can be null in the case of unmapped fields
-        return rangeFactory.create(name, buckets, formatter, keyed, reducers(), metaData());
+        return rangeFactory.create(name, buckets, formatter, keyed, pipelineAggregators(), metaData());
     }
 
     private static final void sortRanges(final Range[] ranges) {
@@ -267,10 +267,10 @@ public class RangeAggregator extends BucketsAggregator {
                         ValueFormat format,
                         AggregationContext context,
                         Aggregator parent,
-                        InternalRange.Factory factory, List<Reducer> reducers,
+                        InternalRange.Factory factory, List<PipelineAggregator> pipelineAggregators,
                         Map<String, Object> metaData) throws IOException {
 
-            super(name, context, parent, reducers, metaData);
+            super(name, context, parent, pipelineAggregators, metaData);
             this.ranges = ranges;
             ValueParser parser = format != null ? format.parser() : ValueParser.RAW;
             for (Range range : this.ranges) {
@@ -288,7 +288,7 @@ public class RangeAggregator extends BucketsAggregator {
             for (RangeAggregator.Range range : ranges) {
                 buckets.add(factory.createBucket(range.key, range.from, range.to, 0, subAggs, keyed, formatter));
             }
-            return factory.create(name, buckets, formatter, keyed, reducers(), metaData());
+            return factory.create(name, buckets, formatter, keyed, pipelineAggregators(), metaData());
         }
     }
 
@@ -306,15 +306,15 @@ public class RangeAggregator extends BucketsAggregator {
         }
 
         @Override
-        protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent, List<Reducer> reducers,
+        protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent, List<PipelineAggregator> pipelineAggregators,
                 Map<String, Object> metaData) throws IOException {
-            return new Unmapped(name, ranges, keyed, config.format(), aggregationContext, parent, rangeFactory, reducers, metaData);
+            return new Unmapped(name, ranges, keyed, config.format(), aggregationContext, parent, rangeFactory, pipelineAggregators, metaData);
         }
 
         @Override
         protected Aggregator doCreateInternal(ValuesSource.Numeric valuesSource, AggregationContext aggregationContext, Aggregator parent,
-                boolean collectsFromSingleBucket, List<Reducer> reducers, Map<String, Object> metaData) throws IOException {
-            return new RangeAggregator(name, factories, valuesSource, config.format(), rangeFactory, ranges, keyed, aggregationContext, parent, reducers, metaData);
+                boolean collectsFromSingleBucket, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
+            return new RangeAggregator(name, factories, valuesSource, config.format(), rangeFactory, ranges, keyed, aggregationContext, parent, pipelineAggregators, metaData);
         }
     }
 

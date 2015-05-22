@@ -21,7 +21,7 @@ package org.elasticsearch.search.aggregations;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.search.aggregations.bucket.BestBucketsDeferringCollector;
 import org.elasticsearch.search.aggregations.bucket.DeferringBucketCollector;
-import org.elasticsearch.search.aggregations.reducers.Reducer;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.internal.SearchContext.Lifetime;
 import org.elasticsearch.search.query.QueryPhaseExecutionException;
@@ -47,7 +47,7 @@ public abstract class AggregatorBase extends Aggregator {
 
     private Map<String, Aggregator> subAggregatorbyName;
     private DeferringBucketCollector recordingWrapper;
-    private final List<Reducer> reducers;
+    private final List<PipelineAggregator> pipelineAggregators;
 
     /**
      * Constructs a new Aggregator.
@@ -59,9 +59,9 @@ public abstract class AggregatorBase extends Aggregator {
      * @param metaData              The metaData associated with this aggregator
      */
     protected AggregatorBase(String name, AggregatorFactories factories, AggregationContext context, Aggregator parent,
-            List<Reducer> reducers, Map<String, Object> metaData) throws IOException {
+            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
         this.name = name;
-        this.reducers = reducers;
+        this.pipelineAggregators = pipelineAggregators;
         this.metaData = metaData;
         this.parent = parent;
         this.context = context;
@@ -116,8 +116,8 @@ public abstract class AggregatorBase extends Aggregator {
         return this.metaData;
     }
 
-    public List<Reducer> reducers() {
-        return this.reducers;
+    public List<PipelineAggregator> pipelineAggregators() {
+        return this.pipelineAggregators;
     }
 
     /**

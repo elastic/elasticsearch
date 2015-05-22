@@ -20,6 +20,7 @@
 package org.elasticsearch.action;
 
 import com.google.common.base.Preconditions;
+
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.PlainListenableActionFuture;
 import org.elasticsearch.client.Client;
@@ -27,7 +28,7 @@ import org.elasticsearch.client.ClusterAdminClient;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.search.aggregations.reducers.ReducerBuilder;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 
 /**

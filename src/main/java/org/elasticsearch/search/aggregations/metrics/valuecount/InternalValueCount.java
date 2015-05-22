@@ -25,7 +25,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
-import org.elasticsearch.search.aggregations.reducers.Reducer;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
 import java.io.IOException;
@@ -56,9 +56,9 @@ public class InternalValueCount extends InternalNumericMetricsAggregation.Single
 
     InternalValueCount() {} // for serialization
 
-    public InternalValueCount(String name, long value, @Nullable ValueFormatter formatter, List<Reducer> reducers,
+    public InternalValueCount(String name, long value, @Nullable ValueFormatter formatter, List<PipelineAggregator> pipelineAggregators,
             Map<String, Object> metaData) {
-        super(name, reducers, metaData);
+        super(name, pipelineAggregators, metaData);
         this.value = value;
         this.valueFormatter = formatter;
     }
@@ -84,7 +84,7 @@ public class InternalValueCount extends InternalNumericMetricsAggregation.Single
         for (InternalAggregation aggregation : aggregations) {
             valueCount += ((InternalValueCount) aggregation).value;
         }
-        return new InternalValueCount(name, valueCount, valueFormatter, reducers(), getMetaData());
+        return new InternalValueCount(name, valueCount, valueFormatter, pipelineAggregators(), getMetaData());
     }
 
     @Override

@@ -55,7 +55,7 @@ import static org.elasticsearch.index.mapper.core.TypeParsers.parseField;
  *
  * Added in Elasticsearch 1.3.
  */
-public class FieldNamesFieldMapper extends AbstractFieldMapper<String> implements RootMapper {
+public class FieldNamesFieldMapper extends AbstractFieldMapper implements RootMapper {
 
     public static final String NAME = "_field_names";
 

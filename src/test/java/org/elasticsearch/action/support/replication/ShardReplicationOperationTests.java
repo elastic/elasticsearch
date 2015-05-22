@@ -839,6 +839,11 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
             }
 
             @Override
+            public String getProfileName() {
+                return "";
+            }
+
+            @Override
             public void sendResponse(TransportResponse response) throws IOException {
             }
 

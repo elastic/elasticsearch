@@ -34,7 +34,7 @@ import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.NonCollectingAggregator;
 import org.elasticsearch.search.aggregations.bucket.BucketUtils;
-import org.elasticsearch.search.aggregations.reducers.Reducer;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
@@ -125,11 +125,11 @@ public class GeoHashGridParser implements Aggregator.Parser {
         }
 
         @Override
-        protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent, List<Reducer> reducers,
+        protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent, List<PipelineAggregator> pipelineAggregators,
                 Map<String, Object> metaData) throws IOException {
             final InternalAggregation aggregation = new InternalGeoHashGrid(name, requiredSize,
-                    Collections.<InternalGeoHashGrid.Bucket> emptyList(), reducers, metaData);
-            return new NonCollectingAggregator(name, aggregationContext, parent, reducers, metaData) {
+                    Collections.<InternalGeoHashGrid.Bucket> emptyList(), pipelineAggregators, metaData);
+            return new NonCollectingAggregator(name, aggregationContext, parent, pipelineAggregators, metaData) {
                 public InternalAggregation buildEmptyAggregation() {
                     return aggregation;
                 }
@@ -138,13 +138,13 @@ public class GeoHashGridParser implements Aggregator.Parser {
 
         @Override
         protected Aggregator doCreateInternal(final ValuesSource.GeoPoint valuesSource, AggregationContext aggregationContext,
-                Aggregator parent, boolean collectsFromSingleBucket, List<Reducer> reducers, Map<String, Object> metaData)
+                Aggregator parent, boolean collectsFromSingleBucket, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
                 throws IOException {
             if (collectsFromSingleBucket == false) {
                 return asMultiBucketAggregator(this, aggregationContext, parent);
             }
             ValuesSource.Numeric cellIdSource = new CellIdSource(valuesSource, precision);
-            return new GeoHashGridAggregator(name, factories, cellIdSource, requiredSize, shardSize, aggregationContext, parent, reducers,
+            return new GeoHashGridAggregator(name, factories, cellIdSource, requiredSize, shardSize, aggregationContext, parent, pipelineAggregators,
                     metaData);
 
         }

@@ -60,7 +60,7 @@ import static org.elasticsearch.index.mapper.core.TypeParsers.parseField;
 /**
  *
  */
-public class AllFieldMapper extends AbstractFieldMapper<String> implements RootMapper {
+public class AllFieldMapper extends AbstractFieldMapper implements RootMapper {
 
     public interface IncludeInAll extends Mapper {
 

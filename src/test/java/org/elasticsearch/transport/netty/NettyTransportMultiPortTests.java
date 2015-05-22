@@ -34,6 +34,7 @@ import org.elasticsearch.test.junit.rule.RepeatOnExceptionRule;
 import org.elasticsearch.test.cache.recycler.MockBigArrays;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BindTransportException;
+import org.elasticsearch.transport.TransportService;
 import org.junit.Rule;
 import org.junit.Test;
 
@@ -150,6 +151,28 @@ public class NettyTransportMultiPortTests extends ElasticsearchTestCase {
             assertPortIsBound("127.0.0.1", ports[0]);
             assertPortIsBound(firstNonLoopbackAddress.getHostAddress(), ports[1]);
             assertConnectionRefused(ports[1]);
+        } finally {
+            terminate(threadPool);
+        }
+    }
+
+    @Test
+    public void testThatProfileWithoutValidNameIsIgnored() throws Exception {
+        int[] ports = getRandomPorts(3);
+
+        Settings settings = settingsBuilder()
+                .put("network.host", "127.0.0.1")
+                .put("transport.tcp.port", ports[0])
+                // mimics someone trying to define a profile for .local which is the profile for a node request to itself
+                .put("transport.profiles." + TransportService.DIRECT_RESPONSE_PROFILE + ".port", ports[1])
+                .put("transport.profiles..port", ports[2])
+                .build();
+
+        ThreadPool threadPool = new ThreadPool("tst");
+        try (NettyTransport ignored = startNettyTransport(settings, threadPool)) {
+            assertPortIsBound(ports[0]);
+            assertConnectionRefused(ports[1]);
+            assertConnectionRefused(ports[2]);
         } finally {
             terminate(threadPool);
         }

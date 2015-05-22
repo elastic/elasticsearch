@@ -87,7 +87,7 @@ public class BooleanFieldMapperTests extends ElasticsearchSingleNodeTest {
                 .endObject().endObject().string();
 
         DocumentMapper defaultMapper = parser.parse(mapping);
-        FieldMapper<?> mapper = defaultMapper.mappers().getMapper("field");
+        FieldMapper mapper = defaultMapper.mappers().getMapper("field");
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
         mapper.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();

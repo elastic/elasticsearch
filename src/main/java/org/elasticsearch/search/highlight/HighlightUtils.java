@@ -42,7 +42,7 @@ public final class HighlightUtils {
 
     }
 
-    static List<Object> loadFieldValues(SearchContextHighlight.Field field, FieldMapper<?> mapper, SearchContext searchContext, FetchSubPhase.HitContext hitContext) throws IOException {
+    static List<Object> loadFieldValues(SearchContextHighlight.Field field, FieldMapper mapper, SearchContext searchContext, FetchSubPhase.HitContext hitContext) throws IOException {
         //percolator needs to always load from source, thus it sets the global force source to true
         boolean forceSource = searchContext.highlight().forceSource(field);
         List<Object> textsToHighlight;

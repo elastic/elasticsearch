@@ -36,9 +36,9 @@ import java.io.IOException;
  */
 public class ExtendedCommonTermsQuery extends CommonTermsQuery {
 
-    private final FieldMapper<?> mapper;
+    private final FieldMapper mapper;
 
-    public ExtendedCommonTermsQuery(Occur highFreqOccur, Occur lowFreqOccur, float maxTermFrequency, boolean disableCoord, FieldMapper<?> mapper) {
+    public ExtendedCommonTermsQuery(Occur highFreqOccur, Occur lowFreqOccur, float maxTermFrequency, boolean disableCoord, FieldMapper mapper) {
         super(highFreqOccur, lowFreqOccur, maxTermFrequency, disableCoord);
         this.mapper = mapper;
     }

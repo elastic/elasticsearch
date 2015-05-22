@@ -21,6 +21,7 @@ package org.elasticsearch.index.mapper;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Sets;
+
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
@@ -29,6 +30,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -44,6 +46,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.locks.Lock;
 
 /** A parser for documents, given mappings from a DocumentMapper */
 class DocumentParser implements Closeable {
@@ -55,19 +58,27 @@ class DocumentParser implements Closeable {
         }
     };
 
-    private String index;
-    private Settings indexSettings;
-    private DocumentMapperParser docMapperParser;
-    private DocumentMapper docMapper;
+    private final String index;
+    private final Settings indexSettings;
+    private final DocumentMapperParser docMapperParser;
+    private final DocumentMapper docMapper;
+    private final ReleasableLock parseLock;
 
-    public DocumentParser(String index, Settings indexSettings, DocumentMapperParser docMapperParser, DocumentMapper docMapper) {
+    public DocumentParser(String index, Settings indexSettings, DocumentMapperParser docMapperParser, DocumentMapper docMapper, ReleasableLock parseLock) {
         this.index = index;
         this.indexSettings = indexSettings;
         this.docMapperParser = docMapperParser;
         this.docMapper = docMapper;
+        this.parseLock = parseLock;
     }
 
     public ParsedDocument parseDocument(SourceToParse source) throws MapperParsingException {
+        try (ReleasableLock lock = parseLock.acquire()){
+            return innerParseDocument(source);
+        }
+    }
+
+    private ParsedDocument innerParseDocument(SourceToParse source) throws MapperParsingException {
         ParseContext.InternalParseContext context = cache.get();
 
         final Mapping mapping = docMapper.mapping();
@@ -589,7 +600,7 @@ class DocumentParser implements Closeable {
     }
 
     /** Creates instances of the fields that the current field should be copied to */
-    private static void parseCopyFields(ParseContext context, FieldMapper<?> fieldMapper, ImmutableList<String> copyToFields) throws IOException {
+    private static void parseCopyFields(ParseContext context, FieldMapper fieldMapper, ImmutableList<String> copyToFields) throws IOException {
         if (!context.isWithinCopyTo() && copyToFields.isEmpty() == false) {
             context = context.createCopyToContext();
             for (String field : copyToFields) {

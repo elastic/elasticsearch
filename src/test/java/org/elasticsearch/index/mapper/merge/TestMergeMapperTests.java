@@ -19,17 +19,31 @@
 
 package org.elasticsearch.index.mapper.merge;
 
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.analysis.FieldNameAnalyzer;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.mapper.DocumentFieldMappers;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MergeResult;
+import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.junit.Test;
 
-import static org.hamcrest.Matchers.*;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
+
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  *
@@ -144,4 +158,63 @@ public class TestMergeMapperTests extends ElasticsearchSingleNodeTest {
         assertThat(((StringFieldMapper) (existing.mappers().getMapper("field"))).getIgnoreAbove(), equalTo(14));
     }
 
+    public void testConcurrentMergeTest() throws Throwable {
+        final MapperService mapperService = createIndex("test").mapperService();
+        mapperService.merge("test", new CompressedString("{\"test\":{}}"), true);
+        final DocumentMapper documentMapper = mapperService.documentMapper("test");
+
+        DocumentFieldMappers dfm = documentMapper.mappers();
+        try {
+            ((FieldNameAnalyzer) dfm.indexAnalyzer()).getWrappedAnalyzer("non_existing_field");
+            fail();
+        } catch (IllegalArgumentException e) {
+            // ok that's expected
+        }
+
+        final AtomicBoolean stopped = new AtomicBoolean(false);
+        final CyclicBarrier barrier = new CyclicBarrier(2);
+        final AtomicReference<String> lastIntroducedFieldName = new AtomicReference<>();
+        final AtomicReference<Throwable> error = new AtomicReference<>();
+        final Thread updater = new Thread() {
+            @Override
+            public void run() {
+                try {
+                    barrier.await();
+                    for (int i = 0; i < 200 && stopped.get() == false; i++) {
+                        final String fieldName = Integer.toString(i);
+                        ParsedDocument doc = documentMapper.parse("test", fieldName, new BytesArray("{ \"" + fieldName + "\" : \"test\" }"));
+                        Mapping update = doc.dynamicMappingsUpdate();
+                        assert update != null;
+                        lastIntroducedFieldName.set(fieldName);
+                        mapperService.merge("test", new CompressedString(update.toString()), false);
+                    }
+                } catch (Throwable t) {
+                    error.set(t);
+                } finally {
+                    stopped.set(true);
+                }
+            }
+        };
+        updater.start();
+        try {
+            barrier.await();
+            while(stopped.get() == false) {
+                final String fieldName = lastIntroducedFieldName.get();
+                final BytesReference source = new BytesArray("{ \"" + fieldName + "\" : \"test\" }");
+                ParsedDocument parsedDoc = documentMapper.parse("test", "random", source);
+                if (parsedDoc.dynamicMappingsUpdate() != null) {
+                    // not in the mapping yet, try again
+                    continue;
+                }
+                dfm = documentMapper.mappers();
+                ((FieldNameAnalyzer) dfm.indexAnalyzer()).getWrappedAnalyzer(fieldName);
+            }
+        } finally {
+            stopped.set(true);
+            updater.join();
+        }
+        if (error.get() != null) {
+            throw error.get();
+        }
+    }
 }

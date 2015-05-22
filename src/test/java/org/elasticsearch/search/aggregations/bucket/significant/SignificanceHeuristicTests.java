@@ -40,7 +40,7 @@ import org.elasticsearch.search.aggregations.bucket.significant.heuristics.Signi
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicParser;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicParserMapper;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicStreams;
-import org.elasticsearch.search.aggregations.reducers.Reducer;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.test.TestSearchContext;
@@ -114,13 +114,13 @@ public class SignificanceHeuristicTests extends ElasticsearchTestCase {
             BytesRef term = new BytesRef("123.0");
             buckets.add(new SignificantLongTerms.Bucket(1, 2, 3, 4, 123, InternalAggregations.EMPTY, null));
             sTerms[0] = new SignificantLongTerms(10, 20, "some_name", null, 1, 1, heuristic, buckets,
-                    (List<Reducer>) Collections.EMPTY_LIST, null);
+                    (List<PipelineAggregator>) Collections.EMPTY_LIST, null);
             sTerms[1] = new SignificantLongTerms();
         } else {
 
             BytesRef term = new BytesRef("someterm");
             buckets.add(new SignificantStringTerms.Bucket(term, 1, 2, 3, 4, InternalAggregations.EMPTY));
-            sTerms[0] = new SignificantStringTerms(10, 20, "some_name", 1, 1, heuristic, buckets, (List<Reducer>) Collections.EMPTY_LIST,
+            sTerms[0] = new SignificantStringTerms(10, 20, "some_name", 1, 1, heuristic, buckets, (List<PipelineAggregator>) Collections.EMPTY_LIST,
                     null);
             sTerms[1] = new SignificantStringTerms();
         }

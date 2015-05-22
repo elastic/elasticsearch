@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.search.aggregations.bucket.significant;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -29,7 +28,7 @@ import org.elasticsearch.search.aggregations.bucket.BucketStreamContext;
 import org.elasticsearch.search.aggregations.bucket.BucketStreams;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicStreams;
-import org.elasticsearch.search.aggregations.reducers.Reducer;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatterStreams;
 
@@ -169,9 +168,9 @@ public class SignificantLongTerms extends InternalSignificantTerms<SignificantLo
 
     public SignificantLongTerms(long subsetSize, long supersetSize, String name, @Nullable ValueFormatter formatter, int requiredSize,
             long minDocCount, SignificanceHeuristic significanceHeuristic, List<? extends InternalSignificantTerms.Bucket> buckets,
-            List<Reducer> reducers, Map<String, Object> metaData) {
+            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
 
-        super(subsetSize, supersetSize, name, requiredSize, minDocCount, significanceHeuristic, buckets, reducers, metaData);
+        super(subsetSize, supersetSize, name, requiredSize, minDocCount, significanceHeuristic, buckets, pipelineAggregators, metaData);
         this.formatter = formatter;
     }
 
@@ -183,7 +182,7 @@ public class SignificantLongTerms extends InternalSignificantTerms<SignificantLo
     @Override
     public SignificantLongTerms create(List<SignificantLongTerms.Bucket> buckets) {
         return new SignificantLongTerms(this.subsetSize, this.supersetSize, this.name, this.formatter, this.requiredSize, this.minDocCount,
-                this.significanceHeuristic, buckets, this.reducers(), this.metaData);
+                this.significanceHeuristic, buckets, this.pipelineAggregators(), this.metaData);
     }
 
     @Override
@@ -197,7 +196,7 @@ public class SignificantLongTerms extends InternalSignificantTerms<SignificantLo
             List<org.elasticsearch.search.aggregations.bucket.significant.InternalSignificantTerms.Bucket> buckets,
             InternalSignificantTerms prototype) {
         return new SignificantLongTerms(subsetSize, supersetSize, prototype.getName(), ((SignificantLongTerms) prototype).formatter,
-                prototype.requiredSize, prototype.minDocCount, prototype.significanceHeuristic, buckets, prototype.reducers(),
+                prototype.requiredSize, prototype.minDocCount, prototype.significanceHeuristic, buckets, prototype.pipelineAggregators(),
                 prototype.getMetaData());
     }
 

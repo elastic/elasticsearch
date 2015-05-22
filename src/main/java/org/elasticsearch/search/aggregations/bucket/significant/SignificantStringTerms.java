@@ -19,7 +19,6 @@
 package org.elasticsearch.search.aggregations.bucket.significant;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -30,7 +29,7 @@ import org.elasticsearch.search.aggregations.bucket.BucketStreamContext;
 import org.elasticsearch.search.aggregations.bucket.BucketStreams;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicStreams;
-import org.elasticsearch.search.aggregations.reducers.Reducer;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -161,9 +160,10 @@ public class SignificantStringTerms extends InternalSignificantTerms<Significant
     SignificantStringTerms() {} // for serialization
 
     public SignificantStringTerms(long subsetSize, long supersetSize, String name, int requiredSize, long minDocCount,
-            SignificanceHeuristic significanceHeuristic, List<? extends InternalSignificantTerms.Bucket> buckets, List<Reducer> reducers,
+            SignificanceHeuristic significanceHeuristic, List<? extends InternalSignificantTerms.Bucket> buckets,
+            List<PipelineAggregator> pipelineAggregators,
             Map<String, Object> metaData) {
-        super(subsetSize, supersetSize, name, requiredSize, minDocCount, significanceHeuristic, buckets, reducers, metaData);
+        super(subsetSize, supersetSize, name, requiredSize, minDocCount, significanceHeuristic, buckets, pipelineAggregators, metaData);
     }
 
     @Override
@@ -174,7 +174,7 @@ public class SignificantStringTerms extends InternalSignificantTerms<Significant
     @Override
     public SignificantStringTerms create(List<SignificantStringTerms.Bucket> buckets) {
         return new SignificantStringTerms(this.subsetSize, this.supersetSize, this.name, this.requiredSize, this.minDocCount,
-                this.significanceHeuristic, buckets, this.reducers(), this.metaData);
+                this.significanceHeuristic, buckets, this.pipelineAggregators(), this.metaData);
     }
 
     @Override
@@ -187,7 +187,7 @@ public class SignificantStringTerms extends InternalSignificantTerms<Significant
     protected SignificantStringTerms create(long subsetSize, long supersetSize, List<InternalSignificantTerms.Bucket> buckets,
             InternalSignificantTerms prototype) {
         return new SignificantStringTerms(subsetSize, supersetSize, prototype.getName(), prototype.requiredSize, prototype.minDocCount,
-                prototype.significanceHeuristic, buckets, prototype.reducers(), prototype.getMetaData());
+                prototype.significanceHeuristic, buckets, prototype.pipelineAggregators(), prototype.getMetaData());
     }
 
     @Override

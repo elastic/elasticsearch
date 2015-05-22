@@ -49,7 +49,7 @@ public class BootstrapForTesting {
 
     static {
         // just like bootstrap, initialize natives, then SM
-        Bootstrap.initializeNatives(true, true);
+        Bootstrap.initializeNatives(true, true, true);
 
         // make sure java.io.tmpdir exists always (in case code uses it in a static initializer)
         Path javaTmpDir = PathUtils.get(Objects.requireNonNull(System.getProperty("java.io.tmpdir"),

@@ -47,7 +47,7 @@ public class PagedBytesIndexFieldData extends AbstractIndexOrdinalsFieldData {
     public static class Builder implements IndexFieldData.Builder {
 
         @Override
-        public IndexOrdinalsFieldData build(Index index, @IndexSettings Settings indexSettings, FieldMapper<?> mapper,
+        public IndexOrdinalsFieldData build(Index index, @IndexSettings Settings indexSettings, FieldMapper mapper,
                                                                IndexFieldDataCache cache, CircuitBreakerService breakerService, MapperService mapperService) {
             return new PagedBytesIndexFieldData(index, indexSettings, mapper.names(), mapper.fieldDataType(), cache, breakerService);
         }

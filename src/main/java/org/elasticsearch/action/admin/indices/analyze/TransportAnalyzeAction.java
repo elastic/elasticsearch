@@ -109,7 +109,7 @@ public class TransportAnalyzeAction extends TransportSingleCustomOperationAction
             if (indexService == null) {
                 throw new IllegalArgumentException("No index provided, and trying to analyzer based on a specific field which requires the index parameter");
             }
-            FieldMapper<?> fieldMapper = indexService.mapperService().smartNameFieldMapper(request.field());
+            FieldMapper fieldMapper = indexService.mapperService().smartNameFieldMapper(request.field());
             if (fieldMapper != null) {
                 if (fieldMapper.isNumeric()) {
                     throw new IllegalArgumentException("Can't process field [" + request.field() + "], Analysis requests are not supported on numeric fields");

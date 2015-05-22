@@ -26,7 +26,7 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.BucketStreamContext;
 import org.elasticsearch.search.aggregations.bucket.BucketStreams;
 import org.elasticsearch.search.aggregations.bucket.range.InternalRange;
-import org.elasticsearch.search.aggregations.reducers.Reducer;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
 import java.io.IOException;
@@ -119,13 +119,13 @@ public class InternalIPv4Range extends InternalRange<InternalIPv4Range.Bucket, I
 
         @Override
         public InternalIPv4Range create(String name, List<Bucket> ranges, @Nullable ValueFormatter formatter, boolean keyed,
-                List<Reducer> reducers, Map<String, Object> metaData) {
-            return new InternalIPv4Range(name, ranges, keyed, reducers, metaData);
+                List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
+            return new InternalIPv4Range(name, ranges, keyed, pipelineAggregators, metaData);
         }
 
         @Override
         public InternalIPv4Range create(List<Bucket> ranges, InternalIPv4Range prototype) {
-            return new InternalIPv4Range(prototype.name, ranges, prototype.keyed, prototype.reducers(), prototype.metaData);
+            return new InternalIPv4Range(prototype.name, ranges, prototype.keyed, prototype.pipelineAggregators(), prototype.metaData);
         }
 
         @Override
@@ -142,9 +142,9 @@ public class InternalIPv4Range extends InternalRange<InternalIPv4Range.Bucket, I
 
     public InternalIPv4Range() {} // for serialization
 
-    public InternalIPv4Range(String name, List<InternalIPv4Range.Bucket> ranges, boolean keyed, List<Reducer> reducers,
+    public InternalIPv4Range(String name, List<InternalIPv4Range.Bucket> ranges, boolean keyed, List<PipelineAggregator> pipelineAggregators,
             Map<String, Object> metaData) {
-        super(name, ranges, ValueFormatter.IPv4, keyed, reducers, metaData);
+        super(name, ranges, ValueFormatter.IPv4, keyed, pipelineAggregators, metaData);
     }
 
     @Override

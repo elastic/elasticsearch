@@ -61,7 +61,7 @@ public class FastVectorHighlighter implements Highlighter {
         SearchContextHighlight.Field field = highlighterContext.field;
         SearchContext context = highlighterContext.context;
         FetchSubPhase.HitContext hitContext = highlighterContext.hitContext;
-        FieldMapper<?> mapper = highlighterContext.mapper;
+        FieldMapper mapper = highlighterContext.mapper;
 
         if (!(mapper.fieldType().storeTermVectors() && mapper.fieldType().storeTermVectorOffsets() && mapper.fieldType().storeTermVectorPositions())) {
             throw new IllegalArgumentException("the field [" + highlighterContext.fieldName + "] should be indexed with term vector with position offsets to be used with fast vector highlighter");

@@ -23,14 +23,13 @@ import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchPhase;
 import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregator;
-import org.elasticsearch.search.aggregations.reducers.Reducer;
-import org.elasticsearch.search.aggregations.reducers.SiblingReducer;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.pipeline.SiblingPipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.query.QueryPhaseExecutionException;
@@ -145,19 +144,20 @@ public class AggregationPhase implements SearchPhase {
         }
         context.queryResult().aggregations(new InternalAggregations(aggregations));
         try {
-            List<Reducer> reducers = context.aggregations().factories().createReducers();
-            List<SiblingReducer> siblingReducers = new ArrayList<>(reducers.size());
-            for (Reducer reducer : reducers) {
-                if (reducer instanceof SiblingReducer) {
-                    siblingReducers.add((SiblingReducer) reducer);
+            List<PipelineAggregator> pipelineAggregators = context.aggregations().factories().createPipelineAggregators();
+            List<SiblingPipelineAggregator> siblingPipelineAggregators = new ArrayList<>(pipelineAggregators.size());
+            for (PipelineAggregator pipelineAggregator : pipelineAggregators) {
+                if (pipelineAggregator instanceof SiblingPipelineAggregator) {
+                    siblingPipelineAggregators.add((SiblingPipelineAggregator) pipelineAggregator);
                 } else {
-                    throw new AggregationExecutionException("Invalid reducer named [" + reducer.name() + "] of type ["
-                            + reducer.type().name() + "]. Only sibling reducers are allowed at the top level");
+                    throw new AggregationExecutionException("Invalid pipeline aggregation named [" + pipelineAggregator.name()
+                            + "] of type [" + pipelineAggregator.type().name()
+                            + "]. Only sibling pipeline aggregations are allowed at the top level");
                 }
             }
-            context.queryResult().reducers(siblingReducers);
+            context.queryResult().pipelineAggregators(siblingPipelineAggregators);
         } catch (IOException e) {
-            throw new AggregationExecutionException("Failed to build top level reducers", e);
+            throw new AggregationExecutionException("Failed to build top level pipeline aggregators", e);
         }
 
         // disable aggregations so that they don't run on next pages in case of scrolling

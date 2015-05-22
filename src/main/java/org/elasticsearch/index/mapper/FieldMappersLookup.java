@@ -32,7 +32,7 @@ import java.util.List;
 /**
  * A class that holds a map of field mappers from name, index name, and full name.
  */
-class FieldMappersLookup implements Iterable<FieldMapper<?>> {
+class FieldMappersLookup implements Iterable<FieldMapper> {
 
     /** Full field name to mappers */
     private final CopyOnWriteHashMap<String, FieldMappers> mappers;
@@ -49,10 +49,10 @@ class FieldMappersLookup implements Iterable<FieldMapper<?>> {
     /**
      * Return a new instance that contains the union of this instance and the provided mappers.
      */
-    public FieldMappersLookup copyAndAddAll(Collection<FieldMapper<?>> newMappers) {
+    public FieldMappersLookup copyAndAddAll(Collection<FieldMapper> newMappers) {
         CopyOnWriteHashMap<String, FieldMappers> map = this.mappers;
 
-        for (FieldMapper<?> mapper : newMappers) {
+        for (FieldMapper mapper : newMappers) {
             String key = mapper.names().fullName();
             FieldMappers mappers = map.get(key);
 
@@ -116,7 +116,7 @@ class FieldMappersLookup implements Iterable<FieldMapper<?>> {
      */
     public List<String> simpleMatchToIndexNames(String pattern) {
         List<String> fields = Lists.newArrayList();
-        for (FieldMapper<?> fieldMapper : this) {
+        for (FieldMapper fieldMapper : this) {
             if (Regex.simpleMatch(pattern, fieldMapper.names().fullName())) {
                 fields.add(fieldMapper.names().indexName());
             } else if (Regex.simpleMatch(pattern, fieldMapper.names().indexName())) {
@@ -131,7 +131,7 @@ class FieldMappersLookup implements Iterable<FieldMapper<?>> {
      */
     public List<String> simpleMatchToFullName(String pattern) {
         List<String> fields = Lists.newArrayList();
-        for (FieldMapper<?> fieldMapper : this) {
+        for (FieldMapper fieldMapper : this) {
             if (Regex.simpleMatch(pattern, fieldMapper.names().fullName())) {
                 fields.add(fieldMapper.names().fullName());
             } else if (Regex.simpleMatch(pattern, fieldMapper.names().indexName())) {
@@ -158,7 +158,7 @@ class FieldMappersLookup implements Iterable<FieldMapper<?>> {
      * and return the first mapper for it (see {@link org.elasticsearch.index.mapper.FieldMappers#mapper()}).
      */
     @Nullable
-    public FieldMapper<?> smartNameFieldMapper(String name) {
+    public FieldMapper smartNameFieldMapper(String name) {
         FieldMappers fieldMappers = smartName(name);
         if (fieldMappers == null) {
             return null;
@@ -166,12 +166,12 @@ class FieldMappersLookup implements Iterable<FieldMapper<?>> {
         return fieldMappers.mapper();
     }
 
-    public Iterator<FieldMapper<?>> iterator() {
+    public Iterator<FieldMapper> iterator() {
         final Iterator<FieldMappers> fieldsItr = mappers.values().iterator();
         if (fieldsItr.hasNext() == false) {
             return Collections.emptyIterator();
         }
-        return new Iterator<FieldMapper<?>>() {
+        return new Iterator<FieldMapper>() {
             Iterator<FieldMapper> fieldValuesItr = fieldsItr.next().iterator();
             @Override
             public boolean hasNext() {

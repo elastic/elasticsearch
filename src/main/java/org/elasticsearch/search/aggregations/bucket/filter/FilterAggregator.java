@@ -30,7 +30,7 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregator;
-import org.elasticsearch.search.aggregations.reducers.Reducer;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 
 import java.io.IOException;
@@ -48,9 +48,9 @@ public class FilterAggregator extends SingleBucketAggregator {
                             Query filter,
                             AggregatorFactories factories,
                             AggregationContext aggregationContext,
-                            Aggregator parent, List<Reducer> reducers,
+                            Aggregator parent, List<PipelineAggregator> pipelineAggregators,
                             Map<String, Object> metaData) throws IOException {
-        super(name, factories, aggregationContext, parent, reducers, metaData);
+        super(name, factories, aggregationContext, parent, pipelineAggregators, metaData);
         this.filter = aggregationContext.searchContext().searcher().createNormalizedWeight(filter, false);
     }
 
@@ -71,13 +71,13 @@ public class FilterAggregator extends SingleBucketAggregator {
 
     @Override
     public InternalAggregation buildAggregation(long owningBucketOrdinal) throws IOException {
-        return new InternalFilter(name, bucketDocCount(owningBucketOrdinal), bucketAggregations(owningBucketOrdinal), reducers(),
+        return new InternalFilter(name, bucketDocCount(owningBucketOrdinal), bucketAggregations(owningBucketOrdinal), pipelineAggregators(),
                 metaData());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalFilter(name, 0, buildEmptySubAggregations(), reducers(), metaData());
+        return new InternalFilter(name, 0, buildEmptySubAggregations(), pipelineAggregators(), metaData());
     }
 
     public static class Factory extends AggregatorFactory {
@@ -91,8 +91,8 @@ public class FilterAggregator extends SingleBucketAggregator {
 
         @Override
         public Aggregator createInternal(AggregationContext context, Aggregator parent, boolean collectsFromSingleBucket,
-                List<Reducer> reducers, Map<String, Object> metaData) throws IOException {
-            return new FilterAggregator(name, filter, factories, context, parent, reducers, metaData);
+                List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
+            return new FilterAggregator(name, filter, factories, context, parent, pipelineAggregators, metaData);
         }
 
     }

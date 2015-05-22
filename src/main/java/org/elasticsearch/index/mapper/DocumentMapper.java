@@ -23,6 +23,7 @@ import com.google.common.base.Function;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
+
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DocIdSet;
@@ -41,6 +42,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.StringAndBytesText;
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -75,7 +77,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 /**
  *
@@ -140,7 +142,7 @@ public class DocumentMapper implements ToXContent {
 
         public DocumentMapper build(MapperService mapperService, DocumentMapperParser docMapperParser) {
             Preconditions.checkNotNull(rootObjectMapper, "Mapper builder must have the root object mapper set");
-            return new DocumentMapper(mapperService, index, indexSettings, docMapperParser, rootObjectMapper, meta, rootMappers, sourceTransforms);
+            return new DocumentMapper(mapperService, index, indexSettings, docMapperParser, rootObjectMapper, meta, rootMappers, sourceTransforms, mapperService.mappingLock);
         }
     }
 
@@ -163,12 +165,15 @@ public class DocumentMapper implements ToXContent {
 
     private final Query typeFilter;
 
-    private final Object mappersMutex = new Object();
+    private final ReleasableLock mappingWriteLock;
+    private final ReentrantReadWriteLock mappingLock;
 
     public DocumentMapper(MapperService mapperService, String index, @Nullable Settings indexSettings, DocumentMapperParser docMapperParser,
                           RootObjectMapper rootObjectMapper,
                           ImmutableMap<String, Object> meta,
-                          Map<Class<? extends RootMapper>, RootMapper> rootMappers, List<SourceTransform> sourceTransforms) {
+                          Map<Class<? extends RootMapper>, RootMapper> rootMappers,
+                          List<SourceTransform> sourceTransforms,
+                          ReentrantReadWriteLock mappingLock) {
         this.mapperService = mapperService;
         this.type = rootObjectMapper.name();
         this.typeText = new StringAndBytesText(this.type);
@@ -178,9 +183,11 @@ public class DocumentMapper implements ToXContent {
                 rootMappers.values().toArray(new RootMapper[rootMappers.values().size()]),
                 sourceTransforms.toArray(new SourceTransform[sourceTransforms.size()]),
                 meta);
-        this.documentParser = new DocumentParser(index, indexSettings, docMapperParser, this);
+        this.documentParser = new DocumentParser(index, indexSettings, docMapperParser, this, new ReleasableLock(mappingLock.readLock()));
 
         this.typeFilter = typeMapper().termQuery(type, null);
+        this.mappingWriteLock = new ReleasableLock(mappingLock.writeLock());
+        this.mappingLock = mappingLock;
 
         if (rootMapper(ParentFieldMapper.class).active()) {
             // mark the routing field mapper as required
@@ -189,7 +196,7 @@ public class DocumentMapper implements ToXContent {
 
         // collect all the mappers for this type
         List<ObjectMapper> newObjectMappers = new ArrayList<>();
-        List<FieldMapper<?>> newFieldMappers = new ArrayList<>();
+        List<FieldMapper> newFieldMappers = new ArrayList<>();
         for (RootMapper rootMapper : this.mapping.rootMappers) {
             if (rootMapper instanceof FieldMapper) {
                 newFieldMappers.add((FieldMapper) rootMapper);
@@ -310,10 +317,6 @@ public class DocumentMapper implements ToXContent {
         return this.objectMappers;
     }
 
-    public ParsedDocument parse(BytesReference source) throws MapperParsingException {
-        return parse(SourceToParse.source(source));
-    }
-
     public ParsedDocument parse(String type, String id, BytesReference source) throws MapperParsingException {
         return parse(SourceToParse.source(source).type(type).id(id));
     }
@@ -384,24 +387,22 @@ public class DocumentMapper implements ToXContent {
         return DocumentParser.transformSourceAsMap(mapping, sourceAsMap);
     }
 
-    public void addFieldMappers(Collection<FieldMapper<?>> fieldMappers) {
-        synchronized (mappersMutex) {
-            this.fieldMappers = this.fieldMappers.copyAndAllAll(fieldMappers);
-        }
+    private void addFieldMappers(Collection<FieldMapper> fieldMappers) {
+        assert mappingLock.isWriteLockedByCurrentThread();
+        this.fieldMappers = this.fieldMappers.copyAndAllAll(fieldMappers);
         mapperService.addFieldMappers(fieldMappers);
     }
 
     private void addObjectMappers(Collection<ObjectMapper> objectMappers) {
-        synchronized (mappersMutex) {
-            MapBuilder<String, ObjectMapper> builder = MapBuilder.newMapBuilder(this.objectMappers);
-            for (ObjectMapper objectMapper : objectMappers) {
-                builder.put(objectMapper.fullPath(), objectMapper);
-                if (objectMapper.nested().isNested()) {
-                    hasNestedObjects = true;
-                }
+        assert mappingLock.isWriteLockedByCurrentThread();
+        MapBuilder<String, ObjectMapper> builder = MapBuilder.newMapBuilder(this.objectMappers);
+        for (ObjectMapper objectMapper : objectMappers) {
+            builder.put(objectMapper.fullPath(), objectMapper);
+            if (objectMapper.nested().isNested()) {
+                hasNestedObjects = true;
             }
-            this.objectMappers = builder.immutableMap();
         }
+        this.objectMappers = builder.immutableMap();
         mapperService.addObjectMappers(objectMappers);
     }
 
@@ -409,11 +410,11 @@ public class DocumentMapper implements ToXContent {
         return new MergeResult(simulate) {
 
             final List<String> conflicts = new ArrayList<>();
-            final List<FieldMapper<?>> newFieldMappers = new ArrayList<>();
+            final List<FieldMapper> newFieldMappers = new ArrayList<>();
             final List<ObjectMapper> newObjectMappers = new ArrayList<>();
 
             @Override
-            public void addFieldMappers(Collection<FieldMapper<?>> fieldMappers) {
+            public void addFieldMappers(Collection<FieldMapper> fieldMappers) {
                 assert simulate() == false;
                 newFieldMappers.addAll(fieldMappers);
             }
@@ -425,7 +426,7 @@ public class DocumentMapper implements ToXContent {
             }
 
             @Override
-            public Collection<FieldMapper<?>> getNewFieldMappers() {
+            public Collection<FieldMapper> getNewFieldMappers() {
                 return newFieldMappers;
             }
 
@@ -452,15 +453,17 @@ public class DocumentMapper implements ToXContent {
         };
     }
 
-    public synchronized MergeResult merge(Mapping mapping, boolean simulate) {
-        final MergeResult mergeResult = newMergeContext(simulate);
-        this.mapping.merge(mapping, mergeResult);
-        if (simulate == false) {
-            addFieldMappers(mergeResult.getNewFieldMappers());
-            addObjectMappers(mergeResult.getNewObjectMappers());
-            refreshSource();
+    public MergeResult merge(Mapping mapping, boolean simulate) {
+        try (ReleasableLock lock = mappingWriteLock.acquire()) {
+            final MergeResult mergeResult = newMergeContext(simulate);
+            this.mapping.merge(mapping, mergeResult);
+            if (simulate == false) {
+                addFieldMappers(mergeResult.getNewFieldMappers());
+                addObjectMappers(mergeResult.getNewObjectMappers());
+                refreshSource();
+            }
+            return mergeResult;
         }
-        return mergeResult;
     }
 
     private void refreshSource() throws ElasticsearchGenerationException {

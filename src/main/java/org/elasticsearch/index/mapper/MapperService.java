@@ -39,6 +39,7 @@ import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchGenerationException;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.Tuple;
@@ -47,6 +48,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.analysis.AnalysisService;
@@ -65,11 +67,11 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import static org.elasticsearch.common.collect.MapBuilder.newMapBuilder;
 
@@ -96,8 +98,11 @@ public class MapperService extends AbstractIndexComponent  {
 
     private volatile Map<String, DocumentMapper> mappers = ImmutableMap.of();
 
-    private final Object typeMutex = new Object();
-    private final Object mappersMutex = new Object();
+    // A lock for mappings: modifications (put mapping) need to be performed
+    // under the write lock and read operations (document parsing) need to be
+    // performed under the read lock
+    final ReentrantReadWriteLock mappingLock = new ReentrantReadWriteLock();
+    private final ReleasableLock mappingWriteLock = new ReleasableLock(mappingLock.writeLock());
 
     private volatile FieldMappersLookup fieldMappers;
     private volatile ImmutableOpenMap<String, ObjectMappers> fullPathObjectMappers = ImmutableOpenMap.of();
@@ -110,7 +115,7 @@ public class MapperService extends AbstractIndexComponent  {
 
     private final List<DocumentTypeListener> typeListeners = new CopyOnWriteArrayList<>();
 
-    private volatile ImmutableMap<String, FieldMapper<?>> unmappedFieldMappers = ImmutableMap.of();
+    private volatile ImmutableMap<String, FieldMapper> unmappedFieldMappers = ImmutableMap.of();
 
     @Inject
     public MapperService(Index index, @IndexSettings Settings indexSettings, AnalysisService analysisService, IndexFieldDataService fieldDataService,
@@ -215,7 +220,7 @@ public class MapperService extends AbstractIndexComponent  {
             DocumentMapper mapper = documentParser.parseCompressed(type, mappingSource);
             // still add it as a document mapper so we have it registered and, for example, persisted back into
             // the cluster meta data if needed, or checked for existence
-            synchronized (typeMutex) {
+            try (ReleasableLock lock = mappingWriteLock.acquire()) {
                 mappers = newMapBuilder(mappers).put(type, mapper).map();
             }
             try {
@@ -232,7 +237,7 @@ public class MapperService extends AbstractIndexComponent  {
     // never expose this to the outside world, we need to reparse the doc mapper so we get fresh
     // instances of field mappers to properly remove existing doc mapper
     private DocumentMapper merge(DocumentMapper mapper) {
-        synchronized (typeMutex) {
+        try (ReleasableLock lock = mappingWriteLock.acquire()) {
             if (mapper.type().length() == 0) {
                 throw new InvalidTypeNameException("mapping type name is empty");
             }
@@ -265,10 +270,10 @@ public class MapperService extends AbstractIndexComponent  {
                 return oldMapper;
             } else {
                 List<ObjectMapper> newObjectMappers = new ArrayList<>();
-                List<FieldMapper<?>> newFieldMappers = new ArrayList<>();
+                List<FieldMapper> newFieldMappers = new ArrayList<>();
                 for (RootMapper rootMapper : mapper.mapping().rootMappers) {
-                    if (rootMapper instanceof FieldMapper<?>) {
-                        newFieldMappers.add((FieldMapper<?>)rootMapper);
+                    if (rootMapper instanceof FieldMapper) {
+                        newFieldMappers.add((FieldMapper)rootMapper);
                     }
                 }
                 MapperUtils.collect(mapper.mapping().root, newObjectMappers, newFieldMappers);
@@ -285,29 +290,27 @@ public class MapperService extends AbstractIndexComponent  {
     }
 
     protected void addObjectMappers(Collection<ObjectMapper> objectMappers) {
-        synchronized (mappersMutex) {
-            ImmutableOpenMap.Builder<String, ObjectMappers> fullPathObjectMappers = ImmutableOpenMap.builder(this.fullPathObjectMappers);
-            for (ObjectMapper objectMapper : objectMappers) {
-                ObjectMappers mappers = fullPathObjectMappers.get(objectMapper.fullPath());
-                if (mappers == null) {
-                    mappers = new ObjectMappers(objectMapper);
-                } else {
-                    mappers = mappers.concat(objectMapper);
-                }
-                fullPathObjectMappers.put(objectMapper.fullPath(), mappers);
-                // update the hasNested flag
-                if (objectMapper.nested().isNested()) {
-                    hasNested = true;
-                }
+        assert mappingLock.isWriteLockedByCurrentThread();
+        ImmutableOpenMap.Builder<String, ObjectMappers> fullPathObjectMappers = ImmutableOpenMap.builder(this.fullPathObjectMappers);
+        for (ObjectMapper objectMapper : objectMappers) {
+            ObjectMappers mappers = fullPathObjectMappers.get(objectMapper.fullPath());
+            if (mappers == null) {
+                mappers = new ObjectMappers(objectMapper);
+            } else {
+                mappers = mappers.concat(objectMapper);
             }
-            this.fullPathObjectMappers = fullPathObjectMappers.build();
+            fullPathObjectMappers.put(objectMapper.fullPath(), mappers);
+            // update the hasNested flag
+            if (objectMapper.nested().isNested()) {
+                hasNested = true;
+            }
         }
+        this.fullPathObjectMappers = fullPathObjectMappers.build();
     }
 
-    protected void addFieldMappers(Collection<FieldMapper<?>> fieldMappers) {
-        synchronized (mappersMutex) {
-            this.fieldMappers = this.fieldMappers.copyAndAddAll(fieldMappers);
-        }
+    protected void addFieldMappers(Collection<FieldMapper> fieldMappers) {
+        assert mappingLock.isWriteLockedByCurrentThread();
+        this.fieldMappers = this.fieldMappers.copyAndAddAll(fieldMappers);
     }
 
     public DocumentMapper parse(String mappingType, CompressedString mappingSource, boolean applyDefault) throws MapperParsingException {
@@ -491,7 +494,7 @@ public class MapperService extends AbstractIndexComponent  {
             return ImmutableList.of(pattern);
         }
         
-        if (types == null || types.length == 0 || types.length == 1 && types[0].equals("_all")) {
+        if (MetaData.isAllTypes(types)) {
             return fieldMappers.simpleMatchToIndexNames(pattern);
         }
 
@@ -545,7 +548,7 @@ public class MapperService extends AbstractIndexComponent  {
     }
 
     public FieldMapper smartNameFieldMapper(String smartName, @Nullable String[] types) {
-        if (types == null || types.length == 0) {
+        if (types == null || types.length == 0 || types.length == 1 && types[0].equals("_all")) {
             return smartNameFieldMapper(smartName);
         }
         for (String type : types) {
@@ -565,9 +568,9 @@ public class MapperService extends AbstractIndexComponent  {
     /**
      * Given a type (eg. long, string, ...), return an anonymous field mapper that can be used for search operations.
      */
-    public FieldMapper<?> unmappedFieldMapper(String type) {
-        final ImmutableMap<String, FieldMapper<?>> unmappedFieldMappers = this.unmappedFieldMappers;
-        FieldMapper<?> mapper = unmappedFieldMappers.get(type);
+    public FieldMapper unmappedFieldMapper(String type) {
+        final ImmutableMap<String, FieldMapper> unmappedFieldMappers = this.unmappedFieldMappers;
+        FieldMapper mapper = unmappedFieldMappers.get(type);
         if (mapper == null) {
             final Mapper.TypeParser.ParserContext parserContext = documentMapperParser().parserContext();
             Mapper.TypeParser typeParser = parserContext.typeParser(type);
@@ -576,11 +579,11 @@ public class MapperService extends AbstractIndexComponent  {
             }
             final Mapper.Builder<?, ?> builder = typeParser.parse("__anonymous_" + type, ImmutableMap.<String, Object>of(), parserContext);
             final BuilderContext builderContext = new BuilderContext(indexSettings, new ContentPath(1));
-            mapper = (FieldMapper<?>) builder.build(builderContext);
+            mapper = (FieldMapper) builder.build(builderContext);
 
             // There is no need to synchronize writes here. In the case of concurrent access, we could just
             // compute some mappers several times, which is not a big deal
-            this.unmappedFieldMappers = ImmutableMap.<String, FieldMapper<?>>builder()
+            this.unmappedFieldMappers = ImmutableMap.<String, FieldMapper>builder()
                     .putAll(unmappedFieldMappers)
                     .put(type, mapper)
                     .build();

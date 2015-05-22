@@ -30,7 +30,7 @@ import org.elasticsearch.search.aggregations.NonCollectingAggregator;
 import org.elasticsearch.search.aggregations.bucket.BestDocsDeferringCollector;
 import org.elasticsearch.search.aggregations.bucket.DeferringBucketCollector;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregator;
-import org.elasticsearch.search.aggregations.reducers.Reducer;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
@@ -60,9 +60,11 @@ public class SamplerAggregator extends SingleBucketAggregator {
 
             @Override
             Aggregator create(String name, AggregatorFactories factories, int shardSize, int maxDocsPerValue, ValuesSource valuesSource,
-                    AggregationContext context, Aggregator parent, List<Reducer> reducers, Map<String, Object> metaData) throws IOException {
+                    AggregationContext context, Aggregator parent, List<PipelineAggregator> pipelineAggregators,
+                    Map<String, Object> metaData) throws IOException {
 
-                return new DiversifiedMapSamplerAggregator(name, shardSize, factories, context, parent, reducers, metaData, valuesSource,
+                return new DiversifiedMapSamplerAggregator(name, shardSize, factories, context, parent, pipelineAggregators, metaData,
+                        valuesSource,
                         maxDocsPerValue);
             }
 
@@ -76,9 +78,11 @@ public class SamplerAggregator extends SingleBucketAggregator {
 
             @Override
             Aggregator create(String name, AggregatorFactories factories, int shardSize, int maxDocsPerValue, ValuesSource valuesSource,
-                    AggregationContext context, Aggregator parent, List<Reducer> reducers, Map<String, Object> metaData) throws IOException {
+                    AggregationContext context, Aggregator parent, List<PipelineAggregator> pipelineAggregators,
+                    Map<String, Object> metaData) throws IOException {
 
-                return new DiversifiedBytesHashSamplerAggregator(name, shardSize, factories, context, parent, reducers, metaData,
+                return new DiversifiedBytesHashSamplerAggregator(name, shardSize, factories, context, parent, pipelineAggregators,
+                        metaData,
                         valuesSource,
                         maxDocsPerValue);
             }
@@ -93,8 +97,9 @@ public class SamplerAggregator extends SingleBucketAggregator {
 
             @Override
             Aggregator create(String name, AggregatorFactories factories, int shardSize, int maxDocsPerValue, ValuesSource valuesSource,
-                    AggregationContext context, Aggregator parent, List<Reducer> reducers, Map<String, Object> metaData) throws IOException {
-                return new DiversifiedOrdinalsSamplerAggregator(name, shardSize, factories, context, parent, reducers, metaData,
+                    AggregationContext context, Aggregator parent, List<PipelineAggregator> pipelineAggregators,
+                    Map<String, Object> metaData) throws IOException {
+                return new DiversifiedOrdinalsSamplerAggregator(name, shardSize, factories, context, parent, pipelineAggregators, metaData,
                         (ValuesSource.Bytes.WithOrdinals.FieldData) valuesSource, maxDocsPerValue);
             }
 
@@ -121,7 +126,7 @@ public class SamplerAggregator extends SingleBucketAggregator {
         }
 
         abstract Aggregator create(String name, AggregatorFactories factories, int shardSize, int maxDocsPerValue, ValuesSource valuesSource,
- AggregationContext context, Aggregator parent, List<Reducer> reducers,
+ AggregationContext context, Aggregator parent, List<PipelineAggregator> pipelineAggregators,
                 Map<String, Object> metaData) throws IOException;
 
         abstract boolean needsGlobalOrdinals();
@@ -137,8 +142,8 @@ public class SamplerAggregator extends SingleBucketAggregator {
     protected BestDocsDeferringCollector bdd;
 
     public SamplerAggregator(String name, int shardSize, AggregatorFactories factories, AggregationContext aggregationContext,
-            Aggregator parent, List<Reducer> reducers, Map<String, Object> metaData) throws IOException {
-        super(name, factories, aggregationContext, parent, reducers, metaData);
+            Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
+        super(name, factories, aggregationContext, parent, pipelineAggregators, metaData);
         this.shardSize = shardSize;
     }
 
@@ -163,13 +168,13 @@ public class SamplerAggregator extends SingleBucketAggregator {
     @Override
     public InternalAggregation buildAggregation(long owningBucketOrdinal) throws IOException {
         runDeferredCollections(owningBucketOrdinal);
-        return new InternalSampler(name, bdd == null ? 0 : bdd.getDocCount(), bucketAggregations(owningBucketOrdinal), reducers(),
+        return new InternalSampler(name, bdd == null ? 0 : bdd.getDocCount(), bucketAggregations(owningBucketOrdinal), pipelineAggregators(),
                 metaData());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalSampler(name, 0, buildEmptySubAggregations(), reducers(), metaData());
+        return new InternalSampler(name, 0, buildEmptySubAggregations(), pipelineAggregators(), metaData());
     }
 
     public static class Factory extends AggregatorFactory {
@@ -183,12 +188,12 @@ public class SamplerAggregator extends SingleBucketAggregator {
 
         @Override
         public Aggregator createInternal(AggregationContext context, Aggregator parent, boolean collectsFromSingleBucket,
-                List<Reducer> reducers, Map<String, Object> metaData) throws IOException {
+                List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
 
             if (collectsFromSingleBucket == false) {
                 return asMultiBucketAggregator(this, context, parent);
             }
-            return new SamplerAggregator(name, shardSize, factories, context, parent, reducers, metaData);
+            return new SamplerAggregator(name, shardSize, factories, context, parent, pipelineAggregators, metaData);
         }
 
     }
@@ -208,7 +213,8 @@ public class SamplerAggregator extends SingleBucketAggregator {
 
         @Override
         protected Aggregator doCreateInternal(ValuesSource valuesSource, AggregationContext context, Aggregator parent,
-                boolean collectsFromSingleBucket, List<Reducer> reducers, Map<String, Object> metaData) throws IOException {
+                boolean collectsFromSingleBucket, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
+                throws IOException {
 
             if (collectsFromSingleBucket == false) {
                 return asMultiBucketAggregator(this, context, parent);
@@ -216,7 +222,7 @@ public class SamplerAggregator extends SingleBucketAggregator {
 
 
             if (valuesSource instanceof ValuesSource.Numeric) {
-                return new DiversifiedNumericSamplerAggregator(name, shardSize, factories, context, parent, reducers, metaData,
+                return new DiversifiedNumericSamplerAggregator(name, shardSize, factories, context, parent, pipelineAggregators, metaData,
                         (Numeric) valuesSource, maxDocsPerValue);
             }
             
@@ -234,7 +240,8 @@ public class SamplerAggregator extends SingleBucketAggregator {
                 if ((execution.needsGlobalOrdinals()) && (!(valuesSource instanceof ValuesSource.Bytes.WithOrdinals))) {
                     execution = ExecutionMode.MAP;
                 }
-                return execution.create(name, factories, shardSize, maxDocsPerValue, valuesSource, context, parent, reducers, metaData);
+                return execution.create(name, factories, shardSize, maxDocsPerValue, valuesSource, context, parent, pipelineAggregators,
+                        metaData);
             }
             
             throw new AggregationExecutionException("Sampler aggregation cannot be applied to field [" + config.fieldContext().field() +
@@ -242,11 +249,12 @@ public class SamplerAggregator extends SingleBucketAggregator {
         }
 
         @Override
-        protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent, List<Reducer> reducers,
+        protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent,
+                List<PipelineAggregator> pipelineAggregators,
                 Map<String, Object> metaData) throws IOException {
-            final UnmappedSampler aggregation = new UnmappedSampler(name, reducers, metaData);
+            final UnmappedSampler aggregation = new UnmappedSampler(name, pipelineAggregators, metaData);
 
-            return new NonCollectingAggregator(name, aggregationContext, parent, factories, reducers, metaData) {
+            return new NonCollectingAggregator(name, aggregationContext, parent, factories, pipelineAggregators, metaData) {
                 @Override
                 public InternalAggregation buildEmptyAggregation() {
                     return aggregation;

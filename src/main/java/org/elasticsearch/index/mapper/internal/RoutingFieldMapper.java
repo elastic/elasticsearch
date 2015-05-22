@@ -50,7 +50,7 @@ import static org.elasticsearch.index.mapper.core.TypeParsers.parseField;
 /**
  *
  */
-public class RoutingFieldMapper extends AbstractFieldMapper<String> implements RootMapper {
+public class RoutingFieldMapper extends AbstractFieldMapper implements RootMapper {
 
     public static final String NAME = "_routing";
     public static final String CONTENT_TYPE = "_routing";

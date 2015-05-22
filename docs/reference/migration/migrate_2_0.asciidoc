@@ -178,6 +178,7 @@ A `RoutingMissingException` is now thrown instead.
 * The setting `index.mapping.allow_type_wrapper` has been removed.  Documents should always be sent without the type as the root element.
 * The delete mappings API has been removed. Mapping types can no longer be deleted.
 * The `ignore_conflicts` option of the put mappings API has been removed. Conflicts can't be ignored anymore.
+* The `binary` field does not support the `compress` and `compress_threshold` options anymore.
 
 ==== Removed type prefix on field names in queries
 Types can no longer be specified on fields within queries.  Instead, specify type restrictions in the search request.

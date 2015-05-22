@@ -172,12 +172,12 @@ public class LocalGatewayAllocator extends AbstractComponent implements GatewayA
 
             AsyncShardFetch<TransportNodesListGatewayStartedShards.NodeLocalGatewayStartedShards> fetch = asyncFetchStarted.get(shard.shardId());
             if (fetch == null) {
-                fetch = new InternalAsyncFetch<>(logger, shard.shardId(), startedAction, clusterService, allocationService);
+                fetch = new InternalAsyncFetch<>(logger, "shard_started", shard.shardId(), startedAction, clusterService, allocationService);
                 asyncFetchStarted.put(shard.shardId(), fetch);
             }
             AsyncShardFetch.FetchResult<TransportNodesListGatewayStartedShards.NodeLocalGatewayStartedShards> shardState = fetch.fetchData(nodes, metaData, allocation.getIgnoreNodes(shard.shardId()));
             if (shardState.hasData() == false) {
-                // still fetching data, remove from the unassigned, and try the next
+                logger.trace("{}: ignoring allocation, still fetching shard started state");
                 unassignedIterator.remove();
                 routingNodes.ignoredUnassigned().add(shard);
                 continue;
@@ -400,7 +400,7 @@ public class LocalGatewayAllocator extends AbstractComponent implements GatewayA
             }
 
             if (!canBeAllocatedToAtLeastOneNode) {
-                // still fetching data, remove from the unassigned, and try the next
+                logger.trace("{}: ignoring allocation, can't be allocated on any node");
                 unassignedIterator.remove();
                 routingNodes.ignoredUnassigned().add(shard);
                 continue;
@@ -408,12 +408,12 @@ public class LocalGatewayAllocator extends AbstractComponent implements GatewayA
 
             AsyncShardFetch<TransportNodesListShardStoreMetaData.NodeStoreFilesMetaData> fetch = asyncFetchStore.get(shard.shardId());
             if (fetch == null) {
-                fetch = new InternalAsyncFetch<>(logger, shard.shardId(), storeAction, clusterService, allocationService);
+                fetch = new InternalAsyncFetch<>(logger, "shard_store", shard.shardId(), storeAction, clusterService, allocationService);
                 asyncFetchStore.put(shard.shardId(), fetch);
             }
             AsyncShardFetch.FetchResult<TransportNodesListShardStoreMetaData.NodeStoreFilesMetaData> shardStores = fetch.fetchData(nodes, metaData, allocation.getIgnoreNodes(shard.shardId()));
             if (shardStores.hasData() == false) {
-                // still fetching data, remove from the unassigned, and try the next
+                logger.trace("{}: ignoring allocation, still fetching shard stores");
                 unassignedIterator.remove();
                 routingNodes.ignoredUnassigned().add(shard);
                 continue; // still fetching
@@ -524,16 +524,16 @@ public class LocalGatewayAllocator extends AbstractComponent implements GatewayA
         private final ClusterService clusterService;
         private final AllocationService allocationService;
 
-        public InternalAsyncFetch(ESLogger logger, ShardId shardId, List<? extends NodesOperationResponse<T>, T> action,
+        public InternalAsyncFetch(ESLogger logger, String type, ShardId shardId, List<? extends NodesOperationResponse<T>, T> action,
                                   ClusterService clusterService, AllocationService allocationService) {
-            super(logger, shardId, action);
+            super(logger, type, shardId, action);
             this.clusterService = clusterService;
             this.allocationService = allocationService;
         }
 
         @Override
         protected void reroute(ShardId shardId, String reason) {
-            clusterService.submitStateUpdateTask("async_shard_fetch(" + getClass().getSimpleName() + ") " + shardId + ", reasons (" + reason + ")", Priority.HIGH, new ClusterStateUpdateTask() {
+            clusterService.submitStateUpdateTask("async_shard_fetch(" + type + ") " + shardId + ", reasons (" + reason + ")", Priority.HIGH, new ClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
                     if (currentState.nodes().masterNode() == null) {

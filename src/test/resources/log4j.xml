@@ -13,27 +13,27 @@ governing permissions and limitations under the License. -->
 <!DOCTYPE log4j:configuration SYSTEM "log4j.dtd">
 
 <log4j:configuration xmlns:log4j="http://jakarta.apache.org/log4j/">
-	<appender name="console" class="org.apache.log4j.ConsoleAppender">
-		<param name="Target" value="System.out" />
-		<layout class="org.apache.log4j.PatternLayout">
-			<param name="ConversionPattern" value="%d %-5p - %m%n" />
-		</layout>
-	</appender>
+  <appender name="console" class="org.apache.log4j.ConsoleAppender">
+    <param name="Target" value="System.out" />
+      <layout class="org.apache.log4j.PatternLayout">
+        <param name="ConversionPattern" value="%d %-5p - %m%n" />
+      </layout>
+  </appender>
 
-	<logger name="org.elasticsearch">
-		<level value="info" />
-	</logger>
+  <logger name="org.elasticsearch">
+    <level value="info" />
+  </logger>
 
-	<logger name="org.elasticsearch.cloud.gce">
-		<level value="trace" />
-	</logger>
-    <logger name="org.elasticsearch.discovery.gce">
-        <level value="trace" />
-    </logger>
+  <logger name="org.elasticsearch.cloud.gce">
+    <level value="trace" />
+  </logger>
+  <logger name="org.elasticsearch.discovery.gce">
+    <level value="trace" />
+  </logger>
 
-	<root>
-		<priority value="info" />
-		<appender-ref ref="console" />
-	</root>
+  <root>
+    <priority value="info" />
+    <appender-ref ref="console" />
+  </root>
 
 </log4j:configuration>

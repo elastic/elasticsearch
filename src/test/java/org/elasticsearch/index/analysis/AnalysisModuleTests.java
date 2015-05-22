@@ -34,6 +34,7 @@ import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.inject.ProvisionException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.env.Environment;
@@ -51,6 +52,7 @@ import org.junit.Test;
 import java.io.*;
 import java.util.Set;
 
+import static org.apache.lucene.util.LuceneTestCase.createTempDir;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.hamcrest.Matchers.*;
 
@@ -89,7 +91,7 @@ public class AnalysisModuleTests extends ElasticsearchTestCase {
         Settings settings = loadFromClasspath("org/elasticsearch/index/analysis/test1.yml");
         testSimpleConfiguration(settings);
     }
-    
+
     @Test
     public void testDefaultFactoryTokenFilters() {
         assertTokenFilter("keyword_repeat", KeywordRepeatFilter.class);
@@ -230,4 +232,36 @@ public class AnalysisModuleTests extends ElasticsearchTestCase {
         return wordListFile;
     }
 
+    @Test
+    public void testUnderscoreInAnalyzerName() {
+        Settings settings = ImmutableSettings.builder()
+                .put("index.analysis.analyzer._invalid_name.tokenizer", "keyword")
+                .put("path.home", createTempDir().toString())
+                .put(IndexMetaData.SETTING_VERSION_CREATED, "1")
+                .build();
+        try {
+            getAnalysisService(settings);
+            fail("This should fail with IllegalArgumentException because the analyzers name starts with _");
+        } catch (ProvisionException e) {
+            assertTrue(e.getCause() instanceof IllegalArgumentException);
+            assertThat(e.getCause().getMessage(), equalTo("analyzer name must not start with _. got \"_invalid_name\""));
+        }
+    }
+
+    @Test
+    public void testUnderscoreInAnalyzerNameAlias() {
+        Settings settings = ImmutableSettings.builder()
+                .put("index.analysis.analyzer.valid_name.tokenizer", "keyword")
+                .put("index.analysis.analyzer.valid_name.alias", "_invalid_name")
+                .put("path.home", createTempDir().toString())
+                .put(IndexMetaData.SETTING_VERSION_CREATED, "1")
+                .build();
+        try {
+            getAnalysisService(settings);
+            fail("This should fail with IllegalArgumentException because the analyzers alias starts with _");
+        } catch (ProvisionException e) {
+            assertTrue(e.getCause() instanceof IllegalArgumentException);
+            assertThat(e.getCause().getMessage(), equalTo("analyzer name must not start with _. got \"_invalid_name\""));
+        }
+    }
 }

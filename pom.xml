@@ -25,32 +25,14 @@
     </scm>
 
     <parent>
-        <groupId>org.sonatype.oss</groupId>
-        <artifactId>oss-parent</artifactId>
-        <version>7</version>
+        <groupId>org.elasticsearch</groupId>
+        <artifactId>elasticsearch-parent</artifactId>
+        <version>2.0.0-SNAPSHOT</version>
     </parent>
 
     <properties>
-        <lucene.version>5.2.0</lucene.version>
-        <lucene.snapshot.revision>1681214</lucene.snapshot.revision>
-        <lucene.maven.version>5.2.0-snapshot-${lucene.snapshot.revision}</lucene.maven.version>
-        <testframework.version>2.1.14</testframework.version>
-        <tests.jvms>auto</tests.jvms>
-        <tests.shuffle>true</tests.shuffle>
-        <tests.output>onerror</tests.output>
-        <tests.client.ratio></tests.client.ratio>
-        <tests.bwc.path>${project.basedir}/backwards</tests.bwc.path>
-        <tests.locale>random</tests.locale>
-        <tests.timezone>random</tests.timezone>
-        <tests.slow>false</tests.slow>
-        <tests.security.manager>true</tests.security.manager>
-        <es.logger.level>ERROR</es.logger.level>
-        <tests.heap.size>512m</tests.heap.size>
-        <tests.heapdump.path>${basedir}/logs/</tests.heapdump.path>
-        <tests.topn>5</tests.topn>
-        <jvm.executable>${java.home}${file.separator}bin${file.separator}java</jvm.executable>
-        <execution.hint.file>.local-${project.version}-execution-hints.log</execution.hint.file>
-
+        <!-- testing is currently done unshaded :( -->
+        <elasticsearch.thirdparty.config>unshaded</elasticsearch.thirdparty.config>
         <!-- Properties used for building RPM & DEB packages (see common/packaging.properties) -->
         <packaging.elasticsearch.home.dir>/usr/share/elasticsearch</packaging.elasticsearch.home.dir>
         <packaging.elasticsearch.bin.dir>/usr/share/elasticsearch/bin</packaging.elasticsearch.bin.dir>
@@ -65,151 +47,105 @@
         <deb.sign.method>dpkg-sig</deb.sign.method>
     </properties>
 
-    <repositories>
-        <repository>
-            <id>lucene-snapshots</id>
-            <name>Lucene Snapshots</name>
-            <url>http://download.elastic.co/lucenesnapshots/${lucene.snapshot.revision}</url>
-        </repository>
-    </repositories>
-
     <dependencies>
         <dependency>
             <groupId>org.hamcrest</groupId>
             <artifactId>hamcrest-all</artifactId>
-            <version>1.3</version>
             <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>com.carrotsearch.randomizedtesting</groupId>
             <artifactId>randomizedtesting-runner</artifactId>
-            <version>${testframework.version}</version>
             <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>org.apache.lucene</groupId>
             <artifactId>lucene-test-framework</artifactId>
-            <version>${lucene.maven.version}</version>
             <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>org.apache.httpcomponents</groupId>
             <artifactId>httpclient</artifactId>
-            <version>4.3.5</version>
             <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>com.google.jimfs</groupId>
             <artifactId>jimfs</artifactId>
-            <version>1.0</version>
             <scope>test</scope>
         </dependency>
 
         <dependency>
             <groupId>org.apache.lucene</groupId>
             <artifactId>lucene-core</artifactId>
-            <version>${lucene.maven.version}</version>
             <scope>compile</scope>
         </dependency>
         <dependency>
             <groupId>org.apache.lucene</groupId>
             <artifactId>lucene-backward-codecs</artifactId>
-            <version>${lucene.maven.version}</version>
             <scope>compile</scope>
         </dependency>
         <dependency>
             <groupId>org.apache.lucene</groupId>
             <artifactId>lucene-analyzers-common</artifactId>
-            <version>${lucene.maven.version}</version>
             <scope>compile</scope>
         </dependency>
         <dependency>
             <groupId>org.apache.lucene</groupId>
             <artifactId>lucene-queries</artifactId>
-            <version>${lucene.maven.version}</version>
             <scope>compile</scope>
-            <exclusions>
-                <exclusion>
-                    <groupId>jakarta-regexp</groupId>
-                    <artifactId>jakarta-regexp</artifactId>
-                </exclusion>
-            </exclusions>
         </dependency>
         <dependency>
             <groupId>org.apache.lucene</groupId>
             <artifactId>lucene-memory</artifactId>
-            <version>${lucene.maven.version}</version>
             <scope>compile</scope>
         </dependency>
         <dependency>
             <groupId>org.apache.lucene</groupId>
             <artifactId>lucene-highlighter</artifactId>
-            <version>${lucene.maven.version}</version>
             <scope>compile</scope>
         </dependency>
         <dependency>
             <groupId>org.apache.lucene</groupId>
             <artifactId>lucene-queryparser</artifactId>
-            <version>${lucene.maven.version}</version>
             <scope>compile</scope>
-            <exclusions>
-                <exclusion>
-                    <groupId>jakarta-regexp</groupId>
-                    <artifactId>jakarta-regexp</artifactId>
-                </exclusion>
-            </exclusions>
         </dependency>
         <dependency>
             <groupId>org.apache.lucene</groupId>
             <artifactId>lucene-suggest</artifactId>
-            <version>${lucene.maven.version}</version>
             <scope>compile</scope>
         </dependency>
         <dependency>
             <groupId>org.apache.lucene</groupId>
             <artifactId>lucene-join</artifactId>
-            <version>${lucene.maven.version}</version>
             <scope>compile</scope>
         </dependency>
-        <!-- Lucene spatial, make sure when upgrading to work with latest version of jts/spatial4j dependencies -->
         <dependency>
             <groupId>org.apache.lucene</groupId>
             <artifactId>lucene-spatial</artifactId>
-            <version>${lucene.maven.version}</version>
             <scope>compile</scope>
         </dependency>
         <dependency>
             <groupId>org.apache.lucene</groupId>
             <artifactId>lucene-expressions</artifactId>
-            <version>${lucene.maven.version}</version>
             <scope>compile</scope>
             <optional>true</optional>
         </dependency>
         <dependency>
             <groupId>com.spatial4j</groupId>
             <artifactId>spatial4j</artifactId>
-            <version>0.4.1</version>
             <scope>compile</scope>
             <optional>true</optional>
         </dependency>
         <dependency>
             <groupId>com.vividsolutions</groupId>
             <artifactId>jts</artifactId>
-            <version>1.13</version>
             <scope>compile</scope>
             <optional>true</optional>
-            <exclusions>
-                <exclusion>
-                    <groupId>xerces</groupId>
-                    <artifactId>xercesImpl</artifactId>
-                </exclusion>
-            </exclusions>
         </dependency>
         <!-- needed for templating -->
         <dependency>
             <groupId>com.github.spullara.mustache.java</groupId>
             <artifactId>compiler</artifactId>
-            <version>0.8.13</version>
             <optional>true</optional>
         </dependency>
         <!-- Lucene spatial -->
@@ -219,49 +155,40 @@
         <dependency>
             <groupId>com.google.guava</groupId>
             <artifactId>guava</artifactId>
-            <version>18.0</version>
             <scope>compile</scope>
         </dependency>
 
         <dependency>
             <groupId>com.carrotsearch</groupId>
             <artifactId>hppc</artifactId>
-            <version>0.7.1</version>
         </dependency>
 
         <dependency>
             <groupId>joda-time</groupId>
             <artifactId>joda-time</artifactId>
-            <!-- joda 2.0 moved to using volatile fields for datetime -->
-            <!-- When updating to a new version, make sure to update our copy of BaseDateTime -->
-            <version>2.7</version>
             <scope>compile</scope>
         </dependency>
         <dependency>
             <groupId>org.joda</groupId>
             <artifactId>joda-convert</artifactId>
-            <version>1.2</version>
             <scope>compile</scope>
         </dependency>
 
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-core</artifactId>
-            <version>2.5.1</version>
             <scope>compile</scope>
         </dependency>
 
         <dependency>
             <groupId>com.fasterxml.jackson.dataformat</groupId>
             <artifactId>jackson-dataformat-smile</artifactId>
-            <version>2.5.1</version>
             <scope>compile</scope>
         </dependency>
 
         <dependency>
             <groupId>com.fasterxml.jackson.dataformat</groupId>
             <artifactId>jackson-dataformat-yaml</artifactId>
-            <version>2.5.1</version>
             <scope>compile</scope>
             <exclusions>
                 <exclusion>
@@ -274,41 +201,35 @@
         <dependency>
             <groupId>com.fasterxml.jackson.dataformat</groupId>
             <artifactId>jackson-dataformat-cbor</artifactId>
-            <version>2.5.1</version>
             <scope>compile</scope>
         </dependency>
 
         <dependency>
             <groupId>io.netty</groupId>
             <artifactId>netty</artifactId>
-            <version>3.10.3.Final</version>
             <scope>compile</scope>
         </dependency>
 
         <dependency>
             <groupId>com.ning</groupId>
             <artifactId>compress-lzf</artifactId>
-            <version>1.0.2</version>
             <scope>compile</scope>
         </dependency>
 
         <dependency>
             <groupId>com.tdunning</groupId>
             <artifactId>t-digest</artifactId>
-            <version>3.0</version>
             <scope>compile</scope>
         </dependency>
 
         <dependency>
             <groupId>org.apache.commons</groupId>
             <artifactId>commons-lang3</artifactId>
-            <version>3.3.2</version>
         </dependency>
 
         <dependency>
             <groupId>commons-cli</groupId>
             <artifactId>commons-cli</artifactId>
-            <version>1.2</version>
         </dependency>
 
         <!-- END: dependencies that are shaded -->
@@ -316,7 +237,6 @@
         <dependency>
             <groupId>org.codehaus.groovy</groupId>
             <artifactId>groovy-all</artifactId>
-            <version>2.4.0</version>
             <classifier>indy</classifier>
             <scope>compile</scope>
             <optional>true</optional>
@@ -325,7 +245,6 @@
         <dependency>
             <groupId>log4j</groupId>
             <artifactId>log4j</artifactId>
-            <version>1.2.17</version>
             <scope>compile</scope>
             <optional>true</optional>
         </dependency>
@@ -333,7 +252,6 @@
         <dependency>
             <groupId>log4j</groupId>
             <artifactId>apache-log4j-extras</artifactId>
-            <version>1.2.17</version>
             <scope>compile</scope>
             <optional>true</optional>
         </dependency>
@@ -341,7 +259,6 @@
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-api</artifactId>
-            <version>1.6.2</version>
             <scope>compile</scope>
             <optional>true</optional>
         </dependency>
@@ -349,7 +266,6 @@
         <dependency>
             <groupId>net.java.dev.jna</groupId>
             <artifactId>jna</artifactId>
-            <version>4.1.0</version>
             <scope>compile</scope>
             <optional>true</optional>
         </dependency>
@@ -357,7 +273,6 @@
         <dependency>
             <groupId>org.fusesource</groupId>
             <artifactId>sigar</artifactId>
-            <version>1.6.4</version>
             <scope>compile</scope>
             <optional>true</optional>
         </dependency>
@@ -367,7 +282,6 @@
         <dependency>
             <groupId>sigar</groupId>
             <artifactId>sigar</artifactId>
-            <version>1.6.4</version>
             <scope>system</scope>
             <systemPath>${basedir}/lib/sigar/sigar-1.6.4.jar</systemPath>
             <optional>true</optional>
@@ -467,308 +381,10 @@
               </arguments>
             </configuration>
           </plugin>
-          <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-enforcer-plugin</artifactId>
-                <version>1.3.1</version>
-                <executions>
-                    <execution>
-                        <id>enforce-versions</id>
-                        <goals>
-                            <goal>enforce</goal>
-                        </goals>
-                        <configuration>
-                            <rules>
-                                <requireJavaVersion>
-                                    <version>[1.7,)</version>
-                                </requireJavaVersion>
-                            </rules>
-                        </configuration>
-                    </execution>
-                </executions>
-            </plugin>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-compiler-plugin</artifactId>
-                <version>3.1</version>
-                <configuration>
-                    <source>1.7</source>
-                    <target>1.7</target>
-                    <fork>true</fork>
-                    <maxmem>512m</maxmem>
-                    <!-- REMOVE WHEN UPGRADE:
-                         see https://jira.codehaus.org/browse/MCOMPILER-209 it's a bug where
-                         incremental compilation doesn't work unless it's set to false causeing
-                         recompilation of the entire codebase each time without any changes. Should
-                         be fixed in version > 3.1
-                     -->
-                    <useIncrementalCompilation>false</useIncrementalCompilation>
-                    <compilerArgs>
-                        <arg>-XDignore.symbol.file</arg>
-                    </compilerArgs>
-                </configuration>
-            </plugin>
-            <plugin>
-                <groupId>com.carrotsearch.randomizedtesting</groupId>
-                <artifactId>junit4-maven-plugin</artifactId>
-                <version>${testframework.version}</version>
-                <executions>
-                    <execution>
-                        <id>tests</id>
-                        <phase>test</phase>
-                        <goals>
-                            <goal>junit4</goal>
-                        </goals>
-                        <configuration>
-                            <jvm>${jvm.executable}</jvm>
-                            <heartbeat>10</heartbeat>
-                            <jvmOutputAction>pipe,warn</jvmOutputAction>
-                            <leaveTemporary>true</leaveTemporary>
-                            <ifNoTests>fail</ifNoTests>
-                            <listeners>
-                                <report-ant-xml mavenExtensions="true"
-                                                dir="${project.build.directory}/surefire-reports"/>
-                                <report-text
-                                        showThrowable="true"
-                                        showStackTraces="true"
-                                        showOutput="${tests.output}"
-                                        showStatusOk="false"
-                                        showStatusError="true"
-                                        showStatusFailure="true"
-                                        showStatusIgnored="true"
-                                        showSuiteSummary="true"
-                                        timestamps="false">
-                                  <filtertrace>
-                                     <!-- custom filters: we carefully only omit test infra noise here -->
-                                     <containsstring contains=".SlaveMain." />
-                                     <containsregex pattern="^(\s+at )(org\.junit\.)" />
-                                     <!-- also includes anonymous classes inside these two: -->
-                                     <containsregex pattern="^(\s+at )(com\.carrotsearch\.randomizedtesting.RandomizedRunner)" />
-                                     <containsregex pattern="^(\s+at )(com\.carrotsearch\.randomizedtesting.ThreadLeakControl)" />
-                                     <containsregex pattern="^(\s+at )(com\.carrotsearch\.randomizedtesting.rules\.)" />
-                                     <containsregex pattern="^(\s+at )(org\.apache\.lucene.util\.TestRule)" />
-                                     <containsregex pattern="^(\s+at )(org\.apache\.lucene.util\.AbstractBeforeAfterRule)" />
-                                  </filtertrace>
-                                </report-text>
-                                <report-execution-times historyLength="20" file="${basedir}/${execution.hint.file}"/>
-                            </listeners>
-                            <assertions>
-                                <enable/>
-                                <disable package="${tests.assertion.disabled}"/>
-                                <!-- pass org.elasticsearch to run without assertions -->
-                            </assertions>
-                            <parallelism>${tests.jvms}</parallelism>
-                            <balancers>
-                                <execution-times>
-                                    <fileset dir="${basedir}" includes="${execution.hint.file}"/>
-                                </execution-times>
-                            </balancers>
-                            <includes>
-                                <include>**/*Tests.class</include>
-                                <include>**/*Test.class</include>
-                            </includes>
-                            <excludes>
-                                <exclude>**/Abstract*.class</exclude>
-                                <exclude>**/*StressTest.class</exclude>
-                            </excludes>
-                            <jvmArgs>
-                                <param>-Xmx${tests.heap.size}</param>
-                                <param>-Xms${tests.heap.size}</param>
-                                <param>${java.permGenSpace}</param>
-                                <param>-Djava.library.path=${project.basedir}/lib/sigar</param>
-                                <param>-XX:MaxDirectMemorySize=512m</param>
-                                <param>-Des.logger.prefix=</param>
-                                <param>-XX:+HeapDumpOnOutOfMemoryError</param>
-                                <param>-XX:HeapDumpPath=${tests.heapdump.path}</param>
-                            </jvmArgs>
-                            <shuffleOnSlave>${tests.shuffle}</shuffleOnSlave>
-                            <sysouts>${tests.verbose}</sysouts>
-                            <seed>${tests.seed}</seed>
-                            <haltOnFailure>${tests.failfast}</haltOnFailure>
-                            <!-- enforce unique suite names, or reporting stuff can be screwed up -->
-                            <uniqueSuiteNames>true</uniqueSuiteNames>
-                            <systemProperties>
-                                <!-- we use './temp' since this is per JVM and tests are forbidden from writing to CWD -->
-                                <java.io.tmpdir>./temp</java.io.tmpdir>
-                                <!-- RandomizedTesting library system properties -->
-                                <tests.bwc>${tests.bwc}</tests.bwc>
-                                <tests.bwc.path>${tests.bwc.path}</tests.bwc.path>
-                                <tests.bwc.version>${tests.bwc.version}</tests.bwc.version>
-                                <tests.jvm.argline>${tests.jvm.argline}</tests.jvm.argline>
-                                <tests.appendseed>${tests.appendseed}</tests.appendseed>
-                                <tests.iters>${tests.iters}</tests.iters>
-                                <tests.maxfailures>${tests.maxfailures}</tests.maxfailures>
-                                <tests.failfast>${tests.failfast}</tests.failfast>
-                                <tests.class>${tests.class}</tests.class>
-                                <tests.method>${tests.method}</tests.method>
-                                <tests.nightly>${tests.nightly}</tests.nightly>
-                                <tests.verbose>${tests.verbose}</tests.verbose>
-                                <tests.badapples>${tests.badapples}</tests.badapples>
-                                <tests.weekly>${tests.weekly}</tests.weekly>
-                                <tests.slow>${tests.slow}</tests.slow>
-                                <tests.awaitsfix>${tests.awaitsfix}</tests.awaitsfix>
-                                <tests.timeoutSuite>${tests.timeoutSuite}</tests.timeoutSuite>
-                                <tests.showSuccess>${tests.showSuccess}</tests.showSuccess>
-                                <tests.integration>${tests.integration}</tests.integration>
-                                <tests.thirdparty>${tests.thirdparty}</tests.thirdparty>
-                                <tests.config>${tests.config}</tests.config>
-                                <tests.client.ratio>${tests.client.ratio}</tests.client.ratio>
-                                <tests.enable_mock_modules>${tests.enable_mock_modules}</tests.enable_mock_modules>
-                                <tests.assertion.disabled>${tests.assertion.disabled}</tests.assertion.disabled>
-                                <tests.rest>${tests.rest}</tests.rest>
-                                <tests.rest.suite>${tests.rest.suite}</tests.rest.suite>
-                                <tests.rest.blacklist>${tests.rest.blacklist}</tests.rest.blacklist>
-                                <tests.rest.spec>${tests.rest.spec}</tests.rest.spec>
-                                <tests.network>${tests.network}</tests.network>
-                                <tests.cluster>${tests.cluster}</tests.cluster>
-                                <tests.heap.size>${tests.heap.size}</tests.heap.size>
-                                <tests.filter>${tests.filter}</tests.filter>
-                                <tests.version>${project.version}</tests.version>
-                                <tests.locale>${tests.locale}</tests.locale>
-                                <tests.timezone>${tests.timezone}</tests.timezone>
-                                <project.basedir>${project.basedir}</project.basedir>
-                                <m2.repository>${settings.localRepository}</m2.repository>
-                                <es.node.local>${env.ES_TEST_LOCAL}</es.node.local>
-                                <es.node.mode>${es.node.mode}</es.node.mode>
-                                <es.logger.level>${es.logger.level}</es.logger.level>
-                                <tests.security.manager>${tests.security.manager}</tests.security.manager>
-                                <tests.compatibility>${tests.compatibility}</tests.compatibility>
-                                <java.awt.headless>true</java.awt.headless>
-                                <!-- true if we are running tests from maven (as opposed to IDE, etc).
-                                     allows us to assert certain things work, like libsigar -->
-                                <tests.maven>true</tests.maven>
-                            </systemProperties>
-                        </configuration>
-                    </execution>
-                </executions>
-            </plugin>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-antrun-plugin</artifactId>
-                <version>1.7</version>
-                <executions>
-                    <execution>
-                        <phase>validate</phase>
-                        <goals>
-                            <goal>run</goal>
-                        </goals>
-                        <configuration>
-                            <target>
-                                <echo>Using ${java.runtime.name} ${java.runtime.version} ${java.vendor}</echo>
-                            </target>
-                        </configuration>
-                    </execution>
-                    <execution>
-                        <id>set-permGen</id>
-                        <phase>validate</phase>
-                        <goals>
-                            <goal>run</goal>
-                        </goals>
-                        <configuration>
-                            <target>
-                                <!-- if we are on java 1.7.* we set perm gen space since some tests need it otherwise we just inject a dummy value -->
-                                <condition property="java.permGenSpace" value="-XX:MaxPermSize=128m" else="-Dsome.dummy.value=" >
-                                    <matches pattern="1\.7\..+$" string="${java.runtime.version}" />
-                                </condition>
-                            </target>
-                            <exportAntProperties>true</exportAntProperties>
-                        </configuration>
-                    </execution>
-                    <execution>
-                        <id>invalid-patterns</id>
-                        <phase>validate</phase>
-                        <goals>
-                            <goal>run</goal>
-                        </goals>
-                        <configuration>
-                            <target unless="${validate.skip}">
-                                <pathconvert pathsep="${line.separator}" dirsep="/" property="validate.patternsFound" setonempty="false">
-                                    <fileset dir="${basedir}">
-                                        <include name="**/*.java"/>
-                                        <include name="**/*.py"/>
-                                        <include name="**/*.txt"/>
-                                        <include name="**/*.xml"/>
-                                        <include name="**/*.rb"/>
-                                        <include name="**/*.pl"/>
-                                        <exclude name="**/org/elasticsearch/cluster/routing/shard_routes.txt"/>
-                                        <exclude name="target/**/*"/>
-                                        <exclude name=".metadata/**/*"/>
-                                        <exclude name=".idea/**/*"/>
-                                        <or>
-                                            <containsregexp expression="\bno(n|)commit\b" casesensitive="no"/>
-                                            <containsregexp expression="\t" casesensitive="no"/>
-                                        </or>
-                                    </fileset>
-                                    <map from="${basedir}${file.separator}" to="* "/>
-                                </pathconvert>
-                                <fail if="validate.patternsFound">The following files contain tabs or
-                                    nocommits:${line.separator}${validate.patternsFound}
-                                </fail>
-                            </target>
-                        </configuration>
-                    </execution>
-                    <execution>
-                        <phase>generate-test-resources</phase>
-                        <id>create-heapdump-directory</id>
-                        <configuration>
-                            <target>
-                                <echo message="Creating heapdump directory"/>
-                                <mkdir dir="${tests.heapdump.path}"/>
-                            </target>
-                        </configuration>
-                        <goals>
-                            <goal>run</goal>
-                        </goals>
-                    </execution>
-                    <execution>
-                        <id>tests</id>
-                        <phase>test</phase>
-                        <configuration>
-                            <skip>${skipTests}</skip>
-                            <!-- don't run if we skip the tests -->
-                            <failOnError>false</failOnError>
-                            <target>
-                                <property name="runtime_classpath" refid="maven.runtime.classpath"/>
-                                <property name="test_classpath" refid="maven.test.classpath"/>
-                                <property name="plugin_classpath" refid="maven.plugin.classpath"/>
-                                <taskdef resource="com/carrotsearch/junit4/antlib.xml">
-                                    <classpath>
-                                        <pathelement path="${plugin_classpath}"/>
-                                        <pathelement path="${runtime_classpath}"/>
-                                        <pathelement path="${test_classpath}"/>
-                                    </classpath>
-                                </taskdef>
-                                <tophints max="${tests.topn}">
-                                    <file file="${basedir}/${execution.hint.file}"/>
-                                </tophints>
-                            </target>
-                        </configuration>
-                        <goals>
-                            <goal>run</goal>
-                        </goals>
-                    </execution>
-                </executions>
-            </plugin>
-            <plugin>
-                <!-- we skip surefire to work with randomized testing above -->
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-surefire-plugin</artifactId>
-                <version>2.16</version>
-                <configuration>
-                    <skipTests>true</skipTests>
-                </configuration>
-            </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-source-plugin</artifactId>
-                <version>2.2.1</version>
                 <executions>
-                    <execution>
-                        <id>attach-sources</id>
-                        <goals>
-                            <goal>jar</goal>
-                        </goals>
-                    </execution>
                     <execution>
                         <id>attach-test-sources</id>
                         <goals>
@@ -794,7 +410,6 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-shade-plugin</artifactId>
-                <version>2.3</version>
                 <executions>
                     <execution>
                         <phase>package</phase>
@@ -1018,8 +633,8 @@
                 </executions>
             </plugin>
             <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-assembly-plugin</artifactId>
-                <version>2.4</version>
                 <configuration>
                     <appendAssemblyId>false</appendAssemblyId>
                     <outputDirectory>${project.build.directory}/releases/</outputDirectory>
@@ -1038,25 +653,8 @@
                 </executions>
             </plugin>
             <plugin>
-                <groupId>org.codehaus.mojo</groupId>
-                <artifactId>buildnumber-maven-plugin</artifactId>
-                <version>1.2</version>
-                <executions>
-                    <execution>
-                        <phase>validate</phase>
-                        <goals>
-                            <goal>create</goal>
-                        </goals>
-                    </execution>
-                </executions>
-                <configuration>
-                    <doCheck>false</doCheck>
-                    <doUpdate>false</doUpdate>
-                </configuration>
-            </plugin>
-            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-dependency-plugin</artifactId>
-                <version>2.8</version>
                 <executions>
                     <execution>
                         <phase>prepare-package</phase>
@@ -1070,6 +668,23 @@
                     </execution>
                 </executions>
             </plugin>
+            <plugin>
+                <groupId>com.mycila</groupId>
+                <artifactId>license-maven-plugin</artifactId>
+                <configuration>
+                    <excludes>
+                        <!-- Guice -->
+                        <exclude>src/main/java/org/elasticsearch/common/inject/**</exclude>
+                        <exclude>src/main/java/org/elasticsearch/common/geo/GeoHashUtils.java</exclude>
+                        <exclude>src/main/java/org/apache/lucene/**/X*.java</exclude>
+                        <!-- t-digest -->
+                        <exclude>src/main/java/org/elasticsearch/search/aggregations/metrics/percentiles/tdigest/TDigestState.java</exclude>
+                        <!-- netty pipelining -->
+                        <exclude>src/main/java/org/elasticsearch/http/netty/pipelining/**</exclude>
+                    </excludes>
+                </configuration>
+            </plugin>
+
 
             <!-- Deb Packaging -->
             <plugin>
@@ -1456,80 +1071,8 @@
             </plugin>
 
             <plugin>
-                <groupId>de.thetaphi</groupId>
-                <artifactId>forbiddenapis</artifactId>
-                <version>1.8</version>
-
-                <executions>
-                    <execution>
-                        <id>check-forbidden-apis</id>
-                        <configuration>
-                            <targetVersion>1.7</targetVersion>
-                            <!-- disallow undocumented classes like sun.misc.Unsafe: -->
-                            <internalRuntimeForbidden>true</internalRuntimeForbidden>
-                            <!-- if the used Java version is too new, don't fail, just do nothing: -->
-                            <failOnUnsupportedJava>false</failOnUnsupportedJava>
-                            <excludes>
-                                <exclude>jsr166e/**</exclude>
-                            </excludes>
-                            <bundledSignatures>
-                                <!-- This will automatically choose the right signatures based on 'targetVersion': -->
-                                <bundledSignature>jdk-unsafe</bundledSignature>
-                                <bundledSignature>jdk-deprecated</bundledSignature>
-                                <bundledSignature>jdk-system-out</bundledSignature>
-                            </bundledSignatures>
-                            <signaturesFiles>
-                                <signaturesFile>dev-tools/forbidden/core-signatures.txt</signaturesFile>
-                                <signaturesFile>dev-tools/forbidden/all-signatures.txt</signaturesFile>
-                            </signaturesFiles>
-                            <signatures>${forbidden.signatures}</signatures>
-                            <suppressAnnotations><annotation>**.SuppressForbidden</annotation></suppressAnnotations>
-                        </configuration>
-                        <phase>compile</phase>
-                        <goals>
-                            <goal>check</goal>
-                        </goals>
-                    </execution>
-                    <execution>
-                        <id>check-forbidden-test-apis</id>
-                        <configuration>
-                            <targetVersion>1.7</targetVersion>
-                            <!-- disallow undocumented classes like sun.misc.Unsafe: -->
-                            <internalRuntimeForbidden>true</internalRuntimeForbidden>
-                            <!-- if the used Java version is too new, don't fail, just do nothing: -->
-                            <failOnUnsupportedJava>false</failOnUnsupportedJava>
-                            <bundledSignatures>
-                                <!-- This will automatically choose the right signatures based on 'targetVersion': -->
-                                <bundledSignature>jdk-unsafe</bundledSignature>
-                                <bundledSignature>jdk-deprecated</bundledSignature>
-                            </bundledSignatures>
-                            <excludes>
-                                <!-- start exclude for test GC simulation using Thread.suspend -->
-                                <exclude>org/elasticsearch/test/disruption/LongGCDisruption.class</exclude>
-                                <!-- end exclude for GC simulation  -->
-                                <!-- start exclude for java.io.File bridging -->
-                                <exclude>org/elasticsearch/test/ExternalNode.class</exclude>
-                                <exclude>org/elasticsearch/test/ElasticsearchTestCase.class</exclude>
-                                <!-- end exclude for java.io.File bridging -->
-                            </excludes>
-                            <signaturesFiles>
-                                <signaturesFile>dev-tools/forbidden/test-signatures.txt</signaturesFile>
-                                <signaturesFile>dev-tools/forbidden/all-signatures.txt</signaturesFile>
-                            </signaturesFiles>
-                            <signatures>${forbidden.test.signatures}</signatures>
-                            <suppressAnnotations><annotation>**.SuppressForbidden</annotation></suppressAnnotations>
-                        </configuration>
-                        <phase>test-compile</phase>
-                        <goals>
-                            <goal>testCheck</goal>
-                        </goals>
-                    </execution>
-                </executions>
-            </plugin>
-            <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-jar-plugin</artifactId>
-                <version>2.4</version>
                 <executions>
                     <execution>
                         <phase>prepare-package</phase>
@@ -1555,209 +1098,8 @@
                 </executions>
             </plugin>
         </plugins>
-        <pluginManagement>
-            <plugins>
-                <!-- make m2e stfu -->
-                <plugin>
-                    <groupId>org.eclipse.m2e</groupId>
-                    <artifactId>lifecycle-mapping</artifactId>
-                    <version>1.0.0</version>
-                    <configuration>
-                        <lifecycleMappingMetadata>
-                            <pluginExecutions>
-                                <!-- copy-dependency plugin -->
-                                <pluginExecution>
-                                    <pluginExecutionFilter>
-                                        <groupId>org.apache.maven.plugins</groupId>
-                                        <artifactId>maven-dependency-plugin</artifactId>
-                                        <versionRange>[1.0.0,)</versionRange>
-                                        <goals>
-                                            <goal>copy-dependencies</goal>
-                                        </goals>
-                                    </pluginExecutionFilter>
-                                    <action>
-                                        <execute/>
-                                    </action>
-                                </pluginExecution>
-                                <!-- forbidden-apis plugin -->
-                                <pluginExecution>
-                                    <pluginExecutionFilter>
-                                        <groupId>de.thetaphi</groupId>
-                                        <artifactId>forbiddenapis</artifactId>
-                                        <versionRange>[1.0.0,)</versionRange>
-                                        <goals>
-                                            <goal>testCheck</goal>
-                                            <goal>check</goal>
-                                        </goals>
-                                    </pluginExecutionFilter>
-                                    <action>
-                                        <execute/>
-                                    </action>
-                                </pluginExecution>
-                                <!-- exec-maven plugin -->
-                                <pluginExecution>
-                                    <pluginExecutionFilter>
-                                        <artifactId>exec-maven-plugin</artifactId>
-                                        <groupId>org.codehaus.mojo</groupId>
-                                        <versionRange>[1.0.0,)</versionRange>
-                                        <goals>
-                                            <goal>exec</goal>
-                                        </goals>
-                                    </pluginExecutionFilter>
-                                    <action>
-                                        <execute/>
-                                    </action>
-                                </pluginExecution>
-                                <!-- copy-dependency plugin -->
-                                <pluginExecution>
-                                    <pluginExecutionFilter>
-                                        <groupId>org.apache.maven.plugins</groupId>
-                                        <artifactId>maven-enforcer-plugin</artifactId>
-                                        <versionRange>[1.0.0,)</versionRange>
-                                        <goals>
-                                            <goal>enforce</goal>
-                                        </goals>
-                                    </pluginExecutionFilter>
-                                    <action>
-                                        <execute/>
-                                    </action>
-                                </pluginExecution>
-                                <pluginExecution>
-                                    <pluginExecutionFilter>
-                                        <groupId>org.apache.maven.plugins</groupId>
-                                        <artifactId>maven-antrun-plugin</artifactId>
-                                        <versionRange>[1.0.0,)</versionRange>
-                                        <goals>
-                                            <goal>run</goal>
-                                        </goals>
-                                    </pluginExecutionFilter>
-                                    <action>
-                                        <ignore/>
-                                    </action>
-                                </pluginExecution>
-                                <pluginExecution>
-                                    <pluginExecutionFilter>
-                                        <groupId>org.apache.maven.plugins</groupId>
-                                        <artifactId>maven-resources-plugin</artifactId>
-                                        <versionRange>[1.0.0,)</versionRange>
-                                        <goals>
-                                            <goal>copy-resources</goal>
-                                        </goals>
-                                    </pluginExecutionFilter>
-                                    <action>
-                                        <ignore/>
-                                    </action>
-                                </pluginExecution>
-                                <pluginExecution>
-                                    <pluginExecutionFilter>
-                                        <groupId>com.mycila</groupId>
-                                        <artifactId>license-maven-plugin</artifactId>
-                                        <versionRange>[1.0.0,)</versionRange>
-                                        <goals>
-                                            <goal>check</goal>
-                                        </goals>
-                                    </pluginExecutionFilter>
-                                    <action>
-                                        <ignore/>
-                                    </action>
-                                </pluginExecution>
-                            </pluginExecutions>
-                        </lifecycleMappingMetadata>
-                    </configuration>
-                </plugin>
-                <plugin>
-                    <groupId>org.apache.maven.plugins</groupId>
-                    <artifactId>maven-eclipse-plugin</artifactId>
-                    <version>2.9</version>
-                    <configuration>
-                        <buildOutputDirectory>eclipse-build</buildOutputDirectory>
-                        <downloadSources>true</downloadSources>
-                    </configuration>
-                </plugin>
-            </plugins>
-        </pluginManagement>
     </build>
     <profiles>
-        <!-- default profile, with randomization setting kicks in -->
-        <profile>
-            <id>default</id>
-            <activation>
-                <activeByDefault>true</activeByDefault>
-            </activation>
-            <build>
-                <plugins>
-                    <plugin>
-                        <groupId>com.carrotsearch.randomizedtesting</groupId>
-                        <artifactId>junit4-maven-plugin</artifactId>
-                        <configuration>
-                            <argLine>${tests.jvm.argline}</argLine>
-                        </configuration>
-                    </plugin>
-                    <plugin>
-                        <groupId>com.mycila</groupId>
-                        <artifactId>license-maven-plugin</artifactId>
-                        <version>2.5</version>
-                        <configuration>
-                            <header>dev-tools/elasticsearch_license_header.txt</header>
-                            <headerDefinitions>
-                                <headerDefinition>dev-tools/license_header_definition.xml</headerDefinition>
-                            </headerDefinitions>
-                            <includes>
-                                <include>src/main/java/org/elasticsearch/**/*.java</include>
-                                <include>src/test/java/org/elasticsearch/**/*.java</include>
-                            </includes>
-                            <excludes>
-                                <!-- Guice -->
-                                <exclude>src/main/java/org/elasticsearch/common/inject/**</exclude>
-                                <exclude>src/main/java/org/elasticsearch/common/geo/GeoHashUtils.java</exclude>
-                                <exclude>src/main/java/org/elasticsearch/common/lucene/search/XBooleanFilter.java</exclude>
-                                <exclude>src/main/java/org/elasticsearch/common/lucene/search/XFilteredQuery.java</exclude>
-                                <exclude>src/main/java/org/apache/lucene/queryparser/XSimpleQueryParser.java</exclude>
-                                <exclude>src/main/java/org/apache/lucene/**/X*.java</exclude>
-                                <!-- t-digest -->
-                                <exclude>src/main/java/org/elasticsearch/search/aggregations/metrics/percentiles/tdigest/TDigestState.java</exclude>
-                                <exclude>src/test/java/org/elasticsearch/search/aggregations/metrics/GroupTree.java</exclude>
-                                <!-- netty pipelining -->
-                                <exclude>src/main/java/org/elasticsearch/http/netty/pipelining/**</exclude>
-                            </excludes>
-                        </configuration>
-                        <executions>
-                            <execution>
-                                <phase>compile</phase>
-                                <goals>
-                                    <goal>check</goal>
-                                </goals>
-                            </execution>
-                        </executions>
-                    </plugin>
-                </plugins>
-            </build>
-        </profile>
-        <!-- profile for development that doesn't check forbidden-apis, no-commit validation or license headers run with mvn -Pdev -->
-        <profile>
-            <id>dev</id>
-            <properties>
-                <validate.skip>true</validate.skip>
-            </properties>
-            <build>
-                <plugins>
-                    <plugin>
-                        <groupId>de.thetaphi</groupId>
-                        <artifactId>forbiddenapis</artifactId>
-                        <executions>
-                            <execution>
-                                <id>check-forbidden-apis</id>
-                                <phase>none</phase>
-                            </execution>
-                            <execution>
-                                <id>check-forbidden-test-apis</id>
-                                <phase>none</phase>
-                            </execution>
-                        </executions>
-                    </plugin>
-                </plugins>
-            </build>
-        </profile>
         <!-- license profile, to generate third party license file -->
         <profile>
             <id>license</id>

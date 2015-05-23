@@ -26,6 +26,7 @@ import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
@@ -91,6 +92,7 @@ final class ExternalNode implements Closeable {
         return externalNode;
     }
 
+    @SuppressForbidden(reason = "needs java.io.File api to start a process")
     synchronized void startInternal(Client client, Settings settings, String nodeName, String clusterName) throws IOException, InterruptedException {
         if (process != null) {
             throw new IllegalStateException("Already started");

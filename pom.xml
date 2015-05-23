@@ -689,23 +689,6 @@
                     </execution>
                 </executions>
             </plugin>
-            <plugin>
-                <groupId>com.mycila</groupId>
-                <artifactId>license-maven-plugin</artifactId>
-                <configuration>
-                    <excludes>
-                        <!-- Guice -->
-                        <exclude>src/main/java/org/elasticsearch/common/inject/**</exclude>
-                        <exclude>src/main/java/org/elasticsearch/common/geo/GeoHashUtils.java</exclude>
-                        <exclude>src/main/java/org/apache/lucene/**/X*.java</exclude>
-                        <!-- t-digest -->
-                        <exclude>src/main/java/org/elasticsearch/search/aggregations/metrics/percentiles/tdigest/TDigestState.java</exclude>
-                        <!-- netty pipelining -->
-                        <exclude>src/main/java/org/elasticsearch/http/netty/pipelining/**</exclude>
-                    </excludes>
-                </configuration>
-            </plugin>
-
 
             <!-- Deb Packaging -->
             <plugin>
@@ -1130,6 +1113,22 @@
                    <exclude>org/apache/lucene/**</exclude>
                  </excludes>
                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>com.mycila</groupId>
+                <artifactId>license-maven-plugin</artifactId>
+                <configuration>
+                    <excludes>
+                        <!-- Guice -->
+                        <exclude>src/main/java/org/elasticsearch/common/inject/**</exclude>
+                        <exclude>src/main/java/org/elasticsearch/common/geo/GeoHashUtils.java</exclude>
+                        <exclude>src/main/java/org/apache/lucene/**/X*.java</exclude>
+                        <!-- t-digest -->
+                        <exclude>src/main/java/org/elasticsearch/search/aggregations/metrics/percentiles/tdigest/TDigestState.java</exclude>
+                        <!-- netty pipelining -->
+                        <exclude>src/main/java/org/elasticsearch/http/netty/pipelining/**</exclude>
+                    </excludes>
+                </configuration>
             </plugin>
         </plugins>
       </pluginManagement>

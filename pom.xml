@@ -47,6 +47,14 @@
         <deb.sign.method>dpkg-sig</deb.sign.method>
     </properties>
 
+    <repositories>
+        <repository>
+            <id>oss-snapshots</id>
+            <name>Sonatype OSS Snapshots</name>
+            <url>https://oss.sonatype.org/content/repositories/snapshots/</url>
+        </repository>
+    </repositories>
+
     <dependencies>
         <dependency>
             <groupId>org.hamcrest</groupId>

@@ -2,12 +2,12 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
-    <name>elasticsearch</name>
     <modelVersion>4.0.0</modelVersion>
     <groupId>org.elasticsearch</groupId>
     <artifactId>elasticsearch</artifactId>
     <version>2.0.0-SNAPSHOT</version>
     <packaging>jar</packaging>
+    <name>Elasticsearch core</name>
     <description>Elasticsearch - Open Source, Distributed, RESTful Search Engine</description>
     <inceptionYear>2009</inceptionYear>
     <licenses>
@@ -291,7 +291,7 @@
             <groupId>sigar</groupId>
             <artifactId>sigar</artifactId>
             <scope>system</scope>
-            <systemPath>${basedir}/lib/sigar/sigar-1.6.4.jar</systemPath>
+            <systemPath>${project.basedir}/lib/sigar/sigar-1.6.4.jar</systemPath>
             <optional>true</optional>
         </dependency>
         -->
@@ -302,19 +302,19 @@
         <!-- This file contains all the common properties used to build
             the different packages (tar.gz, deb, rpm) using Maven resources plugin -->
         <filters>
-            <filter>src/packaging/common/packaging.properties</filter>
+            <filter>${project.basedir}/src/packaging/common/packaging.properties</filter>
         </filters>
 
         <resources>
             <resource>
-                <directory>${basedir}/src/main/java</directory>
+                <directory>${project.basedir}/src/main/java</directory>
                 <includes>
                     <include>**/*.json</include>
                     <include>**/*.yml</include>
                 </includes>
             </resource>
             <resource>
-                <directory>${basedir}/src/main/resources</directory>
+                <directory>${project.basedir}/src/main/resources</directory>
                 <includes>
                     <include>**/*.*</include>
                 </includes>
@@ -324,7 +324,7 @@
 
         <testResources>
             <testResource>
-                <directory>${basedir}/src/test/java</directory>
+                <directory>${project.basedir}/src/test/java</directory>
                 <includes>
                     <include>**/*.json</include>
                     <include>**/*.yml</include>
@@ -334,19 +334,19 @@
                 <filtering>true</filtering>
             </testResource>
             <testResource>
-                <directory>${basedir}/src/test/java</directory>
+                <directory>${project.basedir}/src/test/java</directory>
                 <includes>
                     <include>**/*.gz</include>
                 </includes>
             </testResource>
             <testResource>
-                <directory>${basedir}/src/test/resources</directory>
+                <directory>${project.basedir}/src/test/resources</directory>
                 <includes>
                     <include>**/*.*</include>
                 </includes>
             </testResource>
             <testResource>
-                <directory>${basedir}/rest-api-spec</directory>
+                <directory>${project.basedir}/rest-api-spec</directory>
                 <targetPath>rest-api-spec</targetPath>
                 <includes>
                     <include>api/*.json</include>
@@ -543,14 +543,14 @@
                             <outputDirectory>${project.build.directory}/bin</outputDirectory>
                             <resources>
                                 <resource>
-                                    <directory>${basedir}/bin</directory>
+                                    <directory>${project.basedir}/bin</directory>
                                     <filtering>true</filtering>
                                     <excludes>
                                         <exclude>*.exe</exclude>
                                     </excludes>
                                 </resource>
                                 <resource>
-                                    <directory>${basedir}/bin</directory>
+                                    <directory>${project.basedir}/bin</directory>
                                     <filtering>false</filtering>
                                     <includes>
                                         <include>*.exe</include>
@@ -569,12 +569,12 @@
                         <configuration>
                             <outputDirectory>${project.build.directory}/generated-packaging/deb/</outputDirectory>
                             <filters>
-                                <filter>src/packaging/common/packaging.properties</filter>
-                                <filter>src/packaging/deb/packaging.properties</filter>
+                                <filter>${project.basedir}/src/packaging/common/packaging.properties</filter>
+                                <filter>${project.basedir}/src/packaging/deb/packaging.properties</filter>
                             </filters>
                             <resources>
                                 <resource>
-                                    <directory>src/packaging/common/</directory>
+                                    <directory>${project.basedir}/src/packaging/common/</directory>
                                     <filtering>true</filtering>
                                     <includes>
                                         <include>**/*</include>
@@ -584,7 +584,7 @@
                                     </excludes>
                                 </resource>
                                 <resource>
-                                    <directory>src/packaging/deb/</directory>
+                                    <directory>${project.basedir}/src/packaging/deb/</directory>
                                     <filtering>true</filtering>
                                     <includes>
                                         <include>**/*</include>
@@ -615,8 +615,8 @@
                         <configuration>
                             <outputDirectory>${project.build.directory}/generated-packaging/rpm/</outputDirectory>
                             <filters>
-                                <filter>src/packaging/common/packaging.properties</filter>
-                                <filter>src/packaging/rpm/packaging.properties</filter>
+                                <filter>${project.basedir}/src/packaging/common/packaging.properties</filter>
+                                <filter>${project.basedir}/src/packaging/rpm/packaging.properties</filter>
                             </filters>
                             <resources>
                                 <resource>
@@ -660,8 +660,8 @@
                     <appendAssemblyId>false</appendAssemblyId>
                     <outputDirectory>${project.build.directory}/releases/</outputDirectory>
                     <descriptors>
-                        <descriptor>${basedir}/src/main/assemblies/targz-bin.xml</descriptor>
-                        <descriptor>${basedir}/src/main/assemblies/zip-bin.xml</descriptor>
+                        <descriptor>${project.basedir}/src/main/assemblies/targz-bin.xml</descriptor>
+                        <descriptor>${project.basedir}/src/main/assemblies/zip-bin.xml</descriptor>
                     </descriptors>
                 </configuration>
                 <executions>

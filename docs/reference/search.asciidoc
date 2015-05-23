@@ -32,7 +32,7 @@ only the relevant shard:
 
 [source,js]
 --------------------------------------------------
-$ curl -XGET 'http://localhost:9200/twitter/tweet/_search?routing=kimchy' -d '{
+$ curl -XPOST 'http://localhost:9200/twitter/tweet/_search?routing=kimchy' -d '{
     "query": {
         "filtered" : {
             "query" : {

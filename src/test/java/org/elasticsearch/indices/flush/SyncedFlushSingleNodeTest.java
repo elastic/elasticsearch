@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.indices;
+package org.elasticsearch.indices.flush;
 
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -27,17 +27,17 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
-import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 
 import java.util.List;
 import java.util.Map;
 
 /**
  */
-public class SycnedFlushSingleNodeTest extends ElasticsearchSingleNodeTest {
+public class SyncedFlushSingleNodeTest extends ElasticsearchSingleNodeTest {
 
-    public void testModificationPreventsSealing() throws InterruptedException {
+    public void testModificationPreventsFlushing() throws InterruptedException {
         createIndex("test");
         client().prepareIndex("test", "test", "1").setSource("{}").get();
         IndexService test = getInstanceFromNode(IndicesService.class).indexService("test");
@@ -46,18 +46,18 @@ public class SycnedFlushSingleNodeTest extends ElasticsearchSingleNodeTest {
         SyncedFlushService flushService = getInstanceFromNode(SyncedFlushService.class);
         final ShardId shardId = shard.shardId();
         final ClusterState state = getInstanceFromNode(ClusterService.class).state();
-        final IndexShardRoutingTable shardRoutingTable = flushService.getActiveShardRoutings(shardId, state);
+        final IndexShardRoutingTable shardRoutingTable = flushService.getShardRoutingTable(shardId, state);
         final List<ShardRouting> activeShards = shardRoutingTable.activeShards();
         assertEquals("exactly one active shard", 1, activeShards.size());
         Map<String, Engine.CommitId> commitIds = SyncedFlushUtil.sendPreSyncRequests(flushService, activeShards, state, shardId);
         assertEquals("exactly one commit id", 1, commitIds.size());
         client().prepareIndex("test", "test", "2").setSource("{}").get();
         String syncId = Strings.base64UUID();
-        SyncedFlushUtil.LatchedListener<SyncedFlushService.SyncedFlushResult> listener = new SyncedFlushUtil.LatchedListener();
-        flushService.sendSyncRequests(syncId, activeShards, state, commitIds, shardId,listener);
+        SyncedFlushUtil.LatchedListener<ShardsSyncedFlushResult> listener = new SyncedFlushUtil.LatchedListener<>();
+        flushService.sendSyncRequests(syncId, activeShards, state, commitIds, shardId, shardRoutingTable.size(), listener);
         listener.latch.await();
         assertNull(listener.error);
-        SyncedFlushService.SyncedFlushResult syncedFlushResult = listener.result;
+        ShardsSyncedFlushResult syncedFlushResult = listener.result;
         assertNotNull(syncedFlushResult);
         assertEquals(0, syncedFlushResult.successfulShards());
         assertEquals(1, syncedFlushResult.totalShards());
@@ -66,9 +66,9 @@ public class SycnedFlushSingleNodeTest extends ElasticsearchSingleNodeTest {
         assertFalse(syncedFlushResult.shardResponses().get(activeShards.get(0)).success());
         assertEquals("pending operations", syncedFlushResult.shardResponses().get(activeShards.get(0)).failureReason());
 
-        SyncedFlushUtil.sendPreSyncRequests(flushService, activeShards, state, shardId); // pull another commit and make sure we can't seal with the old one
+        SyncedFlushUtil.sendPreSyncRequests(flushService, activeShards, state, shardId); // pull another commit and make sure we can't sync-flush with the old one
         listener = new SyncedFlushUtil.LatchedListener();
-        flushService.sendSyncRequests(syncId, activeShards, state, commitIds, shardId,listener);
+        flushService.sendSyncRequests(syncId, activeShards, state, commitIds, shardId, shardRoutingTable.size(), listener);
         listener.latch.await();
         assertNull(listener.error);
         syncedFlushResult = listener.result;
@@ -79,7 +79,6 @@ public class SycnedFlushSingleNodeTest extends ElasticsearchSingleNodeTest {
         assertNotNull(syncedFlushResult.shardResponses().get(activeShards.get(0)));
         assertFalse(syncedFlushResult.shardResponses().get(activeShards.get(0)).success());
         assertEquals("commit has changed", syncedFlushResult.shardResponses().get(activeShards.get(0)).failureReason());
-        ElasticsearchAssertions.assertVersionSerializable(syncedFlushResult);
     }
 
     public void testSingleShardSuccess() throws InterruptedException {
@@ -90,17 +89,16 @@ public class SycnedFlushSingleNodeTest extends ElasticsearchSingleNodeTest {
 
         SyncedFlushService flushService = getInstanceFromNode(SyncedFlushService.class);
         final ShardId shardId = shard.shardId();
-        SyncedFlushUtil.LatchedListener<SyncedFlushService.SyncedFlushResult> listener = new SyncedFlushUtil.LatchedListener();
+        SyncedFlushUtil.LatchedListener<ShardsSyncedFlushResult> listener = new SyncedFlushUtil.LatchedListener();
         flushService.attemptSyncedFlush(shardId, listener);
         listener.latch.await();
         assertNull(listener.error);
-        SyncedFlushService.SyncedFlushResult syncedFlushResult = listener.result;
+        ShardsSyncedFlushResult syncedFlushResult = listener.result;
         assertNotNull(syncedFlushResult);
         assertEquals(1, syncedFlushResult.successfulShards());
         assertEquals(1, syncedFlushResult.totalShards());
         SyncedFlushService.SyncedFlushResponse response = syncedFlushResult.shardResponses().values().iterator().next();
         assertTrue(response.success());
-        ElasticsearchAssertions.assertVersionSerializable(syncedFlushResult);
     }
 
     public void testSyncFailsIfOperationIsInFlight() throws InterruptedException {
@@ -113,16 +111,15 @@ public class SycnedFlushSingleNodeTest extends ElasticsearchSingleNodeTest {
         final ShardId shardId = shard.shardId();
         shard.incrementOperationCounter();
         try {
-            SyncedFlushUtil.LatchedListener<SyncedFlushService.SyncedFlushResult> listener = new SyncedFlushUtil.LatchedListener();
+            SyncedFlushUtil.LatchedListener<ShardsSyncedFlushResult> listener = new SyncedFlushUtil.LatchedListener<>();
             flushService.attemptSyncedFlush(shardId, listener);
             listener.latch.await();
             assertNull(listener.error);
-            SyncedFlushService.SyncedFlushResult syncedFlushResult = listener.result;
+            ShardsSyncedFlushResult syncedFlushResult = listener.result;
             assertNotNull(syncedFlushResult);
             assertEquals(0, syncedFlushResult.successfulShards());
-            assertEquals(0, syncedFlushResult.totalShards());
-            assertEquals("operation counter on primary is non zero [2]", syncedFlushResult.failureReason());
-            ElasticsearchAssertions.assertVersionSerializable(syncedFlushResult);
+            assertNotEquals(0, syncedFlushResult.totalShards());
+            assertEquals("[1] ongoing operations on primary", syncedFlushResult.failureReason());
         } finally {
             shard.decrementOperationCounter();
         }
@@ -168,7 +165,7 @@ public class SycnedFlushSingleNodeTest extends ElasticsearchSingleNodeTest {
         SyncedFlushService flushService = getInstanceFromNode(SyncedFlushService.class);
         final ShardId shardId = shard.shardId();
         final ClusterState state = getInstanceFromNode(ClusterService.class).state();
-        final IndexShardRoutingTable shardRoutingTable = flushService.getActiveShardRoutings(shardId, state);
+        final IndexShardRoutingTable shardRoutingTable = flushService.getShardRoutingTable(shardId, state);
         final List<ShardRouting> activeShards = shardRoutingTable.activeShards();
         assertEquals("exactly one active shard", 1, activeShards.size());
         Map<String, Engine.CommitId> commitIds = SyncedFlushUtil.sendPreSyncRequests(flushService, activeShards, state, shardId);
@@ -178,11 +175,11 @@ public class SycnedFlushSingleNodeTest extends ElasticsearchSingleNodeTest {
         }
         client().admin().indices().prepareFlush("test").setForce(true).get();
         String syncId = Strings.base64UUID();
-        final SyncedFlushUtil.LatchedListener<SyncedFlushService.SyncedFlushResult> listener = new SyncedFlushUtil.LatchedListener();
-        flushService.sendSyncRequests(syncId, activeShards, state, commitIds, shardId, listener);
+        final SyncedFlushUtil.LatchedListener<ShardsSyncedFlushResult> listener = new SyncedFlushUtil.LatchedListener();
+        flushService.sendSyncRequests(syncId, activeShards, state, commitIds, shardId, shardRoutingTable.size(), listener);
         listener.latch.await();
         assertNull(listener.error);
-        SyncedFlushService.SyncedFlushResult syncedFlushResult = listener.result;
+        ShardsSyncedFlushResult syncedFlushResult = listener.result;
         assertNotNull(syncedFlushResult);
         assertEquals(0, syncedFlushResult.successfulShards());
         assertEquals(1, syncedFlushResult.totalShards());
@@ -190,7 +187,6 @@ public class SycnedFlushSingleNodeTest extends ElasticsearchSingleNodeTest {
         assertNotNull(syncedFlushResult.shardResponses().get(activeShards.get(0)));
         assertFalse(syncedFlushResult.shardResponses().get(activeShards.get(0)).success());
         assertEquals("commit has changed", syncedFlushResult.shardResponses().get(activeShards.get(0)).failureReason());
-        ElasticsearchAssertions.assertVersionSerializable(syncedFlushResult);
     }
 
     public void testFailWhenCommitIsMissing() throws InterruptedException {
@@ -202,18 +198,18 @@ public class SycnedFlushSingleNodeTest extends ElasticsearchSingleNodeTest {
         SyncedFlushService flushService = getInstanceFromNode(SyncedFlushService.class);
         final ShardId shardId = shard.shardId();
         final ClusterState state = getInstanceFromNode(ClusterService.class).state();
-        final IndexShardRoutingTable shardRoutingTable = flushService.getActiveShardRoutings(shardId, state);
+        final IndexShardRoutingTable shardRoutingTable = flushService.getShardRoutingTable(shardId, state);
         final List<ShardRouting> activeShards = shardRoutingTable.activeShards();
         assertEquals("exactly one active shard", 1, activeShards.size());
         Map<String, Engine.CommitId> commitIds =  SyncedFlushUtil.sendPreSyncRequests(flushService, activeShards, state, shardId);
         assertEquals("exactly one commit id", 1, commitIds.size());
         commitIds.clear(); // wipe it...
         String syncId = Strings.base64UUID();
-        SyncedFlushUtil.LatchedListener<SyncedFlushService.SyncedFlushResult> listener = new SyncedFlushUtil.LatchedListener();
-        flushService.sendSyncRequests(syncId, activeShards, state, commitIds, shardId, listener);
+        SyncedFlushUtil.LatchedListener<ShardsSyncedFlushResult> listener = new SyncedFlushUtil.LatchedListener();
+        flushService.sendSyncRequests(syncId, activeShards, state, commitIds, shardId, shardRoutingTable.size(), listener);
         listener.latch.await();
         assertNull(listener.error);
-        SyncedFlushService.SyncedFlushResult syncedFlushResult = listener.result;
+        ShardsSyncedFlushResult syncedFlushResult = listener.result;
         assertNotNull(syncedFlushResult);
         assertEquals(0, syncedFlushResult.successfulShards());
         assertEquals(1, syncedFlushResult.totalShards());
@@ -221,7 +217,6 @@ public class SycnedFlushSingleNodeTest extends ElasticsearchSingleNodeTest {
         assertNotNull(syncedFlushResult.shardResponses().get(activeShards.get(0)));
         assertFalse(syncedFlushResult.shardResponses().get(activeShards.get(0)).success());
         assertEquals("no commit id from pre-sync flush", syncedFlushResult.shardResponses().get(activeShards.get(0)).failureReason());
-        ElasticsearchAssertions.assertVersionSerializable(syncedFlushResult);
     }
 
 

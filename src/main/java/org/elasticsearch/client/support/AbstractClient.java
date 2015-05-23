@@ -180,10 +180,6 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequestBuilder;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
-import org.elasticsearch.action.admin.indices.seal.SealIndicesAction;
-import org.elasticsearch.action.admin.indices.seal.SealIndicesRequest;
-import org.elasticsearch.action.admin.indices.seal.SealIndicesRequestBuilder;
-import org.elasticsearch.action.admin.indices.seal.SealIndicesResponse;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateRequestBuilder;
@@ -1325,21 +1321,6 @@ public abstract class AbstractClient extends AbstractComponent implements Client
         @Override
         public FlushRequestBuilder prepareFlush(String... indices) {
             return new FlushRequestBuilder(this, FlushAction.INSTANCE).setIndices(indices);
-        }
-
-        @Override
-        public ActionFuture<SealIndicesResponse> sealIndices(SealIndicesRequest request) {
-            return execute(SealIndicesAction.INSTANCE, request);
-        }
-
-        @Override
-        public void sealIndices(SealIndicesRequest request, ActionListener<SealIndicesResponse> listener) {
-            execute(SealIndicesAction.INSTANCE, request, listener);
-        }
-
-        @Override
-        public SealIndicesRequestBuilder prepareSealIndices(String... indices) {
-            return new SealIndicesRequestBuilder(this, SealIndicesAction.INSTANCE).indices(indices);
         }
 
         @Override

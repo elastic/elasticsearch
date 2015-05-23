@@ -79,10 +79,8 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineClosedException;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardModule;
-import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.IndexStoreModule;
-import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.index.translog.TranslogWriter;
 import org.elasticsearch.indices.IndicesService;
@@ -90,7 +88,6 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.recovery.RecoverySettings;
-import org.elasticsearch.monitor.sigar.SigarService;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.plugins.PluginsService;
@@ -978,7 +975,7 @@ public final class InternalTestCluster extends TestCluster {
 
     @Override
     public void beforeIndexDeletion() {
-        // Check that the operations counter on index shard has reached 1.
+        // Check that the operations counter on index shard has reached 0.
         // The assumption here is that after a test there are no ongoing write operations.
         // test that have ongoing write operations after the test (for example because ttl is used
         // and not all docs have been purged after the test) and inherit from
@@ -1021,10 +1018,7 @@ public final class InternalTestCluster extends TestCluster {
             IndicesService indexServices = getInstance(IndicesService.class, nodeAndClient.name);
             for (IndexService indexService : indexServices) {
                 for (IndexShard indexShard : indexService) {
-                    assertThat(indexShard.getOperationsCount(), anyOf(equalTo(1), equalTo(0)));
-                    if (indexShard.getOperationsCount() == 0) {
-                        assertThat(indexShard.state(), equalTo(IndexShardState.CLOSED));
-                    }
+                    assertThat(indexShard.getOperationsCount(), equalTo(0));
                 }
             }
         }

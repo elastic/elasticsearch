@@ -1103,6 +1103,20 @@
                 </executions>
             </plugin>
         </plugins>
+      <pluginManagement>
+        <plugins>
+            <plugin>
+               <groupId>org.jacoco</groupId>
+               <artifactId>jacoco-maven-plugin</artifactId>
+               <configuration>
+                 <excludes>
+                   <exclude>jsr166e/**</exclude>
+                   <exclude>org/apache/lucene/**</exclude>
+                 </excludes>
+               </configuration>
+            </plugin>
+        </plugins>
+      </pluginManagement>
     </build>
     <profiles>
         <!-- license profile, to generate third party license file -->
@@ -1115,62 +1129,6 @@
                 </property>
             </activation>
             <!-- not including license-maven-plugin is sufficent to expose default license -->
-        </profile>
-        <!-- jacoco coverage profile.  This will insert -jagent -->
-        <profile>
-            <id>coverage</id>
-            <activation>
-                <property>
-                    <name>tests.coverage</name>
-                    <value>true</value>
-                </property>
-            </activation>
-            <dependencies>
-                <dependency>
-                    <!--  must be on the classpath  -->
-                    <groupId>org.jacoco</groupId>
-                    <artifactId>org.jacoco.agent</artifactId>
-                    <classifier>runtime</classifier>
-                    <version>0.6.4.201312101107</version>
-                    <scope>test</scope>
-                </dependency>
-            </dependencies>
-            <build>
-                <plugins>
-                    <plugin>
-                        <groupId>org.jacoco</groupId>
-                        <artifactId>jacoco-maven-plugin</artifactId>
-                        <version>0.6.4.201312101107</version>
-                        <executions>
-                            <execution>
-                                <id>default-prepare-agent</id>
-                                <goals>
-                                    <goal>prepare-agent</goal>
-                                </goals>
-                            </execution>
-                            <execution>
-                                <id>default-report</id>
-                                <phase>prepare-package</phase>
-                                <goals>
-                                    <goal>report</goal>
-                                </goals>
-                            </execution>
-                            <execution>
-                                <id>default-check</id>
-                                <goals>
-                                    <goal>check</goal>
-                                </goals>
-                            </execution>
-                        </executions>
-                        <configuration>
-                            <excludes>
-                                <exclude>jsr166e/**</exclude>
-                                <exclude>org/apache/lucene/**</exclude>
-                            </excludes>
-                        </configuration>
-                    </plugin>
-                </plugins>
-            </build>
         </profile>
         <profile>
             <id>static</id>

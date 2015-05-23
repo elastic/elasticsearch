@@ -19,6 +19,7 @@
 
 package org.elasticsearch.test.disruption;
 
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.unit.TimeValue;
 
 import java.util.HashSet;
@@ -67,6 +68,7 @@ public class LongGCDisruption extends SingleNodeDisruption {
         return TimeValue.timeValueMillis(0);
     }
 
+    @SuppressForbidden(reason = "stops/resumes threads intentionally")
     protected boolean stopNodeThreads(String node, Set<Thread> nodeThreads) {
         Set<Thread> allThreadsSet = Thread.getAllStackTraces().keySet();
         boolean stopped = false;
@@ -99,6 +101,7 @@ public class LongGCDisruption extends SingleNodeDisruption {
         return stopped;
     }
 
+    @SuppressForbidden(reason = "stops/resumes threads intentionally")
     protected void resumeThreads(Set<Thread> threads) {
         for (Thread thread : threads) {
             thread.resume();

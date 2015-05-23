@@ -10,8 +10,9 @@ trigger flush operations as required in order to clear memory.
 
 [source,js]
 --------------------------------------------------
-$ curl -XPOST 'http://localhost:9200/twitter/_flush'
+POST /twitter/_flush
 --------------------------------------------------
+// AUTOSENSE
 
 [float]
 [[flush-parameters]]
@@ -39,7 +40,152 @@ or even on `_all` the indices.
 
 [source,js]
 --------------------------------------------------
-$ curl -XPOST 'http://localhost:9200/kimchy,elasticsearch/_flush'
+POST /kimchy,elasticsearch/_flush
 
-$ curl -XPOST 'http://localhost:9200/_flush'
+POST /_flush
 --------------------------------------------------
+// AUTOSENSE
+
+[[indices-synced-flush]]
+=== Synced Flush
+
+Elasticsearch tracks the indexing activity of each shards. Shards that have not
+received any indexing operations for, by default, 30m are automatically marked as inactive. This presents
+an opportunity for Elasticsearch to reduce shard resources and also perform
+a special kind of flush, called `synced flush`. A synced flush performs normal
+flushing and adds a special uniquely generated marker (`sync_id`) to all shards.
+
+Since the sync id marker was added when there were no ongoing indexing operations, it can
+be used as a quick way to check if two shards indices are identical. This quick sync id
+comparison (if present) is used during recovery or restarts to skip the first and
+most costly phase of the process. In that case, no segment files need to be copied and
+the transaction log replay phase of the recovery can start immediately. Note that since the sync id
+marker was applied together with a flush, it is highly likely that the transaction log will be empty,
+speeding up recoveries even more.
+
+This is particularly useful for use cases having lots of indices which are
+never or very rarely updated, such as time based data. This use case typically generates lots of indices whose
+recovery without the synced flush marker would take a long time.
+
+To check whether a shard has a marker or not, one can use the `commit` section of shard stats returned by
+the <<indices-stats,indices stats>> API:
+
+[source,bash]
+--------------------------------------------------
+GET /twitter/_stats/commit?level=shards
+--------------------------------------------------
+// AUTOSENSE
+
+[float]
+=== Synced Flush API
+
+The Synced Flush API allows an administrator to initiate a synced flush manually. This can particularly useful for
+a planned (rolling) cluster restart where one can stop indexing and doesn't want to wait for the default 30m to pass
+when the synced flush will be performed automatically.
+
+While handy, there are a couple of caveats for this API:
+
+1. Synced flush is a best effort operation. Any ongoing indexing operations will cause
+the synced flush to fail. This means that some shards may be synced flushed while others aren't. See below for more.
+2. The `sync_id` marker is removed as soon as the shard is flushed again. Uncommitted
+operations in the transaction log do not remove the marker. That is because the marker is store as part
+of a low level lucene commit, representing a point in time snapshot of the segments. In practice, one should consider
+any indexing operation on an index  as removing the marker.
+
+
+[source,bash]
+--------------------------------------------------
+POST /twitter/_flush/synced
+--------------------------------------------------
+// AUTOSENSE
+
+The response contains details about how many shards were successfully synced-flushed and information about any failure.
+
+Here is what it looks like when all shards of a two shards and one replica index successfully
+sync-flushed:
+
+[source,js]
+--------------------------------------------------
+{
+   "_shards": {
+      "total": 4,
+      "successful": 4,
+      "failed": 0
+   },
+   "twitter": {
+      "total": 4,
+      "successful": 4,
+      "failed": 0
+   }
+}
+--------------------------------------------------
+
+
+Here is what it looks like when one shard group failed due to pending operations:
+
+[source,js]
+--------------------------------------------------
+{
+   "_shards": {
+      "total": 4,
+      "successful": 2,
+      "failed": 2
+   },
+   "twitter": {
+      "total": 4,
+      "successful": 2,
+      "failed": 2,
+      "failures": [
+         {
+            "shard": 1,
+            "reason": "[2] ongoing operations on primary"
+         }
+      ]
+   }
+}
+--------------------------------------------------
+
+
+Sometimes the failures are specific to a shard copy, in which case they will be reported as follows:
+
+[source,js]
+--------------------------------------------------
+{
+   "_shards": {
+      "total": 4,
+      "successful": 1,
+      "failed": 1
+   },
+   "twitter": {
+      "total": 4,
+      "successful": 3,
+      "failed": 1,
+      "failures": [
+         {
+            "shard": 1,
+            "reason": "unexpected error",
+            "routing": {
+               "state": "STARTED",
+               "primary": false,
+               "node": "SZNr2J_ORxKTLUCydGX4zA",
+               "relocating_node": null,
+               "shard": 1,
+               "index": "twitter"
+            }
+         }
+      ]
+   }
+}
+--------------------------------------------------
+
+
+The synced flush API can be applied to more than one index with a single call,
+or even on `_all` the indices.
+
+[source,js]
+--------------------------------------------------
+POST /kimchy,elasticsearch/_flush/synced
+
+POST /_flush/synced
+--------------------------------------------------
+// AUTOSENSE

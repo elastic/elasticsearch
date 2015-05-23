@@ -19,6 +19,11 @@
 
 package org.elasticsearch.http;
 
+<<<<<<< HEAD:core/src/main/java/org/elasticsearch/http/HttpServerTransport.java
+=======
+import com.amazonaws.services.s3.AmazonS3;
+import com.amazonaws.services.s3.model.EncryptionMaterials;
+>>>>>>> 98d508f... Add client-side encryption:src/main/java/org/elasticsearch/cloud/aws/AwsS3Service.java
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 
@@ -29,9 +34,15 @@ public interface HttpServerTransport extends LifecycleComponent<HttpServerTransp
 
     BoundTransportAddress boundAddress();
 
+<<<<<<< HEAD:core/src/main/java/org/elasticsearch/http/HttpServerTransport.java
     HttpInfo info();
 
     HttpStats stats();
 
     void httpServerAdapter(HttpServerAdapter httpServerAdapter);
+=======
+    AmazonS3 client(String endpoint, String protocol, String region, String account, String key, Integer maxRetries);
+
+    AmazonS3 client(String endpoint, String protocol, String region, String account, String key, Integer maxRetries, EncryptionMaterials clientSideEncryptionMaterials);
+>>>>>>> 98d508f... Add client-side encryption:src/main/java/org/elasticsearch/cloud/aws/AwsS3Service.java
 }

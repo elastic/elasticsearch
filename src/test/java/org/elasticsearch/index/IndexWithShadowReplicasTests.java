@@ -78,6 +78,7 @@ public class IndexWithShadowReplicasTests extends ElasticsearchIntegrationTest {
                 .put("node.add_id_to_custom_path", false)
                 .put("node.enable_custom_paths", true)
                 .put("gateway.type", "local") // don't delete things!
+                .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES, 6)
                 .put("index.store.fs.fs_lock", randomFrom("native", "simple"))
                 .build();
     }
@@ -681,7 +682,6 @@ public class IndexWithShadowReplicasTests extends ElasticsearchIntegrationTest {
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
                 .put(IndexMetaData.SETTING_DATA_PATH, dataPath.toAbsolutePath().toString())
                 .put(IndexMetaData.SETTING_SHARED_FILESYSTEM, true)
-                .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES, 5)
                 .put(IndexMetaData.SETTING_SHARED_FS_ALLOW_RECOVERY_ON_ANY_NODE, true)
                 .put(includeFoo) // start with requiring the shards on "foo"
                 .build();

@@ -58,7 +58,7 @@ document to not be deleted.
 
 Many times, the routing value is not known when deleting a document. For
 those cases, when specifying the `_routing` mapping as `required`, and
-no routing value is specified, the delete will be broadcasted
+no routing value is specified, the delete will be broadcast
 automatically to all shards.
 
 [float]

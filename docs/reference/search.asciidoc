@@ -85,8 +85,6 @@ include::search/search-template.asciidoc[]
 
 include::search/search-shards.asciidoc[]
 
-include::search/facets.asciidoc[]
-
 include::search/suggesters.asciidoc[]
 
 include::search/multi-search.asciidoc[]

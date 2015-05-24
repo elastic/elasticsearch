@@ -48,7 +48,6 @@ import org.elasticsearch.action.indexedscripts.delete.DeleteIndexedScriptRespons
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.support.Headers;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -67,7 +66,7 @@ import static org.hamcrest.Matchers.*;
  */
 public abstract class AbstractClientHeadersTests extends ElasticsearchTestCase {
 
-    protected static final Settings HEADER_SETTINGS = ImmutableSettings.builder()
+    protected static final Settings HEADER_SETTINGS = Settings.builder()
             .put(Headers.PREFIX + ".key1", "val1")
             .put(Headers.PREFIX + ".key2", "val 2")
             .build();
@@ -90,7 +89,7 @@ public abstract class AbstractClientHeadersTests extends ElasticsearchTestCase {
 
     @Before
     public void initClient() {
-        Settings settings = ImmutableSettings.builder()
+        Settings settings = Settings.builder()
                 .put(HEADER_SETTINGS)
                 .put("path.home", createTempDir().toString())
                 .build();

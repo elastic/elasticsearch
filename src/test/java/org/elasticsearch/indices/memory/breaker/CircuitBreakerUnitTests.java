@@ -20,7 +20,7 @@
 package org.elasticsearch.indices.memory.breaker;
 
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.breaker.BreakerSettings;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
@@ -36,7 +36,7 @@ import static org.hamcrest.Matchers.*;
 public class CircuitBreakerUnitTests extends ElasticsearchTestCase {
 
     public static long pctBytes(String percentString) {
-        return ImmutableSettings.EMPTY.getAsMemory("", percentString).bytes();
+        return Settings.EMPTY.getAsMemory("", percentString).bytes();
     }
 
     @Test
@@ -68,7 +68,7 @@ public class CircuitBreakerUnitTests extends ElasticsearchTestCase {
 
     @Test
     public void testRegisterCustomBreaker() throws Exception {
-        CircuitBreakerService service = new HierarchyCircuitBreakerService(ImmutableSettings.EMPTY, new NodeSettingsService(ImmutableSettings.EMPTY));
+        CircuitBreakerService service = new HierarchyCircuitBreakerService(Settings.EMPTY, new NodeSettingsService(Settings.EMPTY));
         String customName = "custom";
         BreakerSettings settings = new BreakerSettings(customName, 20, 1.0);
         service.registerBreaker(settings);

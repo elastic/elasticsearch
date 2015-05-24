@@ -20,7 +20,6 @@ package org.elasticsearch.index.mapper.parent;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -28,9 +27,7 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
-import org.junit.Test;
 
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
 public class ParentMappingTests extends ElasticsearchSingleNodeTest {
@@ -56,7 +53,7 @@ public class ParentMappingTests extends ElasticsearchSingleNodeTest {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_parent").field("type", "p_type").endObject()
                 .endObject().endObject().string();
-        Settings settings = ImmutableSettings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build();
+        Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build();
         DocumentMapper docMapper = createIndex("test", settings).mapperService().documentMapperParser().parse(mapping);
 
         ParsedDocument doc = docMapper.parse(SourceToParse.source(XContentFactory.jsonBuilder()

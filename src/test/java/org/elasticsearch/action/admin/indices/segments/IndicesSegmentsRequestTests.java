@@ -19,12 +19,9 @@
 
 package org.elasticsearch.action.admin.indices.segments;
 
-import org.elasticsearch.action.ListenableActionFuture;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.Segment;
-import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.junit.Before;
 import org.junit.Test;
@@ -35,7 +32,7 @@ public class IndicesSegmentsRequestTests extends ElasticsearchSingleNodeTest {
     
     @Before
     public void setupIndex() {
-        Settings settings = ImmutableSettings.builder()
+        Settings settings = Settings.builder()
             // don't allow any merges so that the num docs is the expected segments
             .put("index.merge.policy.segments_per_tier", 1000000f)
             .build();

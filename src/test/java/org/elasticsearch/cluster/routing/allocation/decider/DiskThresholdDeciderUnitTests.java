@@ -23,7 +23,6 @@ import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.DiskUsage;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.node.settings.NodeSettingsService;
@@ -42,7 +41,7 @@ public class DiskThresholdDeciderUnitTests extends ElasticsearchTestCase {
 
     @Test
     public void testDynamicSettings() {
-        NodeSettingsService nss = new NodeSettingsService(ImmutableSettings.EMPTY);
+        NodeSettingsService nss = new NodeSettingsService(Settings.EMPTY);
 
         ClusterInfoService cis = new ClusterInfoService() {
             @Override
@@ -57,7 +56,7 @@ public class DiskThresholdDeciderUnitTests extends ElasticsearchTestCase {
                 // noop
             }
         };
-        DiskThresholdDecider decider = new DiskThresholdDecider(ImmutableSettings.EMPTY, nss, cis, null);
+        DiskThresholdDecider decider = new DiskThresholdDecider(Settings.EMPTY, nss, cis, null);
 
         assertThat(decider.getFreeBytesThresholdHigh(), equalTo(ByteSizeValue.parseBytesSizeValue("0b")));
         assertThat(decider.getFreeDiskThresholdHigh(), equalTo(10.0d));
@@ -69,7 +68,7 @@ public class DiskThresholdDeciderUnitTests extends ElasticsearchTestCase {
 
         DiskThresholdDecider.ApplySettings applySettings = decider.newApplySettings();
 
-        Settings newSettings = ImmutableSettings.builder()
+        Settings newSettings = Settings.builder()
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED, false)
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS, false)
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK, "70%")

@@ -25,7 +25,7 @@ import org.elasticsearch.cluster.routing.MutableShardRouting;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.index.IndexService;
@@ -45,7 +45,7 @@ import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
-import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
@@ -110,7 +110,7 @@ public class IndexShardTests extends ElasticsearchSingleNodeTest {
         logger.info("--> paths: [{}]", shardPaths);
         // Should not be able to acquire the lock because it's already open
         try {
-            NodeEnvironment.acquireFSLockForPaths(ImmutableSettings.EMPTY, shardPaths);
+            NodeEnvironment.acquireFSLockForPaths(Settings.EMPTY, shardPaths);
             fail("should not have been able to acquire the lock");
         } catch (ElasticsearchException e) {
             assertTrue("msg: " + e.getMessage(), e.getMessage().contains("unable to acquire write.lock"));
@@ -120,7 +120,7 @@ public class IndexShardTests extends ElasticsearchSingleNodeTest {
         // we're green to delete the shard's directory)
         ShardLock sLock = new DummyShardLock(new ShardId("test", 0));
         try {
-            env.deleteShardDirectoryUnderLock(sLock, ImmutableSettings.builder().build());
+            env.deleteShardDirectoryUnderLock(sLock, Settings.builder().build());
             fail("should not have been able to delete the directory");
         } catch (ElasticsearchException e) {
             assertTrue("msg: " + e.getMessage(), e.getMessage().contains("unable to acquire write.lock"));
@@ -232,7 +232,7 @@ public class IndexShardTests extends ElasticsearchSingleNodeTest {
 
     @Test
     public void testDeleteIndexDecreasesCounter() throws InterruptedException, ExecutionException, IOException {
-        assertAcked(client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0)).get());
+        assertAcked(client().admin().indices().prepareCreate("test").setSettings(Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0)).get());
         ensureGreen("test");
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         IndexService indexService = indicesService.indexServiceSafe("test");
@@ -249,7 +249,7 @@ public class IndexShardTests extends ElasticsearchSingleNodeTest {
 
     @Test
     public void testIndexShardCounter() throws InterruptedException, ExecutionException, IOException {
-        assertAcked(client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0)).get());
+        assertAcked(client().admin().indices().prepareCreate("test").setSettings(Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0)).get());
         ensureGreen("test");
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         IndexService indexService = indicesService.indexServiceSafe("test");

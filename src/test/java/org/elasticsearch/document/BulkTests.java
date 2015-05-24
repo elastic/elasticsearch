@@ -38,7 +38,7 @@ import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -386,7 +386,7 @@ public class BulkTests extends ElasticsearchIntegrationTest {
         internalCluster().ensureAtLeastNumDataNodes(1 + replica);
 
         assertAcked(prepareCreate("test").setSettings(
-                ImmutableSettings.builder()
+                Settings.builder()
                         .put(indexSettings())
                         .put("index.number_of_replicas", replica)
         ));

@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.recovery;
 
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.junit.Test;
@@ -116,12 +116,12 @@ public class RecoverySettingsTest extends ElasticsearchSingleNodeTest {
     }
 
     private void innerTestSettings(String key, int newValue, Validator validator) {
-        client().admin().cluster().prepareUpdateSettings().setTransientSettings(ImmutableSettings.builder().put(key, newValue)).get();
+        client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder().put(key, newValue)).get();
         validator.validate(getInstanceFromNode(RecoverySettings.class), newValue);
     }
 
     private void innerTestSettings(String key, boolean newValue, Validator validator) {
-        client().admin().cluster().prepareUpdateSettings().setTransientSettings(ImmutableSettings.builder().put(key, newValue)).get();
+        client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder().put(key, newValue)).get();
         validator.validate(getInstanceFromNode(RecoverySettings.class), newValue);
     }
 

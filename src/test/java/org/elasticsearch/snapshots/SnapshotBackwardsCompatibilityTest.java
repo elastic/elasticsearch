@@ -18,10 +18,8 @@
  */
 package org.elasticsearch.snapshots;
 
-import com.carrotsearch.randomizedtesting.LifecycleScope;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
-import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotIndexShardStatus;
@@ -33,9 +31,8 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.io.FileSystemUtils;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchBackwardsCompatIntegrationTest;
-import org.junit.Ignore;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -58,7 +55,7 @@ public class SnapshotBackwardsCompatibilityTest extends ElasticsearchBackwardsCo
     public void testSnapshotAndRestore() throws ExecutionException, InterruptedException, IOException {
         logger.info("-->  creating repository");
         assertAcked(client().admin().cluster().preparePutRepository("test-repo")
-                .setType("fs").setSettings(ImmutableSettings.settingsBuilder()
+                .setType("fs").setSettings(Settings.settingsBuilder()
                         .put("location", randomRepoPath().toAbsolutePath())
                         .put("compress", randomBoolean())
                         .put("chunk_size", randomIntBetween(100, 1000))));
@@ -113,7 +110,7 @@ public class SnapshotBackwardsCompatibilityTest extends ElasticsearchBackwardsCo
         assertThat(client().prepareCount(indices).get().getCount(), lessThan((long) (buildersBefore.length + buildersAfter.length)));
 
 
-        client().admin().indices().prepareUpdateSettings(indices).setSettings(ImmutableSettings.builder().put(EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE, "none")).get();
+        client().admin().indices().prepareUpdateSettings(indices).setSettings(Settings.builder().put(EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE, "none")).get();
         backwardsCluster().allowOnAllNodes(indices);
         logClusterState();
         boolean upgraded;
@@ -126,7 +123,7 @@ public class SnapshotBackwardsCompatibilityTest extends ElasticsearchBackwardsCo
             countResponse = client().prepareCount().get();
             assertHitCount(countResponse, numDocs);
         } while (upgraded);
-        client().admin().indices().prepareUpdateSettings(indices).setSettings(ImmutableSettings.builder().put(EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE, "all")).get();
+        client().admin().indices().prepareUpdateSettings(indices).setSettings(Settings.builder().put(EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE, "all")).get();
 
         logger.info("--> close indices");
         client().admin().indices().prepareClose("index_before_*").get();
@@ -168,13 +165,13 @@ public class SnapshotBackwardsCompatibilityTest extends ElasticsearchBackwardsCo
         final Path tempDir = randomRepoPath().toAbsolutePath();
         logger.info("-->  creating repository");
         assertAcked(client.admin().cluster().preparePutRepository("test-repo")
-                .setType("fs").setSettings(ImmutableSettings.settingsBuilder()
+                .setType("fs").setSettings(Settings.settingsBuilder()
                         .put("location", tempDir)
                         .put("compress", randomBoolean())
                         .put("chunk_size", randomIntBetween(100, 1000))));
 
         // only one shard
-        assertAcked(prepareCreate("test").setSettings(ImmutableSettings.builder()
+        assertAcked(prepareCreate("test").setSettings(Settings.builder()
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
         ));
@@ -203,7 +200,7 @@ public class SnapshotBackwardsCompatibilityTest extends ElasticsearchBackwardsCo
         }
         if (frequently()) {
             logger.info("-->  upgrade");
-            client().admin().indices().prepareUpdateSettings("test").setSettings(ImmutableSettings.builder().put(EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE, "none")).get();
+            client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder().put(EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE, "none")).get();
             backwardsCluster().allowOnAllNodes("test");
             logClusterState();
             boolean upgraded;
@@ -216,11 +213,11 @@ public class SnapshotBackwardsCompatibilityTest extends ElasticsearchBackwardsCo
                 countResponse = client().prepareCount().get();
                 assertHitCount(countResponse, numDocs);
             } while (upgraded);
-            client().admin().indices().prepareUpdateSettings("test").setSettings(ImmutableSettings.builder().put(EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE, "all")).get();
+            client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder().put(EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE, "all")).get();
         }
         if (cluster().numDataNodes() > 1 && randomBoolean()) { // only bump the replicas if we have enough nodes
             logger.info("--> move from 0 to 1 replica");
-            client().admin().indices().prepareUpdateSettings("test").setSettings(ImmutableSettings.builder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)).get();
+            client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)).get();
         }
         logger.debug("---> repo exists: " + Files.exists(tempDir.resolve("indices/test/0")) + " files: " + Arrays.toString(FileSystemUtils.files(tempDir.resolve("indices/test/0")))); // it's only one shard!
         CreateSnapshotResponse createSnapshotResponseSecond = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-1").setWaitForCompletion(true).setIndices("test").get();

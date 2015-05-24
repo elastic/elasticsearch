@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.fielddata;
 
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.FieldMapper.Loading;
 
@@ -36,7 +35,7 @@ public class FieldDataType {
     private final Settings settings;
 
     public FieldDataType(String type) {
-        this(type, ImmutableSettings.Builder.EMPTY_SETTINGS);
+        this(type, Settings.Builder.EMPTY_SETTINGS);
     }
 
     public FieldDataType(String type, Settings.Builder builder) {

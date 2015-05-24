@@ -25,7 +25,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.MoreLikeThisQueryBuilder;
@@ -199,7 +199,7 @@ public class MoreLikeThisTests extends ElasticsearchIntegrationTest {
                 .endObject()
                 .endObject().endObject().string();
         assertAcked(prepareCreate("foo", 2,
-                ImmutableSettings.builder().put(SETTING_NUMBER_OF_SHARDS, 2).put(SETTING_NUMBER_OF_REPLICAS, 0))
+                Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 2).put(SETTING_NUMBER_OF_REPLICAS, 0))
                 .addMapping("bar", mapping));
         ensureGreen();
 

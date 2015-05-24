@@ -22,14 +22,13 @@ package org.elasticsearch.cluster.allocation;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocatorModule;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 
 import java.io.IOException;
 
-import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.*;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -37,7 +36,7 @@ import static org.hamcrest.Matchers.instanceOf;
 public class ShardsAllocatorModuleTests extends ElasticsearchIntegrationTest {
 
     public void testLoadDefaultShardsAllocator() throws IOException {
-        assertAllocatorInstance(ImmutableSettings.Builder.EMPTY_SETTINGS, BalancedShardsAllocator.class);
+        assertAllocatorInstance(Settings.Builder.EMPTY_SETTINGS, BalancedShardsAllocator.class);
     }
 
     public void testLoadByShortKeyShardsAllocator() throws IOException {

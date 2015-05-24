@@ -20,7 +20,7 @@ package org.elasticsearch.index.analysis;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.analysis.PreBuiltTokenFilters;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
@@ -36,9 +36,9 @@ public class PreBuiltTokenFilterFactoryFactoryTests extends ElasticsearchTestCas
     public void testThatCachingWorksForCachingStrategyOne() {
         PreBuiltTokenFilterFactoryFactory factory = new PreBuiltTokenFilterFactoryFactory(PreBuiltTokenFilters.WORD_DELIMITER.getTokenFilterFactory(Version.CURRENT));
 
-        TokenFilterFactory former090TokenizerFactory = factory.create("word_delimiter", ImmutableSettings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_0_90_1).build());
-        TokenFilterFactory former090TokenizerFactoryCopy = factory.create("word_delimiter", ImmutableSettings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_0_90_2).build());
-        TokenFilterFactory currentTokenizerFactory = factory.create("word_delimiter", ImmutableSettings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build());
+        TokenFilterFactory former090TokenizerFactory = factory.create("word_delimiter", Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_0_90_1).build());
+        TokenFilterFactory former090TokenizerFactoryCopy = factory.create("word_delimiter", Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_0_90_2).build());
+        TokenFilterFactory currentTokenizerFactory = factory.create("word_delimiter", Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build());
 
         assertThat(currentTokenizerFactory, is(former090TokenizerFactory));
         assertThat(currentTokenizerFactory, is(former090TokenizerFactoryCopy));
@@ -48,9 +48,9 @@ public class PreBuiltTokenFilterFactoryFactoryTests extends ElasticsearchTestCas
     public void testThatDifferentVersionsCanBeLoaded() {
         PreBuiltTokenFilterFactoryFactory factory = new PreBuiltTokenFilterFactoryFactory(PreBuiltTokenFilters.STOP.getTokenFilterFactory(Version.CURRENT));
 
-        TokenFilterFactory former090TokenizerFactory = factory.create("stop", ImmutableSettings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_0_90_1).build());
-        TokenFilterFactory former090TokenizerFactoryCopy = factory.create("stop", ImmutableSettings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_0_90_2).build());
-        TokenFilterFactory currentTokenizerFactory = factory.create("stop", ImmutableSettings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build());
+        TokenFilterFactory former090TokenizerFactory = factory.create("stop", Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_0_90_1).build());
+        TokenFilterFactory former090TokenizerFactoryCopy = factory.create("stop", Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_0_90_2).build());
+        TokenFilterFactory currentTokenizerFactory = factory.create("stop", Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build());
 
         assertThat(currentTokenizerFactory, is(not(former090TokenizerFactory)));
         assertThat(former090TokenizerFactory, is(former090TokenizerFactoryCopy));

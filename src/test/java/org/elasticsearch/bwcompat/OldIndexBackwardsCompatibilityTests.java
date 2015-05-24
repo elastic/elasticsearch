@@ -33,7 +33,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.MultiDataPathUpgrader;
@@ -110,7 +109,7 @@ public class OldIndexBackwardsCompatibilityTests extends ElasticsearchIntegratio
 
     @Override
     public Settings nodeSettings(int ord) {
-        return ImmutableSettings.builder()
+        return Settings.builder()
                 .put(Node.HTTP_ENABLED, true) // for _upgrade
                 .put(MergePolicyModule.MERGE_POLICY_TYPE_KEY, NoMergePolicyProvider.class) // disable merging so no segments will be upgraded
                 .put(RecoverySettings.INDICES_RECOVERY_CONCURRENT_SMALL_FILE_STREAMS, 30) // increase recovery speed for small files
@@ -122,13 +121,13 @@ public class OldIndexBackwardsCompatibilityTests extends ElasticsearchIntegratio
 
         Path baseTempDir = createTempDir();
         // start single data path node
-        ImmutableSettings.Builder nodeSettings = ImmutableSettings.builder()
+        Settings.Builder nodeSettings = Settings.builder()
             .put("path.data", baseTempDir.resolve("single-path").toAbsolutePath())
             .put("node.master", false); // workaround for dangling index loading issue when node is master
         ListenableFuture<String> singleDataPathNode = internalCluster().startNodeAsync(nodeSettings.build());
 
         // start multi data path node
-        nodeSettings = ImmutableSettings.builder()
+        nodeSettings = Settings.builder()
             .put("path.data", baseTempDir.resolve("multi-path1").toAbsolutePath() + "," + baseTempDir.resolve("multi-path2").toAbsolutePath())
             .put("node.master", false); // workaround for dangling index loading issue when node is master
         ListenableFuture<String> multiDataPathNode = internalCluster().startNodeAsync(nodeSettings.build());
@@ -396,7 +395,7 @@ public class OldIndexBackwardsCompatibilityTests extends ElasticsearchIntegratio
     }
 
     void assertRealtimeGetWorks(String indexName) {
-        assertAcked(client().admin().indices().prepareUpdateSettings(indexName).setSettings(ImmutableSettings.builder()
+        assertAcked(client().admin().indices().prepareUpdateSettings(indexName).setSettings(Settings.builder()
                 .put("refresh_interval", -1)
                 .build()));
         SearchRequestBuilder searchReq = client().prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery());
@@ -408,7 +407,7 @@ public class OldIndexBackwardsCompatibilityTests extends ElasticsearchIntegratio
         Map<String, Object> source = getRsp.getSourceAsMap();
         assertThat(source, Matchers.hasKey("foo"));
 
-        assertAcked(client().admin().indices().prepareUpdateSettings(indexName).setSettings(ImmutableSettings.builder()
+        assertAcked(client().admin().indices().prepareUpdateSettings(indexName).setSettings(Settings.builder()
                 .put("refresh_interval", EngineConfig.DEFAULT_REFRESH_INTERVAL)
                 .build()));
     }
@@ -417,7 +416,7 @@ public class OldIndexBackwardsCompatibilityTests extends ElasticsearchIntegratio
         final int numReplicas = 1;
         final long startTime = System.currentTimeMillis();
         logger.debug("--> creating [{}] replicas for index [{}]", numReplicas, indexName);
-        assertAcked(client().admin().indices().prepareUpdateSettings(indexName).setSettings(ImmutableSettings.builder()
+        assertAcked(client().admin().indices().prepareUpdateSettings(indexName).setSettings(Settings.builder()
                         .put("number_of_replicas", numReplicas)
         ).execute().actionGet());
         ensureGreen(TimeValue.timeValueMinutes(2), indexName);

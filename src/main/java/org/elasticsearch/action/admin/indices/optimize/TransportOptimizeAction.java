@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.indices.optimize;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;

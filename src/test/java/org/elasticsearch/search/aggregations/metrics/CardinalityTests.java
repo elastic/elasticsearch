@@ -21,7 +21,6 @@ package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
@@ -45,7 +44,7 @@ public class CardinalityTests extends ElasticsearchIntegrationTest {
 
     @Override
     public Settings indexSettings() {
-        return ImmutableSettings.builder()
+        return Settings.builder()
                 .put("index.number_of_shards", numberOfShards())
                 .put("index.number_of_replicas", numberOfReplicas())
                 .build();

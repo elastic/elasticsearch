@@ -30,7 +30,6 @@ import org.elasticsearch.cluster.routing.*;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.DiscoveryService;
@@ -50,7 +49,7 @@ import java.util.Arrays;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
@@ -63,7 +62,7 @@ public class IndicesStoreIntegrationTests extends ElasticsearchIntegrationTest {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) { // simplify this and only use a single data path
-        return ImmutableSettings.settingsBuilder().put(super.nodeSettings(nodeOrdinal)).put("path.data", "")
+        return Settings.settingsBuilder().put(super.nodeSettings(nodeOrdinal)).put("path.data", "")
                 // by default this value is 1 sec in tests (30 sec in practice) but we adding disruption here
                 // which is between 1 and 2 sec can cause each of the shard deletion requests to timeout.
                 // to prevent this we are setting the timeout here to something highish ie. the default in practice
@@ -79,12 +78,12 @@ public class IndicesStoreIntegrationTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void indexCleanup() throws Exception {
-        final String masterNode = internalCluster().startNode(ImmutableSettings.builder().put("node.data", false));
-        final String node_1 = internalCluster().startNode(ImmutableSettings.builder().put("node.master", false));
-        final String node_2 = internalCluster().startNode(ImmutableSettings.builder().put("node.master", false));
+        final String masterNode = internalCluster().startNode(Settings.builder().put("node.data", false));
+        final String node_1 = internalCluster().startNode(Settings.builder().put("node.master", false));
+        final String node_2 = internalCluster().startNode(Settings.builder().put("node.master", false));
         logger.info("--> creating index [test] with one shard and on replica");
         assertAcked(prepareCreate("test").setSettings(
-                        ImmutableSettings.builder().put(indexSettings())
+                        Settings.builder().put(indexSettings())
                                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1))
         );
@@ -97,7 +96,7 @@ public class IndicesStoreIntegrationTests extends ElasticsearchIntegrationTest {
         assertThat(Files.exists(indexDirectory(node_2, "test")), equalTo(true));
 
         logger.info("--> starting node server3");
-        final String node_3 = internalCluster().startNode(ImmutableSettings.builder().put("node.master", false));
+        final String node_3 = internalCluster().startNode(Settings.builder().put("node.master", false));
         logger.info("--> running cluster_health");
         ClusterHealthResponse clusterHealth = client().admin().cluster().prepareHealth()
                 .setWaitForNodes("4")
@@ -140,7 +139,7 @@ public class IndicesStoreIntegrationTests extends ElasticsearchIntegrationTest {
         final String node_2 = internalCluster().startNode();
         logger.info("--> creating index [test] with one shard and on replica");
         assertAcked(prepareCreate("test").setSettings(
-                        ImmutableSettings.builder().put(indexSettings())
+                        Settings.builder().put(indexSettings())
                                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1))
         );
@@ -198,8 +197,8 @@ public class IndicesStoreIntegrationTests extends ElasticsearchIntegrationTest {
     public void testShardActiveElseWhere() throws Exception {
         boolean node1IsMasterEligible = randomBoolean();
         boolean node2IsMasterEligible = !node1IsMasterEligible || randomBoolean();
-        Future<String> node_1_future = internalCluster().startNodeAsync(ImmutableSettings.builder().put("node.master", node1IsMasterEligible).build());
-        Future<String> node_2_future = internalCluster().startNodeAsync(ImmutableSettings.builder().put("node.master", node2IsMasterEligible).build());
+        Future<String> node_1_future = internalCluster().startNodeAsync(Settings.builder().put("node.master", node1IsMasterEligible).build());
+        Future<String> node_2_future = internalCluster().startNodeAsync(Settings.builder().put("node.master", node2IsMasterEligible).build());
         final String node_1 = node_1_future.get();
         final String node_2 = node_2_future.get();
         final String node_1_id = internalCluster().getInstance(DiscoveryService.class, node_1).localNode().getId();
@@ -210,7 +209,7 @@ public class IndicesStoreIntegrationTests extends ElasticsearchIntegrationTest {
         logger.debug("node {} became master", internalCluster().getMasterName());
         final int numShards = scaledRandomIntBetween(2, 20);
         assertAcked(prepareCreate("test")
-                        .setSettings(ImmutableSettings.builder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0).put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, numShards))
+                        .setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0).put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, numShards))
         );
         ensureGreen("test");
 

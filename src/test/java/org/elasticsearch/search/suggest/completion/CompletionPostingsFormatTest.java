@@ -52,7 +52,6 @@ import org.apache.lucene.util.LineFileDocs;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.codec.postingsformat.Elasticsearch090PostingsFormat;
@@ -78,7 +77,7 @@ import static org.hamcrest.Matchers.is;
 
 public class CompletionPostingsFormatTest extends ElasticsearchTestCase {
     
-    Settings indexSettings = ImmutableSettings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
+    Settings indexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
 
     @Test
     public void testCompletionPostingsFormat() throws IOException {

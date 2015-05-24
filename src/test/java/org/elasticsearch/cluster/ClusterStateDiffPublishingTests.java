@@ -30,7 +30,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoverySettings;
@@ -96,7 +95,7 @@ public class ClusterStateDiffPublishingTests extends ElasticsearchTestCase {
 
     public MockNode createMockNode(String name, Settings settings, Version version, PublishClusterStateAction.NewClusterStateListener listener) throws Exception {
         MockTransportService service = buildTransportService(
-                ImmutableSettings.builder().put(settings).put("name", name, TransportService.SETTING_TRACE_LOG_INCLUDE, "", TransportService.SETTING_TRACE_LOG_EXCLUDE, "NOTHING").build(),
+                Settings.builder().put(settings).put("name", name, TransportService.SETTING_TRACE_LOG_INCLUDE, "", TransportService.SETTING_TRACE_LOG_EXCLUDE, "NOTHING").build(),
                 version
         );
         DiscoveryNode discoveryNode = new DiscoveryNode(name, name, service.boundAddress().publishAddress(), ImmutableMap.<String, String>of(), version);
@@ -210,10 +209,10 @@ public class ClusterStateDiffPublishingTests extends ElasticsearchTestCase {
     @TestLogging("cluster:DEBUG,discovery.zen.publish:DEBUG")
     public void testSimpleClusterStatePublishing() throws Exception {
         MockNewClusterStateListener mockListenerA = new MockNewClusterStateListener();
-        MockNode nodeA = createMockNode("nodeA", ImmutableSettings.EMPTY, Version.CURRENT, mockListenerA);
+        MockNode nodeA = createMockNode("nodeA", Settings.EMPTY, Version.CURRENT, mockListenerA);
 
         MockNewClusterStateListener mockListenerB = new MockNewClusterStateListener();
-        MockNode nodeB = createMockNode("nodeB", ImmutableSettings.EMPTY, Version.CURRENT, mockListenerB);
+        MockNode nodeB = createMockNode("nodeB", Settings.EMPTY, Version.CURRENT, mockListenerB);
 
         // Initial cluster state
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().put(nodeA.discoveryNode).localNodeId(nodeA.discoveryNode.id()).build();
@@ -258,7 +257,7 @@ public class ClusterStateDiffPublishingTests extends ElasticsearchTestCase {
         // Adding new node - this node should get full cluster state while nodeB should still be getting diffs
 
         MockNewClusterStateListener mockListenerC = new MockNewClusterStateListener();
-        MockNode nodeC = createMockNode("nodeC", ImmutableSettings.EMPTY, Version.CURRENT, mockListenerC);
+        MockNode nodeC = createMockNode("nodeC", Settings.EMPTY, Version.CURRENT, mockListenerC);
 
         // cluster state update 3 - register node C
         previousClusterState = clusterState;
@@ -282,7 +281,7 @@ public class ClusterStateDiffPublishingTests extends ElasticsearchTestCase {
 
         // cluster state update 4 - update settings
         previousClusterState = clusterState;
-        MetaData metaData = MetaData.builder(clusterState.metaData()).transientSettings(ImmutableSettings.settingsBuilder().put("foo", "bar").build()).build();
+        MetaData metaData = MetaData.builder(clusterState.metaData()).transientSettings(Settings.settingsBuilder().put("foo", "bar").build()).build();
         clusterState = ClusterState.builder(clusterState).metaData(metaData).incrementVersion().build();
         NewClusterStateExpectation expectation = new NewClusterStateExpectation() {
             @Override
@@ -344,7 +343,7 @@ public class ClusterStateDiffPublishingTests extends ElasticsearchTestCase {
     @TestLogging("cluster:DEBUG,discovery.zen.publish:DEBUG")
     public void testUnexpectedDiffPublishing() throws Exception {
 
-        MockNode nodeA = createMockNode("nodeA", ImmutableSettings.EMPTY, Version.CURRENT, new PublishClusterStateAction.NewClusterStateListener() {
+        MockNode nodeA = createMockNode("nodeA", Settings.EMPTY, Version.CURRENT, new PublishClusterStateAction.NewClusterStateListener() {
             @Override
             public void onNewClusterState(ClusterState clusterState, NewStateProcessed newStateProcessed) {
                 fail("Shouldn't send cluster state to myself");
@@ -352,7 +351,7 @@ public class ClusterStateDiffPublishingTests extends ElasticsearchTestCase {
         });
 
         MockNewClusterStateListener mockListenerB = new MockNewClusterStateListener();
-        MockNode nodeB = createMockNode("nodeB", ImmutableSettings.EMPTY, Version.CURRENT, mockListenerB);
+        MockNode nodeB = createMockNode("nodeB", Settings.EMPTY, Version.CURRENT, mockListenerB);
 
         // Initial cluster state with both states - the second node still shouldn't get diff even though it's present in the previous cluster state
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().put(nodeA.discoveryNode).put(nodeB.discoveryNode).localNodeId(nodeA.discoveryNode.id()).build();
@@ -381,7 +380,7 @@ public class ClusterStateDiffPublishingTests extends ElasticsearchTestCase {
     @Test
     @TestLogging("cluster:DEBUG,discovery.zen.publish:DEBUG")
     public void testDisablingDiffPublishing() throws Exception {
-        Settings noDiffPublishingSettings = ImmutableSettings.builder().put(DiscoverySettings.PUBLISH_DIFF_ENABLE, false).build();
+        Settings noDiffPublishingSettings = Settings.builder().put(DiscoverySettings.PUBLISH_DIFF_ENABLE, false).build();
 
         MockNode nodeA = createMockNode("nodeA", noDiffPublishingSettings, Version.CURRENT, new PublishClusterStateAction.NewClusterStateListener() {
             @Override
@@ -421,7 +420,7 @@ public class ClusterStateDiffPublishingTests extends ElasticsearchTestCase {
     public void testSimultaneousClusterStatePublishing() throws Exception {
         int numberOfNodes = randomIntBetween(2, 10);
         int numberOfIterations = randomIntBetween(50, 200);
-        Settings settings = ImmutableSettings.builder().put(DiscoverySettings.PUBLISH_TIMEOUT, "100ms").put(DiscoverySettings.PUBLISH_DIFF_ENABLE, true).build();
+        Settings settings = Settings.builder().put(DiscoverySettings.PUBLISH_TIMEOUT, "100ms").put(DiscoverySettings.PUBLISH_DIFF_ENABLE, true).build();
         MockNode[] nodes = new MockNode[numberOfNodes];
         DiscoveryNodes.Builder discoveryNodesBuilder = DiscoveryNodes.builder();
         for (int i = 0; i < nodes.length; i++) {
@@ -465,7 +464,7 @@ public class ClusterStateDiffPublishingTests extends ElasticsearchTestCase {
     @TestLogging("cluster:DEBUG,discovery.zen.publish:DEBUG")
     public void testSerializationFailureDuringDiffPublishing() throws Exception {
 
-        MockNode nodeA = createMockNode("nodeA", ImmutableSettings.EMPTY, Version.CURRENT, new PublishClusterStateAction.NewClusterStateListener() {
+        MockNode nodeA = createMockNode("nodeA", Settings.EMPTY, Version.CURRENT, new PublishClusterStateAction.NewClusterStateListener() {
             @Override
             public void onNewClusterState(ClusterState clusterState, NewStateProcessed newStateProcessed) {
                 fail("Shouldn't send cluster state to myself");
@@ -473,7 +472,7 @@ public class ClusterStateDiffPublishingTests extends ElasticsearchTestCase {
         });
 
         MockNewClusterStateListener mockListenerB = new MockNewClusterStateListener();
-        MockNode nodeB = createMockNode("nodeB", ImmutableSettings.EMPTY, Version.CURRENT, mockListenerB);
+        MockNode nodeB = createMockNode("nodeB", Settings.EMPTY, Version.CURRENT, mockListenerB);
 
         // Initial cluster state with both states - the second node still shouldn't get diff even though it's present in the previous cluster state
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().put(nodeA.discoveryNode).put(nodeB.discoveryNode).localNodeId(nodeA.discoveryNode.id()).build();
@@ -521,10 +520,10 @@ public class ClusterStateDiffPublishingTests extends ElasticsearchTestCase {
 
     private MetaData buildMetaDataForVersion(MetaData metaData, long version) {
         ImmutableOpenMap.Builder<String, IndexMetaData> indices = ImmutableOpenMap.builder(metaData.indices());
-        indices.put("test" + version, IndexMetaData.builder("test" + version).settings(ImmutableSettings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
+        indices.put("test" + version, IndexMetaData.builder("test" + version).settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
                 .numberOfShards((int) version).numberOfReplicas(0).build());
         return MetaData.builder(metaData)
-                .transientSettings(ImmutableSettings.builder().put("test", version).build())
+                .transientSettings(Settings.builder().put("test", version).build())
                 .indices(indices.build())
                 .build();
     }

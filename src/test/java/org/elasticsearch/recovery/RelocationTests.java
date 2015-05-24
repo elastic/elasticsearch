@@ -24,7 +24,6 @@ import com.carrotsearch.hppc.procedures.IntProcedure;
 import com.google.common.base.Predicate;
 import com.google.common.util.concurrent.ListenableFuture;
 import org.apache.lucene.index.IndexFileNames;
-import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
@@ -33,10 +32,8 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -45,11 +42,9 @@ import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDeci
 import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.DiscoveryService;
-import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
@@ -80,7 +75,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
@@ -95,7 +90,7 @@ public class RelocationTests extends ElasticsearchIntegrationTest {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return ImmutableSettings.builder()
+        return Settings.builder()
                 .put(TransportModule.TRANSPORT_SERVICE_TYPE_KEY, MockTransportService.class.getName()).build();
     }
 
@@ -107,7 +102,7 @@ public class RelocationTests extends ElasticsearchIntegrationTest {
 
         logger.info("--> creating test index ...");
         client().admin().indices().prepareCreate("test")
-                .setSettings(ImmutableSettings.settingsBuilder()
+                .setSettings(Settings.settingsBuilder()
                                 .put("index.number_of_shards", 1)
                                 .put("index.number_of_replicas", 0)
                 )
@@ -363,9 +358,9 @@ public class RelocationTests extends ElasticsearchIntegrationTest {
     public void testMoveShardsWhileRelocation() throws Exception {
         final String indexName = "test";
 
-        ListenableFuture<String> blueFuture = internalCluster().startNodeAsync(ImmutableSettings.builder().put("node.color", "blue").build());
-        ListenableFuture<String> redFuture = internalCluster().startNodeAsync(ImmutableSettings.builder().put("node.color", "red").build());
-        internalCluster().startNode(ImmutableSettings.builder().put("node.color", "green").build());
+        ListenableFuture<String> blueFuture = internalCluster().startNodeAsync(Settings.builder().put("node.color", "blue").build());
+        ListenableFuture<String> redFuture = internalCluster().startNodeAsync(Settings.builder().put("node.color", "red").build());
+        internalCluster().startNode(Settings.builder().put("node.color", "green").build());
         final String blueNodeName = blueFuture.get();
         final String redNodeName = redFuture.get();
 
@@ -375,7 +370,7 @@ public class RelocationTests extends ElasticsearchIntegrationTest {
 
         client().admin().indices().prepareCreate(indexName)
                 .setSettings(
-                        ImmutableSettings.builder()
+                        Settings.builder()
                                 .put(FilterAllocationDecider.INDEX_ROUTING_INCLUDE_GROUP + "color", "blue")
                                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
                 ).get();
@@ -400,7 +395,7 @@ public class RelocationTests extends ElasticsearchIntegrationTest {
         IndicesStatsResponse statsResponse = client().admin().indices().prepareStats(indexName).get();
         long chunkSize = statsResponse.getIndex(indexName).getShards()[0].getStats().getStore().size().bytes() / 10;
         assertTrue(client().admin().cluster().prepareUpdateSettings()
-                .setTransientSettings(ImmutableSettings.builder()
+                .setTransientSettings(Settings.builder()
                                 // one chunk per sec..
                                 .put(RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC, chunkSize)
                                 .put(RecoverySettings.INDICES_RECOVERY_FILE_CHUNK_SIZE, chunkSize)
@@ -408,7 +403,7 @@ public class RelocationTests extends ElasticsearchIntegrationTest {
                 .get().isAcknowledged());
 
         client().admin().indices().prepareUpdateSettings(indexName).setSettings(
-                ImmutableSettings.builder().put(FilterAllocationDecider.INDEX_ROUTING_INCLUDE_GROUP + "color", "red")
+                Settings.builder().put(FilterAllocationDecider.INDEX_ROUTING_INCLUDE_GROUP + "color", "red")
         ).get();
 
         // Lets wait a bit and then move again to hopefully trigger recovery cancellations.
@@ -424,12 +419,12 @@ public class RelocationTests extends ElasticsearchIntegrationTest {
         );
         assertTrue(applied);
         client().admin().indices().prepareUpdateSettings(indexName).setSettings(
-                ImmutableSettings.builder().put(FilterAllocationDecider.INDEX_ROUTING_INCLUDE_GROUP + "color", "green")
+                Settings.builder().put(FilterAllocationDecider.INDEX_ROUTING_INCLUDE_GROUP + "color", "green")
         ).get();
 
         // Restore the recovery speed to not timeout cluster health call
         assertTrue(client().admin().cluster().prepareUpdateSettings()
-                .setTransientSettings(ImmutableSettings.builder()
+                .setTransientSettings(Settings.builder()
                                 .put(RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC, "20mb")
                                 .put(RecoverySettings.INDICES_RECOVERY_FILE_CHUNK_SIZE, "512kb")
                 )
@@ -452,7 +447,7 @@ public class RelocationTests extends ElasticsearchIntegrationTest {
         final String p_node = internalCluster().startNode();
 
         client().admin().indices().prepareCreate(indexName)
-                .setSettings(ImmutableSettings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1, IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)).get();
+                .setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1, IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)).get();
 
         internalCluster().startNodesAsync(2).get();
 
@@ -476,13 +471,13 @@ public class RelocationTests extends ElasticsearchIntegrationTest {
             }
         }
 
-        client().admin().indices().prepareUpdateSettings(indexName).setSettings(ImmutableSettings.builder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)).get();
+        client().admin().indices().prepareUpdateSettings(indexName).setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)).get();
 
         corruptionCount.await();
 
         logger.info("--> stopping replica assignment");
         assertAcked(client().admin().cluster().prepareUpdateSettings()
-                .setTransientSettings(ImmutableSettings.builder().put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE, "none")));
+                .setTransientSettings(Settings.builder().put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE, "none")));
 
         logger.info("--> wait for all replica shards to be removed, on all nodes");
         assertBusy(new Runnable() {

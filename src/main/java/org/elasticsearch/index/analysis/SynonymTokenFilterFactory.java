@@ -31,7 +31,6 @@ import org.apache.lucene.analysis.synonym.WordnetSynonymParser;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.io.FastStringReader;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
@@ -80,7 +79,7 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
             throw new IllegalArgumentException("failed to find tokenizer [" + tokenizerName + "] for synonym token filter");
         }
 
-        final TokenizerFactory tokenizerFactory = tokenizerFactoryFactory.create(tokenizerName, ImmutableSettings.builder().put(indexSettings).put(settings).build());
+        final TokenizerFactory tokenizerFactory = tokenizerFactoryFactory.create(tokenizerName, Settings.builder().put(indexSettings).put(settings).build());
 
         Analyzer analyzer = new Analyzer() {
             @Override

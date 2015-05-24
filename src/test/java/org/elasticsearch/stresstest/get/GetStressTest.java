@@ -20,7 +20,6 @@
 package org.elasticsearch.stresstest.get;
 
 import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.node.Node;
@@ -33,7 +32,7 @@ import java.util.concurrent.atomic.AtomicLong;
 public class GetStressTest {
 
     public static void main(String[] args) throws Exception {
-        Settings settings = ImmutableSettings.settingsBuilder()
+        Settings settings = Settings.settingsBuilder()
                 .put("index.number_of_shards", 2)
                 .put("index.number_of_replicas", 1)
                 .build();

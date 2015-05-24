@@ -47,7 +47,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.uid.Versions;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.Index;
@@ -96,7 +95,7 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
+import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.PRIMARY;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.REPLICA;
 import static org.hamcrest.Matchers.*;
@@ -134,7 +133,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         } else {
             codecName = "default";
         }
-        defaultSettings = ImmutableSettings.builder()
+        defaultSettings = Settings.builder()
                 .put(EngineConfig.INDEX_COMPOUND_ON_FLUSH, randomBoolean())
                 .put(EngineConfig.INDEX_GC_DELETES_SETTING, "1h") // make sure this doesn't kick in on us
                 .put(EngineConfig.INDEX_CODEC_SETTING, codecName)
@@ -244,7 +243,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
     }
 
     protected InternalEngine createEngine(Store store, Path translogPath) {
-        IndexSettingsService indexSettingsService = new IndexSettingsService(shardId.index(), ImmutableSettings.builder().put(defaultSettings).put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build());
+        IndexSettingsService indexSettingsService = new IndexSettingsService(shardId.index(), Settings.builder().put(defaultSettings).put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build());
         return createEngine(indexSettingsService, store, translogPath, createMergeScheduler(indexSettingsService));
     }
 
@@ -422,7 +421,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
     @Test
     public void testSegmentsWithMergeFlag() throws Exception {
         ConcurrentMergeSchedulerProvider mergeSchedulerProvider = new ConcurrentMergeSchedulerProvider(shardId, EMPTY_SETTINGS, threadPool, new IndexSettingsService(shardId.index(), EMPTY_SETTINGS));
-        IndexSettingsService indexSettingsService = new IndexSettingsService(shardId.index(), ImmutableSettings.builder().put(defaultSettings).put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build());
+        IndexSettingsService indexSettingsService = new IndexSettingsService(shardId.index(), Settings.builder().put(defaultSettings).put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build());
         try (Store store = createStore();
              Engine engine = createEngine(indexSettingsService, store, createTempDir(), mergeSchedulerProvider)) {
 
@@ -1351,7 +1350,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
     @Slow
     @Test
     public void testEnableGcDeletes() throws Exception {
-        IndexSettingsService indexSettingsService = new IndexSettingsService(shardId.index(), ImmutableSettings.builder().put(defaultSettings).put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build());
+        IndexSettingsService indexSettingsService = new IndexSettingsService(shardId.index(), Settings.builder().put(defaultSettings).put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build());
         try (Store store = createStore();
              Engine engine = new InternalEngine(config(indexSettingsService, store, createTempDir(), createMergeScheduler(indexSettingsService)), false)) {
             engine.config().setEnableGcDeletes(false);
@@ -1571,7 +1570,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
     @Test
     public void testDeletesAloneCanTriggerRefresh() throws Exception {
         // Tiny indexing buffer:
-        Settings indexSettings = ImmutableSettings.builder().put(defaultSettings)
+        Settings indexSettings = Settings.builder().put(defaultSettings)
                 .put(EngineConfig.INDEX_BUFFER_SIZE_SETTING, "1kb").build();
         IndexSettingsService indexSettingsService = new IndexSettingsService(shardId.index(), indexSettings);
         try (Store store = createStore();
@@ -1624,7 +1623,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
             // expected
         }
         // now it should be OK.
-        IndexSettingsService indexSettingsService = new IndexSettingsService(shardId.index(), ImmutableSettings.builder().put(defaultSettings)
+        IndexSettingsService indexSettingsService = new IndexSettingsService(shardId.index(), Settings.builder().put(defaultSettings)
                 .put(EngineConfig.INDEX_FORCE_NEW_TRANSLOG, true).build());
         engine = createEngine(indexSettingsService, store, primaryTranslogDir, createMergeScheduler(indexSettingsService));
     }
@@ -1716,7 +1715,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
     }
 
     private Mapping dynamicUpdate() {
-        BuilderContext context = new BuilderContext(ImmutableSettings.EMPTY, new ContentPath());
+        BuilderContext context = new BuilderContext(Settings.EMPTY, new ContentPath());
         final RootObjectMapper root = MapperBuilders.rootObject("some_type").build(context);
         return new Mapping(Version.CURRENT, root, new RootMapper[0], new Mapping.SourceTransform[0], ImmutableMap.<String, Object>of());
     }
@@ -1822,7 +1821,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
 
         public TranslogHandler(String indexName) {
             super(null, new MapperAnalyzer(null), null, null, null);
-            Settings settings = ImmutableSettings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
+            Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
             RootObjectMapper.Builder rootBuilder = new RootObjectMapper.Builder("test");
             Index index = new Index(indexName);
             AnalysisService analysisService = new AnalysisService(index, settings);
@@ -1869,7 +1868,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         Translog.TranslogGeneration generation = engine.getTranslog().getGeneration();
         engine.close();
 
-        Translog translog = new Translog(new TranslogConfig(shardId, createTempDir(), ImmutableSettings.EMPTY, Translog.Durabilty.REQUEST, BigArrays.NON_RECYCLING_INSTANCE, threadPool));
+        Translog translog = new Translog(new TranslogConfig(shardId, createTempDir(), Settings.EMPTY, Translog.Durabilty.REQUEST, BigArrays.NON_RECYCLING_INSTANCE, threadPool));
         translog.add(new Translog.Create("test", "SomeBogusId", "{}".getBytes(Charset.forName("UTF-8"))));
         assertEquals(generation.translogFileGeneration, translog.currentFileGeneration());
         translog.close();

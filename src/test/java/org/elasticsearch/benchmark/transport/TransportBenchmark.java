@@ -23,7 +23,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.network.NetworkService;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -51,7 +50,7 @@ public class TransportBenchmark {
         NETTY {
             @Override
             public Transport newTransport(Settings settings, ThreadPool threadPool) {
-                return new NettyTransport(settings, threadPool, new NetworkService(ImmutableSettings.EMPTY), BigArrays.NON_RECYCLING_INSTANCE, Version.CURRENT);
+                return new NettyTransport(settings, threadPool, new NetworkService(Settings.EMPTY), BigArrays.NON_RECYCLING_INSTANCE, Version.CURRENT);
             }
         };
 
@@ -69,7 +68,7 @@ public class TransportBenchmark {
         final Type type = Type.NETTY;
 
 
-        Settings settings = ImmutableSettings.settingsBuilder()
+        Settings settings = Settings.settingsBuilder()
                 .build();
 
         final ThreadPool serverThreadPool = new ThreadPool("server");

@@ -19,13 +19,13 @@
 
 package org.elasticsearch.index.fielddata;
 
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.index.*;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.store.RAMDirectory;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -95,7 +95,7 @@ public abstract class AbstractFieldDataTests extends ElasticsearchSingleNodeTest
 
     @Before
     public void setup() throws Exception {
-        Settings settings = ImmutableSettings.builder().put("index.fielddata.cache", "none").build();
+        Settings settings = Settings.builder().put("index.fielddata.cache", "none").build();
         indexService = createIndex("test", settings);
         mapperService = indexService.mapperService();
         indicesFieldDataCache = indexService.injector().getInstance(IndicesFieldDataCache.class);

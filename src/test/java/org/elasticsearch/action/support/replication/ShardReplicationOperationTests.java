@@ -54,7 +54,6 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.index.shard.IndexShardNotStartedException;
@@ -119,7 +118,7 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
         clusterService = new TestClusterService(threadPool);
         transportService = new TransportService(transport, threadPool);
         transportService.start();
-        action = new Action(ImmutableSettings.EMPTY, "testAction", transportService, clusterService, threadPool);
+        action = new Action(Settings.EMPTY, "testAction", transportService, clusterService, threadPool);
         count.set(1);
     }
 
@@ -215,7 +214,7 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
         }
         discoBuilder.localNodeId(newNode(0).id());
         discoBuilder.masterNodeId(newNode(1).id()); // we need a non-local master to test shard failures
-        IndexMetaData indexMetaData = IndexMetaData.builder(index).settings(ImmutableSettings.builder()
+        IndexMetaData indexMetaData = IndexMetaData.builder(index).settings(Settings.builder()
                 .put(SETTING_VERSION_CREATED, Version.CURRENT)
                 .put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, numberOfReplicas)
                 .put(SETTING_CREATION_DATE, System.currentTimeMillis())).build();
@@ -333,7 +332,7 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
 
     @Test
     public void testWriteConsistency() throws ExecutionException, InterruptedException {
-        action = new ActionWithConsistency(ImmutableSettings.EMPTY, "testActionWithConsistency", transportService, clusterService, threadPool);
+        action = new ActionWithConsistency(Settings.EMPTY, "testActionWithConsistency", transportService, clusterService, threadPool);
         final String index = "test";
         final ShardId shardId = new ShardId(index, 0);
         final int assignedReplicas = randomInt(2);
@@ -430,7 +429,7 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
 
         ClusterState state = stateWithStartedPrimary(index, true, randomInt(5));
         MetaData.Builder metaData = MetaData.builder(state.metaData());
-        ImmutableSettings.Builder settings = ImmutableSettings.builder().put(metaData.get(index).settings());
+        Settings.Builder settings = Settings.builder().put(metaData.get(index).settings());
         settings.put(IndexMetaData.SETTING_SHADOW_REPLICAS, true);
         metaData.put(IndexMetaData.builder(metaData.get(index)).settings(settings));
         clusterService.setState(ClusterState.builder(state).metaData(metaData));
@@ -532,7 +531,7 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
          * TODO: I could also write an action that asserts that the counter is 2 in the shard operation.
          * However, this failure would only become apparent once listener.get is called. Seems a little implicit.
          * */
-        action = new ActionWithDelay(ImmutableSettings.EMPTY, "testActionWithExceptions", transportService, clusterService, threadPool);
+        action = new ActionWithDelay(Settings.EMPTY, "testActionWithExceptions", transportService, clusterService, threadPool);
         final TransportShardReplicationOperationAction<Request, Request, Response>.PrimaryPhase primaryPhase = action.new PrimaryPhase(request, listener);
         Thread t = new Thread() {
             public void run() {
@@ -592,7 +591,7 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
         final ShardId shardId = new ShardId("test", 0);
         clusterService.setState(state(shardId.index().getName(), true,
                 ShardRoutingState.STARTED, ShardRoutingState.STARTED));
-        action = new ActionWithDelay(ImmutableSettings.EMPTY, "testActionWithExceptions", transportService, clusterService, threadPool);
+        action = new ActionWithDelay(Settings.EMPTY, "testActionWithExceptions", transportService, clusterService, threadPool);
         final Action.ReplicaOperationTransportHandler replicaOperationTransportHandler = action.new ReplicaOperationTransportHandler();
         Thread t = new Thread() {
             public void run() {
@@ -616,7 +615,7 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
         // operation should have finished and counter decreased because no outstanding replica requests
         assertIndexShardCounter(1);
         // now check if this also works if operation throws exception
-        action = new ActionWithExceptions(ImmutableSettings.EMPTY, "testActionWithExceptions", transportService, clusterService, threadPool);
+        action = new ActionWithExceptions(Settings.EMPTY, "testActionWithExceptions", transportService, clusterService, threadPool);
         final Action.ReplicaOperationTransportHandler replicaOperationTransportHandlerForException = action.new ReplicaOperationTransportHandler();
         try {
             replicaOperationTransportHandlerForException.messageReceived(new Request(shardId), createTransportChannel());
@@ -628,7 +627,7 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
 
     @Test
     public void testCounterDecrementedIfShardOperationThrowsException() throws InterruptedException, ExecutionException, IOException {
-        action = new ActionWithExceptions(ImmutableSettings.EMPTY, "testActionWithExceptions", transportService, clusterService, threadPool);
+        action = new ActionWithExceptions(Settings.EMPTY, "testActionWithExceptions", transportService, clusterService, threadPool);
         final String index = "test";
         final ShardId shardId = new ShardId(index, 0);
         clusterService.setState(state(index, true,

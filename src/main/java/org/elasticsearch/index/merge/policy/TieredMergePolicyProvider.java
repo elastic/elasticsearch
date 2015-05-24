@@ -20,7 +20,6 @@
 package org.elasticsearch.index.merge.policy;
 
 import org.apache.lucene.index.TieredMergePolicy;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;

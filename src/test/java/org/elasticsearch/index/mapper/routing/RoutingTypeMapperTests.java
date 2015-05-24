@@ -25,7 +25,6 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -35,7 +34,6 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
-import org.junit.Test;
 
 import java.util.Map;
 
@@ -65,7 +63,7 @@ public class RoutingTypeMapperTests extends ElasticsearchSingleNodeTest {
                 .field("index", "no")
                 .endObject()
                 .endObject().endObject().string();
-        Settings indexSettings = ImmutableSettings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build();
+        Settings indexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build();
         DocumentMapper docMapper = createIndex("test", indexSettings).mapperService().documentMapperParser().parse(mapping);
         assertThat(docMapper.routingFieldMapper().fieldType().stored(), equalTo(false));
         assertEquals(IndexOptions.NONE, docMapper.routingFieldMapper().fieldType().indexOptions());
@@ -75,7 +73,7 @@ public class RoutingTypeMapperTests extends ElasticsearchSingleNodeTest {
         String enabledMapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_routing").field("store", "no").field("index", "no").endObject()
                 .endObject().endObject().string();
-        Settings indexSettings = ImmutableSettings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build();
+        Settings indexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build();
         DocumentMapper enabledMapper = createIndex("test", indexSettings).mapperService().documentMapperParser().parse(enabledMapping);
 
         XContentBuilder builder = JsonXContent.contentBuilder().startObject();
@@ -95,7 +93,7 @@ public class RoutingTypeMapperTests extends ElasticsearchSingleNodeTest {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("_routing").field("path", "custom_routing").endObject()
             .endObject().endObject().string();
-        Settings settings = ImmutableSettings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build();
+        Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build();
         DocumentMapper docMapper = createIndex("test", settings).mapperService().documentMapperParser().parse(mapping);
 
         XContentBuilder doc = XContentFactory.jsonBuilder().startObject().field("custom_routing", "routing_value").endObject();
@@ -108,7 +106,7 @@ public class RoutingTypeMapperTests extends ElasticsearchSingleNodeTest {
 
     public void testIncludeInObjectBackcompat() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject().string();
-        Settings settings = ImmutableSettings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build();
+        Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build();
         DocumentMapper docMapper = createIndex("test", settings).mapperService().documentMapperParser().parse(mapping);
 
         XContentBuilder doc = XContentFactory.jsonBuilder().startObject().field("_timestamp", 2000000).endObject();

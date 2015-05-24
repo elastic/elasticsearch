@@ -42,7 +42,6 @@ import org.elasticsearch.common.netty.OpenChannelsHandler;
 import org.elasticsearch.common.netty.ReleaseChannelFutureListener;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.network.NetworkUtils;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
@@ -82,7 +81,7 @@ import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import static org.elasticsearch.common.network.NetworkService.TcpSettings.*;
-import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.common.transport.NetworkExceptionHelper.isCloseConnectionException;
 import static org.elasticsearch.common.transport.NetworkExceptionHelper.isConnectException;
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
@@ -246,7 +245,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
                 Map<String, Settings> profiles = settings.getGroups("transport.profiles", true);
                 if (!profiles.containsKey(DEFAULT_PROFILE)) {
                     profiles = Maps.newHashMap(profiles);
-                    profiles.put(DEFAULT_PROFILE, ImmutableSettings.EMPTY);
+                    profiles.put(DEFAULT_PROFILE, Settings.EMPTY);
                 }
 
                 Settings fallbackSettings = createFallbackSettings();
@@ -353,7 +352,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
     }
 
     private Settings createFallbackSettings() {
-        ImmutableSettings.Builder fallbackSettingsBuilder = settingsBuilder();
+        Settings.Builder fallbackSettingsBuilder = settingsBuilder();
 
         String fallbackBindHost = settings.get("transport.netty.bind_host", settings.get("transport.bind_host", settings.get("transport.host")));
         if (fallbackBindHost != null) {

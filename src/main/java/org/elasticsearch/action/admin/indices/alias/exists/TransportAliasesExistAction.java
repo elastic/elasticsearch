@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.action.admin.indices.alias.exists;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.support.ActionFilters;

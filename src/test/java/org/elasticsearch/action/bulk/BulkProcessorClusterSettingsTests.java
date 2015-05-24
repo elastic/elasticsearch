@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.bulk;
 
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
@@ -32,7 +31,7 @@ public class BulkProcessorClusterSettingsTests extends ElasticsearchIntegrationT
     @Test
     public void testBulkProcessorAutoCreateRestrictions() throws Exception {
         // See issue #8125
-        Settings settings = ImmutableSettings.settingsBuilder().put("action.auto_create_index", false).build();
+        Settings settings = Settings.settingsBuilder().put("action.auto_create_index", false).build();
 
         internalCluster().startNode(settings);
 

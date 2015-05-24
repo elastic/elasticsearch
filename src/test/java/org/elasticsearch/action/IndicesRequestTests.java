@@ -89,7 +89,6 @@ import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -130,7 +129,7 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return ImmutableSettings.settingsBuilder()
+        return Settings.settingsBuilder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put(TransportModule.TRANSPORT_SERVICE_TYPE_KEY, InterceptingTransportService.class.getName())
                 .build();
@@ -607,7 +606,7 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
     public void testUpdateSettings() {
         interceptTransportActions(UpdateSettingsAction.NAME);
 
-        UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest(randomIndicesOrAliases()).settings(ImmutableSettings.builder().put("refresh_interval", -1));
+        UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest(randomIndicesOrAliases()).settings(Settings.builder().put("refresh_interval", -1));
         internalCluster().clientNodeClient().admin().indices().updateSettings(updateSettingsRequest).actionGet();
 
         clearInterceptedActions();

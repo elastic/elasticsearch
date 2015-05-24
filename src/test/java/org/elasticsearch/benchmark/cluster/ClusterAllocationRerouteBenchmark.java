@@ -29,7 +29,7 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ElasticsearchAllocationTestCase;
 
@@ -48,7 +48,7 @@ public class ClusterAllocationRerouteBenchmark {
         final int numReplicas = 2;
         final int numberOfNodes = 30;
         final int numberOfTags = 2;
-        AllocationService strategy = ElasticsearchAllocationTestCase.createAllocationService(ImmutableSettings.builder()
+        AllocationService strategy = ElasticsearchAllocationTestCase.createAllocationService(Settings.builder()
                 .put("cluster.routing.allocation.awareness.attributes", "tag")
                 .build(), new Random(1));
 

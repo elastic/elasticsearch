@@ -19,7 +19,7 @@
 package org.elasticsearch.indices.leaks;
 
 import org.elasticsearch.common.inject.Injector;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.IndexService;
@@ -48,7 +48,7 @@ public class IndicesLeaksTests extends ElasticsearchIntegrationTest {
     public void testIndexShardLifecycleLeak() throws Exception {
 
         client().admin().indices().prepareCreate("test")
-                .setSettings(ImmutableSettings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0))
+                .setSettings(Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0))
                 .execute().actionGet();
 
         client().admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();

@@ -35,7 +35,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.gateway.NoopGatewayAllocator;
 import org.elasticsearch.test.ElasticsearchAllocationTestCase;
 import org.hamcrest.Matchers;
@@ -46,7 +46,7 @@ import java.util.HashSet;
 import java.util.Random;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
-import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.equalTo;
 
 public class RandomAllocationDeciderTests extends ElasticsearchAllocationTestCase {
@@ -59,8 +59,8 @@ public class RandomAllocationDeciderTests extends ElasticsearchAllocationTestCas
     @Test
     public void testRandomDecisions() {
         RandomAllocationDecider randomAllocationDecider = new RandomAllocationDecider(getRandom());
-        AllocationService strategy = new AllocationService(settingsBuilder().build(), new AllocationDeciders(ImmutableSettings.EMPTY,
-                new HashSet<>(Arrays.asList(new SameShardAllocationDecider(ImmutableSettings.EMPTY),
+        AllocationService strategy = new AllocationService(settingsBuilder().build(), new AllocationDeciders(Settings.EMPTY,
+                new HashSet<>(Arrays.asList(new SameShardAllocationDecider(Settings.EMPTY),
                         randomAllocationDecider))), new ShardsAllocators(NoopGatewayAllocator.INSTANCE), ClusterInfoService.EMPTY);
         int indices = scaledRandomIntBetween(1, 20);
         Builder metaBuilder = MetaData.builder();
@@ -169,7 +169,7 @@ public class RandomAllocationDeciderTests extends ElasticsearchAllocationTestCas
         private final Random random;
 
         public RandomAllocationDecider(Random random) {
-            super(ImmutableSettings.EMPTY);
+            super(Settings.EMPTY);
             this.random = random;
         }
 

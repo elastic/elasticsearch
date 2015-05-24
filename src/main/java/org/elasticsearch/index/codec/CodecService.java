@@ -26,7 +26,6 @@ import org.apache.lucene.codecs.lucene50.Lucene50Codec;
 import org.apache.lucene.codecs.lucene50.Lucene50StoredFieldsFormat.Mode;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
@@ -53,7 +52,7 @@ public class CodecService extends AbstractIndexComponent {
     public final static String LUCENE_DEFAULT_CODEC = "lucene_default";
 
     public CodecService(Index index) {
-        this(index, ImmutableSettings.Builder.EMPTY_SETTINGS);
+        this(index, Settings.Builder.EMPTY_SETTINGS);
     }
 
     public CodecService(Index index, @IndexSettings Settings indexSettings) {

@@ -23,10 +23,8 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 
 import org.apache.log4j.PropertyConfigurator;
-import org.apache.log4j.rolling.SizeBasedTriggeringPolicy;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.FailedToResolveConfigException;
@@ -40,7 +38,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 
-import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 
 /**
  *
@@ -88,7 +86,7 @@ public class LogConfigurator {
         }
         loaded = true;
         Environment environment = new Environment(settings);
-        ImmutableSettings.Builder settingsBuilder = settingsBuilder().put(settings);
+        Settings.Builder settingsBuilder = settingsBuilder().put(settings);
         resolveConfig(environment, settingsBuilder);
         settingsBuilder
                 .putProperties("elasticsearch.", System.getProperties())
@@ -120,7 +118,7 @@ public class LogConfigurator {
         loaded = false;
     }
 
-    public static void resolveConfig(Environment env, final ImmutableSettings.Builder settingsBuilder) {
+    public static void resolveConfig(Environment env, final Settings.Builder settingsBuilder) {
 
         try {
             Files.walkFileTree(env.configFile(), EnumSet.of(FileVisitOption.FOLLOW_LINKS), Integer.MAX_VALUE, new SimpleFileVisitor<Path>() {
@@ -143,7 +141,7 @@ public class LogConfigurator {
         }
     }
 
-    public static void loadConfig(Path file, ImmutableSettings.Builder settingsBuilder) {
+    public static void loadConfig(Path file, Settings.Builder settingsBuilder) {
         try {
             settingsBuilder.loadFromUrl(file.toUri().toURL());
         } catch (FailedToResolveConfigException | NoClassDefFoundError | MalformedURLException e) {

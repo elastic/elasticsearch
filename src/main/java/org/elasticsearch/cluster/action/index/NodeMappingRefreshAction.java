@@ -19,7 +19,6 @@
 
 package org.elasticsearch.cluster.action.index;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;

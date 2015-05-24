@@ -25,7 +25,6 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.AcknowledgedRestListener;
@@ -59,10 +58,10 @@ public class RestUpdateSettingsAction extends BaseRestHandler {
         updateSettingsRequest.masterNodeTimeout(request.paramAsTime("master_timeout", updateSettingsRequest.masterNodeTimeout()));
         updateSettingsRequest.indicesOptions(IndicesOptions.fromRequest(request, updateSettingsRequest.indicesOptions()));
 
-        ImmutableSettings.Builder updateSettings = ImmutableSettings.settingsBuilder();
+        Settings.Builder updateSettings = Settings.settingsBuilder();
         String bodySettingsStr = request.content().toUtf8();
         if (Strings.hasText(bodySettingsStr)) {
-            Settings buildSettings = ImmutableSettings.settingsBuilder().loadFromSource(bodySettingsStr).build();
+            Settings buildSettings = Settings.settingsBuilder().loadFromSource(bodySettingsStr).build();
             for (Map.Entry<String, String> entry : buildSettings.getAsMap().entrySet()) {
                 String key = entry.getKey();
                 String value = entry.getValue();

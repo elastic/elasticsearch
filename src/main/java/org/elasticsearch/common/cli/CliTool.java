@@ -31,7 +31,7 @@ import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import java.io.IOException;
 import java.util.Locale;
 
-import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
+import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 
 /**
  * A base class for command-line interface tool.

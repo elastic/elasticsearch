@@ -21,7 +21,7 @@ package org.elasticsearch.index.fielddata.ordinals;
 import org.apache.lucene.index.RandomAccessOrds;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.util.packed.PackedInts;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.test.ElasticsearchTestCase;
@@ -37,11 +37,11 @@ import static org.hamcrest.Matchers.equalTo;
 public class MultiOrdinalsTests extends ElasticsearchTestCase {
 
     protected final Ordinals creationMultiOrdinals(OrdinalsBuilder builder) {
-        return this.creationMultiOrdinals(builder, ImmutableSettings.builder());
+        return this.creationMultiOrdinals(builder, Settings.builder());
     }
 
 
-    protected Ordinals creationMultiOrdinals(OrdinalsBuilder builder, ImmutableSettings.Builder settings) {
+    protected Ordinals creationMultiOrdinals(OrdinalsBuilder builder, Settings.Builder settings) {
         return builder.build(settings.build());
     }
 

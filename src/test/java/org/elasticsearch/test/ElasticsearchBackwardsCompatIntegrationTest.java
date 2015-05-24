@@ -27,7 +27,6 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -134,7 +133,7 @@ public abstract class ElasticsearchBackwardsCompatIntegrationTest extends Elasti
     }
 
     @Override
-    protected ImmutableSettings.Builder setRandomSettings(Random random, ImmutableSettings.Builder builder) {
+    protected Settings.Builder setRandomSettings(Random random, Settings.Builder builder) {
         if (globalCompatibilityVersion().before(Version.V_1_3_2)) {
             // if we test against nodes before 1.3.2 we disable all the compression due to a known bug
             // see #7210
@@ -204,7 +203,7 @@ public abstract class ElasticsearchBackwardsCompatIntegrationTest extends Elasti
     private Settings addLoggerSettings(Settings externalNodesSettings) {
         TestLogging logging = getClass().getAnnotation(TestLogging.class);
         Map<String, String> loggingLevels = LoggingListener.getLoggersAndLevelsFromAnnotation(logging);
-        ImmutableSettings.Builder finalSettings = ImmutableSettings.settingsBuilder();
+        Settings.Builder finalSettings = Settings.settingsBuilder();
         if (loggingLevels != null) {
             for (Map.Entry<String, String> level : loggingLevels.entrySet()) {
                 finalSettings.put("logger." + level.getKey(), level.getValue());
@@ -249,7 +248,7 @@ public abstract class ElasticsearchBackwardsCompatIntegrationTest extends Elasti
     }
 
     protected Settings commonNodeSettings(int nodeOrdinal) {
-        ImmutableSettings.Builder builder = ImmutableSettings.builder().put(requiredSettings())
+        Settings.Builder builder = Settings.builder().put(requiredSettings())
                 .put(TransportModule.TRANSPORT_TYPE_KEY, NettyTransport.class.getName()) // run same transport  / disco as external
                 .put(TransportModule.TRANSPORT_SERVICE_TYPE_KEY, TransportService.class.getName());
         if (compatibilityVersion().before(Version.V_1_3_2)) {

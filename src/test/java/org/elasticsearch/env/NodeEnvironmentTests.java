@@ -23,7 +23,6 @@ import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.io.PathUtils;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.index.Index;
@@ -41,17 +40,17 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
-import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.CoreMatchers.equalTo;
 
 @LuceneTestCase.SuppressFileSystems("ExtrasFS") // TODO: fix test to allow extras
 public class NodeEnvironmentTests extends ElasticsearchTestCase {
 
-    private final Settings idxSettings = ImmutableSettings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).build();
+    private final Settings idxSettings = Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).build();
 
     @Test
     public void testNodeLockSingleEnvironment() throws IOException {
-        NodeEnvironment env = newNodeEnvironment(ImmutableSettings.builder()
+        NodeEnvironment env = newNodeEnvironment(Settings.builder()
                 .put("node.max_local_storage_nodes", 1).build());
         Settings settings = env.getSettings();
         String[] dataPaths = env.getSettings().getAsArray("path.data");
@@ -301,10 +300,10 @@ public class NodeEnvironmentTests extends ElasticsearchTestCase {
     @Test
     public void testCustomDataPaths() throws Exception {
         String[] dataPaths = tmpPaths();
-        NodeEnvironment env = newNodeEnvironment(dataPaths, ImmutableSettings.EMPTY);
+        NodeEnvironment env = newNodeEnvironment(dataPaths, Settings.EMPTY);
 
-        Settings s1 = ImmutableSettings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).build();
-        Settings s2 = ImmutableSettings.builder().put(IndexMetaData.SETTING_DATA_PATH, "/tmp/foo").build();
+        Settings s1 = Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).build();
+        Settings s2 = Settings.builder().put(IndexMetaData.SETTING_DATA_PATH, "/tmp/foo").build();
         ShardId sid = new ShardId("myindex", 0);
         Index i = new Index("myindex");
 
@@ -325,7 +324,7 @@ public class NodeEnvironmentTests extends ElasticsearchTestCase {
 
         env.close();
         NodeEnvironment env2 = newNodeEnvironment(dataPaths,
-                ImmutableSettings.builder().put(NodeEnvironment.ADD_NODE_ID_TO_CUSTOM_PATH, false).build());
+                Settings.builder().put(NodeEnvironment.ADD_NODE_ID_TO_CUSTOM_PATH, false).build());
 
         assertThat(env2.availableShardPaths(sid), equalTo(env2.availableShardPaths(sid)));
         assertThat(env2.resolveCustomLocation(s2, sid), equalTo(PathUtils.get("/tmp/foo/myindex/0")));
@@ -361,12 +360,12 @@ public class NodeEnvironmentTests extends ElasticsearchTestCase {
 
     @Override
     public NodeEnvironment newNodeEnvironment() throws IOException {
-        return newNodeEnvironment(ImmutableSettings.EMPTY);
+        return newNodeEnvironment(Settings.EMPTY);
     }
 
     @Override
     public NodeEnvironment newNodeEnvironment(Settings settings) throws IOException {
-        Settings build = ImmutableSettings.builder()
+        Settings build = Settings.builder()
                 .put(settings)
                 .put("path.home", createTempDir().toAbsolutePath().toString())
                 .put(NodeEnvironment.SETTING_CUSTOM_DATA_PATH_ENABLED, true)
@@ -375,7 +374,7 @@ public class NodeEnvironmentTests extends ElasticsearchTestCase {
     }
 
     public NodeEnvironment newNodeEnvironment(String[] dataPaths, Settings settings) throws IOException {
-        Settings build = ImmutableSettings.builder()
+        Settings build = Settings.builder()
                 .put(settings)
                 .put("path.home", createTempDir().toAbsolutePath().toString())
                 .put(NodeEnvironment.SETTING_CUSTOM_DATA_PATH_ENABLED, true)

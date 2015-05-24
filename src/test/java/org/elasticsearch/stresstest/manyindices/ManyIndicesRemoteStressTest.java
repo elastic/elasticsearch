@@ -23,7 +23,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeBuilder;
@@ -49,7 +49,7 @@ public class ManyIndicesRemoteStressTest {
         Node node = null;
         // TODO: what is this? a public static void main test?!?!?!
         if (true) {
-            client = TransportClient.builder().settings(ImmutableSettings.EMPTY).build().addTransportAddress(new InetSocketTransportAddress("localhost", 9300));
+            client = TransportClient.builder().settings(Settings.EMPTY).build().addTransportAddress(new InetSocketTransportAddress("localhost", 9300));
         } else {
             node = NodeBuilder.nodeBuilder().client(true).node();
             client = node.client();
@@ -58,7 +58,7 @@ public class ManyIndicesRemoteStressTest {
         for (int i = 0; i < numberOfIndices; i++) {
             logger.info("START index [{}] ...", i);
             client.admin().indices().prepareCreate("index_" + i)
-                    .setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", numberOfShards).put("index.number_of_replicas", numberOfReplicas))
+                    .setSettings(Settings.settingsBuilder().put("index.number_of_shards", numberOfShards).put("index.number_of_replicas", numberOfReplicas))
                     .execute().actionGet();
 
             for (int j = 0; j < numberOfDocs; j++) {

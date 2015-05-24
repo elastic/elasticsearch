@@ -34,7 +34,6 @@ import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.network.NetworkModule;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -43,7 +42,6 @@ import org.elasticsearch.env.EnvironmentModule;
 import org.elasticsearch.indices.breaker.CircuitBreakerModule;
 import org.elasticsearch.monitor.MonitorService;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
-import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.plugins.PluginsModule;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.search.TransportSearchModule;
@@ -55,7 +53,7 @@ import org.elasticsearch.transport.netty.NettyTransport;
 
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 
 /**
  * The transport client allows to create a client that is not part of the cluster, but simply connects to one
@@ -78,7 +76,7 @@ public class TransportClient extends AbstractClient {
      */
     public static class Builder {
 
-        private Settings settings = ImmutableSettings.EMPTY;
+        private Settings settings = Settings.EMPTY;
         private boolean loadConfigSettings = true;
 
         /**

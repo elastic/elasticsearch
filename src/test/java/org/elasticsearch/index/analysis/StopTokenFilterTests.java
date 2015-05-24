@@ -27,16 +27,14 @@ import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.apache.lucene.search.suggest.analyzing.SuggestStopFilter;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.common.inject.ProvisionException;
-import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.common.settings.ImmutableSettings.Builder;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.Settings.Builder;
 import org.elasticsearch.test.ElasticsearchTokenStreamTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
 import java.io.StringReader;
 
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 
@@ -44,7 +42,7 @@ public class StopTokenFilterTests extends ElasticsearchTokenStreamTestCase {
 
     @Test(expected = ProvisionException.class)
     public void testPositionIncrementSetting() throws IOException {
-        Builder builder = ImmutableSettings.settingsBuilder().put("index.analysis.filter.my_stop.type", "stop")
+        Builder builder = Settings.settingsBuilder().put("index.analysis.filter.my_stop.type", "stop")
                 .put("index.analysis.filter.my_stop.enable_position_increments", false);
         if (random().nextBoolean()) {
             builder.put("index.analysis.filter.my_stop.version", "5.0");
@@ -57,7 +55,7 @@ public class StopTokenFilterTests extends ElasticsearchTokenStreamTestCase {
 
     @Test
     public void testCorrectPositionIncrementSetting() throws IOException {
-        Builder builder = ImmutableSettings.settingsBuilder().put("index.analysis.filter.my_stop.type", "stop");
+        Builder builder = Settings.settingsBuilder().put("index.analysis.filter.my_stop.type", "stop");
         int thingToDo = random().nextInt(3);
         if (thingToDo == 0) {
             builder.put("index.analysis.filter.my_stop.version", Version.LATEST);
@@ -85,7 +83,7 @@ public class StopTokenFilterTests extends ElasticsearchTokenStreamTestCase {
 
     @Test
     public void testDeprecatedPositionIncrementSettingWithVersions() throws IOException {
-        Settings settings = ImmutableSettings.settingsBuilder()
+        Settings settings = Settings.settingsBuilder()
                 .put("index.analysis.filter.my_stop.type", "stop")
                 .put("index.analysis.filter.my_stop.enable_position_increments", false)
                 .put("index.analysis.filter.my_stop.version", "4.3")
@@ -102,7 +100,7 @@ public class StopTokenFilterTests extends ElasticsearchTokenStreamTestCase {
 
     @Test
     public void testThatSuggestStopFilterWorks() throws Exception {
-        Settings settings = ImmutableSettings.settingsBuilder()
+        Settings settings = Settings.settingsBuilder()
                 .put("index.analysis.filter.my_stop.type", "stop")
                 .put("index.analysis.filter.my_stop.remove_trailing", false)
                 .put("path.home", createTempDir().toString())

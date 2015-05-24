@@ -25,15 +25,11 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.compress.CompressorFactory;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.*;
-import org.elasticsearch.index.IndexService;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -92,7 +88,7 @@ public class DefaultSourceMappingTests extends ElasticsearchSingleNodeTest {
                 .startObject("_source").field("format", "json").field("compress", true).endObject()
                 .endObject().endObject().string();
 
-        Settings backcompatSettings = ImmutableSettings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build();
+        Settings backcompatSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build();
         DocumentMapperParser parser = createIndex("test", backcompatSettings).mapperService().documentMapperParser();
         DocumentMapper documentMapper = parser.parse(mapping);
         ParsedDocument doc = documentMapper.parse("type", "1", XContentFactory.jsonBuilder().startObject()

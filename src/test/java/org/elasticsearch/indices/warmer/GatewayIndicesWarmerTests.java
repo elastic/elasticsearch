@@ -23,7 +23,6 @@ import org.elasticsearch.action.admin.indices.warmer.delete.DeleteWarmerResponse
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.warmer.IndexWarmersMetaData;
@@ -33,7 +32,6 @@ import org.elasticsearch.test.InternalTestCluster.RestartCallback;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
-import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.*;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
@@ -93,7 +91,7 @@ public class GatewayIndicesWarmerTests extends ElasticsearchIntegrationTest {
         internalCluster().fullRestart(new RestartCallback() {
             @Override
             public Settings onNodeStopped(String nodeName) throws Exception {
-                return ImmutableSettings.EMPTY;
+                return Settings.EMPTY;
             }
         });
 
@@ -131,7 +129,7 @@ public class GatewayIndicesWarmerTests extends ElasticsearchIntegrationTest {
         internalCluster().fullRestart(new RestartCallback() {
             @Override
             public Settings onNodeStopped(String nodeName) throws Exception {
-                return ImmutableSettings.EMPTY;
+                return Settings.EMPTY;
             }
         });
 

@@ -23,7 +23,6 @@ import com.google.common.collect.Lists;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.node.Node;
@@ -39,19 +38,19 @@ public class ManyNodesManyIndicesRecoveryStressTest {
         final int NUM_DOCS = 2;
         final int FLUSH_AFTER = 1;
 
-        final Settings nodeSettings = ImmutableSettings.settingsBuilder()
+        final Settings nodeSettings = Settings.settingsBuilder()
                 .put("transport.netty.connections_per_node.low", 0)
                 .put("transport.netty.connections_per_node.med", 0)
                 .put("transport.netty.connections_per_node.high", 1)
                 .build();
 
-        final Settings indexSettings = ImmutableSettings.settingsBuilder()
+        final Settings indexSettings = Settings.settingsBuilder()
                 .put("index.number_of_shards", 1)
                 .build();
 
         List<Node> nodes = Lists.newArrayList();
         for (int i = 0; i < NUM_NODES; i++) {
-            nodes.add(NodeBuilder.nodeBuilder().settings(ImmutableSettings.settingsBuilder().put(nodeSettings).put("name", "node" + i)).node());
+            nodes.add(NodeBuilder.nodeBuilder().settings(Settings.settingsBuilder().put(nodeSettings).put("name", "node" + i)).node());
         }
         Client client = nodes.get(0).client();
 
@@ -96,7 +95,7 @@ public class ManyNodesManyIndicesRecoveryStressTest {
 
         nodes = Lists.newArrayList();
         for (int i = 0; i < NUM_NODES; i++) {
-            nodes.add(NodeBuilder.nodeBuilder().settings(ImmutableSettings.settingsBuilder().put(nodeSettings).put("name", "node" + i)).node());
+            nodes.add(NodeBuilder.nodeBuilder().settings(Settings.settingsBuilder().put(nodeSettings).put("name", "node" + i)).node());
         }
         client = nodes.get(0).client();
 

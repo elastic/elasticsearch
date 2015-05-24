@@ -20,7 +20,6 @@
 package org.elasticsearch.operateAllIndices;
 
 import org.elasticsearch.action.support.DestructiveOperations;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
@@ -37,7 +36,7 @@ public class DestructiveOperationsIntegrationTests extends ElasticsearchIntegrat
     // One test for test performance, since cluster scope is test
     // The cluster scope is test b/c we can't clear cluster settings.
     public void testDestructiveOperations() throws Exception {
-        Settings settings = ImmutableSettings.builder()
+        Settings settings = Settings.builder()
                 .put(DestructiveOperations.REQUIRES_NAME, true)
                 .build();
         assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings));
@@ -61,7 +60,7 @@ public class DestructiveOperationsIntegrationTests extends ElasticsearchIntegrat
         } catch (IllegalArgumentException e) {
         }
 
-        settings = ImmutableSettings.builder()
+        settings = Settings.builder()
                 .put(DestructiveOperations.REQUIRES_NAME, false)
                 .build();
         assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings));
@@ -71,7 +70,7 @@ public class DestructiveOperationsIntegrationTests extends ElasticsearchIntegrat
 
         // end delete index:
         // close index:
-        settings = ImmutableSettings.builder()
+        settings = Settings.builder()
                 .put(DestructiveOperations.REQUIRES_NAME, true)
                 .build();
         assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings));
@@ -103,7 +102,7 @@ public class DestructiveOperationsIntegrationTests extends ElasticsearchIntegrat
         } catch (IllegalArgumentException e) {
         }
 
-        settings = ImmutableSettings.builder()
+        settings = Settings.builder()
                 .put(DestructiveOperations.REQUIRES_NAME, false)
                 .build();
         assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings));

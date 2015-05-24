@@ -37,7 +37,6 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.DiscoveryModule;
@@ -58,7 +57,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -91,7 +89,7 @@ public class RareClusterStateTests extends ElasticsearchIntegrationTest {
         ClusterState current = clusterService().state();
         GatewayAllocator allocator = internalCluster().getInstance(GatewayAllocator.class);
 
-        AllocationDeciders allocationDeciders = new AllocationDeciders(ImmutableSettings.EMPTY, new AllocationDecider[0]);
+        AllocationDeciders allocationDeciders = new AllocationDeciders(Settings.EMPTY, new AllocationDecider[0]);
         RoutingNodes routingNodes = new RoutingNodes(
                 ClusterState.builder(current)
                         .routingTable(RoutingTable.builder(current.routingTable()).remove("a").addAsRecovery(current.metaData().index("a")))
@@ -107,7 +105,7 @@ public class RareClusterStateTests extends ElasticsearchIntegrationTest {
     @Test
     @TestLogging(value = "cluster.service:TRACE")
     public void testDeleteCreateInOneBulk() throws Exception {
-        internalCluster().startNodesAsync(2, ImmutableSettings.builder()
+        internalCluster().startNodesAsync(2, Settings.builder()
                 .put(DiscoveryModule.DISCOVERY_TYPE_KEY, "zen")
                 .build()).get();
         assertFalse(client().admin().cluster().prepareHealth().setWaitForNodes("2").get().isTimedOut());
@@ -115,7 +113,7 @@ public class RareClusterStateTests extends ElasticsearchIntegrationTest {
         ensureGreen("test");
 
         // now that the cluster is stable, remove publishing timeout
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(ImmutableSettings.builder().put(DiscoverySettings.PUBLISH_TIMEOUT, "0")));
+        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder().put(DiscoverySettings.PUBLISH_TIMEOUT, "0")));
 
         Set<String> nodes = new HashSet<>(Arrays.asList(internalCluster().getNodeNames()));
         nodes.remove(internalCluster().getMasterName());
@@ -144,7 +142,7 @@ public class RareClusterStateTests extends ElasticsearchIntegrationTest {
         // but the change might not be on the node that performed the indexing
         // operation yet
 
-        Settings settings = ImmutableSettings.builder().put(DiscoverySettings.PUBLISH_TIMEOUT, "0ms").build();
+        Settings settings = Settings.builder().put(DiscoverySettings.PUBLISH_TIMEOUT, "0ms").build();
         final List<String> nodeNames = internalCluster().startNodesAsync(2, settings).get();
         assertFalse(client().admin().cluster().prepareHealth().setWaitForNodes("2").get().isTimedOut());
 
@@ -160,7 +158,7 @@ public class RareClusterStateTests extends ElasticsearchIntegrationTest {
         assertNotNull(otherNode);
 
         // Don't allocate the shard on the master node
-        assertAcked(prepareCreate("index").setSettings(ImmutableSettings.builder()
+        assertAcked(prepareCreate("index").setSettings(Settings.builder()
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
                 .put("index.routing.allocation.exclude._name", master)).get());
@@ -274,11 +272,11 @@ public class RareClusterStateTests extends ElasticsearchIntegrationTest {
 
         // Force allocation of the primary on the master node by first only allocating on the master
         // and then allowing all nodes so that the replica gets allocated on the other node
-        assertAcked(prepareCreate("index").setSettings(ImmutableSettings.builder()
+        assertAcked(prepareCreate("index").setSettings(Settings.builder()
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
                 .put("index.routing.allocation.include._name", master)).get());
-        assertAcked(client().admin().indices().prepareUpdateSettings("index").setSettings(ImmutableSettings.builder()
+        assertAcked(client().admin().indices().prepareUpdateSettings("index").setSettings(Settings.builder()
                 .put("index.routing.allocation.include._name", "")).get());
         ensureGreen();
 

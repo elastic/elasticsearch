@@ -30,7 +30,6 @@ import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.discovery.DiscoveryModule;
@@ -40,21 +39,20 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 
 /**
  * Simple helper class to start external nodes to be used within a test cluster
  */
 final class ExternalNode implements Closeable {
 
-    public static final Settings REQUIRED_SETTINGS = ImmutableSettings.builder()
+    public static final Settings REQUIRED_SETTINGS = Settings.builder()
             .put("config.ignore_system_properties", true)
             .put(DiscoveryModule.DISCOVERY_TYPE_KEY, "zen")
             .put("node.mode", "network").build(); // we need network mode for this
@@ -87,7 +85,7 @@ final class ExternalNode implements Closeable {
 
     synchronized ExternalNode start(Client localNode, Settings defaultSettings, String nodeName, String clusterName, int nodeOrdinal) throws IOException, InterruptedException {
         ExternalNode externalNode = new ExternalNode(path, clusterName, random.nextLong(), settingsSource);
-        Settings settings = ImmutableSettings.builder().put(defaultSettings).put(settingsSource.node(nodeOrdinal)).build();
+        Settings settings = Settings.builder().put(defaultSettings).put(settingsSource.node(nodeOrdinal)).build();
         externalNode.startInternal(localNode, settings, nodeName, clusterName);
         return externalNode;
     }
@@ -106,7 +104,7 @@ final class ExternalNode implements Closeable {
         }
         params.add("-Des.cluster.name=" + clusterName);
         params.add("-Des.node.name=" + nodeName);
-        ImmutableSettings.Builder externaNodeSettingsBuilder = ImmutableSettings.builder();
+        Settings.Builder externaNodeSettingsBuilder = Settings.builder();
         for (Map.Entry<String, String> entry : settings.getAsMap().entrySet()) {
             switch (entry.getKey()) {
                 case "cluster.name":

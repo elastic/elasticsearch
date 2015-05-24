@@ -33,7 +33,6 @@ import org.elasticsearch.action.percolate.PercolateResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.suggest.SuggestResponse;
 import org.elasticsearch.client.Requests;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -60,7 +59,7 @@ import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
-import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -778,7 +777,7 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testThatSuggestStopFilterWorks() throws Exception {
-        ImmutableSettings.Builder settingsBuilder = settingsBuilder()
+        Settings.Builder settingsBuilder = settingsBuilder()
                 .put("index.analysis.analyzer.stoptest.tokenizer", "standard")
                 .putArray("index.analysis.analyzer.stoptest.filter", "standard", "suggest_stop_filter")
                 .put("index.analysis.filter.suggest_stop_filter.type", "stop")
@@ -891,7 +890,7 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
 
     private void createIndexAndMappingAndSettings(Settings settings, CompletionMappingBuilder completionMappingBuilder) throws IOException {
         assertAcked(client().admin().indices().prepareCreate(INDEX)
-                .setSettings(ImmutableSettings.settingsBuilder().put(indexSettings()).put(settings))
+                .setSettings(Settings.settingsBuilder().put(indexSettings()).put(settings))
                 .addMapping(TYPE, jsonBuilder().startObject()
                         .startObject(TYPE).startObject("properties")
                         .startObject(FIELD)
@@ -909,7 +908,7 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
     }
 
     private void createIndexAndMapping(CompletionMappingBuilder completionMappingBuilder) throws IOException {
-        createIndexAndMappingAndSettings(ImmutableSettings.EMPTY, completionMappingBuilder);
+        createIndexAndMappingAndSettings(Settings.EMPTY, completionMappingBuilder);
     }
 
     private void createData(boolean optimize) throws IOException, InterruptedException, ExecutionException {

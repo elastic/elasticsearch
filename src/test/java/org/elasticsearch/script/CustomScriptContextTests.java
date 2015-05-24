@@ -22,7 +22,6 @@ package org.elasticsearch.script;
 import com.google.common.collect.ImmutableSet;
 
 import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.AbstractPlugin;
 import org.elasticsearch.script.expression.ExpressionScriptEngineService;
@@ -42,7 +41,7 @@ public class CustomScriptContextTests extends ElasticsearchIntegrationTest {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return ImmutableSettings.builder().put(super.nodeSettings(nodeOrdinal))
+        return Settings.builder().put(super.nodeSettings(nodeOrdinal))
                 .put("plugin.types", CustomScriptContextPlugin.class.getName())
                 .put("script." + PLUGIN_NAME + "_custom_globally_disabled_op", "off")
                 .put("script.engine.expression.inline." + PLUGIN_NAME + "_custom_exp_disabled_op", "off")

@@ -33,7 +33,6 @@ import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDeci
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider.Rebalance;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.test.ElasticsearchAllocationTestCase;
@@ -48,7 +47,7 @@ import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE;
 import static org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE;
 import static org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE;
-import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -172,7 +171,7 @@ public class EnableAllocationTests extends ElasticsearchAllocationTestCase {
                 .build();
         NodeSettingsService nodeSettingsService = new NodeSettingsService(build);
         AllocationService strategy = createAllocationService(build, nodeSettingsService, getRandom());
-        Settings indexSettings = useClusterSetting ? ImmutableSettings.EMPTY : settingsBuilder().put(EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE, Rebalance.NONE).build();
+        Settings indexSettings = useClusterSetting ? Settings.EMPTY : settingsBuilder().put(EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE, Rebalance.NONE).build();
 
         logger.info("Building initial routing table");
         MetaData metaData = MetaData.builder()
@@ -275,7 +274,7 @@ public class EnableAllocationTests extends ElasticsearchAllocationTestCase {
                 .build();
         NodeSettingsService nodeSettingsService = new NodeSettingsService(build);
         AllocationService strategy = createAllocationService(build, nodeSettingsService, getRandom());
-        Settings indexSettings = useClusterSetting ? ImmutableSettings.EMPTY : settingsBuilder().put(EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE, Rebalance.NONE).build();
+        Settings indexSettings = useClusterSetting ? Settings.EMPTY : settingsBuilder().put(EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE, Rebalance.NONE).build();
 
         logger.info("Building initial routing table");
         MetaData metaData = MetaData.builder()

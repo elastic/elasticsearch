@@ -19,7 +19,6 @@
 
 package org.elasticsearch.bootstrap;
 
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ElasticsearchTestCase;
@@ -37,7 +36,7 @@ public class SecurityTests extends ElasticsearchTestCase {
         Path path = createTempDir();
         // make a fake ES home and ensure we only grant permissions to that.
         Path esHome = path.resolve("esHome");
-        ImmutableSettings.Builder settingsBuilder = ImmutableSettings.builder();
+        Settings.Builder settingsBuilder = Settings.builder();
         settingsBuilder.put("path.home", esHome.toString());
         Settings settings = settingsBuilder.build();
 
@@ -66,7 +65,7 @@ public class SecurityTests extends ElasticsearchTestCase {
     public void testEnvironmentPaths() throws Exception {
         Path path = createTempDir();
 
-        ImmutableSettings.Builder settingsBuilder = ImmutableSettings.builder();
+        Settings.Builder settingsBuilder = Settings.builder();
         settingsBuilder.put("path.home", path.resolve("home").toString());
         settingsBuilder.put("path.conf", path.resolve("conf").toString());
         settingsBuilder.put("path.plugins", path.resolve("plugins").toString());

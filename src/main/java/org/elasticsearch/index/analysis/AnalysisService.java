@@ -26,7 +26,6 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
@@ -65,7 +64,7 @@ public class AnalysisService extends AbstractIndexComponent implements Closeable
                            @Nullable Map<String, CharFilterFactoryFactory> charFilterFactoryFactories,
                            @Nullable Map<String, TokenFilterFactoryFactory> tokenFilterFactoryFactories) {
         super(index, indexSettings);
-        Settings defaultSettings = ImmutableSettings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.indexCreated(indexSettings)).build();
+        Settings defaultSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.indexCreated(indexSettings)).build();
         Map<String, TokenizerFactory> tokenizers = newHashMap();
         if (tokenizerFactoryFactories != null) {
             Map<String, Settings> tokenizersSettings = indexSettings.getGroups("index.analysis.tokenizer");
@@ -192,17 +191,17 @@ public class AnalysisService extends AbstractIndexComponent implements Closeable
                 String name = entry.getKey();
                 Version indexVersion = Version.indexCreated(indexSettings);
                 if (!analyzerProviders.containsKey(name)) {
-                    analyzerProviders.put(name, entry.getValue().create(name, ImmutableSettings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, indexVersion).build()));
+                    analyzerProviders.put(name, entry.getValue().create(name, Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, indexVersion).build()));
                 }
                 String camelCaseName = Strings.toCamelCase(name);
                 if (!camelCaseName.equals(entry.getKey()) && !analyzerProviders.containsKey(camelCaseName)) {
-                    analyzerProviders.put(camelCaseName, entry.getValue().create(name, ImmutableSettings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, indexVersion).build()));
+                    analyzerProviders.put(camelCaseName, entry.getValue().create(name, Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, indexVersion).build()));
                 }
             }
         }
 
         if (!analyzerProviders.containsKey("default")) {
-            analyzerProviders.put("default", new StandardAnalyzerProvider(index, indexSettings, null, "default", ImmutableSettings.Builder.EMPTY_SETTINGS));
+            analyzerProviders.put("default", new StandardAnalyzerProvider(index, indexSettings, null, "default", Settings.Builder.EMPTY_SETTINGS));
         }
         if (!analyzerProviders.containsKey("default_index")) {
             analyzerProviders.put("default_index", analyzerProviders.get("default"));

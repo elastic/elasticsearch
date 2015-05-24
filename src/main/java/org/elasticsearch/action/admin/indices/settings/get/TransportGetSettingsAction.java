@@ -19,9 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.settings.get;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadOperationAction;
 import org.elasticsearch.cluster.ClusterService;
@@ -32,7 +30,6 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -83,7 +80,7 @@ public class TransportGetSettingsAction extends TransportMasterNodeReadOperation
 
             Settings settings = SettingsFilter.filterSettings(settingsFilter.getPatterns(), indexMetaData.settings());
             if (!CollectionUtils.isEmpty(request.names())) {
-                ImmutableSettings.Builder settingsBuilder = ImmutableSettings.builder();
+                Settings.Builder settingsBuilder = Settings.builder();
                 for (Map.Entry<String, String> entry : settings.getAsMap().entrySet()) {
                     if (Regex.simpleMatch(request.names(), entry.getKey())) {
                         settingsBuilder.put(entry.getKey(), entry.getValue());

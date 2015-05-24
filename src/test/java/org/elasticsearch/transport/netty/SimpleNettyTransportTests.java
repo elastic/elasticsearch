@@ -23,7 +23,6 @@ import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.network.NetworkService;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.util.BigArrays;
@@ -39,7 +38,7 @@ public class SimpleNettyTransportTests extends AbstractSimpleTransportTests {
     protected MockTransportService build(Settings settings, Version version) {
         int startPort = 11000 + randomIntBetween(0, 255);
         int endPort = startPort + 10;
-        settings = ImmutableSettings.builder().put(settings).put("transport.tcp.port", startPort + "-" + endPort).build();
+        settings = Settings.builder().put(settings).put("transport.tcp.port", startPort + "-" + endPort).build();
         MockTransportService transportService = new MockTransportService(settings, new NettyTransport(settings, threadPool, new NetworkService(settings), BigArrays.NON_RECYCLING_INSTANCE, version), threadPool);
         transportService.start();
         return transportService;

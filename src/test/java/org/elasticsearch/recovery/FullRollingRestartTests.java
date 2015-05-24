@@ -19,12 +19,10 @@
 
 package org.elasticsearch.recovery;
 
-import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequestBuilder;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
@@ -57,7 +55,7 @@ public class FullRollingRestartTests extends ElasticsearchIntegrationTest {
     @Test
     @Slow
     public void testFullRollingRestart() throws Exception {
-        Settings settings = ImmutableSettings.builder().put(ZenDiscovery.SETTING_JOIN_TIMEOUT, "30s").build();
+        Settings settings = Settings.builder().put(ZenDiscovery.SETTING_JOIN_TIMEOUT, "30s").build();
         internalCluster().startNode(settings);
         createIndex("test");
 

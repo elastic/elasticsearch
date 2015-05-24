@@ -53,6 +53,7 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsRequest;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.status.IndicesStatusRequest;
+import org.elasticsearch.action.admin.indices.upgrade.post.UpgradeRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.count.CountRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -345,6 +346,17 @@ public class Requests {
      */
     public static OptimizeRequest optimizeRequest(String... indices) {
         return new OptimizeRequest(indices);
+    }
+
+    /**
+     * Creates an upgrade request.
+     *
+     * @param indices The indices to upgrade. Use <tt>null</tt> or <tt>_all</tt> to execute against all indices
+     * @return The upgrade request
+     * @see org.elasticsearch.client.IndicesAdminClient#upgrade(UpgradeRequest)
+     */
+    public static UpgradeRequest upgradeRequest(String... indices) {
+        return new UpgradeRequest(indices);
     }
 
     /**

@@ -41,7 +41,6 @@ import org.elasticsearch.index.merge.policy.MergePolicyModule;
 import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.recovery.RecoverySettings;
-import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.rest.action.admin.indices.upgrade.UpgradeTest;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -51,7 +50,6 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.test.index.merge.NoMergePolicyProvider;
 import org.elasticsearch.test.junit.annotations.TestLogging;
-import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
 import org.hamcrest.Matchers;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -72,6 +70,8 @@ import java.util.*;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 @LuceneTestCase.SuppressCodecs({"Lucene3x", "MockFixedIntBlock", "MockVariableIntBlock", "MockSep", "MockRandom", "Lucene40", "Lucene41", "Appending", "Lucene42", "Lucene45", "Lucene46", "Lucene49"})
@@ -105,7 +105,6 @@ public class OldIndexBackwardsCompatibilityTests extends ElasticsearchIntegratio
     @Override
     public Settings nodeSettings(int ord) {
         return ImmutableSettings.builder()
-                .put(InternalNode.HTTP_ENABLED, true) // for _upgrade
                 .put(MergePolicyModule.MERGE_POLICY_TYPE_KEY, NoMergePolicyProvider.class) // disable merging so no segments will be upgraded
                 .put("gateway.type", "local") // this is important we need to recover from gateway
                 .put(RecoverySettings.INDICES_RECOVERY_CONCURRENT_SMALL_FILE_STREAMS, 30) // increase recovery speed for small files
@@ -392,12 +391,10 @@ public class OldIndexBackwardsCompatibilityTests extends ElasticsearchIntegratio
     }
 
     void assertUpgradeWorks(String indexName, boolean alreadyLatest) throws Exception {
-        HttpRequestBuilder httpClient = httpClient();
-
         if (alreadyLatest == false) {
-            UpgradeTest.assertNotUpgraded(httpClient, indexName);
+            UpgradeTest.assertNotUpgraded(client(), indexName);
         }
-        UpgradeTest.runUpgrade(httpClient, indexName);
-        UpgradeTest.assertUpgraded(httpClient, indexName);
+        assertNoFailures(client().admin().indices().prepareUpgrade(indexName).get());
+        UpgradeTest.assertUpgraded(client(), indexName);
     }
 }

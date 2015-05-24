@@ -36,8 +36,7 @@ class ShardOptimizeRequest extends BroadcastShardOperationRequest {
     private int maxNumSegments = OptimizeRequest.Defaults.MAX_NUM_SEGMENTS;
     private boolean onlyExpungeDeletes = OptimizeRequest.Defaults.ONLY_EXPUNGE_DELETES;
     private boolean flush = OptimizeRequest.Defaults.FLUSH;
-    private boolean upgrade = OptimizeRequest.Defaults.UPGRADE;
-    private boolean upgradeOnlyAncientSegments = OptimizeRequest.Defaults.UPGRADE_ONLY_ANCIENT_SEGMENTS;
+    private boolean force = OptimizeRequest.Defaults.FORCE;
 
     ShardOptimizeRequest() {
     }
@@ -47,8 +46,7 @@ class ShardOptimizeRequest extends BroadcastShardOperationRequest {
         maxNumSegments = request.maxNumSegments();
         onlyExpungeDeletes = request.onlyExpungeDeletes();
         flush = request.flush();
-        upgrade = request.force() || request.upgrade();
-        upgradeOnlyAncientSegments = request.upgradeOnlyAncientSegments();
+        force = request.force();
     }
 
     int maxNumSegments() {
@@ -63,12 +61,8 @@ class ShardOptimizeRequest extends BroadcastShardOperationRequest {
         return flush;
     }
 
-    public boolean upgrade() {
-        return upgrade;
-    }
-
-    public boolean upgradeOnlyAncientSegments() {
-        return upgradeOnlyAncientSegments;
+    public boolean force() {
+        return force;
     }
 
     @Override
@@ -81,12 +75,7 @@ class ShardOptimizeRequest extends BroadcastShardOperationRequest {
         onlyExpungeDeletes = in.readBoolean();
         flush = in.readBoolean();
         if (in.getVersion().onOrAfter(Version.V_1_1_0)) {
-            upgrade = in.readBoolean();
-            if (in.getVersion().onOrAfter(Version.V_1_6_0)) {
-                upgradeOnlyAncientSegments = in.readBoolean();
-            } else {
-                upgradeOnlyAncientSegments = false;
-            }
+            force = in.readBoolean();
         }
     }
 
@@ -100,10 +89,7 @@ class ShardOptimizeRequest extends BroadcastShardOperationRequest {
         out.writeBoolean(onlyExpungeDeletes);
         out.writeBoolean(flush);
         if (out.getVersion().onOrAfter(Version.V_1_1_0)) {
-            out.writeBoolean(upgrade);
-            if (out.getVersion().onOrAfter(Version.V_1_6_0)) {
-                out.writeBoolean(upgradeOnlyAncientSegments);
-            }
+            out.writeBoolean(force);
         }
     }
 }

@@ -24,6 +24,9 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexAction;
 import org.elasticsearch.action.admin.indices.seal.SealIndicesAction;
+import org.elasticsearch.action.admin.indices.upgrade.get.UpgradeStatusAction;
+import org.elasticsearch.action.admin.indices.upgrade.post.UpgradeAction;
+import org.elasticsearch.action.admin.indices.upgrade.post.UpgradeSettingsAction;
 import org.elasticsearch.action.exists.ExistsAction;
 import org.elasticsearch.action.fieldstats.FieldStatsAction;
 import org.elasticsearch.action.indexedscripts.delete.DeleteIndexedScriptAction;
@@ -86,6 +89,12 @@ public class ActionNamesBackwardsCompatibilityTest extends ElasticsearchBackward
         actionsVersions.put(SyncedFlushService.PRE_SYNCED_FLUSH_ACTION_NAME, Version.V_1_6_0);
         actionsVersions.put(SyncedFlushService.SYNCED_FLUSH_ACTION_NAME, Version.V_1_6_0);
         actionsVersions.put(SealIndicesAction.NAME, Version.V_1_6_0);
+
+        actionsVersions.put(UpgradeAction.NAME, Version.V_1_6_0);
+        actionsVersions.put(UpgradeAction.NAME + "[s]", Version.V_1_6_0);
+        actionsVersions.put(UpgradeStatusAction.NAME, Version.V_1_6_0);
+        actionsVersions.put(UpgradeStatusAction.NAME + "[s]", Version.V_1_6_0);
+        actionsVersions.put(UpgradeSettingsAction.NAME, Version.V_1_6_0);
     }
 
     @Test

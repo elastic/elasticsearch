@@ -24,7 +24,9 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexAction;
 import org.elasticsearch.action.admin.indices.seal.SealIndicesAction;
-import org.elasticsearch.action.admin.indices.seal.TransportSealIndicesAction;
+import org.elasticsearch.action.admin.indices.upgrade.get.UpgradeStatusAction;
+import org.elasticsearch.action.admin.indices.upgrade.post.UpgradeAction;
+import org.elasticsearch.action.admin.indices.upgrade.post.UpgradeSettingsAction;
 import org.elasticsearch.action.exists.ExistsAction;
 import org.elasticsearch.action.fieldstats.FieldStatsAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
@@ -69,6 +71,11 @@ public class ActionNamesTests extends ElasticsearchIntegrationTest {
         post_1_4_actions.add(SyncedFlushService.PRE_SYNCED_FLUSH_ACTION_NAME);
         post_1_4_actions.add(SyncedFlushService.SYNCED_FLUSH_ACTION_NAME);
         post_1_4_actions.add(SealIndicesAction.NAME);
+        post_1_4_actions.add(UpgradeAction.NAME);
+        post_1_4_actions.add(UpgradeAction.NAME + "[s]");
+        post_1_4_actions.add(UpgradeStatusAction.NAME);
+        post_1_4_actions.add(UpgradeStatusAction.NAME + "[s]");
+        post_1_4_actions.add(UpgradeSettingsAction.NAME);
     }
 
     @Test

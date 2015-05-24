@@ -162,6 +162,8 @@ public class IndexMetaData {
     public static final String SETTING_BLOCKS_WRITE = "index.blocks.write";
     public static final String SETTING_BLOCKS_METADATA = "index.blocks.metadata";
     public static final String SETTING_VERSION_CREATED = "index.version.created";
+    public static final String SETTING_VERSION_UPGRADED = "index.version.upgraded";
+    public static final String SETTING_VERSION_MINIMUM_COMPATIBLE = "index.version.minimum_compatible";
     public static final String SETTING_CREATION_DATE = "index.creation_date";
     public static final String SETTING_UUID = "index.uuid";
     public static final String SETTING_DATA_PATH = "index.data_path";

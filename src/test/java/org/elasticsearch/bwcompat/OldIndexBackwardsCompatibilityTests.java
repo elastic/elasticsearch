@@ -54,7 +54,6 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.test.index.merge.NoMergePolicyProvider;
-import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
 import org.hamcrest.Matchers;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -67,8 +66,9 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.util.*;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.junit.matchers.JUnitMatchers.containsString;
 
 // needs at least 2 nodes since it bumps replicas to 1
 @ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.TEST, numDataNodes = 0)
@@ -110,7 +110,6 @@ public class OldIndexBackwardsCompatibilityTests extends ElasticsearchIntegratio
     @Override
     public Settings nodeSettings(int ord) {
         return Settings.builder()
-                .put(Node.HTTP_ENABLED, true) // for _upgrade
                 .put(MergePolicyModule.MERGE_POLICY_TYPE_KEY, NoMergePolicyProvider.class) // disable merging so no segments will be upgraded
                 .put(RecoverySettings.INDICES_RECOVERY_CONCURRENT_SMALL_FILE_STREAMS, 30) // increase recovery speed for small files
                 .build();
@@ -438,13 +437,11 @@ public class OldIndexBackwardsCompatibilityTests extends ElasticsearchIntegratio
     }
 
     void assertUpgradeWorks(String indexName, boolean alreadyLatest) throws Exception {
-        HttpRequestBuilder httpClient = httpClient();
-
         if (alreadyLatest == false) {
-            UpgradeTest.assertNotUpgraded(httpClient, indexName);
+            UpgradeTest.assertNotUpgraded(client(), indexName);
         }
-        UpgradeTest.runUpgrade(httpClient, indexName);
-        UpgradeTest.assertUpgraded(httpClient, indexName);
+        assertNoFailures(client().admin().indices().prepareUpgrade(indexName).get());
+        UpgradeTest.assertUpgraded(client(), indexName);
     }
 
 }

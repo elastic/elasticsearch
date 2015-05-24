@@ -111,6 +111,12 @@ import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesActi
 import org.elasticsearch.action.admin.indices.template.get.TransportGetIndexTemplatesAction;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.upgrade.get.TransportUpgradeStatusAction;
+import org.elasticsearch.action.admin.indices.upgrade.get.UpgradeStatusAction;
+import org.elasticsearch.action.admin.indices.upgrade.post.TransportUpgradeAction;
+import org.elasticsearch.action.admin.indices.upgrade.post.TransportUpgradeSettingsAction;
+import org.elasticsearch.action.admin.indices.upgrade.post.UpgradeAction;
+import org.elasticsearch.action.admin.indices.upgrade.post.UpgradeSettingsAction;
 import org.elasticsearch.action.admin.indices.validate.query.TransportValidateQueryAction;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryAction;
 import org.elasticsearch.action.admin.indices.warmer.delete.DeleteWarmerAction;
@@ -256,6 +262,9 @@ public class ActionModule extends AbstractModule {
         registerAction(FlushAction.INSTANCE, TransportFlushAction.class);
         registerAction(SealIndicesAction.INSTANCE, TransportSealIndicesAction.class);
         registerAction(OptimizeAction.INSTANCE, TransportOptimizeAction.class);
+        registerAction(UpgradeAction.INSTANCE, TransportUpgradeAction.class);
+        registerAction(UpgradeStatusAction.INSTANCE, TransportUpgradeStatusAction.class);
+        registerAction(UpgradeSettingsAction.INSTANCE, TransportUpgradeSettingsAction.class);
         registerAction(ClearIndicesCacheAction.INSTANCE, TransportClearIndicesCacheAction.class);
         registerAction(PutWarmerAction.INSTANCE, TransportPutWarmerAction.class);
         registerAction(DeleteWarmerAction.INSTANCE, TransportDeleteWarmerAction.class);

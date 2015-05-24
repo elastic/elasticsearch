@@ -54,13 +54,26 @@ curl 'http://localhost:9200/twitter/_upgrade?pretty&human'
 [source,js]
 --------------------------------------------------
 {
-   "twitter": {
+  "size": "21gb",
+  "size_in_bytes": "21000000000",
+  "size_to_upgrade": "10gb",
+  "size_to_upgrade_in_bytes": "10000000000"
+  "size_to_upgrade_ancient": "1gb",
+  "size_to_upgrade_ancient_in_bytes": "1000000000"
+  "indices": {
+    "twitter": {
       "size": "21gb",
       "size_in_bytes": "21000000000",
       "size_to_upgrade": "10gb",
       "size_to_upgrade_in_bytes": "10000000000"
       "size_to_upgrade_ancient": "1gb",
       "size_to_upgrade_ancient_in_bytes": "1000000000"
-   }
+    }
+  }
 }
 --------------------------------------------------
+
+The level of details in the upgrade status command can be controlled by
+setting `level` parameter to `cluster`, `index` (default) or `shard` levels.
+For example, you can run the upgrade status command with `level=shard` to
+get detailed upgrade information of each individual shard.

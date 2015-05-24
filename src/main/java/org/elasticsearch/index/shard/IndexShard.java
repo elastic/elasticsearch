@@ -33,6 +33,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.optimize.OptimizeRequest;
+import org.elasticsearch.action.admin.indices.upgrade.post.UpgradeRequest;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -717,8 +718,38 @@ public class IndexShard extends AbstractIndexShardComponent {
         if (logger.isTraceEnabled()) {
             logger.trace("optimize with {}", optimize);
         }
-        engine().forceMerge(optimize.flush(), optimize.maxNumSegments(), optimize.onlyExpungeDeletes(),
-                optimize.upgrade(), optimize.upgradeOnlyAncientSegments());
+        engine().forceMerge(optimize.flush(), optimize.maxNumSegments(), optimize.onlyExpungeDeletes(), false, false);
+    }
+
+    /**
+     * Upgrades the shard to the current version of Lucene and returns the minimum segment version
+     */
+    public org.apache.lucene.util.Version upgrade(UpgradeRequest upgrade) {
+        verifyStarted();
+        if (logger.isTraceEnabled()) {
+            logger.trace("upgrade with {}", upgrade);
+        }
+        org.apache.lucene.util.Version previousVersion = minimumCompatibleVersion();
+        // we just want to upgrade the segments, not actually optimize to a single segment
+        engine().forceMerge(true,  // we need to flush at the end to make sure the upgrade is durable
+                Integer.MAX_VALUE, // we just want to upgrade the segments, not actually optimize to a single segment
+                false, true, upgrade.upgradeOnlyAncientSegments());
+        org.apache.lucene.util.Version version = minimumCompatibleVersion();
+        if (logger.isTraceEnabled()) {
+            logger.trace("upgraded segment {} from version {} to version {}", previousVersion, version);
+        }
+
+        return version;
+    }
+
+    public org.apache.lucene.util.Version minimumCompatibleVersion() {
+        org.apache.lucene.util.Version luceneVersion = Version.LUCENE_3_EMULATION_VERSION;
+        for(Segment segment : engine().segments(false)) {
+            if (luceneVersion.onOrAfter(segment.getVersion())) {
+                luceneVersion = segment.getVersion();
+            }
+        }
+        return luceneVersion;
     }
 
     public SnapshotIndexCommit snapshotIndex(boolean flushFirst) throws EngineException {

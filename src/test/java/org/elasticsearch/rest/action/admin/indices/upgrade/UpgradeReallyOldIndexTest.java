@@ -20,20 +20,22 @@
 package org.elasticsearch.rest.action.admin.indices.upgrade;
 
 import org.elasticsearch.bwcompat.StaticIndexBackwardCompatibilityTest;
-import org.elasticsearch.node.Node;
+
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 
 public class UpgradeReallyOldIndexTest extends StaticIndexBackwardCompatibilityTest {
 
     public void testUpgrade_0_90_6() throws Exception {
         String indexName = "index-0.90.6";
-        loadIndex(indexName, Node.HTTP_ENABLED, true);
-        
-        UpgradeTest.assertNotUpgraded(httpClient(), indexName);
-        assertTrue(UpgradeTest.hasAncientSegments(httpClient(), indexName));
-        UpgradeTest.runUpgrade(httpClient(), indexName, "wait_for_completion", "true", "only_ancient_segments", "true");
-        assertFalse(UpgradeTest.hasAncientSegments(httpClient(), "index-0.90.6"));
+
+        loadIndex(indexName);
+        UpgradeTest.assertNotUpgraded(client(), indexName);
+        assertTrue(UpgradeTest.hasAncientSegments(client(), indexName));
+        assertNoFailures(client().admin().indices().prepareUpgrade(indexName).setUpgradeOnlyAncientSegments(true).get());
+
+        assertFalse(UpgradeTest.hasAncientSegments(client(), "index-0.90.6"));
         // This index has only ancient segments, so it should now be fully upgraded:
-        UpgradeTest.assertUpgraded(httpClient(), indexName);
+        UpgradeTest.assertUpgraded(client(), indexName);
     }
 
 }

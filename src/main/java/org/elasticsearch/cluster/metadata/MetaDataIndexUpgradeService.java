@@ -28,7 +28,7 @@ import org.elasticsearch.common.settings.Settings;
 
 /**
  * This service is responsible for upgrading legacy index metadata to the current version
- *
+ * <p/>
  * Every time an existing index is introduced into cluster this service should be used
  * to upgrade the existing index metadata to the latest version of the cluster. It typically
  * occurs during cluster upgrade, when dangling indices are imported into the cluster or indices
@@ -64,7 +64,7 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
             pre20HashFunction = DjbHashFunction.class;
         }
         pre20UseType = settings.getAsBoolean(DEPRECATED_SETTING_ROUTING_USE_TYPE, null);
-        if (hasCustomPre20HashFunction|| pre20UseType != null) {
+        if (hasCustomPre20HashFunction || pre20UseType != null) {
             logger.warn("Settings [{}] and [{}] are deprecated. Index settings from your old indices have been updated to record the fact that they "
                     + "used some custom routing logic, you can now remove these settings from your `elasticsearch.yml` file", DEPRECATED_SETTING_ROUTING_HASH_FUNCTION, DEPRECATED_SETTING_ROUTING_USE_TYPE);
         }
@@ -72,7 +72,7 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
 
     /**
      * Checks that the index can be upgraded to the current version of the master node.
-     *
+     * <p/>
      * If the index does need upgrade it returns the index metadata unchanged, otherwise it returns a modified index metadata. If index cannot be
      * updated the method throws an exception.
      */
@@ -101,8 +101,16 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
      * Returns true if this index can be supported by the current version of elasticsearch
      */
     private static boolean isSupportedVersion(IndexMetaData indexMetaData) {
-        return indexMetaData.minimumCompatibleVersion() != null &&
-                indexMetaData.minimumCompatibleVersion().luceneVersion.onOrAfter(Version.V_0_90_0_Beta1.luceneVersion);
+        if (indexMetaData.creationVersion().onOrAfter(Version.V_0_90_0_Beta1)) {
+            // The index was created with elasticsearch that was using Lucene 4.0
+            return true;
+        }
+        if (indexMetaData.getMinimumCompatibleVersion() != null &&
+                indexMetaData.getMinimumCompatibleVersion().onOrAfter(org.apache.lucene.util.Version.LUCENE_4_0_0)) {
+            //The index was upgraded we can work with it
+            return true;
+        }
+        return false;
     }
 
     /**

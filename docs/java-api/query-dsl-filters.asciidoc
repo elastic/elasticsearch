@@ -1,7 +1,7 @@
 [[query-dsl-filters]]
 == Query DSL - Filters
 
-elasticsearch provides a full Java query dsl in a similar manner to the
+elasticsearch provides a full Java query DSL in a similar manner to the
 REST {ref}/query-dsl.html[Query DSL]. The factory for filter
 builders is `FilterBuilders`.
 
@@ -182,7 +182,7 @@ FilterBuilder filter = geoDistanceRangeFilter("pin.location")   <1>
 <5> include lower value means that `from` is `gt` when `false` or `gte` when `true`
 <6> include upper value means that `to` is `lt` when `false` or `lte` when `true`
 <7> optimize bounding box: `memory`, `indexed` or `none`
-<8> distance computation mode: `GeoDistance.SLOPPY_ARC` (default), `GeoDistance.ARC` (slighly more precise but
+<8> distance computation mode: `GeoDistance.SLOPPY_ARC` (default), `GeoDistance.ARC` (slightly more precise but
     significantly slower) or `GeoDistance.PLANE` (faster, but inaccurate on long distances and close to the poles)
 
 Note that you can cache the result using

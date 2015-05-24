@@ -56,9 +56,9 @@ import static org.elasticsearch.common.unit.SizeValue.parseSizeValue;
 import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
 
 /**
- * An immutable implementation of {@link Settings}.
+ * An immutable {@code Settings} implementation.
  */
-public class Settings implements ToXContent {
+public final class Settings implements ToXContent {
 
     public static final Settings EMPTY = new Builder().build();
     private final static Pattern ARRAY_PATTERN = Pattern.compile("(.*)\\.\\d+$");
@@ -84,30 +84,30 @@ public class Settings implements ToXContent {
     }
 
     /**
-         * The class loader associated with this settings, or {@link org.elasticsearch.common.Classes#getDefaultClassLoader()}
-         * if not set.
-         */
+     * The class loader associated with this settings, or {@link org.elasticsearch.common.Classes#getDefaultClassLoader()}
+     * if not set.
+     */
     public ClassLoader getClassLoader() {
         return this.classLoader == null ? Classes.getDefaultClassLoader() : classLoader;
     }
 
     /**
-         * The class loader associated with this settings, but only if explicitly set, otherwise <tt>null</tt>.
-         */
+     * The class loader associated with this settings, but only if explicitly set, otherwise <tt>null</tt>.
+     */
     public ClassLoader getClassLoaderIfSet() {
         return this.classLoader;
     }
 
     /**
-         * The settings as a flat {@link java.util.Map}.
-         */
+     * The settings as a flat {@link java.util.Map}.
+     */
     public ImmutableMap<String, String> getAsMap() {
         return this.settings;
     }
 
     /**
-         * The settings as a structured {@link java.util.Map}.
-         */
+     * The settings as a structured {@link java.util.Map}.
+     */
     public Map<String, Object> getAsStructuredMap() {
         Map<String, Object> map = Maps.newHashMapWithExpectedSize(2);
         for (Map.Entry<String, String> entry : settings.entrySet()) {
@@ -198,8 +198,8 @@ public class Settings implements ToXContent {
     }
 
     /**
-         * A settings that are filtered (and key is removed) with the specified prefix.
-         */
+     * A settings that are filtered (and key is removed) with the specified prefix.
+     */
     public Settings getByPrefix(String prefix) {
         Builder builder = new Builder();
         for (Map.Entry<String, String> entry : getAsMap().entrySet()) {
@@ -216,18 +216,18 @@ public class Settings implements ToXContent {
     }
 
     /**
-         * Returns the settings mapped to the given setting name.
-         */
+     * Returns the settings mapped to the given setting name.
+     */
     public Settings getAsSettings(String setting) {
         return getByPrefix(setting + ".");
     }
 
     /**
-         * Returns the setting value associated with the setting key.
-         *
-         * @param setting The setting key
-         * @return The setting value, <tt>null</tt> if it does not exists.
-         */
+     * Returns the setting value associated with the setting key.
+     *
+     * @param setting The setting key
+     * @return The setting value, <tt>null</tt> if it does not exists.
+     */
     public String get(String setting) {
         String retVal = settings.get(setting);
         if (retVal != null) {
@@ -237,8 +237,8 @@ public class Settings implements ToXContent {
     }
 
     /**
-         * Returns the setting value associated with the first setting key.
-         */
+     * Returns the setting value associated with the first setting key.
+     */
     public String get(String[] settings) {
         for (String setting : settings) {
             String retVal = get(setting);
@@ -250,27 +250,27 @@ public class Settings implements ToXContent {
     }
 
     /**
-         * Returns the setting value associated with the setting key. If it does not exists,
-         * returns the default value provided.
-         */
+     * Returns the setting value associated with the setting key. If it does not exists,
+     * returns the default value provided.
+     */
     public String get(String setting, String defaultValue) {
         String retVal = get(setting);
         return retVal == null ? defaultValue : retVal;
     }
 
     /**
-         * Returns the setting value associated with the first setting key, if none exists,
-         * returns the default value provided.
-         */
+     * Returns the setting value associated with the first setting key, if none exists,
+     * returns the default value provided.
+     */
     public String get(String[] settings, String defaultValue) {
         String retVal = get(settings);
         return retVal == null ? defaultValue : retVal;
     }
 
     /**
-         * Returns the setting value (as float) associated with the setting key. If it does not exists,
-         * returns the default value provided.
-         */
+     * Returns the setting value (as float) associated with the setting key. If it does not exists,
+     * returns the default value provided.
+     */
     public Float getAsFloat(String setting, Float defaultValue) {
         String sValue = get(setting);
         if (sValue == null) {
@@ -284,9 +284,9 @@ public class Settings implements ToXContent {
     }
 
     /**
-         * Returns the setting value (as float) associated with teh first setting key, if none
-         * exists, returns the default value provided.
-         */
+     * Returns the setting value (as float) associated with teh first setting key, if none
+     * exists, returns the default value provided.
+     */
     public Float getAsFloat(String[] settings, Float defaultValue) throws SettingsException {
         String sValue = get(settings);
         if (sValue == null) {
@@ -300,9 +300,9 @@ public class Settings implements ToXContent {
     }
 
     /**
-         * Returns the setting value (as double) associated with the setting key. If it does not exists,
-         * returns the default value provided.
-         */
+     * Returns the setting value (as double) associated with the setting key. If it does not exists,
+     * returns the default value provided.
+     */
     public Double getAsDouble(String setting, Double defaultValue) {
         String sValue = get(setting);
         if (sValue == null) {
@@ -316,9 +316,9 @@ public class Settings implements ToXContent {
     }
 
     /**
-         * Returns the setting value (as double) associated with teh first setting key, if none
-         * exists, returns the default value provided.
-         */
+     * Returns the setting value (as double) associated with teh first setting key, if none
+     * exists, returns the default value provided.
+     */
     public Double getAsDouble(String[] settings, Double defaultValue) {
         String sValue = get(settings);
         if (sValue == null) {
@@ -333,9 +333,9 @@ public class Settings implements ToXContent {
 
 
     /**
-         * Returns the setting value (as int) associated with the setting key. If it does not exists,
-         * returns the default value provided.
-         */
+     * Returns the setting value (as int) associated with the setting key. If it does not exists,
+     * returns the default value provided.
+     */
     public Integer getAsInt(String setting, Integer defaultValue) {
         String sValue = get(setting);
         if (sValue == null) {
@@ -349,9 +349,9 @@ public class Settings implements ToXContent {
     }
 
     /**
-         * Returns the setting value (as int) associated with the first setting key. If it does not exists,
-         * returns the default value provided.
-         */
+     * Returns the setting value (as int) associated with the first setting key. If it does not exists,
+     * returns the default value provided.
+     */
     public Integer getAsInt(String[] settings, Integer defaultValue) {
         String sValue = get(settings);
         if (sValue == null) {
@@ -365,9 +365,9 @@ public class Settings implements ToXContent {
     }
 
     /**
-         * Returns the setting value (as long) associated with the setting key. If it does not exists,
-         * returns the default value provided.
-         */
+     * Returns the setting value (as long) associated with the setting key. If it does not exists,
+     * returns the default value provided.
+     */
     public Long getAsLong(String setting, Long defaultValue) {
         String sValue = get(setting);
         if (sValue == null) {
@@ -381,9 +381,9 @@ public class Settings implements ToXContent {
     }
 
     /**
-         * Returns the setting value (as long) associated with the setting key. If it does not exists,
-         * returns the default value provided.
-         */
+     * Returns the setting value (as long) associated with the setting key. If it does not exists,
+     * returns the default value provided.
+     */
     public Long getAsLong(String[] settings, Long defaultValue) {
         String sValue = get(settings);
         if (sValue == null) {
@@ -397,115 +397,115 @@ public class Settings implements ToXContent {
     }
 
     /**
-         * Returns the setting value (as boolean) associated with the setting key. If it does not exists,
-         * returns the default value provided.
-         */
+     * Returns the setting value (as boolean) associated with the setting key. If it does not exists,
+     * returns the default value provided.
+     */
     public Boolean getAsBoolean(String setting, Boolean defaultValue) {
         return Booleans.parseBoolean(get(setting), defaultValue);
     }
 
     /**
-         * Returns the setting value (as boolean) associated with the setting key. If it does not exists,
-         * returns the default value provided.
-         */
+     * Returns the setting value (as boolean) associated with the setting key. If it does not exists,
+     * returns the default value provided.
+     */
     public Boolean getAsBoolean(String[] settings, Boolean defaultValue) {
         return Booleans.parseBoolean(get(settings), defaultValue);
     }
 
     /**
-         * Returns the setting value (as time) associated with the setting key. If it does not exists,
-         * returns the default value provided.
-         */
+     * Returns the setting value (as time) associated with the setting key. If it does not exists,
+     * returns the default value provided.
+     */
     public TimeValue getAsTime(String setting, TimeValue defaultValue) {
         return parseTimeValue(get(setting), defaultValue);
     }
 
     /**
-         * Returns the setting value (as time) associated with the setting key. If it does not exists,
-         * returns the default value provided.
-         */
+     * Returns the setting value (as time) associated with the setting key. If it does not exists,
+     * returns the default value provided.
+     */
     public TimeValue getAsTime(String[] settings, TimeValue defaultValue) {
         return parseTimeValue(get(settings), defaultValue);
     }
 
     /**
-         * Returns the setting value (as size) associated with the setting key. If it does not exists,
-         * returns the default value provided.
-         */
+     * Returns the setting value (as size) associated with the setting key. If it does not exists,
+     * returns the default value provided.
+     */
     public ByteSizeValue getAsBytesSize(String setting, ByteSizeValue defaultValue) throws SettingsException {
         return parseBytesSizeValue(get(setting), defaultValue);
     }
 
     /**
-         * Returns the setting value (as size) associated with the setting key. If it does not exists,
-         * returns the default value provided.
-         */
+     * Returns the setting value (as size) associated with the setting key. If it does not exists,
+     * returns the default value provided.
+     */
     public ByteSizeValue getAsBytesSize(String[] settings, ByteSizeValue defaultValue) throws SettingsException {
         return parseBytesSizeValue(get(settings), defaultValue);
     }
 
     /**
-         * Returns the setting value (as size) associated with the setting key. Provided values can either be
-         * absolute values (intepreted as a number of bytes), byte sizes (eg. 1mb) or percentage of the heap size
-         * (eg. 12%). If it does not exists, parses the default value provided.
-         */
+     * Returns the setting value (as size) associated with the setting key. Provided values can either be
+     * absolute values (intepreted as a number of bytes), byte sizes (eg. 1mb) or percentage of the heap size
+     * (eg. 12%). If it does not exists, parses the default value provided.
+     */
     public ByteSizeValue getAsMemory(String setting, String defaultValue) throws SettingsException {
         return MemorySizeValue.parseBytesSizeValueOrHeapRatio(get(setting, defaultValue));
     }
 
     /**
-         * Returns the setting value (as size) associated with the setting key. Provided values can either be
-         * absolute values (intepreted as a number of bytes), byte sizes (eg. 1mb) or percentage of the heap size
-         * (eg. 12%). If it does not exists, parses the default value provided.
-         */
+     * Returns the setting value (as size) associated with the setting key. Provided values can either be
+     * absolute values (intepreted as a number of bytes), byte sizes (eg. 1mb) or percentage of the heap size
+     * (eg. 12%). If it does not exists, parses the default value provided.
+     */
     public ByteSizeValue getAsMemory(String[] settings, String defaultValue) throws SettingsException {
         return MemorySizeValue.parseBytesSizeValueOrHeapRatio(get(settings, defaultValue));
     }
 
     /**
-         * Returns the setting value (as a RatioValue) associated with the setting key. Provided values can
-         * either be a percentage value (eg. 23%), or expressed as a floating point number (eg. 0.23). If
-         * it does not exist, parses the default value provided.
-         */
+     * Returns the setting value (as a RatioValue) associated with the setting key. Provided values can
+     * either be a percentage value (eg. 23%), or expressed as a floating point number (eg. 0.23). If
+     * it does not exist, parses the default value provided.
+     */
     public RatioValue getAsRatio(String setting, String defaultValue) throws SettingsException {
         return RatioValue.parseRatioValue(get(setting, defaultValue));
     }
 
     /**
-         * Returns the setting value (as a RatioValue) associated with the setting key. Provided values can
-         * either be a percentage value (eg. 23%), or expressed as a floating point number (eg. 0.23). If
-         * it does not exist, parses the default value provided.
-         */
+     * Returns the setting value (as a RatioValue) associated with the setting key. Provided values can
+     * either be a percentage value (eg. 23%), or expressed as a floating point number (eg. 0.23). If
+     * it does not exist, parses the default value provided.
+     */
     public RatioValue getAsRatio(String[] settings, String defaultValue) throws SettingsException {
         return RatioValue.parseRatioValue(get(settings, defaultValue));
     }
 
     /**
-         * Returns the setting value (as size) associated with the setting key. If it does not exists,
-         * returns the default value provided.
-         */
+     * Returns the setting value (as size) associated with the setting key. If it does not exists,
+     * returns the default value provided.
+     */
     public SizeValue getAsSize(String setting, SizeValue defaultValue) throws SettingsException {
         return parseSizeValue(get(setting), defaultValue);
     }
 
     /**
-         * Returns the setting value (as size) associated with the setting key. If it does not exists,
-         * returns the default value provided.
-         */
+     * Returns the setting value (as size) associated with the setting key. If it does not exists,
+     * returns the default value provided.
+     */
     public SizeValue getAsSize(String[] settings, SizeValue defaultValue) throws SettingsException {
         return parseSizeValue(get(settings), defaultValue);
     }
 
     /**
-         * Returns the setting value (as a class) associated with the setting key. If it does not exists,
-         * returns the default class provided.
-         *
-         * @param setting      The setting key
-         * @param defaultClazz The class to return if no value is associated with the setting
-         * @param <T>          The type of the class
-         * @return The class setting value, or the default class provided is no value exists
-         * @throws org.elasticsearch.common.settings.NoClassSettingsException Failure to load a class
-         */
+     * Returns the setting value (as a class) associated with the setting key. If it does not exists,
+     * returns the default class provided.
+     *
+     * @param setting      The setting key
+     * @param defaultClazz The class to return if no value is associated with the setting
+     * @param <T>          The type of the class
+     * @return The class setting value, or the default class provided is no value exists
+     * @throws org.elasticsearch.common.settings.NoClassSettingsException Failure to load a class
+     */
     @SuppressWarnings({"unchecked"})
     public <T> Class<? extends T> getAsClass(String setting, Class<? extends T> defaultClazz) throws NoClassSettingsException {
         String sValue = get(setting);
@@ -520,18 +520,18 @@ public class Settings implements ToXContent {
     }
 
     /**
-         * Returns the setting value (as a class) associated with the setting key. If the value itself fails to
-         * represent a loadable class, the value will be appended to the <tt>prefixPackage</tt> and suffixed with the
-         * <tt>suffixClassName</tt> and it will try to be loaded with it.
-         *
-         * @param setting         The setting key
-         * @param defaultClazz    The class to return if no value is associated with the setting
-         * @param prefixPackage   The prefix package to prefix the value with if failing to load the class as is
-         * @param suffixClassName The suffix class name to prefix the value with if failing to load the class as is
-         * @param <T>             The type of the class
-         * @return The class represented by the setting value, or the default class provided if no value exists
-         * @throws org.elasticsearch.common.settings.NoClassSettingsException Failure to load the class
-         */
+     * Returns the setting value (as a class) associated with the setting key. If the value itself fails to
+     * represent a loadable class, the value will be appended to the <tt>prefixPackage</tt> and suffixed with the
+     * <tt>suffixClassName</tt> and it will try to be loaded with it.
+     *
+     * @param setting         The setting key
+     * @param defaultClazz    The class to return if no value is associated with the setting
+     * @param prefixPackage   The prefix package to prefix the value with if failing to load the class as is
+     * @param suffixClassName The suffix class name to prefix the value with if failing to load the class as is
+     * @param <T>             The type of the class
+     * @return The class represented by the setting value, or the default class provided if no value exists
+     * @throws org.elasticsearch.common.settings.NoClassSettingsException Failure to load the class
+     */
     @SuppressWarnings({"unchecked"})
     public <T> Class<? extends T> getAsClass(String setting, Class<? extends T> defaultClazz, String prefixPackage, String suffixClassName) throws NoClassSettingsException {
         String sValue = get(setting);
@@ -569,48 +569,48 @@ public class Settings implements ToXContent {
     }
 
     /**
-         * The values associated with a setting prefix as an array. The settings array is in the format of:
-         * <tt>settingPrefix.[index]</tt>.
-         * <p/>
-         * <p>It will also automatically load a comma separated list under the settingPrefix and merge with
-         * the numbered format.
-         *
-         * @param settingPrefix The setting prefix to load the array by
-         * @return The setting array values
-         * @throws org.elasticsearch.common.settings.SettingsException
-         */
+     * The values associated with a setting prefix as an array. The settings array is in the format of:
+     * <tt>settingPrefix.[index]</tt>.
+     * <p/>
+     * <p>It will also automatically load a comma separated list under the settingPrefix and merge with
+     * the numbered format.
+     *
+     * @param settingPrefix The setting prefix to load the array by
+     * @return The setting array values
+     * @throws org.elasticsearch.common.settings.SettingsException
+     */
     public String[] getAsArray(String settingPrefix) throws SettingsException {
         return getAsArray(settingPrefix, Strings.EMPTY_ARRAY, true);
     }
 
     /**
-         * The values associated with a setting prefix as an array. The settings array is in the format of:
-         * <tt>settingPrefix.[index]</tt>.
-         * <p/>
-         * <p>If commaDelimited is true, it will automatically load a comma separated list under the settingPrefix and merge with
-         * the numbered format.
-         *
-         * @param settingPrefix The setting prefix to load the array by
-         * @return The setting array values
-         * @throws org.elasticsearch.common.settings.SettingsException
-         */
+     * The values associated with a setting prefix as an array. The settings array is in the format of:
+     * <tt>settingPrefix.[index]</tt>.
+     * <p/>
+     * <p>If commaDelimited is true, it will automatically load a comma separated list under the settingPrefix and merge with
+     * the numbered format.
+     *
+     * @param settingPrefix The setting prefix to load the array by
+     * @return The setting array values
+     * @throws org.elasticsearch.common.settings.SettingsException
+     */
     public String[] getAsArray(String settingPrefix, String[] defaultArray) throws SettingsException {
         return getAsArray(settingPrefix, defaultArray, true);
     }
 
     /**
-         * The values associated with a setting prefix as an array. The settings array is in the format of:
-         * <tt>settingPrefix.[index]</tt>.
-         * <p/>
-         * <p>It will also automatically load a comma separated list under the settingPrefix and merge with
-         * the numbered format.
-         *
-         * @param settingPrefix  The setting prefix to load the array by
-         * @param defaultArray   The default array to use if no value is specified
-         * @param commaDelimited Whether to try to parse a string as a comma-delimited value
-         * @return The setting array values
-         * @throws org.elasticsearch.common.settings.SettingsException
-         */
+     * The values associated with a setting prefix as an array. The settings array is in the format of:
+     * <tt>settingPrefix.[index]</tt>.
+     * <p/>
+     * <p>It will also automatically load a comma separated list under the settingPrefix and merge with
+     * the numbered format.
+     *
+     * @param settingPrefix  The setting prefix to load the array by
+     * @param defaultArray   The default array to use if no value is specified
+     * @param commaDelimited Whether to try to parse a string as a comma-delimited value
+     * @return The setting array values
+     * @throws org.elasticsearch.common.settings.SettingsException
+     */
     public String[] getAsArray(String settingPrefix, String[] defaultArray, Boolean commaDelimited) throws SettingsException {
         List<String> result = Lists.newArrayList();
 
@@ -642,15 +642,15 @@ public class Settings implements ToXContent {
     }
 
     /**
-         * Returns group settings for the given setting prefix.
-         */
+     * Returns group settings for the given setting prefix.
+     */
     public Map<String, Settings> getGroups(String settingPrefix) throws SettingsException {
         return getGroups(settingPrefix, false);
     }
 
     /**
-         * Returns group settings for the given setting prefix.
-         */
+     * Returns group settings for the given setting prefix.
+     */
     public Map<String, Settings> getGroups(String settingPrefix, boolean ignoreNonGrouped) throws SettingsException {
         if (!Strings.hasLength(settingPrefix)) {
             throw new IllegalArgumentException("illegal setting prefix " + settingPrefix);
@@ -689,8 +689,8 @@ public class Settings implements ToXContent {
     }
 
     /**
-         * Returns a parsed version.
-         */
+     * Returns a parsed version.
+     */
     public Version getAsVersion(String setting, Version defaultVersion) throws SettingsException {
         String sValue = get(setting);
         if (sValue == null) {
@@ -704,8 +704,8 @@ public class Settings implements ToXContent {
     }
 
     /**
-         * @return  The direct keys of this settings
-         */
+     * @return  The direct keys of this settings
+     */
     public Set<String> names() {
         Set<String> names = new HashSet<>();
         for (String key : settings.keySet()) {
@@ -720,8 +720,8 @@ public class Settings implements ToXContent {
     }
 
     /**
-         * Returns the settings as delimited string.
-         */
+     * Returns the settings as delimited string.
+     */
     public String toDelimitedString(char delimiter) {
         StringBuilder sb = new StringBuilder();
         for (Map.Entry<String, String> entry : settings.entrySet()) {
@@ -1214,32 +1214,32 @@ public class Settings implements ToXContent {
         public Builder replacePropertyPlaceholders() {
             PropertyPlaceholder propertyPlaceholder = new PropertyPlaceholder("${", "}", false);
             PropertyPlaceholder.PlaceholderResolver placeholderResolver = new PropertyPlaceholder.PlaceholderResolver() {
-                @Override
-                public String resolvePlaceholder(String placeholderName) {
-                    if (placeholderName.startsWith("env.")) {
-                        // explicit env var prefix
-                        return System.getenv(placeholderName.substring("env.".length()));
+                    @Override
+                    public String resolvePlaceholder(String placeholderName) {
+                        if (placeholderName.startsWith("env.")) {
+                            // explicit env var prefix
+                            return System.getenv(placeholderName.substring("env.".length()));
+                        }
+                        String value = System.getProperty(placeholderName);
+                        if (value != null) {
+                            return value;
+                        }
+                        value = System.getenv(placeholderName);
+                        if (value != null) {
+                            return value;
+                        }
+                        return map.get(placeholderName);
                     }
-                    String value = System.getProperty(placeholderName);
-                    if (value != null) {
-                        return value;
-                    }
-                    value = System.getenv(placeholderName);
-                    if (value != null) {
-                        return value;
-                    }
-                    return map.get(placeholderName);
-                }
 
-                @Override
-                public boolean shouldIgnoreMissing(String placeholderName) {
-                    // if its an explicit env var, we are ok with not having a value for it and treat it as optional
-                    if (placeholderName.startsWith("env.")) {
-                        return true;
+                    @Override
+                    public boolean shouldIgnoreMissing(String placeholderName) {
+                        // if its an explicit env var, we are ok with not having a value for it and treat it as optional
+                        if (placeholderName.startsWith("env.")) {
+                            return true;
+                        }
+                        return false;
                     }
-                    return false;
-                }
-            };
+                };
             for (Map.Entry<String, String> entry : Maps.newHashMap(map).entrySet()) {
                 String value = propertyPlaceholder.replacePlaceholders(entry.getValue(), placeholderResolver);
                 // if the values exists and has length, we should maintain it  in the map

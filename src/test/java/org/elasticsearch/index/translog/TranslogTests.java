@@ -53,10 +53,7 @@ import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.charset.Charset;
-import java.nio.file.DirectoryStream;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardOpenOption;
+import java.nio.file.*;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -143,11 +140,19 @@ public class TranslogTests extends ElasticsearchTestCase {
         assertThat(Translog.parseIdFromFileName(file), equalTo(-1l));
     }
 
-    private static String randomNonTranslogPatternString(int min, int max) {
+    private String randomNonTranslogPatternString(int min, int max) {
        String string;
+        boolean validPathString = false;
         do {
+            validPathString = false;
             string = randomRealisticUnicodeOfCodepointLength(randomIntBetween(min, max));
-        } while (Translog.PARSE_ID_PATTERN.matcher(string).matches());
+            try {
+                translogDir.resolve(string);
+                validPathString = true;
+            } catch (InvalidPathException ex) {
+                // some FS don't like our random file names -- let's just skip these random choices
+            }
+        } while (Translog.PARSE_ID_PATTERN.matcher(string).matches() && validPathString);
         return string;
     }
 

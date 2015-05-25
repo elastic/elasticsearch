@@ -19,9 +19,6 @@
 
 package org.elasticsearch.cluster.ack;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-import com.google.common.base.Predicate;
-import com.google.common.collect.ImmutableList;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
@@ -47,6 +44,11 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.warmer.IndexWarmersMetaData;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
+import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+import com.google.common.base.Predicate;
+import com.google.common.collect.ImmutableList;
+
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.*;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
@@ -70,11 +72,11 @@ public class AckTests extends ElasticsearchIntegrationTest {
         createIndex("test");
 
         assertAcked(client().admin().indices().prepareUpdateSettings("test")
-                .setSettings(ImmutableSettings.builder().put("refresh_interval", 9999)));
+                    .setSettings(ImmutableSettings.builder().put("refresh_interval", 9999, TimeUnit.MILLISECONDS)));
 
         for (Client client : clients()) {
             String refreshInterval = getLocalClusterState(client).metaData().index("test").settings().get("index.refresh_interval");
-            assertThat(refreshInterval, equalTo("9999"));
+            assertThat(refreshInterval, equalTo("9999ms"));
         }
     }
 
@@ -82,7 +84,7 @@ public class AckTests extends ElasticsearchIntegrationTest {
     public void testUpdateSettingsNoAcknowledgement() {
         createIndex("test");
         UpdateSettingsResponse updateSettingsResponse = client().admin().indices().prepareUpdateSettings("test").setTimeout("0s")
-                .setSettings(ImmutableSettings.builder().put("refresh_interval", 9999)).get();
+                .setSettings(ImmutableSettings.builder().put("refresh_interval", 9999, TimeUnit.MILLISECONDS)).get();
         assertThat(updateSettingsResponse.isAcknowledged(), equalTo(false));
     }
 

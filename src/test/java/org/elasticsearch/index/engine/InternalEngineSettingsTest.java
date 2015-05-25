@@ -24,6 +24,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 
+import java.util.concurrent.TimeUnit;
+
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
@@ -48,7 +50,11 @@ public class InternalEngineSettingsTest extends ElasticsearchSingleNodeTest {
         final int iters = between(1, 20);
         for (int i = 0; i < iters; i++) {
             boolean compoundOnFlush = randomBoolean();
-            long gcDeletes = Math.max(0, randomLong());
+
+            // Tricky: TimeValue.parseTimeValue casts this long to a double, which steals 11 of the 64 bits for exponent, so we can't use
+            // the full long range here else the assert below fails:
+            long gcDeletes = random().nextLong() & (Long.MAX_VALUE >> 11);
+
             boolean versionMapAsPercent = randomBoolean();
             double versionMapPercent = randomIntBetween(0, 100);
             long versionMapSizeInMB = randomIntBetween(10, 20);
@@ -56,9 +62,10 @@ public class InternalEngineSettingsTest extends ElasticsearchSingleNodeTest {
 
             Settings build = ImmutableSettings.builder()
                     .put(EngineConfig.INDEX_COMPOUND_ON_FLUSH, compoundOnFlush)
-                    .put(EngineConfig.INDEX_GC_DELETES_SETTING, gcDeletes)
+                    .put(EngineConfig.INDEX_GC_DELETES_SETTING, gcDeletes, TimeUnit.MILLISECONDS)
                     .put(EngineConfig.INDEX_VERSION_MAP_SIZE, versionMapString)
                     .build();
+            assertEquals(gcDeletes, build.getAsTime(EngineConfig.INDEX_GC_DELETES_SETTING, null).millis());
 
             client().admin().indices().prepareUpdateSettings("foo").setSettings(build).get();
             LiveIndexWriterConfig currentIndexWriterConfig = engine.getCurrentIndexWriterConfig();
@@ -79,7 +86,7 @@ public class InternalEngineSettingsTest extends ElasticsearchSingleNodeTest {
         }
 
         Settings settings = ImmutableSettings.builder()
-                .put(EngineConfig.INDEX_GC_DELETES_SETTING, 1000)
+                .put(EngineConfig.INDEX_GC_DELETES_SETTING, 1000, TimeUnit.MILLISECONDS)
                 .build();
         client().admin().indices().prepareUpdateSettings("foo").setSettings(settings).get();
         assertEquals(engine.getGcDeletesInMillis(), 1000);
@@ -95,7 +102,7 @@ public class InternalEngineSettingsTest extends ElasticsearchSingleNodeTest {
         assertTrue(engine.config().isEnableGcDeletes());
 
         settings = ImmutableSettings.builder()
-                .put(EngineConfig.INDEX_GC_DELETES_SETTING, 1000)
+                .put(EngineConfig.INDEX_GC_DELETES_SETTING, 1000, TimeUnit.MILLISECONDS)
                 .build();
         client().admin().indices().prepareUpdateSettings("foo").setSettings(settings).get();
         assertEquals(engine.getGcDeletesInMillis(), 1000);

@@ -211,8 +211,8 @@ public class DerivativeTests extends ElasticsearchIntegrationTest {
                 .prepareSearch("idx")
                 .addAggregation(
                         histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval).minDocCount(0)
-                                .subAggregation(derivative("deriv").setBucketsPaths("_count").unit("1"))
-                                .subAggregation(derivative("2nd_deriv").setBucketsPaths("deriv").unit("10"))).execute().actionGet();
+                                .subAggregation(derivative("deriv").setBucketsPaths("_count").unit("1ms"))
+                                .subAggregation(derivative("2nd_deriv").setBucketsPaths("deriv").unit("10ms"))).execute().actionGet();
 
         assertSearchResponse(response);
 

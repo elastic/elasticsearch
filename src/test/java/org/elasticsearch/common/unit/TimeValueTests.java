@@ -31,12 +31,8 @@ import java.util.concurrent.TimeUnit;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThan;
 
-/**
- *
- */
 public class TimeValueTests extends ElasticsearchTestCase {
 
-    @Test
     public void testSimple() {
         assertThat(TimeUnit.MILLISECONDS.toMillis(10), equalTo(new TimeValue(10, TimeUnit.MILLISECONDS).millis()));
         assertThat(TimeUnit.MICROSECONDS.toMicros(10), equalTo(new TimeValue(10, TimeUnit.MICROSECONDS).micros()));
@@ -46,7 +42,6 @@ public class TimeValueTests extends ElasticsearchTestCase {
         assertThat(TimeUnit.DAYS.toDays(10), equalTo(new TimeValue(10, TimeUnit.DAYS).days()));
     }
 
-    @Test
     public void testToString() {
         assertThat("10ms", equalTo(new TimeValue(10, TimeUnit.MILLISECONDS).toString()));
         assertThat("1.5s", equalTo(new TimeValue(1533, TimeUnit.MILLISECONDS).toString()));
@@ -56,7 +51,6 @@ public class TimeValueTests extends ElasticsearchTestCase {
         assertThat("1000d", equalTo(new TimeValue(1000, TimeUnit.DAYS).toString()));
     }
 
-    @Test
     public void testFormat() {
         assertThat(new TimeValue(1025, TimeUnit.MILLISECONDS).format(PeriodType.dayTime()), equalTo("1 second and 25 milliseconds"));
         assertThat(new TimeValue(1, TimeUnit.MINUTES).format(PeriodType.dayTime()), equalTo("1 minute"));
@@ -64,9 +58,16 @@ public class TimeValueTests extends ElasticsearchTestCase {
         assertThat(new TimeValue(24 * 600 + 85, TimeUnit.MINUTES).format(PeriodType.dayTime()), equalTo("241 hours and 25 minutes"));
     }
 
-    @Test
     public void testMinusOne() {
         assertThat(new TimeValue(-1).nanos(), lessThan(0l));
+    }
+
+    public void testParseTimeValue() {
+        // Space is allowed before unit
+        assertEquals(new TimeValue(10, TimeUnit.SECONDS),
+                     TimeValue.parseTimeValue("10 s", null, "ten seconds"));
+        assertEquals(new TimeValue(10, TimeUnit.SECONDS),
+                     TimeValue.parseTimeValue("10s", null, "ten seconds"));
     }
 
     private void assertEqualityAfterSerialize(TimeValue value) throws IOException {
@@ -79,7 +80,6 @@ public class TimeValueTests extends ElasticsearchTestCase {
         assertThat(inValue, equalTo(value));
     }
 
-    @Test
     public void testSerialize() throws Exception {
         assertEqualityAfterSerialize(new TimeValue(100, TimeUnit.DAYS));
         assertEqualityAfterSerialize(new TimeValue(-1));

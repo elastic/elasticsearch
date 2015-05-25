@@ -19,7 +19,6 @@
 package org.elasticsearch.action.support.replication;
 
 import com.google.common.base.Predicate;
-
 import org.apache.lucene.index.CorruptIndexException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
@@ -42,13 +41,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.ImmutableShardRouting;
-import org.elasticsearch.cluster.routing.IndexRoutingTable;
-import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
-import org.elasticsearch.cluster.routing.RoutingTable;
-import org.elasticsearch.cluster.routing.ShardIterator;
-import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.*;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -83,17 +76,10 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_CREATION_DATE;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_VERSION_CREATED;
-import static org.hamcrest.Matchers.arrayWithSize;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.*;
+import static org.hamcrest.Matchers.*;
 
-public class ShardReplicationOperationTests extends ElasticsearchTestCase {
+public class ShardReplicationTests extends ElasticsearchTestCase {
 
     private static ThreadPool threadPool;
 
@@ -102,13 +88,13 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
     private CapturingTransport transport;
     private Action action;
     /* *
-    * TransportShardReplicationOperationAction needs an instance of IndexShard to count operations.
+    * TransportReplicationAction needs an instance of IndexShard to count operations.
     * indexShards is reset to null before each test and will be initialized upon request in the tests.
     */
 
     @BeforeClass
     public static void beforeClass() {
-        threadPool = new ThreadPool("ShardReplicationOperationTests");
+        threadPool = new ThreadPool("ShardReplicationTests");
     }
 
     @Before
@@ -145,7 +131,7 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
         ClusterBlocks.Builder block = ClusterBlocks.builder()
                 .addGlobalBlock(new ClusterBlock(1, "non retryable", false, true, RestStatus.SERVICE_UNAVAILABLE, ClusterBlockLevel.ALL));
         clusterService.setState(ClusterState.builder(clusterService.state()).blocks(block));
-        TransportShardReplicationOperationAction<Request, Request, Response>.PrimaryPhase primaryPhase = action.new PrimaryPhase(request, listener);
+        TransportReplicationAction<Request, Request, Response>.PrimaryPhase primaryPhase = action.new PrimaryPhase(request, listener);
         assertFalse("primary phase should stop execution", primaryPhase.checkBlocks());
         assertListenerThrows("primary phase should fail operation", listener, ClusterBlockException.class);
 
@@ -277,7 +263,7 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
 
         Request request = new Request(shardId).timeout("1ms");
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
-        TransportShardReplicationOperationAction<Request, Request, Response>.PrimaryPhase primaryPhase = action.new PrimaryPhase(request, listener);
+        TransportReplicationAction<Request, Request, Response>.PrimaryPhase primaryPhase = action.new PrimaryPhase(request, listener);
         primaryPhase.run();
         assertListenerThrows("unassigned primary didn't cause a timeout", listener, UnavailableShardsException.class);
 
@@ -309,7 +295,7 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
         Request request = new Request(shardId);
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
 
-        TransportShardReplicationOperationAction<Request, Request, Response>.PrimaryPhase primaryPhase = action.new PrimaryPhase(request, listener);
+        TransportReplicationAction<Request, Request, Response>.PrimaryPhase primaryPhase = action.new PrimaryPhase(request, listener);
         assertTrue(primaryPhase.checkBlocks());
         primaryPhase.routeRequestOrPerformLocally(shardRoutingTable.primaryShard(), shardRoutingTable.shardsIt());
         if (primaryNodeId.equals(clusterService.localNode().id())) {
@@ -374,7 +360,7 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
         final IndexShardRoutingTable shardRoutingTable = clusterService.state().routingTable().index(index).shard(shardId.id());
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
 
-        TransportShardReplicationOperationAction<Request, Request, Response>.PrimaryPhase primaryPhase = action.new PrimaryPhase(request, listener);
+        TransportReplicationAction<Request, Request, Response>.PrimaryPhase primaryPhase = action.new PrimaryPhase(request, listener);
         if (passesWriteConsistency) {
             assertThat(primaryPhase.checkWriteConsistency(shardRoutingTable.primaryShard()), nullValue());
             primaryPhase.run();
@@ -457,11 +443,11 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
 
         logger.debug("expecting [{}] assigned replicas, [{}] total shards. using state: \n{}", assignedReplicas, totalShards, clusterService.state().prettyPrint());
 
-        final TransportShardReplicationOperationAction<Request, Request, Response>.InternalRequest internalRequest = action.new InternalRequest(request);
+        final TransportReplicationAction<Request, Request, Response>.InternalRequest internalRequest = action.new InternalRequest(request);
         internalRequest.concreteIndex(shardId.index().name());
         Releasable reference = getOrCreateIndexShardOperationsCounter();
         assertIndexShardCounter(2);
-        TransportShardReplicationOperationAction<Request, Request, Response>.ReplicationPhase replicationPhase =
+        TransportReplicationAction<Request, Request, Response>.ReplicationPhase replicationPhase =
                 action.new ReplicationPhase(shardIt, request,
                         new Response(), new ClusterStateObserver(clusterService, logger),
                         primaryShard, internalRequest, listener, reference);
@@ -532,7 +518,7 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
          * However, this failure would only become apparent once listener.get is called. Seems a little implicit.
          * */
         action = new ActionWithDelay(Settings.EMPTY, "testActionWithExceptions", transportService, clusterService, threadPool);
-        final TransportShardReplicationOperationAction<Request, Request, Response>.PrimaryPhase primaryPhase = action.new PrimaryPhase(request, listener);
+        final TransportReplicationAction<Request, Request, Response>.PrimaryPhase primaryPhase = action.new PrimaryPhase(request, listener);
         Thread t = new Thread() {
             public void run() {
                 primaryPhase.run();
@@ -568,7 +554,7 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
         logger.debug("--> using initial state:\n{}", clusterService.state().prettyPrint());
         Request request = new Request(shardId).timeout("100ms");
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
-        TransportShardReplicationOperationAction<Request, Request, Response>.PrimaryPhase primaryPhase = action.new PrimaryPhase(request, listener);
+        TransportReplicationAction<Request, Request, Response>.PrimaryPhase primaryPhase = action.new PrimaryPhase(request, listener);
         primaryPhase.run();
         assertIndexShardCounter(2);
         assertThat(transport.capturedRequests().length, equalTo(1));
@@ -635,7 +621,7 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
         logger.debug("--> using initial state:\n{}", clusterService.state().prettyPrint());
         Request request = new Request(shardId).timeout("100ms");
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
-        TransportShardReplicationOperationAction<Request, Request, Response>.PrimaryPhase primaryPhase = action.new PrimaryPhase(request, listener);
+        TransportReplicationAction<Request, Request, Response>.PrimaryPhase primaryPhase = action.new PrimaryPhase(request, listener);
         primaryPhase.run();
         // no replica request should have been sent yet
         assertThat(transport.capturedRequests().length, equalTo(0));
@@ -662,7 +648,7 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
         };
     }
 
-    static class Request extends ShardReplicationOperationRequest<Request> {
+    static class Request extends ReplicationRequest<Request> {
         int shardId;
         public AtomicBoolean processedOnPrimary = new AtomicBoolean();
         public AtomicInteger processedOnReplicas = new AtomicInteger();
@@ -694,7 +680,7 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
     static class Response extends ActionWriteResponse {
     }
 
-    class Action extends TransportShardReplicationOperationAction<Request, Request, Response> {
+    class Action extends TransportReplicationAction<Request, Request, Response> {
 
         Action(Settings settings, String actionName, TransportService transportService,
                ClusterService clusterService,

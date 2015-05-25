@@ -1512,7 +1512,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
             replicaEngine.create(index);
             fail();
         } catch (VersionConflictEngineException e) {
-            // we ignore version conflicts on replicas, see TransportShardReplicationOperationAction.ignoreReplicaException
+            // we ignore version conflicts on replicas, see TransportReplicationAction.ignoreReplicaException
         }
         replicaEngine.refresh("test");
         Engine.Searcher replicaSearcher = replicaEngine.acquireSearcher("test");
@@ -1556,7 +1556,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
             replicaEngine.create(secondIndexRequestReplica);
             fail();
         } catch (VersionConflictEngineException e) {
-            // we ignore version conflicts on replicas, see TransportShardReplicationOperationAction.ignoreReplicaException.
+            // we ignore version conflicts on replicas, see TransportReplicationAction.ignoreReplicaException.
         }
         replicaEngine.refresh("test");
         Engine.Searcher replicaSearcher = replicaEngine.acquireSearcher("test");

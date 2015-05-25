@@ -19,9 +19,7 @@
 
 package org.elasticsearch.action.bulk;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.action.support.replication.ShardReplicationOperationRequest;
-import org.elasticsearch.action.support.single.instance.InstanceShardOperationRequest;
+import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -32,7 +30,7 @@ import java.util.List;
 /**
  *
  */
-public class BulkShardRequest extends ShardReplicationOperationRequest<BulkShardRequest> {
+public class BulkShardRequest extends ReplicationRequest<BulkShardRequest> {
 
     private int shardId;
 

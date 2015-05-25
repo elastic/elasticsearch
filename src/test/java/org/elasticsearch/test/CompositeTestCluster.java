@@ -28,7 +28,6 @@ import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.FilterClient;
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 
@@ -106,7 +105,7 @@ public class CompositeTestCluster extends TestCluster {
      * external node is running it returns <tt>false</tt>
      */
     public synchronized boolean upgradeOneNode() throws InterruptedException, IOException {
-      return upgradeOneNode(ImmutableSettings.EMPTY);
+      return upgradeOneNode(Settings.EMPTY);
     }
 
     /**
@@ -115,7 +114,7 @@ public class CompositeTestCluster extends TestCluster {
      * @return <code>true</code> iff at least one node as upgraded.
      */
     public synchronized boolean upgradeAllNodes() throws InterruptedException, IOException {
-        return upgradeAllNodes(ImmutableSettings.EMPTY);
+        return upgradeAllNodes(Settings.EMPTY);
     }
 
 
@@ -172,7 +171,7 @@ public class CompositeTestCluster extends TestCluster {
      * Allows allocation of shards of the given indices on all nodes in the cluster.
      */
     public void allowOnAllNodes(String... index) {
-        Settings build = ImmutableSettings.builder().put("index.routing.allocation.exclude._name", "").build();
+        Settings build = Settings.builder().put("index.routing.allocation.exclude._name", "").build();
         client().admin().indices().prepareUpdateSettings(index).setSettings(build).execute().actionGet();
     }
 
@@ -182,7 +181,7 @@ public class CompositeTestCluster extends TestCluster {
      * be allocated on some other "new" node.
      */
     public void allowOnlyNewNodes(String... index) {
-        Settings build = ImmutableSettings.builder().put("index.routing.allocation.exclude._name", backwardsNodePattern()).build();
+        Settings build = Settings.builder().put("index.routing.allocation.exclude._name", backwardsNodePattern()).build();
         client().admin().indices().prepareUpdateSettings(index).setSettings(build).execute().actionGet();
     }
 

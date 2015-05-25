@@ -28,8 +28,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.settings.IndexSettings;
 
-import java.io.Reader;
-
 /**
  * Factory for {@link ClassicTokenizer}
  */

@@ -128,7 +128,7 @@ public class LongFieldMapper extends NumberFieldMapper {
 
     protected LongFieldMapper(Names names, int precisionStep, float boost, FieldType fieldType, Boolean docValues,
                               Long nullValue, Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce,
-                              SimilarityProvider similarity, Loading normsLoading, @Nullable Settings fieldDataSettings, 
+                              SimilarityProvider similarity, Loading normsLoading, @Nullable Settings fieldDataSettings,
                               Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
         super(names, precisionStep, boost, fieldType, docValues, ignoreMalformed, coerce,
                 NumericLongAnalyzer.buildNamedAnalyzer(precisionStep), NumericLongAnalyzer.buildNamedAnalyzer(Integer.MAX_VALUE),

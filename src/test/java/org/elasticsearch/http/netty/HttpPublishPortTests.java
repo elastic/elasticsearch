@@ -20,7 +20,6 @@ package org.elasticsearch.http.netty;
 
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
@@ -38,7 +37,7 @@ public class HttpPublishPortTests extends ElasticsearchIntegrationTest {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return ImmutableSettings.settingsBuilder()
+        return Settings.settingsBuilder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put(Node.HTTP_ENABLED, true)
                 .put("http.publish_port", 9080)

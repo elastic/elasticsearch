@@ -21,7 +21,7 @@ package org.elasticsearch.cluster;
 
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 
 /**
  * ClusterInfoService that provides empty maps for disk usage and shard sizes
@@ -34,7 +34,7 @@ public class EmptyClusterInfoService extends AbstractComponent implements Cluste
     private final ClusterInfo emptyClusterInfo;
 
     private EmptyClusterInfoService() {
-        super(ImmutableSettings.EMPTY);
+        super(Settings.EMPTY);
         emptyClusterInfo = new ClusterInfo(ImmutableMap.<String, DiskUsage>of(), ImmutableMap.<String, Long>of());
     }
 

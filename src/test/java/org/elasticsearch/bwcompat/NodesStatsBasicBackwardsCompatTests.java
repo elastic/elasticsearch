@@ -24,7 +24,6 @@ import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequestBuilder;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.client.transport.TransportClient;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchBackwardsCompatIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
@@ -42,7 +41,7 @@ public class NodesStatsBasicBackwardsCompatTests extends ElasticsearchBackwardsC
 
         NodesInfoResponse nodesInfo = client().admin().cluster().prepareNodesInfo().execute().actionGet();
 
-        Settings settings = ImmutableSettings.settingsBuilder()
+        Settings settings = Settings.settingsBuilder()
                 .put("client.transport.ignore_cluster_name", true)
                 .put("node.name", "transport_client_" + getTestName()).build();
 
@@ -61,7 +60,7 @@ public class NodesStatsBasicBackwardsCompatTests extends ElasticsearchBackwardsC
 
         NodesInfoResponse nodesInfo = client().admin().cluster().prepareNodesInfo().execute().actionGet();
 
-        Settings settings = ImmutableSettings.settingsBuilder()
+        Settings settings = Settings.settingsBuilder()
                 .put("node.name", "transport_client_" + getTestName())
                 .put("client.transport.ignore_cluster_name", true).build();
 

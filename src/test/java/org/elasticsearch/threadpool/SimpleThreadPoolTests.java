@@ -24,7 +24,6 @@ import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.common.network.MulticastChannel;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -51,7 +50,7 @@ import java.util.Set;
 import java.util.concurrent.*;
 import java.util.regex.Pattern;
 
-import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
@@ -64,7 +63,7 @@ public class SimpleThreadPoolTests extends ElasticsearchIntegrationTest {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return ImmutableSettings.settingsBuilder().put(super.nodeSettings(nodeOrdinal)).put("threadpool.search.type", "cached").build();
+        return Settings.settingsBuilder().put(super.nodeSettings(nodeOrdinal)).put("threadpool.search.type", "cached").build();
     }
 
     @Test
@@ -194,7 +193,7 @@ public class SimpleThreadPoolTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testThreadPoolLeakingThreadsWithTribeNode() {
-        Settings settings = ImmutableSettings.builder()
+        Settings settings = Settings.builder()
                 .put("node.name", "thread_pool_leaking_threads_tribe_node")
                 .put("path.home", createTempDir())
                 .put("tribe.t1.cluster.name", "non_existing_cluster")

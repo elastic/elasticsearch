@@ -20,13 +20,10 @@
 package org.elasticsearch.common.compress.lzf;
 
 import com.ning.compress.lzf.ChunkDecoder;
-import com.ning.compress.lzf.ChunkEncoder;
 import com.ning.compress.lzf.LZFChunk;
 import com.ning.compress.lzf.LZFEncoder;
 import com.ning.compress.lzf.util.ChunkDecoderFactory;
-import com.ning.compress.lzf.util.ChunkEncoderFactory;
 import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedIndexInput;
 import org.elasticsearch.common.compress.CompressedStreamInput;

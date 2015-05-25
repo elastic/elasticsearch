@@ -30,7 +30,7 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.transport.NoNodeAvailableException;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.VersionType;
@@ -620,7 +620,7 @@ public class UpdateTests extends ElasticsearchIntegrationTest {
                         .startObject("_ttl").field("enabled", true).endObject()
                         .endObject()
                         .endObject())
-                .setSettings(ImmutableSettings.builder().put(MergePolicyModule.MERGE_POLICY_TYPE_KEY, NoMergePolicyProvider.class)));
+                .setSettings(Settings.builder().put(MergePolicyModule.MERGE_POLICY_TYPE_KEY, NoMergePolicyProvider.class)));
         ensureGreen();
 
         final int numberOfThreads = scaledRandomIntBetween(3,5);

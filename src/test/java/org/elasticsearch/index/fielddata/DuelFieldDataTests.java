@@ -31,7 +31,7 @@ import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.English;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.unit.DistanceUnit.Distance;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -87,21 +87,21 @@ public class DuelFieldDataTests extends AbstractFieldDataTests {
         }
         LeafReaderContext context = refreshReader();
         Map<FieldDataType, Type> typeMap = new HashMap<>();
-        typeMap.put(new FieldDataType("string", ImmutableSettings.builder().put("format", "fst")), Type.Bytes);
-        typeMap.put(new FieldDataType("string", ImmutableSettings.builder().put("format", "paged_bytes")), Type.Bytes);
-        typeMap.put(new FieldDataType("byte", ImmutableSettings.builder().put("format", "array")), Type.Integer);
-        typeMap.put(new FieldDataType("short", ImmutableSettings.builder().put("format", "array")), Type.Integer);
-        typeMap.put(new FieldDataType("int", ImmutableSettings.builder().put("format", "array")), Type.Integer);
-        typeMap.put(new FieldDataType("long", ImmutableSettings.builder().put("format", "array")), Type.Long);
-        typeMap.put(new FieldDataType("double", ImmutableSettings.builder().put("format", "array")), Type.Double);
-        typeMap.put(new FieldDataType("float", ImmutableSettings.builder().put("format", "array")), Type.Float);
-        typeMap.put(new FieldDataType("byte", ImmutableSettings.builder().put("format", "doc_values")), Type.Integer);
-        typeMap.put(new FieldDataType("short", ImmutableSettings.builder().put("format", "doc_values")), Type.Integer);
-        typeMap.put(new FieldDataType("int", ImmutableSettings.builder().put("format", "doc_values")), Type.Integer);
-        typeMap.put(new FieldDataType("long", ImmutableSettings.builder().put("format", "doc_values")), Type.Long);
-        typeMap.put(new FieldDataType("double", ImmutableSettings.builder().put("format", "doc_values")), Type.Double);
-        typeMap.put(new FieldDataType("float", ImmutableSettings.builder().put("format", "doc_values")), Type.Float);
-        typeMap.put(new FieldDataType("string", ImmutableSettings.builder().put("format", "doc_values")), Type.Bytes);
+        typeMap.put(new FieldDataType("string", Settings.builder().put("format", "fst")), Type.Bytes);
+        typeMap.put(new FieldDataType("string", Settings.builder().put("format", "paged_bytes")), Type.Bytes);
+        typeMap.put(new FieldDataType("byte", Settings.builder().put("format", "array")), Type.Integer);
+        typeMap.put(new FieldDataType("short", Settings.builder().put("format", "array")), Type.Integer);
+        typeMap.put(new FieldDataType("int", Settings.builder().put("format", "array")), Type.Integer);
+        typeMap.put(new FieldDataType("long", Settings.builder().put("format", "array")), Type.Long);
+        typeMap.put(new FieldDataType("double", Settings.builder().put("format", "array")), Type.Double);
+        typeMap.put(new FieldDataType("float", Settings.builder().put("format", "array")), Type.Float);
+        typeMap.put(new FieldDataType("byte", Settings.builder().put("format", "doc_values")), Type.Integer);
+        typeMap.put(new FieldDataType("short", Settings.builder().put("format", "doc_values")), Type.Integer);
+        typeMap.put(new FieldDataType("int", Settings.builder().put("format", "doc_values")), Type.Integer);
+        typeMap.put(new FieldDataType("long", Settings.builder().put("format", "doc_values")), Type.Long);
+        typeMap.put(new FieldDataType("double", Settings.builder().put("format", "doc_values")), Type.Double);
+        typeMap.put(new FieldDataType("float", Settings.builder().put("format", "doc_values")), Type.Float);
+        typeMap.put(new FieldDataType("string", Settings.builder().put("format", "doc_values")), Type.Bytes);
         ArrayList<Entry<FieldDataType, Type>> list = new ArrayList<>(typeMap.entrySet());
         Preprocessor pre = new ToDoublePreprocessor();
         while (!list.isEmpty()) {
@@ -179,14 +179,14 @@ public class DuelFieldDataTests extends AbstractFieldDataTests {
         }
         LeafReaderContext context = refreshReader();
         Map<FieldDataType, Type> typeMap = new HashMap<>();
-        typeMap.put(new FieldDataType("byte", ImmutableSettings.builder().put("format", "array")), Type.Integer);
-        typeMap.put(new FieldDataType("short", ImmutableSettings.builder().put("format", "array")), Type.Integer);
-        typeMap.put(new FieldDataType("int", ImmutableSettings.builder().put("format", "array")), Type.Integer);
-        typeMap.put(new FieldDataType("long", ImmutableSettings.builder().put("format", "array")), Type.Long);
-        typeMap.put(new FieldDataType("byte", ImmutableSettings.builder().put("format", "doc_values")), Type.Integer);
-        typeMap.put(new FieldDataType("short", ImmutableSettings.builder().put("format", "doc_values")), Type.Integer);
-        typeMap.put(new FieldDataType("int", ImmutableSettings.builder().put("format", "doc_values")), Type.Integer);
-        typeMap.put(new FieldDataType("long", ImmutableSettings.builder().put("format", "doc_values")), Type.Long);
+        typeMap.put(new FieldDataType("byte", Settings.builder().put("format", "array")), Type.Integer);
+        typeMap.put(new FieldDataType("short", Settings.builder().put("format", "array")), Type.Integer);
+        typeMap.put(new FieldDataType("int", Settings.builder().put("format", "array")), Type.Integer);
+        typeMap.put(new FieldDataType("long", Settings.builder().put("format", "array")), Type.Long);
+        typeMap.put(new FieldDataType("byte", Settings.builder().put("format", "doc_values")), Type.Integer);
+        typeMap.put(new FieldDataType("short", Settings.builder().put("format", "doc_values")), Type.Integer);
+        typeMap.put(new FieldDataType("int", Settings.builder().put("format", "doc_values")), Type.Integer);
+        typeMap.put(new FieldDataType("long", Settings.builder().put("format", "doc_values")), Type.Long);
         ArrayList<Entry<FieldDataType, Type>> list = new ArrayList<>(typeMap.entrySet());
         while (!list.isEmpty()) {
             Entry<FieldDataType, Type> left;
@@ -265,10 +265,10 @@ public class DuelFieldDataTests extends AbstractFieldDataTests {
         }
         LeafReaderContext context = refreshReader();
         Map<FieldDataType, Type> typeMap = new HashMap<>();
-        typeMap.put(new FieldDataType("double", ImmutableSettings.builder().put("format", "array")), Type.Double);
-        typeMap.put(new FieldDataType("float", ImmutableSettings.builder().put("format", "array")), Type.Float);
-        typeMap.put(new FieldDataType("double", ImmutableSettings.builder().put("format", "doc_values")), Type.Double);
-        typeMap.put(new FieldDataType("float", ImmutableSettings.builder().put("format", "doc_values")), Type.Float);
+        typeMap.put(new FieldDataType("double", Settings.builder().put("format", "array")), Type.Double);
+        typeMap.put(new FieldDataType("float", Settings.builder().put("format", "array")), Type.Float);
+        typeMap.put(new FieldDataType("double", Settings.builder().put("format", "doc_values")), Type.Double);
+        typeMap.put(new FieldDataType("float", Settings.builder().put("format", "doc_values")), Type.Float);
         ArrayList<Entry<FieldDataType, Type>> list = new ArrayList<>(typeMap.entrySet());
         while (!list.isEmpty()) {
             Entry<FieldDataType, Type> left;
@@ -325,9 +325,9 @@ public class DuelFieldDataTests extends AbstractFieldDataTests {
         }
         LeafReaderContext context = refreshReader();
         Map<FieldDataType, Type> typeMap = new HashMap<>();
-        typeMap.put(new FieldDataType("string", ImmutableSettings.builder().put("format", "fst")), Type.Bytes);
-        typeMap.put(new FieldDataType("string", ImmutableSettings.builder().put("format", "paged_bytes")), Type.Bytes);
-        typeMap.put(new FieldDataType("string", ImmutableSettings.builder().put("format", "doc_values")), Type.Bytes);
+        typeMap.put(new FieldDataType("string", Settings.builder().put("format", "fst")), Type.Bytes);
+        typeMap.put(new FieldDataType("string", Settings.builder().put("format", "paged_bytes")), Type.Bytes);
+        typeMap.put(new FieldDataType("string", Settings.builder().put("format", "doc_values")), Type.Bytes);
         // TODO add filters
         ArrayList<Entry<FieldDataType, Type>> list = new ArrayList<>(typeMap.entrySet());
         Preprocessor pre = new Preprocessor();
@@ -384,9 +384,9 @@ public class DuelFieldDataTests extends AbstractFieldDataTests {
         refreshReader();
 
         Map<FieldDataType, Type> typeMap = new HashMap<FieldDataType, DuelFieldDataTests.Type>();
-        typeMap.put(new FieldDataType("string", ImmutableSettings.builder().put("format", "fst")), Type.Bytes);
-        typeMap.put(new FieldDataType("string", ImmutableSettings.builder().put("format", "paged_bytes")), Type.Bytes);
-        typeMap.put(new FieldDataType("string", ImmutableSettings.builder().put("format", "doc_values")), Type.Bytes);
+        typeMap.put(new FieldDataType("string", Settings.builder().put("format", "fst")), Type.Bytes);
+        typeMap.put(new FieldDataType("string", Settings.builder().put("format", "paged_bytes")), Type.Bytes);
+        typeMap.put(new FieldDataType("string", Settings.builder().put("format", "doc_values")), Type.Bytes);
 
         for (Map.Entry<FieldDataType, Type> entry : typeMap.entrySet()) {
             ifdService.clear();
@@ -436,9 +436,9 @@ public class DuelFieldDataTests extends AbstractFieldDataTests {
         LeafReaderContext context = refreshReader();
         Map<FieldDataType, Type> typeMap = new HashMap<>();
         final Distance precision = new Distance(1, randomFrom(DistanceUnit.values()));
-        typeMap.put(new FieldDataType("geo_point", ImmutableSettings.builder().put("format", "array")), Type.GeoPoint);
-        typeMap.put(new FieldDataType("geo_point", ImmutableSettings.builder().put("format", "compressed").put("precision", precision)), Type.GeoPoint);
-        typeMap.put(new FieldDataType("geo_point", ImmutableSettings.builder().put("format", "doc_values")), Type.GeoPoint);
+        typeMap.put(new FieldDataType("geo_point", Settings.builder().put("format", "array")), Type.GeoPoint);
+        typeMap.put(new FieldDataType("geo_point", Settings.builder().put("format", "compressed").put("precision", precision)), Type.GeoPoint);
+        typeMap.put(new FieldDataType("geo_point", Settings.builder().put("format", "doc_values")), Type.GeoPoint);
 
         ArrayList<Entry<FieldDataType, Type>> list = new ArrayList<>(typeMap.entrySet());
         while (!list.isEmpty()) {

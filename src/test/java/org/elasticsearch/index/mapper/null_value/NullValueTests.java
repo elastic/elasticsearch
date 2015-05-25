@@ -20,7 +20,7 @@ package org.elasticsearch.index.mapper.null_value;
  */
 
 
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.IndexService;
@@ -35,7 +35,7 @@ public class NullValueTests extends ElasticsearchSingleNodeTest {
 
     @Test
     public void testNullNull_Value() throws Exception {
-        IndexService indexService = createIndex("test", ImmutableSettings.settingsBuilder().build());
+        IndexService indexService = createIndex("test", Settings.settingsBuilder().build());
         String[] typesToTest = {"integer", "long", "double", "float", "short", "date", "ip", "string", "boolean", "byte"};
 
         for (String type : typesToTest) {

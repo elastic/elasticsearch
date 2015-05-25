@@ -25,7 +25,6 @@ import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.search.SearchHit;
@@ -51,7 +50,7 @@ public class RoutingBackwardCompatibilityUponUpgradeTests extends ElasticsearchI
     private void test(String name, Class<? extends HashFunction> expectedHashFunction, boolean expectedUseType) throws Exception {
         Path zippedIndexDir = getDataPath("/org/elasticsearch/cluster/routing/" + name + ".zip");
         Settings baseSettings = prepareBackwardsDataDir(zippedIndexDir);
-        internalCluster().startNode(ImmutableSettings.builder()
+        internalCluster().startNode(Settings.builder()
                 .put(baseSettings)
                 .put(Node.HTTP_ENABLED, true)
                 .build());

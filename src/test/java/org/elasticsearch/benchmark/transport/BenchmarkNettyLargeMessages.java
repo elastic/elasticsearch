@@ -24,7 +24,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.settings.DynamicSettings;
 import org.elasticsearch.common.network.NetworkService;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -50,7 +49,7 @@ public class BenchmarkNettyLargeMessages {
         final int NUMBER_OF_CLIENTS = 5;
         final byte[] payload = new byte[(int) payloadSize.bytes()];
 
-        Settings settings = ImmutableSettings.settingsBuilder()
+        Settings settings = Settings.settingsBuilder()
                 .build();
 
         NetworkService networkService = new NetworkService(settings);

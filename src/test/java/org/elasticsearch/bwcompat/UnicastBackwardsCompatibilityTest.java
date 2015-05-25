@@ -20,7 +20,6 @@
 package org.elasticsearch.bwcompat;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchBackwardsCompatIntegrationTest;
 import org.junit.Test;
@@ -31,7 +30,7 @@ public class UnicastBackwardsCompatibilityTest extends ElasticsearchBackwardsCom
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return ImmutableSettings.builder()
+        return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put("transport.tcp.port", 9380 + nodeOrdinal)
                 .put("discovery.zen.ping.multicast.enabled", false)
@@ -41,7 +40,7 @@ public class UnicastBackwardsCompatibilityTest extends ElasticsearchBackwardsCom
 
     @Override
     protected Settings externalNodeSettings(int nodeOrdinal) {
-        return ImmutableSettings.settingsBuilder()
+        return Settings.settingsBuilder()
                 .put(super.externalNodeSettings(nodeOrdinal))
                 .put("transport.tcp.port", 9390 + nodeOrdinal)
                 .put("discovery.zen.ping.multicast.enabled", false)

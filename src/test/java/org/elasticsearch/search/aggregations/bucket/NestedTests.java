@@ -21,7 +21,7 @@ package org.elasticsearch.search.aggregations.bucket;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
@@ -403,7 +403,7 @@ public class NestedTests extends ElasticsearchIntegrationTest {
                     .endObject()
                 .endObject().endObject().endObject();
         assertAcked(prepareCreate("idx2")
-                .setSettings(ImmutableSettings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0))
+                .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0))
                 .addMapping("provider", mapping));
         ensureGreen("idx2");
 
@@ -472,7 +472,7 @@ public class NestedTests extends ElasticsearchIntegrationTest {
     public void nestedSameDocIdProcessedMultipleTime() throws Exception {
         assertAcked(
                 prepareCreate("idx4")
-                        .setSettings(ImmutableSettings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0))
+                        .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0))
                         .addMapping("product", "categories", "type=string", "name", "type=string", "property", "type=nested")
         );
         ensureGreen("idx4");

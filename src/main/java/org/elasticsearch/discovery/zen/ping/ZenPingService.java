@@ -20,7 +20,6 @@
 package org.elasticsearch.discovery.zen.ping;
 
 import com.google.common.collect.ImmutableList;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.Nullable;

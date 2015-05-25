@@ -33,7 +33,6 @@ import org.elasticsearch.action.admin.indices.warmer.get.GetWarmersResponse;
 import org.elasticsearch.action.admin.indices.warmer.put.PutWarmerResponse;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.engine.Segment;
@@ -211,7 +210,7 @@ public class SimpleIndicesWarmerTests extends ElasticsearchIntegrationTest {
         client().prepareIndex("test", "test", "1").setSource("foo", "bar").setRefresh(true).execute().actionGet();
 
         logger.info("--> Disabling warmers execution");
-        client().admin().indices().prepareUpdateSettings("test").setSettings(ImmutableSettings.builder().put("index.warmer.enabled", false)).execute().actionGet();
+        client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder().put("index.warmer.enabled", false)).execute().actionGet();
 
         long warmerRunsAfterDisabling = getWarmerRuns();
         assertThat(warmerRunsAfterDisabling, greaterThanOrEqualTo(1L));
@@ -273,13 +272,13 @@ public class SimpleIndicesWarmerTests extends ElasticsearchIntegrationTest {
         LAZY {
             @Override
             CreateIndexRequestBuilder createIndex(String indexName, String type, String fieldName) {
-                return client().admin().indices().prepareCreate(indexName).setSettings(ImmutableSettings.builder().put(SINGLE_SHARD_NO_REPLICA).put(SearchService.NORMS_LOADING_KEY, Loading.LAZY_VALUE));
+                return client().admin().indices().prepareCreate(indexName).setSettings(Settings.builder().put(SINGLE_SHARD_NO_REPLICA).put(SearchService.NORMS_LOADING_KEY, Loading.LAZY_VALUE));
             }
         },
         EAGER {
             @Override
             CreateIndexRequestBuilder createIndex(String indexName, String type, String fieldName) {
-                return client().admin().indices().prepareCreate(indexName).setSettings(ImmutableSettings.builder().put(SINGLE_SHARD_NO_REPLICA).put(SearchService.NORMS_LOADING_KEY, Loading.EAGER_VALUE));
+                return client().admin().indices().prepareCreate(indexName).setSettings(Settings.builder().put(SINGLE_SHARD_NO_REPLICA).put(SearchService.NORMS_LOADING_KEY, Loading.EAGER_VALUE));
             }
 
             @Override
@@ -290,7 +289,7 @@ public class SimpleIndicesWarmerTests extends ElasticsearchIntegrationTest {
         EAGER_PER_FIELD {
             @Override
             CreateIndexRequestBuilder createIndex(String indexName, String type, String fieldName) throws Exception {
-                return client().admin().indices().prepareCreate(indexName).setSettings(ImmutableSettings.builder().put(SINGLE_SHARD_NO_REPLICA).put(SearchService.NORMS_LOADING_KEY, Loading.LAZY_VALUE)).addMapping(type, JsonXContent.contentBuilder()
+                return client().admin().indices().prepareCreate(indexName).setSettings(Settings.builder().put(SINGLE_SHARD_NO_REPLICA).put(SearchService.NORMS_LOADING_KEY, Loading.LAZY_VALUE)).addMapping(type, JsonXContent.contentBuilder()
                                 .startObject()
                                     .startObject(type)
                                         .startObject("properties")
@@ -311,7 +310,7 @@ public class SimpleIndicesWarmerTests extends ElasticsearchIntegrationTest {
                 return false;
             }
         };
-        private static Settings SINGLE_SHARD_NO_REPLICA = ImmutableSettings.builder().put("number_of_shards", 1).put("number_of_replicas", 0).build();
+        private static Settings SINGLE_SHARD_NO_REPLICA = Settings.builder().put("number_of_shards", 1).put("number_of_replicas", 0).build();
 
         abstract CreateIndexRequestBuilder createIndex(String indexName, String type, String fieldName) throws Exception;
 
@@ -346,7 +345,7 @@ public class SimpleIndicesWarmerTests extends ElasticsearchIntegrationTest {
         createIndex("test");
         ensureGreen();
 
-        assertAcked(client().admin().indices().prepareUpdateSettings("test").setSettings(ImmutableSettings.builder().put(IndicesQueryCache.INDEX_CACHE_QUERY_ENABLED, false)));
+        assertAcked(client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder().put(IndicesQueryCache.INDEX_CACHE_QUERY_ENABLED, false)));
         logger.info("register warmer with no query cache, validate no cache is used");
         assertAcked(client().admin().indices().preparePutWarmer("warmer_1")
                 .setSearchRequest(client().prepareSearch("test").setTypes("a1").setQuery(QueryBuilders.matchAllQuery()))
@@ -368,7 +367,7 @@ public class SimpleIndicesWarmerTests extends ElasticsearchIntegrationTest {
         assertThat(client().admin().indices().prepareStats("test").setQueryCache(true).get().getTotal().getQueryCache().getMemorySizeInBytes(), equalTo(0l));
 
         logger.info("enable default query caching on the index level, and test that no flag on warmer still caches");
-        assertAcked(client().admin().indices().prepareUpdateSettings("test").setSettings(ImmutableSettings.builder().put(IndicesQueryCache.INDEX_CACHE_QUERY_ENABLED, true)));
+        assertAcked(client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder().put(IndicesQueryCache.INDEX_CACHE_QUERY_ENABLED, true)));
 
         assertAcked(client().admin().indices().preparePutWarmer("warmer_1")
                 .setSearchRequest(client().prepareSearch("test").setTypes("a1").setQuery(QueryBuilders.matchAllQuery()))

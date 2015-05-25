@@ -47,7 +47,6 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -330,7 +329,7 @@ public abstract class AbstractFieldMapper implements FieldMapper {
         } else {
             // create a new field data type, with the default settings as well as the "new ones"
             this.fieldDataType = new FieldDataType(defaultFieldDataType().getType(),
-                    ImmutableSettings.builder().put(defaultFieldDataType().getSettings()).put(fieldDataSettings)
+                    Settings.builder().put(defaultFieldDataType().getSettings()).put(fieldDataSettings)
             );
         }
         
@@ -623,7 +622,7 @@ public abstract class AbstractFieldMapper implements FieldMapper {
                 if (!Objects.equal(fieldMergeWith.customFieldDataSettings, this.customFieldDataSettings)) {
                     this.customFieldDataSettings = fieldMergeWith.customFieldDataSettings;
                     this.fieldDataType = new FieldDataType(defaultFieldDataType().getType(),
-                            ImmutableSettings.builder().put(defaultFieldDataType().getSettings()).put(this.customFieldDataSettings)
+                            Settings.builder().put(defaultFieldDataType().getSettings()).put(this.customFieldDataSettings)
                     );
                 }
             }

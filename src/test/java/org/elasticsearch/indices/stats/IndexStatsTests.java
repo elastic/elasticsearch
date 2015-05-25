@@ -37,7 +37,6 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.cache.filter.FilterCacheModule;
 import org.elasticsearch.index.cache.filter.FilterCacheModule.FilterCacheSettings;
@@ -59,7 +58,7 @@ import java.util.EnumSet;
 import java.util.Random;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
-import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
@@ -78,7 +77,7 @@ public class IndexStatsTests extends ElasticsearchIntegrationTest {
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         //Filter/Query cache is cleaned periodically, default is 60s, so make sure it runs often. Thread.sleep for 60s is bad
-        return ImmutableSettings.settingsBuilder().put(super.nodeSettings(nodeOrdinal))
+        return Settings.settingsBuilder().put(super.nodeSettings(nodeOrdinal))
                 .put(IndicesQueryCache.INDICES_CACHE_QUERY_CLEAN_INTERVAL, "1ms")
                 .put(FilterCacheSettings.FILTER_CACHE_EVERYTHING, true)
                 .put(FilterCacheModule.FilterCacheSettings.FILTER_CACHE_TYPE, IndexFilterCache.class)
@@ -87,7 +86,7 @@ public class IndexStatsTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testFieldDataStats() {
-        client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 2)).execute().actionGet();
+        client().admin().indices().prepareCreate("test").setSettings(Settings.settingsBuilder().put("index.number_of_shards", 2)).execute().actionGet();
         ensureGreen();
         client().prepareIndex("test", "type", "1").setSource("field", "value1", "field2", "value1").execute().actionGet();
         client().prepareIndex("test", "type", "2").setSource("field", "value2", "field2", "value2").execute().actionGet();
@@ -133,7 +132,7 @@ public class IndexStatsTests extends ElasticsearchIntegrationTest {
     @Test
     public void testClearAllCaches() throws Exception {
         client().admin().indices().prepareCreate("test")
-                .setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_replicas", 0).put("index.number_of_shards", 2))
+                .setSettings(Settings.settingsBuilder().put("index.number_of_replicas", 0).put("index.number_of_shards", 2))
                 .execute().actionGet();
         ensureGreen();
         client().admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
@@ -269,7 +268,7 @@ public class IndexStatsTests extends ElasticsearchIntegrationTest {
         // set the index level setting to false, and see that the reverse works
 
         client().admin().indices().prepareClearCache().setQueryCache(true).get(); // clean the cache
-        assertAcked(client().admin().indices().prepareUpdateSettings("idx").setSettings(ImmutableSettings.builder().put(IndicesQueryCache.INDEX_CACHE_QUERY_ENABLED, false)));
+        assertAcked(client().admin().indices().prepareUpdateSettings("idx").setSettings(Settings.builder().put(IndicesQueryCache.INDEX_CACHE_QUERY_ENABLED, false)));
 
         assertThat(client().prepareSearch("idx").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0).get().getHits().getTotalHits(), equalTo((long) numDocs));
         assertThat(client().admin().indices().prepareStats("idx").setQueryCache(true).get().getTotal().getQueryCache().getMemorySizeInBytes(), equalTo(0l));
@@ -282,7 +281,7 @@ public class IndexStatsTests extends ElasticsearchIntegrationTest {
     @Test
     public void nonThrottleStats() throws Exception {
         assertAcked(prepareCreate("test")
-                .setSettings(ImmutableSettings.builder()
+                .setSettings(Settings.builder()
                                 .put(IndexStore.INDEX_STORE_THROTTLE_TYPE, "merge")
                                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, "1")
                                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "0")
@@ -315,7 +314,7 @@ public class IndexStatsTests extends ElasticsearchIntegrationTest {
     @Test
     public void throttleStats() throws Exception {
         assertAcked(prepareCreate("test")
-                    .setSettings(ImmutableSettings.builder()
+                    .setSettings(Settings.builder()
                                  .put(IndexStore.INDEX_STORE_THROTTLE_TYPE, "merge")
                                  .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, "1")
                                  .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "0")

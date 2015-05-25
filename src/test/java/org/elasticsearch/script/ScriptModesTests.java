@@ -21,7 +21,7 @@ package org.elasticsearch.script;
 
 import com.google.common.collect.*;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.script.expression.ExpressionScriptEngineService;
 import org.elasticsearch.script.groovy.GroovyScriptEngineService;
@@ -67,11 +67,11 @@ public class ScriptModesTests extends ElasticsearchTestCase {
         scriptContextRegistry = new ScriptContextRegistry(contexts.values());
         scriptContexts = scriptContextRegistry.scriptContexts().toArray(new ScriptContext[scriptContextRegistry.scriptContexts().size()]);
         scriptEngines = buildScriptEnginesByLangMap(ImmutableSet.of(
-                new GroovyScriptEngineService(ImmutableSettings.EMPTY),
-                new MustacheScriptEngineService(ImmutableSettings.EMPTY),
-                new ExpressionScriptEngineService(ImmutableSettings.EMPTY),
+                new GroovyScriptEngineService(Settings.EMPTY),
+                new MustacheScriptEngineService(Settings.EMPTY),
+                new ExpressionScriptEngineService(Settings.EMPTY),
                 //add the native engine just to make sure it gets filtered out
-                new NativeScriptEngineService(ImmutableSettings.EMPTY, Collections.<String, NativeScriptFactory>emptyMap()),
+                new NativeScriptEngineService(Settings.EMPTY, Collections.<String, NativeScriptFactory>emptyMap()),
                 new CustomScriptEngineService()));
         checkedSettings = new HashSet<>();
         assertAllSettingsWereChecked = true;
@@ -100,7 +100,7 @@ public class ScriptModesTests extends ElasticsearchTestCase {
 
     @Test
     public void testDefaultSettings() {
-        this.scriptModes = new ScriptModes(scriptEngines, scriptContextRegistry, ImmutableSettings.EMPTY);
+        this.scriptModes = new ScriptModes(scriptEngines, scriptContextRegistry, Settings.EMPTY);
         assertScriptModesAllOps(ScriptMode.ON, ALL_LANGS, ScriptType.FILE);
         assertScriptModesAllOps(ScriptMode.SANDBOX, ALL_LANGS, ScriptType.INDEXED, ScriptType.INLINE);
     }
@@ -108,7 +108,7 @@ public class ScriptModesTests extends ElasticsearchTestCase {
     @Test(expected = IllegalArgumentException.class)
     public void testMissingSetting() {
         assertAllSettingsWereChecked = false;
-        this.scriptModes = new ScriptModes(scriptEngines, scriptContextRegistry, ImmutableSettings.EMPTY);
+        this.scriptModes = new ScriptModes(scriptEngines, scriptContextRegistry, Settings.EMPTY);
         scriptModes.getScriptMode("non_existing", randomFrom(ScriptType.values()), randomFrom(scriptContexts));
     }
 
@@ -125,7 +125,7 @@ public class ScriptModesTests extends ElasticsearchTestCase {
             randomScriptModes[i] = randomFrom(ScriptMode.values());
         }
         ScriptType[] randomScriptTypes = randomScriptTypesSet.toArray(new ScriptType[randomScriptTypesSet.size()]);
-        ImmutableSettings.Builder builder = ImmutableSettings.builder();
+        Settings.Builder builder = Settings.builder();
         for (int i = 0; i < randomInt; i++) {
             builder.put(ScriptModes.SCRIPT_SETTINGS_PREFIX + randomScriptTypes[i], randomScriptModes[i]);
         }
@@ -158,7 +158,7 @@ public class ScriptModesTests extends ElasticsearchTestCase {
             randomScriptModes[i] = randomFrom(ScriptMode.values());
         }
         ScriptContext[] randomScriptContexts = randomScriptContextsSet.toArray(new ScriptContext[randomScriptContextsSet.size()]);
-        ImmutableSettings.Builder builder = ImmutableSettings.builder();
+        Settings.Builder builder = Settings.builder();
         for (int i = 0; i < randomInt; i++) {
             builder.put(ScriptModes.SCRIPT_SETTINGS_PREFIX + randomScriptContexts[i].getKey(), randomScriptModes[i]);
         }
@@ -176,7 +176,7 @@ public class ScriptModesTests extends ElasticsearchTestCase {
     @Test
     public void testConflictingScriptTypeAndOpGenericSettings() {
         ScriptContext scriptContext = randomFrom(scriptContexts);
-        ImmutableSettings.Builder builder = ImmutableSettings.builder().put(ScriptModes.SCRIPT_SETTINGS_PREFIX + scriptContext.getKey(), randomFrom(DISABLE_VALUES))
+        Settings.Builder builder = Settings.builder().put(ScriptModes.SCRIPT_SETTINGS_PREFIX + scriptContext.getKey(), randomFrom(DISABLE_VALUES))
                 .put("script.indexed", randomFrom(ENABLE_VALUES)).put("script.inline", ScriptMode.SANDBOX);
         //operations generic settings have precedence over script type generic settings
         this.scriptModes = new ScriptModes(scriptEngines, scriptContextRegistry, builder.build());
@@ -188,7 +188,7 @@ public class ScriptModesTests extends ElasticsearchTestCase {
 
     @Test
     public void testEngineSpecificSettings() {
-        ImmutableSettings.Builder builder = ImmutableSettings.builder()
+        Settings.Builder builder = Settings.builder()
                 .put(specificEngineOpSettings(GroovyScriptEngineService.NAME, ScriptType.INLINE, ScriptContext.Standard.MAPPING), randomFrom(DISABLE_VALUES))
                 .put(specificEngineOpSettings(GroovyScriptEngineService.NAME, ScriptType.INLINE, ScriptContext.Standard.UPDATE), randomFrom(DISABLE_VALUES));
         ImmutableSet<String> groovyLangSet = ImmutableSet.of(GroovyScriptEngineService.NAME);
@@ -204,7 +204,7 @@ public class ScriptModesTests extends ElasticsearchTestCase {
 
     @Test
     public void testInteractionBetweenGenericAndEngineSpecificSettings() {
-        ImmutableSettings.Builder builder = ImmutableSettings.builder().put("script.inline", randomFrom(DISABLE_VALUES))
+        Settings.Builder builder = Settings.builder().put("script.inline", randomFrom(DISABLE_VALUES))
                 .put(specificEngineOpSettings(MustacheScriptEngineService.NAME, ScriptType.INLINE, ScriptContext.Standard.AGGS), randomFrom(ENABLE_VALUES))
                 .put(specificEngineOpSettings(MustacheScriptEngineService.NAME, ScriptType.INLINE, ScriptContext.Standard.SEARCH), randomFrom(ENABLE_VALUES));
         ImmutableSet<String> mustacheLangSet = ImmutableSet.of(MustacheScriptEngineService.NAME);

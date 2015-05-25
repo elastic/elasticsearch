@@ -19,7 +19,7 @@
 
 package org.elasticsearch.gateway;
 
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.test.cluster.NoopClusterService;
@@ -32,8 +32,8 @@ import java.io.IOException;
 public class GatewayServiceTests extends ElasticsearchTestCase {
 
 
-    private GatewayService createService(ImmutableSettings.Builder settings) {
-        return new GatewayService(ImmutableSettings.builder()
+    private GatewayService createService(Settings.Builder settings) {
+        return new GatewayService(Settings.builder()
                 .put("http.enabled", "false")
                 .put("discovery.type", "local")
                 .put(settings.build()).build(), null, null, new NoopClusterService(), null, null);
@@ -44,25 +44,25 @@ public class GatewayServiceTests extends ElasticsearchTestCase {
     public void testDefaultRecoverAfterTime() throws IOException {
 
         // check that the default is not set
-        GatewayService service = createService(ImmutableSettings.builder());
+        GatewayService service = createService(Settings.builder());
         assertNull(service.recoverAfterTime());
 
         // ensure default is set when setting expected_nodes
-        service = createService(ImmutableSettings.builder().put("gateway.expected_nodes", 1));
+        service = createService(Settings.builder().put("gateway.expected_nodes", 1));
         assertThat(service.recoverAfterTime(), Matchers.equalTo(GatewayService.DEFAULT_RECOVER_AFTER_TIME_IF_EXPECTED_NODES_IS_SET));
 
         // ensure default is set when setting expected_data_nodes
-        service = createService(ImmutableSettings.builder().put("gateway.expected_data_nodes", 1));
+        service = createService(Settings.builder().put("gateway.expected_data_nodes", 1));
         assertThat(service.recoverAfterTime(), Matchers.equalTo(GatewayService.DEFAULT_RECOVER_AFTER_TIME_IF_EXPECTED_NODES_IS_SET));
 
         // ensure default is set when setting expected_master_nodes
-        service = createService(ImmutableSettings.builder().put("gateway.expected_master_nodes", 1));
+        service = createService(Settings.builder().put("gateway.expected_master_nodes", 1));
         assertThat(service.recoverAfterTime(), Matchers.equalTo(GatewayService.DEFAULT_RECOVER_AFTER_TIME_IF_EXPECTED_NODES_IS_SET));
 
         // ensure settings override default
         TimeValue timeValue = TimeValue.timeValueHours(3);
         // ensure default is set when setting expected_nodes
-        service = createService(ImmutableSettings.builder().put("gateway.expected_nodes", 1).put("gateway.recover_after_time", timeValue.toString()));
+        service = createService(Settings.builder().put("gateway.expected_nodes", 1).put("gateway.recover_after_time", timeValue.toString()));
         assertThat(service.recoverAfterTime().millis(), Matchers.equalTo(timeValue.millis()));
     }
 }

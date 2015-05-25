@@ -27,7 +27,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.test.InternalTestCluster;
@@ -53,7 +53,7 @@ public class MetaDataWriteDataNodesTests extends ElasticsearchIntegrationTest {
         // this test checks that index state is written on data only nodes
         String masterNodeName = startMasterNode();
         String redNode = startDataNode("red");
-        assertAcked(prepareCreate("test").setSettings(ImmutableSettings.builder().put("index.number_of_replicas", 0)));
+        assertAcked(prepareCreate("test").setSettings(Settings.builder().put("index.number_of_replicas", 0)));
         index("test", "doc", "1", jsonBuilder().startObject().field("text", "some text").endObject());
         waitForConcreteMappingsOnAll("test", "doc", "text");
         ensureGreen("test");
@@ -80,9 +80,9 @@ public class MetaDataWriteDataNodesTests extends ElasticsearchIntegrationTest {
         String blueNode = startDataNode("blue");
         String redNode = startDataNode("red");
 
-        assertAcked(prepareCreate("blue_index").setSettings(ImmutableSettings.builder().put("index.number_of_replicas", 0).put(FilterAllocationDecider.INDEX_ROUTING_INCLUDE_GROUP + "color", "blue")));
+        assertAcked(prepareCreate("blue_index").setSettings(Settings.builder().put("index.number_of_replicas", 0).put(FilterAllocationDecider.INDEX_ROUTING_INCLUDE_GROUP + "color", "blue")));
         index("blue_index", "doc", "1", jsonBuilder().startObject().field("text", "some text").endObject());
-        assertAcked(prepareCreate("red_index").setSettings(ImmutableSettings.builder().put("index.number_of_replicas", 0).put(FilterAllocationDecider.INDEX_ROUTING_INCLUDE_GROUP + "color", "red")));
+        assertAcked(prepareCreate("red_index").setSettings(Settings.builder().put("index.number_of_replicas", 0).put(FilterAllocationDecider.INDEX_ROUTING_INCLUDE_GROUP + "color", "red")));
         index("red_index", "doc", "1", jsonBuilder().startObject().field("text", "some text").endObject());
         ensureGreen();
         waitForConcreteMappingsOnAll("blue_index", "doc", "text");
@@ -126,9 +126,9 @@ public class MetaDataWriteDataNodesTests extends ElasticsearchIntegrationTest {
 
         // create blue_index on blue_node and same for red
         client().admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForNodes("3")).get();
-        assertAcked(prepareCreate("blue_index").setSettings(ImmutableSettings.builder().put("index.number_of_replicas", 0).put(FilterAllocationDecider.INDEX_ROUTING_INCLUDE_GROUP + "color", "blue")));
+        assertAcked(prepareCreate("blue_index").setSettings(Settings.builder().put("index.number_of_replicas", 0).put(FilterAllocationDecider.INDEX_ROUTING_INCLUDE_GROUP + "color", "blue")));
         index("blue_index", "doc", "1", jsonBuilder().startObject().field("text", "some text").endObject());
-        assertAcked(prepareCreate("red_index").setSettings(ImmutableSettings.builder().put("index.number_of_replicas", 0).put(FilterAllocationDecider.INDEX_ROUTING_INCLUDE_GROUP + "color", "red")));
+        assertAcked(prepareCreate("red_index").setSettings(Settings.builder().put("index.number_of_replicas", 0).put(FilterAllocationDecider.INDEX_ROUTING_INCLUDE_GROUP + "color", "red")));
         index("red_index", "doc", "1", jsonBuilder().startObject().field("text", "some text").endObject());
 
         ensureGreen();
@@ -141,8 +141,8 @@ public class MetaDataWriteDataNodesTests extends ElasticsearchIntegrationTest {
 
         // now relocate blue_index to red_node and red_index to blue_node
         logger.debug("relocating indices...");
-        client().admin().indices().prepareUpdateSettings("blue_index").setSettings(ImmutableSettings.builder().put(FilterAllocationDecider.INDEX_ROUTING_INCLUDE_GROUP + "color", "red")).get();
-        client().admin().indices().prepareUpdateSettings("red_index").setSettings(ImmutableSettings.builder().put(FilterAllocationDecider.INDEX_ROUTING_INCLUDE_GROUP + "color", "blue")).get();
+        client().admin().indices().prepareUpdateSettings("blue_index").setSettings(Settings.builder().put(FilterAllocationDecider.INDEX_ROUTING_INCLUDE_GROUP + "color", "red")).get();
+        client().admin().indices().prepareUpdateSettings("red_index").setSettings(Settings.builder().put(FilterAllocationDecider.INDEX_ROUTING_INCLUDE_GROUP + "color", "blue")).get();
         client().admin().cluster().prepareHealth().setWaitForRelocatingShards(0).get();
         ensureGreen();
         assertIndexNotInMetaState(redNode, "red_index");
@@ -180,7 +180,7 @@ public class MetaDataWriteDataNodesTests extends ElasticsearchIntegrationTest {
         String blueNode = startDataNode("blue");
         // create red_index on red_node and same for red
         client().admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForNodes("3")).get();
-        assertAcked(prepareCreate("red_index").setSettings(ImmutableSettings.builder().put("index.number_of_replicas", 0).put(FilterAllocationDecider.INDEX_ROUTING_INCLUDE_GROUP + "color", "red")));
+        assertAcked(prepareCreate("red_index").setSettings(Settings.builder().put("index.number_of_replicas", 0).put(FilterAllocationDecider.INDEX_ROUTING_INCLUDE_GROUP + "color", "red")));
         index("red_index", "doc", "1", jsonBuilder().startObject().field("text", "some text").endObject());
 
         ensureGreen();
@@ -243,7 +243,7 @@ public class MetaDataWriteDataNodesTests extends ElasticsearchIntegrationTest {
         String redNode = startDataNode("red", redNodeDataPath);
         // create red_index on red_node and same for red
         client().admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForNodes("2")).get();
-        assertAcked(prepareCreate("red_index").setSettings(ImmutableSettings.builder().put("index.number_of_replicas", 0).put(FilterAllocationDecider.INDEX_ROUTING_INCLUDE_GROUP + "color", "red")));
+        assertAcked(prepareCreate("red_index").setSettings(Settings.builder().put("index.number_of_replicas", 0).put(FilterAllocationDecider.INDEX_ROUTING_INCLUDE_GROUP + "color", "red")));
         index("red_index", "doc", "1", jsonBuilder().startObject().field("text", "some text").endObject());
 
         logger.info("--> wait for green red_index");
@@ -292,7 +292,7 @@ public class MetaDataWriteDataNodesTests extends ElasticsearchIntegrationTest {
     }
 
     private String startDataNode(String color, String newDataPath) {
-        ImmutableSettings.Builder settingsBuilder = ImmutableSettings.builder()
+        Settings.Builder settingsBuilder = Settings.builder()
                 .put("node.data", true)
                 .put("node.master", false)
                 .put("node.color", color)
@@ -301,7 +301,7 @@ public class MetaDataWriteDataNodesTests extends ElasticsearchIntegrationTest {
     }
 
     private String startMasterNode() {
-        ImmutableSettings.Builder settingsBuilder = ImmutableSettings.builder()
+        Settings.Builder settingsBuilder = Settings.builder()
                 .put("node.data", false)
                 .put("node.master", true)
                 .put("path.data", createTempDir().toString());

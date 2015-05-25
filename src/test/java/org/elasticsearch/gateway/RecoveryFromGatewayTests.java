@@ -28,7 +28,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.engine.Engine;
@@ -46,7 +45,7 @@ import org.junit.Test;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
-import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
@@ -363,7 +362,7 @@ public class RecoveryFromGatewayTests extends ElasticsearchIntegrationTest {
         // prevent any rebalance actions during the peer recovery
         // if we run into a relocation the reuse count will be 0 and this fails the test. We are testing here if
         // we reuse the files on disk after full restarts for replicas.
-        assertAcked(prepareCreate("test").setSettings(ImmutableSettings.builder()
+        assertAcked(prepareCreate("test").setSettings(Settings.builder()
                 .put(indexSettings())
                 .put(EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE, EnableAllocationDecider.Rebalance.NONE)));
         ensureGreen();

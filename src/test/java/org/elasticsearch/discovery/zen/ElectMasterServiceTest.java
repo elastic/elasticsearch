@@ -21,7 +21,7 @@ package org.elasticsearch.discovery.zen;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.test.ElasticsearchTestCase;
@@ -32,7 +32,7 @@ import java.util.*;
 public class ElectMasterServiceTest extends ElasticsearchTestCase {
 
     ElectMasterService electMasterService() {
-        return new ElectMasterService(ImmutableSettings.EMPTY);
+        return new ElectMasterService(Settings.EMPTY);
     }
 
     List<DiscoveryNode> generateRandomNodes() {

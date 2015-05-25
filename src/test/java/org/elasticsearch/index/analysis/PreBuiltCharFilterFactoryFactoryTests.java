@@ -20,7 +20,7 @@ package org.elasticsearch.index.analysis;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.analysis.PreBuiltCharFilters;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
@@ -37,9 +37,9 @@ public class PreBuiltCharFilterFactoryFactoryTests extends ElasticsearchTestCase
     public void testThatDifferentVersionsCanBeLoaded() {
         PreBuiltCharFilterFactoryFactory factory = new PreBuiltCharFilterFactoryFactory(PreBuiltCharFilters.HTML_STRIP.getCharFilterFactory(Version.CURRENT));
 
-        CharFilterFactory former090TokenizerFactory = factory.create("html_strip", ImmutableSettings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_0_90_0).build());
-        CharFilterFactory former090TokenizerFactoryCopy = factory.create("html_strip", ImmutableSettings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_0_90_0).build());
-        CharFilterFactory currentTokenizerFactory = factory.create("html_strip", ImmutableSettings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build());
+        CharFilterFactory former090TokenizerFactory = factory.create("html_strip", Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_0_90_0).build());
+        CharFilterFactory former090TokenizerFactoryCopy = factory.create("html_strip", Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_0_90_0).build());
+        CharFilterFactory currentTokenizerFactory = factory.create("html_strip", Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build());
 
         assertThat(currentTokenizerFactory, is(former090TokenizerFactory));
         assertThat(currentTokenizerFactory, is(former090TokenizerFactoryCopy));

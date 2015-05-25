@@ -27,7 +27,6 @@ import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.cluster.node.info.PluginInfo;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.Environment;
@@ -281,7 +280,7 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
     }
 
     private Tuple<Settings, Environment> buildInitialSettings() throws IOException {
-        Settings settings = ImmutableSettings.settingsBuilder()
+        Settings settings = Settings.settingsBuilder()
             .put("discovery.zen.ping.multicast.enabled", false)
             .put("http.enabled", true)
             .put("path.home", createTempDir()).build();

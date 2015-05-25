@@ -25,7 +25,7 @@ import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.*;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.MultiValueMode;
 import org.junit.Test;
 
@@ -40,8 +40,8 @@ public abstract class AbstractNumericFieldDataTests extends AbstractFieldDataImp
     @Override
     protected abstract FieldDataType getFieldDataType();
 
-    protected ImmutableSettings.Builder getFieldDataSettings() {
-        ImmutableSettings.Builder builder = ImmutableSettings.builder();
+    protected Settings.Builder getFieldDataSettings() {
+        Settings.Builder builder = Settings.builder();
         IndexFieldData.CommonSettings.MemoryStorageFormat[] formats = IndexFieldData.CommonSettings.MemoryStorageFormat.values();
         int i = randomInt(formats.length);
         if (i < formats.length) {

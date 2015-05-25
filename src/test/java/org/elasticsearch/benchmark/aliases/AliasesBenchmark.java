@@ -24,7 +24,6 @@ import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.IndexAlreadyExistsException;
 import org.elasticsearch.node.Node;
@@ -44,10 +43,10 @@ public class AliasesBenchmark {
         int BASE_ALIAS_COUNT = 100000;
         int NUM_ADD_ALIAS_REQUEST = 1000;
 
-        Settings settings = ImmutableSettings.settingsBuilder()
+        Settings settings = Settings.settingsBuilder()
                 .put("node.master", false).build();
         Node node1 = NodeBuilder.nodeBuilder().settings(
-                ImmutableSettings.settingsBuilder().put(settings).put("node.master", true)
+                Settings.settingsBuilder().put(settings).put("node.master", true)
         ).node();
 
         Node[] otherNodes = new Node[NUM_ADDITIONAL_NODES];

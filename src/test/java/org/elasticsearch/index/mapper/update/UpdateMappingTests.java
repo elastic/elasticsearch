@@ -21,7 +21,7 @@ package org.elasticsearch.index.mapper.update;
 
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.common.compress.CompressedString;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -78,7 +78,7 @@ public class UpdateMappingTests extends ElasticsearchSingleNodeTest {
     }
 
     private void testNoConflictWhileMergingAndMappingChanged(XContentBuilder mapping, XContentBuilder mappingUpdate, XContentBuilder expectedMapping) throws IOException {
-        IndexService indexService = createIndex("test", ImmutableSettings.settingsBuilder().build(), "type", mapping);
+        IndexService indexService = createIndex("test", Settings.settingsBuilder().build(), "type", mapping);
         // simulate like in MetaDataMappingService#putMapping
         MergeResult mergeResult = indexService.mapperService().documentMapper("type").merge(indexService.mapperService().parse("type", new CompressedString(mappingUpdate.bytes()), true).mapping(), false);
         // assure we have no conflicts
@@ -101,7 +101,7 @@ public class UpdateMappingTests extends ElasticsearchSingleNodeTest {
     }
 
     protected void testConflictWhileMergingAndMappingUnchanged(XContentBuilder mapping, XContentBuilder mappingUpdate) throws IOException {
-        IndexService indexService = createIndex("test", ImmutableSettings.settingsBuilder().build(), "type", mapping);
+        IndexService indexService = createIndex("test", Settings.settingsBuilder().build(), "type", mapping);
         CompressedString mappingBeforeUpdate = indexService.mapperService().documentMapper("type").mappingSource();
         // simulate like in MetaDataMappingService#putMapping
         MergeResult mergeResult = indexService.mapperService().documentMapper("type").merge(indexService.mapperService().parse("type", new CompressedString(mappingUpdate.bytes()), true).mapping(), true);
@@ -114,7 +114,7 @@ public class UpdateMappingTests extends ElasticsearchSingleNodeTest {
 
     @Test
     public void testIndexFieldParsing() throws IOException {
-        IndexService indexService = createIndex("test", ImmutableSettings.settingsBuilder().build());
+        IndexService indexService = createIndex("test", Settings.settingsBuilder().build());
         XContentBuilder indexMapping = XContentFactory.jsonBuilder();
         boolean enabled = randomBoolean();
         indexMapping.startObject()
@@ -132,7 +132,7 @@ public class UpdateMappingTests extends ElasticsearchSingleNodeTest {
 
     @Test
     public void testTimestampParsing() throws IOException {
-        IndexService indexService = createIndex("test", ImmutableSettings.settingsBuilder().build());
+        IndexService indexService = createIndex("test", Settings.settingsBuilder().build());
         XContentBuilder indexMapping = XContentFactory.jsonBuilder();
         boolean enabled = randomBoolean();
         indexMapping.startObject()
@@ -158,7 +158,7 @@ public class UpdateMappingTests extends ElasticsearchSingleNodeTest {
 
     @Test
     public void testSizeParsing() throws IOException {
-        IndexService indexService = createIndex("test", ImmutableSettings.settingsBuilder().build());
+        IndexService indexService = createIndex("test", Settings.settingsBuilder().build());
         XContentBuilder indexMapping = XContentFactory.jsonBuilder();
         boolean enabled = randomBoolean();
         indexMapping.startObject()
@@ -177,7 +177,7 @@ public class UpdateMappingTests extends ElasticsearchSingleNodeTest {
 
     @Test
     public void testSizeTimestampIndexParsing() throws IOException {
-        IndexService indexService = createIndex("test", ImmutableSettings.settingsBuilder().build());
+        IndexService indexService = createIndex("test", Settings.settingsBuilder().build());
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/update/default_mapping_with_disabled_root_types.json");
         DocumentMapper documentMapper = indexService.mapperService().parse("type", new CompressedString(mapping), true);
         assertThat(documentMapper.mappingSource().string(), equalTo(mapping));
@@ -187,8 +187,8 @@ public class UpdateMappingTests extends ElasticsearchSingleNodeTest {
 
     @Test
     public void testDefaultApplied() throws IOException {
-        createIndex("test1", ImmutableSettings.settingsBuilder().build());
-        createIndex("test2", ImmutableSettings.settingsBuilder().build());
+        createIndex("test1", Settings.settingsBuilder().build());
+        createIndex("test2", Settings.settingsBuilder().build());
         XContentBuilder defaultMapping = XContentFactory.jsonBuilder().startObject()
                 .startObject(MapperService.DEFAULT_MAPPING).startObject("_size").field("enabled", true).endObject().endObject()
                 .endObject();

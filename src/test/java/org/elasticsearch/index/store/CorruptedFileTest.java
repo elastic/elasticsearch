@@ -47,7 +47,6 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.gateway.GatewayAllocator;
@@ -68,7 +67,6 @@ import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.index.merge.NoMergePolicyProvider;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.store.MockFSDirectoryService;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.*;
@@ -90,7 +88,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.*;
 
@@ -99,7 +97,7 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return ImmutableSettings.builder()
+        return Settings.builder()
                 // we really need local GW here since this also checks for corruption etc.
                 // and we need to make sure primaries are not just trashed if we don't have replicas
                 .put(super.nodeSettings(nodeOrdinal))
@@ -125,7 +123,7 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
 
         assertThat(cluster().numDataNodes(), greaterThanOrEqualTo(3));
 
-        assertAcked(prepareCreate("test").setSettings(ImmutableSettings.builder()
+        assertAcked(prepareCreate("test").setSettings(Settings.builder()
                         .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, "1")
                         .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "1")
                         .put(MergePolicyModule.MERGE_POLICY_TYPE_KEY, NoMergePolicyProvider.class)
@@ -153,7 +151,7 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
          /*
          * we corrupted the primary shard - now lets make sure we never recover from it successfully
          */
-        Settings build = ImmutableSettings.builder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "2").build();
+        Settings build = Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "2").build();
         client().admin().indices().prepareUpdateSettings("test").setSettings(build).get();
         ClusterHealthResponse health = client().admin().cluster()
                 .health(Requests.clusterHealthRequest("test").waitForGreenStatus()
@@ -232,7 +230,7 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
         int numDocs = scaledRandomIntBetween(100, 1000);
         internalCluster().ensureAtLeastNumDataNodes(2);
 
-        assertAcked(prepareCreate("test").setSettings(ImmutableSettings.builder()
+        assertAcked(prepareCreate("test").setSettings(Settings.builder()
                         .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "0")
                         .put(MergePolicyModule.MERGE_POLICY_TYPE_KEY, NoMergePolicyProvider.class)
                         .put(MockFSDirectoryService.CHECK_INDEX_ON_CLOSE, false) // no checkindex - we corrupt shards on purpose
@@ -255,7 +253,7 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
         /*
          * we corrupted the primary shard - now lets make sure we never recover from it successfully
          */
-        Settings build = ImmutableSettings.builder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "1").build();
+        Settings build = Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "1").build();
         client().admin().indices().prepareUpdateSettings("test").setSettings(build).get();
         client().admin().cluster().prepareReroute().get();
 
@@ -317,7 +315,7 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
         Collections.shuffle(dataNodeStats, getRandom());
         NodeStats primariesNode = dataNodeStats.get(0);
         NodeStats unluckyNode = dataNodeStats.get(1);
-        assertAcked(prepareCreate("test").setSettings(ImmutableSettings.builder()
+        assertAcked(prepareCreate("test").setSettings(Settings.builder()
                         .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "0")
                         .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                         .put("index.routing.allocation.include._name", primariesNode.getNode().name())
@@ -345,7 +343,7 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
             });
         }
 
-        Settings build = ImmutableSettings.builder()
+        Settings build = Settings.builder()
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "1")
                 .put("index.routing.allocation.include._name", primariesNode.getNode().name() + "," + unluckyNode.getNode().name()).build();
         client().admin().indices().prepareUpdateSettings("test").setSettings(build).get();
@@ -364,7 +362,7 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
         int numDocs = scaledRandomIntBetween(100, 1000);
         internalCluster().ensureAtLeastNumDataNodes(2);
         if (cluster().numDataNodes() < 3) {
-            internalCluster().startNode(ImmutableSettings.builder().put("node.data", true).put("node.client", false).put("node.master", false));
+            internalCluster().startNode(Settings.builder().put("node.data", true).put("node.client", false).put("node.master", false));
         }
         NodesStatsResponse nodeStats = client().admin().cluster().prepareNodesStats().get();
         List<NodeStats> dataNodeStats = new ArrayList<>();
@@ -380,7 +378,7 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
         NodeStats unluckyNode = dataNodeStats.get(1);
 
 
-        assertAcked(prepareCreate("test").setSettings(ImmutableSettings.builder()
+        assertAcked(prepareCreate("test").setSettings(Settings.builder()
                         .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "0")
                         .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, between(1, 4)) // don't go crazy here it must recovery fast
                                 // This does corrupt files on the replica, so we can't check:
@@ -422,7 +420,7 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
             });
         }
 
-        Settings build = ImmutableSettings.builder()
+        Settings build = Settings.builder()
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "1")
                 .put("index.routing.allocation.include._name", "*").build();
         client().admin().indices().prepareUpdateSettings("test").setSettings(build).get();
@@ -463,7 +461,7 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
         int numDocs = scaledRandomIntBetween(100, 1000);
         internalCluster().ensureAtLeastNumDataNodes(2);
 
-        assertAcked(prepareCreate("test").setSettings(ImmutableSettings.builder()
+        assertAcked(prepareCreate("test").setSettings(Settings.builder()
                         .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "0") // no replicas for this test
                         .put(MergePolicyModule.MERGE_POLICY_TYPE_KEY, NoMergePolicyProvider.class)
                         .put(MockFSDirectoryService.CHECK_INDEX_ON_CLOSE, false) // no checkindex - we corrupt shards on purpose
@@ -518,7 +516,7 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
         int numDocs = scaledRandomIntBetween(100, 1000);
         internalCluster().ensureAtLeastNumDataNodes(2);
 
-        assertAcked(prepareCreate("test").setSettings(ImmutableSettings.builder()
+        assertAcked(prepareCreate("test").setSettings(Settings.builder()
                         .put(GatewayAllocator.INDEX_RECOVERY_INITIAL_SHARDS, "one")
                         .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, cluster().numDataNodes() - 1)
                         .put(MergePolicyModule.MERGE_POLICY_TYPE_KEY, NoMergePolicyProvider.class)
@@ -736,13 +734,13 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
     }
 
     private void disableAllocation(String index) {
-        client().admin().indices().prepareUpdateSettings(index).setSettings(ImmutableSettings.builder().put(
+        client().admin().indices().prepareUpdateSettings(index).setSettings(Settings.builder().put(
                 "index.routing.allocation.enable", "none"
         )).get();
     }
 
     private void enableAllocation(String index) {
-        client().admin().indices().prepareUpdateSettings(index).setSettings(ImmutableSettings.builder().put(
+        client().admin().indices().prepareUpdateSettings(index).setSettings(Settings.builder().put(
                 "index.routing.allocation.enable", "all"
         )).get();
     }

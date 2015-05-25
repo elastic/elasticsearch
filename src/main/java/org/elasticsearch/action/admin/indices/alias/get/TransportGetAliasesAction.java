@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.action.admin.indices.alias.get;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadOperationAction;

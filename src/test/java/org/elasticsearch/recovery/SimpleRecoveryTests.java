@@ -22,13 +22,12 @@ package org.elasticsearch.recovery;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
 import static org.elasticsearch.client.Requests.*;
-import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -40,7 +39,7 @@ public class SimpleRecoveryTests extends ElasticsearchIntegrationTest {
     }
 
     protected Settings recoverySettings() {
-        return ImmutableSettings.Builder.EMPTY_SETTINGS;
+        return Settings.Builder.EMPTY_SETTINGS;
     }
 
     @Override

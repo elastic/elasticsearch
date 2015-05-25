@@ -21,15 +21,11 @@ package org.elasticsearch.repositories;
 
 import com.google.common.collect.ImmutableList;
 import org.elasticsearch.common.Classes;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.inject.Modules;
 import org.elasticsearch.common.inject.SpawnModules;
-import org.elasticsearch.common.settings.NoClassSettingsException;
 import org.elasticsearch.common.settings.Settings;
-
-import java.util.Locale;
 
 import static org.elasticsearch.common.Strings.toCamelCase;
 

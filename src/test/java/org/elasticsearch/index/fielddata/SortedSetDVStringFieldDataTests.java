@@ -19,14 +19,14 @@
 
 package org.elasticsearch.index.fielddata;
 
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.fielddata.ordinals.OrdinalsBuilder;
 
 public class SortedSetDVStringFieldDataTests extends AbstractStringFieldDataTests {
 
     @Override
     protected FieldDataType getFieldDataType() {
-        return new FieldDataType("string", ImmutableSettings.builder().put("format", "doc_values").put(OrdinalsBuilder.FORCE_MULTI_ORDINALS, randomBoolean()));
+        return new FieldDataType("string", Settings.builder().put("format", "doc_values").put(OrdinalsBuilder.FORCE_MULTI_ORDINALS, randomBoolean()));
     }
 
     @Override

@@ -26,11 +26,9 @@ import com.google.common.util.concurrent.MoreExecutors;
 import org.apache.lucene.util.Counter;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.unit.SizeValue;
@@ -52,7 +50,7 @@ import java.util.Queue;
 import java.util.concurrent.*;
 
 import static org.elasticsearch.common.collect.MapBuilder.newMapBuilder;
-import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.common.unit.SizeValue.parseSizeValue;
 import static org.elasticsearch.common.unit.TimeValue.timeValueMinutes;
 
@@ -97,7 +95,7 @@ public class ThreadPool extends AbstractComponent {
 
 
     public ThreadPool(String name) {
-        this(ImmutableSettings.builder().put("name", name).build());
+        this(Settings.builder().put("name", name).build());
     }
 
     public ThreadPool(Settings settings) {
@@ -141,7 +139,7 @@ public class ThreadPool extends AbstractComponent {
             if (executors.containsKey(entry.getKey())) {
                 continue;
             }
-            executors.put(entry.getKey(), build(entry.getKey(), entry.getValue(), ImmutableSettings.EMPTY));
+            executors.put(entry.getKey(), build(entry.getKey(), entry.getValue(), Settings.EMPTY));
         }
 
         executors.put(Names.SAME, new ExecutorHolder(MoreExecutors.directExecutor(), new Info(Names.SAME, "same")));
@@ -304,7 +302,7 @@ public class ThreadPool extends AbstractComponent {
             return previousExecutorHolder;
         }
         if (settings == null) {
-            settings = ImmutableSettings.Builder.EMPTY_SETTINGS;
+            settings = Settings.Builder.EMPTY_SETTINGS;
         }
         Info previousInfo = previousExecutorHolder != null ? previousExecutorHolder.info : null;
         String type = settings.get("type", previousInfo != null ? previousInfo.getType() : defaultSettings.get("type"));
@@ -453,7 +451,7 @@ public class ThreadPool extends AbstractComponent {
             }
 
             ExecutorHolder oldExecutorHolder = executors.get(entry.getKey());
-            ExecutorHolder newExecutorHolder = rebuild(entry.getKey(), oldExecutorHolder, entry.getValue(), ImmutableSettings.EMPTY);
+            ExecutorHolder newExecutorHolder = rebuild(entry.getKey(), oldExecutorHolder, entry.getValue(), Settings.EMPTY);
             // Can't introduce new thread pools at runtime, because The oldExecutorHolder variable will be null in the
             // case the settings contains a thread pool not defined in the initial settings in the constructor. The if
             // statement will then fail and so this prevents the addition of new thread groups at runtime, which is desired.

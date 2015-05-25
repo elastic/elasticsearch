@@ -23,7 +23,6 @@ import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -175,7 +174,7 @@ public class DynamicMappingTests extends ElasticsearchSingleNodeTest {
                 .field("dynamic", "strict")
                 .endObject().endObject();
 
-        IndexService indexService = createIndex("test", ImmutableSettings.EMPTY, "_default_", mapping);
+        IndexService indexService = createIndex("test", Settings.EMPTY, "_default_", mapping);
 
         try {
             client().prepareIndex().setIndex("test").setType("type").setSource(jsonBuilder().startObject().field("test", "test").endObject()).get();
@@ -195,7 +194,7 @@ public class DynamicMappingTests extends ElasticsearchSingleNodeTest {
     }
 
     private Mapper parse(DocumentMapper mapper, DocumentMapperParser parser, XContentBuilder builder) throws Exception {
-        Settings settings = ImmutableSettings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
+        Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
         ParseContext.InternalParseContext ctx = new ParseContext.InternalParseContext("test", settings, parser, mapper, new ContentPath(0));
         SourceToParse source = SourceToParse.source(builder.bytes());
         ctx.reset(XContentHelper.createParser(source.source()), new ParseContext.Document(), source);

@@ -22,7 +22,7 @@ package org.elasticsearch.search.scroll;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
@@ -58,7 +58,7 @@ public class SearchScrollWithFailingNodesTests extends ElasticsearchIntegrationT
         assertAcked(
                 prepareCreate("test")
                         // Enforces that only one shard can only be allocated to a single node
-                        .setSettings(ImmutableSettings.builder().put(indexSettings()).put(ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE, 1))
+                        .setSettings(Settings.builder().put(indexSettings()).put(ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE, 1))
         );
 
         List<IndexRequestBuilder> writes = new ArrayList<>();

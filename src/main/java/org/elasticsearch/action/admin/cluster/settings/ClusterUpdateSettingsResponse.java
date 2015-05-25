@@ -22,7 +22,6 @@ package org.elasticsearch.action.admin.cluster.settings;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 
 import java.io.IOException;
@@ -36,8 +35,8 @@ public class ClusterUpdateSettingsResponse extends AcknowledgedResponse {
     Settings persistentSettings;
 
     ClusterUpdateSettingsResponse() {
-        this.persistentSettings = ImmutableSettings.EMPTY;
-        this.transientSettings = ImmutableSettings.EMPTY;
+        this.persistentSettings = Settings.EMPTY;
+        this.transientSettings = Settings.EMPTY;
     }
 
     ClusterUpdateSettingsResponse(boolean acknowledged, Settings transientSettings, Settings persistentSettings) {
@@ -49,8 +48,8 @@ public class ClusterUpdateSettingsResponse extends AcknowledgedResponse {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        transientSettings = ImmutableSettings.readSettingsFromStream(in);
-        persistentSettings = ImmutableSettings.readSettingsFromStream(in);
+        transientSettings = Settings.readSettingsFromStream(in);
+        persistentSettings = Settings.readSettingsFromStream(in);
         readAcknowledged(in);
     }
 
@@ -65,8 +64,8 @@ public class ClusterUpdateSettingsResponse extends AcknowledgedResponse {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        ImmutableSettings.writeSettingsToStream(transientSettings, out);
-        ImmutableSettings.writeSettingsToStream(persistentSettings, out);
+        Settings.writeSettingsToStream(transientSettings, out);
+        Settings.writeSettingsToStream(persistentSettings, out);
         writeAcknowledged(out);
     }
 }

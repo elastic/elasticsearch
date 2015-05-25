@@ -31,8 +31,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
-import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.env.Environment;
@@ -55,7 +53,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Set;
 
-import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.*;
 
 /**
@@ -127,7 +125,7 @@ public class AnalysisModuleTests extends ElasticsearchTestCase {
     }
 
     private void assertTokenFilter(String name, Class clazz) throws IOException {
-        Settings settings = ImmutableSettings.settingsBuilder()
+        Settings settings = Settings.settingsBuilder()
                                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                                .put("path.home", createTempDir().toString()).build();
         AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromSettings(settings);
@@ -214,7 +212,7 @@ public class AnalysisModuleTests extends ElasticsearchTestCase {
 
     @Test
     public void testWordListPath() throws Exception {
-        Settings settings = ImmutableSettings.builder()
+        Settings settings = Settings.builder()
                                .put("path.home", createTempDir().toString())
                                .build();
         Environment env = new Environment(settings);

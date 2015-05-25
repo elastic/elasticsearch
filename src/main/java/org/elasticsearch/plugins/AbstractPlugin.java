@@ -22,7 +22,6 @@ package org.elasticsearch.plugins;
 import com.google.common.collect.ImmutableList;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 
 import java.io.Closeable;
@@ -116,7 +115,7 @@ public abstract class AbstractPlugin implements Plugin {
 
     @Override
     public Settings additionalSettings() {
-        return ImmutableSettings.Builder.EMPTY_SETTINGS;
+        return Settings.Builder.EMPTY_SETTINGS;
     }
 
 }

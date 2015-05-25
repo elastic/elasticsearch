@@ -22,7 +22,6 @@ import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
 import org.elasticsearch.cluster.ClusterService;
@@ -33,7 +32,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.indices.IndexTemplateAlreadyExistsException;
@@ -105,7 +103,7 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
     }
 
     public void putTemplate(final PutRequest request, final PutListener listener) {
-        ImmutableSettings.Builder updatedSettingsBuilder = ImmutableSettings.settingsBuilder();
+        Settings.Builder updatedSettingsBuilder = Settings.settingsBuilder();
         updatedSettingsBuilder.put(request.settings).normalizePrefix(IndexMetaData.INDEX_SETTING_PREFIX);
         request.settings(updatedSettingsBuilder.build());
 
@@ -228,7 +226,7 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
         boolean create;
         int order;
         String template;
-        Settings settings = ImmutableSettings.Builder.EMPTY_SETTINGS;
+        Settings settings = Settings.Builder.EMPTY_SETTINGS;
         Map<String, String> mappings = Maps.newHashMap();
         List<Alias> aliases = Lists.newArrayList();
         Map<String, IndexMetaData.Custom> customs = Maps.newHashMap();

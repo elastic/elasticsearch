@@ -21,7 +21,7 @@ package org.elasticsearch.fieldstats;
 
 import org.elasticsearch.action.fieldstats.FieldStats;
 import org.elasticsearch.action.fieldstats.FieldStatsResponse;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 
 import java.util.ArrayList;
@@ -59,7 +59,7 @@ public class FieldStatsTests extends ElasticsearchSingleNodeTest {
     }
 
     public void testString() {
-        createIndex("test", ImmutableSettings.EMPTY, "field", "value", "type=string");
+        createIndex("test", Settings.EMPTY, "field", "value", "type=string");
         for (int value = 0; value <= 10; value++) {
             client().prepareIndex("test", "test").setSource("field", String.format(Locale.ENGLISH, "%03d", value)).get();
         }
@@ -75,7 +75,7 @@ public class FieldStatsTests extends ElasticsearchSingleNodeTest {
 
     public void testDouble() {
         String fieldName = "field";
-        createIndex("test", ImmutableSettings.EMPTY, fieldName, "value", "type=double");
+        createIndex("test", Settings.EMPTY, fieldName, "value", "type=double");
         for (double value = -1; value <= 9; value++) {
             client().prepareIndex("test", "test").setSource(fieldName, value).get();
         }
@@ -91,7 +91,7 @@ public class FieldStatsTests extends ElasticsearchSingleNodeTest {
 
     public void testFloat() {
         String fieldName = "field";
-        createIndex("test", ImmutableSettings.EMPTY, fieldName, "value", "type=float");
+        createIndex("test", Settings.EMPTY, fieldName, "value", "type=float");
         for (float value = -1; value <= 9; value++) {
             client().prepareIndex("test", "test").setSource(fieldName, value).get();
         }
@@ -106,7 +106,7 @@ public class FieldStatsTests extends ElasticsearchSingleNodeTest {
     }
 
     private void testNumberRange(String fieldName, String fieldType, long min, long max) {
-        createIndex("test", ImmutableSettings.EMPTY, fieldName, "value", "type=" + fieldType);
+        createIndex("test", Settings.EMPTY, fieldName, "value", "type=" + fieldType);
         for (long value = min; value <= max; value++) {
             client().prepareIndex("test", "test").setSource(fieldName, value).get();
         }
@@ -165,11 +165,11 @@ public class FieldStatsTests extends ElasticsearchSingleNodeTest {
     }
 
     public void testInvalidField() {
-        createIndex("test1", ImmutableSettings.EMPTY, "field1", "value", "type=string");
+        createIndex("test1", Settings.EMPTY, "field1", "value", "type=string");
         client().prepareIndex("test1", "test").setSource("field1", "a").get();
         client().prepareIndex("test1", "test").setSource("field1", "b").get();
 
-        createIndex("test2", ImmutableSettings.EMPTY, "field2", "value", "type=string");
+        createIndex("test2", Settings.EMPTY, "field2", "value", "type=string");
         client().prepareIndex("test2", "test").setSource("field2", "a").get();
         client().prepareIndex("test2", "test").setSource("field2", "b").get();
         client().admin().indices().prepareRefresh().get();

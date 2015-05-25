@@ -25,7 +25,7 @@ import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.merge.policy.LogDocMergePolicyProvider;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.hamcrest.Matchers;
@@ -34,7 +34,6 @@ import org.junit.Test;
 import java.io.IOException;
 import java.util.concurrent.ExecutionException;
 
-import static org.apache.lucene.util.LuceneTestCase.Slow;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
@@ -51,7 +50,7 @@ public class InternalEngineMergeTests extends ElasticsearchIntegrationTest {
     public void testMergesHappening() throws InterruptedException, IOException, ExecutionException {
         final int numOfShards = randomIntBetween(1,5);
         // some settings to keep num segments low
-        assertAcked(prepareCreate("test").setSettings(ImmutableSettings.builder()
+        assertAcked(prepareCreate("test").setSettings(Settings.builder()
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, numOfShards)
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
                 .put(LogDocMergePolicyProvider.MIN_MERGE_DOCS_KEY, 10)

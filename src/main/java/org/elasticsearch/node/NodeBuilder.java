@@ -19,7 +19,6 @@
 
 package org.elasticsearch.node;
 
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 
 /**
@@ -30,7 +29,7 @@ import org.elasticsearch.common.settings.Settings;
  * <tt>elasticsearch.yml</tt> or <tt>elasticsearch.json</tt>). Loading settings can be disabled by calling
  * {@link #loadConfigSettings(boolean)} with <tt>false<tt>.
  * <p/>
- * <p>Explicit settings can be passed by using the {@link #settings(Settings)} method.
+ * <p>Explicit settings can be passed by using the {@link #settings(org.elasticsearch.common.settings.Settings)} method.
  * <p/>
  * <p>In any case, settings will be resolved from system properties as well that are either prefixed with <tt>es.</tt>
  * or <tt>elasticsearch.</tt>.
@@ -56,7 +55,7 @@ import org.elasticsearch.common.settings.Settings;
  */
 public class NodeBuilder {
 
-    private final ImmutableSettings.Builder settings = ImmutableSettings.settingsBuilder();
+    private final Settings.Builder settings = Settings.settingsBuilder();
 
     private boolean loadConfigSettings = true;
 
@@ -70,14 +69,14 @@ public class NodeBuilder {
     /**
      * Set addition settings simply by working directly against the settings builder.
      */
-    public ImmutableSettings.Builder settings() {
+    public Settings.Builder settings() {
         return settings;
     }
 
     /**
      * Set addition settings simply by working directly against the settings builder.
      */
-    public ImmutableSettings.Builder getSettings() {
+    public Settings.Builder getSettings() {
         return settings;
     }
 

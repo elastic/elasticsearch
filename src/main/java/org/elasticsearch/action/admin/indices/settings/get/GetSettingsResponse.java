@@ -24,7 +24,6 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 
 import java.io.IOException;
@@ -61,7 +60,7 @@ public class GetSettingsResponse extends ActionResponse {
         int size = in.readVInt();
         ImmutableOpenMap.Builder<String, Settings> builder = ImmutableOpenMap.builder();
         for (int i = 0; i < size; i++) {
-            builder.put(in.readString(), ImmutableSettings.readSettingsFromStream(in));
+            builder.put(in.readString(), Settings.readSettingsFromStream(in));
         }
         indexToSettings = builder.build();
     }
@@ -72,7 +71,7 @@ public class GetSettingsResponse extends ActionResponse {
         out.writeVInt(indexToSettings.size());
         for (ObjectObjectCursor<String, Settings> cursor : indexToSettings) {
             out.writeString(cursor.key);
-            ImmutableSettings.writeSettingsToStream(cursor.value, out);
+            Settings.writeSettingsToStream(cursor.value, out);
         }
     }
 }

@@ -23,7 +23,7 @@ import org.elasticsearch.action.admin.indices.segments.IndexSegments;
 import org.elasticsearch.action.admin.indices.segments.IndexShardSegments;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentResponse;
 import org.elasticsearch.action.admin.indices.segments.ShardSegments;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.hamcrest.Matchers;
 import org.junit.Test;
@@ -36,19 +36,19 @@ public class InternalEngineIntegrationTest extends ElasticsearchIntegrationTest 
 
     @Test
     public void testSetIndexCompoundOnFlush() {
-        client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.builder().put("number_of_replicas", 0).put("number_of_shards", 1)).get();
+        client().admin().indices().prepareCreate("test").setSettings(Settings.builder().put("number_of_replicas", 0).put("number_of_shards", 1)).get();
         ensureGreen();
         client().prepareIndex("test", "foo").setSource("field", "foo").get();
         refresh();
         assertTotalCompoundSegments(1, 1, "test");
         client().admin().indices().prepareUpdateSettings("test")
-                .setSettings(ImmutableSettings.builder().put(EngineConfig.INDEX_COMPOUND_ON_FLUSH, false)).get();
+                .setSettings(Settings.builder().put(EngineConfig.INDEX_COMPOUND_ON_FLUSH, false)).get();
         client().prepareIndex("test", "foo").setSource("field", "foo").get();
         refresh();
         assertTotalCompoundSegments(1, 2, "test");
 
         client().admin().indices().prepareUpdateSettings("test")
-                .setSettings(ImmutableSettings.builder().put(EngineConfig.INDEX_COMPOUND_ON_FLUSH, true)).get();
+                .setSettings(Settings.builder().put(EngineConfig.INDEX_COMPOUND_ON_FLUSH, true)).get();
         client().prepareIndex("test", "foo").setSource("field", "foo").get();
         refresh();
         assertTotalCompoundSegments(2, 3, "test");

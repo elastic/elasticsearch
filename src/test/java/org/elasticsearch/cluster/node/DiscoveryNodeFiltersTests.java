@@ -21,7 +21,6 @@ package org.elasticsearch.cluster.node;
 
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.test.ElasticsearchTestCase;
@@ -38,7 +37,7 @@ public class DiscoveryNodeFiltersTests extends ElasticsearchTestCase {
 
     @Test
     public void nameMatch() {
-        Settings settings = ImmutableSettings.settingsBuilder()
+        Settings settings = Settings.settingsBuilder()
                 .put("xxx.name", "name1")
                 .build();
         DiscoveryNodeFilters filters = DiscoveryNodeFilters.buildFromSettings(OR, "xxx.", settings);
@@ -52,7 +51,7 @@ public class DiscoveryNodeFiltersTests extends ElasticsearchTestCase {
 
     @Test
     public void idMatch() {
-        Settings settings = ImmutableSettings.settingsBuilder()
+        Settings settings = Settings.settingsBuilder()
                 .put("xxx._id", "id1")
                 .build();
         DiscoveryNodeFilters filters = DiscoveryNodeFilters.buildFromSettings(OR, "xxx.", settings);
@@ -66,7 +65,7 @@ public class DiscoveryNodeFiltersTests extends ElasticsearchTestCase {
 
     @Test
     public void idOrNameMatch() {
-        Settings settings = ImmutableSettings.settingsBuilder()
+        Settings settings = Settings.settingsBuilder()
                 .put("xxx._id", "id1,blah")
                 .put("xxx.name", "blah,name2")
                 .build();
@@ -84,7 +83,7 @@ public class DiscoveryNodeFiltersTests extends ElasticsearchTestCase {
 
     @Test
     public void tagAndGroupMatch() {
-        Settings settings = ImmutableSettings.settingsBuilder()
+        Settings settings = Settings.settingsBuilder()
                 .put("xxx.tag", "A")
                 .put("xxx.group", "B")
                 .build();
@@ -108,7 +107,7 @@ public class DiscoveryNodeFiltersTests extends ElasticsearchTestCase {
 
     @Test
     public void starMatch() {
-        Settings settings = ImmutableSettings.settingsBuilder()
+        Settings settings = Settings.settingsBuilder()
                 .put("xxx.name", "*")
                 .build();
         DiscoveryNodeFilters filters = DiscoveryNodeFilters.buildFromSettings(OR, "xxx.", settings);

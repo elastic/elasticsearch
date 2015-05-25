@@ -49,7 +49,6 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -152,7 +151,7 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
         if (backwardsCluster().numNewDataNodes() == 0) {
             backwardsCluster().startNewNode();
         }
-        assertAcked(prepareCreate("test").setSettings(ImmutableSettings.builder().put("index.routing.allocation.exclude._name", backwardsCluster().newNodePattern()).put(indexSettings())));
+        assertAcked(prepareCreate("test").setSettings(Settings.builder().put("index.routing.allocation.exclude._name", backwardsCluster().newNodePattern()).put(indexSettings())));
         ensureYellow();
         assertAllShardsOnNodes("test", backwardsCluster().backwardsNodePattern());
         int numDocs = randomIntBetween(100, 150);
@@ -206,7 +205,7 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
      */
     @Test
     public void testNoRecoveryFromNewNodes() throws ExecutionException, InterruptedException {
-        assertAcked(prepareCreate("test").setSettings(ImmutableSettings.builder().put("index.routing.allocation.exclude._name", backwardsCluster().backwardsNodePattern()).put(indexSettings())));
+        assertAcked(prepareCreate("test").setSettings(Settings.builder().put("index.routing.allocation.exclude._name", backwardsCluster().backwardsNodePattern()).put(indexSettings())));
         if (backwardsCluster().numNewDataNodes() == 0) {
             backwardsCluster().startNewNode();
         }
@@ -274,7 +273,7 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
      */
     @Test
     public void testIndexUpgradeSingleNode() throws Exception {
-        assertAcked(prepareCreate("test").setSettings(ImmutableSettings.builder().put("index.routing.allocation.exclude._name", backwardsCluster().newNodePattern()).put(indexSettings())));
+        assertAcked(prepareCreate("test").setSettings(Settings.builder().put("index.routing.allocation.exclude._name", backwardsCluster().newNodePattern()).put(indexSettings())));
         ensureYellow();
         int numDocs = randomIntBetween(100, 150);
         IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
@@ -284,7 +283,7 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
 
         indexRandom(true, docs);
         assertAllShardsOnNodes("test", backwardsCluster().backwardsNodePattern());
-        client().admin().indices().prepareUpdateSettings("test").setSettings(ImmutableSettings.builder().put(EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE, "none")).get();
+        client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder().put(EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE, "none")).get();
         backwardsCluster().allowOnAllNodes("test");
         CountResponse countResponse = client().prepareCount().get();
         assertHitCount(countResponse, numDocs);
@@ -296,7 +295,7 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
             }
             indexRandom(true, docs);
         }
-        client().admin().indices().prepareUpdateSettings("test").setSettings(ImmutableSettings.builder().put(EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE, "all")).get();
+        client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder().put(EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE, "all")).get();
         ensureYellow();
         final int numIters = randomIntBetween(1, 20);
         for (int i = 0; i < numIters; i++) {
@@ -316,7 +315,7 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
         String[] indices = new String[randomIntBetween(1, 3)];
         for (int i = 0; i < indices.length; i++) {
             indices[i] = "test" + i;
-            assertAcked(prepareCreate(indices[i]).setSettings(ImmutableSettings.builder().put("index.routing.allocation.exclude._name", backwardsCluster().newNodePattern()).put(indexSettings())));
+            assertAcked(prepareCreate(indices[i]).setSettings(Settings.builder().put("index.routing.allocation.exclude._name", backwardsCluster().newNodePattern()).put(indexSettings())));
         }
 
         int numDocs = randomIntBetween(100, 150);
@@ -329,7 +328,7 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
         for (String index : indices) {
             assertAllShardsOnNodes(index, backwardsCluster().backwardsNodePattern());
         }
-        client().admin().indices().prepareUpdateSettings(indices).setSettings(ImmutableSettings.builder().put(EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE, "none")).get();
+        client().admin().indices().prepareUpdateSettings(indices).setSettings(Settings.builder().put(EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE, "none")).get();
         backwardsCluster().allowOnAllNodes(indices);
         logClusterState();
         boolean upgraded;
@@ -347,7 +346,7 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
             }
             indexRandom(true, docs);
         } while (upgraded);
-        client().admin().indices().prepareUpdateSettings(indices).setSettings(ImmutableSettings.builder().put(EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE, "all")).get();
+        client().admin().indices().prepareUpdateSettings(indices).setSettings(Settings.builder().put(EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE, "all")).get();
         ensureYellow();
         CountResponse countResponse = client().prepareCount().get();
         assertHitCount(countResponse, numDocs);
@@ -389,7 +388,7 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
 
         try {
             assertAcked(prepareCreate("test").
-                    setSettings(ImmutableSettings.builder().put("index.routing.allocation.exclude._name", backwardsCluster().newNodePattern()).put(indexSettings()))
+                    setSettings(Settings.builder().put("index.routing.allocation.exclude._name", backwardsCluster().newNodePattern()).put(indexSettings()))
                     .addMapping("type", mapping));
         } catch (MapperParsingException ex) {
             assertThat(ex.getCause(), instanceOf(IllegalArgumentException.class));

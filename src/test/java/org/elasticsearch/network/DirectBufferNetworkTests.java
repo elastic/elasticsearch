@@ -19,24 +19,18 @@
 
 package org.elasticsearch.network;
 
-import org.apache.http.impl.client.HttpClients;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
 import java.io.ByteArrayOutputStream;
 import java.lang.reflect.Field;
-import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -47,7 +41,7 @@ public class DirectBufferNetworkTests extends ElasticsearchIntegrationTest {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return ImmutableSettings.builder()
+        return Settings.builder()
             .put(Node.HTTP_ENABLED, true)
             .put(super.nodeSettings(nodeOrdinal)).build();
     }

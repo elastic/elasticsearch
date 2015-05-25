@@ -1,6 +1,8 @@
 [[modules-thrift]]
 == Thrift
 
+deprecated[1.5.0,The thrift transport is deprecated and will be removed in 2.0.0]
+
 The https://thrift.apache.org/[thrift] transport module allows to expose the REST interface of
 elasticsearch using thrift. Thrift should provide better performance
 over http. Since thrift provides both the wire protocol and the

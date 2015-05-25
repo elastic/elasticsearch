@@ -2518,4 +2518,133 @@ public class SearchQueryTests extends ElasticsearchIntegrationTest {
                     equalTo(true));
         }
     }
+    
+    private SearchResponse execNestedQueryString(QueryBuilder builder) {
+        return client().prepareSearch("test").setQuery(builder).execute().actionGet();
+    }
+    
+    @Test
+    public void testQueryStringNestedQuerySupport() throws Exception {
+        final QueryStringQueryBuilder.Operator op_and = QueryStringQueryBuilder.Operator.AND;
+        final QueryStringQueryBuilder.Operator op_or = QueryStringQueryBuilder.Operator.OR;
+        SearchResponse searchResponse = null;
+        assertAcked(prepareCreate("test").addMapping("type1", "children", "type=nested"));
+        ensureGreen();
+
+        // Check success when no matches
+        {
+            searchResponse = execNestedQueryString(queryStringQuery("children:\"children.first:peggy\""));
+            assertHitCount(searchResponse, 0);
+        }
+
+        // Prep test data
+        {
+            client().prepareIndex("test", "type1", "1").setSource(jsonBuilder()
+                    .startObject()
+                        .field("bus", "A")
+                        .startArray("children")
+                            .startObject()
+                                .field("first", "peggy")
+                                .field("last", "sue")
+                            .endObject()
+                            .startObject()
+                                .field("first", "mary")
+                                .field("last", "jane")
+                            .endObject()
+                        .endArray()
+                    .endObject()).execute().actionGet();            
+            
+            client().prepareIndex("test", "type1", "2").setSource(jsonBuilder()
+                    .startObject()
+                        .field("bus", "B")
+                        .startArray("children")
+                            .startObject()
+                                .field("first", "ruby")
+                                .field("last", "mae")
+                            .endObject()
+                            .startObject()
+                                .field("first", "barbara")
+                                .field("last", "ann")
+                            .endObject()
+                        .endArray()
+                    .endObject()).execute().actionGet();
+                    
+            refresh();
+        }
+        
+        // Successful results for basic nested queries
+        {
+            // Single term
+            searchResponse = execNestedQueryString(queryStringQuery("children:\"children.first:peggy\""));
+            assertHitCount(searchResponse, 1);
+            // Boolean query
+            searchResponse = execNestedQueryString(queryStringQuery("children:\"children.first:(peggy ruby)\""));
+            assertHitCount(searchResponse, 2);
+            // Term modifiers
+            searchResponse = execNestedQueryString(queryStringQuery("children:\"children.first:pegyg~ +children.last:su?\""));
+            assertHitCount(searchResponse, 1);
+            // Nested quotes
+            searchResponse = execNestedQueryString(queryStringQuery("children:\"children.first:\\\"peggy\\\"\""));
+            assertHitCount(searchResponse, 1);
+            // Quote-less single term (unescaped colon blows up, escaped colon matches)
+            searchResponse = execNestedQueryString(queryStringQuery("children:children.first\\:peggy"));
+            assertHitCount(searchResponse, 1);
+            // Quote-less boolean query (unescaped colon does not match, escaped colon blows up)
+            searchResponse = execNestedQueryString(queryStringQuery("children:(children.first:(peggy ruby))"));
+            assertHitCount(searchResponse, 0);
+            // Quote-less term modifiers (unescaped colon does not match, escaped colon does not match)
+            searchResponse = execNestedQueryString(queryStringQuery("children:(children.first:pegyg~ +children.last:su?)"));
+            assertHitCount(searchResponse, 0);
+            // Quote-less nested quotes (unescaped colon does not match, escaped colon blows up)
+            searchResponse = execNestedQueryString(queryStringQuery("children:children.first:\"peggy\")"));
+            assertHitCount(searchResponse, 0);
+        }   
+        
+        // Check default operator propagates to nested query string query
+        {
+            String queryString = "children:\"children.first:peggy children.last:ann\"";
+            searchResponse = execNestedQueryString(queryStringQuery(queryString).defaultOperator(op_and));
+            assertHitCount(searchResponse, 0);
+            searchResponse = execNestedQueryString(queryStringQuery(queryString).defaultOperator(op_or));
+            assertHitCount(searchResponse, 2);
+        }
+        
+        // Add more test data
+        {
+            client().prepareIndex("test", "type2", "3").setSource(jsonBuilder()
+                    .startObject()
+                        .field("bus", "C")
+                        .field("children", "3")
+                    .endObject()).execute().actionGet();
+                    
+            
+            client().prepareIndex("test", "type3", "4").setSource(jsonBuilder()
+                    .startObject()
+                        .field("bus", "D")
+                        .startArray("children")
+                            .startObject()
+                                .field("first", "peggy")
+                                .field("last", "sue")
+                            .endObject()
+                        .endArray()
+                    .endObject()).execute().actionGet();
+                    
+            refresh();
+        }
+        
+        // Check non-nested field mappings have precedence over nested object mappings
+        {
+            searchResponse = execNestedQueryString(queryStringQuery("children:\"children.first:peggy\""));
+            assertHitCount(searchResponse, 0);
+            searchResponse = execNestedQueryString(queryStringQuery("children:3"));
+            assertHitCount(searchResponse, 1);
+            searchResponse = execNestedQueryString(queryStringQuery("children.first:peggy"));
+            assertHitCount(searchResponse, 1);
+            client().prepareDelete("test", "type2", "3").execute().actionGet();
+            client().prepareDelete("test", "type3", "4").execute().actionGet();
+            refresh();
+            searchResponse = execNestedQueryString(queryStringQuery("children:\"children.first:peggy\""));
+            assertHitCount(searchResponse, 0);
+        }
+    }
 }

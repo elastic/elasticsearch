@@ -21,6 +21,8 @@ package org.elasticsearch.index.query.support;
 
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitDocIdSetFilter;
+import org.apache.lucene.search.join.ScoreMode;
+import org.apache.lucene.search.join.ToParentBlockJoinQuery;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -191,7 +193,7 @@ public class NestedInnerQueryParseSupport {
         return parentObjectMapper;
     }
 
-    private void setPathLevel() {
+    public void setPathLevel() {
         ObjectMapper objectMapper = parseContext.nestedScope().getObjectMapper();
         if (objectMapper == null) {
             parentFilter = parseContext.bitsetFilter(Queries.newNonNestedFilter());
@@ -202,8 +204,11 @@ public class NestedInnerQueryParseSupport {
         parentObjectMapper = parseContext.nestedScope().nextLevel(nestedObjectMapper);
     }
 
-    private void resetPathLevel() {
+    public void resetPathLevel() {
         parseContext.nestedScope().previousLevel();
     }
 
+    public ToParentBlockJoinQuery toParentBlockJoinQuery(Query innerQuery, ScoreMode scoreMode) {
+        return new ToParentBlockJoinQuery(Queries.filtered(innerQuery, childFilter), parentFilter, scoreMode);
+    }
 }

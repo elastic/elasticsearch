@@ -43,6 +43,8 @@ public class NestedQueryParser implements QueryParser {
     private static final ParseField FILTER_FIELD = new ParseField("filter").withAllDeprecated("query");
 
     private final InnerHitsQueryParserHelper innerHitsQueryParserHelper;
+    
+    public static final ScoreMode DEFAULT_SCORE_MODE = ScoreMode.Avg;
 
     @Inject
     public NestedQueryParser(InnerHitsQueryParserHelper innerHitsQueryParserHelper) {
@@ -60,7 +62,7 @@ public class NestedQueryParser implements QueryParser {
         final ToBlockJoinQueryBuilder builder = new ToBlockJoinQueryBuilder(parseContext);
 
         float boost = 1.0f;
-        ScoreMode scoreMode = ScoreMode.Avg;
+        ScoreMode scoreMode = DEFAULT_SCORE_MODE;
         String queryName = null;
 
         String currentFieldName = null;
@@ -155,7 +157,7 @@ public class NestedQueryParser implements QueryParser {
             }
 
             if (innerQuery != null) {
-                return new ToParentBlockJoinQuery(Queries.filtered(innerQuery, childFilter), parentFilter, scoreMode);
+                return toParentBlockJoinQuery(innerQuery, scoreMode);
             } else {
                 return null;
             }

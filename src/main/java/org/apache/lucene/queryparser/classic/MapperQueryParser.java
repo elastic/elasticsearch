@@ -42,6 +42,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.support.QueryParsers;
+import org.elasticsearch.index.query.support.NestedInnerQueryParseSupport;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -49,6 +50,7 @@ import java.util.Collection;
 import java.util.List;
 
 import static org.elasticsearch.common.lucene.search.Queries.fixNegativeQueryIfNeeded;
+import static org.elasticsearch.index.query.NestedQueryParser.DEFAULT_SCORE_MODE;
 
 /**
  * A query parser that uses the {@link MapperService} in order to build smarter
@@ -265,7 +267,8 @@ public class MapperQueryParser extends QueryParser {
                     return query;
                 }
             }
-            return super.getFieldQuery(field, queryText, quoted);
+            Query nestedQuery = tryGetNestedQuerySingle(field, queryText, quoted);
+            return (nestedQuery != null) ? nestedQuery : super.getFieldQuery(field, queryText, quoted);
         } finally {
             setAnalyzer(oldAnalyzer);
         }
@@ -310,6 +313,21 @@ public class MapperQueryParser extends QueryParser {
         }
     }
 
+    private Query tryGetNestedQuerySingle(String field, String queryText, boolean quoted) throws ParseException {
+        Query nestedQuery = null;
+        MapperService.SmartNameObjectMapper smart = parseContext.smartObjectMapper(field);        
+        if (smart != null) {     
+            NestedInnerQueryParseSupport helper = new NestedInnerQueryParseSupport(parseContext);
+            Query innerQuery = null;            
+            helper.setPath(field);
+            helper.setPathLevel();
+            innerQuery = parse(queryText);
+            nestedQuery = helper.toParentBlockJoinQuery(innerQuery, DEFAULT_SCORE_MODE);
+            helper.resetPathLevel();
+        }        
+        return nestedQuery;
+    }
+    
     @Override
     protected Query getRangeQuery(String field, String part1, String part2, boolean startInclusive, boolean endInclusive) throws ParseException {
         if ("*".equals(part1)) {

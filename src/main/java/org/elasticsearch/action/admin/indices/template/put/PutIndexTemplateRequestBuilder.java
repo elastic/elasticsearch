@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.action.admin.indices.template.put;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;

@@ -24,7 +24,6 @@ import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeBuilder;
@@ -40,7 +39,7 @@ public class BulkIndexingStressTest {
         final int NUMBER_OF_INDICES = 600;
         final int BATCH = 300;
 
-        final Settings nodeSettings = ImmutableSettings.settingsBuilder().put("index.number_of_shards", 2).build();
+        final Settings nodeSettings = Settings.settingsBuilder().put("index.number_of_shards", 2).build();
 
 //            ESLogger logger = Loggers.getLogger("org.elasticsearch");
 //            logger.setLevel("DEBUG");

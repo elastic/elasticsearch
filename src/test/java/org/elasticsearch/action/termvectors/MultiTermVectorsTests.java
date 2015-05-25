@@ -25,7 +25,7 @@ import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.common.lucene.uid.Versions;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -84,7 +84,7 @@ public class MultiTermVectorsTests extends AbstractTermVectorsTests {
     @Test
     public void testMultiTermVectorsWithVersion() throws Exception {
         assertAcked(prepareCreate("test").addAlias(new Alias("alias"))
-                .setSettings(ImmutableSettings.settingsBuilder().put("index.refresh_interval", -1)));
+                .setSettings(Settings.settingsBuilder().put("index.refresh_interval", -1)));
         ensureGreen();
 
         MultiTermVectorsResponse response = client().prepareMultiTermVectors().add(indexOrAlias(), "type1", "1").get();

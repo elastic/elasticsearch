@@ -19,7 +19,6 @@
 package org.elasticsearch.index.engine;
 
 import org.apache.lucene.index.LiveIndexWriterConfig;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
@@ -34,9 +33,9 @@ public class InternalEngineSettingsTest extends ElasticsearchSingleNodeTest {
         // INDEX_COMPOUND_ON_FLUSH
         InternalEngine engine = ((InternalEngine)engine(service));
         assertThat(engine.getCurrentIndexWriterConfig().getUseCompoundFile(), is(true));
-        client().admin().indices().prepareUpdateSettings("foo").setSettings(ImmutableSettings.builder().put(EngineConfig.INDEX_COMPOUND_ON_FLUSH, false).build()).get();
+        client().admin().indices().prepareUpdateSettings("foo").setSettings(Settings.builder().put(EngineConfig.INDEX_COMPOUND_ON_FLUSH, false).build()).get();
         assertThat(engine.getCurrentIndexWriterConfig().getUseCompoundFile(), is(false));
-        client().admin().indices().prepareUpdateSettings("foo").setSettings(ImmutableSettings.builder().put(EngineConfig.INDEX_COMPOUND_ON_FLUSH, true).build()).get();
+        client().admin().indices().prepareUpdateSettings("foo").setSettings(Settings.builder().put(EngineConfig.INDEX_COMPOUND_ON_FLUSH, true).build()).get();
         assertThat(engine.getCurrentIndexWriterConfig().getUseCompoundFile(), is(true));
 
 
@@ -54,7 +53,7 @@ public class InternalEngineSettingsTest extends ElasticsearchSingleNodeTest {
             long versionMapSizeInMB = randomIntBetween(10, 20);
             String versionMapString = versionMapAsPercent ? versionMapPercent + "%" : versionMapSizeInMB + "mb";
 
-            Settings build = ImmutableSettings.builder()
+            Settings build = Settings.builder()
                     .put(EngineConfig.INDEX_COMPOUND_ON_FLUSH, compoundOnFlush)
                     .put(EngineConfig.INDEX_GC_DELETES_SETTING, gcDeletes)
                     .put(EngineConfig.INDEX_VERSION_MAP_SIZE, versionMapString)
@@ -78,7 +77,7 @@ public class InternalEngineSettingsTest extends ElasticsearchSingleNodeTest {
             }
         }
 
-        Settings settings = ImmutableSettings.builder()
+        Settings settings = Settings.builder()
                 .put(EngineConfig.INDEX_GC_DELETES_SETTING, 1000)
                 .build();
         client().admin().indices().prepareUpdateSettings("foo").setSettings(settings).get();
@@ -86,7 +85,7 @@ public class InternalEngineSettingsTest extends ElasticsearchSingleNodeTest {
         assertTrue(engine.config().isEnableGcDeletes());
 
 
-        settings = ImmutableSettings.builder()
+        settings = Settings.builder()
                 .put(EngineConfig.INDEX_GC_DELETES_SETTING, "0ms")
                 .build();
 
@@ -94,14 +93,14 @@ public class InternalEngineSettingsTest extends ElasticsearchSingleNodeTest {
         assertEquals(engine.getGcDeletesInMillis(), 0);
         assertTrue(engine.config().isEnableGcDeletes());
 
-        settings = ImmutableSettings.builder()
+        settings = Settings.builder()
                 .put(EngineConfig.INDEX_GC_DELETES_SETTING, 1000)
                 .build();
         client().admin().indices().prepareUpdateSettings("foo").setSettings(settings).get();
         assertEquals(engine.getGcDeletesInMillis(), 1000);
         assertTrue(engine.config().isEnableGcDeletes());
 
-        settings = ImmutableSettings.builder()
+        settings = Settings.builder()
                 .put(EngineConfig.INDEX_VERSION_MAP_SIZE, "sdfasfd")
                 .build();
         try {
@@ -111,7 +110,7 @@ public class InternalEngineSettingsTest extends ElasticsearchSingleNodeTest {
             // good
         }
 
-        settings = ImmutableSettings.builder()
+        settings = Settings.builder()
                 .put(EngineConfig.INDEX_VERSION_MAP_SIZE, "-12%")
                 .build();
         try {
@@ -121,7 +120,7 @@ public class InternalEngineSettingsTest extends ElasticsearchSingleNodeTest {
             // good
         }
 
-        settings = ImmutableSettings.builder()
+        settings = Settings.builder()
                 .put(EngineConfig.INDEX_VERSION_MAP_SIZE, "130%")
                 .build();
         try {

@@ -28,7 +28,6 @@ import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.warmer.IndexWarmersMetaData.Entry;
 import org.elasticsearch.test.ElasticsearchBackwardsCompatIntegrationTest;
@@ -81,7 +80,7 @@ public class GetIndexBackwardsCompatibilityTests extends ElasticsearchBackwardsC
 
     @Test
     public void testGetSettings() throws Exception {
-        CreateIndexResponse createIndexResponse = prepareCreate("test").setSettings(ImmutableSettings.builder().put("number_of_shards", 1)).execute().actionGet();
+        CreateIndexResponse createIndexResponse = prepareCreate("test").setSettings(Settings.builder().put("number_of_shards", 1)).execute().actionGet();
         assertAcked(createIndexResponse);
         GetIndexResponse getIndexResponse = client().admin().indices().prepareGetIndex().addIndices("test").addFeatures(Feature.SETTINGS)
                 .execute().actionGet();

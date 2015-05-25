@@ -22,7 +22,7 @@ package org.elasticsearch.action.admin.cluster.repositories;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesResponse;
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryResponse;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.junit.Test;
@@ -48,7 +48,7 @@ public class RepositoryBlocksTests extends ElasticsearchIntegrationTest {
             assertBlocked(client().admin().cluster().preparePutRepository("test-repo-blocks")
                     .setType("fs")
                     .setVerify(false)
-                    .setSettings(ImmutableSettings.settingsBuilder().put("location",  randomRepoPath())), MetaData.CLUSTER_READ_ONLY_BLOCK);
+                    .setSettings(Settings.settingsBuilder().put("location",  randomRepoPath())), MetaData.CLUSTER_READ_ONLY_BLOCK);
         } finally {
             setClusterReadOnly(false);
         }
@@ -57,7 +57,7 @@ public class RepositoryBlocksTests extends ElasticsearchIntegrationTest {
         assertAcked(client().admin().cluster().preparePutRepository("test-repo-blocks")
                 .setType("fs")
                 .setVerify(false)
-                .setSettings(ImmutableSettings.settingsBuilder().put("location",  randomRepoPath())));
+                .setSettings(Settings.settingsBuilder().put("location",  randomRepoPath())));
     }
 
     @Test
@@ -65,7 +65,7 @@ public class RepositoryBlocksTests extends ElasticsearchIntegrationTest {
         assertAcked(client().admin().cluster().preparePutRepository("test-repo-blocks")
                 .setType("fs")
                 .setVerify(false)
-                .setSettings(ImmutableSettings.settingsBuilder().put("location",  randomRepoPath())));
+                .setSettings(Settings.settingsBuilder().put("location",  randomRepoPath())));
 
         // This test checks that the Get Repository operation is never blocked, even if the cluster is read only.
         try {
@@ -82,7 +82,7 @@ public class RepositoryBlocksTests extends ElasticsearchIntegrationTest {
         assertAcked(client().admin().cluster().preparePutRepository("test-repo-blocks")
                 .setType("fs")
                 .setVerify(false)
-                .setSettings(ImmutableSettings.settingsBuilder().put("location",  randomRepoPath())));
+                .setSettings(Settings.settingsBuilder().put("location",  randomRepoPath())));
 
         logger.info("-->  deleting a repository is blocked when the cluster is read only");
         try {
@@ -101,7 +101,7 @@ public class RepositoryBlocksTests extends ElasticsearchIntegrationTest {
         assertAcked(client().admin().cluster().preparePutRepository("test-repo-blocks")
                 .setType("fs")
                 .setVerify(false)
-                .setSettings(ImmutableSettings.settingsBuilder().put("location",  randomRepoPath())));
+                .setSettings(Settings.settingsBuilder().put("location",  randomRepoPath())));
 
         // This test checks that the Get Repository operation is never blocked, even if the cluster is read only.
         try {

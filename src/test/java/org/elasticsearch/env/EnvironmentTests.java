@@ -21,7 +21,6 @@ package org.elasticsearch.env;
 import com.google.common.base.Charsets;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
@@ -30,7 +29,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.net.URL;
 
-import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.CoreMatchers.nullValue;
 
@@ -40,11 +39,11 @@ import static org.hamcrest.CoreMatchers.nullValue;
 public class EnvironmentTests extends ElasticsearchTestCase {
 
     public Environment newEnvironment() throws IOException {
-        return newEnvironment(ImmutableSettings.EMPTY);
+        return newEnvironment(Settings.EMPTY);
     }
 
     public Environment newEnvironment(Settings settings) throws IOException {
-        Settings build = ImmutableSettings.builder()
+        Settings build = Settings.builder()
                 .put(settings)
                 .put("path.home", createTempDir().toAbsolutePath())
                 .putArray("path.data", tmpPaths()).build();

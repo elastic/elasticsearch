@@ -24,9 +24,7 @@ import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.BytesStream;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -54,7 +52,7 @@ public class GetTermVectorsCheckDocFreqTests extends ElasticsearchIntegrationTes
 
     @Override
     public Settings indexSettings() {
-        return ImmutableSettings.builder()
+        return Settings.builder()
                 .put(super.indexSettings())
                 .put("index.analysis.analyzer.tv_test.tokenizer", "whitespace")
                 .putArray("index.analysis.analyzer.tv_test.filter", "type_as_payload", "lowercase")

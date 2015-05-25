@@ -45,7 +45,7 @@ import org.apache.lucene.search.join.ToParentBlockJoinQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.fielddata.AbstractFieldDataTests;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -69,7 +69,7 @@ public class NestedSortingTests extends AbstractFieldDataTests {
 
     @Override
     protected FieldDataType getFieldDataType() {
-        return new FieldDataType("string", ImmutableSettings.builder().put("format", "paged_bytes"));
+        return new FieldDataType("string", Settings.builder().put("format", "paged_bytes"));
     }
 
     @Test

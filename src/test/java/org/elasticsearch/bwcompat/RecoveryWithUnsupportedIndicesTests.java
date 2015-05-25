@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.bwcompat;
 
-import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.Node;
 import org.junit.Test;

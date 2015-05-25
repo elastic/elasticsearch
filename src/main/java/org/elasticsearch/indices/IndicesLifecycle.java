@@ -21,13 +21,13 @@ package org.elasticsearch.indices;
 
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.settings.IndexSettings;
-import org.elasticsearch.common.settings.Settings;
 
 /**
  * A global component allowing to register for lifecycle of an index (create/closed) and

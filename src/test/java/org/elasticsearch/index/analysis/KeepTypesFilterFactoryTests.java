@@ -21,7 +21,6 @@ package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.standard.StandardTokenizer;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchTokenStreamTestCase;
 import org.junit.Test;
@@ -35,7 +34,7 @@ public class KeepTypesFilterFactoryTests extends ElasticsearchTokenStreamTestCas
 
     @Test
     public void testKeepTypes() throws IOException {
-        Settings settings = ImmutableSettings.settingsBuilder()
+        Settings settings = Settings.settingsBuilder()
                 .put("path.home", createTempDir().toString())
                 .put("index.analysis.filter.keep_numbers.type", "keep_types")
                 .putArray("index.analysis.filter.keep_numbers.types", new String[] {"<NUM>", "<SOMETHINGELSE>"})

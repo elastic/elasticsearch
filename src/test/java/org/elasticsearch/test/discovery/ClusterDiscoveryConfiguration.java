@@ -22,7 +22,6 @@ import com.carrotsearch.randomizedtesting.RandomizedTest;
 import com.google.common.primitives.Ints;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.network.NetworkUtils;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.SettingsSource;
@@ -36,7 +35,7 @@ import java.util.Set;
 
 public class ClusterDiscoveryConfiguration extends SettingsSource {
 
-    static Settings DEFAULT_NODE_SETTINGS = ImmutableSettings.settingsBuilder().put("discovery.type", "zen").build();
+    static Settings DEFAULT_NODE_SETTINGS = Settings.settingsBuilder().put("discovery.type", "zen").build();
 
     final int numOfNodes;
     final Settings nodeSettings;
@@ -44,8 +43,8 @@ public class ClusterDiscoveryConfiguration extends SettingsSource {
 
     public ClusterDiscoveryConfiguration(int numOfNodes, Settings extraSettings) {
         this.numOfNodes = numOfNodes;
-        this.nodeSettings = ImmutableSettings.builder().put(DEFAULT_NODE_SETTINGS).put(extraSettings).build();
-        this.transportClientSettings = ImmutableSettings.builder().put(extraSettings).build();
+        this.nodeSettings = Settings.builder().put(DEFAULT_NODE_SETTINGS).put(extraSettings).build();
+        this.transportClientSettings = Settings.builder().put(extraSettings).build();
     }
 
     @Override
@@ -76,7 +75,7 @@ public class ClusterDiscoveryConfiguration extends SettingsSource {
         }
 
         public UnicastZen(int numOfNodes, int numOfUnicastHosts) {
-            this(numOfNodes, numOfUnicastHosts, ImmutableSettings.EMPTY);
+            this(numOfNodes, numOfUnicastHosts, Settings.EMPTY);
         }
 
         public UnicastZen(int numOfNodes, int numOfUnicastHosts, Settings extraSettings) {
@@ -99,7 +98,7 @@ public class ClusterDiscoveryConfiguration extends SettingsSource {
         }
 
         public UnicastZen(int numOfNodes, int[] unicastHostOrdinals) {
-            this(numOfNodes, ImmutableSettings.EMPTY, unicastHostOrdinals);
+            this(numOfNodes, Settings.EMPTY, unicastHostOrdinals);
         }
 
         public UnicastZen(int numOfNodes, Settings extraSettings, int[] unicastHostOrdinals) {
@@ -116,7 +115,7 @@ public class ClusterDiscoveryConfiguration extends SettingsSource {
 
         @Override
         public Settings node(int nodeOrdinal) {
-            ImmutableSettings.Builder builder = ImmutableSettings.builder()
+            Settings.Builder builder = Settings.builder()
                     .put("discovery.zen.ping.multicast.enabled", false);
 
             String[] unicastHosts = new String[unicastHostOrdinals.length];

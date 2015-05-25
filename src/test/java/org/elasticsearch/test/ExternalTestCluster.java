@@ -30,7 +30,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -66,7 +65,7 @@ public final class ExternalTestCluster extends TestCluster {
 
     public ExternalTestCluster(TransportAddress... transportAddresses) {
         super(0);
-        Settings clientSettings = ImmutableSettings.settingsBuilder()
+        Settings clientSettings = Settings.settingsBuilder()
                 .put("name", InternalTestCluster.TRANSPORT_CLIENT_PREFIX + EXTERNAL_CLUSTER_PREFIX + counter.getAndIncrement())
                 .put("config.ignore_system_properties", true) // prevents any settings to be replaced by system properties.
                 .put("client.transport.ignore_cluster_name", true)

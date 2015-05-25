@@ -21,7 +21,6 @@ package org.elasticsearch.stresstest.indexing;
 
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.SizeValue;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -39,7 +38,7 @@ public class ConcurrentIndexingVersioningStressTest {
 
     public static void main(String[] args) throws Exception {
 
-        Settings settings = ImmutableSettings.EMPTY;
+        Settings settings = Settings.EMPTY;
 
         Node node1 = nodeBuilder().settings(settings).node();
         Node node2 = nodeBuilder().settings(settings).node();

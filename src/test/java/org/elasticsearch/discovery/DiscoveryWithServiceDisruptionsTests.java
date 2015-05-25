@@ -38,7 +38,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
@@ -139,7 +138,7 @@ public class DiscoveryWithServiceDisruptionsTests extends ElasticsearchIntegrati
         return nodes;
     }
 
-    final static Settings DEFAULT_SETTINGS = ImmutableSettings.builder()
+    final static Settings DEFAULT_SETTINGS = Settings.builder()
             .put(FaultDetection.SETTING_PING_TIMEOUT, "1s") // for hitting simulated network failures quickly
             .put(FaultDetection.SETTING_PING_RETRIES, "1") // for hitting simulated network failures quickly
             .put("discovery.zen.join_timeout", "10s")  // still long to induce failures but to long so test won't time out
@@ -163,7 +162,7 @@ public class DiscoveryWithServiceDisruptionsTests extends ElasticsearchIntegrati
             minimumMasterNode = numberOfNodes / 2 + 1;
         }
         // TODO: Rarely use default settings form some of these
-        Settings settings = ImmutableSettings.builder()
+        Settings settings = Settings.builder()
                 .put(DEFAULT_SETTINGS)
                 .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES, minimumMasterNode)
                 .build();
@@ -178,7 +177,7 @@ public class DiscoveryWithServiceDisruptionsTests extends ElasticsearchIntegrati
             minimumMasterNode = numberOfNodes / 2 + 1;
         }
         // TODO: Rarely use default settings form some of these
-        Settings nodeSettings = ImmutableSettings.builder()
+        Settings nodeSettings = Settings.builder()
                 .put(DEFAULT_SETTINGS)
                 .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES, minimumMasterNode)
                 .build();
@@ -271,7 +270,7 @@ public class DiscoveryWithServiceDisruptionsTests extends ElasticsearchIntegrati
         startCluster(3);
 
         // Makes sure that the get request can be executed on each node locally:
-        assertAcked(prepareCreate("test").setSettings(ImmutableSettings.builder()
+        assertAcked(prepareCreate("test").setSettings(Settings.builder()
                         .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                         .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 2)
         ));
@@ -323,7 +322,7 @@ public class DiscoveryWithServiceDisruptionsTests extends ElasticsearchIntegrati
 
         logger.info("Verify no master block with {} set to {}", DiscoverySettings.NO_MASTER_BLOCK, "all");
         client().admin().cluster().prepareUpdateSettings()
-                .setTransientSettings(ImmutableSettings.builder().put(DiscoverySettings.NO_MASTER_BLOCK, "all"))
+                .setTransientSettings(Settings.builder().put(DiscoverySettings.NO_MASTER_BLOCK, "all"))
                 .get();
 
         networkPartition.startDisrupting();
@@ -351,7 +350,7 @@ public class DiscoveryWithServiceDisruptionsTests extends ElasticsearchIntegrati
         final List<String> nodes = startCluster(3);
 
         assertAcked(prepareCreate("test")
-                .setSettings(ImmutableSettings.builder()
+                .setSettings(Settings.builder()
                                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1 + randomInt(2))
                                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, randomInt(2))
                 ));
@@ -421,7 +420,7 @@ public class DiscoveryWithServiceDisruptionsTests extends ElasticsearchIntegrati
         final List<String> nodes = startCluster(3);
 
         assertAcked(prepareCreate("test")
-                .setSettings(ImmutableSettings.builder()
+                .setSettings(Settings.builder()
                                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1 + randomInt(2))
                                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, randomInt(2))
                 ));
@@ -712,7 +711,7 @@ public class DiscoveryWithServiceDisruptionsTests extends ElasticsearchIntegrati
         List<String> nodes = startCluster(3);
 
         assertAcked(prepareCreate("test")
-                .setSettings(ImmutableSettings.builder()
+                .setSettings(Settings.builder()
                                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 2)
                 )
@@ -890,7 +889,7 @@ public class DiscoveryWithServiceDisruptionsTests extends ElasticsearchIntegrati
 
         // don't wait for initial state, wat want to add the disruption while the cluster is forming..
         internalCluster().startNodesAsync(3,
-                ImmutableSettings.builder()
+                Settings.builder()
                         .put(DiscoveryService.SETTING_INITIAL_STATE_TIMEOUT, "1ms")
                         .put(DiscoverySettings.PUBLISH_TIMEOUT, "3s")
                         .build()).get();

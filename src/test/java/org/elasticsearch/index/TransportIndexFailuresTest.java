@@ -29,13 +29,11 @@ import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.MutableShardRouting;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.zen.fd.FaultDetection;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportModule;
 import org.elasticsearch.transport.TransportService;
@@ -52,7 +50,7 @@ import static org.hamcrest.Matchers.equalTo;
 @ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.TEST, numDataNodes = 0, transportClientRatio = 0)
 public class TransportIndexFailuresTest extends ElasticsearchIntegrationTest {
 
-    private static final Settings nodeSettings = ImmutableSettings.settingsBuilder()
+    private static final Settings nodeSettings = Settings.settingsBuilder()
             .put("discovery.type", "zen") // <-- To override the local setting if set externally
             .put(FaultDetection.SETTING_PING_TIMEOUT, "1s") // <-- for hitting simulated network failures quickly
             .put(FaultDetection.SETTING_PING_RETRIES, "1") // <-- for hitting simulated network failures quickly
@@ -82,7 +80,7 @@ public class TransportIndexFailuresTest extends ElasticsearchIntegrationTest {
         ensureGreen(INDEX);
 
         // Disable allocation so the replica cannot be reallocated when it fails
-        Settings s = ImmutableSettings.builder().put("cluster.routing.allocation.enable", "none").build();
+        Settings s = Settings.builder().put("cluster.routing.allocation.enable", "none").build();
         client().admin().cluster().prepareUpdateSettings().setTransientSettings(s).get();
 
         // Determine which node holds the primary shard

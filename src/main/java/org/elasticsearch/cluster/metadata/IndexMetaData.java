@@ -38,7 +38,6 @@ import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.loader.SettingsLoader;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -57,7 +56,7 @@ import java.util.Map;
 
 import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.OpType.AND;
 import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.OpType.OR;
-import static org.elasticsearch.common.settings.ImmutableSettings.*;
+import static org.elasticsearch.common.settings.Settings.*;
 
 /**
  *
@@ -65,7 +64,7 @@ import static org.elasticsearch.common.settings.ImmutableSettings.*;
 public class IndexMetaData implements Diffable<IndexMetaData> {
 
     public static final IndexMetaData PROTO = IndexMetaData.builder("")
-            .settings(ImmutableSettings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
+            .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
             .numberOfShards(1).numberOfReplicas(0).build();
 
     public interface Custom extends Diffable<Custom>, ToXContent {
@@ -518,7 +517,7 @@ public class IndexMetaData implements Diffable<IndexMetaData> {
             index = in.readString();
             version = in.readLong();
             state = State.fromId(in.readByte());
-            settings = ImmutableSettings.readSettingsFromStream(in);
+            settings = Settings.readSettingsFromStream(in);
             mappings = DiffableUtils.readImmutableOpenMapDiff(in, MappingMetaData.PROTO);
             aliases = DiffableUtils.readImmutableOpenMapDiff(in, AliasMetaData.PROTO);
             customs = DiffableUtils.readImmutableOpenMapDiff(in, new DiffableUtils.KeyedReader<Custom>() {
@@ -539,7 +538,7 @@ public class IndexMetaData implements Diffable<IndexMetaData> {
             out.writeString(index);
             out.writeLong(version);
             out.writeByte(state.id);
-            ImmutableSettings.writeSettingsToStream(settings, out);
+            Settings.writeSettingsToStream(settings, out);
             mappings.writeTo(out);
             aliases.writeTo(out);
             customs.writeTo(out);
@@ -617,7 +616,7 @@ public class IndexMetaData implements Diffable<IndexMetaData> {
         private String index;
         private State state = State.OPEN;
         private long version = 1;
-        private Settings settings = ImmutableSettings.Builder.EMPTY_SETTINGS;
+        private Settings settings = Settings.Builder.EMPTY_SETTINGS;
         private final ImmutableOpenMap.Builder<String, MappingMetaData> mappings;
         private final ImmutableOpenMap.Builder<String, AliasMetaData> aliases;
         private final ImmutableOpenMap.Builder<String, Custom> customs;
@@ -829,7 +828,7 @@ public class IndexMetaData implements Diffable<IndexMetaData> {
                     currentFieldName = parser.currentName();
                 } else if (token == XContentParser.Token.START_OBJECT) {
                     if ("settings".equals(currentFieldName)) {
-                        builder.settings(ImmutableSettings.settingsBuilder().put(SettingsLoader.Helper.loadNestedFromMap(parser.mapOrdered())));
+                        builder.settings(Settings.settingsBuilder().put(SettingsLoader.Helper.loadNestedFromMap(parser.mapOrdered())));
                     } else if ("mappings".equals(currentFieldName)) {
                         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                             if (token == XContentParser.Token.FIELD_NAME) {

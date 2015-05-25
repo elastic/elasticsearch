@@ -30,7 +30,7 @@ import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -43,7 +43,7 @@ import org.junit.Test;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.filteredQuery;
@@ -1203,7 +1203,7 @@ public class SimpleNestedTests extends ElasticsearchIntegrationTest {
     @Test
     public void testCheckFixedBitSetCache() throws Exception {
         boolean loadFixedBitSeLazily = randomBoolean();
-        ImmutableSettings.Builder settingsBuilder = ImmutableSettings.builder().put(indexSettings())
+        Settings.Builder settingsBuilder = Settings.builder().put(indexSettings())
                 .put("index.refresh_interval", -1);
         if (loadFixedBitSeLazily) {
             settingsBuilder.put("index.load_fixed_bitset_filters_eagerly", false);

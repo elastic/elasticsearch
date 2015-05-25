@@ -20,7 +20,6 @@
 package org.elasticsearch.search.timeout;
 
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
@@ -37,7 +36,7 @@ public class SearchTimeoutTests extends ElasticsearchIntegrationTest {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return ImmutableSettings.settingsBuilder().put(super.nodeSettings(nodeOrdinal)).build();
+        return Settings.settingsBuilder().put(super.nodeSettings(nodeOrdinal)).build();
     }
 
     @Test

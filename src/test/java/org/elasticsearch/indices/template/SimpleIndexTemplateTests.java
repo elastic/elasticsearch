@@ -32,7 +32,7 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryParsingException;
@@ -322,7 +322,7 @@ public class SimpleIndexTemplateTests extends ElasticsearchIntegrationTest {
 
         client().admin().indices().preparePutTemplate("template_1")
                 .setTemplate("te*")
-                .setSettings(ImmutableSettings.builder().put("does_not_exist", "test"))
+                .setSettings(Settings.builder().put("does_not_exist", "test"))
                 .get();
 
         response = client().admin().indices().prepareGetTemplates().get();

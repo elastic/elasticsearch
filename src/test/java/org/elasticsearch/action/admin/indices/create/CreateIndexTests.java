@@ -24,7 +24,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
@@ -42,7 +42,7 @@ public class CreateIndexTests extends ElasticsearchIntegrationTest{
 
     @Test
     public void testCreationDate_Given() {
-        prepareCreate("test").setSettings(ImmutableSettings.builder().put(IndexMetaData.SETTING_CREATION_DATE, 4l)).get();
+        prepareCreate("test").setSettings(Settings.builder().put(IndexMetaData.SETTING_CREATION_DATE, 4l)).get();
         ClusterStateResponse response = client().admin().cluster().prepareState().get();
         ClusterState state = response.getState();
         assertThat(state, notNullValue());
@@ -105,7 +105,7 @@ public class CreateIndexTests extends ElasticsearchIntegrationTest{
     @Test
     public void testInvalidShardCountSettings() throws Exception {
         try {
-            prepareCreate("test").setSettings(ImmutableSettings.builder()
+            prepareCreate("test").setSettings(Settings.builder()
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, randomIntBetween(-10, 0))
                 .build())
             .get();
@@ -116,7 +116,7 @@ public class CreateIndexTests extends ElasticsearchIntegrationTest{
         }
 
         try {
-            prepareCreate("test").setSettings(ImmutableSettings.builder()
+            prepareCreate("test").setSettings(Settings.builder()
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(-10, -1))
                 .build())
                     .get();
@@ -127,7 +127,7 @@ public class CreateIndexTests extends ElasticsearchIntegrationTest{
         }
 
         try {
-            prepareCreate("test").setSettings(ImmutableSettings.builder()
+            prepareCreate("test").setSettings(Settings.builder()
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, randomIntBetween(-10, 0))
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(-10, -1))
                 .build())
@@ -154,7 +154,7 @@ public class CreateIndexTests extends ElasticsearchIntegrationTest{
     @Test
     public void testInvalidShardCountSettingsWithoutPrefix() throws Exception {
         try {
-            prepareCreate("test").setSettings(ImmutableSettings.builder()
+            prepareCreate("test").setSettings(Settings.builder()
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS.substring(IndexMetaData.INDEX_SETTING_PREFIX.length()), randomIntBetween(-10, 0))
                 .build())
                 .get();
@@ -164,7 +164,7 @@ public class CreateIndexTests extends ElasticsearchIntegrationTest{
                 e.getMessage().contains("index must have 1 or more primary shards"), equalTo(true));
         }
         try {
-            prepareCreate("test").setSettings(ImmutableSettings.builder()
+            prepareCreate("test").setSettings(Settings.builder()
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS.substring(IndexMetaData.INDEX_SETTING_PREFIX.length()), randomIntBetween(-10, -1))
                 .build())
                 .get();
@@ -174,7 +174,7 @@ public class CreateIndexTests extends ElasticsearchIntegrationTest{
                 e.getMessage().contains("index must have 0 or more replica shards"), equalTo(true));
         }
         try {
-            prepareCreate("test").setSettings(ImmutableSettings.builder()
+            prepareCreate("test").setSettings(Settings.builder()
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS.substring(IndexMetaData.INDEX_SETTING_PREFIX.length()), randomIntBetween(-10, 0))
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS.substring(IndexMetaData.INDEX_SETTING_PREFIX.length()), randomIntBetween(-10, -1))
                 .build())

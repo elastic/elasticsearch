@@ -25,7 +25,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
@@ -61,7 +61,7 @@ public class SnapshotBlocksTests extends ElasticsearchIntegrationTest {
         logger.info("--> register a repository");
         assertAcked(client().admin().cluster().preparePutRepository(REPOSITORY_NAME)
                 .setType("fs")
-                .setSettings(ImmutableSettings.settingsBuilder().put("location",  randomRepoPath())));
+                .setSettings(Settings.settingsBuilder().put("location",  randomRepoPath())));
 
         logger.info("--> verify the repository");
         VerifyRepositoryResponse verifyResponse = client().admin().cluster().prepareVerifyRepository(REPOSITORY_NAME).get();

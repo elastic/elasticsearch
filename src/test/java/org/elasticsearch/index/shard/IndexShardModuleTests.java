@@ -20,7 +20,6 @@
 package org.elasticsearch.index.shard;
 
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
@@ -31,12 +30,12 @@ public class IndexShardModuleTests extends ElasticsearchTestCase {
     @Test
     public void testDetermineShadowEngineShouldBeUsed() {
         ShardId shardId = new ShardId("myindex", 0);
-        Settings regularSettings = ImmutableSettings.builder()
+        Settings regularSettings = Settings.builder()
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 2)
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
                 .build();
 
-        Settings shadowSettings = ImmutableSettings.builder()
+        Settings shadowSettings = Settings.builder()
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 2)
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
                 .put(IndexMetaData.SETTING_SHADOW_REPLICAS, true)

@@ -25,7 +25,6 @@ import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.metadata.MetaData.Custom;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.loader.SettingsLoader;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -143,7 +142,7 @@ public class RepositoriesMetaData extends AbstractDiffable<Custom> implements Me
                     throw new ElasticsearchParseException("failed to parse repository [" + name + "], expected object");
                 }
                 String type = null;
-                Settings settings = ImmutableSettings.EMPTY;
+                Settings settings = Settings.EMPTY;
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                     if (token == XContentParser.Token.FIELD_NAME) {
                         String currentFieldName = parser.currentName();
@@ -156,7 +155,7 @@ public class RepositoriesMetaData extends AbstractDiffable<Custom> implements Me
                             if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
                                 throw new ElasticsearchParseException("failed to parse repository [" + name + "], incompatible params");
                             }
-                            settings = ImmutableSettings.settingsBuilder().put(SettingsLoader.Helper.loadNestedFromMap(parser.mapOrdered())).build();
+                            settings = Settings.settingsBuilder().put(SettingsLoader.Helper.loadNestedFromMap(parser.mapOrdered())).build();
                         } else {
                             throw new ElasticsearchParseException("failed to parse repository [" + name + "], unknown field [" + currentFieldName + "]");
                         }

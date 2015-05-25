@@ -20,7 +20,6 @@
 package org.elasticsearch.monitor.jvm;
 
 import com.google.common.collect.ImmutableMap;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;

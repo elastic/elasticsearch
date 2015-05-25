@@ -21,7 +21,7 @@ package org.elasticsearch;
 
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.hamcrest.Matchers;
@@ -119,13 +119,13 @@ public class VersionTests extends ElasticsearchTestCase {
 
     @Test(expected = IllegalStateException.class)
     public void testVersionNoPresentInSettings() {
-        Version.indexCreated(ImmutableSettings.builder().build());
+        Version.indexCreated(Settings.builder().build());
     }
 
     public void testIndexCreatedVersion() {
         // an actual index has a IndexMetaData.SETTING_UUID
         final Version version = randomFrom(Version.V_0_18_0, Version.V_0_90_13, Version.V_1_3_0);
-        assertEquals(version, Version.indexCreated(ImmutableSettings.builder().put(IndexMetaData.SETTING_UUID, "foo").put(IndexMetaData.SETTING_VERSION_CREATED, version).build()));
+        assertEquals(version, Version.indexCreated(Settings.builder().put(IndexMetaData.SETTING_UUID, "foo").put(IndexMetaData.SETTING_VERSION_CREATED, version).build()));
     }
     
     public void testMinCompatVersion() {

@@ -29,7 +29,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.IndexMissingException;
@@ -37,7 +37,7 @@ import org.elasticsearch.indices.IndexPrimaryShardNotAllocatedException;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
-import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -103,7 +103,7 @@ public class SimpleIndexStateTests extends ElasticsearchIntegrationTest {
     @Test
     public void testFastCloseAfterCreateDoesNotClose() {
         logger.info("--> creating test index that cannot be allocated");
-        client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder()
+        client().admin().indices().prepareCreate("test").setSettings(Settings.settingsBuilder()
                 .put("index.routing.allocation.include.tag", "no_such_node").build()).get();
 
         ClusterHealthResponse health = client().admin().cluster().prepareHealth("test").setWaitForNodes(">=2").get();
@@ -118,7 +118,7 @@ public class SimpleIndexStateTests extends ElasticsearchIntegrationTest {
         }
 
         logger.info("--> updating test index settings to allow allocation");
-        client().admin().indices().prepareUpdateSettings("test").setSettings(ImmutableSettings.settingsBuilder()
+        client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.settingsBuilder()
                 .put("index.routing.allocation.include.tag", "").build()).get();
 
         logger.info("--> waiting for green status");

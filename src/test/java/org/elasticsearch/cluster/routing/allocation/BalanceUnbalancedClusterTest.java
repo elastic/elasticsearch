@@ -36,7 +36,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
-import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 
 /**
  * see issue #9023

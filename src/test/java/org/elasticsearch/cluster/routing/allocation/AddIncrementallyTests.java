@@ -33,7 +33,7 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchAllocationTestCase;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
@@ -44,14 +44,14 @@ import java.util.Collections;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
-import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 
 public class AddIncrementallyTests extends ElasticsearchAllocationTestCase {
     private final ESLogger logger = Loggers.getLogger(AddIncrementallyTests.class);
 
     @Test
     public void testAddNodesAndIndices() {
-        ImmutableSettings.Builder settings = settingsBuilder();
+        Settings.Builder settings = settingsBuilder();
         settings.put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE, ClusterRebalanceAllocationDecider.ClusterRebalanceType.ALWAYS.toString());
         AllocationService service = createAllocationService(settings.build());
 
@@ -95,7 +95,7 @@ public class AddIncrementallyTests extends ElasticsearchAllocationTestCase {
 
     @Test
     public void testMinimalRelocations() {
-        ImmutableSettings.Builder settings = settingsBuilder();
+        Settings.Builder settings = settingsBuilder();
         settings.put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE, ClusterRebalanceAllocationDecider.ClusterRebalanceType.ALWAYS.toString())
                 .put("cluster.routing.allocation.node_concurrent_recoveries", 2);
         AllocationService service = createAllocationService(settings.build());
@@ -165,7 +165,7 @@ public class AddIncrementallyTests extends ElasticsearchAllocationTestCase {
 
     @Test
     public void testMinimalRelocationsNoLimit() {
-        ImmutableSettings.Builder settings = settingsBuilder();
+        Settings.Builder settings = settingsBuilder();
         settings.put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE, ClusterRebalanceAllocationDecider.ClusterRebalanceType.ALWAYS.toString())
                 .put("cluster.routing.allocation.node_concurrent_recoveries", 100)
                 .put("cluster.routing.allocation.node_initial_primaries_recoveries", 100);

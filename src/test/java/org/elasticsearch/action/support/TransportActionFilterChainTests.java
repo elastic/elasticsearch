@@ -25,7 +25,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Before;
 import org.junit.Test;
@@ -64,7 +64,7 @@ public class TransportActionFilterChainTests extends ElasticsearchTestCase {
 
         String actionName = randomAsciiOfLength(randomInt(30));
         ActionFilters actionFilters = new ActionFilters(filters);
-        TransportAction<TestRequest, TestResponse> transportAction = new TransportAction<TestRequest, TestResponse>(ImmutableSettings.EMPTY, actionName, null, actionFilters) {
+        TransportAction<TestRequest, TestResponse> transportAction = new TransportAction<TestRequest, TestResponse>(Settings.EMPTY, actionName, null, actionFilters) {
             @Override
             protected void doExecute(TestRequest request, ActionListener<TestResponse> listener) {
                 listener.onResponse(new TestResponse());
@@ -146,7 +146,7 @@ public class TransportActionFilterChainTests extends ElasticsearchTestCase {
 
         String actionName = randomAsciiOfLength(randomInt(30));
         ActionFilters actionFilters = new ActionFilters(filters);
-        TransportAction<TestRequest, TestResponse> transportAction = new TransportAction<TestRequest, TestResponse>(ImmutableSettings.EMPTY, actionName, null, actionFilters) {
+        TransportAction<TestRequest, TestResponse> transportAction = new TransportAction<TestRequest, TestResponse>(Settings.EMPTY, actionName, null, actionFilters) {
             @Override
             protected void doExecute(TestRequest request, ActionListener<TestResponse> listener) {
                 listener.onResponse(new TestResponse());
@@ -231,7 +231,7 @@ public class TransportActionFilterChainTests extends ElasticsearchTestCase {
 
         String actionName = randomAsciiOfLength(randomInt(30));
         ActionFilters actionFilters = new ActionFilters(filters);
-        TransportAction<TestRequest, TestResponse> transportAction = new TransportAction<TestRequest, TestResponse>(ImmutableSettings.EMPTY, actionName, null, actionFilters) {
+        TransportAction<TestRequest, TestResponse> transportAction = new TransportAction<TestRequest, TestResponse>(Settings.EMPTY, actionName, null, actionFilters) {
             @Override
             protected void doExecute(TestRequest request, ActionListener<TestResponse> listener) {
                 listener.onResponse(new TestResponse());
@@ -289,7 +289,7 @@ public class TransportActionFilterChainTests extends ElasticsearchTestCase {
 
         String actionName = randomAsciiOfLength(randomInt(30));
         ActionFilters actionFilters = new ActionFilters(filters);
-        TransportAction<TestRequest, TestResponse> transportAction = new TransportAction<TestRequest, TestResponse>(ImmutableSettings.EMPTY, actionName, null, actionFilters) {
+        TransportAction<TestRequest, TestResponse> transportAction = new TransportAction<TestRequest, TestResponse>(Settings.EMPTY, actionName, null, actionFilters) {
             @Override
             protected void doExecute(TestRequest request, ActionListener<TestResponse> listener) {
                 listener.onResponse(new TestResponse());

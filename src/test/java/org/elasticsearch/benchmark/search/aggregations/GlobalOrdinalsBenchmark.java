@@ -25,11 +25,9 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.benchmark.search.aggregations.TermsAggregationSearchBenchmark.StatsResult;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.jna.Natives;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.SizeValue;
@@ -44,7 +42,7 @@ import java.util.*;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
-import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.node.NodeBuilder.nodeBuilder;
@@ -157,7 +155,7 @@ public class GlobalOrdinalsBenchmark {
         }
 
         client.admin().cluster().prepareUpdateSettings()
-                .setTransientSettings(ImmutableSettings.builder().put("logger.index.fielddata.ordinals", "DEBUG"))
+                .setTransientSettings(Settings.builder().put("logger.index.fielddata.ordinals", "DEBUG"))
                 .get();
 
         client.admin().indices().prepareRefresh(INDEX_NAME).execute().actionGet();

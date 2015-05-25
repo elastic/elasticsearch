@@ -22,7 +22,6 @@ package org.elasticsearch.script;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
@@ -47,7 +46,7 @@ public class GroovySecurityTests extends ElasticsearchIntegrationTest {
     @Test
     public void testEvilGroovyScripts() throws Exception {
         int nodes = randomIntBetween(1, 3);
-        Settings nodeSettings = ImmutableSettings.builder()
+        Settings nodeSettings = Settings.builder()
                 .put("script.inline", true)
                 .put("script.indexed", true)
                 .build();

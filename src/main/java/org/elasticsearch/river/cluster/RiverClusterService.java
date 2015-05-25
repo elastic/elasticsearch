@@ -19,7 +19,6 @@
 
 package org.elasticsearch.river.cluster;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;

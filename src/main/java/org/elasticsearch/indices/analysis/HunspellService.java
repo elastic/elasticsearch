@@ -28,8 +28,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.FileSystemUtils;
-import org.elasticsearch.common.io.PathUtils;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 
@@ -38,7 +36,6 @@ import java.io.InputStream;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.*;
 
 /**
@@ -226,12 +223,12 @@ public class HunspellService extends AbstractComponent {
     private static Settings loadDictionarySettings(Path dir, Settings defaults) {
         Path file = dir.resolve("settings.yml");
         if (Files.exists(file)) {
-            return ImmutableSettings.settingsBuilder().loadFromPath(file).put(defaults).build();
+            return Settings.settingsBuilder().loadFromPath(file).put(defaults).build();
         }
 
         file = dir.resolve("settings.json");
         if (Files.exists(file)) {
-            return ImmutableSettings.settingsBuilder().loadFromPath(file).put(defaults).build();
+            return Settings.settingsBuilder().loadFromPath(file).put(defaults).build();
         }
 
         return defaults;

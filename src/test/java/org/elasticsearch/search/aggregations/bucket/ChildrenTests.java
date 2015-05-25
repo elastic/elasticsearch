@@ -22,7 +22,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.bucket.children.Children;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
@@ -345,7 +345,7 @@ public class ChildrenTests extends ElasticsearchIntegrationTest {
         String childType = "city";
         assertAcked(
                 prepareCreate(indexName)
-                        .setSettings(ImmutableSettings.builder()
+                        .setSettings(Settings.builder()
                                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
                         )

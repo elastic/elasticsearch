@@ -23,7 +23,6 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
@@ -41,7 +40,7 @@ public class CloseIndexDisableCloseAllTests extends ElasticsearchIntegrationTest
     // Combined multiple tests into one, because cluster scope is test.
     // The cluster scope is test b/c we can't clear cluster settings.
     public void testCloseAllRequiresName() {
-        Settings clusterSettings = ImmutableSettings.builder()
+        Settings clusterSettings = Settings.builder()
                 .put(DestructiveOperations.REQUIRES_NAME, true)
                 .build();
         assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(clusterSettings));

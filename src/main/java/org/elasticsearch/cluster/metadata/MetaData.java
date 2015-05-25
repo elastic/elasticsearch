@@ -39,7 +39,6 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.loader.SettingsLoader;
 import org.elasticsearch.common.xcontent.*;
@@ -54,7 +53,7 @@ import java.util.*;
 
 import static com.google.common.collect.Lists.newArrayList;
 import static com.google.common.collect.Maps.newHashMap;
-import static org.elasticsearch.common.settings.ImmutableSettings.*;
+import static org.elasticsearch.common.settings.Settings.*;
 
 /**
  *
@@ -160,7 +159,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData> {
         this.version = version;
         this.transientSettings = transientSettings;
         this.persistentSettings = persistentSettings;
-        this.settings = ImmutableSettings.settingsBuilder().put(persistentSettings).put(transientSettings).build();
+        this.settings = Settings.settingsBuilder().put(persistentSettings).put(transientSettings).build();
         this.indices = indices;
         this.customs = customs;
         this.templates = templates;
@@ -1194,8 +1193,8 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData> {
         public MetaDataDiff(StreamInput in) throws IOException {
             uuid = in.readString();
             version = in.readLong();
-            transientSettings = ImmutableSettings.readSettingsFromStream(in);
-            persistentSettings = ImmutableSettings.readSettingsFromStream(in);
+            transientSettings = Settings.readSettingsFromStream(in);
+            persistentSettings = Settings.readSettingsFromStream(in);
             indices = DiffableUtils.readImmutableOpenMapDiff(in, IndexMetaData.PROTO);
             templates = DiffableUtils.readImmutableOpenMapDiff(in, IndexTemplateMetaData.PROTO);
             customs = DiffableUtils.readImmutableOpenMapDiff(in, new KeyedReader<Custom>() {
@@ -1215,8 +1214,8 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData> {
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(uuid);
             out.writeLong(version);
-            ImmutableSettings.writeSettingsToStream(transientSettings, out);
-            ImmutableSettings.writeSettingsToStream(persistentSettings, out);
+            Settings.writeSettingsToStream(transientSettings, out);
+            Settings.writeSettingsToStream(persistentSettings, out);
             indices.writeTo(out);
             templates.writeTo(out);
             customs.writeTo(out);
@@ -1294,8 +1293,8 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData> {
         private String uuid;
         private long version;
 
-        private Settings transientSettings = ImmutableSettings.Builder.EMPTY_SETTINGS;
-        private Settings persistentSettings = ImmutableSettings.Builder.EMPTY_SETTINGS;
+        private Settings transientSettings = Settings.Builder.EMPTY_SETTINGS;
+        private Settings persistentSettings = Settings.Builder.EMPTY_SETTINGS;
 
         private final ImmutableOpenMap.Builder<String, IndexMetaData> indices;
         private final ImmutableOpenMap.Builder<String, IndexTemplateMetaData> templates;
@@ -1546,7 +1545,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData> {
                     currentFieldName = parser.currentName();
                 } else if (token == XContentParser.Token.START_OBJECT) {
                     if ("settings".equals(currentFieldName)) {
-                        builder.persistentSettings(ImmutableSettings.settingsBuilder().put(SettingsLoader.Helper.loadNestedFromMap(parser.mapOrdered())).build());
+                        builder.persistentSettings(Settings.settingsBuilder().put(SettingsLoader.Helper.loadNestedFromMap(parser.mapOrdered())).build());
                     } else if ("indices".equals(currentFieldName)) {
                         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                             builder.put(IndexMetaData.Builder.fromXContent(parser), false);

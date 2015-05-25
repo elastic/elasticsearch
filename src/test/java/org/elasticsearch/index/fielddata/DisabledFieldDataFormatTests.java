@@ -21,7 +21,7 @@ package org.elasticsearch.index.fielddata;
 
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
@@ -34,7 +34,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFa
 public class DisabledFieldDataFormatTests extends ElasticsearchSingleNodeTest {
 
     public void test() throws Exception {
-        createIndex("test", ImmutableSettings.EMPTY, "type", "s", "type=string");
+        createIndex("test", Settings.EMPTY, "type", "s", "type=string");
         logger.info("indexing data start");
         for (int i = 0; i < 10; ++i) {
             client().prepareIndex("test", "type", Integer.toString(i)).setSource("s", "value" + i).execute().actionGet();

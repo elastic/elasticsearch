@@ -36,7 +36,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.*;
 
@@ -46,9 +45,9 @@ import java.util.Set;
 
 import static com.google.common.collect.Maps.newHashMap;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
-import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
-import static org.elasticsearch.common.settings.ImmutableSettings.readSettingsFromStream;
-import static org.elasticsearch.common.settings.ImmutableSettings.writeSettingsToStream;
+import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
+import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
+import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
 
 /**
  * A request to create an index. Best created with {@link org.elasticsearch.client.Requests#createIndexRequest(String)}.
@@ -148,7 +147,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
      * A simplified version of settings that takes key value pairs settings.
      */
     public CreateIndexRequest settings(Object... settings) {
-        this.settings = ImmutableSettings.builder().put(settings).build();
+        this.settings = Settings.builder().put(settings).build();
         return this;
     }
 
@@ -172,7 +171,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
      * The settings to create the index with (either json/yaml/properties format)
      */
     public CreateIndexRequest settings(String source) {
-        this.settings = ImmutableSettings.settingsBuilder().loadFromSource(source).build();
+        this.settings = Settings.settingsBuilder().loadFromSource(source).build();
         return this;
     }
 

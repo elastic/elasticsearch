@@ -22,7 +22,6 @@ package org.elasticsearch.client.transport;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.node.Node;
@@ -31,7 +30,7 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.transport.TransportService;
 import org.junit.Test;
 
-import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.node.NodeBuilder.nodeBuilder;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import static org.hamcrest.Matchers.equalTo;
@@ -44,7 +43,7 @@ public class TransportClientTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testPickingUpChangesInDiscoveryNode() {
-        String nodeName = internalCluster().startNode(ImmutableSettings.builder().put("node.data", false));
+        String nodeName = internalCluster().startNode(Settings.builder().put("node.data", false));
 
         TransportClient client = (TransportClient) internalCluster().client(nodeName);
         assertThat(client.connectedNodes().get(0).dataNode(), equalTo(false));
@@ -55,7 +54,7 @@ public class TransportClientTests extends ElasticsearchIntegrationTest {
     public void testNodeVersionIsUpdated() {
         TransportClient client = (TransportClient)  internalCluster().client();
         TransportClientNodesService nodeService = client.nodeService();
-        Node node = nodeBuilder().data(false).settings(ImmutableSettings.builder()
+        Node node = nodeBuilder().data(false).settings(Settings.builder()
                 .put(internalCluster().getDefaultSettings())
                 .put("path.home", createTempDir())
                 .put("node.name", "testNodeVersionIsUpdated")

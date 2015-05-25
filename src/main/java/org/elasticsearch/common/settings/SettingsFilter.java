@@ -88,7 +88,7 @@ public class SettingsFilter extends AbstractComponent {
 
     public static Settings filterSettings(String patterns, Settings settings) {
         String[] patternArray = Strings.delimitedListToStringArray(patterns, ",");
-        ImmutableSettings.Builder builder = ImmutableSettings.settingsBuilder().put(settings);
+        Settings.Builder builder = Settings.settingsBuilder().put(settings);
         List<String> simpleMatchPatternList = newArrayList();
         for (String pattern : patternArray) {
             if (Regex.isSimpleMatchPattern(pattern)) {

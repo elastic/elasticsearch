@@ -62,7 +62,7 @@ public class Loggers {
         return getLogger(clazz, settings, shardId.index(), Lists.asList(Integer.toString(shardId.id()), prefixes).toArray(new String[0]));
     }
 
-    /** Just like {@link #getLogger(Class,Settings,ShardId,String...)} but String loggerName instead of Class. */
+    /** Just like {@link #getLogger(Class, org.elasticsearch.common.settings.Settings,ShardId,String...)} but String loggerName instead of Class. */
     public static ESLogger getLogger(String loggerName, Settings settings, ShardId shardId, String... prefixes) {
         return getLogger(loggerName, settings, Lists.asList(shardId.index().name(), Integer.toString(shardId.id()), prefixes).toArray(new String[0]));
     }

@@ -38,7 +38,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.RAMDirectory;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.common.inject.internal.Join;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
@@ -193,7 +193,7 @@ public abstract class AbstractTermVectorsTests extends ElasticsearchIntegrationT
             field.addToMappings(mappingBuilder);
         }
         mappingBuilder.endObject().endObject().endObject();
-        ImmutableSettings.Builder settings = ImmutableSettings.settingsBuilder()
+        Settings.Builder settings = Settings.settingsBuilder()
                 .put(indexSettings())
                 .put("index.analysis.analyzer.tv_test.tokenizer", "standard")
                 .putArray("index.analysis.analyzer.tv_test.filter", "type_as_payload", "lowercase");

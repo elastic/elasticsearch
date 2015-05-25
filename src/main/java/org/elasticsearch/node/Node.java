@@ -44,7 +44,6 @@ import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkModule;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.util.BigArraysModule;
@@ -103,7 +102,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 
 /**
  * A node represent a node within a cluster (<tt>cluster.name</tt>). The {@link #client()} can be used
@@ -124,7 +123,7 @@ public class Node implements Releasable {
     private final Client client;
 
     public Node() {
-        this(ImmutableSettings.Builder.EMPTY_SETTINGS, true);
+        this(Settings.Builder.EMPTY_SETTINGS, true);
     }
 
     public Node(Settings preparedSettings, boolean loadConfigSettings) {

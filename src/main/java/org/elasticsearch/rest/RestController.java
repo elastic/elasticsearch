@@ -20,7 +20,6 @@
 package org.elasticsearch.rest;
 
 import com.google.common.collect.ImmutableSet;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;

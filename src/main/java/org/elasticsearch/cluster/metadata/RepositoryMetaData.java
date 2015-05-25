@@ -20,7 +20,6 @@ package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 
 import java.io.IOException;
@@ -84,7 +83,7 @@ public class RepositoryMetaData {
     public static RepositoryMetaData readFrom(StreamInput in) throws IOException {
         String name = in.readString();
         String type = in.readString();
-        Settings settings = ImmutableSettings.readSettingsFromStream(in);
+        Settings settings = Settings.readSettingsFromStream(in);
         return new RepositoryMetaData(name, type, settings);
     }
 
@@ -97,7 +96,7 @@ public class RepositoryMetaData {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
         out.writeString(type);
-        ImmutableSettings.writeSettingsToStream(settings, out);
+        Settings.writeSettingsToStream(settings, out);
     }
 
     @Override

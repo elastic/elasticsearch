@@ -25,7 +25,6 @@ import org.elasticsearch.action.admin.indices.get.GetIndexRequest.Feature;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.search.warmer.IndexWarmersMetaData.Entry;
@@ -49,7 +48,7 @@ public class GetIndexTests extends ElasticsearchIntegrationTest {
     @Override
     protected void setupSuiteScopeCluster() throws Exception {
         assertAcked(prepareCreate("idx").addAlias(new Alias("alias_idx")).addMapping("type1", "{\"type1\":{}}")
-                .setSettings(ImmutableSettings.builder().put("number_of_shards", 1)).get());
+                .setSettings(Settings.builder().put("number_of_shards", 1)).get());
         ensureSearchable("idx");
         assertAcked(client().admin().indices().preparePutWarmer("warmer1").setSearchRequest(client().prepareSearch("idx")).get());
         createIndex("empty_idx");

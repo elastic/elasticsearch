@@ -49,13 +49,10 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
@@ -80,7 +77,7 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.*;
-import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 
 /**
  * Service responsible for submitting create index requests
@@ -193,7 +190,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
 
     private void createIndex(final CreateIndexClusterStateUpdateRequest request, final ActionListener<ClusterStateUpdateResponse> listener, final Semaphore mdLock) {
 
-        ImmutableSettings.Builder updatedSettingsBuilder = ImmutableSettings.settingsBuilder();
+        Settings.Builder updatedSettingsBuilder = Settings.settingsBuilder();
         updatedSettingsBuilder.put(request.settings()).normalizePrefix(IndexMetaData.INDEX_SETTING_PREFIX);
         request.settings(updatedSettingsBuilder.build());
 
@@ -300,7 +297,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                         }
                     }
 
-                    ImmutableSettings.Builder indexSettingsBuilder = settingsBuilder();
+                    Settings.Builder indexSettingsBuilder = settingsBuilder();
                     // apply templates, here, in reverse order, since first ones are better matching
                     for (int i = templates.size() - 1; i >= 0; i--) {
                         indexSettingsBuilder.put(templates.get(i).settings());

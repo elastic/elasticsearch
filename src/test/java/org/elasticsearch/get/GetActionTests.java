@@ -33,7 +33,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.uid.Versions;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
@@ -53,7 +53,7 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
     @Test
     public void simpleGetTests() {
         assertAcked(prepareCreate("test")
-                .setSettings(ImmutableSettings.settingsBuilder().put("index.refresh_interval", -1))
+                .setSettings(Settings.settingsBuilder().put("index.refresh_interval", -1))
                 .addAlias(new Alias("alias")));
         ensureGreen();
 
@@ -178,7 +178,7 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
     @Test
     public void simpleMultiGetTests() throws Exception {
         assertAcked(prepareCreate("test").addAlias(new Alias("alias"))
-                .setSettings(ImmutableSettings.settingsBuilder().put("index.refresh_interval", -1)));
+                .setSettings(Settings.settingsBuilder().put("index.refresh_interval", -1)));
         ensureGreen();
 
         MultiGetResponse response = client().prepareMultiGet().add(indexOrAlias(), "type1", "1").get();
@@ -231,7 +231,7 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
     @Test
     public void realtimeGetWithCompressBackcompat() throws Exception {
         assertAcked(prepareCreate("test")
-                .setSettings(ImmutableSettings.settingsBuilder().put("index.refresh_interval", -1).put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id))
+                .setSettings(Settings.settingsBuilder().put("index.refresh_interval", -1).put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id))
                 .addMapping("type", jsonBuilder().startObject().startObject("type").startObject("_source").field("compress", true).endObject().endObject().endObject()));
         ensureGreen();
 
@@ -250,7 +250,7 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void getFieldsWithDifferentTypes() throws Exception {
-        assertAcked(prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.refresh_interval", -1))
+        assertAcked(prepareCreate("test").setSettings(Settings.settingsBuilder().put("index.refresh_interval", -1))
                 .addMapping("type1", jsonBuilder().startObject().startObject("type1").endObject().endObject())
                 .addMapping("type2", jsonBuilder().startObject().startObject("type2")
                         .startObject("properties")
@@ -344,7 +344,7 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
         assertAcked(prepareCreate("test")
                 .addMapping("type1", mapping1)
                 .addMapping("type2", mapping2)
-                .setSettings(ImmutableSettings.settingsBuilder().put("index.refresh_interval", -1)));
+                .setSettings(Settings.settingsBuilder().put("index.refresh_interval", -1)));
         ensureGreen();
 
         GetResponse response = client().prepareGet("test", "type1", "1").get();
@@ -524,7 +524,7 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
     @Test
     public void testGetWithVersion() {
         assertAcked(prepareCreate("test").addAlias(new Alias("alias"))
-                .setSettings(ImmutableSettings.settingsBuilder().put("index.refresh_interval", -1)));
+                .setSettings(Settings.settingsBuilder().put("index.refresh_interval", -1)));
         ensureGreen();
 
         GetResponse response = client().prepareGet("test", "type1", "1").get();
@@ -624,7 +624,7 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
     @Test
     public void testMultiGetWithVersion() throws Exception {
         assertAcked(prepareCreate("test").addAlias(new Alias("alias"))
-                .setSettings(ImmutableSettings.settingsBuilder().put("index.refresh_interval", -1)));
+                .setSettings(Settings.settingsBuilder().put("index.refresh_interval", -1)));
         ensureGreen();
 
         MultiGetResponse response = client().prepareMultiGet().add(indexOrAlias(), "type1", "1").get();
@@ -737,7 +737,7 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
     @Test
     public void testGetFields_metaData() throws Exception {
         assertAcked(prepareCreate("test").addAlias(new Alias("alias"))
-                .setSettings(ImmutableSettings.settingsBuilder().put("index.refresh_interval", -1)));
+                .setSettings(Settings.settingsBuilder().put("index.refresh_interval", -1)));
 
         client().prepareIndex("test", "my-type1", "1")
                 .setRouting("1")
@@ -775,7 +775,7 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
                         .startObject("field2").field("type", "string").endObject()
                         .endObject().endObject()
                         .endObject().endObject().endObject())
-                .setSettings(ImmutableSettings.settingsBuilder().put("index.refresh_interval", -1)));
+                .setSettings(Settings.settingsBuilder().put("index.refresh_interval", -1)));
 
         client().prepareIndex("test", "my-type1", "1")
                 .setSource(jsonBuilder().startObject().startObject("field1").field("field2", "value1").endObject().endObject())
@@ -802,7 +802,7 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
     @TestLogging("index.shard.service:TRACE,cluster.service:TRACE,action.admin.indices.flush:TRACE")
     public void testGetFields_complexField() throws Exception {
         assertAcked(prepareCreate("my-index")
-                .setSettings(ImmutableSettings.settingsBuilder().put("index.refresh_interval", -1))
+                .setSettings(Settings.settingsBuilder().put("index.refresh_interval", -1))
                 .addMapping("my-type2", jsonBuilder().startObject().startObject("my-type2").startObject("properties")
                         .startObject("field1").field("type", "object").startObject("properties")
                         .startObject("field2").field("type", "object").startObject("properties")

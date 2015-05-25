@@ -23,6 +23,8 @@ import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.junit.Test;
 
+import java.util.concurrent.TimeUnit;
+
 public class RecoverySettingsTest extends ElasticsearchSingleNodeTest {
 
     @Override
@@ -68,31 +70,31 @@ public class RecoverySettingsTest extends ElasticsearchSingleNodeTest {
                 assertEquals(null, recoverySettings.rateLimiter());
             }
         });
-        innerTestSettings(RecoverySettings.INDICES_RECOVERY_RETRY_DELAY_STATE_SYNC, randomIntBetween(1, 200), new Validator() {
+        innerTestSettings(RecoverySettings.INDICES_RECOVERY_RETRY_DELAY_STATE_SYNC, randomIntBetween(1, 200), TimeUnit.MILLISECONDS, new Validator() {
             @Override
             public void validate(RecoverySettings recoverySettings, int expectedValue) {
                 assertEquals(expectedValue, recoverySettings.retryDelayStateSync().millis());
             }
         });
-        innerTestSettings(RecoverySettings.INDICES_RECOVERY_RETRY_DELAY_NETWORK, randomIntBetween(1, 200), new Validator() {
+        innerTestSettings(RecoverySettings.INDICES_RECOVERY_RETRY_DELAY_NETWORK, randomIntBetween(1, 200), TimeUnit.MILLISECONDS, new Validator() {
             @Override
             public void validate(RecoverySettings recoverySettings, int expectedValue) {
                 assertEquals(expectedValue, recoverySettings.retryDelayNetwork().millis());
             }
         });
-        innerTestSettings(RecoverySettings.INDICES_RECOVERY_ACTIVITY_TIMEOUT, randomIntBetween(1, 200), new Validator() {
+        innerTestSettings(RecoverySettings.INDICES_RECOVERY_ACTIVITY_TIMEOUT, randomIntBetween(1, 200), TimeUnit.MILLISECONDS, new Validator() {
             @Override
             public void validate(RecoverySettings recoverySettings, int expectedValue) {
                 assertEquals(expectedValue, recoverySettings.activityTimeout().millis());
             }
         });
-        innerTestSettings(RecoverySettings.INDICES_RECOVERY_INTERNAL_ACTION_TIMEOUT, randomIntBetween(1, 200), new Validator() {
+        innerTestSettings(RecoverySettings.INDICES_RECOVERY_INTERNAL_ACTION_TIMEOUT, randomIntBetween(1, 200), TimeUnit.MILLISECONDS, new Validator() {
             @Override
             public void validate(RecoverySettings recoverySettings, int expectedValue) {
                 assertEquals(expectedValue, recoverySettings.internalActionTimeout().millis());
             }
         });
-        innerTestSettings(RecoverySettings.INDICES_RECOVERY_INTERNAL_LONG_ACTION_TIMEOUT, randomIntBetween(1, 200), new Validator() {
+        innerTestSettings(RecoverySettings.INDICES_RECOVERY_INTERNAL_LONG_ACTION_TIMEOUT, randomIntBetween(1, 200), TimeUnit.MILLISECONDS, new Validator() {
             @Override
             public void validate(RecoverySettings recoverySettings, int expectedValue) {
                 assertEquals(expectedValue, recoverySettings.internalActionLongTimeout().millis());
@@ -117,6 +119,11 @@ public class RecoverySettingsTest extends ElasticsearchSingleNodeTest {
 
     private void innerTestSettings(String key, int newValue, Validator validator) {
         client().admin().cluster().prepareUpdateSettings().setTransientSettings(ImmutableSettings.builder().put(key, newValue)).get();
+        validator.validate(getInstanceFromNode(RecoverySettings.class), newValue);
+    }
+
+    private void innerTestSettings(String key, int newValue, TimeUnit timeUnit, Validator validator) {
+        client().admin().cluster().prepareUpdateSettings().setTransientSettings(ImmutableSettings.builder().put(key, newValue, timeUnit)).get();
         validator.validate(getInstanceFromNode(RecoverySettings.class), newValue);
     }
 

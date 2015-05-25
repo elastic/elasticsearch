@@ -44,7 +44,7 @@
           body:
             doc:        { foo: baz }
             upsert:     { foo: bar }
-          ttl:       100000
+          ttl:       100000ms
 
  - do:
       get:

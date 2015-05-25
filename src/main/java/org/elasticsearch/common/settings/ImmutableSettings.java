@@ -806,7 +806,7 @@ public class ImmutableSettings implements Settings {
          * @return The builder
          */
         public Builder put(String setting, long value, TimeUnit timeUnit) {
-            put(setting, timeUnit.toMillis(value));
+            put(setting, timeUnit.toMillis(value) + "ms");
             return this;
         }
 

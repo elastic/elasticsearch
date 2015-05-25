@@ -26,8 +26,8 @@ import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.index.IndexRequest.OpType;
+import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.TransportActions;
@@ -76,7 +76,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  */
-public abstract class TransportShardReplicationOperationAction<Request extends ShardReplicationOperationRequest, ReplicaRequest extends ShardReplicationOperationRequest, Response extends ActionWriteResponse> extends TransportAction<Request, Response> {
+public abstract class TransportReplicationAction<Request extends ReplicationRequest, ReplicaRequest extends ReplicationRequest, Response extends ActionWriteResponse> extends TransportAction<Request, Response> {
 
     protected final TransportService transportService;
     protected final ClusterService clusterService;
@@ -90,11 +90,11 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
     final String executor;
     final boolean checkWriteConsistency;
 
-    protected TransportShardReplicationOperationAction(Settings settings, String actionName, TransportService transportService,
-                                                       ClusterService clusterService, IndicesService indicesService,
-                                                       ThreadPool threadPool, ShardStateAction shardStateAction,
-                                                       MappingUpdatedAction mappingUpdatedAction, ActionFilters actionFilters,
-                                                       Class<Request> request, Class<ReplicaRequest> replicaRequest, String executor) {
+    protected TransportReplicationAction(Settings settings, String actionName, TransportService transportService,
+                                         ClusterService clusterService, IndicesService indicesService,
+                                         ThreadPool threadPool, ShardStateAction shardStateAction,
+                                         MappingUpdatedAction mappingUpdatedAction, ActionFilters actionFilters,
+                                         Class<Request> request, Class<ReplicaRequest> replicaRequest, String executor) {
         super(settings, actionName, threadPool, actionFilters);
         this.transportService = transportService;
         this.clusterService = clusterService;

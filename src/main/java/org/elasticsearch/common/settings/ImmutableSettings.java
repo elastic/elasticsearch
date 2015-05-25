@@ -357,12 +357,19 @@ public class ImmutableSettings implements Settings {
 
     @Override
     public TimeValue getAsTime(String setting, TimeValue defaultValue) {
-        return parseTimeValue(get(setting), defaultValue);
+        return parseTimeValue(get(setting), defaultValue, setting);
     }
 
     @Override
     public TimeValue getAsTime(String[] settings, TimeValue defaultValue) {
-        return parseTimeValue(get(settings), defaultValue);
+        // NOTE: duplicated from get(String[]) so we can pass which setting name was actually used to parseTimeValue:
+        for (String setting : settings) {
+            String retVal = get(setting);
+            if (retVal != null) {
+                parseTimeValue(get(settings), defaultValue, setting);
+            }
+        }
+        return defaultValue;
     }
 
     @Override

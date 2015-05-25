@@ -140,7 +140,7 @@ public abstract class RestRequest extends ContextAndHeaderHolder implements ToXC
     }
 
     public TimeValue paramAsTime(String key, TimeValue defaultValue) {
-        return parseTimeValue(param(key), defaultValue);
+        return parseTimeValue(param(key), defaultValue, key);
     }
 
     public ByteSizeValue paramAsSize(String key, ByteSizeValue defaultValue) {

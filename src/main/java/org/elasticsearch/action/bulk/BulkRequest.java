@@ -308,7 +308,7 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
                             timestamp = parser.text();
                         } else if ("_ttl".equals(currentFieldName) || "ttl".equals(currentFieldName)) {
                             if (parser.currentToken() == XContentParser.Token.VALUE_STRING) {
-                                ttl = TimeValue.parseTimeValue(parser.text(), null).millis();
+                                ttl = TimeValue.parseTimeValue(parser.text(), null, currentFieldName).millis();
                             } else {
                                 ttl = parser.longValue();
                             }
@@ -417,7 +417,7 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
      * A timeout to wait if the index operation can't be performed immediately. Defaults to <tt>1m</tt>.
      */
     public final BulkRequest timeout(String timeout) {
-        return timeout(TimeValue.parseTimeValue(timeout, null));
+        return timeout(TimeValue.parseTimeValue(timeout, null, "BulkRequest.timeout"));
     }
 
     public TimeValue timeout() {

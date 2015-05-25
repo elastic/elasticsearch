@@ -31,11 +31,9 @@ import org.joda.time.format.PeriodFormatter;
 
 import java.io.IOException;
 import java.io.Serializable;
+import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
-/**
- *
- */
 public class TimeValue implements Serializable, Streamable {
 
     /** How many nano-seconds in one milli-second */
@@ -228,7 +226,8 @@ public class TimeValue implements Serializable, Streamable {
         return Strings.format1Decimals(value, suffix);
     }
 
-    public static TimeValue parseTimeValue(String sValue, TimeValue defaultValue) {
+    public static TimeValue parseTimeValue(String sValue, TimeValue defaultValue, String settingName) {
+        settingName = Objects.requireNonNull(settingName);
         if (sValue == null) {
             return defaultValue;
         }
@@ -248,8 +247,15 @@ public class TimeValue implements Serializable, Streamable {
                 millis = (long) (Double.parseDouble(sValue.substring(0, sValue.length() - 1)) * 24 * 60 * 60 * 1000);
             } else if (sValue.endsWith("w")) {
                 millis = (long) (Double.parseDouble(sValue.substring(0, sValue.length() - 1)) * 7 * 24 * 60 * 60 * 1000);
+            } else if (sValue.equals("-1")) {
+                // Allow this special value to be unit-less:
+                millis = -1;
+            } else if (sValue.equals("0")) {
+                // Allow this special value to be unit-less:
+                millis = 0;
             } else {
-                millis = Long.parseLong(sValue);
+                // Missing units:
+                throw new ElasticsearchParseException("Failed to parse setting [" + settingName + "] with value [" + sValue + "] as a time value: unit is missing or unrecognized");
             }
             return new TimeValue(millis, TimeUnit.MILLISECONDS);
         } catch (NumberFormatException e) {

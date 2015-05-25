@@ -34,7 +34,7 @@ public class TimeoutParseElement implements SearchParseElement {
         if (token == XContentParser.Token.VALUE_NUMBER) {
             context.timeoutInMillis(parser.longValue());
         } else {
-            context.timeoutInMillis(TimeValue.parseTimeValue(parser.text(), null).millis());
+            context.timeoutInMillis(TimeValue.parseTimeValue(parser.text(), null, "timeout").millis());
         }
     }
 }

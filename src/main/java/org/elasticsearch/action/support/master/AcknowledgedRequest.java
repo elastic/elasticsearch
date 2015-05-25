@@ -53,7 +53,7 @@ public abstract class AcknowledgedRequest<T extends MasterNodeOperationRequest> 
      */
     @SuppressWarnings("unchecked")
     public final T timeout(String timeout) {
-        this.timeout = TimeValue.parseTimeValue(timeout, this.timeout);
+        this.timeout = TimeValue.parseTimeValue(timeout, this.timeout, "AcknowledgedRequest.timeout");
         return (T)this;
     }
 

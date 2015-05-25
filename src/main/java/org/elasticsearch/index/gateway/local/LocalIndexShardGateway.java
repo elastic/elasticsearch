@@ -24,6 +24,8 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.Lock;
+import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
@@ -52,6 +54,7 @@ import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.io.Closeable;
 import java.io.EOFException;
 import java.io.File;
 import java.io.IOException;
@@ -177,49 +180,52 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
             if (translogId == -1) {
                 logger.trace("no translog id set (indexShouldExist [{}])", indexShouldExists);
             } else {
+                try (Lock lock = Lucene.acquireWriteLock(indexShard.store().directory())){
+                    // move an existing translog, if exists, to "recovering" state, and start reading from it
+                    FsTranslog translog = (FsTranslog) indexShard.translog();
+                    String translogName = "translog-" + translogId;
+                    String recoverTranslogName = translogName + ".recovering";
 
-                // move an existing translog, if exists, to "recovering" state, and start reading from it
-                FsTranslog translog = (FsTranslog) indexShard.translog();
-                String translogName = "translog-" + translogId;
-                String recoverTranslogName = translogName + ".recovering";
+                    logger.trace("try recover from translog file {} locations: {}", translogName, Arrays.toString(translog.locations()));
+                    for (File translogLocation : translog.locations()) {
+                        File tmpRecoveringFile = new File(translogLocation, recoverTranslogName);
+                        if (!tmpRecoveringFile.exists()) {
+                            File tmpTranslogFile = new File(translogLocation, translogName);
+                            if (tmpTranslogFile.exists()) {
+                                logger.trace("Translog file found in {} - renaming", translogLocation);
+                                boolean success = false;
+                                for (int i = 0; i < RECOVERY_TRANSLOG_RENAME_RETRIES; i++) {
+                                    if (tmpTranslogFile.renameTo(tmpRecoveringFile)) {
 
-                logger.trace("try recover from translog file {} locations: {}", translogName, Arrays.toString(translog.locations()));
-                for (File translogLocation : translog.locations()) {
-                    File tmpRecoveringFile = new File(translogLocation, recoverTranslogName);
-                    if (!tmpRecoveringFile.exists()) {
-                        File tmpTranslogFile = new File(translogLocation, translogName);
-                        if (tmpTranslogFile.exists()) {
-                            logger.trace("Translog file found in {} - renaming", translogLocation);
-                            boolean success = false;
-                            for (int i = 0; i < RECOVERY_TRANSLOG_RENAME_RETRIES; i++) {
-                                if (tmpTranslogFile.renameTo(tmpRecoveringFile)) {
-
-                                    recoveringTranslogFile = tmpRecoveringFile;
-                                    logger.trace("Renamed translog from {} to {}", tmpTranslogFile.getName(), recoveringTranslogFile.getName());
-                                    success = true;
-                                    break;
+                                        recoveringTranslogFile = tmpRecoveringFile;
+                                        logger.trace("Renamed translog from {} to {}", tmpTranslogFile.getName(), recoveringTranslogFile.getName());
+                                        success = true;
+                                        break;
+                                    }
                                 }
-                            }
-                            if (success == false) {
-                                try {
-                                    // this is a fallback logic that to ensure we can recover from the file.
-                                    // on windows a virus-scanner etc can hold on to the file and after retrying
-                                    // we just skip the recovery and the engine will reuse the file and truncate it.
-                                    // in 2.0 this is all not needed since translog files are write once.
-                                    Files.copy(tmpTranslogFile.toPath(), tmpRecoveringFile.toPath());
-                                    recoveringTranslogFile = tmpRecoveringFile;
-                                    logger.trace("Copied translog from {} to {}", tmpTranslogFile.getName(), recoveringTranslogFile.getName());
-                                } catch (IOException ex) {
-                                    throw new ElasticsearchException("failed to copy recovery file", ex);
+                                if (success == false) {
+                                    try {
+                                        // this is a fallback logic that to ensure we can recover from the file.
+                                        // on windows a virus-scanner etc can hold on to the file and after retrying
+                                        // we just skip the recovery and the engine will reuse the file and truncate it.
+                                        // in 2.0 this is all not needed since translog files are write once.
+                                        Files.copy(tmpTranslogFile.toPath(), tmpRecoveringFile.toPath());
+                                        recoveringTranslogFile = tmpRecoveringFile;
+                                        logger.trace("Copied translog from {} to {}", tmpTranslogFile.getName(), recoveringTranslogFile.getName());
+                                    } catch (IOException ex) {
+                                        throw new ElasticsearchException("failed to copy recovery file", ex);
+                                    }
                                 }
+                            } else {
+                                logger.trace("Translog file NOT found in {} - continue", translogLocation);
                             }
                         } else {
-                            logger.trace("Translog file NOT found in {} - continue", translogLocation);
+                            recoveringTranslogFile = tmpRecoveringFile;
+                            break;
                         }
-                    } else {
-                        recoveringTranslogFile = tmpRecoveringFile;
-                        break;
                     }
+                }  catch (IOException ex) {
+                    throw new ElasticsearchException("failed to obtain write log pre translog recovery", ex);
                 }
             }
             // we must do this *after* we capture translog name so the engine creation will not make a new one.

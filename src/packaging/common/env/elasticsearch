@@ -5,6 +5,9 @@
 # Elasticsearch home directory
 #ES_HOME=${packaging.elasticsearch.home.dir}
 
+# Elasticsearch Java path
+#JAVA_HOME=
+
 # Elasticsearch configuration directory
 #CONF_DIR=${packaging.elasticsearch.conf.dir}
 

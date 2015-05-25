@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.index;
 
-import org.elasticsearch.action.support.replication.ShardReplicationOperationRequestBuilder;
+import org.elasticsearch.action.support.replication.ReplicationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -32,7 +32,7 @@ import java.util.Map;
 /**
  * An index document action request builder.
  */
-public class IndexRequestBuilder extends ShardReplicationOperationRequestBuilder<IndexRequest, IndexResponse, IndexRequestBuilder> {
+public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest, IndexResponse, IndexRequestBuilder> {
 
     public IndexRequestBuilder(ElasticsearchClient client, IndexAction action) {
         super(client, action, new IndexRequest());

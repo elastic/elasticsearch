@@ -24,7 +24,7 @@ import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
-import org.elasticsearch.action.support.broadcast.TransportBroadcastOperationAction;
+import org.elasticsearch.action.support.broadcast.TransportBroadcastAction;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -37,8 +37,8 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.script.ScriptService;
@@ -61,7 +61,7 @@ import static org.elasticsearch.search.internal.SearchContext.DEFAULT_TERMINATE_
 /**
  *
  */
-public class TransportCountAction extends TransportBroadcastOperationAction<CountRequest, CountResponse, ShardCountRequest, ShardCountResponse> {
+public class TransportCountAction extends TransportBroadcastAction<CountRequest, CountResponse, ShardCountRequest, ShardCountResponse> {
 
     private final IndicesService indicesService;
     private final ScriptService scriptService;

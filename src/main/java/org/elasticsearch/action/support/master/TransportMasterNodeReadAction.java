@@ -30,13 +30,13 @@ import org.elasticsearch.transport.TransportService;
  * A base class for read operations that needs to be performed on the master node.
  * Can also be executed on the local node if needed.
  */
-public abstract class TransportMasterNodeReadOperationAction<Request extends MasterNodeReadOperationRequest, Response extends ActionResponse> extends TransportMasterNodeOperationAction<Request, Response> {
+public abstract class TransportMasterNodeReadAction<Request extends MasterNodeReadRequest, Response extends ActionResponse> extends TransportMasterNodeAction<Request, Response> {
 
     public static final String FORCE_LOCAL_SETTING = "action.master.force_local";
 
     private Boolean forceLocal;
 
-    protected TransportMasterNodeReadOperationAction(Settings settings, String actionName, TransportService transportService, ClusterService clusterService, ThreadPool threadPool, ActionFilters actionFilters, Class<Request> request) {
+    protected TransportMasterNodeReadAction(Settings settings, String actionName, TransportService transportService, ClusterService clusterService, ThreadPool threadPool, ActionFilters actionFilters, Class<Request> request) {
         super(settings, actionName, transportService, clusterService, threadPool, actionFilters,request);
         this.forceLocal = settings.getAsBoolean(FORCE_LOCAL_SETTING, null);
     }

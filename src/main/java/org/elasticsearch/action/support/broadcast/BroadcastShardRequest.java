@@ -32,22 +32,22 @@ import java.io.IOException;
 /**
  *
  */
-public abstract class BroadcastShardOperationRequest extends TransportRequest implements IndicesRequest {
+public abstract class BroadcastShardRequest extends TransportRequest implements IndicesRequest {
 
     private ShardId shardId;
 
     protected OriginalIndices originalIndices;
 
-    protected BroadcastShardOperationRequest() {
+    protected BroadcastShardRequest() {
     }
 
-    protected BroadcastShardOperationRequest(ShardId shardId, BroadcastOperationRequest request) {
+    protected BroadcastShardRequest(ShardId shardId, BroadcastRequest request) {
         super(request);
         this.shardId = shardId;
         this.originalIndices = new OriginalIndices(request);
     }
 
-    protected BroadcastShardOperationRequest(ShardId shardId, OriginalIndices originalIndices) {
+    protected BroadcastShardRequest(ShardId shardId, OriginalIndices originalIndices) {
         this.shardId = shardId;
         this.originalIndices = originalIndices;
     }

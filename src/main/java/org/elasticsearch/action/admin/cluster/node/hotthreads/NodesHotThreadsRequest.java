@@ -20,7 +20,7 @@
 package org.elasticsearch.action.admin.cluster.node.hotthreads;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.support.nodes.NodesOperationRequest;
+import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
@@ -30,7 +30,7 @@ import java.util.concurrent.TimeUnit;
 
 /**
  */
-public class NodesHotThreadsRequest extends NodesOperationRequest<NodesHotThreadsRequest> {
+public class NodesHotThreadsRequest extends BaseNodesRequest<NodesHotThreadsRequest> {
 
     int threads = 3;
     String type = "cpu";

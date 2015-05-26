@@ -24,7 +24,7 @@ import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
-import org.elasticsearch.action.support.broadcast.TransportBroadcastOperationAction;
+import org.elasticsearch.action.support.broadcast.TransportBroadcastAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -51,7 +51,7 @@ import static com.google.common.collect.Lists.newArrayList;
 /**
  * Get the dfs only with no fetch phase. This is for internal use only.
  */
-public class TransportDfsOnlyAction extends TransportBroadcastOperationAction<DfsOnlyRequest, DfsOnlyResponse, ShardDfsOnlyRequest, ShardDfsOnlyResponse> {
+public class TransportDfsOnlyAction extends TransportBroadcastAction<DfsOnlyRequest, DfsOnlyResponse, ShardDfsOnlyRequest, ShardDfsOnlyResponse> {
 
     public static final String NAME = "internal:index/termvectors/dfs";
 

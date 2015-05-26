@@ -22,7 +22,7 @@ package org.elasticsearch.action.admin.cluster.state;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.TransportMasterNodeReadOperationAction;
+import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -39,7 +39,7 @@ import org.elasticsearch.transport.TransportService;
 /**
  *
  */
-public class TransportClusterStateAction extends TransportMasterNodeReadOperationAction<ClusterStateRequest, ClusterStateResponse> {
+public class TransportClusterStateAction extends TransportMasterNodeReadAction<ClusterStateRequest, ClusterStateResponse> {
 
     private final ClusterName clusterName;
 

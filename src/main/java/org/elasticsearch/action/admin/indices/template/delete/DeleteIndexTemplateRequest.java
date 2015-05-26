@@ -19,7 +19,7 @@
 package org.elasticsearch.action.admin.indices.template.delete;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
+import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -30,7 +30,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  * A request to delete an index template.
  */
-public class DeleteIndexTemplateRequest extends MasterNodeOperationRequest<DeleteIndexTemplateRequest> {
+public class DeleteIndexTemplateRequest extends MasterNodeRequest<DeleteIndexTemplateRequest> {
 
     private String name;
 

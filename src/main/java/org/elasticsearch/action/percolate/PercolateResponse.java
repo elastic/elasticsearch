@@ -19,7 +19,7 @@
 package org.elasticsearch.action.percolate;
 
 import org.elasticsearch.action.ShardOperationFailedException;
-import org.elasticsearch.action.support.broadcast.BroadcastOperationResponse;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -40,7 +40,7 @@ import java.util.*;
 /**
  * Encapsulates the response of a percolator request.
  */
-public class PercolateResponse extends BroadcastOperationResponse implements Iterable<PercolateResponse.Match>, ToXContent {
+public class PercolateResponse extends BroadcastResponse implements Iterable<PercolateResponse.Match>, ToXContent {
 
     public static final Match[] EMPTY = new Match[0];
 

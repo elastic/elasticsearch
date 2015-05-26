@@ -50,7 +50,7 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
  * We use this to find out which node holds the latest shard version and which of them used to be a primary in order to allocate
  * shards after node or cluster restarts.
  */
-public class TransportNodesListGatewayStartedShards extends TransportNodesOperationAction<TransportNodesListGatewayStartedShards.Request, TransportNodesListGatewayStartedShards.NodesGatewayStartedShards, TransportNodesListGatewayStartedShards.NodeRequest, TransportNodesListGatewayStartedShards.NodeGatewayStartedShards>
+public class TransportNodesListGatewayStartedShards extends TransportNodesAction<TransportNodesListGatewayStartedShards.Request, TransportNodesListGatewayStartedShards.NodesGatewayStartedShards, TransportNodesListGatewayStartedShards.NodeRequest, TransportNodesListGatewayStartedShards.NodeGatewayStartedShards>
         implements AsyncShardFetch.List<TransportNodesListGatewayStartedShards.NodesGatewayStartedShards, TransportNodesListGatewayStartedShards.NodeGatewayStartedShards> {
 
     public static final String ACTION_NAME = "internal:gateway/local/started_shards";
@@ -148,7 +148,7 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesOperat
         return true;
     }
 
-    static class Request extends NodesOperationRequest<Request> {
+    static class Request extends BaseNodesRequest<Request> {
 
         private ShardId shardId;
         private String indexUUID;
@@ -186,7 +186,7 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesOperat
         }
     }
 
-    public static class NodesGatewayStartedShards extends NodesOperationResponse<NodeGatewayStartedShards> {
+    public static class NodesGatewayStartedShards extends BaseNodesResponse<NodeGatewayStartedShards> {
 
         private FailedNodeException[] failures;
 
@@ -221,7 +221,7 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesOperat
     }
 
 
-    static class NodeRequest extends NodeOperationRequest {
+    static class NodeRequest extends BaseNodeRequest {
 
         private ShardId shardId;
         private String indexUUID;
@@ -258,7 +258,7 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesOperat
         }
     }
 
-    public static class NodeGatewayStartedShards extends NodeOperationResponse {
+    public static class NodeGatewayStartedShards extends BaseNodeResponse {
 
         private long version = -1;
 

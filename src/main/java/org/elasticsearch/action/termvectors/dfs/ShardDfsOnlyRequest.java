@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.termvectors.dfs;
 
-import org.elasticsearch.action.support.broadcast.BroadcastShardOperationRequest;
+import org.elasticsearch.action.support.broadcast.BroadcastShardRequest;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -29,7 +29,7 @@ import org.elasticsearch.search.internal.ShardSearchTransportRequest;
 
 import java.io.IOException;
 
-class ShardDfsOnlyRequest extends BroadcastShardOperationRequest {
+class ShardDfsOnlyRequest extends BroadcastShardRequest {
 
     private ShardSearchTransportRequest shardSearchRequest = new ShardSearchTransportRequest();
 

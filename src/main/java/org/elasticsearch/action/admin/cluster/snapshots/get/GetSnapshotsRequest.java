@@ -20,7 +20,7 @@
 package org.elasticsearch.action.admin.cluster.snapshots.get;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
+import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -32,7 +32,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  * Get snapshot request
  */
-public class GetSnapshotsRequest extends MasterNodeOperationRequest<GetSnapshotsRequest> {
+public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> {
 
     public static final String ALL_SNAPSHOTS = "_all";
     public static final String CURRENT_SNAPSHOT = "_current";

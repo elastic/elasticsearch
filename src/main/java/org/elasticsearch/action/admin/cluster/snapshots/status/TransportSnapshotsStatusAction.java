@@ -23,7 +23,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
+import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -49,7 +49,7 @@ import static com.google.common.collect.Sets.newHashSet;
 
 /**
  */
-public class TransportSnapshotsStatusAction extends TransportMasterNodeOperationAction<SnapshotsStatusRequest, SnapshotsStatusResponse> {
+public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<SnapshotsStatusRequest, SnapshotsStatusResponse> {
 
     private final SnapshotsService snapshotsService;
 

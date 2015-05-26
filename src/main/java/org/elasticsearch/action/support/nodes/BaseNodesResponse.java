@@ -34,16 +34,16 @@ import java.util.Map;
 /**
  *
  */
-public abstract class NodesOperationResponse<NodeResponse extends NodeOperationResponse> extends ActionResponse implements Iterable<NodeResponse> {
+public abstract class BaseNodesResponse<TNodeResponse extends BaseNodeResponse> extends ActionResponse implements Iterable<TNodeResponse> {
 
     private ClusterName clusterName;
-    protected NodeResponse[] nodes;
-    private Map<String, NodeResponse> nodesMap;
+    protected TNodeResponse[] nodes;
+    private Map<String, TNodeResponse> nodesMap;
 
-    protected NodesOperationResponse() {
+    protected BaseNodesResponse() {
     }
 
-    protected NodesOperationResponse(ClusterName clusterName, NodeResponse[] nodes) {
+    protected BaseNodesResponse(ClusterName clusterName, TNodeResponse[] nodes) {
         this.clusterName = clusterName;
         this.nodes = nodes;
     }
@@ -64,23 +64,23 @@ public abstract class NodesOperationResponse<NodeResponse extends NodeOperationR
         return this.clusterName.value();
     }
 
-    public NodeResponse[] getNodes() {
+    public TNodeResponse[] getNodes() {
         return nodes;
     }
 
-    public NodeResponse getAt(int position) {
+    public TNodeResponse getAt(int position) {
         return nodes[position];
     }
 
     @Override
-    public Iterator<NodeResponse> iterator() {
+    public Iterator<TNodeResponse> iterator() {
         return getNodesMap().values().iterator();
     }
 
-    public Map<String, NodeResponse> getNodesMap() {
+    public Map<String, TNodeResponse> getNodesMap() {
         if (nodesMap == null) {
             nodesMap = Maps.newHashMap();
-            for (NodeResponse nodeResponse : nodes) {
+            for (TNodeResponse nodeResponse : nodes) {
                 nodesMap.put(nodeResponse.getNode().id(), nodeResponse);
             }
         }

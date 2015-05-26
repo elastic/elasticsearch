@@ -43,7 +43,7 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
 /**
  *
  */
-public abstract class TransportBroadcastOperationAction<Request extends BroadcastOperationRequest, Response extends BroadcastOperationResponse, ShardRequest extends BroadcastShardOperationRequest, ShardResponse extends BroadcastShardOperationResponse>
+public abstract class TransportBroadcastAction<Request extends BroadcastRequest, Response extends BroadcastResponse, ShardRequest extends BroadcastShardRequest, ShardResponse extends BroadcastShardResponse>
         extends HandledTransportAction<Request, Response> {
 
     protected final ThreadPool threadPool;
@@ -52,8 +52,8 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
 
     final String transportShardAction;
 
-    protected TransportBroadcastOperationAction(Settings settings, String actionName, ThreadPool threadPool, ClusterService clusterService, TransportService transportService, ActionFilters actionFilters,
-                                                Class<Request> request, Class<ShardRequest> shardRequest, String shardExecutor) {
+    protected TransportBroadcastAction(Settings settings, String actionName, ThreadPool threadPool, ClusterService clusterService, TransportService transportService, ActionFilters actionFilters,
+                                       Class<Request> request, Class<ShardRequest> shardRequest, String shardExecutor) {
         super(settings, actionName, threadPool, transportService, actionFilters, request);
         this.clusterService = clusterService;
         this.transportService = transportService;

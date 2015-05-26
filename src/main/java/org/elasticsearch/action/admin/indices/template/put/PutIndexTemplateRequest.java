@@ -25,7 +25,7 @@ import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
+import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -50,7 +50,7 @@ import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
 /**
  * A request to create an index template.
  */
-public class PutIndexTemplateRequest extends MasterNodeOperationRequest<PutIndexTemplateRequest> implements IndicesRequest {
+public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateRequest> implements IndicesRequest {
 
     private String name;
 

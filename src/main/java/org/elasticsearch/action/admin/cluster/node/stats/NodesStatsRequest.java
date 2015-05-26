@@ -20,7 +20,7 @@
 package org.elasticsearch.action.admin.cluster.node.stats;
 
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
-import org.elasticsearch.action.support.nodes.NodesOperationRequest;
+import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -29,7 +29,7 @@ import java.io.IOException;
 /**
  * A request to get node (cluster) level stats.
  */
-public class NodesStatsRequest extends NodesOperationRequest<NodesStatsRequest> {
+public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
 
     private CommonStatsFlags indices = new CommonStatsFlags();
     private boolean os;

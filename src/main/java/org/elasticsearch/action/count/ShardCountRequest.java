@@ -19,8 +19,7 @@
 
 package org.elasticsearch.action.count;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.action.support.broadcast.BroadcastShardOperationRequest;
+import org.elasticsearch.action.support.broadcast.BroadcastShardRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -30,12 +29,10 @@ import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 
-import static org.elasticsearch.search.internal.SearchContext.DEFAULT_TERMINATE_AFTER;
-
 /**
  * Internal count request executed directly against a specific index shard.
  */
-class ShardCountRequest extends BroadcastShardOperationRequest {
+class ShardCountRequest extends BroadcastShardRequest {
 
     private float minScore;
     private int terminateAfter;

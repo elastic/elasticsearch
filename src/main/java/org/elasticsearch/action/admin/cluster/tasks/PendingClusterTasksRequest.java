@@ -19,17 +19,12 @@
 
 package org.elasticsearch.action.admin.cluster.tasks;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.support.master.MasterNodeReadOperationRequest;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-
-import java.io.IOException;
+import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 
 /**
  */
-public class PendingClusterTasksRequest extends MasterNodeReadOperationRequest<PendingClusterTasksRequest> {
+public class PendingClusterTasksRequest extends MasterNodeReadRequest<PendingClusterTasksRequest> {
 
     @Override
     public ActionRequestValidationException validate() {

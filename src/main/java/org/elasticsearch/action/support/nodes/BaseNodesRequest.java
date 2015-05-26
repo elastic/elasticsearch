@@ -31,7 +31,7 @@ import java.io.IOException;
 /**
  *
  */
-public abstract class NodesOperationRequest<T extends NodesOperationRequest> extends ActionRequest<T> {
+public abstract class BaseNodesRequest<T extends BaseNodesRequest> extends ActionRequest<T> {
 
     public static String[] ALL_NODES = Strings.EMPTY_ARRAY;
 
@@ -39,16 +39,16 @@ public abstract class NodesOperationRequest<T extends NodesOperationRequest> ext
 
     private TimeValue timeout;
 
-    protected NodesOperationRequest() {
+    protected BaseNodesRequest() {
 
     }
 
-    protected NodesOperationRequest(ActionRequest request, String... nodesIds) {
+    protected BaseNodesRequest(ActionRequest request, String... nodesIds) {
         super(request);
         this.nodesIds = nodesIds;
     }
 
-    protected NodesOperationRequest(String... nodesIds) {
+    protected BaseNodesRequest(String... nodesIds) {
         this.nodesIds = nodesIds;
     }
 

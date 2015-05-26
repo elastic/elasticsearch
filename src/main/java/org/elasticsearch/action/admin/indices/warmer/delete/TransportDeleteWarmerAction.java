@@ -21,7 +21,7 @@ package org.elasticsearch.action.admin.indices.warmer.delete;
 import com.google.common.collect.Lists;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
+import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -47,7 +47,7 @@ import java.util.List;
  *
  * Note: this is an internal API and should not be used / called by any client code.
  */
-public class TransportDeleteWarmerAction extends TransportMasterNodeOperationAction<DeleteWarmerRequest, DeleteWarmerResponse> {
+public class TransportDeleteWarmerAction extends TransportMasterNodeAction<DeleteWarmerRequest, DeleteWarmerResponse> {
 
     @Inject
     public TransportDeleteWarmerAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool, ActionFilters actionFilters) {

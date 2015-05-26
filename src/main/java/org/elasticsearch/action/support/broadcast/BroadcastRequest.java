@@ -31,20 +31,20 @@ import java.io.IOException;
 /**
  *
  */
-public abstract class BroadcastOperationRequest<T extends BroadcastOperationRequest> extends ActionRequest<T> implements IndicesRequest.Replaceable {
+public abstract class BroadcastRequest<T extends BroadcastRequest> extends ActionRequest<T> implements IndicesRequest.Replaceable {
 
     protected String[] indices;
     private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpenAndForbidClosed();
 
-    protected BroadcastOperationRequest() {
+    protected BroadcastRequest() {
 
     }
 
-    protected BroadcastOperationRequest(ActionRequest originalRequest) {
+    protected BroadcastRequest(ActionRequest originalRequest) {
         super(originalRequest);
     }
 
-    protected BroadcastOperationRequest(String[] indices) {
+    protected BroadcastRequest(String[] indices) {
         this.indices = indices;
     }
 

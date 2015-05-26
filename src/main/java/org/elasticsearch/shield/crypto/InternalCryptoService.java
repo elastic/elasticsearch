@@ -23,11 +23,9 @@ import org.elasticsearch.watcher.ResourceWatcherService;
 import javax.crypto.*;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
-import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
@@ -91,9 +89,13 @@ public class InternalCryptoService extends AbstractLifecycleComponent<InternalCr
         keyFile = resolveSystemKey(settings, env);
         systemKey = readSystemKey(keyFile);
         encryptionKey = encryptionKey(systemKey, keyLength, keyAlgorithm);
-        FileWatcher watcher = new FileWatcher(keyFile.getParent().toFile());
+        FileWatcher watcher = new FileWatcher(keyFile.getParent());
         watcher.addListener(new FileListener(listener));
-        watcherService.add(watcher, ResourceWatcherService.Frequency.HIGH);
+        try {
+            watcherService.add(watcher, ResourceWatcherService.Frequency.HIGH);
+        } catch (IOException e) {
+            throw new ElasticsearchException("failed to start watching system key file [" + keyFile.toAbsolutePath() + "]", e);
+        }
     }
 
     @Override
@@ -113,7 +115,7 @@ public class InternalCryptoService extends AbstractLifecycleComponent<InternalCr
         if (location == null) {
             return ShieldPlugin.resolveConfigFile(env, FILE_NAME);
         }
-        return Paths.get(location);
+        return env.homeFile().resolve(location);
     }
 
     static SecretKey readSystemKey(Path file) {
@@ -321,18 +323,18 @@ public class InternalCryptoService extends AbstractLifecycleComponent<InternalCr
         }
 
         @Override
-        public void onFileCreated(File file) {
-            if (file.equals(keyFile.toFile())) {
-                systemKey = readSystemKey(file.toPath());
+        public void onFileCreated(Path file) {
+            if (file.equals(keyFile)) {
+                systemKey = readSystemKey(file);
                 encryptionKey = encryptionKey(systemKey, keyLength, keyAlgorithm);
-                logger.info("system key [{}] has been loaded", file.getAbsolutePath());
+                logger.info("system key [{}] has been loaded", file.toAbsolutePath());
                 listener.onKeyRefresh();
             }
         }
 
         @Override
-        public void onFileDeleted(File file) {
-            if (file.equals(keyFile.toFile())) {
+        public void onFileDeleted(Path file) {
+            if (file.equals(keyFile)) {
                 logger.error("system key file was removed! as long as the system key file is missing, elasticsearch " +
                         "won't function as expected for some requests (e.g. scroll/scan) and won't be able to decrypt\n" +
                         "previously encrypted values without the original key");
@@ -342,10 +344,10 @@ public class InternalCryptoService extends AbstractLifecycleComponent<InternalCr
         }
 
         @Override
-        public void onFileChanged(File file) {
-            if (file.equals(keyFile.toFile())) {
+        public void onFileChanged(Path file) {
+            if (file.equals(keyFile)) {
                 logger.warn("system key file changed! previously encrypted values cannot be successfully decrypted with a different key");
-                systemKey = readSystemKey(file.toPath());
+                systemKey = readSystemKey(file);
                 encryptionKey = encryptionKey(systemKey, keyLength, keyAlgorithm);
                 listener.onKeyRefresh();
             }

@@ -5,13 +5,10 @@
  */
 package org.elasticsearch.integration.ldap;
 
-import com.carrotsearch.randomizedtesting.LifecycleScope;
-import org.apache.lucene.util.AbstractRandomizedTest;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.common.logging.ESLoggerFactory;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.shield.authc.activedirectory.ActiveDirectoryRealm;
 import org.elasticsearch.shield.authc.ldap.LdapRealm;
@@ -20,15 +17,17 @@ import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
 import org.elasticsearch.shield.authc.ldap.support.LdapSearchScope;
 import org.elasticsearch.shield.authz.AuthorizationException;
 import org.elasticsearch.shield.transport.netty.ShieldNettyTransport;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ShieldIntegrationTest;
+import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Ignore;
 
-import java.io.File;
 import java.io.IOException;
-import java.net.URISyntaxException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 
-import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.BASIC_AUTH_HEADER;
 import static org.elasticsearch.shield.test.ShieldTestUtils.writeFile;
@@ -41,7 +40,7 @@ import static org.hamcrest.Matchers.is;
  * writes a group to role mapping file for each node.
  */
 @Ignore
-@AbstractRandomizedTest.Integration
+@ElasticsearchIntegrationTest.Integration
 abstract public class AbstractAdLdapRealmTests extends ShieldIntegrationTest {
 
     public static final String SHIELD_AUTHC_REALMS_EXTERNAL = "shield.authc.realms.external";
@@ -69,12 +68,18 @@ abstract public class AbstractAdLdapRealmTests extends ShieldIntegrationTest {
                 realmConfig, realmConfig.mapGroupsAsRoles);
     }
 
+    @AfterClass
+    public static void cleanupRealm() {
+        realmConfig = null;
+    }
+
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        File nodeFiles = newTempDir(LifecycleScope.SUITE);
-        return ImmutableSettings.builder()
+        Path nodeFiles = createTempDir();
+        return settingsBuilder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put(realmConfig.buildSettings())
+                .put(sslSettingsForStore("/org/elasticsearch/shield/transport/ssl/certs/simple/testnode.jks", "testnode")) //we need ssl to the LDAP server
                 .put(SHIELD_AUTHC_REALMS_EXTERNAL + ".files.role_mapping", writeFile(nodeFiles, "role_mapping.yml", configRoleMappings()))
                 .build();
     }
@@ -145,23 +150,18 @@ abstract public class AbstractAdLdapRealmTests extends ShieldIntegrationTest {
         return UsernamePasswordToken.basicAuthHeaderValue(username, new SecuredString(password.toCharArray()));
     }
 
-    private static Settings sslSettingsForStore(String resourcePathToStore, String password) {
-        File store;
-        try {
-            store = new File(AbstractAdLdapRealmTests.class.getResource(resourcePathToStore).toURI());
-        } catch (URISyntaxException e) {
-            throw new ElasticsearchException("exception while reading the store", e);
-        }
+    private Settings sslSettingsForStore(String resourcePathToStore, String password) {
+        Path store = getDataPath(resourcePathToStore);
 
-        if (!store.exists()) {
-            throw new ElasticsearchException("store path doesn't exist");
+        if (Files.notExists(store)) {
+            throw new ElasticsearchException("store path [" + store + "] doesn't exist");
         }
 
         return settingsBuilder()
-                .put("shield.ssl.keystore.path", store.getPath())
+                .put("shield.ssl.keystore.path", store)
                 .put("shield.ssl.keystore.password", password)
                 .put(ShieldNettyTransport.HOSTNAME_VERIFICATION_SETTING, false)
-                .put("shield.ssl.truststore.path", store.getPath())
+                .put("shield.ssl.truststore.path", store)
                 .put("shield.ssl.truststore.password", password).build();
     }
 
@@ -171,7 +171,7 @@ abstract public class AbstractAdLdapRealmTests extends ShieldIntegrationTest {
     enum RealmConfig {
 
         AD(false, AD_ROLE_MAPPING,
-                ImmutableSettings.builder()
+                settingsBuilder()
                         .put(SHIELD_AUTHC_REALMS_EXTERNAL + ".type", ActiveDirectoryRealm.TYPE)
                         .put(SHIELD_AUTHC_REALMS_EXTERNAL + ".domain_name", "ad.test.elasticsearch.com")
                         .put(SHIELD_AUTHC_REALMS_EXTERNAL + ".group_search.base_dn", "CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com")
@@ -180,7 +180,7 @@ abstract public class AbstractAdLdapRealmTests extends ShieldIntegrationTest {
                         .build()),
 
         AD_LDAP_GROUPS_FROM_SEARCH(true, AD_ROLE_MAPPING,
-                ImmutableSettings.builder()
+                settingsBuilder()
                         .put(SHIELD_AUTHC_REALMS_EXTERNAL + ".type", LdapRealm.TYPE)
                         .put(SHIELD_AUTHC_REALMS_EXTERNAL + ".url", "ldaps://ad.test.elasticsearch.com:636")
                         .put(SHIELD_AUTHC_REALMS_EXTERNAL + ".group_search.base_dn", "CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com")
@@ -189,14 +189,14 @@ abstract public class AbstractAdLdapRealmTests extends ShieldIntegrationTest {
                         .build()),
 
         AD_LDAP_GROUPS_FROM_ATTRIBUTE(true, AD_ROLE_MAPPING,
-                ImmutableSettings.builder()
+                settingsBuilder()
                         .put(SHIELD_AUTHC_REALMS_EXTERNAL + ".type", LdapRealm.TYPE)
                         .put(SHIELD_AUTHC_REALMS_EXTERNAL + ".url", "ldaps://ad.test.elasticsearch.com:636")
                         .putArray(SHIELD_AUTHC_REALMS_EXTERNAL + ".user_dn_templates", "cn={0},CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com")
                         .build()),
 
         OLDAP(false, OLDAP_ROLE_MAPPING,
-                ImmutableSettings.builder()
+                settingsBuilder()
                         .put(SHIELD_AUTHC_REALMS_EXTERNAL + ".type", LdapRealm.TYPE)
                         .put(SHIELD_AUTHC_REALMS_EXTERNAL + ".url", "ldaps://54.200.235.244:636")
                         .put(SHIELD_AUTHC_REALMS_EXTERNAL + ".group_search.base_dn", "ou=people, dc=oldap, dc=test, dc=elasticsearch, dc=com")
@@ -217,14 +217,12 @@ abstract public class AbstractAdLdapRealmTests extends ShieldIntegrationTest {
         }
 
         public Settings buildSettings() {
-            ImmutableSettings.Builder builder = ImmutableSettings.builder()
+            return settingsBuilder()
                     .put(SHIELD_AUTHC_REALMS_EXTERNAL + ".order", 1)
                     .put(SHIELD_AUTHC_REALMS_EXTERNAL + ".hostname_verification", false)
                     .put(SHIELD_AUTHC_REALMS_EXTERNAL + ".unmapped_groups_as_roles", mapGroupsAsRoles)
-                    .put(sslSettingsForStore("/org/elasticsearch/shield/transport/ssl/certs/simple/testnode.jks", "testnode")) //we need ssl to the LDAP server
-                    .put(this.settings);
-
-            return builder.build();
+                    .put(this.settings)
+                    .build();
         }
 
         //if mapGroupsAsRoles is turned on we don't write anything to the rolemapping file

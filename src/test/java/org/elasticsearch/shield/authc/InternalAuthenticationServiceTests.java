@@ -6,12 +6,10 @@
 package org.elasticsearch.shield.authc;
 
 import com.carrotsearch.ant.tasks.junit4.dependencies.com.google.common.collect.ImmutableList;
-import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.rest.FakeRestRequest;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.shield.ShieldSettingsFilter;
 import org.elasticsearch.shield.User;
@@ -20,6 +18,7 @@ import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
 import org.elasticsearch.shield.crypto.CryptoService;
 import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.transport.TransportMessage;
 import org.junit.Before;
 import org.junit.Rule;
@@ -60,7 +59,8 @@ public class InternalAuthenticationServiceTests extends ElasticsearchTestCase {
         when(firstRealm.type()).thenReturn("first");
         secondRealm = mock(Realm.class);
         when(secondRealm.type()).thenReturn("second");
-        realms = new Realms(ImmutableSettings.EMPTY, new Environment(ImmutableSettings.EMPTY), Collections.<String, Realm.Factory>emptyMap(), mock(ShieldSettingsFilter.class)) {
+        Settings settings = Settings.builder().put("path.home", createTempDir()).build();
+        realms = new Realms(Settings.EMPTY, new Environment(settings), Collections.<String, Realm.Factory>emptyMap(), mock(ShieldSettingsFilter.class)) {
             @Override
             protected List<Realm> initRealms() {
                 return ImmutableList.of(firstRealm, secondRealm);
@@ -70,7 +70,7 @@ public class InternalAuthenticationServiceTests extends ElasticsearchTestCase {
         cryptoService = mock(CryptoService.class);
 
         auditTrail = mock(AuditTrail.class);
-        service = new InternalAuthenticationService(ImmutableSettings.EMPTY, realms, auditTrail, cryptoService);
+        service = new InternalAuthenticationService(Settings.EMPTY, realms, auditTrail, cryptoService);
     }
 
     @Test @SuppressWarnings("unchecked")
@@ -324,7 +324,7 @@ public class InternalAuthenticationServiceTests extends ElasticsearchTestCase {
         when(cryptoService.unsignAndVerify("_signed_user")).thenReturn(InternalAuthenticationService.encodeUser(user1, null));
         BytesStreamOutput output = new BytesStreamOutput();
         message1.writeTo(output);
-        BytesStreamInput input = new BytesStreamInput(output.bytes());
+        StreamInput input = StreamInput.wrap(output.bytes());
         InternalMessage message2 = new InternalMessage();
         message2.readFrom(input);
         user = service.authenticate("_action", message2, User.SYSTEM);
@@ -334,7 +334,7 @@ public class InternalAuthenticationServiceTests extends ElasticsearchTestCase {
 
     @Test
     public void testAutheticate_Transport_ContextAndHeader_NoSigning() throws Exception {
-        Settings settings = ImmutableSettings.builder().put("shield.authc.sign_user_header", false).build();
+        Settings settings = Settings.builder().put(InternalAuthenticationService.SETTING_SIGN_USER_HEADER, false).build();
         service = new InternalAuthenticationService(settings, realms, auditTrail, cryptoService);
 
         User user1 = new User.Simple("username", "r1", "r2");
@@ -360,7 +360,7 @@ public class InternalAuthenticationServiceTests extends ElasticsearchTestCase {
         message1.putHeader(InternalAuthenticationService.USER_KEY, message.getHeader(InternalAuthenticationService.USER_KEY));
         BytesStreamOutput output = new BytesStreamOutput();
         message1.writeTo(output);
-        BytesStreamInput input = new BytesStreamInput(output.bytes());
+        StreamInput input = StreamInput.wrap(output.bytes());
         InternalMessage message2 = new InternalMessage();
         message2.readFrom(input);
         user = service.authenticate("_action", message2, User.SYSTEM);
@@ -402,17 +402,17 @@ public class InternalAuthenticationServiceTests extends ElasticsearchTestCase {
 
     @Test
     public void testResolveAnonymousUser() throws Exception {
-        Settings settings = ImmutableSettings.builder()
-                .put("anonymous.username", "anonym1")
-                .putArray("anonymous.roles", "r1", "r2", "r3")
+        Settings settings = Settings.builder()
+                .put("shield.authc.anonymous.username", "anonym1")
+                .putArray("shield.authc.anonymous.roles", "r1", "r2", "r3")
                 .build();
         User user = InternalAuthenticationService.resolveAnonymouseUser(settings);
         assertThat(user, notNullValue());
         assertThat(user.principal(), equalTo("anonym1"));
         assertThat(user.roles(), arrayContainingInAnyOrder("r1", "r2", "r3"));
 
-        settings = ImmutableSettings.builder()
-                .putArray("anonymous.roles", "r1", "r2", "r3")
+        settings = Settings.builder()
+                .putArray("shield.authc.anonymous.roles", "r1", "r2", "r3")
                 .build();
         user = InternalAuthenticationService.resolveAnonymouseUser(settings);
         assertThat(user, notNullValue());
@@ -423,8 +423,8 @@ public class InternalAuthenticationServiceTests extends ElasticsearchTestCase {
     @Test
     public void testResolveAnonymousUser_NoSettings() throws Exception {
         Settings settings = randomBoolean() ?
-                ImmutableSettings.EMPTY :
-                ImmutableSettings.builder().put("anonymous.username", "user1").build();
+                Settings.EMPTY :
+                Settings.builder().put("shield.authc.anonymous.username", "user1").build();
         User user = InternalAuthenticationService.resolveAnonymouseUser(settings);
         assertThat(user, nullValue());
     }
@@ -432,7 +432,7 @@ public class InternalAuthenticationServiceTests extends ElasticsearchTestCase {
     @Test
     public void testAnonymousUser_Rest() throws Exception {
         String username = randomBoolean() ? InternalAuthenticationService.ANONYMOUS_USERNAME : "user1";
-        ImmutableSettings.Builder builder = ImmutableSettings.builder()
+        Settings.Builder builder = Settings.builder()
                 .putArray("shield.authc.anonymous.roles", "r1", "r2", "r3");
         if (username != InternalAuthenticationService.ANONYMOUS_USERNAME) {
             builder.put("shield.authc.anonymous.username", username);
@@ -451,7 +451,7 @@ public class InternalAuthenticationServiceTests extends ElasticsearchTestCase {
 
     @Test
     public void testAnonymousUser_Transport_NoDefaultUser() throws Exception {
-        Settings settings = ImmutableSettings.builder()
+        Settings settings = Settings.builder()
                 .putArray("shield.authc.anonymous.roles", "r1", "r2", "r3")
                 .build();
         service = new InternalAuthenticationService(settings, realms, auditTrail, cryptoService);
@@ -466,7 +466,7 @@ public class InternalAuthenticationServiceTests extends ElasticsearchTestCase {
 
     @Test
     public void testAnonymousUser_Transport_WithDefaultUser() throws Exception {
-        Settings settings = ImmutableSettings.builder()
+        Settings settings = Settings.builder()
                 .putArray("shield.authc.anonymous.roles", "r1", "r2", "r3")
                 .build();
         service = new InternalAuthenticationService(settings, realms, auditTrail, cryptoService);

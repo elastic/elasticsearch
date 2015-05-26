@@ -17,6 +17,6 @@ public class ShieldAssertions {
         assertThat(e.status(), is(RestStatus.UNAUTHORIZED));
         assertThat(e.getHeaders(), hasKey("WWW-Authenticate"));
         assertThat(e.getHeaders().get("WWW-Authenticate"), hasSize(1));
-        assertThat(e.getHeaders().get("WWW-Authenticate").get(0), is(ShieldException.HEADERS.get("WWW-Authenticate").get(0)));
+        assertThat(e.getHeaders().get("WWW-Authenticate").get(0), is(ShieldException.BASIC_AUTH_HEADER.v2()[0]));
     }
 }

@@ -32,20 +32,6 @@ public class VersionCompatibilityTests extends ElasticsearchTestCase {
          * Once es core supports merging cluster level custom metadata (licenses in our case), the tribe node will see some license coming from the tribe and everything will be ok.
          *
          */
-        assertThat("Remove workaround in LicenseService class when es core supports merging cluster level custom metadata", Version.CURRENT.onOrBefore(Version.V_1_5_0), is(true));
-
-        /**
-         * see https://github.com/elastic/elasticsearch/pull/10319 {@link org.elasticsearch.transport.netty.ShieldMessageChannelHandler}
-         * Once ES core supports exposing the channel in {@link org.elasticsearch.transport.netty.NettyTransportChannel}
-         * we should implement the certificate extraction logic as a {@link org.elasticsearch.shield.transport.ServerTransportFilter}
-         */
-        assertThat("Remove ShieldMessageChannelHandler and implement PKI cert extraction as a ServerTransportFilter", Version.CURRENT.onOrBefore(Version.V_1_5_0), is(true));
-
-        /**
-         * see https://github.com/elastic/elasticsearch/pull/10323 {@link org.elasticsearch.rest.FakeRestRequest}
-         * ES core has FakeRestRequest but it is not included in the test jar. Once it is included in the test jar, Shield
-         * should be updated to remove the copied version of the class {@link org.elasticsearch.rest.FakeRestRequest}
-         */
-        assertThat("Remove FakeRestRequest and use version in core", Version.CURRENT.onOrBefore(Version.V_1_5_0), is(true));
+        assertThat("Remove workaround in LicenseService class when es core supports merging cluster level custom metadata", Version.CURRENT.onOrBefore(Version.V_2_0_0), is(true));
     }
 }

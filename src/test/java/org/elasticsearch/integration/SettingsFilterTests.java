@@ -7,13 +7,13 @@ package org.elasticsearch.integration;
 
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.base.Charsets;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.http.HttpServerTransport;
-import org.elasticsearch.node.internal.InternalNode;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
 import org.elasticsearch.shield.ssl.AbstractSSLService;
@@ -49,8 +49,8 @@ public class SettingsFilterTests extends ShieldIntegrationTest {
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         int clientProfilePort = randomIntBetween(49000, 65400);
-        return ImmutableSettings.builder().put(super.nodeSettings(nodeOrdinal))
-                .put(InternalNode.HTTP_ENABLED, true)
+        return Settings.builder().put(super.nodeSettings(nodeOrdinal))
+                .put(Node.HTTP_ENABLED, true)
 
                 .put("shield.authc.realms.esusers.type", "esusers")
 
@@ -71,7 +71,7 @@ public class SettingsFilterTests extends ShieldIntegrationTest {
                 // pki filtering
                 .put("shield.authc.realms.pki1.type", "pki")
                 .put("shield.authc.realms.pki1.order", "0")
-                .put("shield.authc.realms.pki1.truststore.path", getResource("/org/elasticsearch/shield/transport/ssl/certs/simple/truststore-testnode-only.jks"))
+                .put("shield.authc.realms.pki1.truststore.path", getDataPath("/org/elasticsearch/shield/transport/ssl/certs/simple/truststore-testnode-only.jks"))
                 .put("shield.authc.realms.pki1.truststore.password", "truststore-testnode-only")
                 .put("shield.authc.realms.pki1.truststore.algorithm", "SunX509")
 
@@ -158,13 +158,13 @@ public class SettingsFilterTests extends ShieldIntegrationTest {
 
     static List<Settings> extractSettings(String data) throws Exception {
         List<Settings> settingsList = new ArrayList<>();
-        XContentParser parser = JsonXContent.jsonXContent.createParser(data.getBytes(UTF8));
+        XContentParser parser = JsonXContent.jsonXContent.createParser(data.getBytes(Charsets.UTF_8));
         XContentParser.Token token = null;
         while ((token = parser.nextToken()) != null) {
             if (token == XContentParser.Token.FIELD_NAME && parser.currentName().equals("settings")) {
                 parser.nextToken();
                 XContentBuilder builder = XContentBuilder.builder(parser.contentType().xContent());
-                settingsList.add(ImmutableSettings.builder().loadFromSource(builder.copyCurrentStructure(parser).bytes().toUtf8()).build());
+                settingsList.add(Settings.builder().loadFromSource(builder.copyCurrentStructure(parser).bytes().toUtf8()).build());
             }
         }
         return settingsList;

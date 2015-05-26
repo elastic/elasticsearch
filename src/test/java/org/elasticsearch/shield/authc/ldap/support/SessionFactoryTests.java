@@ -8,7 +8,6 @@ package org.elasticsearch.shield.authc.ldap.support;
 import com.unboundid.ldap.sdk.LDAPConnectionOptions;
 import com.unboundid.util.ssl.HostNameSSLSocketVerifier;
 import com.unboundid.util.ssl.TrustAllSSLSocketVerifier;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.shield.authc.RealmConfig;
 import org.elasticsearch.shield.authc.support.SecuredString;
@@ -16,14 +15,14 @@ import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
 import static org.hamcrest.Matchers.*;
-import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 
 public class SessionFactoryTests extends ElasticsearchTestCase {
 
     @Test
     public void connectionFactoryReturnsCorrectLDAPConnectionOptionsWithDefaultSettings() {
         SessionFactory factory = createSessionFactory();
-        LDAPConnectionOptions options = factory.connectionOptions(ImmutableSettings.EMPTY);
+        LDAPConnectionOptions options = factory.connectionOptions(Settings.EMPTY);
         assertThat(options.followReferrals(), is(equalTo(true)));
         assertThat(options.allowConcurrentSocketFactoryUse(), is(equalTo(true)));
         assertThat(options.getConnectTimeoutMillis(), is(equalTo(5000)));
@@ -49,7 +48,8 @@ public class SessionFactoryTests extends ElasticsearchTestCase {
     }
 
     private SessionFactory createSessionFactory() {
-        return new SessionFactory(new RealmConfig("_name")) {
+        Settings global = settingsBuilder().put("path.home", createTempDir()).build();
+        return new SessionFactory(new RealmConfig("_name", Settings.EMPTY, global)) {
 
             @Override
             public LdapSession session(String user, SecuredString password) {

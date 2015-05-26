@@ -13,12 +13,11 @@ import org.apache.http.util.EntityUtils;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.transport.NoNodeAvailableException;
 import org.elasticsearch.client.transport.TransportClient;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.http.HttpServerTransport;
-import org.elasticsearch.node.internal.InternalNode;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.shield.transport.netty.ShieldNettyHttpServerTransport;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.test.ShieldIntegrationTest;
@@ -33,7 +32,6 @@ import javax.net.ssl.TrustManagerFactory;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.security.KeyStore;
 import java.security.SecureRandom;
 import java.util.Locale;
@@ -48,18 +46,18 @@ public class PkiAuthenticationTests extends ShieldIntegrationTest {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return ImmutableSettings.builder()
+        return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put(InternalNode.HTTP_ENABLED, true)
+                .put(Node.HTTP_ENABLED, true)
                 .put(ShieldNettyHttpServerTransport.HTTP_SSL_SETTING, true)
                 .put(ShieldNettyHttpServerTransport.HTTP_CLIENT_AUTH_SETTING, true)
                 .put("shield.authc.realms.esusers.type", "esusers")
                 .put("shield.authc.realms.esusers.order", "0")
                 .put("shield.authc.realms.pki1.type", "pki")
                 .put("shield.authc.realms.pki1.order", "1")
-                .put("shield.authc.realms.pki1.truststore.path", getResource("/org/elasticsearch/shield/transport/ssl/certs/simple/truststore-testnode-only.jks"))
+                .put("shield.authc.realms.pki1.truststore.path", getDataPath("/org/elasticsearch/shield/transport/ssl/certs/simple/truststore-testnode-only.jks"))
                 .put("shield.authc.realms.pki1.truststore.password", "truststore-testnode-only")
-                .put("shield.authc.realms.pki1.files.role_mapping", getResource("role_mapping.yml"))
+                .put("shield.authc.realms.pki1.files.role_mapping", getDataPath("role_mapping.yml"))
                 .build();
     }
 
@@ -84,7 +82,7 @@ public class PkiAuthenticationTests extends ShieldIntegrationTest {
      */
     @Test(expected = NoNodeAvailableException.class)
     public void testTransportClientAuthenticationFailure() {
-        try (TransportClient client = createTransportClient(ImmutableSettings.EMPTY)) {
+        try (TransportClient client = createTransportClient(Settings.EMPTY)) {
             client.addTransportAddress(internalCluster().getInstance(Transport.class).boundAddress().boundAddress());
             client.prepareIndex("foo", "bar").setSource("pki", "auth").get();
             fail("transport client should not have been able to authenticate");
@@ -111,15 +109,15 @@ public class PkiAuthenticationTests extends ShieldIntegrationTest {
             try (CloseableHttpResponse response = client.execute(put)) {
                 assertThat(response.getStatusLine().getStatusCode(), is(401));
                 String body = EntityUtils.toString(response.getEntity());
-                assertThat(body, containsString("AuthenticationException[unable to authenticate user [Elasticsearch Test Client]"));
+                assertThat(body, containsString("unable to authenticate user [Elasticsearch Test Client]"));
             }
         }
     }
 
-    private static SSLContext getRestSSLContext(String keystoreResourcePath, String password) throws Exception {
+    private SSLContext getRestSSLContext(String keystoreResourcePath, String password) throws Exception {
         SSLContext context = SSLContext.getInstance("TLS");
         KeyManagerFactory kmf = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
-        Path store = Paths.get(PkiAuthenticationTests.class.getResource(keystoreResourcePath).toURI());
+        Path store = getDataPath(keystoreResourcePath);
         KeyStore ks;
         try (InputStream in = Files.newInputStream(store)) {
             ks = KeyStore.getInstance("jks");
@@ -135,13 +133,14 @@ public class PkiAuthenticationTests extends ShieldIntegrationTest {
     }
 
     private TransportClient createTransportClient(Settings additionalSettings) {
-        ImmutableSettings.Builder builder = ImmutableSettings.builder()
+        Settings.Builder builder = Settings.builder()
                 .put(transportClientSettings())
                 .put(additionalSettings)
+                .put("path.home", createTempDir())
                 .put("cluster.name", internalCluster().getClusterName());
         builder.remove("shield.user");
         builder.remove("request.headers.Authorization");
-        return new TransportClient(builder.build());
+        return TransportClient.builder().settings(builder).build();
     }
 
     private String getNodeUrl() {

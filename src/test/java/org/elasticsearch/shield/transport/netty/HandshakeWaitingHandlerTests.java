@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.shield.transport.netty;
 
-import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.netty.bootstrap.ClientBootstrap;
 import org.elasticsearch.common.netty.bootstrap.ServerBootstrap;
@@ -17,6 +16,7 @@ import org.elasticsearch.common.netty.channel.socket.nio.NioServerSocketChannelF
 import org.elasticsearch.common.netty.handler.ssl.SslHandler;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.shield.ShieldException;
 import org.elasticsearch.shield.ShieldSettingsFilter;
 import org.elasticsearch.shield.ssl.ServerSSLService;
@@ -32,7 +32,6 @@ import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.net.BindException;
 import java.net.InetSocketAddress;
-import java.nio.file.Paths;
 import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.List;
@@ -42,7 +41,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.*;
 
 public class HandshakeWaitingHandlerTests extends ElasticsearchTestCase {
@@ -66,12 +65,12 @@ public class HandshakeWaitingHandlerTests extends ElasticsearchTestCase {
         iterations = randomIntBetween(10, 100);
 
         Settings settings = settingsBuilder()
-                .put("shield.ssl.keystore.path", Paths.get(HandshakeWaitingHandlerTests.class.getResource("/org/elasticsearch/shield/transport/ssl/certs/simple/testnode.jks").toURI()))
+                .put("shield.ssl.keystore.path", getDataPath("/org/elasticsearch/shield/transport/ssl/certs/simple/testnode.jks"))
                 .put("shield.ssl.keystore.password", "testnode")
                 .build();
-
+        Environment env = new Environment(settingsBuilder().put("path.home", createTempDir()).build());
         ShieldSettingsFilter settingsFilter = new ShieldSettingsFilter(settings, new SettingsFilter(settings));
-        ServerSSLService sslService = new ServerSSLService(settings, settingsFilter);
+        ServerSSLService sslService = new ServerSSLService(settings, settingsFilter, env);
 
         sslContext = sslService.sslContext();
 
@@ -161,7 +160,7 @@ public class HandshakeWaitingHandlerTests extends ElasticsearchTestCase {
                 Channel channel = handshakeFuture.getChannel();
                 HandshakeWaitingHandler handler = channel.getPipeline().get(HandshakeWaitingHandler.class);
                 while (handler != null && handler.hasPendingWrites()) {
-                    sleep(10);
+                    Thread.sleep(10);
                 }
 
                 channel.close();

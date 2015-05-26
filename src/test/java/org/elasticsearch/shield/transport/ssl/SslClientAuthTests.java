@@ -13,8 +13,9 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.http.HttpServerTransport;
-import org.elasticsearch.node.internal.InternalNode;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.shield.ssl.ClientSSLService;
 import org.elasticsearch.shield.transport.netty.ShieldNettyHttpServerTransport;
 import org.elasticsearch.test.ShieldIntegrationTest;
@@ -25,11 +26,11 @@ import org.elasticsearch.transport.Transport;
 import org.junit.Test;
 
 import javax.net.ssl.SSLHandshakeException;
-import java.io.File;
 import java.io.IOException;
-import java.net.URISyntaxException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 
-import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.containsString;
 
@@ -44,7 +45,7 @@ public class SslClientAuthTests extends ShieldIntegrationTest {
                 .put(ShieldNettyHttpServerTransport.HTTP_SSL_SETTING, true)
                 .put(ShieldNettyHttpServerTransport.HTTP_CLIENT_AUTH_SETTING, true)
                 .put("transport.profiles.default.shield.ssl.client.auth", false)
-                .put(InternalNode.HTTP_ENABLED, true)
+                .put(Node.HTTP_ENABLED, true)
                 .build();
     }
 
@@ -71,7 +72,8 @@ public class SslClientAuthTests extends ShieldIntegrationTest {
     @Test
     public void testThatHttpWorksWithSslClientAuth() throws IOException {
         Settings settings = settingsBuilder().put(ShieldSettingsSource.getSSLSettingsForStore("/org/elasticsearch/shield/transport/ssl/certs/simple/testclient.jks", "testclient")).build();
-        ClientSSLService sslService = new ClientSSLService(settings);
+        Environment env = new Environment(settingsBuilder().put("path.home", createTempDir()).build());
+        ClientSSLService sslService = new ClientSSLService(settings, env);
 
         SSLConnectionSocketFactory socketFactory = new SSLConnectionSocketFactory(
                 sslService.sslContext(),
@@ -91,25 +93,21 @@ public class SslClientAuthTests extends ShieldIntegrationTest {
     @Test
     public void testThatTransportWorksWithoutSslClientAuth() throws Exception {
         // specify an arbitrary keystore, that does not include the certs needed to connect to the transport protocol
-        File store;
-        try {
-            store = new File(ShieldSettingsSource.class.getResource("/org/elasticsearch/shield/transport/ssl/certs/simple/testclient-client-profile.jks").toURI());
-        } catch (URISyntaxException e) {
-            throw new ElasticsearchException("exception while reading the store", e);
-        }
+        Path store = getDataPath("/org/elasticsearch/shield/transport/ssl/certs/simple/testclient-client-profile.jks");
 
-        if (!store.exists()) {
+        if (Files.notExists(store)) {
             throw new ElasticsearchException("store path doesn't exist");
         }
 
         Settings settings = settingsBuilder()
+                .put("path.home", createTempDir())
                 .put("shield.transport.ssl", true)
-                .put("shield.ssl.keystore.path", store.getPath())
+                .put("shield.ssl.keystore.path", store)
                 .put("shield.ssl.keystore.password", "testclient-client-profile")
                 .put("cluster.name", internalCluster().getClusterName())
                 .put("shield.user", transportClientUsername() + ":" + new String(transportClientPassword().internalChars()))
                 .build();
-        try (TransportClient client = new TransportClient(settings)) {
+        try (TransportClient client = TransportClient.builder().settings(settings).build()) {
             Transport transport = internalCluster().getDataNodeInstance(Transport.class);
             TransportAddress transportAddress = transport.boundAddress().publishAddress();
             client.addTransportAddress(transportAddress);

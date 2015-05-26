@@ -1,5 +1,3 @@
-cluster:admin/nodes/restart
-cluster:admin/nodes/shutdown
 cluster:admin/repository/delete
 cluster:admin/repository/get
 cluster:admin/repository/put
@@ -29,13 +27,13 @@ indices:admin/delete
 indices:admin/get
 indices:admin/exists
 indices:admin/flush
-indices:admin/mapping/delete
 indices:admin/mapping/put
 indices:admin/mappings/fields/get
 indices:admin/mappings/get
 indices:admin/open
 indices:admin/optimize
 indices:admin/refresh
+indices:admin/seal
 indices:admin/settings/update
 indices:admin/shards/search_shards
 indices:admin/template/delete
@@ -50,13 +48,12 @@ indices:monitor/recovery
 indices:monitor/segments
 indices:monitor/settings/get
 indices:monitor/stats
-indices:monitor/status
 indices:data/read/count
 indices:data/read/exists
 indices:data/read/explain
+indices:data/read/field_stats
 indices:data/read/get
 indices:data/read/mget
-indices:data/read/mlt
 indices:data/read/mpercolate
 indices:data/read/msearch
 indices:data/read/mtv
@@ -69,7 +66,6 @@ indices:data/read/suggest
 indices:data/read/tv
 indices:data/write/bulk
 indices:data/write/delete
-indices:data/write/delete/by_query
 indices:data/write/index
 indices:data/write/script/delete
 indices:data/write/script/put

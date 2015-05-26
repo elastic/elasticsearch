@@ -5,13 +5,21 @@
  */
 package org.elasticsearch.shield.transport;
 
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.netty.handler.ssl.SslHandler;
+import org.elasticsearch.shield.ShieldException;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.action.ShieldActionMapper;
 import org.elasticsearch.shield.authc.AuthenticationException;
 import org.elasticsearch.shield.authc.AuthenticationService;
+import org.elasticsearch.shield.authc.pki.PkiRealm;
 import org.elasticsearch.shield.authz.AuthorizationService;
+import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.netty.NettyTransportChannel;
+
+import javax.net.ssl.SSLPeerUnverifiedException;
+import java.security.cert.Certificate;
+import java.security.cert.X509Certificate;
 
 /**
  * This interface allows to intercept messages as they come in and execute logic
@@ -26,7 +34,7 @@ public interface ServerTransportFilter {
      * thrown by this method will stop the request from being handled and the error will
      * be sent back to the sender.
      */
-    void inbound(String action, TransportRequest request);
+    void inbound(String action, TransportRequest request, TransportChannel transportChannel);
 
     /**
      * The server trasnport filter that should be used in nodes as it ensures that an incoming
@@ -37,16 +45,17 @@ public interface ServerTransportFilter {
         private final AuthenticationService authcService;
         private final AuthorizationService authzService;
         private final ShieldActionMapper actionMapper;
+        private final boolean extractClientCert;
 
-        @Inject
-        public NodeProfile(AuthenticationService authcService, AuthorizationService authzService, ShieldActionMapper actionMapper) {
+        public NodeProfile(AuthenticationService authcService, AuthorizationService authzService, ShieldActionMapper actionMapper, boolean extractClientCert) {
             this.authcService = authcService;
             this.authzService = authzService;
             this.actionMapper = actionMapper;
+            this.extractClientCert = extractClientCert;
         }
 
         @Override
-        public void inbound(String action, TransportRequest request) {
+        public void inbound(String action, TransportRequest request, TransportChannel transportChannel) {
             /*
              here we don't have a fallback user, as all incoming request are
              expected to have a user attached (either in headers or in context)
@@ -56,6 +65,22 @@ public interface ServerTransportFilter {
              an authentication token
              */
             String shieldAction = actionMapper.action(action, request);
+
+            if (extractClientCert && (transportChannel instanceof NettyTransportChannel)) {
+                SslHandler sslHandler = ((NettyTransportChannel)transportChannel).getChannel().getPipeline().get(SslHandler.class);
+                assert sslHandler != null;
+
+                try {
+                    Certificate[] certs = sslHandler.getEngine().getSession().getPeerCertificates();
+                    if (certs instanceof X509Certificate[]) {
+                        request.putInContext(PkiRealm.PKI_CERT_HEADER_NAME, certs);
+                    }
+                } catch (SSLPeerUnverifiedException e) {
+                    // In the future this may need to be a debug log message if we only "request" client authentication and don't require it
+                    throw new ShieldException("SSL Peer did not present a certificate and was required to do so", e);
+                }
+            }
+
             User user = authcService.authenticate(shieldAction, request, null);
             authzService.authorize(user, shieldAction, request);
         }
@@ -69,19 +94,18 @@ public interface ServerTransportFilter {
      */
     public static class ClientProfile extends NodeProfile {
 
-        @Inject
-        public ClientProfile(AuthenticationService authcService, AuthorizationService authzService, ShieldActionMapper actionMapper) {
-            super(authcService, authzService, actionMapper);
+        public ClientProfile(AuthenticationService authcService, AuthorizationService authzService, ShieldActionMapper actionMapper, boolean extractClientCert) {
+            super(authcService, authzService, actionMapper, extractClientCert);
         }
 
         @Override
-        public void inbound(String action, TransportRequest request) {
+        public void inbound(String action, TransportRequest request, TransportChannel transportChannel) {
             // TODO is ']' sufficient to mark as shard action?
             boolean isInternalOrShardAction = action.startsWith("internal:") || action.endsWith("]");
             if (isInternalOrShardAction) {
                 throw new AuthenticationException("executing internal/shard actions is considered malicious and forbidden");
             }
-            super.inbound(action, request);
+            super.inbound(action, request, transportChannel);
         }
     }
 

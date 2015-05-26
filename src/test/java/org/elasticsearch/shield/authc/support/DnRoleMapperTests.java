@@ -9,7 +9,6 @@ import com.unboundid.ldap.sdk.DN;
 import org.elasticsearch.common.base.Charsets;
 import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.collect.ImmutableMap;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.shield.audit.logfile.CapturingLogger;
@@ -24,9 +23,10 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.io.BufferedWriter;
-import java.io.File;
-import java.io.IOException;
-import java.nio.file.*;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
+import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -58,8 +58,9 @@ public class DnRoleMapperTests extends ElasticsearchTestCase {
 
     @Before
     public void init() {
-        settings = ImmutableSettings.builder()
+        settings = Settings.builder()
                 .put("watcher.interval.high", "2s")
+                .put("path.home", createTempDir())
                 .build();
         env = new Environment(settings);
         threadPool = new ThreadPool("test");
@@ -72,7 +73,7 @@ public class DnRoleMapperTests extends ElasticsearchTestCase {
 
     @Test
     public void testMapper_ConfiguredWithUnreadableFile() throws Exception {
-        Path file = newTempFile().toPath();
+        Path file = createTempFile();
         // writing in utf_16 should cause a parsing error as we try to read the file in utf_8
         Files.write(file, ImmutableList.of("aldlfkjldjdflkjd"), Charsets.UTF_16);
 
@@ -83,8 +84,8 @@ public class DnRoleMapperTests extends ElasticsearchTestCase {
 
     @Test
     public void testMapper_AutoReload() throws Exception {
-        Path roleMappingFile = Paths.get(DnRoleMapperTests.class.getResource("role_mapping.yml").toURI());
-        Path file = Files.createTempFile(null, ".yml");
+        Path roleMappingFile = getDataPath("role_mapping.yml");
+        Path file = env.homeFile().resolve("test_role_mapping.yml");
         Files.copy(roleMappingFile, file, StandardCopyOption.REPLACE_EXISTING);
 
         final CountDownLatch latch = new CountDownLatch(1);
@@ -123,8 +124,8 @@ public class DnRoleMapperTests extends ElasticsearchTestCase {
 
     @Test
     public void testMapper_AutoReload_WithParseFailures() throws Exception {
-        Path roleMappingFile = Paths.get(DnRoleMapperTests.class.getResource("role_mapping.yml").toURI());
-        Path file = Files.createTempFile(null, ".yml");
+        Path roleMappingFile = getDataPath("role_mapping.yml");
+        Path file = env.homeFile().resolve("test_role_mapping.yml");
         Files.copy(roleMappingFile, file, StandardCopyOption.REPLACE_EXISTING);
 
         final CountDownLatch latch = new CountDownLatch(1);
@@ -157,7 +158,7 @@ public class DnRoleMapperTests extends ElasticsearchTestCase {
 
     @Test
     public void testParseFile() throws Exception {
-        Path file = Paths.get(DnRoleMapperTests.class.getResource("role_mapping.yml").toURI());
+        Path file = getDataPath("role_mapping.yml");
         CapturingLogger logger = new CapturingLogger(CapturingLogger.Level.INFO);
         ImmutableMap<DN, Set<String>> mappings = DnRoleMapper.parseFile(file, logger, "_type", "_name");
         assertThat(mappings, notNullValue());
@@ -187,7 +188,7 @@ public class DnRoleMapperTests extends ElasticsearchTestCase {
 
     @Test
     public void testParseFile_Empty() throws Exception {
-        Path file = newTempFile().toPath();
+        Path file = createTempFile();
         CapturingLogger logger = new CapturingLogger(CapturingLogger.Level.INFO);
         ImmutableMap<DN, Set<String>> mappings = DnRoleMapper.parseFile(file, logger, "_type", "_name");
         assertThat(mappings, notNullValue());
@@ -199,7 +200,7 @@ public class DnRoleMapperTests extends ElasticsearchTestCase {
 
     @Test
     public void testParseFile_WhenFileDoesNotExist() throws Exception {
-        Path file = new File(randomAsciiOfLength(10)).toPath();
+        Path file = createTempDir().resolve(randomAsciiOfLength(10));
         CapturingLogger logger = new CapturingLogger(CapturingLogger.Level.INFO);
         ImmutableMap<DN, Set<String>> mappings = DnRoleMapper.parseFile(file, logger, "_type", "_name");
         assertThat(mappings, notNullValue());
@@ -208,7 +209,7 @@ public class DnRoleMapperTests extends ElasticsearchTestCase {
 
     @Test
     public void testParseFile_WhenCannotReadFile() throws Exception {
-        Path file = newTempFile().toPath();
+        Path file = createTempFile();
         // writing in utf_16 should cause a parsing error as we try to read the file in utf_8
         Files.write(file, ImmutableList.of("aldlfkjldjdflkjd"), Charsets.UTF_16);
         CapturingLogger logger = new CapturingLogger(CapturingLogger.Level.INFO);
@@ -222,7 +223,7 @@ public class DnRoleMapperTests extends ElasticsearchTestCase {
 
     @Test
     public void testParseFileLenient_WhenCannotReadFile() throws Exception {
-        Path file = newTempFile().toPath();
+        Path file = createTempFile();
         // writing in utf_16 should cause a parsing error as we try to read the file in utf_8
         Files.write(file, ImmutableList.of("aldlfkjldjdflkjd"), Charsets.UTF_16);
         CapturingLogger logger = new CapturingLogger(CapturingLogger.Level.INFO);
@@ -235,12 +236,12 @@ public class DnRoleMapperTests extends ElasticsearchTestCase {
     }
 
     @Test
-    public void testYaml() throws IOException {
-        File file = this.getResource("role_mapping.yml");
-        Settings ldapSettings = ImmutableSettings.settingsBuilder()
-                .put(DnRoleMapper.ROLE_MAPPING_FILE_SETTING, file.getCanonicalPath())
+    public void testYaml() throws Exception {
+        Path file = getDataPath("role_mapping.yml");
+        Settings ldapSettings = Settings.settingsBuilder()
+                .put(DnRoleMapper.ROLE_MAPPING_FILE_SETTING, file.toAbsolutePath())
                 .build();
-        RealmConfig config = new RealmConfig("ldap1", ldapSettings);
+        RealmConfig config = new RealmConfig("ldap1", ldapSettings, settings);
 
         DnRoleMapper mapper = new DnRoleMapper(LdapRealm.TYPE, config, new ResourceWatcherService(settings, threadPool), null);
 
@@ -252,10 +253,10 @@ public class DnRoleMapperTests extends ElasticsearchTestCase {
 
     @Test
     public void testRelativeDN() {
-        Settings ldapSettings = ImmutableSettings.builder()
+        Settings ldapSettings = Settings.builder()
                 .put(DnRoleMapper.USE_UNMAPPED_GROUPS_AS_ROLES_SETTING, true)
                 .build();
-        RealmConfig config = new RealmConfig("ldap1", ldapSettings);
+        RealmConfig config = new RealmConfig("ldap1", ldapSettings, settings);
 
         DnRoleMapper mapper = new DnRoleMapper(LdapRealm.TYPE, config, new ResourceWatcherService(settings, threadPool), null);
 
@@ -265,12 +266,12 @@ public class DnRoleMapperTests extends ElasticsearchTestCase {
 
     @Test
     public void testUserDNMapping() throws Exception {
-        File file = this.getResource("role_mapping.yml");
-        Settings ldapSettings = ImmutableSettings.builder()
-                .put(DnRoleMapper.ROLE_MAPPING_FILE_SETTING, file.getCanonicalPath())
+        Path file = getDataPath("role_mapping.yml");
+        Settings ldapSettings = Settings.builder()
+                .put(DnRoleMapper.ROLE_MAPPING_FILE_SETTING, file.toAbsolutePath())
                 .put(DnRoleMapper.USE_UNMAPPED_GROUPS_AS_ROLES_SETTING, false)
                 .build();
-        RealmConfig config = new RealmConfig("ldap-userdn-role", ldapSettings);
+        RealmConfig config = new RealmConfig("ldap-userdn-role", ldapSettings, settings);
 
         DnRoleMapper mapper = new DnRoleMapper(LdapRealm.TYPE, config, new ResourceWatcherService(settings, threadPool), null);
 
@@ -279,7 +280,7 @@ public class DnRoleMapperTests extends ElasticsearchTestCase {
     }
 
     protected DnRoleMapper createMapper(Path file, ResourceWatcherService watcherService) {
-        Settings realmSettings = ImmutableSettings.builder()
+        Settings realmSettings = Settings.builder()
                 .put("files.role_mapping", file.toAbsolutePath())
                 .build();
         RealmConfig config = new RealmConfig("ad-group-mapper-test", realmSettings, settings, env);

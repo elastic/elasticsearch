@@ -5,9 +5,9 @@
  */
 package org.elasticsearch.shield.ssl;
 
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.shield.ShieldSettingsException;
 import org.elasticsearch.shield.ShieldSettingsFilter;
 import org.elasticsearch.test.ElasticsearchTestCase;
@@ -18,12 +18,11 @@ import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLSessionContext;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.*;
 import static org.mockito.Mockito.mock;
 
@@ -31,11 +30,13 @@ public class ServerSSLServiceTests extends ElasticsearchTestCase {
 
     Path testnodeStore;
     ShieldSettingsFilter settingsFilter;
+    Environment env;
 
     @Before
     public void setup() throws Exception {
-        testnodeStore = Paths.get(getClass().getResource("/org/elasticsearch/shield/transport/ssl/certs/simple/testnode.jks").toURI());
+        testnodeStore = getDataPath("/org/elasticsearch/shield/transport/ssl/certs/simple/testnode.jks");
         settingsFilter = mock(ShieldSettingsFilter.class);
+        env = new Environment(settingsBuilder().put("path.home", createTempDir()).build());
     }
 
     @Test(expected = ElasticsearchSSLException.class)
@@ -47,20 +48,20 @@ public class ServerSSLServiceTests extends ElasticsearchTestCase {
                 .put("shield.ssl.truststore.path", testnodeStore)
                 .put("shield.ssl.truststore.password", "testnode")
                 .build();
-        new ServerSSLService(settings, settingsFilter).createSSLEngine();
+        new ServerSSLService(settings, settingsFilter, env).createSSLEngine();
     }
 
     @Test
     public void testThatCustomTruststoreCanBeSpecified() throws Exception {
-        Path testClientStore = Paths.get(getClass().getResource("/org/elasticsearch/shield/transport/ssl/certs/simple/testclient.jks").toURI());
+        Path testClientStore = getDataPath("/org/elasticsearch/shield/transport/ssl/certs/simple/testclient.jks");
 
         Settings settings = settingsBuilder()
                 .put("shield.ssl.keystore.path", testnodeStore)
                 .put("shield.ssl.keystore.password", "testnode")
                 .build();
-        ServerSSLService sslService = new ServerSSLService(settings, settingsFilter);
+        ServerSSLService sslService = new ServerSSLService(settings, settingsFilter, env);
 
-        ImmutableSettings.Builder settingsBuilder = settingsBuilder()
+        Settings.Builder settingsBuilder = settingsBuilder()
                 .put("truststore.path", testClientStore)
                 .put("truststore.password", "testclient");
 
@@ -76,7 +77,7 @@ public class ServerSSLServiceTests extends ElasticsearchTestCase {
         ServerSSLService sslService = new ServerSSLService(settingsBuilder()
             .put("shield.ssl.keystore.path", testnodeStore)
             .put("shield.ssl.keystore.password", "testnode")
-            .build(), settingsFilter);
+            .build(), settingsFilter, env);
 
         SSLContext sslContext = sslService.sslContext();
         SSLContext cachedSslContext = sslService.sslContext();
@@ -86,21 +87,21 @@ public class ServerSSLServiceTests extends ElasticsearchTestCase {
 
     @Test
     public void testThatKeyStoreAndKeyCanHaveDifferentPasswords() throws Exception {
-        Path differentPasswordsStore = Paths.get(getClass().getResource("/org/elasticsearch/shield/transport/ssl/certs/simple/testnode-different-passwords.jks").toURI());
+        Path differentPasswordsStore = getDataPath("/org/elasticsearch/shield/transport/ssl/certs/simple/testnode-different-passwords.jks");
         new ServerSSLService(settingsBuilder()
                 .put("shield.ssl.keystore.path", differentPasswordsStore)
                 .put("shield.ssl.keystore.password", "testnode")
                 .put("shield.ssl.keystore.key_password", "testnode1")
-                .build(), settingsFilter).createSSLEngine();
+                .build(), settingsFilter, env).createSSLEngine();
     }
 
     @Test(expected = ElasticsearchSSLException.class)
     public void testIncorrectKeyPasswordThrowsException() throws Exception {
-        Path differentPasswordsStore = Paths.get(getClass().getResource("/org/elasticsearch/shield/transport/ssl/certs/simple/testnode-different-passwords.jks").toURI());
+        Path differentPasswordsStore = getDataPath("/org/elasticsearch/shield/transport/ssl/certs/simple/testnode-different-passwords.jks");
         new ServerSSLService(settingsBuilder()
                 .put("shield.ssl.keystore.path", differentPasswordsStore)
                 .put("shield.ssl.keystore.password", "testnode")
-                .build(), settingsFilter).createSSLEngine();
+                .build(), settingsFilter, env).createSSLEngine();
     }
 
     @Test
@@ -108,7 +109,7 @@ public class ServerSSLServiceTests extends ElasticsearchTestCase {
         ServerSSLService sslService = new ServerSSLService(settingsBuilder()
                 .put("shield.ssl.keystore.path", testnodeStore)
                 .put("shield.ssl.keystore.password", "testnode")
-                .build(), settingsFilter);
+                .build(), settingsFilter, env);
         SSLEngine engine = sslService.createSSLEngine();
         assertThat(Arrays.asList(engine.getEnabledProtocols()), not(hasItem("SSLv3")));
     }
@@ -118,7 +119,7 @@ public class ServerSSLServiceTests extends ElasticsearchTestCase {
         ServerSSLService sslService = new ServerSSLService(settingsBuilder()
                 .put("shield.ssl.keystore.path", testnodeStore)
                 .put("shield.ssl.keystore.password", "testnode")
-                .build(), settingsFilter);
+                .build(), settingsFilter, env);
         SSLSessionContext context = sslService.sslContext().getServerSessionContext();
         assertThat(context.getSessionCacheSize(), equalTo(1000));
         assertThat(context.getSessionTimeout(), equalTo((int) TimeValue.timeValueHours(24).seconds()));
@@ -131,7 +132,7 @@ public class ServerSSLServiceTests extends ElasticsearchTestCase {
                 .put("shield.ssl.keystore.password", "testnode")
                 .put("shield.ssl.session.cache_size", "300")
                 .put("shield.ssl.session.cache_timeout", "600s")
-                .build(), settingsFilter);
+                .build(), settingsFilter, env);
         SSLSessionContext context = sslService.sslContext().getServerSessionContext();
         assertThat(context.getSessionCacheSize(), equalTo(300));
         assertThat(context.getSessionTimeout(), equalTo(600));
@@ -139,7 +140,7 @@ public class ServerSSLServiceTests extends ElasticsearchTestCase {
 
     @Test(expected = ShieldSettingsException.class)
     public void testThatCreateSSLEngineWithoutAnySettingsDoesNotWork() throws Exception {
-        ServerSSLService sslService = new ServerSSLService(ImmutableSettings.EMPTY, settingsFilter);
+        ServerSSLService sslService = new ServerSSLService(Settings.EMPTY, settingsFilter, env);
         sslService.createSSLEngine();
     }
 
@@ -148,7 +149,7 @@ public class ServerSSLServiceTests extends ElasticsearchTestCase {
         ServerSSLService sslService = new ServerSSLService(settingsBuilder()
                 .put("shield.ssl.truststore.path", testnodeStore)
                 .put("shield.ssl.truststore.password", "testnode")
-                .build(), settingsFilter);
+                .build(), settingsFilter, env);
         SSLEngine sslEngine = sslService.createSSLEngine();
         assertThat(sslEngine, notNullValue());
     }
@@ -159,7 +160,7 @@ public class ServerSSLServiceTests extends ElasticsearchTestCase {
                 .put("shield.ssl.keystore.path", testnodeStore)
                 .put("shield.ssl.keystore.password", "testnode")
                 .put("shield.ssl.truststore.path", testnodeStore)
-                .build(), settingsFilter);
+                .build(), settingsFilter, env);
         sslService.sslContext();
     }
 
@@ -167,7 +168,7 @@ public class ServerSSLServiceTests extends ElasticsearchTestCase {
     public void testThatKeystorePasswordIsRequired() throws Exception {
         ServerSSLService sslService = new ServerSSLService(settingsBuilder()
                 .put("shield.ssl.keystore.path", testnodeStore)
-                .build(), settingsFilter);
+                .build(), settingsFilter, env);
         sslService.sslContext();
     }
 
@@ -180,7 +181,7 @@ public class ServerSSLServiceTests extends ElasticsearchTestCase {
                 .put("shield.ssl.keystore.path", testnodeStore)
                 .put("shield.ssl.keystore.password", "testnode")
                 .putArray("shield.ssl.ciphers", ciphers.toArray(new String[ciphers.size()]))
-                .build(), settingsFilter);
+                .build(), settingsFilter, env);
         SSLEngine engine = sslService.createSSLEngine();
         assertThat(engine, is(notNullValue()));
         String[] enabledCiphers = engine.getEnabledCipherSuites();
@@ -193,7 +194,7 @@ public class ServerSSLServiceTests extends ElasticsearchTestCase {
                 .put("shield.ssl.keystore.path", testnodeStore)
                 .put("shield.ssl.keystore.password", "testnode")
                 .putArray("shield.ssl.ciphers", new String[] { "foo", "bar" })
-                .build(), settingsFilter);
+                .build(), settingsFilter, env);
         sslService.createSSLEngine();
     }
 }

@@ -8,10 +8,9 @@ package org.elasticsearch.shield.authc.pki;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.http.HttpServerTransport;
-import org.elasticsearch.node.internal.InternalNode;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
@@ -33,9 +32,9 @@ public class PkiWithoutSSLTests extends ShieldIntegrationTest {
 
     @Override
     public Settings nodeSettings(int nodeOrdinal) {
-        return ImmutableSettings.builder()
+        return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put(InternalNode.HTTP_ENABLED, true)
+                .put(Node.HTTP_ENABLED, true)
                 .put("shield.authc.realms.pki1.type", "pki")
                 .put("shield.authc.realms.pki1.order", "0")
                 .build();

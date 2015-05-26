@@ -6,18 +6,17 @@
 package org.elasticsearch.test;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
-import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-import org.apache.lucene.util.AbstractRandomizedTest;
+
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.client.support.Headers;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.node.internal.InternalNode;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
-import org.elasticsearch.test.rest.ElasticsearchRestTests;
+import org.elasticsearch.test.rest.ElasticsearchRestTestCase;
 import org.elasticsearch.test.rest.RestTestCandidate;
 import org.elasticsearch.test.rest.client.RestException;
-import org.elasticsearch.test.rest.parser.RestTestParseException;
+import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -31,46 +30,54 @@ import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.basic
  * Allows to run Elasticsearch REST tests against a cluster with shield installed.
  * Subclasses {@link org.elasticsearch.test.ShieldIntegrationTest} that contains all the needed code to override the global
  * cluster settings and make sure shield is properly installed and configured.
- * Delegates all of the tests to {@link org.elasticsearch.test.rest.ElasticsearchRestTests}.
+ * Delegates all of the tests to {@link org.elasticsearch.test.rest.ElasticsearchRestTestCase}.
  */
-@AbstractRandomizedTest.Rest
+@ElasticsearchRestTestCase.Rest
 @ElasticsearchIntegrationTest.ClusterScope(randomDynamicTemplates = false)
-public class ShieldRestTests extends ShieldIntegrationTest {
+@LuceneTestCase.SuppressFsync // we aren't trying to test this here, and it can make the test slow
+@LuceneTestCase.SuppressCodecs("*") // requires custom completion postings format
+@Slow
+public abstract class ShieldRestTestCase extends ShieldIntegrationTest {
 
-    private final ElasticsearchRestTests delegate;
+    private final ElasticsearchRestTestCase delegate;
 
-    public ShieldRestTests(@Name("yaml") RestTestCandidate testCandidate) {
-        delegate = new ElasticsearchRestTests(testCandidate) {
+    public ShieldRestTestCase(@Name("yaml") RestTestCandidate testCandidate) {
+        delegate = new ElasticsearchRestTestCase(testCandidate) {
             @Override
             protected Settings restClientSettings() {
-                return ImmutableSettings.builder()
+                return Settings.builder()
                         .put(Headers.PREFIX + "." + UsernamePasswordToken.BASIC_AUTH_HEADER, basicAuthHeaderValue(ShieldSettingsSource.DEFAULT_USER_NAME,
                                 new SecuredString(ShieldSettingsSource.DEFAULT_PASSWORD.toCharArray()))).build();
+            }
+
+            @Override
+            protected Settings nodeSettings(int nodeOrdinal) {
+                return ShieldRestTestCase.this.nodeSettings(nodeOrdinal);
+            }
+
+            @Override
+            protected Settings transportClientSettings() {
+                return ShieldRestTestCase.this.transportClientSettings();
             }
         };
     }
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return ImmutableSettings.builder()
+        return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put(InternalNode.HTTP_ENABLED, true)
+                .put(Node.HTTP_ENABLED, true)
                 .build();
-    }
-
-    @ParametersFactory
-    public static Iterable<Object[]> parameters() throws IOException, RestTestParseException {
-        return ElasticsearchRestTests.parameters();
     }
 
     @BeforeClass
     public static void initExecutionContext() throws IOException, RestException {
-        ElasticsearchRestTests.initExecutionContext();
+        ElasticsearchRestTestCase.initExecutionContext();
     }
 
     @AfterClass
     public static void close() {
-        ElasticsearchRestTests.close();
+        ElasticsearchRestTestCase.close();
     }
 
     @Test

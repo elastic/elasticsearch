@@ -7,18 +7,19 @@ package org.elasticsearch.shield.ssl;
 
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.shield.ShieldSettingsException;
 
 public class ClientSSLService extends AbstractSSLService {
 
     @Inject
-    public ClientSSLService(Settings settings) {
-        super(settings);
+    public ClientSSLService(Settings settings, Environment environment) {
+        super(settings, environment);
     }
 
     @Override
     protected SSLSettings sslSettings(Settings customSettings) {
-        SSLSettings sslSettings = new SSLSettings(customSettings, componentSettings);
+        SSLSettings sslSettings = new SSLSettings(customSettings, settings);
 
         if (sslSettings.keyStorePath != null) {
             if (sslSettings.keyStorePassword == null) {

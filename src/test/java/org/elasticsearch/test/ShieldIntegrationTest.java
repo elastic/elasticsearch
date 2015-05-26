@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.test;
 
-import com.carrotsearch.randomizedtesting.LifecycleScope;
-import org.apache.lucene.util.AbstractRandomizedTest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
@@ -15,18 +13,18 @@ import org.elasticsearch.action.admin.cluster.node.info.PluginInfo;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.base.Function;
 import org.elasticsearch.common.collect.Collections2;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.shield.ShieldPlugin;
 import org.elasticsearch.shield.authc.support.SecuredString;
+import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.rules.ExternalResource;
 
-import java.io.File;
+import java.nio.file.Path;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
 import static org.hamcrest.CoreMatchers.is;
@@ -40,7 +38,7 @@ import static org.hamcrest.Matchers.hasSize;
  * @see org.elasticsearch.test.ShieldSettingsSource
  */
 @Ignore
-@AbstractRandomizedTest.Integration
+@ElasticsearchIntegrationTest.Integration
 public abstract class ShieldIntegrationTest extends ElasticsearchIntegrationTest {
 
     private static ShieldSettingsSource SHIELD_DEFAULT_SETTINGS;
@@ -92,8 +90,18 @@ public abstract class ShieldIntegrationTest extends ElasticsearchIntegrationTest
     @BeforeClass
     public static void initDefaultSettings() {
         if (SHIELD_DEFAULT_SETTINGS == null) {
-            SHIELD_DEFAULT_SETTINGS = new ShieldSettingsSource(maxNumberOfNodes(), randomBoolean(), globalTempDir(), Scope.SUITE);
+            SHIELD_DEFAULT_SETTINGS = new ShieldSettingsSource(maxNumberOfNodes(), randomBoolean(), createTempDir(), Scope.SUITE);
         }
+    }
+
+    /**
+     * Set the static default settings to null to prevent a memory leak. The test framework also checks for memory leaks
+     * and computes the size, this can cause issues when running with the security manager as it tries to do reflection
+     * into protected sun packages.
+     */
+    @AfterClass
+    public static void destroyDefaultSettings() {
+        SHIELD_DEFAULT_SETTINGS = null;
     }
 
     @Rule
@@ -105,11 +113,11 @@ public abstract class ShieldIntegrationTest extends ElasticsearchIntegrationTest
             switch(currentClusterScope) {
                 case SUITE:
                     if (customShieldSettingsSource == null) {
-                        customShieldSettingsSource = new CustomShieldSettingsSource(sslTransportEnabled(), newTempDir(LifecycleScope.SUITE), currentClusterScope);
+                        customShieldSettingsSource = new CustomShieldSettingsSource(sslTransportEnabled(), createTempDir(), currentClusterScope);
                     }
                     break;
                 case TEST:
-                    customShieldSettingsSource = new CustomShieldSettingsSource(sslTransportEnabled(), newTempDir(LifecycleScope.TEST), currentClusterScope);
+                    customShieldSettingsSource = new CustomShieldSettingsSource(sslTransportEnabled(), createTempDir(), currentClusterScope);
                     break;
             }
         }
@@ -132,16 +140,24 @@ public abstract class ShieldIntegrationTest extends ElasticsearchIntegrationTest
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return ImmutableSettings.builder().put(super.nodeSettings(nodeOrdinal))
+        return Settings.builder().put(super.nodeSettings(nodeOrdinal))
                 .put(customShieldSettingsSource.node(nodeOrdinal))
                 .build();
     }
 
     @Override
     protected Settings transportClientSettings() {
-        return ImmutableSettings.builder().put(super.transportClientSettings())
+        return Settings.builder().put(super.transportClientSettings())
                 .put(customShieldSettingsSource.transportClient())
                 .build();
+    }
+
+    /**
+     * Allows for us to get the system key that is being used for the cluster
+     * @return the system key bytes
+     */
+    protected byte[] systemKey() {
+        return customShieldSettingsSource.systemKey();
     }
 
     /**
@@ -217,7 +233,7 @@ public abstract class ShieldIntegrationTest extends ElasticsearchIntegrationTest
     }
 
     private class CustomShieldSettingsSource extends ShieldSettingsSource {
-        private CustomShieldSettingsSource(boolean sslTransportEnabled, File configDir, Scope scope) {
+        private CustomShieldSettingsSource(boolean sslTransportEnabled, Path configDir, Scope scope) {
             super(maxNumberOfNodes(), sslTransportEnabled, configDir, scope);
         }
 

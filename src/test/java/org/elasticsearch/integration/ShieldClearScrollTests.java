@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.integration;
 
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.search.ClearScrollResponse;
@@ -119,7 +118,7 @@ public class ShieldClearScrollTests extends ShieldIntegrationTest {
                 client().prepareSearchScroll(scrollId).get();
                 fail("Expected SearchPhaseExecutionException but did not happen");
             } catch (SearchPhaseExecutionException expectedException) {
-                assertThat(ExceptionsHelper.detailedMessage(expectedException), containsString("SearchContextMissingException"));
+                assertThat(expectedException.toString(), containsString("SearchContextMissingException"));
             }
         }
     }

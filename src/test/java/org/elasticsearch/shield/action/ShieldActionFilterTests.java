@@ -9,7 +9,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.support.ActionFilterChain;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.audit.AuditTrail;
 import org.elasticsearch.shield.authc.AuthenticationService;
@@ -46,7 +46,7 @@ public class ShieldActionFilterTests extends ElasticsearchTestCase {
         cryptoService = mock(CryptoService.class);
         auditTrail = mock(AuditTrail.class);
         licenseEventsNotifier = new MockLicenseEventsNotifier();
-        filter = new ShieldActionFilter(ImmutableSettings.EMPTY, authcService, authzService, cryptoService, auditTrail, licenseEventsNotifier, new ShieldActionMapper());
+        filter = new ShieldActionFilter(Settings.EMPTY, authcService, authzService, cryptoService, auditTrail, licenseEventsNotifier, new ShieldActionMapper());
     }
 
     @Test

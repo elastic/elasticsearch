@@ -5,14 +5,13 @@
  */
 package org.elasticsearch.shield.authz.indicesresolver;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesAction;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesAction;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
-import org.elasticsearch.action.deletebyquery.DeleteByQueryAction;
-import org.elasticsearch.action.deletebyquery.DeleteByQueryRequest;
 import org.elasticsearch.action.get.MultiGetAction;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.search.MultiSearchAction;
@@ -26,7 +25,7 @@ import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.collect.ImmutableList;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.authz.AuthorizationService;
@@ -49,16 +48,22 @@ public class DefaultIndicesResolverTests extends ElasticsearchTestCase {
 
     @Before
     public void setup() {
+        Settings settings = Settings.builder()
+                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 2))
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 1))
+                .build();
+
         MetaData.Builder mdBuilder = MetaData.builder()
-                .put(indexBuilder("foo").putAlias(AliasMetaData.builder("foofoobar")))
-                .put(indexBuilder("foobar").putAlias(AliasMetaData.builder("foofoobar")))
-                .put(indexBuilder("closed").state(IndexMetaData.State.CLOSE).putAlias(AliasMetaData.builder("foofoobar")))
-                .put(indexBuilder("foofoo-closed").state(IndexMetaData.State.CLOSE))
-                .put(indexBuilder("foobar-closed").state(IndexMetaData.State.CLOSE))
-                .put(indexBuilder("foofoo").putAlias(AliasMetaData.builder("barbaz")))
-                .put(indexBuilder("bar"))
-                .put(indexBuilder("bar-closed").state(IndexMetaData.State.CLOSE))
-                .put(indexBuilder("bar2"));
+                .put(indexBuilder("foo").putAlias(AliasMetaData.builder("foofoobar")).settings(settings))
+                .put(indexBuilder("foobar").putAlias(AliasMetaData.builder("foofoobar")).settings(settings))
+                .put(indexBuilder("closed").state(IndexMetaData.State.CLOSE).putAlias(AliasMetaData.builder("foofoobar")).settings(settings))
+                .put(indexBuilder("foofoo-closed").state(IndexMetaData.State.CLOSE).settings(settings))
+                .put(indexBuilder("foobar-closed").state(IndexMetaData.State.CLOSE).settings(settings))
+                .put(indexBuilder("foofoo").putAlias(AliasMetaData.builder("barbaz")).settings(settings))
+                .put(indexBuilder("bar").settings(settings))
+                .put(indexBuilder("bar-closed").state(IndexMetaData.State.CLOSE).settings(settings))
+                .put(indexBuilder("bar2").settings(settings));
         metaData = mdBuilder.build();
 
         AuthorizationService authzService = mock(AuthorizationService.class);
@@ -71,7 +76,6 @@ public class DefaultIndicesResolverTests extends ElasticsearchTestCase {
         when(authzService.authorizedIndicesAndAliases(user, IndicesAliasesAction.NAME)).thenReturn(ImmutableList.copyOf(authorizedIndices));
         when(authzService.authorizedIndicesAndAliases(user, GetAliasesAction.NAME)).thenReturn(ImmutableList.copyOf(authorizedIndices));
         when(authzService.authorizedIndicesAndAliases(user, DeleteIndexAction.NAME)).thenReturn(ImmutableList.copyOf(authorizedIndices));
-        when(authzService.authorizedIndicesAndAliases(user, DeleteByQueryAction.NAME)).thenReturn(ImmutableList.copyOf(authorizedIndices));
         userNoIndices = new User.Simple("test", "test");
         when(authzService.authorizedIndicesAndAliases(userNoIndices, IndicesAliasesAction.NAME)).thenReturn(ImmutableList.<String>of());
         when(authzService.authorizedIndicesAndAliases(userNoIndices, GetAliasesAction.NAME)).thenReturn(ImmutableList.<String>of());
@@ -771,17 +775,9 @@ public class DefaultIndicesResolverTests extends ElasticsearchTestCase {
         assertThat(request.indices(), arrayContaining(expectedIndices));
     }
 
-    @Test
-    public void testResolveWriteAction() {
-        DeleteByQueryRequest request = new DeleteByQueryRequest("*");
-        Set<String> indices = defaultIndicesResolver.resolve(user, DeleteByQueryAction.NAME, request, metaData);
-        String[] expectedIndices = new String[]{"bar", "foofoobar", "foofoo"};
-        assertThat(indices.size(), equalTo(expectedIndices.length));
-        assertThat(indices, hasItems(expectedIndices));
-        assertThat(request.indices(), arrayContaining(expectedIndices));
-    }
+    // TODO with the removal of DeleteByQuery is there another way to test resolving a write action?
 
     private static IndexMetaData.Builder indexBuilder(String index) {
-        return IndexMetaData.builder(index).settings(ImmutableSettings.settingsBuilder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0));
+        return IndexMetaData.builder(index).settings(Settings.settingsBuilder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0));
     }
 }

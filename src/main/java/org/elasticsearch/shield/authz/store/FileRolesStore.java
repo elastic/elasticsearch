@@ -6,13 +6,13 @@
 package org.elasticsearch.shield.authz.store;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.base.Charsets;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.ImmutableSet;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.jackson.dataformat.yaml.snakeyaml.error.YAMLException;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
@@ -30,11 +30,9 @@ import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
 import org.elasticsearch.watcher.ResourceWatcherService;
 
-import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.*;
 import java.util.regex.Pattern;
 
@@ -50,6 +48,7 @@ public class FileRolesStore extends AbstractLifecycleComponent<RolesStore> imple
     private final Path file;
     private final RefreshListener listener;
     private final ImmutableSet<Permission.Global.Role> reservedRoles;
+    private final ResourceWatcherService watcherService;
 
     private volatile ImmutableMap<String, Permission.Global.Role> permissions;
 
@@ -62,17 +61,20 @@ public class FileRolesStore extends AbstractLifecycleComponent<RolesStore> imple
         super(settings);
         this.file = resolveFile(settings, env);
         this.listener = listener;
+        this.watcherService = watcherService;
         this.reservedRoles = ImmutableSet.copyOf(reservedRoles);
         permissions = ImmutableMap.of();
-
-
-        FileWatcher watcher = new FileWatcher(file.getParent().toFile());
-        watcher.addListener(new FileListener());
-        watcherService.add(watcher, ResourceWatcherService.Frequency.HIGH);
     }
 
     @Override
     protected void doStart() throws ElasticsearchException {
+        FileWatcher watcher = new FileWatcher(file.getParent());
+        watcher.addListener(new FileListener());
+        try {
+            watcherService.add(watcher, ResourceWatcherService.Frequency.HIGH);
+        } catch (IOException e) {
+            throw new ElasticsearchException("failed to setup roles file watcher", e);
+        }
         permissions = parseFile(file, reservedRoles, logger);
     }
 
@@ -95,7 +97,7 @@ public class FileRolesStore extends AbstractLifecycleComponent<RolesStore> imple
             return ShieldPlugin.resolveConfigFile(env, "roles.yml");
         }
 
-        return Paths.get(location);
+        return env.homeFile().resolve(location);
     }
 
     public static ImmutableMap<String, Permission.Global.Role> parseFile(Path path, ESLogger logger) {
@@ -192,7 +194,7 @@ public class FileRolesStore extends AbstractLifecycleComponent<RolesStore> imple
                                 if (name != null) {
                                     try {
                                         permission.set(Privilege.Cluster.get(name));
-                                    } catch (ElasticsearchIllegalArgumentException e) {
+                                    } catch (IllegalArgumentException e) {
                                         logger.error("invalid role definition [{}] in roles file [{}]. could not resolve cluster privileges [{}]. skipping role...", roleName, path.toAbsolutePath(), name);
                                         return null;
                                     }
@@ -233,7 +235,7 @@ public class FileRolesStore extends AbstractLifecycleComponent<RolesStore> imple
                                             if (name != null) {
                                                 try {
                                                     permission.add(Privilege.Index.get(name), indices);
-                                                } catch (ElasticsearchIllegalArgumentException e) {
+                                                } catch (IllegalArgumentException e) {
                                                     logger.error("invalid role definition [{}] in roles file [{}]. could not resolve indices privileges [{}]. skipping role...", roleName, path.toAbsolutePath(), name);
                                                     return null;
                                                 }
@@ -289,23 +291,23 @@ public class FileRolesStore extends AbstractLifecycleComponent<RolesStore> imple
     private class FileListener extends FileChangesListener {
 
         @Override
-        public void onFileCreated(File file) {
+        public void onFileCreated(Path file) {
             onFileChanged(file);
         }
 
         @Override
-        public void onFileDeleted(File file) {
+        public void onFileDeleted(Path file) {
             onFileChanged(file);
         }
 
         @Override
-        public void onFileChanged(File file) {
-            if (file.equals(FileRolesStore.this.file.toFile())) {
+        public void onFileChanged(Path file) {
+            if (file.equals(FileRolesStore.this.file)) {
                 try {
-                    permissions = parseFile(file.toPath(), reservedRoles, logger);
-                    logger.info("updated roles (roles file [{}] changed)", file.getAbsolutePath());
+                    permissions = parseFile(file, reservedRoles, logger);
+                    logger.info("updated roles (roles file [{}] changed)", file.toAbsolutePath());
                 } catch (Throwable t) {
-                    logger.error("could not reload roles file [{}]. Current roles remain unmodified", t, file.getAbsolutePath());
+                    logger.error("could not reload roles file [{}]. Current roles remain unmodified", t, file.toAbsolutePath());
                     return;
                 }
                 listener.onRefresh();

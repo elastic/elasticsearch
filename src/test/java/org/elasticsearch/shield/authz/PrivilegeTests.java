@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.shield.authz;
 
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.get.GetAction;
 import org.elasticsearch.action.get.MultiGetAction;
 import org.elasticsearch.action.search.MultiSearchAction;
@@ -98,7 +97,7 @@ public class PrivilegeTests extends ElasticsearchTestCase {
 
     @Test
     public void testCluster_InvalidName() throws Exception {
-        thrown.expect(ElasticsearchIllegalArgumentException.class);
+        thrown.expect(IllegalArgumentException.class);
         Privilege.Name actionName = new Privilege.Name("foobar");
         Privilege.Cluster.get(actionName);
     }
@@ -239,6 +238,8 @@ public class PrivilegeTests extends ElasticsearchTestCase {
         assertThat(predicate.apply("whatever"), is(false));
         assertThat(predicate.apply("cluster:admin/reroute"), is(true));
         assertThat(predicate.apply("cluster:admin/whatever"), is(false));
+        assertThat(predicate.apply("indices:admin/mapping/put"), is(true));
+        assertThat(predicate.apply("indices:admin/mapping/whatever"), is(false));
     }
 
     @Test

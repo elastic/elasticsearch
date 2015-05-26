@@ -24,7 +24,7 @@ import org.mockito.ArgumentCaptor;
 import java.net.InetAddress;
 import java.util.Locale;
 
-import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.*;
 

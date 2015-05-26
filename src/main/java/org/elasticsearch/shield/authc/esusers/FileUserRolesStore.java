@@ -22,7 +22,6 @@ import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
 import org.elasticsearch.watcher.ResourceWatcherService;
 
-import java.io.File;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.nio.file.Files;
@@ -55,9 +54,14 @@ public class FileUserRolesStore {
         logger = config.logger(FileUserRolesStore.class);
         file = resolveFile(config.settings(), config.env());
         userRoles = parseFileLenient(file, logger);
-        FileWatcher watcher = new FileWatcher(file.getParent().toFile());
+        FileWatcher watcher = new FileWatcher(file.getParent());
         watcher.addListener(new FileListener());
-        watcherService.add(watcher, ResourceWatcherService.Frequency.HIGH);
+        try {
+            watcherService.add(watcher, ResourceWatcherService.Frequency.HIGH);
+        } catch (IOException e) {
+            throw new ElasticsearchException("failed to start watching the user roles file [" + file.toAbsolutePath() + "]", e);
+        }
+
         listeners = new CopyOnWriteArrayList<>();
         if (listener != null) {
             listeners.add(listener);
@@ -85,7 +89,7 @@ public class FileUserRolesStore {
         if (location == null) {
             return ShieldPlugin.resolveConfigFile(env, "users_roles");
         }
-        return Paths.get(location);
+        return env.homeFile().resolve(location);
     }
 
     /**
@@ -210,20 +214,20 @@ public class FileUserRolesStore {
 
     private class FileListener extends FileChangesListener {
         @Override
-        public void onFileCreated(File file) {
+        public void onFileCreated(Path file) {
             onFileChanged(file);
         }
 
         @Override
-        public void onFileDeleted(File file) {
+        public void onFileDeleted(Path file) {
             onFileChanged(file);
         }
 
         @Override
-        public void onFileChanged(File file) {
-            if (file.equals(FileUserRolesStore.this.file.toFile())) {
-                logger.info("users_roles file [{}] changed. updating users roles...", file.getAbsolutePath());
-                userRoles = parseFileLenient(file.toPath(), logger);
+        public void onFileChanged(Path file) {
+            if (file.equals(FileUserRolesStore.this.file)) {
+                logger.info("users_roles file [{}] changed. updating users roles...", file.toAbsolutePath());
+                userRoles = parseFileLenient(file, logger);
                 notifyRefresh();
             }
         }

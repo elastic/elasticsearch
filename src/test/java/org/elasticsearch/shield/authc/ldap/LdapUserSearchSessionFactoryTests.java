@@ -6,10 +6,11 @@
 package org.elasticsearch.shield.authc.ldap;
 
 import com.unboundid.ldap.sdk.*;
+
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.shield.ShieldSettingsException;
 import org.elasticsearch.shield.authc.RealmConfig;
 import org.elasticsearch.shield.authc.activedirectory.ActiveDirectorySessionFactoryTests;
@@ -19,34 +20,38 @@ import org.elasticsearch.shield.authc.ldap.support.LdapTest;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.SecuredStringTests;
 import org.elasticsearch.shield.ssl.ClientSSLService;
+import org.elasticsearch.test.junit.annotations.Network;
 import org.junit.Before;
 import org.junit.Test;
 
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.text.MessageFormat;
 import java.util.List;
+import java.util.Locale;
 
-import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.*;
 
 public class LdapUserSearchSessionFactoryTests extends LdapTest {
 
     private ClientSSLService clientSSLService;
+    private Settings globalSettings;
 
     @Before
     public void initializeSslSocketFactory() throws Exception {
-        Path keystore = Paths.get(getResource("support/ldaptrust.jks").toURI()).toAbsolutePath();
-
+        Path keystore = getDataPath("support/ldaptrust.jks");
+        Environment env = new Environment(settingsBuilder().put("path.home", createTempDir()).build());
         /*
          * Prior to each test we reinitialize the socket factory with a new SSLService so that we get a new SSLContext.
          * If we re-use a SSLContext, previously connected sessions can get re-established which breaks hostname
          * verification tests since a re-established connection does not perform hostname verification.
          */
-        clientSSLService = new ClientSSLService(ImmutableSettings.builder()
+        clientSSLService = new ClientSSLService(settingsBuilder()
                 .put("shield.ssl.keystore.path", keystore)
                 .put("shield.ssl.keystore.password", "changeit")
-                .build());
+                .build(), env);
+
+        globalSettings = settingsBuilder().put("path.home", createTempDir()).build();
     }
 
     @Test
@@ -60,7 +65,7 @@ public class LdapUserSearchSessionFactoryTests extends LdapTest {
                 .put("bind_dn", "cn=Horatio Hornblower,ou=people,o=sevenSeas")
                 .put("bind_password", "pass")
                 .put("user_search.attribute", "cn")
-                .build());
+                .build(), globalSettings);
 
         LdapUserSearchSessionFactory sessionFactory = new LdapUserSearchSessionFactory(config, null);
 
@@ -87,7 +92,7 @@ public class LdapUserSearchSessionFactoryTests extends LdapTest {
                 .put("bind_password", "pass")
                 .put("user_search.scope", LdapSearchScope.BASE)
                 .put("user_search.attribute", "cn")
-                .build());
+                .build(), globalSettings);
 
         LdapUserSearchSessionFactory sessionFactory = new LdapUserSearchSessionFactory(config, null);
 
@@ -115,7 +120,7 @@ public class LdapUserSearchSessionFactoryTests extends LdapTest {
                 .put("bind_password", "pass")
                 .put("user_search.scope", LdapSearchScope.BASE)
                 .put("user_search.attribute", "cn")
-                .build());
+                .build(), globalSettings);
 
         LdapUserSearchSessionFactory sessionFactory = new LdapUserSearchSessionFactory(config, null);
 
@@ -142,7 +147,7 @@ public class LdapUserSearchSessionFactoryTests extends LdapTest {
                 .put("bind_password", "pass")
                 .put("user_search.scope", LdapSearchScope.ONE_LEVEL)
                 .put("user_search.attribute", "cn")
-                .build());
+                .build(), globalSettings);
 
         LdapUserSearchSessionFactory sessionFactory = new LdapUserSearchSessionFactory(config, null);
 
@@ -170,7 +175,7 @@ public class LdapUserSearchSessionFactoryTests extends LdapTest {
                 .put("bind_password", "pass")
                 .put("user_search.scope", LdapSearchScope.ONE_LEVEL)
                 .put("user_search.attribute", "cn")
-                .build());
+                .build(), globalSettings);
 
         LdapUserSearchSessionFactory sessionFactory = new LdapUserSearchSessionFactory(config, null);
 
@@ -196,7 +201,7 @@ public class LdapUserSearchSessionFactoryTests extends LdapTest {
                 .put("bind_dn", "cn=Horatio Hornblower,ou=people,o=sevenSeas")
                 .put("bind_password", "pass")
                 .put("user_search.attribute", "uid1")
-                .build());
+                .build(), globalSettings);
 
         LdapUserSearchSessionFactory sessionFactory = new LdapUserSearchSessionFactory(config, null);
 
@@ -222,7 +227,7 @@ public class LdapUserSearchSessionFactoryTests extends LdapTest {
                 .put("user_search.base_dn", userSearchBase)
                 .put("bind_dn", "cn=Horatio Hornblower,ou=people,o=sevenSeas")
                 .put("bind_password", "pass")
-                .build());
+                .build(), globalSettings);
 
         LdapUserSearchSessionFactory sessionFactory = new LdapUserSearchSessionFactory(config, null);
 
@@ -237,7 +242,7 @@ public class LdapUserSearchSessionFactoryTests extends LdapTest {
         }
     }
 
-    @Test
+    @Test @Network
     public void testUserSearchWithActiveDirectory() {
         String groupSearchBase = "DC=ad,DC=test,DC=elasticsearch,DC=com";
         String userSearchBase = "CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com";
@@ -248,7 +253,7 @@ public class LdapUserSearchSessionFactoryTests extends LdapTest {
                 .put("bind_password", ActiveDirectorySessionFactoryTests.PASSWORD)
                 .put("user_search.attribute", "cn")
                 .build();
-        RealmConfig config = new RealmConfig("ad-as-ldap-test", settings);
+        RealmConfig config = new RealmConfig("ad-as-ldap-test", settings, globalSettings);
         LdapUserSearchSessionFactory sessionFactory = new LdapUserSearchSessionFactory(config, clientSSLService);
 
         String user = "Bruce Banner";
@@ -265,7 +270,7 @@ public class LdapUserSearchSessionFactoryTests extends LdapTest {
         }
     }
 
-    @Test
+    @Test @Network
     public void testUserSearchwithBindUserOpenLDAP() {
         String groupSearchBase = "ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
         String userSearchBase = "ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
@@ -274,14 +279,14 @@ public class LdapUserSearchSessionFactoryTests extends LdapTest {
                 .put("user_search.base_dn", userSearchBase)
                 .put("bind_dn", "uid=blackwidow,ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com")
                 .put("bind_password", OpenLdapTests.PASSWORD)
-                .build());
+                .build(), globalSettings);
         LdapUserSearchSessionFactory sessionFactory = new LdapUserSearchSessionFactory(config, clientSSLService);
 
         String[] users = new String[] { "cap", "hawkeye", "hulk", "ironman", "thor" };
         try {
             for (String user : users) {
                 LdapSession ldap = sessionFactory.session(user, SecuredStringTests.build(OpenLdapTests.PASSWORD));
-                assertThat(ldap.userDn(), is(equalTo(MessageFormat.format("uid={0},ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com", user))));
+                assertThat(ldap.userDn(), is(equalTo(new MessageFormat("uid={0},ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com", Locale.ROOT).format(new Object[] { user }, new StringBuffer(), null).toString())));
                 assertThat(ldap.groups(), hasItem(containsString("Avengers")));
                 ldap.close();
             }
@@ -299,7 +304,7 @@ public class LdapUserSearchSessionFactoryTests extends LdapTest {
                 .put("user_search.base_dn", userSearchBase)
                 .put("bind_dn", "cn=Horatio Hornblower,ou=people,o=sevenSeas")
                 .put("bind_password", "pass")
-                .build());
+                .build(), globalSettings);
 
         LDAPConnectionPool connectionPool = LdapUserSearchSessionFactory.connectionPool(config.settings(), new SingleServerSet("localhost", ldapServer.getListenPort()), TimeValue.timeValueSeconds(5));
         try {
@@ -326,7 +331,7 @@ public class LdapUserSearchSessionFactoryTests extends LdapTest {
                 .put("user_search.pool.initial_size", 10)
                 .put("user_search.pool.size", 12)
                 .put("user_search.pool.health_check.enabled", false)
-                .build());
+                .build(), globalSettings);
 
         LDAPConnectionPool connectionPool = LdapUserSearchSessionFactory.connectionPool(config.settings(), new SingleServerSet("localhost", ldapServer.getListenPort()), TimeValue.timeValueSeconds(5));
         try {
@@ -347,7 +352,7 @@ public class LdapUserSearchSessionFactoryTests extends LdapTest {
                 .put(buildLdapSettings(ldapUrl(), Strings.EMPTY_ARRAY, groupSearchBase, LdapSearchScope.SUB_TREE))
                 .put("user_search.base_dn", userSearchBase)
                 .put("bind_password", "pass")
-                .build());
+                .build(), globalSettings);
 
         try {
             new LdapUserSearchSessionFactory(config, null);

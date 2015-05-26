@@ -11,7 +11,6 @@ import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.netty.channel.*;
 import org.elasticsearch.common.netty.handler.ssl.SslHandler;
 import org.elasticsearch.common.network.NetworkService;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.shield.ShieldSettingsFilter;
@@ -20,7 +19,6 @@ import org.elasticsearch.shield.ssl.ServerSSLService;
 import org.elasticsearch.shield.transport.filter.IPFilter;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.netty.NettyTransport;
-import org.elasticsearch.transport.netty.ShieldMessageChannelHandler;
 
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLParameters;
@@ -98,8 +96,6 @@ public class ShieldNettyTransport extends NettyTransport {
             if (authenticator != null) {
                 pipeline.addFirst("ipfilter", new IPFilterNettyUpstreamHandler(authenticator, name));
             }
-            boolean extractClientCert = profileSsl && needClientAuth;
-            pipeline.replace("dispatcher", "dispatcher", new ShieldMessageChannelHandler(ShieldNettyTransport.this, logger, name, extractClientCert));
             return pipeline;
         }
     }
@@ -130,7 +126,7 @@ public class ShieldNettyTransport extends NettyTransport {
                 SSLEngine sslEngine;
                 if (settings.getAsBoolean(HOSTNAME_VERIFICATION_SETTING, true)) {
                     InetSocketAddress inetSocketAddress = (InetSocketAddress) e.getValue();
-                    sslEngine = clientSSLService.createSSLEngine(ImmutableSettings.EMPTY, getHostname(inetSocketAddress), inetSocketAddress.getPort());
+                    sslEngine = clientSSLService.createSSLEngine(Settings.EMPTY, getHostname(inetSocketAddress), inetSocketAddress.getPort());
 
                     // By default, a SSLEngine will not perform hostname verification. In order to perform hostname verification
                     // we need to specify a EndpointIdentificationAlgorithm. We use the HTTPS algorithm to prevent against

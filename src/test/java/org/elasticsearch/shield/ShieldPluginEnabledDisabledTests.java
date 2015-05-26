@@ -7,11 +7,10 @@ package org.elasticsearch.shield;
 
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.integration.LicensingTests;
-import org.elasticsearch.node.internal.InternalNode;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
@@ -59,16 +58,16 @@ public class ShieldPluginEnabledDisabledTests extends ShieldIntegrationTest {
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         logger.info("******* shield is " + (enabled ? "enabled" : "disabled"));
-        return ImmutableSettings.settingsBuilder()
+        return Settings.settingsBuilder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put(ShieldPlugin.ENABLED_SETTING_NAME, enabled)
-                .put(InternalNode.HTTP_ENABLED, true)
+                .put(Node.HTTP_ENABLED, true)
                 .build();
     }
 
     @Override
     protected Settings transportClientSettings() {
-        return ImmutableSettings.settingsBuilder()
+        return Settings.settingsBuilder()
                 .put(super.transportClientSettings())
                 .put(ShieldPlugin.ENABLED_SETTING_NAME, enabled)
                 .build();

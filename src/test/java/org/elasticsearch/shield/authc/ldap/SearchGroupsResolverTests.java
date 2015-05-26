@@ -9,9 +9,9 @@ import com.unboundid.ldap.sdk.LDAPConnection;
 import com.unboundid.ldap.sdk.LDAPConnectionOptions;
 import com.unboundid.ldap.sdk.LDAPURL;
 import org.elasticsearch.common.primitives.Ints;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.shield.ShieldSettingsException;
 import org.elasticsearch.shield.authc.ldap.support.SessionFactory;
 import org.elasticsearch.shield.authc.ldap.support.LdapSearchScope;
@@ -24,7 +24,6 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.List;
 
 import static org.hamcrest.Matchers.*;
@@ -39,11 +38,12 @@ public class SearchGroupsResolverTests extends ElasticsearchTestCase {
     @Before
     public void setup() throws Exception {
         super.setUp();
-        Path keystore = Paths.get(SearchGroupsResolverTests.class.getResource("../ldap/support/ldaptrust.jks").toURI()).toAbsolutePath();
-        ClientSSLService clientSSLService = new ClientSSLService(ImmutableSettings.builder()
+        Path keystore = getDataPath("../ldap/support/ldaptrust.jks");
+        Environment env = new Environment(Settings.builder().put("path.home", createTempDir()).build());
+        ClientSSLService clientSSLService = new ClientSSLService(Settings.builder()
                 .put("shield.ssl.keystore.path", keystore)
                 .put("shield.ssl.keystore.password", "changeit")
-                .build());
+                .build(), env);
 
         LDAPURL ldapurl = new LDAPURL(OpenLdapTests.OPEN_LDAP_URL);
         LDAPConnectionOptions options = new LDAPConnectionOptions();
@@ -63,7 +63,7 @@ public class SearchGroupsResolverTests extends ElasticsearchTestCase {
 
     @Test
     public void testResolveSubTree() throws Exception {
-        Settings settings = ImmutableSettings.builder()
+        Settings settings = Settings.builder()
                 .put("base_dn", "dc=oldap,dc=test,dc=elasticsearch,dc=com")
                 .build();
 
@@ -78,7 +78,7 @@ public class SearchGroupsResolverTests extends ElasticsearchTestCase {
 
     @Test
     public void testResolveOneLevel() throws Exception {
-        Settings settings = ImmutableSettings.builder()
+        Settings settings = Settings.builder()
                 .put("base_dn", "ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com")
                 .put("scope", LdapSearchScope.ONE_LEVEL)
                 .build();
@@ -94,7 +94,7 @@ public class SearchGroupsResolverTests extends ElasticsearchTestCase {
 
     @Test
     public void testResolveBase() throws Exception {
-        Settings settings = ImmutableSettings.builder()
+        Settings settings = Settings.builder()
                 .put("base_dn", "cn=Avengers,ou=People,dc=oldap,dc=test,dc=elasticsearch,dc=com")
                 .put("scope", LdapSearchScope.BASE)
                 .build();
@@ -106,7 +106,7 @@ public class SearchGroupsResolverTests extends ElasticsearchTestCase {
 
     @Test
     public void testResolveCustomFilter() throws Exception {
-        Settings settings = ImmutableSettings.builder()
+        Settings settings = Settings.builder()
                 .put("base_dn", "dc=oldap,dc=test,dc=elasticsearch,dc=com")
                 .put("filter", "(&(objectclass=posixGroup)(memberUID={0}))")
                 .put("user_attribute", "uid")
@@ -119,7 +119,7 @@ public class SearchGroupsResolverTests extends ElasticsearchTestCase {
 
     @Test
     public void testCreateWithoutSpecifyingBaseDN() throws Exception {
-        Settings settings = ImmutableSettings.builder()
+        Settings settings = Settings.builder()
                 .put("scope", LdapSearchScope.SUB_TREE)
                 .build();
 
@@ -133,7 +133,7 @@ public class SearchGroupsResolverTests extends ElasticsearchTestCase {
 
     @Test
     public void testReadUserAttributeUid() throws Exception {
-        Settings settings = ImmutableSettings.builder()
+        Settings settings = Settings.builder()
                 .put("base_dn", "dc=oldap,dc=test,dc=elasticsearch,dc=com")
                 .put("user_attribute", "uid").build();
         SearchGroupsResolver resolver = new SearchGroupsResolver(settings);
@@ -142,7 +142,7 @@ public class SearchGroupsResolverTests extends ElasticsearchTestCase {
 
     @Test
     public void testReadUserAttributeCn() throws Exception {
-        Settings settings = ImmutableSettings.builder()
+        Settings settings = Settings.builder()
                 .put("base_dn", "dc=oldap,dc=test,dc=elasticsearch,dc=com")
                 .put("user_attribute", "cn")
                 .build();
@@ -152,7 +152,7 @@ public class SearchGroupsResolverTests extends ElasticsearchTestCase {
 
     @Test
     public void testReadNonExistentUserAttribute() throws Exception {
-        Settings settings = ImmutableSettings.builder()
+        Settings settings = Settings.builder()
                 .put("base_dn", "dc=oldap,dc=test,dc=elasticsearch,dc=com")
                 .put("user_attribute", "doesntExists")
                 .build();
@@ -167,7 +167,7 @@ public class SearchGroupsResolverTests extends ElasticsearchTestCase {
 
     @Test
     public void testReadBinaryUserAttribute() throws Exception {
-        Settings settings = ImmutableSettings.builder()
+        Settings settings = Settings.builder()
                 .put("base_dn", "dc=oldap,dc=test,dc=elasticsearch,dc=com")
                 .put("user_attribute", "userPassword")
                 .build();

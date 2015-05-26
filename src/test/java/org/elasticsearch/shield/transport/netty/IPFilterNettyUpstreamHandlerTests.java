@@ -24,7 +24,7 @@ import org.junit.Test;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 
-import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;

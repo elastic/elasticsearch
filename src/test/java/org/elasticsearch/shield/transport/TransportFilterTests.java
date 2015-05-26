@@ -9,28 +9,37 @@ import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.AbstractPlugin;
+import org.elasticsearch.shield.action.ShieldActionMapper;
+import org.elasticsearch.shield.authc.AuthenticationService;
+import org.elasticsearch.shield.authz.AuthorizationService;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
+import org.elasticsearch.transport.netty.NettyTransport;
+import org.elasticsearch.transport.netty.NettyTransportChannel;
 import org.junit.Test;
 import org.mockito.InOrder;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope.SUITE;
 import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.Matchers.isA;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.eq;
 
 /**
  *
@@ -40,10 +49,11 @@ public class TransportFilterTests extends ElasticsearchIntegrationTest {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return ImmutableSettings.settingsBuilder()
+        return Settings.settingsBuilder()
                 .put("plugins.load_classpath_plugins", false)
                 .put("plugin.types", InternalPlugin.class.getName())
-                .put(TransportModule.TRANSPORT_SERVICE_TYPE_KEY, ShieldServerTransportService.class.getName())
+                .put("node.mode", "network")
+                .put(TransportModule.TRANSPORT_SERVICE_TYPE_KEY, InternalPluginServerTransportService.class.getName())
                 .build();
     }
 
@@ -58,24 +68,26 @@ public class TransportFilterTests extends ElasticsearchIntegrationTest {
         TransportService targetService = internalCluster().getInstance(TransportService.class, target);
 
         CountDownLatch latch = new CountDownLatch(2);
-        targetService.registerHandler("_action", new RequestHandler(new Response("trgt_to_src"), latch));
+        targetService.registerRequestHandler("_action", Request.class, ThreadPool.Names.SAME, new RequestHandler(new Response("trgt_to_src"), latch));
         sourceService.sendRequest(targetNode, "_action", new Request("src_to_trgt"), new ResponseHandler(new Response("trgt_to_src"), latch));
         await(latch);
 
         latch = new CountDownLatch(2);
-        sourceService.registerHandler("_action", new RequestHandler(new Response("src_to_trgt"), latch));
+        sourceService.registerRequestHandler("_action", Request.class, ThreadPool.Names.SAME, new RequestHandler(new Response("src_to_trgt"), latch));
         targetService.sendRequest(sourceNode, "_action", new Request("trgt_to_src"), new ResponseHandler(new Response("src_to_trgt"), latch));
         await(latch);
 
-        ServerTransportFilter.NodeProfile sourceServerFilter = internalCluster().getInstance(ServerTransportFilter.NodeProfile.class, source);
+        ServerTransportFilter sourceServerFilter = ((InternalPluginServerTransportService)sourceService).transportFilter(NettyTransport.DEFAULT_PROFILE);
+        ServerTransportFilter targetServerFilter = ((InternalPluginServerTransportService)targetService).transportFilter(NettyTransport.DEFAULT_PROFILE);
+
         ClientTransportFilter sourceClientFilter = internalCluster().getInstance(ClientTransportFilter.class, source);
-        ServerTransportFilter.NodeProfile targetServerFilter = internalCluster().getInstance(ServerTransportFilter.NodeProfile.class, target);
         ClientTransportFilter targetClientFilter = internalCluster().getInstance(ClientTransportFilter.class, target);
+
         InOrder inOrder = inOrder(sourceServerFilter, sourceClientFilter, targetServerFilter, targetClientFilter);
         inOrder.verify(sourceClientFilter).outbound("_action", new Request("src_to_trgt"));
-        inOrder.verify(targetServerFilter).inbound("_action", new Request("src_to_trgt"));
+        inOrder.verify(targetServerFilter).inbound(eq("_action"), eq(new Request("src_to_trgt")), isA(NettyTransportChannel.class));
         inOrder.verify(targetClientFilter).outbound("_action", new Request("trgt_to_src"));
-        inOrder.verify(sourceServerFilter).inbound("_action", new Request("trgt_to_src"));
+        inOrder.verify(sourceServerFilter).inbound(eq("_action"), eq(new Request("trgt_to_src")), isA(NettyTransportChannel.class));
     }
 
     public static class InternalPlugin extends AbstractPlugin {
@@ -100,8 +112,8 @@ public class TransportFilterTests extends ElasticsearchIntegrationTest {
         @Override
         protected void configure() {
             bind(ClientTransportFilter.class).toInstance(mock(ClientTransportFilter.class));
-            bind(ServerTransportFilter.NodeProfile.class).toInstance(mock(ServerTransportFilter.NodeProfile.class));
-            bind(ServerTransportFilter.ClientProfile.class).toInstance(mock(ServerTransportFilter.ClientProfile.class));
+            bind(AuthenticationService.class).toInstance(mock(AuthenticationService.class));
+            bind(AuthorizationService.class).toInstance(mock(AuthorizationService.class));
         }
     }
 
@@ -208,24 +220,9 @@ public class TransportFilterTests extends ElasticsearchIntegrationTest {
         }
 
         @Override
-        public Request newInstance() {
-            return new Request();
-        }
-
-        @Override
         public void messageReceived(Request request, TransportChannel channel) throws Exception {
             channel.sendResponse(response);
             latch.countDown();
-        }
-
-        @Override
-        public String executor() {
-            return ThreadPool.Names.SAME;
-        }
-
-        @Override
-        public boolean isForceExecution() {
-            return false;
         }
     }
 
@@ -265,6 +262,19 @@ public class TransportFilterTests extends ElasticsearchIntegrationTest {
     static void await(CountDownLatch latch) throws Exception {
         if (!latch.await(5, TimeUnit.SECONDS)) {
             fail("waiting too long for request");
+        }
+    }
+
+    // Sub class the Shield transport to always inject a mock for testing
+    static class InternalPluginServerTransportService extends ShieldServerTransportService {
+
+        @Inject
+        InternalPluginServerTransportService(Settings settings, Transport transport, ThreadPool threadPool, AuthenticationService authcService, AuthorizationService authzService, ShieldActionMapper actionMapper, ClientTransportFilter clientTransportFilter) {
+            super(settings, transport, threadPool, authcService, authzService, actionMapper, clientTransportFilter);
+        }
+
+        protected Map<String, ServerTransportFilter> initializeProfileFilters() {
+            return Collections.<String, ServerTransportFilter>singletonMap(NettyTransport.DEFAULT_PROFILE, mock(ServerTransportFilter.NodeProfile.class));
         }
     }
 }

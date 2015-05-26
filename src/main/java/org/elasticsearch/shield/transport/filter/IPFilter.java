@@ -13,7 +13,7 @@ import org.elasticsearch.common.collect.ObjectArrays;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleListener;
-import org.elasticsearch.common.hppc.ObjectObjectOpenHashMap;
+import org.elasticsearch.common.hppc.ObjectObjectHashMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.settings.Settings;
@@ -25,7 +25,6 @@ import org.elasticsearch.transport.Transport;
 
 import java.net.InetAddress;
 import java.util.*;
-import java.util.concurrent.CopyOnWriteArrayList;
 
 public class IPFilter extends AbstractLifecycleComponent<IPFilter> {
 
@@ -200,8 +199,8 @@ public class IPFilter extends AbstractLifecycleComponent<IPFilter> {
         String[] denied;
         String[] httpAllowed;
         String[] httpDenied;
-        ObjectObjectOpenHashMap<String, String[]> profileAllowed;
-        ObjectObjectOpenHashMap<String, String[]> profileDenied;
+        ObjectObjectHashMap<String, String[]> profileAllowed;
+        ObjectObjectHashMap<String, String[]> profileDenied;
         private boolean enabled;
         private boolean httpEnabled;
 
@@ -251,8 +250,8 @@ public class IPFilter extends AbstractLifecycleComponent<IPFilter> {
             }
 
             // profile checks now
-            ObjectObjectOpenHashMap<Object, Object> newProfileAllowed = HppcMaps.newNoNullKeysMap(settings.getGroups("transport.profiles.").size());
-            ObjectObjectOpenHashMap<Object, Object> newProfileDenied = HppcMaps.newNoNullKeysMap(settings.getGroups("transport.profiles.").size());
+            ObjectObjectHashMap<Object, Object> newProfileAllowed = HppcMaps.newNoNullKeysMap(settings.getGroups("transport.profiles.").size());
+            ObjectObjectHashMap<Object, Object> newProfileDenied = HppcMaps.newNoNullKeysMap(settings.getGroups("transport.profiles.").size());
             for (Map.Entry<String, Settings> entry : settings.getGroups("transport.profiles.").entrySet()) {
                 newProfileAllowed.put(entry.getKey(), entry.getValue().getAsArray("shield.filter.allow"));
                 newProfileDenied.put(entry.getKey(), entry.getValue().getAsArray("shield.filter.deny"));

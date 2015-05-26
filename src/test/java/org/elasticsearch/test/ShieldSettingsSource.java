@@ -7,7 +7,7 @@ package org.elasticsearch.test;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.client.support.Headers;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.plugin.LicensePlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -21,11 +21,12 @@ import org.elasticsearch.shield.transport.netty.ShieldNettyHttpServerTransport;
 import org.elasticsearch.shield.transport.netty.ShieldNettyTransport;
 import org.elasticsearch.test.discovery.ClusterDiscoveryConfiguration;
 
-import java.io.File;
 import java.net.URISyntaxException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomBoolean;
-import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.elasticsearch.shield.test.ShieldTestUtils.writeFile;
 
@@ -37,7 +38,7 @@ import static org.elasticsearch.shield.test.ShieldTestUtils.writeFile;
  */
 public class ShieldSettingsSource extends ClusterDiscoveryConfiguration.UnicastZen {
 
-    public static final Settings DEFAULT_SETTINGS = ImmutableSettings.builder()
+    public static final Settings DEFAULT_SETTINGS = settingsBuilder()
             .put("node.mode", "network")
             .put("plugins.load_classpath_plugins", false)
             .build();
@@ -67,7 +68,7 @@ public class ShieldSettingsSource extends ClusterDiscoveryConfiguration.UnicastZ
                     "    - cluster:monitor/nodes/info\n" +
                     "    - cluster:monitor/state";
 
-    private final File parentFolder;
+    private final Path parentFolder;
     private final String subfolderPrefix;
     private final byte[] systemKey;
     private final boolean sslTransportEnabled;
@@ -82,7 +83,7 @@ public class ShieldSettingsSource extends ClusterDiscoveryConfiguration.UnicastZ
      * @param parentFolder the parent folder that will contain all of the configuration files that need to be created
      * @param scope the scope of the test that is requiring an instance of ShieldSettingsSource
      */
-    public ShieldSettingsSource(int numOfNodes, boolean sslTransportEnabled, File parentFolder, ElasticsearchIntegrationTest.Scope scope) {
+    public ShieldSettingsSource(int numOfNodes, boolean sslTransportEnabled, Path parentFolder, ElasticsearchIntegrationTest.Scope scope) {
         this(numOfNodes, sslTransportEnabled, generateKey(), parentFolder, scope);
     }
 
@@ -95,7 +96,7 @@ public class ShieldSettingsSource extends ClusterDiscoveryConfiguration.UnicastZ
      * @param parentFolder the parent folder that will contain all of the configuration files that need to be created
      * @param scope the scope of the test that is requiring an instance of ShieldSettingsSource
      */
-    public ShieldSettingsSource(int numOfNodes, boolean sslTransportEnabled, byte[] systemKey, File parentFolder, ElasticsearchIntegrationTest.Scope scope) {
+    public ShieldSettingsSource(int numOfNodes, boolean sslTransportEnabled, byte[] systemKey, Path parentFolder, ElasticsearchIntegrationTest.Scope scope) {
         super(numOfNodes, DEFAULT_SETTINGS);
         this.systemKey = systemKey;
         this.parentFolder = parentFolder;
@@ -107,8 +108,8 @@ public class ShieldSettingsSource extends ClusterDiscoveryConfiguration.UnicastZ
 
     @Override
     public Settings node(int nodeOrdinal) {
-        File folder = ShieldTestUtils.createFolder(parentFolder, subfolderPrefix + "-" + nodeOrdinal);
-        ImmutableSettings.Builder builder = ImmutableSettings.builder().put(super.node(nodeOrdinal))
+        Path folder = ShieldTestUtils.createFolder(parentFolder, subfolderPrefix + "-" + nodeOrdinal);
+        Settings.Builder builder = settingsBuilder().put(super.node(nodeOrdinal))
                 .put("plugin.types", ShieldPlugin.class.getName() + "," + licensePluginClass().getName())
                 .put("shield.audit.enabled", randomBoolean())
                 .put(InternalCryptoService.FILE_SETTING, writeFile(folder, "system_key", systemKey))
@@ -126,7 +127,7 @@ public class ShieldSettingsSource extends ClusterDiscoveryConfiguration.UnicastZ
 
     @Override
     public Settings transportClient() {
-        ImmutableSettings.Builder builder = ImmutableSettings.builder().put(super.transportClient())
+        Settings.Builder builder = settingsBuilder().put(super.transportClient())
                 .put("plugin.types", ShieldPlugin.class.getName())
                 .put(getClientSSLSettings());
         setUser(builder, transportClientUsername(), transportClientPassword());
@@ -170,7 +171,11 @@ public class ShieldSettingsSource extends ClusterDiscoveryConfiguration.UnicastZ
         return LicensePlugin.NAME;
     }
 
-    private void setUser(ImmutableSettings.Builder builder, String username, SecuredString password) {
+    protected byte[] systemKey() {
+        return systemKey;
+    }
+
+    private void setUser(Settings.Builder builder, String username, SecuredString password) {
         if (randomBoolean()) {
             builder.put(Headers.PREFIX + "." + UsernamePasswordToken.BASIC_AUTH_HEADER, basicAuthHeaderValue(username, password));
         } else {
@@ -206,30 +211,30 @@ public class ShieldSettingsSource extends ClusterDiscoveryConfiguration.UnicastZ
     }
 
     private static Settings getSSLSettingsForStore(String resourcePathToStore, String password, boolean sslTransportEnabled, boolean hostnameVerificationEnabled, boolean hostnameVerificationResolveNameEnabled) {
-        File store;
+        Path store;
         try {
-            store = new File(ShieldSettingsSource.class.getResource(resourcePathToStore).toURI());
+            store = PathUtils.get(ShieldSettingsSource.class.getResource(resourcePathToStore).toURI());
         } catch (URISyntaxException e) {
             throw new ElasticsearchException("exception while reading the store", e);
         }
 
-        if (!store.exists()) {
+        if (Files.notExists(store)) {
             throw new ElasticsearchException("store path doesn't exist");
         }
 
-        ImmutableSettings.Builder builder = settingsBuilder()
+        Settings.Builder builder = settingsBuilder()
                 .put("shield.transport.ssl", sslTransportEnabled)
                 .put(ShieldNettyHttpServerTransport.HTTP_SSL_SETTING, false);
 
         if (sslTransportEnabled) {
-            builder.put("shield.ssl.keystore.path", store.getPath())
+            builder.put("shield.ssl.keystore.path", store)
                     .put("shield.ssl.keystore.password", password)
                     .put(ShieldNettyTransport.HOSTNAME_VERIFICATION_SETTING, hostnameVerificationEnabled)
                     .put(ShieldNettyTransport.HOSTNAME_VERIFICATION_RESOLVE_NAME_SETTING, hostnameVerificationResolveNameEnabled);
         }
 
         if (sslTransportEnabled && randomBoolean()) {
-            builder.put("shield.ssl.truststore.path", store.getPath())
+            builder.put("shield.ssl.truststore.path", store)
                     .put("shield.ssl.truststore.password", password);
         }
         return builder.build();

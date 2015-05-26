@@ -6,9 +6,11 @@
 package org.elasticsearch.transport;
 
 import com.google.common.collect.ImmutableSet;
-import com.google.common.reflect.ClassPath;
-import org.elasticsearch.ElasticsearchIllegalStateException;
+
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.action.Action;
+import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.util.Callback;
 import org.elasticsearch.shield.action.ShieldActionModule;
@@ -21,6 +23,19 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.net.URL;
+import java.nio.file.DirectoryStream;
+import java.nio.file.FileSystem;
+import java.nio.file.FileSystems;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
 
 import static org.hamcrest.CoreMatchers.hasItems;
 import static org.hamcrest.Matchers.hasItem;
@@ -42,7 +57,7 @@ public class KnownActionsTests extends ShieldIntegrationTest {
     @Test
     public void testAllTransportHandlersAreKnown() {
         TransportService transportService = internalCluster().getDataNodeInstance(TransportService.class);
-        for (String handler : transportService.serverHandlers.keySet()) {
+        for (String handler : transportService.requestHandlers.keySet()) {
             if (!knownActions.contains(handler)) {
                 assertThat("elasticsearch core transport handler [" + handler + "] is unknown to shield", knownHandlers, hasItem(handler));
             }
@@ -67,7 +82,7 @@ public class KnownActionsTests extends ShieldIntegrationTest {
     public void testAllKnownTransportHandlersAreValid() {
         TransportService transportService = internalCluster().getDataNodeInstance(TransportService.class);
         for (String knownHandler : knownHandlers) {
-            assertThat("shield known action [" + knownHandler + "] is unknown to core", transportService.serverHandlers.keySet(), hasItems(knownHandler));
+            assertThat("shield known handler [" + knownHandler + "] is unknown to core", transportService.requestHandlers.keySet(), hasItems(knownHandler));
         }
     }
 
@@ -81,7 +96,7 @@ public class KnownActionsTests extends ShieldIntegrationTest {
                 }
             });
         } catch (IOException ioe) {
-            throw new ElasticsearchIllegalStateException("could not load known actions", ioe);
+            throw new IllegalStateException("could not load known actions", ioe);
         }
         return knownActionsBuilder.build();
     }
@@ -96,44 +111,101 @@ public class KnownActionsTests extends ShieldIntegrationTest {
                 }
             });
         } catch (IOException ioe) {
-            throw new ElasticsearchIllegalStateException("could not load known handlers", ioe);
+            throw new IllegalStateException("could not load known handlers", ioe);
         }
         return knownHandlersBuilder.build();
     }
 
-    private static ImmutableSet<String> loadCodeActions() throws IOException, IllegalAccessException {
+    private static ImmutableSet<String> loadCodeActions() throws IOException, ReflectiveOperationException {
         ImmutableSet.Builder<String> actions = ImmutableSet.builder();
 
         // loading es core actions
-        ClassPath classPath = ClassPath.from(Action.class.getClassLoader());
-        loadActions(classPath, Action.class.getPackage().getName(), actions);
+        loadActions(collectSubClasses(Action.class, Action.class), actions);
 
         // loading shield actions
-        classPath = ClassPath.from(ShieldActionModule.class.getClassLoader());
-        loadActions(classPath, ShieldActionModule.class.getPackage().getName(), actions);
+        loadActions(collectSubClasses(Action.class, ShieldActionModule.class), actions);
 
         // also loading all actions from the licensing plugin
-        classPath = ClassPath.from(LicensePlugin.class.getClassLoader());
-        loadActions(classPath, LicensePlugin.class.getPackage().getName(), actions);
+        loadActions(collectSubClasses(Action.class, LicensePlugin.class), actions);
 
         return actions.build();
     }
 
-    private static void loadActions(ClassPath classPath, String packageName, ImmutableSet.Builder<String> actions) throws IOException, IllegalAccessException {
-        ImmutableSet<ClassPath.ClassInfo> infos = classPath.getTopLevelClassesRecursive(packageName);
-        for (ClassPath.ClassInfo info : infos) {
-            Class clazz = info.load();
-            if (Action.class.isAssignableFrom(clazz)) {
-                if (!Modifier.isAbstract(clazz.getModifiers())) {
-                    Field field = null;
-                    try {
-                        field = clazz.getField("INSTANCE");
-                    } catch (NoSuchFieldException nsfe) {
-                        fail("every action should have a static field called INSTANCE, missing in " + clazz.getName());
+    private static void loadActions(Collection<Class<?>> clazzes, ImmutableSet.Builder<String> actions) throws ReflectiveOperationException {
+        for (Class<?> clazz : clazzes) {
+            if (!Modifier.isAbstract(clazz.getModifiers())) {
+                Field field = null;
+                try {
+                    field = clazz.getField("INSTANCE");
+                } catch (NoSuchFieldException nsfe) {
+                    fail("every action should have a static field called INSTANCE, missing in " + clazz.getName());
+                }
+                assertThat("every action should have a static field called INSTANCE, present but not static in " + clazz.getName(),
+                        Modifier.isStatic(field.getModifiers()), is(true));
+                actions.add(((Action) field.get(null)).name());
+            }
+        }
+    }
+
+    /**
+     * finds all subclasses extending {@code subClass}, recursively from the package and codesource of {@code prototype}
+     */
+    @SuppressForbidden(reason = "proper use of URL")
+    private static Collection<Class<?>> collectSubClasses(Class<?> subClass, Class<?> prototype) throws IOException, ReflectiveOperationException {
+        URL codeLocation = prototype.getProtectionDomain().getCodeSource().getLocation();
+        final FileSystem fileSystem;
+        final Path root;
+        if (codeLocation.getFile().endsWith(".jar")) {
+            try {
+                // hack around a bug in the zipfilesystem implementation before java 9,
+                // its checkWritable was incorrect and it won't work without write permissions. 
+                // if we add the permission, it will open jars r/w, which is too scary! so copy to a safe r-w location.
+                Path tmp = Files.createTempFile(null, ".jar");
+                try (InputStream in = codeLocation.openStream()) {
+                    Files.copy(in, tmp, StandardCopyOption.REPLACE_EXISTING);
+                }
+                fileSystem = FileSystems.newFileSystem(new URI("jar:" + tmp.toUri()), Collections.<String,Object>emptyMap());
+                root = fileSystem.getPath("/");
+            } catch (URISyntaxException e) {
+                throw new IOException("couldn't open zipfilesystem: ", e);
+            }
+        } else {
+            fileSystem = null;
+            root = PathUtils.get(codeLocation.getFile());
+        }
+        ClassLoader loader = prototype.getClassLoader();
+        List<Class<?>> clazzes = new ArrayList<>();
+        try {
+            collectClassesForPackage(subClass, root, loader, prototype.getPackage().getName(), clazzes);
+        } finally {
+            IOUtils.close(fileSystem);
+        }
+        return clazzes;
+    }
+
+    private static void collectClassesForPackage(Class<?> subclass, Path root, ClassLoader cld, String pckgname, List<Class<?>> classes) throws IOException, ReflectiveOperationException {
+        String pathName = pckgname.replace('.', '/');
+        Path directory = root.resolve(pathName);
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(directory)) {
+            for (Path file : stream) {
+                if (Files.isDirectory(file)) {
+                    // recurse
+                    String subPackage = pckgname + "." + file.getFileName().toString();
+                    // remove trailing / or whatever
+                    if (subPackage.endsWith(root.getFileSystem().getSeparator())) {
+                        subPackage = subPackage.substring(0, subPackage.length() - root.getFileSystem().getSeparator().length());
                     }
-                    assertThat("every action should have a static field called INSTANCE, present but not static in " + clazz.getName(),
-                            Modifier.isStatic(field.getModifiers()), is(true));
-                    actions.add(((Action) field.get(null)).name());
+                    collectClassesForPackage(subclass, root, cld, subPackage, classes);
+                }
+                String fname = file.getFileName().toString();
+                if (fname.endsWith(".class")) {
+                    String clazzName = fname.substring(0, fname.length() - 6);
+                    Class<?> clazz = Class.forName(pckgname + '.' + clazzName, false, cld);
+                    // Don't run static initializers, as we won't use most of them.
+                    // Java will do that automatically once accessed/instantiated.
+                    if (subclass.isAssignableFrom(clazz)) {
+                        classes.add(clazz);
+                    }
                 }
             }
         }

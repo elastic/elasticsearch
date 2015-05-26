@@ -18,7 +18,6 @@ import org.elasticsearch.shield.crypto.InternalCryptoService;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.PosixFileAttributeView;
 import java.nio.file.attribute.PosixFilePermission;
@@ -51,7 +50,7 @@ public class SystemKeyTool extends CliTool {
 
     @Override
     protected Command parse(String cmd, CommandLine commandLine) throws Exception {
-        return Generate.parse(terminal, commandLine);
+        return Generate.parse(terminal, commandLine, env);
     }
 
     static class Generate extends CheckFileCommand {
@@ -65,12 +64,12 @@ public class SystemKeyTool extends CliTool {
             this.path = path;
         }
 
-        public static Command parse(Terminal terminal, CommandLine cl) {
+        public static Command parse(Terminal terminal, CommandLine cl, Environment env) {
             String[] args = cl.getArgs();
             if (args.length > 1) {
                 return exitCmd(ExitStatus.USAGE, terminal, "Too many arguments");
             }
-            Path path = args.length != 0 ? Paths.get(args[0]) : null;
+            Path path = args.length != 0 ? env.homeFile().resolve(args[0]) : null;
             return new Generate(terminal, path);
         }
 

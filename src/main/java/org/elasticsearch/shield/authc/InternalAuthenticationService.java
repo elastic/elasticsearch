@@ -7,11 +7,10 @@ package org.elasticsearch.shield.authc;
 
 import org.apache.commons.codec.binary.Base64;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestRequest;
@@ -29,6 +28,7 @@ import java.io.IOException;
  */
 public class InternalAuthenticationService extends AbstractComponent implements AuthenticationService {
 
+    public static final String SETTING_SIGN_USER_HEADER = "shield.authc.sign_user_header";
     static final String ANONYMOUS_USERNAME = "_es_anonymous_user";
 
     static final String TOKEN_KEY = "_shield_token";
@@ -48,8 +48,8 @@ public class InternalAuthenticationService extends AbstractComponent implements 
         this.realms = realms;
         this.auditTrail = auditTrail;
         this.cryptoService = cryptoService;
-        this.signUserHeader = componentSettings.getAsBoolean("sign_user_header", true);
-        anonymouseUser = resolveAnonymouseUser(componentSettings);
+        this.signUserHeader = settings.getAsBoolean(SETTING_SIGN_USER_HEADER, true);
+        anonymouseUser = resolveAnonymouseUser(settings);
     }
 
     @Override
@@ -77,11 +77,11 @@ public class InternalAuthenticationService extends AbstractComponent implements 
 
     @Override
     public User authenticate(String action, TransportMessage message, User fallbackUser) {
-        User user = (User) message.getContext().get(USER_KEY);
+        User user = message.getFromContext(USER_KEY);
         if (user != null) {
             return user;
         }
-        String header = (String) message.getHeader(USER_KEY);
+        String header = message.getHeader(USER_KEY);
         if (header != null) {
             if (signUserHeader) {
                 header = cryptoService.unsignAndVerify(header);
@@ -117,7 +117,7 @@ public class InternalAuthenticationService extends AbstractComponent implements 
     static User decodeUser(String text) {
         byte[] bytes = Base64.decodeBase64(text);
         try {
-            BytesStreamInput input = new BytesStreamInput(new BytesArray(bytes));
+            StreamInput input = StreamInput.wrap(bytes);
             return User.readFrom(input);
         } catch (IOException ioe) {
             throw new AuthenticationException("could not read authenticated user", ioe);
@@ -139,11 +139,11 @@ public class InternalAuthenticationService extends AbstractComponent implements 
     }
 
     static User resolveAnonymouseUser(Settings settings) {
-        String[] roles = settings.getAsArray("anonymous.roles", null);
+        String[] roles = settings.getAsArray("shield.authc.anonymous.roles", null);
         if (roles == null) {
             return null;
         }
-        String username = settings.get("anonymous.username", ANONYMOUS_USERNAME);
+        String username = settings.get("shield.authc.anonymous.username", ANONYMOUS_USERNAME);
         return new User.Simple(username, roles);
     }
 

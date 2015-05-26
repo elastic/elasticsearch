@@ -6,14 +6,12 @@
 package org.elasticsearch.shield.transport;
 
 import com.carrotsearch.ant.tasks.junit4.dependencies.com.google.common.collect.ImmutableMap;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.node.Node;
-import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.shield.authc.esusers.ESUsersRealm;
 import org.elasticsearch.shield.crypto.InternalCryptoService;
 import org.elasticsearch.test.ShieldIntegrationTest;
@@ -22,10 +20,11 @@ import org.elasticsearch.transport.Transport;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import java.io.File;
 import java.net.InetSocketAddress;
+import java.nio.file.Files;
+import java.nio.file.Path;
 
-import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.node.NodeBuilder.nodeBuilder;
 import static org.elasticsearch.shield.test.ShieldTestUtils.createFolder;
 import static org.elasticsearch.shield.test.ShieldTestUtils.writeFile;
@@ -48,19 +47,19 @@ public class ServerTransportFilterIntegrationTests extends ShieldIntegrationTest
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        ImmutableSettings.Builder settingsBuilder = settingsBuilder();
+        Settings.Builder settingsBuilder = settingsBuilder();
         String randomClientPortRange = randomClientPort + "-" + (randomClientPort+100);
 
-        File store;
+        Path store;
         try {
-            store = new File(getClass().getResource("/org/elasticsearch/shield/transport/ssl/certs/simple/testnode.jks").toURI());
-            assertThat(store.exists(), is(true));
+            store = getDataPath("/org/elasticsearch/shield/transport/ssl/certs/simple/testnode.jks");
+            assertThat(Files.exists(store), is(true));
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
 
         if (sslTransportEnabled()) {
-            settingsBuilder.put("transport.profiles.client.shield.truststore.path", store.getAbsolutePath()) // settings for client truststore
+            settingsBuilder.put("transport.profiles.client.shield.truststore.path", store) // settings for client truststore
                            .put("transport.profiles.client.shield.truststore.password", "testnode")
                            .put("shield.transport.ssl", true);
         }
@@ -97,7 +96,8 @@ public class ServerTransportFilterIntegrationTests extends ShieldIntegrationTest
                 .put("discovery.zen.ping.unicast.hosts", unicastHost)
                 .put("shield.transport.ssl", sslTransportEnabled())
                 .put("shield.audit.enabled", false)
-                .put(InternalNode.HTTP_ENABLED, false)
+                .put("path.home", createTempDir())
+                .put(Node.HTTP_ENABLED, false)
                 .put(InternalCryptoService.FILE_SETTING, systemKeyFile)
                 .build();
         try (Node node = nodeBuilder().client(true).settings(nodeSettings).node()) {
@@ -110,7 +110,7 @@ public class ServerTransportFilterIntegrationTests extends ShieldIntegrationTest
         Settings dataNodeSettings = internalCluster().getDataNodeInstance(Settings.class);
         String systemKeyFile = dataNodeSettings.get(InternalCryptoService.FILE_SETTING);
 
-        File folder = createFolder(globalTempDir(), getClass().getSimpleName() + "-" + randomAsciiOfLength(10));
+        Path folder = createFolder(createTempDir(), getClass().getSimpleName() + "-" + randomAsciiOfLength(10));
 
         // test that starting up a node works
         Settings nodeSettings = settingsBuilder()
@@ -128,9 +128,10 @@ public class ServerTransportFilterIntegrationTests extends ShieldIntegrationTest
                 .put("discovery.zen.ping.unicast.hosts", "localhost:" + randomClientPort)
                 .put("shield.transport.ssl", sslTransportEnabled())
                 .put("shield.audit.enabled", false)
-                .put(InternalNode.HTTP_ENABLED, false)
+                .put(Node.HTTP_ENABLED, false)
                 .put(InternalCryptoService.FILE_SETTING, systemKeyFile)
                 .put("discovery.initial_state_timeout", "2s")
+                .put("path.home", createTempDir())
                 .build();
         try (Node node = nodeBuilder().client(true).settings(nodeSettings).build()) {
             node.start();

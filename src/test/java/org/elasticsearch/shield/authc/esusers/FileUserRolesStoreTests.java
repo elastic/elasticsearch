@@ -10,7 +10,6 @@ import org.elasticsearch.common.base.Charsets;
 import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.shield.audit.logfile.CapturingLogger;
@@ -24,10 +23,9 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.io.BufferedWriter;
-import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.List;
@@ -51,8 +49,9 @@ public class FileUserRolesStoreTests extends ElasticsearchTestCase {
 
     @Before
     public void init() {
-        settings = ImmutableSettings.builder()
+        settings = Settings.builder()
                 .put("watcher.interval.high", "2s")
+                .put("path.home", createTempDir())
                 .build();
         env = new Environment(settings);
         threadPool = new ThreadPool("test");
@@ -66,15 +65,15 @@ public class FileUserRolesStoreTests extends ElasticsearchTestCase {
     @Test
     public void testStore_ConfiguredWithUnreadableFile() throws Exception {
 
-        File file = newTempFile();
+        Path file = createTempFile();
         List<String> lines = new ArrayList<>();
         lines.add("aldlfkjldjdflkjd");
 
         // writing in utf_16 should cause a parsing error as we try to read the file in utf_8
-        Files.write(file.toPath(), lines, Charsets.UTF_16);
+        Files.write(file, lines, Charsets.UTF_16);
 
-        Settings esusersSettings = ImmutableSettings.builder()
-                .put("files.users_roles", file.toPath().toAbsolutePath())
+        Settings esusersSettings = Settings.builder()
+                .put("files.users_roles", file.toAbsolutePath())
                 .build();
 
         RealmConfig config = new RealmConfig("esusers-test", esusersSettings, settings, env);
@@ -85,11 +84,11 @@ public class FileUserRolesStoreTests extends ElasticsearchTestCase {
 
     @Test
     public void testStore_AutoReload() throws Exception {
-        Path users = Paths.get(getClass().getResource("users_roles").toURI());
-        Path tmp = Files.createTempFile(null, null);
-        Files.copy(users, Files.newOutputStream(tmp));
+        Path users = getDataPath("users_roles");
+        Path tmp = createTempFile();
+        Files.copy(users, tmp, StandardCopyOption.REPLACE_EXISTING);
 
-        Settings esusersSettings = ImmutableSettings.builder()
+        Settings esusersSettings = Settings.builder()
                 .put("files.users_roles", tmp.toAbsolutePath())
                 .build();
 
@@ -129,11 +128,11 @@ public class FileUserRolesStoreTests extends ElasticsearchTestCase {
 
     @Test
     public void testStore_AutoReload_WithParseFailure() throws Exception {
-        Path users = Paths.get(getClass().getResource("users_roles").toURI());
-        Path tmp = Files.createTempFile(null, null);
-        Files.copy(users, Files.newOutputStream(tmp));
+        Path users = getDataPath("users_roles");
+        Path tmp = createTempFile();
+        Files.copy(users, tmp, StandardCopyOption.REPLACE_EXISTING);
 
-        Settings esusersSettings = ImmutableSettings.builder()
+        Settings esusersSettings = Settings.builder()
                 .put("files.users_roles", tmp.toAbsolutePath())
                 .build();
 
@@ -168,7 +167,7 @@ public class FileUserRolesStoreTests extends ElasticsearchTestCase {
 
     @Test
     public void testParseFile() throws Exception {
-        Path path = Paths.get(getClass().getResource("users_roles").toURI());
+        Path path = getDataPath("users_roles");
         Map<String, String[]> usersRoles = FileUserRolesStore.parseFile(path, null);
         assertThat(usersRoles, notNullValue());
         assertThat(usersRoles.size(), is(3));
@@ -185,33 +184,33 @@ public class FileUserRolesStoreTests extends ElasticsearchTestCase {
 
     @Test
     public void testParseFile_Empty() throws Exception {
-        File empty = newTempFile();
+        Path empty = createTempFile();
         ESLogger log = ESLoggerFactory.getLogger("test");
         log = spy(log);
-        FileUserRolesStore.parseFile(empty.toPath(), log);
-        verify(log, times(1)).warn(contains("no entries found"), eq(empty.toPath().toAbsolutePath()));
+        FileUserRolesStore.parseFile(empty, log);
+        verify(log, times(1)).warn(contains("no entries found"), eq(empty.toAbsolutePath()));
     }
 
     @Test
     public void testParseFile_WhenFileDoesNotExist() throws Exception {
-        File file = new File(randomAsciiOfLength(10));
+        Path file = createTempDir().resolve(randomAsciiOfLength(10));
         CapturingLogger logger = new CapturingLogger(CapturingLogger.Level.INFO);
-        Map<String, String[]> usersRoles = FileUserRolesStore.parseFile(file.toPath(), logger);
+        Map<String, String[]> usersRoles = FileUserRolesStore.parseFile(file, logger);
         assertThat(usersRoles, notNullValue());
         assertThat(usersRoles.isEmpty(), is(true));
     }
 
     @Test
     public void testParseFile_WhenCannotReadFile() throws Exception {
-        File file = newTempFile();
+        Path file = createTempFile();
         List<String> lines = new ArrayList<>();
         lines.add("aldlfkjldjdflkjd");
 
         // writing in utf_16 should cause a parsing error as we try to read the file in utf_8
-        Files.write(file.toPath(), lines, Charsets.UTF_16);
+        Files.write(file, lines, Charsets.UTF_16);
         CapturingLogger logger = new CapturingLogger(CapturingLogger.Level.INFO);
         try {
-            FileUserRolesStore.parseFile(file.toPath(), logger);
+            FileUserRolesStore.parseFile(file, logger);
             fail("expected a parse failure");
         } catch (Throwable t) {
             this.logger.info("expected", t);
@@ -223,14 +222,15 @@ public class FileUserRolesStoreTests extends ElasticsearchTestCase {
         ThreadPool threadPool = null;
         try {
             threadPool = new ThreadPool("test");
-            File usersRoles = writeUsersRoles("role1:admin");
+            Path usersRoles = writeUsersRoles("role1:admin");
 
-            Settings settings = ImmutableSettings.builder()
+            Settings settings = Settings.builder()
                     .put("watcher.enabled", "false")
+                    .put("path.home", createTempDir())
                     .build();
 
-            Settings esusersSettings = ImmutableSettings.builder()
-                    .put("files.users_roles", usersRoles.toPath().toAbsolutePath())
+            Settings esusersSettings = Settings.builder()
+                    .put("files.users_roles", usersRoles.toAbsolutePath())
                     .build();
 
             Environment env = new Environment(settings);
@@ -264,14 +264,14 @@ public class FileUserRolesStoreTests extends ElasticsearchTestCase {
 
     @Test
     public void testParseFileLenient_WhenCannotReadFile() throws Exception {
-        File file = newTempFile();
+        Path file = createTempFile();
         List<String> lines = new ArrayList<>();
         lines.add("aldlfkjldjdflkjd");
 
         // writing in utf_16 should cause a parsing error as we try to read the file in utf_8
-        Files.write(file.toPath(), lines, Charsets.UTF_16);
+        Files.write(file, lines, Charsets.UTF_16);
         CapturingLogger logger = new CapturingLogger(CapturingLogger.Level.INFO);
-        Map<String, String[]> usersRoles = FileUserRolesStore.parseFileLenient(file.toPath(), logger);
+        Map<String, String[]> usersRoles = FileUserRolesStore.parseFileLenient(file, logger);
         assertThat(usersRoles, notNullValue());
         assertThat(usersRoles.isEmpty(), is(true));
         List<CapturingLogger.Msg> msgs = logger.output(CapturingLogger.Level.ERROR);
@@ -279,16 +279,16 @@ public class FileUserRolesStoreTests extends ElasticsearchTestCase {
         assertThat(msgs.get(0).text, containsString("failed to parse users_roles file"));
     }
 
-    private File writeUsersRoles(String input) throws Exception {
-        File file = newTempFile();
-        com.google.common.io.Files.write(input.getBytes(Charsets.UTF_8), file);
+    private Path writeUsersRoles(String input) throws Exception {
+        Path file = createTempFile();
+        Files.write(file, input.getBytes(Charsets.UTF_8));
         return file;
     }
 
     private void assertInvalidInputIsSilentlyIgnored(String input) throws Exception {
-        File file = newTempFile();
-        com.google.common.io.Files.write(input.getBytes(Charsets.UTF_8), file);
-        Map<String, String[]> usersRoles = FileUserRolesStore.parseFile(file.toPath(), null);
+        Path file = createTempFile();
+        Files.write(file, input.getBytes(Charsets.UTF_8));
+        Map<String, String[]> usersRoles = FileUserRolesStore.parseFile(file, null);
         assertThat(String.format(Locale.ROOT, "Expected userRoles to be empty, but was %s", usersRoles.keySet()), usersRoles.keySet(), hasSize(0));
     }
 }

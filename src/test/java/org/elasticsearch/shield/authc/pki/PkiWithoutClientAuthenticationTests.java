@@ -9,11 +9,10 @@ package org.elasticsearch.shield.authc.pki;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.http.HttpServerTransport;
-import org.elasticsearch.node.internal.InternalNode;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
 import org.elasticsearch.shield.transport.netty.ShieldNettyHttpServerTransport;
@@ -57,9 +56,9 @@ public class PkiWithoutClientAuthenticationTests extends ShieldIntegrationTest {
 
     @Override
     public Settings nodeSettings(int nodeOrdinal) {
-        return ImmutableSettings.builder()
+        return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put(InternalNode.HTTP_ENABLED, true)
+                .put(Node.HTTP_ENABLED, true)
                 .put(ShieldNettyTransport.TRANSPORT_CLIENT_AUTH_SETTING, false)
                 .put(ShieldNettyHttpServerTransport.HTTP_SSL_SETTING, true)
                 .put(ShieldNettyHttpServerTransport.HTTP_CLIENT_AUTH_SETTING, false)

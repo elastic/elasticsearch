@@ -7,10 +7,10 @@ package org.elasticsearch.shield.authc.support;
 
 import com.unboundid.ldap.sdk.DN;
 import com.unboundid.ldap.sdk.LDAPException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.shield.ShieldPlugin;
@@ -20,12 +20,10 @@ import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
 import org.elasticsearch.watcher.ResourceWatcherService;
 
-import java.io.File;
-import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
 
@@ -59,9 +57,13 @@ public class DnRoleMapper {
         useUnmappedGroupsAsRoles = config.settings().getAsBoolean(USE_UNMAPPED_GROUPS_AS_ROLES_SETTING, false);
         file = resolveFile(config.settings(), config.env());
         dnRoles = parseFileLenient(file, logger, realmType, config.name());
-        FileWatcher watcher = new FileWatcher(file.getParent().toFile());
+        FileWatcher watcher = new FileWatcher(file.getParent());
         watcher.addListener(new FileListener());
-        watcherService.add(watcher, ResourceWatcherService.Frequency.HIGH);
+        try {
+            watcherService.add(watcher, ResourceWatcherService.Frequency.HIGH);
+        } catch (IOException e) {
+            throw new ElasticsearchException("failed to start file watcher for role mapping file [" + file.toAbsolutePath() +"]", e);
+        }
         listeners = new CopyOnWriteArrayList<>();
         if (listener != null) {
             listeners.add(listener);
@@ -77,7 +79,7 @@ public class DnRoleMapper {
         if (location == null) {
             return ShieldPlugin.resolveConfigFile(env, DEFAULT_FILE_NAME);
         }
-        return Paths.get(location);
+        return env.homeFile().resolve(location);
     }
 
     /**
@@ -102,8 +104,8 @@ public class DnRoleMapper {
             return ImmutableMap.of();
         }
 
-        try (FileInputStream in = new FileInputStream(path.toFile())) {
-            Settings settings = ImmutableSettings.builder()
+        try (InputStream in = Files.newInputStream(path)) {
+            Settings settings = Settings.builder()
                     .loadFromStream(path.toString(), in)
                     .build();
 
@@ -177,20 +179,20 @@ public class DnRoleMapper {
 
     private class FileListener extends FileChangesListener {
         @Override
-        public void onFileCreated(File file) {
+        public void onFileCreated(Path file) {
             onFileChanged(file);
         }
 
         @Override
-        public void onFileDeleted(File file) {
+        public void onFileDeleted(Path file) {
             onFileChanged(file);
         }
 
         @Override
-        public void onFileChanged(File file) {
-            if (file.equals(DnRoleMapper.this.file.toFile())) {
-                logger.info("role mappings file [{}] changed for realm [{}/{}]. updating mappings...", file.getAbsolutePath(), realmType, config.name());
-                dnRoles = parseFileLenient(file.toPath(), logger, realmType, config.name());
+        public void onFileChanged(Path file) {
+            if (file.equals(DnRoleMapper.this.file)) {
+                logger.info("role mappings file [{}] changed for realm [{}/{}]. updating mappings...", file.toAbsolutePath(), realmType, config.name());
+                dnRoles = parseFileLenient(file, logger, realmType, config.name());
                 notifyRefresh();
             }
         }

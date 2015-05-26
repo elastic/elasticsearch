@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.shield.license;
 
-import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.plugin.LicenseVersion;
 import org.elasticsearch.shield.ShieldVersion;
@@ -31,11 +30,11 @@ public class LicenseModule extends AbstractShieldModule.Node {
         try {
             getClass().getClassLoader().loadClass("org.elasticsearch.license.plugin.LicensePlugin");
         } catch (ClassNotFoundException cnfe) {
-            throw new ElasticsearchIllegalStateException("shield plugin requires the license plugin to be installed");
+            throw new IllegalStateException("shield plugin requires the license plugin to be installed");
         }
 
         if (LicenseVersion.CURRENT.before(ShieldVersion.CURRENT.minLicenseCompatibilityVersion)) {
-            throw new ElasticsearchIllegalStateException("shield [" + ShieldVersion.CURRENT +
+            throw new IllegalStateException("shield [" + ShieldVersion.CURRENT +
                     "] requires minumum license plugin version [" + ShieldVersion.CURRENT.minLicenseCompatibilityVersion +
                     "], but installed license plugin version is [" + LicenseVersion.CURRENT + "]");
         }

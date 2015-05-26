@@ -57,8 +57,6 @@ public class ShieldTransportModule extends AbstractShieldModule.Spawn implements
             bind(ClientTransportFilter.class).to(ClientTransportFilter.TransportClient.class).asEagerSingleton();
         } else {
             bind(ClientTransportFilter.class).to(ClientTransportFilter.Node.class).asEagerSingleton();
-            bind(ServerTransportFilter.ClientProfile.class).asEagerSingleton();
-            bind(ServerTransportFilter.NodeProfile.class).asEagerSingleton();
             if (settings.getAsBoolean("shield.transport.filter.enabled", true)) {
                 bind(IPFilter.class).asEagerSingleton();
             }

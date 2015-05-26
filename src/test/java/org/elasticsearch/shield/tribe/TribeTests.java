@@ -5,13 +5,12 @@
  */
 package org.elasticsearch.shield.tribe;
 
-import com.carrotsearch.randomizedtesting.LifecycleScope;
+import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.client.support.Headers;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.collect.ImmutableMap;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -26,8 +25,6 @@ import org.elasticsearch.tribe.TribeService;
 import org.junit.*;
 
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -37,6 +34,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.*;
 
+@Slow
 public class TribeTests extends ShieldIntegrationTest {
 
     //use known suite prefix since their threads are already ignored via ElasticsearchThreadFilter
@@ -56,26 +54,23 @@ public class TribeTests extends ShieldIntegrationTest {
         //for simplicity the same certificates are used on all clusters
         final boolean sslTransportEnabled = globalClusterSettings.getAsBoolean("shield.transport.ssl", null);
 
-        //we need to make sure that all clusters and the tribe node use the same system key, we just point to the same file on all clusters
-        byte[] systemKey = Files.readAllBytes(Paths.get(globalClusterSettings.get(InternalCryptoService.FILE_SETTING)));
-
         //we run this part in @Before instead of beforeClass because we need to have the current cluster already assigned to global
         //so that we can retrieve its settings and apply some of them the the second cluster (and tribe node too)
         if (cluster2 == null) {
             // create another cluster
-            String cluster2Name = clusterName(Scope.SUITE.name(), Integer.toString(CHILD_JVM_ID), randomLong());
+            String cluster2Name = clusterName(Scope.SUITE.name(), randomLong());
             //no port conflicts as this test uses the global cluster and a suite cluster that gets manually created
-            ShieldSettingsSource cluster2SettingsSource = new ShieldSettingsSource(2, sslTransportEnabled, systemKey, newTempDir(LifecycleScope.SUITE), Scope.SUITE);
-            cluster2 = new InternalTestCluster(randomLong(), 2, 2, cluster2Name, cluster2SettingsSource, 0, false, CHILD_JVM_ID, SECOND_CLUSTER_NODE_PREFIX);
+            ShieldSettingsSource cluster2SettingsSource = new ShieldSettingsSource(2, sslTransportEnabled, systemKey(), createTempDir(), Scope.SUITE);
+            cluster2 = new InternalTestCluster(randomLong(), createTempDir(), 2, 2, cluster2Name, cluster2SettingsSource, 0, false, SECOND_CLUSTER_NODE_PREFIX);
 
             assert tribeSettingsSource == null;
             //given the low (2 and 1) number of nodes that the 2 SUITE clusters will have, we are not going to have port conflicts
-            tribeSettingsSource = new ShieldSettingsSource(1, sslTransportEnabled, systemKey, newTempDir(LifecycleScope.SUITE), Scope.SUITE) {
+            tribeSettingsSource = new ShieldSettingsSource(1, sslTransportEnabled, systemKey(), createTempDir(), Scope.SUITE) {
                 @Override
                 public Settings node(int nodeOrdinal) {
                     Settings shieldSettings = super.node(nodeOrdinal);
                     //all the settings are needed for the tribe node, some of them will also need to be copied to the tribe clients configuration
-                    ImmutableSettings.Builder builder = ImmutableSettings.builder().put(shieldSettings);
+                    Settings.Builder builder = Settings.builder().put(shieldSettings);
                     //the tribe node itself won't join any cluster, no need for unicast discovery configuration
                     builder.remove("discovery.type");
                     builder.remove("discovery.zen.ping.multicast.enabled");
@@ -143,8 +138,8 @@ public class TribeTests extends ShieldIntegrationTest {
         cluster2.beforeTest(getRandom(), 0.5);
 
         //we need to recreate the tribe node after each test otherwise ensureClusterSizeConsistency barfs
-        String tribeClusterName = clusterName(Scope.SUITE.name(), Integer.toString(CHILD_JVM_ID), randomLong());
-        tribeNodeCluster = new InternalTestCluster(randomLong(), 1, 1, tribeClusterName, tribeSettingsSource, 0, false, CHILD_JVM_ID, TRIBE_CLUSTER_NODE_PREFIX);
+        String tribeClusterName = clusterName(Scope.SUITE.name(), randomLong());
+        tribeNodeCluster = new InternalTestCluster(randomLong(), createTempDir(), 1, 1, tribeClusterName, tribeSettingsSource, 0, false, TRIBE_CLUSTER_NODE_PREFIX);
         tribeNodeCluster.beforeTest(getRandom(), 0.5);
         awaitSameNodeCounts();
     }

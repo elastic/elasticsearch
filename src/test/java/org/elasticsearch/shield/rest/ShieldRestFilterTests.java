@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.shield.rest;
 
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestFilterChain;
@@ -36,7 +36,7 @@ public class ShieldRestFilterTests extends ElasticsearchTestCase {
         RestController restController = mock(RestController.class);
         channel = mock(RestChannel.class);
         chain = mock(RestFilterChain.class);
-        filter = new ShieldRestFilter(authcService, restController, ImmutableSettings.EMPTY);
+        filter = new ShieldRestFilter(authcService, restController, Settings.EMPTY);
         verify(restController).registerFilter(filter);
     }
 

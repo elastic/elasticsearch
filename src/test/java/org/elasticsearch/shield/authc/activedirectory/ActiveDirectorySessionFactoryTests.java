@@ -5,9 +5,8 @@
  */
 package org.elasticsearch.shield.authc.activedirectory;
 
-import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.shield.authc.RealmConfig;
 import org.elasticsearch.shield.authc.ldap.LdapSessionFactory;
 import org.elasticsearch.shield.authc.ldap.ShieldLdapException;
@@ -23,7 +22,6 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.List;
 
 import static org.hamcrest.Matchers.*;
@@ -36,25 +34,28 @@ public class ActiveDirectorySessionFactoryTests extends ElasticsearchTestCase {
     public static final String AD_DOMAIN = "ad.test.elasticsearch.com";
 
     private ClientSSLService clientSSLService;
+    private Settings globalSettings;
 
     @Before
     public void initializeSslSocketFactory() throws Exception {
-        Path keystore = Paths.get(ActiveDirectorySessionFactoryTests.class.getResource("../ldap/support/ldaptrust.jks").toURI()).toAbsolutePath();
+        Path keystore = getDataPath("../ldap/support/ldaptrust.jks");
+        Environment env = new Environment(Settings.builder().put("path.home", createTempDir()).build());
 
         /*
          * Prior to each test we reinitialize the socket factory with a new SSLService so that we get a new SSLContext.
          * If we re-use a SSLContext, previously connected sessions can get re-established which breaks hostname
          * verification tests since a re-established connection does not perform hostname verification.
          */
-        clientSSLService = new ClientSSLService(ImmutableSettings.builder()
+        clientSSLService = new ClientSSLService(Settings.builder()
                 .put("shield.ssl.keystore.path", keystore)
                 .put("shield.ssl.keystore.password", "changeit")
-                .build());
+                .build(), env);
+        globalSettings = Settings.builder().put("path.home", createTempDir()).build();
     }
 
     @Test @SuppressWarnings("unchecked")
     public void testAdAuth() {
-        RealmConfig config = new RealmConfig("ad-test", buildAdSettings(AD_LDAP_URL, AD_DOMAIN, false));
+        RealmConfig config = new RealmConfig("ad-test", buildAdSettings(AD_LDAP_URL, AD_DOMAIN, false), globalSettings);
         ActiveDirectorySessionFactory sessionFactory = new ActiveDirectorySessionFactory(config, clientSSLService);
 
         String userName = "ironman";
@@ -76,12 +77,12 @@ public class ActiveDirectorySessionFactoryTests extends ElasticsearchTestCase {
     @Test
     @AwaitsFix(bugUrl = "https://github.com/elasticsearch/elasticsearch-shield/issues/499")
     public void testTcpReadTimeout() {
-        Settings settings = ImmutableSettings.builder()
+        Settings settings = Settings.builder()
                 .put(buildAdSettings(AD_LDAP_URL, AD_DOMAIN, false))
                 .put(SessionFactory.HOSTNAME_VERIFICATION_SETTING, false)
                 .put(SessionFactory.TIMEOUT_TCP_READ_SETTING, "1ms")
                 .build();
-        RealmConfig config = new RealmConfig("ad-test", settings);
+        RealmConfig config = new RealmConfig("ad-test", settings, globalSettings);
         ActiveDirectorySessionFactory sessionFactory = new ActiveDirectorySessionFactory(config, clientSSLService);
 
         try (LdapSession ldap = sessionFactory.session("ironman", SecuredStringTests.build(PASSWORD))) {
@@ -95,7 +96,7 @@ public class ActiveDirectorySessionFactoryTests extends ElasticsearchTestCase {
 
     @Test
     public void testAdAuth_avengers() {
-        RealmConfig config = new RealmConfig("ad-test", buildAdSettings(AD_LDAP_URL, AD_DOMAIN, false));
+        RealmConfig config = new RealmConfig("ad-test", buildAdSettings(AD_LDAP_URL, AD_DOMAIN, false), globalSettings);
         ActiveDirectorySessionFactory sessionFactory = new ActiveDirectorySessionFactory(config, clientSSLService);
 
         String[] users = new String[]{"cap", "hawkeye", "hulk", "ironman", "thor", "blackwidow", };
@@ -109,7 +110,7 @@ public class ActiveDirectorySessionFactoryTests extends ElasticsearchTestCase {
     @Test @SuppressWarnings("unchecked")
     public void testAuthenticate() {
         Settings settings = buildAdSettings(AD_LDAP_URL, AD_DOMAIN, "CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com", LdapSearchScope.ONE_LEVEL, false);
-        RealmConfig config = new RealmConfig("ad-test", settings);
+        RealmConfig config = new RealmConfig("ad-test", settings, globalSettings);
         ActiveDirectorySessionFactory sessionFactory = new ActiveDirectorySessionFactory(config, clientSSLService);
 
         String userName = "hulk";
@@ -130,7 +131,7 @@ public class ActiveDirectorySessionFactoryTests extends ElasticsearchTestCase {
     @Test @SuppressWarnings("unchecked")
     public void testAuthenticate_baseUserSearch() {
         Settings settings = buildAdSettings(AD_LDAP_URL, AD_DOMAIN, "CN=Bruce Banner, CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com", LdapSearchScope.BASE, false);
-        RealmConfig config = new RealmConfig("ad-test", settings);
+        RealmConfig config = new RealmConfig("ad-test", settings, globalSettings);
         ActiveDirectorySessionFactory sessionFactory = new ActiveDirectorySessionFactory(config, clientSSLService);
 
         String userName = "hulk";
@@ -150,12 +151,12 @@ public class ActiveDirectorySessionFactoryTests extends ElasticsearchTestCase {
 
     @Test @SuppressWarnings("unchecked")
     public void testAuthenticate_baseGroupSearch() {
-        Settings settings = ImmutableSettings.builder()
+        Settings settings = Settings.builder()
                 .put(buildAdSettings(AD_LDAP_URL, AD_DOMAIN, "CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com", LdapSearchScope.ONE_LEVEL, false))
                 .put(ActiveDirectorySessionFactory.AD_GROUP_SEARCH_BASEDN_SETTING, "CN=Avengers,CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com")
                 .put(ActiveDirectorySessionFactory.AD_GROUP_SEARCH_SCOPE_SETTING, LdapSearchScope.BASE)
                 .build();
-        RealmConfig config = new RealmConfig("ad-test", settings);
+        RealmConfig config = new RealmConfig("ad-test", settings, globalSettings);
         ActiveDirectorySessionFactory sessionFactory = new ActiveDirectorySessionFactory(config, clientSSLService);
 
         String userName = "hulk";
@@ -169,7 +170,7 @@ public class ActiveDirectorySessionFactoryTests extends ElasticsearchTestCase {
     @Test @SuppressWarnings("unchecked")
     public void testAuthenticateWithUserPrincipalName() {
         Settings settings = buildAdSettings(AD_LDAP_URL, AD_DOMAIN, "CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com", LdapSearchScope.ONE_LEVEL, false);
-        RealmConfig config = new RealmConfig("ad-test", settings);
+        RealmConfig config = new RealmConfig("ad-test", settings, globalSettings);
         ActiveDirectorySessionFactory sessionFactory = new ActiveDirectorySessionFactory(config, clientSSLService);
 
         //Login with the UserPrincipalName
@@ -187,7 +188,7 @@ public class ActiveDirectorySessionFactoryTests extends ElasticsearchTestCase {
     @Test
     public void testAuthenticateWithSAMAccountName() {
         Settings settings = buildAdSettings(AD_LDAP_URL, AD_DOMAIN, "CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com", LdapSearchScope.ONE_LEVEL, false);
-        RealmConfig config = new RealmConfig("ad-test", settings);
+        RealmConfig config = new RealmConfig("ad-test", settings, globalSettings);
         ActiveDirectorySessionFactory sessionFactory = new ActiveDirectorySessionFactory(config, clientSSLService);
 
         //login with sAMAccountName
@@ -205,11 +206,11 @@ public class ActiveDirectorySessionFactoryTests extends ElasticsearchTestCase {
 
     @Test @SuppressWarnings("unchecked")
     public void testCustomUserFilter() {
-        Settings settings = ImmutableSettings.builder()
+        Settings settings = Settings.builder()
                 .put(buildAdSettings(AD_LDAP_URL, AD_DOMAIN, "CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com", LdapSearchScope.SUB_TREE, false))
                 .put(ActiveDirectorySessionFactory.AD_USER_SEARCH_FILTER_SETTING, "(&(objectclass=user)(userPrincipalName={0}@ad.test.elasticsearch.com))")
                 .build();
-        RealmConfig config = new RealmConfig("ad-test", settings);
+        RealmConfig config = new RealmConfig("ad-test", settings, globalSettings);
         ActiveDirectorySessionFactory sessionFactory = new ActiveDirectorySessionFactory(config, clientSSLService);
 
         //Login with the UserPrincipalName
@@ -228,7 +229,7 @@ public class ActiveDirectorySessionFactoryTests extends ElasticsearchTestCase {
         String groupSearchBase = "DC=ad,DC=test,DC=elasticsearch,DC=com";
         String userTemplate = "CN={0},CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com";
         Settings settings = LdapTest.buildLdapSettings(AD_LDAP_URL, userTemplate, groupSearchBase, LdapSearchScope.SUB_TREE);
-        RealmConfig config = new RealmConfig("ad-as-ldap-test", settings);
+        RealmConfig config = new RealmConfig("ad-as-ldap-test", settings, globalSettings);
         LdapSessionFactory sessionFactory = new LdapSessionFactory(config, clientSSLService);
 
         String user = "Bruce Banner";
@@ -247,7 +248,7 @@ public class ActiveDirectorySessionFactoryTests extends ElasticsearchTestCase {
     public void testStandardLdapWithAttributeGroups(){
         String userTemplate = "CN={0},CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com";
         Settings settings = LdapTest.buildLdapSettings(AD_LDAP_URL, userTemplate, false);
-        RealmConfig config = new RealmConfig("ad-as-ldap-test", settings);
+        RealmConfig config = new RealmConfig("ad-as-ldap-test", settings, globalSettings);
         LdapSessionFactory sessionFactory = new LdapSessionFactory(config, clientSSLService);
 
         String user = "Bruce Banner";
@@ -264,7 +265,7 @@ public class ActiveDirectorySessionFactoryTests extends ElasticsearchTestCase {
 
     @Test
     public void testAdAuthWithHostnameVerification() {
-        RealmConfig config = new RealmConfig("ad-test", buildAdSettings(AD_LDAP_URL, AD_DOMAIN, true));
+        RealmConfig config = new RealmConfig("ad-test", buildAdSettings(AD_LDAP_URL, AD_DOMAIN, true), globalSettings);
         ActiveDirectorySessionFactory sessionFactory = new ActiveDirectorySessionFactory(config, clientSSLService);
 
         String userName = "ironman";
@@ -279,11 +280,11 @@ public class ActiveDirectorySessionFactoryTests extends ElasticsearchTestCase {
     public void testStandardLdapHostnameVerification(){
         String groupSearchBase = "DC=ad,DC=test,DC=elasticsearch,DC=com";
         String userTemplate = "CN={0},CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com";
-        Settings settings = ImmutableSettings.builder()
+        Settings settings = Settings.builder()
                 .put(LdapTest.buildLdapSettings(AD_LDAP_URL, userTemplate, groupSearchBase, LdapSearchScope.SUB_TREE))
                 .put(LdapSessionFactory.HOSTNAME_VERIFICATION_SETTING, true)
                 .build();
-        RealmConfig config = new RealmConfig("ad-test", settings);
+        RealmConfig config = new RealmConfig("ad-test", settings, globalSettings);
         LdapSessionFactory sessionFactory = new LdapSessionFactory(config, clientSSLService);
 
         String user = "Bruce Banner";
@@ -293,7 +294,7 @@ public class ActiveDirectorySessionFactoryTests extends ElasticsearchTestCase {
     }
 
     public static Settings buildAdSettings(String ldapUrl, String adDomainName, boolean hostnameVerification) {
-        return ImmutableSettings.builder()
+        return Settings.builder()
                 .put(ActiveDirectorySessionFactory.URLS_SETTING, ldapUrl)
                 .put(ActiveDirectorySessionFactory.AD_DOMAIN_NAME_SETTING, adDomainName)
                 .put(ActiveDirectorySessionFactory.HOSTNAME_VERIFICATION_SETTING, hostnameVerification)
@@ -305,7 +306,7 @@ public class ActiveDirectorySessionFactoryTests extends ElasticsearchTestCase {
     }
 
     public static Settings buildAdSettings(String ldapUrl, String adDomainName, String userSearchDN, LdapSearchScope scope, boolean hostnameVerification) {
-        return ImmutableSettings.builder()
+        return Settings.builder()
                 .putArray(ActiveDirectorySessionFactory.URLS_SETTING, ldapUrl)
                 .put(ActiveDirectorySessionFactory.AD_DOMAIN_NAME_SETTING, adDomainName)
                 .put(ActiveDirectorySessionFactory.AD_USER_SEARCH_BASEDN_SETTING, userSearchDN)

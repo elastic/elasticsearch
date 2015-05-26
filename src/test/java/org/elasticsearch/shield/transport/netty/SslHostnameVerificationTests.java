@@ -8,7 +8,6 @@ package org.elasticsearch.shield.transport.netty;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.NoNodeAvailableException;
 import org.elasticsearch.client.transport.TransportClient;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -19,15 +18,12 @@ import org.junit.Test;
 import java.net.InetSocketAddress;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 
-import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.is;
 
 public class SslHostnameVerificationTests extends ShieldIntegrationTest {
-
-    static Path keystore;
 
     @Override
     protected boolean sslTransportEnabled() {
@@ -36,14 +32,15 @@ public class SslHostnameVerificationTests extends ShieldIntegrationTest {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        ImmutableSettings.Builder settingsBuilder = settingsBuilder().put(super.nodeSettings(nodeOrdinal));
-
+        Settings.Builder settingsBuilder = settingsBuilder().put(super.nodeSettings(nodeOrdinal));
+        Path keystore;
         try {
             /*
              * This keystore uses a cert without any subject alternative names and a CN of "Elasticsearch Test Node No SAN"
              * that will not resolve to a DNS name and will always cause hostname verification failures
              */
-            keystore = Paths.get(getClass().getResource("/org/elasticsearch/shield/transport/ssl/certs/simple/testnode-no-subjaltname.jks").toURI());
+            keystore = getDataPath("/org/elasticsearch/shield/transport/ssl/certs/simple/testnode-no-subjaltname.jks");
+            assert keystore != null;
             assertThat(Files.exists(keystore), is(true));
         } catch (Exception e) {
             throw new RuntimeException(e);
@@ -59,10 +56,13 @@ public class SslHostnameVerificationTests extends ShieldIntegrationTest {
 
     @Override
     protected Settings transportClientSettings() {
-        return ImmutableSettings.builder().put(super.transportClientSettings())
+        Path keystore = getDataPath("/org/elasticsearch/shield/transport/ssl/certs/simple/testnode-no-subjaltname.jks");
+        assert keystore != null;
+        return Settings.builder().put(super.transportClientSettings())
                 .put(ShieldNettyTransport.HOSTNAME_VERIFICATION_SETTING, false)
                 .put("shield.ssl.truststore.path", keystore.toAbsolutePath()) // settings for client truststore
                 .put("shield.ssl.truststore.password", "testnode-no-subjaltname")
+                .put("path.home", createTempDir())
                 .build();
     }
 
@@ -73,11 +73,11 @@ public class SslHostnameVerificationTests extends ShieldIntegrationTest {
         assertThat(transportAddress, instanceOf(InetSocketTransportAddress.class));
         InetSocketAddress inetSocketAddress = ((InetSocketTransportAddress) transportAddress).address();
 
-        Settings settings = ImmutableSettings.builder().put(transportClientSettings())
+        Settings settings = settingsBuilder().put(transportClientSettings())
                 .put(ShieldNettyTransport.HOSTNAME_VERIFICATION_SETTING, true)
                 .build();
 
-        try (TransportClient client = new TransportClient(settings, false)) {
+        try (TransportClient client = TransportClient.builder().settings(settings).loadConfigSettings(false).build()) {
             client.addTransportAddress(new InetSocketTransportAddress(inetSocketAddress.getHostName(), inetSocketAddress.getPort()));
             client.admin().cluster().prepareHealth().get();
             fail("Expected a NoNodeAvailableException due to hostname verification failures");

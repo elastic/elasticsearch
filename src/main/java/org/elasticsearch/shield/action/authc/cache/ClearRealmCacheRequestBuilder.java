@@ -9,6 +9,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.nodes.NodesOperationRequestBuilder;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ClusterAdminClient;
+import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.shield.client.ShieldAuthcClient;
 import org.elasticsearch.shield.client.ShieldClient;
 
@@ -19,12 +20,12 @@ public class ClearRealmCacheRequestBuilder extends NodesOperationRequestBuilder<
 
     private final ShieldAuthcClient authcClient;
 
-    public ClearRealmCacheRequestBuilder(Client client) {
-        this(client.admin().cluster());
+    public ClearRealmCacheRequestBuilder(ElasticsearchClient client) {
+        this(client, ClearRealmCacheAction.INSTANCE);
     }
 
-    public ClearRealmCacheRequestBuilder(ClusterAdminClient client) {
-        super(client, new ClearRealmCacheRequest());
+    public ClearRealmCacheRequestBuilder(ElasticsearchClient client, ClearRealmCacheAction action) {
+        super(client, action, new ClearRealmCacheRequest());
         authcClient = new ShieldClient(client).authc();
     }
 
@@ -48,10 +49,5 @@ public class ClearRealmCacheRequestBuilder extends NodesOperationRequestBuilder<
     public ClearRealmCacheRequestBuilder usernames(String... usernames) {
         request.usernames(usernames);
         return this;
-    }
-
-    @Override
-    protected void doExecute(ActionListener<ClearRealmCacheResponse> listener) {
-        authcClient.clearRealmCache(request, listener);
     }
 }

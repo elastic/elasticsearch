@@ -7,8 +7,8 @@ package org.elasticsearch.shield.authc.support;
 
 import org.apache.commons.codec.binary.Base64;
 import org.apache.commons.codec.digest.*;
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.base.Charsets;
-import org.elasticsearch.common.os.OsUtils;
 import org.elasticsearch.shield.ShieldException;
 import org.elasticsearch.shield.ShieldSettingsException;
 
@@ -318,7 +318,7 @@ public enum Hasher {
     private static final String MD5_PREFIX = "{MD5}";
     private static final String SSHA256_PREFIX = "{SSHA256}";
     private static final String PLAIN_PREFIX = "{plain}";
-    static final boolean CRYPT_SUPPORTED = !OsUtils.WINDOWS;
+    static final boolean CRYPT_SUPPORTED = !Constants.WINDOWS;
 
     public static Hasher resolve(String name, Hasher defaultHasher) {
         if (name == null) {

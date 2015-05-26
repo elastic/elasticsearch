@@ -7,6 +7,7 @@ package org.elasticsearch.shield.client;
 
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ClusterAdminClient;
+import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  * A wrapper to elasticsearch clients that exposes all Shield related APIs
@@ -15,11 +16,7 @@ public class ShieldClient {
 
     private final ShieldAuthcClient authcClient;
 
-    public ShieldClient(Client client) {
-        this(client.admin().cluster());
-    }
-
-    public ShieldClient(ClusterAdminClient client) {
+    public ShieldClient(ElasticsearchClient client) {
         this.authcClient = new ShieldAuthcClient(client);
     }
 

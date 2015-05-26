@@ -7,12 +7,11 @@ package org.elasticsearch.shield.transport.filter;
 
 import com.google.common.base.Charsets;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.http.HttpServerTransport;
-import org.elasticsearch.node.internal.InternalNode;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ShieldIntegrationTest;
 import org.elasticsearch.transport.Transport;
 import org.junit.BeforeClass;
@@ -42,8 +41,8 @@ public class IpFilteringIntegrationTests extends ShieldIntegrationTest {
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         String randomClientPortRange = randomClientPort + "-" + (randomClientPort+100);
-        return ImmutableSettings.builder().put(super.nodeSettings(nodeOrdinal))
-                .put(InternalNode.HTTP_ENABLED, true)
+        return Settings.builder().put(super.nodeSettings(nodeOrdinal))
+                .put(Node.HTTP_ENABLED, true)
                 .put("transport.profiles.client.port", randomClientPortRange)
                 .put("transport.profiles.client.bind_host", "localhost") // make sure this is "localhost", no matter if ipv4 or ipv6, but be consistent
                 .put("transport.profiles.client.shield.filter.deny", "_all")

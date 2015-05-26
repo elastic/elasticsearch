@@ -7,7 +7,7 @@ package org.elasticsearch.shield.transport.filter;
 
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.node.internal.InternalNode;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.test.ShieldIntegrationTest;
 import org.junit.Test;
@@ -16,7 +16,7 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.Locale;
 
-import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope.TEST;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.is;
@@ -30,7 +30,7 @@ public class IpFilteringUpdateTests extends ShieldIntegrationTest {
     protected Settings nodeSettings(int nodeOrdinal) {
         return settingsBuilder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put(InternalNode.HTTP_ENABLED, httpEnabled)
+                .put(Node.HTTP_ENABLED, httpEnabled)
                 .put("shield.transport.filter.deny", "127.0.0.200")
                 .build();
     }

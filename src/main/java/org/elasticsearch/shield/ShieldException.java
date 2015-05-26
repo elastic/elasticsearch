@@ -9,6 +9,7 @@ import org.elasticsearch.ElasticsearchException;
 
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.Lists;
+import org.elasticsearch.common.collect.Tuple;
 
 import java.util.List;
 
@@ -17,15 +18,14 @@ import java.util.List;
  */
 public class ShieldException extends ElasticsearchException.WithRestHeaders {
 
-    public static final ImmutableMap<String, List<String>> HEADERS = ImmutableMap.<String, List<String>>builder()
-            .put("WWW-Authenticate", Lists.newArrayList("Basic realm=\""+ ShieldPlugin.NAME +"\""))
-            .build();
+    public static final Tuple<String, String[]> BASIC_AUTH_HEADER = Tuple.tuple("WWW-Authenticate", new String[]{"Basic realm=\"" + ShieldPlugin.NAME + "\""});
 
     public ShieldException(String msg) {
-        super(msg, HEADERS);
+        super(msg, BASIC_AUTH_HEADER);
     }
 
     public ShieldException(String msg, Throwable cause) {
-        super(msg, cause, HEADERS);
+        super(msg, BASIC_AUTH_HEADER);
+        initCause(cause);
     }
 }

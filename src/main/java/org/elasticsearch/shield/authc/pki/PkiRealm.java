@@ -8,6 +8,7 @@ package org.elasticsearch.shield.authc.pki;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.shield.ShieldSettingsException;
 import org.elasticsearch.shield.ShieldSettingsFilter;
@@ -24,7 +25,8 @@ import org.elasticsearch.watcher.ResourceWatcherService;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.TrustManagerFactory;
 import javax.net.ssl.X509TrustManager;
-import java.io.FileInputStream;
+import java.io.InputStream;
+import java.nio.file.Files;
 import java.security.KeyStore;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
@@ -46,7 +48,7 @@ public class PkiRealm extends Realm<X509AuthenticationToken> {
 
     public PkiRealm(RealmConfig config, DnRoleMapper roleMapper) {
         super(TYPE, config);
-        this.trustManagers = trustManagers(config.settings());
+        this.trustManagers = trustManagers(config.settings(), config.env());
         this.principalPattern = Pattern.compile(config.settings().get("username_pattern", "CN=(.*?),"), Pattern.CASE_INSENSITIVE);
         this.roleMapper = roleMapper;
         checkSSLEnabled(config, logger);
@@ -125,7 +127,7 @@ public class PkiRealm extends Realm<X509AuthenticationToken> {
         return true;
     }
 
-    static X509TrustManager[] trustManagers(Settings settings) {
+    static X509TrustManager[] trustManagers(Settings settings, Environment env) {
         String truststorePath = settings.get("truststore.path");
         if (truststorePath == null) {
             return new X509TrustManager[0];
@@ -138,7 +140,7 @@ public class PkiRealm extends Realm<X509AuthenticationToken> {
 
         String trustStoreAlgorithm = settings.get("truststore.algorithm", System.getProperty("ssl.TrustManagerFactory.algorithm", TrustManagerFactory.getDefaultAlgorithm()));
         TrustManager[] trustManagers;
-        try (FileInputStream in = new FileInputStream(truststorePath)) {
+        try (InputStream in = Files.newInputStream(env.homeFile().resolve(truststorePath))) {
             // Load TrustStore
             KeyStore ks = KeyStore.getInstance("jks");
             ks.load(in, password.toCharArray());
@@ -180,8 +182,8 @@ public class PkiRealm extends Realm<X509AuthenticationToken> {
         Settings settings = config.globalSettings();
 
         // HTTP
-        if (settings.getAsBoolean(ShieldNettyHttpServerTransport.HTTP_SSL_SETTING, ShieldNettyHttpServerTransport.HTTP_SSL_DEFAULT
-                && settings.getAsBoolean(ShieldNettyHttpServerTransport.HTTP_CLIENT_AUTH_SETTING, ShieldNettyHttpServerTransport.HTTP_CLIENT_AUTH_DEFAULT))) {
+        if (settings.getAsBoolean(ShieldNettyHttpServerTransport.HTTP_SSL_SETTING, ShieldNettyHttpServerTransport.HTTP_SSL_DEFAULT)
+                && settings.getAsBoolean(ShieldNettyHttpServerTransport.HTTP_CLIENT_AUTH_SETTING, ShieldNettyHttpServerTransport.HTTP_CLIENT_AUTH_DEFAULT)) {
             return;
         }
 

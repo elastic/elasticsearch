@@ -6,15 +6,15 @@
 package org.elasticsearch.shield.authc.support;
 
 import com.carrotsearch.ant.tasks.junit4.dependencies.com.google.common.base.Charsets;
+
+import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
-import static org.junit.Assert.*;
 
-public class SecuredStringTests {
+public class SecuredStringTests extends ElasticsearchTestCase {
     public static SecuredString build(String password){
         return new SecuredString(password.toCharArray());
     }

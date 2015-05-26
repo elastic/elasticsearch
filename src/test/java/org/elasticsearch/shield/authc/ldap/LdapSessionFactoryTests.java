@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.shield.authc.ldap;
 
-import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.shield.authc.RealmConfig;
 import org.elasticsearch.shield.authc.ldap.support.SessionFactory;
@@ -16,6 +14,7 @@ import org.elasticsearch.shield.authc.ldap.support.LdapSession;
 import org.elasticsearch.shield.authc.ldap.support.LdapTest;
 import org.elasticsearch.shield.authc.ldap.support.LdapSearchScope;
 import org.elasticsearch.test.junit.annotations.Network;
+import org.junit.Before;
 import org.junit.Test;
 
 import java.util.List;
@@ -24,6 +23,13 @@ import static org.hamcrest.Matchers.*;
 
 public class LdapSessionFactoryTests extends LdapTest {
 
+    private Settings globalSettings;
+
+    @Before
+    public void setup() {
+        globalSettings = Settings.builder().put("path.home", createTempDir()).build();
+    }
+
     @Test
     public void testBindWithReadTimeout() throws Exception {
         String ldapUrl = ldapUrl();
@@ -31,12 +37,13 @@ public class LdapSessionFactoryTests extends LdapTest {
         String[] userTemplates = new String[] {
                 "cn={0},ou=people,o=sevenSeas",
         };
-        Settings settings = ImmutableSettings.builder()
+        Settings settings = Settings.builder()
                 .put(buildLdapSettings(ldapUrl, userTemplates, groupSearchBase, LdapSearchScope.SUB_TREE))
                 .put(SessionFactory.TIMEOUT_TCP_READ_SETTING, "1ms") //1 millisecond
+                .put("path.home", createTempDir())
                 .build();
 
-        RealmConfig config = new RealmConfig("ldap_realm", settings);
+        RealmConfig config = new RealmConfig("ldap_realm", settings, globalSettings);
         LdapSessionFactory sessionFactory = new LdapSessionFactory(config, null);
         String user = "Horatio Hornblower";
         SecuredString userPass = SecuredStringTests.build("pass");
@@ -62,12 +69,12 @@ public class LdapSessionFactoryTests extends LdapTest {
         String[] userTemplates = new String[] {
                 "cn={0},ou=people,o=sevenSeas",
         };
-        Settings settings = ImmutableSettings.builder()
+        Settings settings = Settings.builder()
                 .put(buildLdapSettings(ldapUrl, userTemplates, groupSearchBase, LdapSearchScope.SUB_TREE))
                 .put(SessionFactory.TIMEOUT_TCP_CONNECTION_SETTING, "1ms") //1 millisecond
                 .build();
 
-        RealmConfig config = new RealmConfig("ldap_realm", settings);
+        RealmConfig config = new RealmConfig("ldap_realm", settings, globalSettings);
         LdapSessionFactory sessionFactory = new LdapSessionFactory(config, null);
         String user = "Horatio Hornblower";
         SecuredString userPass = SecuredStringTests.build("pass");
@@ -91,7 +98,7 @@ public class LdapSessionFactoryTests extends LdapTest {
                 "wrongname={0},ou=people,o=sevenSeas",
                 "cn={0},ou=people,o=sevenSeas", //this last one should work
         };
-        RealmConfig config = new RealmConfig("ldap_realm", buildLdapSettings(ldapUrl(), userTemplates, groupSearchBase, LdapSearchScope.SUB_TREE));
+        RealmConfig config = new RealmConfig("ldap_realm", buildLdapSettings(ldapUrl(), userTemplates, groupSearchBase, LdapSearchScope.SUB_TREE), globalSettings);
 
         LdapSessionFactory sessionFactory = new LdapSessionFactory(config, null);
 
@@ -113,7 +120,7 @@ public class LdapSessionFactoryTests extends LdapTest {
                 "wrongname={0},ou=people,o=sevenSeas",
                 "asdf={0},ou=people,o=sevenSeas", //none of these should work
         };
-        RealmConfig config = new RealmConfig("ldap_realm", buildLdapSettings(ldapUrl(), userTemplates, groupSearchBase, LdapSearchScope.SUB_TREE));
+        RealmConfig config = new RealmConfig("ldap_realm", buildLdapSettings(ldapUrl(), userTemplates, groupSearchBase, LdapSearchScope.SUB_TREE), globalSettings);
 
         LdapSessionFactory ldapFac = new LdapSessionFactory(config, null);
 
@@ -127,7 +134,7 @@ public class LdapSessionFactoryTests extends LdapTest {
     public void testGroupLookup_Subtree() throws Exception {
         String groupSearchBase = "o=sevenSeas";
         String userTemplate = "cn={0},ou=people,o=sevenSeas";
-        RealmConfig config = new RealmConfig("ldap_realm", buildLdapSettings(ldapUrl(), userTemplate, groupSearchBase, LdapSearchScope.SUB_TREE));
+        RealmConfig config = new RealmConfig("ldap_realm", buildLdapSettings(ldapUrl(), userTemplate, groupSearchBase, LdapSearchScope.SUB_TREE), globalSettings);
 
         LdapSessionFactory ldapFac = new LdapSessionFactory(config, null);
 
@@ -144,7 +151,7 @@ public class LdapSessionFactoryTests extends LdapTest {
     public void testGroupLookup_OneLevel() throws Exception {
         String groupSearchBase = "ou=crews,ou=groups,o=sevenSeas";
         String userTemplate = "cn={0},ou=people,o=sevenSeas";
-        RealmConfig config = new RealmConfig("ldap_realm", buildLdapSettings(ldapUrl(), userTemplate, groupSearchBase, LdapSearchScope.ONE_LEVEL));
+        RealmConfig config = new RealmConfig("ldap_realm", buildLdapSettings(ldapUrl(), userTemplate, groupSearchBase, LdapSearchScope.ONE_LEVEL), globalSettings);
 
         LdapSessionFactory ldapFac = new LdapSessionFactory(config, null);
 
@@ -159,7 +166,7 @@ public class LdapSessionFactoryTests extends LdapTest {
     public void testGroupLookup_Base() throws Exception {
         String groupSearchBase = "cn=HMS Lydia,ou=crews,ou=groups,o=sevenSeas";
         String userTemplate = "cn={0},ou=people,o=sevenSeas";
-        RealmConfig config = new RealmConfig("ldap_realm", buildLdapSettings(ldapUrl(), userTemplate, groupSearchBase, LdapSearchScope.BASE));
+        RealmConfig config = new RealmConfig("ldap_realm", buildLdapSettings(ldapUrl(), userTemplate, groupSearchBase, LdapSearchScope.BASE), globalSettings);
 
         LdapSessionFactory ldapFac = new LdapSessionFactory(config, null);
 

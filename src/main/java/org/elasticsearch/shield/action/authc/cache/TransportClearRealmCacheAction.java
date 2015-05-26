@@ -34,18 +34,9 @@ public class TransportClearRealmCacheAction extends TransportNodesOperationActio
     public TransportClearRealmCacheAction(Settings settings, ClusterName clusterName, ThreadPool threadPool,
                                           ClusterService clusterService, TransportService transportService,
                                           ActionFilters actionFilters, Realms realms) {
-        super(settings, ClearRealmCacheAction.NAME, clusterName, threadPool, clusterService, transportService, actionFilters);
+        super(settings, ClearRealmCacheAction.NAME, clusterName, threadPool, clusterService, transportService, actionFilters,
+                ClearRealmCacheRequest.class, ClearRealmCacheRequest.Node.class, ThreadPool.Names.MANAGEMENT);
         this.realms = realms;
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.MANAGEMENT;
-    }
-
-    @Override
-    protected ClearRealmCacheRequest newRequest() {
-        return new ClearRealmCacheRequest();
     }
 
     @Override
@@ -58,11 +49,6 @@ public class TransportClearRealmCacheAction extends TransportNodesOperationActio
             }
         }
         return new ClearRealmCacheResponse(clusterName, nodes.toArray(new ClearRealmCacheResponse.Node[nodes.size()]));
-    }
-
-    @Override
-    protected ClearRealmCacheRequest.Node newNodeRequest() {
-        return new ClearRealmCacheRequest.Node();
     }
 
     @Override

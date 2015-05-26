@@ -6,8 +6,8 @@
 package org.elasticsearch.shield.authz.store;
 
 import org.elasticsearch.common.base.Charsets;
+import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.collect.ImmutableSet;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.shield.audit.logfile.CapturingLogger;
@@ -20,10 +20,9 @@ import org.elasticsearch.watcher.ResourceWatcherService;
 import org.junit.Test;
 
 import java.io.BufferedWriter;
-import java.io.File;
+import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.util.Collections;
 import java.util.List;
@@ -41,7 +40,7 @@ public class FileRolesStoreTests extends ElasticsearchTestCase {
 
     @Test
     public void testParseFile() throws Exception {
-        Path path = Paths.get(getClass().getResource("roles.yml").toURI());
+        Path path = getDataPath("roles.yml");
         Map<String, Permission.Global.Role> roles = FileRolesStore.parseFile(path, logger);
         assertThat(roles, notNullValue());
         assertThat(roles.size(), is(4));
@@ -107,7 +106,7 @@ public class FileRolesStoreTests extends ElasticsearchTestCase {
      */
     @Test
     public void testDefaultRolesFile() throws Exception {
-        Path path = Paths.get(getClass().getResource("default_roles.yml").toURI());
+        Path path = getDataPath("default_roles.yml");
         Map<String, Permission.Global.Role> roles = FileRolesStore.parseFile(path, logger);
         assertThat(roles, notNullValue());
         assertThat(roles.size(), is(8));
@@ -127,13 +126,16 @@ public class FileRolesStoreTests extends ElasticsearchTestCase {
         ThreadPool threadPool = null;
         ResourceWatcherService watcherService = null;
         try {
-            Path users = Paths.get(getClass().getResource("roles.yml").toURI());
-            Path tmp = newTempFile().toPath();
-            Files.copy(users, Files.newOutputStream(tmp));
+            Path roles = getDataPath("roles.yml");
+            Path tmp = createTempFile();
+            try (OutputStream stream = Files.newOutputStream(tmp)) {
+                Files.copy(roles, stream);
+            }
 
-            Settings settings = ImmutableSettings.builder()
+            Settings settings = Settings.builder()
                     .put("watcher.interval.high", "500ms")
                     .put("shield.authz.store.files.roles", tmp.toAbsolutePath())
+                    .put("path.home", createTempDir())
                     .build();
 
             Environment env = new Environment(settings);
@@ -183,15 +185,15 @@ public class FileRolesStoreTests extends ElasticsearchTestCase {
 
     @Test
     public void testThatEmptyFileDoesNotResultInLoop() throws Exception {
-        File file = newTempFile();
-        com.google.common.io.Files.write("#".getBytes(Charsets.UTF_8), file);
-        Map<String, Permission.Global.Role> roles = FileRolesStore.parseFile(file.toPath(), logger);
+        Path file = createTempFile();
+        Files.write(file, ImmutableList.of("#"), Charsets.UTF_8);
+        Map<String, Permission.Global.Role> roles = FileRolesStore.parseFile(file, logger);
         assertThat(roles.keySet(), is(empty()));
     }
 
     @Test
     public void testThatInvalidRoleDefinitions() throws Exception {
-        Path path = Paths.get(getClass().getResource("invalid_roles.yml").toURI());
+        Path path = getDataPath("invalid_roles.yml");
         CapturingLogger logger = new CapturingLogger(CapturingLogger.Level.ERROR);
         Map<String, Permission.Global.Role> roles = FileRolesStore.parseFile(path, logger);
         assertThat(roles.size(), is(1));
@@ -219,7 +221,7 @@ public class FileRolesStoreTests extends ElasticsearchTestCase {
 
         CapturingLogger logger = new CapturingLogger(CapturingLogger.Level.INFO);
 
-        Path path = Paths.get(getClass().getResource("reserved_roles.yml").toURI());
+        Path path = getDataPath("reserved_roles.yml");
         Map<String, Permission.Global.Role> roles = FileRolesStore.parseFile(path, reservedRoles, logger);
         assertThat(roles, notNullValue());
         assertThat(roles.size(), is(2));

@@ -7,14 +7,15 @@ package org.elasticsearch.shield.ssl;
 
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.shield.ShieldSettingsException;
 import org.elasticsearch.shield.ShieldSettingsFilter;
 
 public class ServerSSLService extends AbstractSSLService {
 
     @Inject
-    public ServerSSLService(Settings settings, ShieldSettingsFilter settingsFilter) {
-        super(settings);
+    public ServerSSLService(Settings settings, ShieldSettingsFilter settingsFilter, Environment environment) {
+        super(settings, environment);
 
         // we need to filter out all this sensitive information from all rest
         // responses
@@ -23,7 +24,7 @@ public class ServerSSLService extends AbstractSSLService {
 
     @Override
     protected SSLSettings sslSettings(Settings customSettings) {
-        SSLSettings sslSettings = new SSLSettings(customSettings, componentSettings);
+        SSLSettings sslSettings = new SSLSettings(customSettings, settings);
 
         if (sslSettings.keyStorePath == null) {
             throw new ShieldSettingsException("no keystore configured");

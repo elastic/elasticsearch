@@ -5,24 +5,22 @@
  */
 package org.elasticsearch.integration;
 
-import com.carrotsearch.ant.tasks.junit4.dependencies.com.google.common.collect.Maps;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
 import org.elasticsearch.cluster.metadata.SnapshotMetaData;
 import org.elasticsearch.common.collect.ImmutableMap;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.node.internal.InternalNode;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.test.junit.annotations.TestLogging;
-import org.elasticsearch.test.rest.client.http.HttpResponse;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
-import java.io.File;
+import java.nio.file.Path;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope.TEST;
-import static org.hamcrest.Matchers.*;
 
 @ClusterScope(scope = TEST)
 public class ClusterPrivilegeTests extends AbstractPrivilegeTests {
@@ -48,11 +46,24 @@ public class ClusterPrivilegeTests extends AbstractPrivilegeTests {
                     "role_b:user_b\n" +
                     "role_c:user_c\n";
 
+    static Path repositoryLocation;
+
+    @BeforeClass
+    public static void setupRepostoryPath() {
+        repositoryLocation = createTempDir();
+    }
+
+    @AfterClass
+    public static void cleanupRepositoryPath() {
+        repositoryLocation = null;
+    }
+
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return ImmutableSettings.builder().put(super.nodeSettings(nodeOrdinal))
-                .put(InternalNode.HTTP_ENABLED, true)
+        return Settings.builder().put(super.nodeSettings(nodeOrdinal))
+                .put(Node.HTTP_ENABLED, true)
                 .put("action.disable_shutdown", true)
+                .put("path.repo", repositoryLocation)
                 .build();
     }
 
@@ -85,10 +96,6 @@ public class ClusterPrivilegeTests extends AbstractPrivilegeTests {
         assertAccessIsAllowed("user_a", "GET", "/_nodes/infos");
         assertAccessIsAllowed("user_a", "POST", "/_cluster/reroute");
         assertAccessIsAllowed("user_a", "PUT", "/_cluster/settings", "{ \"transient\" : { \"indices.ttl.interval\": \"1m\" } }");
-        // special handling of shutdown, while the call is allowed, it will be rejected due to settings and thus a 500 error code is fine
-        HttpResponse response = executeRequest("user_a", "POST", "/_cluster/nodes/_all/_shutdown", null, Maps.newHashMap());
-        assertThat(response.getStatusCode(), is(500));
-        assertThat(response.getBody(), containsString("Shutdown is disabled"));
 
         // user_b can do monitoring
         assertAccessIsAllowed("user_b", "GET", "/_cluster/state");
@@ -102,7 +109,6 @@ public class ClusterPrivilegeTests extends AbstractPrivilegeTests {
         // but no admin stuff
         assertAccessIsDenied("user_b", "POST", "/_cluster/reroute");
         assertAccessIsDenied("user_b", "PUT", "/_cluster/settings", "{ \"transient\" : { \"indices.ttl.interval\": \"1m\" } }");
-        assertAccessIsDenied("user_b", "POST", "/_cluster/nodes/_all/_shutdown");
 
         // sorry user_c, you are not allowed anything
         assertAccessIsDenied("user_c", "GET", "/_cluster/state");
@@ -115,14 +121,12 @@ public class ClusterPrivilegeTests extends AbstractPrivilegeTests {
         assertAccessIsDenied("user_c", "GET", "/_nodes/infos");
         assertAccessIsDenied("user_c", "POST", "/_cluster/reroute");
         assertAccessIsDenied("user_c", "PUT", "/_cluster/settings", "{ \"transient\" : { \"indices.ttl.interval\": \"1m\" } }");
-        assertAccessIsDenied("user_c", "POST", "/_cluster/nodes/_all/_shutdown");
     }
 
     @Test
     @TestLogging("org.elasticsearch.test.rest.client.http:TRACE")
     public void testThatSnapshotAndRestore() throws Exception {
-        File repositoryLocation = newTempDir();
-        String repoJson = jsonBuilder().startObject().field("type", "fs").startObject("settings").field("location", repositoryLocation.getAbsolutePath()).endObject().endObject().string();
+        String repoJson = jsonBuilder().startObject().field("type", "fs").startObject("settings").field("location", repositoryLocation.toString()).endObject().endObject().string();
         assertAccessIsDenied("user_b", "PUT", "/_snapshot/my-repo", repoJson);
         assertAccessIsDenied("user_c", "PUT", "/_snapshot/my-repo", repoJson);
         assertAccessIsAllowed("user_a", "PUT", "/_snapshot/my-repo", repoJson);
@@ -171,7 +175,9 @@ public class ClusterPrivilegeTests extends AbstractPrivilegeTests {
         int i = 0;
         do {
             snapshotsStatusResponse = client().admin().cluster().prepareSnapshotStatus(repo).setSnapshots(snapshot).get();
-            sleep(200);
+            try {
+                Thread.sleep(200L);
+            } catch (InterruptedException e) {}
             i++;
             if (i >= 20) { throw new ElasticsearchException("Snapshot should have been successfully created after four seconds, was " + snapshotsStatusResponse.getSnapshots().get(0).getState()); }
         } while (snapshotsStatusResponse.getSnapshots().get(0).getState() != SnapshotMetaData.State.SUCCESS);

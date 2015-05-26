@@ -7,38 +7,34 @@ package org.elasticsearch.shield.authc.ldap.support;
 
 import com.unboundid.ldap.listener.InMemoryDirectoryServer;
 import com.unboundid.ldap.sdk.*;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.shield.authc.RealmConfig;
 import org.elasticsearch.shield.authc.ldap.LdapRealm;
 import org.elasticsearch.shield.authc.support.DnRoleMapper;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.watcher.ResourceWatcherService;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
+import org.junit.After;
+import org.junit.Before;
 import org.junit.Ignore;
-
-import java.nio.file.Paths;
 
 import static org.elasticsearch.shield.authc.ldap.LdapSessionFactory.*;
 
 @Ignore
 public abstract class LdapTest extends ElasticsearchTestCase {
 
-    protected static InMemoryDirectoryServer ldapServer;
+    protected InMemoryDirectoryServer ldapServer;
 
-    @BeforeClass
-    public static void startLdap() throws Exception {
+    @Before
+    public void startLdap() throws Exception {
         ldapServer = new InMemoryDirectoryServer("o=sevenSeas");
         ldapServer.add("o=sevenSeas", new Attribute("dc", "UnboundID"), new Attribute("objectClass", "top", "domain", "extensibleObject"));
-        ldapServer.importFromLDIF(false, Paths.get(LdapTest.class.getResource("seven-seas.ldif").toURI()).toAbsolutePath().toString());
+        ldapServer.importFromLDIF(false, getDataPath("/org/elasticsearch/shield/authc/ldap/support/seven-seas.ldif").toString());
         ldapServer.startListening();
     }
 
-    @AfterClass
-    public static void stopLdap() throws Exception {
+    @After
+    public void stopLdap() throws Exception {
         ldapServer.shutDown(true);
-        ldapServer = null;
     }
 
     protected String ldapUrl() throws LDAPException {
@@ -51,26 +47,29 @@ public abstract class LdapTest extends ElasticsearchTestCase {
     }
 
     public static Settings buildLdapSettings(String ldapUrl, String[] userTemplate, String groupSearchBase, LdapSearchScope scope) {
-        return ImmutableSettings.builder()
+        return Settings.builder()
                 .putArray(URLS_SETTING, ldapUrl)
                 .putArray(USER_DN_TEMPLATES_SETTING, userTemplate)
                 .put("group_search.base_dn", groupSearchBase)
                 .put("group_search.scope", scope)
-                .put(HOSTNAME_VERIFICATION_SETTING, false).build();
+                .put(HOSTNAME_VERIFICATION_SETTING, false)
+                .build();
     }
 
     public static Settings buildLdapSettings(String ldapUrl, String userTemplate, boolean hostnameVerification) {
-        return ImmutableSettings.builder()
+        return Settings.builder()
                 .putArray(URLS_SETTING, ldapUrl)
                 .putArray(USER_DN_TEMPLATES_SETTING, userTemplate)
-                .put(HOSTNAME_VERIFICATION_SETTING, hostnameVerification).build();
+                .put(HOSTNAME_VERIFICATION_SETTING, hostnameVerification)
+                .build();
     }
 
     protected DnRoleMapper buildGroupAsRoleMapper(ResourceWatcherService resourceWatcherService) {
-        Settings settings = ImmutableSettings.builder()
+        Settings settings = Settings.builder()
                 .put(DnRoleMapper.USE_UNMAPPED_GROUPS_AS_ROLES_SETTING, true)
                 .build();
-        RealmConfig config = new RealmConfig("ldap1", settings);
+        Settings global = Settings.builder().put("path.home", createTempDir()).build();
+        RealmConfig config = new RealmConfig("ldap1", settings, global);
 
         return new DnRoleMapper(LdapRealm.TYPE, config, resourceWatcherService, null);
     }

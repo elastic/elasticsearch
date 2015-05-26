@@ -75,9 +75,9 @@ public class ShieldActionMapperTests extends ElasticsearchTestCase {
         ShieldActionMapper shieldActionMapper = new ShieldActionMapper();
         AnalyzeRequest analyzeRequest;
         if (randomBoolean()) {
-            analyzeRequest = new AnalyzeRequest(randomAsciiOfLength(randomIntBetween(1, 30)), "text");
+            analyzeRequest = new AnalyzeRequest(randomAsciiOfLength(randomIntBetween(1, 30))).text("text");
         } else {
-            analyzeRequest = new AnalyzeRequest("text");
+            analyzeRequest = new AnalyzeRequest(null).text("text");
             analyzeRequest.index(randomAsciiOfLength(randomIntBetween(1, 30)));
         }
         assertThat(shieldActionMapper.action(AnalyzeAction.NAME, analyzeRequest), equalTo(AnalyzeAction.NAME));
@@ -86,7 +86,7 @@ public class ShieldActionMapperTests extends ElasticsearchTestCase {
     @Test
     public void testClusterAnalyze() {
         ShieldActionMapper shieldActionMapper = new ShieldActionMapper();
-        AnalyzeRequest analyzeRequest = new AnalyzeRequest("text");
+        AnalyzeRequest analyzeRequest = new AnalyzeRequest(null).text("text");
         assertThat(shieldActionMapper.action(AnalyzeAction.NAME, analyzeRequest), equalTo(ShieldActionMapper.CLUSTER_PERMISSION_ANALYZE));
     }
 }

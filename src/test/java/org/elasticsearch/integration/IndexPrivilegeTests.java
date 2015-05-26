@@ -7,9 +7,8 @@ package org.elasticsearch.integration;
 
 import com.carrotsearch.ant.tasks.junit4.dependencies.com.google.common.collect.Maps;
 import com.google.common.collect.ImmutableMap;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.node.internal.InternalNode;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.test.rest.client.http.HttpResponse;
 import org.junit.Before;
 import org.junit.Test;
@@ -115,8 +114,8 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTests {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return ImmutableSettings.builder().put(super.nodeSettings(nodeOrdinal))
-                .put(InternalNode.HTTP_ENABLED, true)
+        return Settings.builder().put(super.nodeSettings(nodeOrdinal))
+                .put(Node.HTTP_ENABLED, true)
                 .put("action.disable_shutdown", true)
                 .build();
     }
@@ -396,12 +395,10 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTests {
             case "monitor" :
                 if (userIsAllowed) {
                     assertAccessIsAllowed(user, "GET", "/" + index + "/_stats");
-                    assertAccessIsAllowed(user, "GET", "/" + index + "/_status");
                     assertAccessIsAllowed(user, "GET", "/" + index + "/_segments");
                     assertAccessIsAllowed(user, "GET", "/" + index + "/_recovery");
                 } else {
                     assertAccessIsDenied(user, "GET", "/" + index + "/_stats");
-                    assertAccessIsDenied(user, "GET", "/" + index + "/_status");
                     assertAccessIsDenied(user, "GET", "/" + index + "/_segments");
                     assertAccessIsDenied(user, "GET", "/" + index + "/_recovery");
                 }
@@ -505,10 +502,8 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTests {
                 assertAccessIsAllowed("admin", "PUT", "/" + index + "/foo/docToDelete2", jsonDoc, refreshParams);
                 if (userIsAllowed) {
                     assertAccessIsAllowed(user, "DELETE", "/" + index + "/foo/docToDelete");
-                    assertAccessIsAllowed(user, "DELETE", "/" + index + "/foo/_query", "{ \"query\" : { \"term\" : { \"name\" : \"docToDelete\" } } }");
                 } else {
                     assertAccessIsDenied(user, "DELETE", "/" + index + "/foo/docToDelete");
-                    assertAccessIsDenied(user, "DELETE", "/" + index + "/foo/_query", "{ \"query\" : { \"term\" : { \"name\" : \"docToDelete\" } } }");
                 }
                 break;
 

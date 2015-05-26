@@ -11,7 +11,6 @@ import org.elasticsearch.cluster.settings.ClusterDynamicSettingsModule;
 import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.AbstractPlugin;
@@ -23,7 +22,6 @@ import org.elasticsearch.shield.license.LicenseService;
 import org.elasticsearch.shield.crypto.InternalCryptoService;
 import org.elasticsearch.shield.transport.filter.IPFilter;
 
-import java.io.File;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Map;
@@ -74,10 +72,10 @@ public class ShieldPlugin extends AbstractPlugin {
     @Override
     public Settings additionalSettings() {
         if (!enabled) {
-            return ImmutableSettings.EMPTY;
+            return Settings.EMPTY;
         }
 
-        ImmutableSettings.Builder settingsBuilder = ImmutableSettings.settingsBuilder();
+        Settings.Builder settingsBuilder = Settings.settingsBuilder();
         addUserSettings(settingsBuilder);
         addTribeSettings(settingsBuilder);
         return settingsBuilder.build();
@@ -87,7 +85,7 @@ public class ShieldPlugin extends AbstractPlugin {
         clusterDynamicSettingsModule.addDynamicSettings("shield.transport.filter.*", "shield.http.filter.*", "transport.profiles.*", IPFilter.IP_FILTER_ENABLED_SETTING, IPFilter.IP_FILTER_ENABLED_HTTP_SETTING);
     }
 
-    private void addUserSettings(ImmutableSettings.Builder settingsBuilder) {
+    private void addUserSettings(Settings.Builder settingsBuilder) {
         String authHeaderSettingName = Headers.PREFIX + "." + UsernamePasswordToken.BASIC_AUTH_HEADER;
         if (settings.get(authHeaderSettingName) != null) {
             return;
@@ -112,7 +110,7 @@ public class ShieldPlugin extends AbstractPlugin {
      - if shield is loaded and enabled on the tribe node, we make sure it is also enabled on every tribe, by forcibly enabling it
        (that means it's not possible to disable shield on the tribe clients)
      */
-    private void addTribeSettings(ImmutableSettings.Builder settingsBuilder) {
+    private void addTribeSettings(Settings.Builder settingsBuilder) {
         Map<String, Settings> tribesSettings = settings.getGroups("tribe", true);
         if (tribesSettings.isEmpty()) {
             return;
@@ -150,7 +148,7 @@ public class ShieldPlugin extends AbstractPlugin {
     }
 
     public static Path configDir(Environment env) {
-        return new File(env.configFile(), NAME).toPath();
+        return env.configFile().resolve(NAME);
     }
 
     public static Path resolveConfigFile(Environment env, String name) {

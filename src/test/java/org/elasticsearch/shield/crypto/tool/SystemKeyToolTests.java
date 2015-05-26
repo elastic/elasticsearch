@@ -8,8 +8,6 @@ package org.elasticsearch.shield.crypto.tool;
 import org.elasticsearch.common.cli.CliTool;
 import org.elasticsearch.common.cli.CliToolTestCase;
 import org.elasticsearch.common.cli.Terminal;
-import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.shield.ShieldPlugin;
@@ -17,7 +15,6 @@ import org.elasticsearch.shield.crypto.InternalCryptoService;
 import org.junit.Before;
 import org.junit.Test;
 
-import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.PosixFileAttributeView;
@@ -41,6 +38,7 @@ public class SystemKeyToolTests extends CliToolTestCase {
     public void init() throws Exception {
         terminal = mock(Terminal.class);
         env = mock(Environment.class);
+        when(env.homeFile()).thenReturn(createTempDir());
     }
 
     @Test
@@ -53,64 +51,66 @@ public class SystemKeyToolTests extends CliToolTestCase {
 
     @Test
     public void testParse_FileArg() throws Exception {
-        Path path = newTempFile().toPath();
+        Path path = createTempFile();
         CliTool.Command cmd = new SystemKeyTool().parse("generate", new String[]{path.toAbsolutePath().toString()});
         assertThat(cmd, instanceOf(Generate.class));
         Generate generate = (Generate) cmd;
-        assertThat(Files.isSameFile(generate.path, path), is(true));
+
+        // The test framework wraps paths so we can't compare path to path
+        assertThat(generate.path.toString(), equalTo(path.toString()));
     }
 
     @Test
     public void testGenerate() throws Exception {
-        Path path = newTempFile().toPath();
+        Path path = createTempFile();
         Generate generate = new Generate(terminal, path);
-        CliTool.ExitStatus status = generate.execute(ImmutableSettings.EMPTY, env);
+        CliTool.ExitStatus status = generate.execute(Settings.EMPTY, env);
         assertThat(status, is(CliTool.ExitStatus.OK));
-        byte[] bytes = Streams.copyToByteArray(path.toFile());
+        byte[] bytes = Files.readAllBytes(path);
         assertThat(bytes.length, is(InternalCryptoService.KEY_SIZE / 8));
     }
 
     @Test
     public void testGenerate_PathInSettings() throws Exception {
-        Path path = newTempFile().toPath();
-        Settings settings = ImmutableSettings.builder()
+        Path path = createTempFile();
+        Settings settings = Settings.builder()
                 .put("shield.system_key.file", path.toAbsolutePath().toString())
                 .build();
         Generate generate = new Generate(terminal, null);
         CliTool.ExitStatus status = generate.execute(settings, env);
         assertThat(status, is(CliTool.ExitStatus.OK));
-        byte[] bytes = Streams.copyToByteArray(path.toFile());
+        byte[] bytes = Files.readAllBytes(path);
         assertThat(bytes.length, is(InternalCryptoService.KEY_SIZE / 8));
     }
 
     @Test
     public void testGenerate_DefaultPath() throws Exception {
-        File config = newTempDir();
-        File shieldConfig = new File(config, ShieldPlugin.NAME);
-        shieldConfig.mkdirs();
-        Path path = new File(shieldConfig, "system_key").toPath();
+        Path config = createTempDir();
+        Path shieldConfig = config.resolve(ShieldPlugin.NAME);
+        Files.createDirectories(shieldConfig);
+        Path path = shieldConfig.resolve("system_key");
         when(env.configFile()).thenReturn(config);
         Generate generate = new Generate(terminal, null);
-        CliTool.ExitStatus status = generate.execute(ImmutableSettings.EMPTY, env);
+        CliTool.ExitStatus status = generate.execute(Settings.EMPTY, env);
         assertThat(status, is(CliTool.ExitStatus.OK));
-        byte[] bytes = Streams.copyToByteArray(path.toFile());
+        byte[] bytes = Files.readAllBytes(path);
         assertThat(bytes.length, is(InternalCryptoService.KEY_SIZE / 8));
     }
 
     @Test
     public void testThatSystemKeyMayOnlyBeReadByOwner() throws Exception {
-        File config = newTempDir();
-        File shieldConfig = new File(config, ShieldPlugin.NAME);
-        shieldConfig.mkdirs();
-        Path path = new File(shieldConfig, "system_key").toPath();
+        Path config = createTempDir();
+        Path shieldConfig = config.resolve(ShieldPlugin.NAME);
+        Files.createDirectories(shieldConfig);
+        Path path = shieldConfig.resolve("system_key");
 
         // no posix file permissions, nothing to test, done here
-        boolean supportsPosixPermissions = Files.getFileStore(shieldConfig.toPath()).supportsFileAttributeView(PosixFileAttributeView.class);
+        boolean supportsPosixPermissions = Files.getFileStore(shieldConfig).supportsFileAttributeView(PosixFileAttributeView.class);
         assumeTrue("Ignoring because posix file attributes are not supported", supportsPosixPermissions);
 
         when(env.configFile()).thenReturn(config);
         Generate generate = new Generate(terminal, null);
-        CliTool.ExitStatus status = generate.execute(ImmutableSettings.EMPTY, env);
+        CliTool.ExitStatus status = generate.execute(Settings.EMPTY, env);
         assertThat(status, is(CliTool.ExitStatus.OK));
 
         Set<PosixFilePermission> posixFilePermissions = Files.getPosixFilePermissions(path);

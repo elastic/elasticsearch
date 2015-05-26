@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.shield.authc.ldap;
 
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.shield.ShieldSettingsException;
@@ -41,12 +40,14 @@ public class LdapRealmTests extends LdapTest {
     private RestController restController;
     private ThreadPool threadPool;
     private ResourceWatcherService resourceWatcherService;
+    private Settings globalSettings;
 
     @Before
     public void init() throws Exception {
         restController = mock(RestController.class);
         threadPool = new ThreadPool("ldap realm tests");
-        resourceWatcherService = new ResourceWatcherService(ImmutableSettings.EMPTY, threadPool);
+        resourceWatcherService = new ResourceWatcherService(Settings.EMPTY, threadPool);
+        globalSettings = Settings.builder().put("path.home", createTempDir()).build();
     }
 
     @After
@@ -66,7 +67,7 @@ public class LdapRealmTests extends LdapTest {
         String groupSearchBase = "o=sevenSeas";
         String userTemplate = VALID_USER_TEMPLATE;
         Settings settings = buildLdapSettings(ldapUrl(), userTemplate, groupSearchBase, LdapSearchScope.SUB_TREE);
-        RealmConfig config = new RealmConfig("test-ldap-realm", settings);
+        RealmConfig config = new RealmConfig("test-ldap-realm", settings, globalSettings);
         LdapSessionFactory ldapFactory = new LdapSessionFactory(config, null);
         LdapRealm ldap = new LdapRealm(config, ldapFactory, buildGroupAsRoleMapper(resourceWatcherService));
 
@@ -79,10 +80,10 @@ public class LdapRealmTests extends LdapTest {
     public void testAuthenticate_OneLevelGroupSearch() throws Exception {
         String groupSearchBase = "ou=crews,ou=groups,o=sevenSeas";
         String userTemplate = VALID_USER_TEMPLATE;
-        Settings settings = ImmutableSettings.builder()
+        Settings settings = Settings.builder()
                 .put(buildLdapSettings(ldapUrl(), userTemplate, groupSearchBase, LdapSearchScope.ONE_LEVEL))
                 .build();
-        RealmConfig config = new RealmConfig("test-ldap-realm", settings);
+        RealmConfig config = new RealmConfig("test-ldap-realm", settings, globalSettings);
 
         LdapSessionFactory ldapFactory = new LdapSessionFactory(config, null);
         LdapRealm ldap = new LdapRealm(config, ldapFactory, buildGroupAsRoleMapper(resourceWatcherService));
@@ -96,10 +97,10 @@ public class LdapRealmTests extends LdapTest {
     public void testAuthenticate_Caching() throws Exception {
         String groupSearchBase = "o=sevenSeas";
         String userTemplate = VALID_USER_TEMPLATE;
-        Settings settings = ImmutableSettings.builder()
+        Settings settings = Settings.builder()
                 .put(buildLdapSettings(ldapUrl(), userTemplate, groupSearchBase, LdapSearchScope.SUB_TREE))
                 .build();
-        RealmConfig config = new RealmConfig("test-ldap-realm", settings);
+        RealmConfig config = new RealmConfig("test-ldap-realm", settings, globalSettings);
 
         LdapSessionFactory ldapFactory = new LdapSessionFactory(config, null);
         ldapFactory = spy(ldapFactory);
@@ -115,24 +116,24 @@ public class LdapRealmTests extends LdapTest {
     public void testAuthenticate_Caching_Refresh() throws Exception {
         String groupSearchBase = "o=sevenSeas";
         String userTemplate = VALID_USER_TEMPLATE;
-        Settings settings = ImmutableSettings.builder()
+        Settings settings = Settings.builder()
                 .put(buildLdapSettings(ldapUrl(), userTemplate, groupSearchBase, LdapSearchScope.SUB_TREE))
                 .build();
-        RealmConfig config = new RealmConfig("test-ldap-realm", settings);
+        RealmConfig config = new RealmConfig("test-ldap-realm", settings, globalSettings);
 
         LdapSessionFactory ldapFactory = new LdapSessionFactory(config, null);
         DnRoleMapper roleMapper = buildGroupAsRoleMapper(resourceWatcherService);
         ldapFactory = spy(ldapFactory);
         LdapRealm ldap = new LdapRealm(config, ldapFactory, roleMapper);
-        ldap.authenticate( new UsernamePasswordToken(VALID_USERNAME, SecuredStringTests.build(PASSWORD)));
-        ldap.authenticate( new UsernamePasswordToken(VALID_USERNAME, SecuredStringTests.build(PASSWORD)));
+        ldap.authenticate(new UsernamePasswordToken(VALID_USERNAME, SecuredStringTests.build(PASSWORD)));
+        ldap.authenticate(new UsernamePasswordToken(VALID_USERNAME, SecuredStringTests.build(PASSWORD)));
 
         //verify one and only one session -> caching is working
         verify(ldapFactory, times(1)).session(anyString(), any(SecuredString.class));
 
         roleMapper.notifyRefresh();
 
-        ldap.authenticate( new UsernamePasswordToken(VALID_USERNAME, SecuredStringTests.build(PASSWORD)));
+        ldap.authenticate(new UsernamePasswordToken(VALID_USERNAME, SecuredStringTests.build(PASSWORD)));
 
         //we need to session again
         verify(ldapFactory, times(2)).session(anyString(), any(SecuredString.class));
@@ -142,17 +143,17 @@ public class LdapRealmTests extends LdapTest {
     public void testAuthenticate_Noncaching() throws Exception {
         String groupSearchBase = "o=sevenSeas";
         String userTemplate = VALID_USER_TEMPLATE;
-        Settings settings = ImmutableSettings.builder()
+        Settings settings = Settings.builder()
                 .put(buildLdapSettings(ldapUrl(), userTemplate, groupSearchBase, LdapSearchScope.SUB_TREE))
                 .put(LdapRealm.CACHE_TTL_SETTING, -1)
                 .build();
-        RealmConfig config = new RealmConfig("test-ldap-realm", settings);
+        RealmConfig config = new RealmConfig("test-ldap-realm", settings, globalSettings);
 
         LdapSessionFactory ldapFactory = new LdapSessionFactory(config, null);
         ldapFactory = spy(ldapFactory);
         LdapRealm ldap = new LdapRealm(config, ldapFactory, buildGroupAsRoleMapper(resourceWatcherService));
-        ldap.authenticate( new UsernamePasswordToken(VALID_USERNAME, SecuredStringTests.build(PASSWORD)));
-        ldap.authenticate( new UsernamePasswordToken(VALID_USERNAME, SecuredStringTests.build(PASSWORD)));
+        ldap.authenticate(new UsernamePasswordToken(VALID_USERNAME, SecuredStringTests.build(PASSWORD)));
+        ldap.authenticate(new UsernamePasswordToken(VALID_USERNAME, SecuredStringTests.build(PASSWORD)));
 
         //verify two and only two binds -> caching is disabled
         verify(ldapFactory, times(2)).session(anyString(), any(SecuredString.class));
@@ -162,14 +163,14 @@ public class LdapRealmTests extends LdapTest {
     public void testLdapRealmSelectsLdapSessionFactory() throws Exception {
         String groupSearchBase = "o=sevenSeas";
         String userTemplate = VALID_USER_TEMPLATE;
-        Settings settings = ImmutableSettings.builder()
+        Settings settings = Settings.builder()
                 .putArray(URLS_SETTING, ldapUrl())
                 .putArray(USER_DN_TEMPLATES_SETTING, userTemplate)
                 .put("group_search.base_dn", groupSearchBase)
                 .put("group_search.scope", LdapSearchScope.SUB_TREE)
                 .put(HOSTNAME_VERIFICATION_SETTING, false)
                 .build();
-        RealmConfig config = new RealmConfig("test-ldap-realm", settings);
+        RealmConfig config = new RealmConfig("test-ldap-realm", settings, globalSettings);
         SessionFactory sessionFactory = LdapRealm.Factory.sessionFactory(config, null);
         assertThat(sessionFactory, is(instanceOf(LdapSessionFactory.class)));
     }
@@ -177,7 +178,7 @@ public class LdapRealmTests extends LdapTest {
     @Test
     public void testLdapRealmSelectsLdapUserSearchSessionFactory() throws Exception {
         String groupSearchBase = "o=sevenSeas";
-        Settings settings = ImmutableSettings.builder()
+        Settings settings = Settings.builder()
                 .putArray(URLS_SETTING, ldapUrl())
                 .put("user_search.base_dn", "")
                 .put("bind_dn", "cn=Thomas Masterman Hardy,ou=people,o=sevenSeas")
@@ -186,7 +187,7 @@ public class LdapRealmTests extends LdapTest {
                 .put("group_search.scope", LdapSearchScope.SUB_TREE)
                 .put(HOSTNAME_VERIFICATION_SETTING, false)
                 .build();
-        RealmConfig config = new RealmConfig("test-ldap-realm-user-search", settings);
+        RealmConfig config = new RealmConfig("test-ldap-realm-user-search", settings, globalSettings);
         SessionFactory sessionFactory = LdapRealm.Factory.sessionFactory(config, null);
         try {
             assertThat(sessionFactory, is(instanceOf(LdapUserSearchSessionFactory.class)));
@@ -197,7 +198,7 @@ public class LdapRealmTests extends LdapTest {
 
     @Test
     public void testLdapRealmThrowsExceptionForUserTemplateAndSearchSettings() throws Exception {
-        Settings settings = ImmutableSettings.builder()
+        Settings settings = Settings.builder()
                 .putArray(URLS_SETTING, ldapUrl())
                 .putArray(USER_DN_TEMPLATES_SETTING, "cn=foo")
                 .put("user_search.base_dn", "cn=bar")
@@ -205,7 +206,7 @@ public class LdapRealmTests extends LdapTest {
                 .put("group_search.scope", LdapSearchScope.SUB_TREE)
                 .put(HOSTNAME_VERIFICATION_SETTING, false)
                 .build();
-        RealmConfig config = new RealmConfig("test-ldap-realm-user-search", settings);
+        RealmConfig config = new RealmConfig("test-ldap-realm-user-search", settings, globalSettings);
         try {
             LdapRealm.Factory.sessionFactory(config, null);
             fail("an exception should have been thrown because both user template and user search settings were specified");
@@ -218,11 +219,11 @@ public class LdapRealmTests extends LdapTest {
     public void testLdapRealmMapsUserDNToRole() throws Exception {
         String groupSearchBase = "o=sevenSeas";
         String userTemplate = VALID_USER_TEMPLATE;
-        Settings settings = ImmutableSettings.builder()
+        Settings settings = Settings.builder()
                 .put(buildLdapSettings(ldapUrl(), userTemplate, groupSearchBase, LdapSearchScope.SUB_TREE))
-                .put(DnRoleMapper.ROLE_MAPPING_FILE_SETTING, getResource("/org/elasticsearch/shield/authc/support/role_mapping.yml").getCanonicalPath())
+                .put(DnRoleMapper.ROLE_MAPPING_FILE_SETTING, getDataPath("/org/elasticsearch/shield/authc/support/role_mapping.yml"))
                 .build();
-        RealmConfig config = new RealmConfig("test-ldap-realm-userdn", settings);
+        RealmConfig config = new RealmConfig("test-ldap-realm-userdn", settings, globalSettings);
 
         LdapSessionFactory ldapFactory = new LdapSessionFactory(config, null);
         LdapRealm ldap = new LdapRealm(config, ldapFactory, new DnRoleMapper(LdapRealm.TYPE, config, resourceWatcherService, null));

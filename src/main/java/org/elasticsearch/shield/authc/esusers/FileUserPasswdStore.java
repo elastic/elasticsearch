@@ -24,12 +24,10 @@ import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
 import org.elasticsearch.watcher.ResourceWatcherService;
 
-import java.io.File;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -62,9 +60,14 @@ public class FileUserPasswdStore {
         if (users.isEmpty() && logger.isDebugEnabled()) {
             logger.debug("realm [esusers] has no users");
         }
-        FileWatcher watcher = new FileWatcher(file.getParent().toFile());
+        FileWatcher watcher = new FileWatcher(file.getParent());
         watcher.addListener(new FileListener());
-        watcherService.add(watcher, ResourceWatcherService.Frequency.HIGH);
+        try {
+            watcherService.add(watcher, ResourceWatcherService.Frequency.HIGH);
+        } catch (IOException e) {
+            throw new ElasticsearchException("failed to start watching users file [" + file.toAbsolutePath() + "]", e);
+        }
+
         listeners = new CopyOnWriteArrayList<>();
         if (listener != null) {
             listeners.add(listener);
@@ -92,7 +95,7 @@ public class FileUserPasswdStore {
         if (location == null) {
             return ShieldPlugin.resolveConfigFile(env, "users");
         }
-        return Paths.get(location);
+        return env.homeFile().resolve(location);
     }
 
     /**
@@ -177,20 +180,20 @@ public class FileUserPasswdStore {
 
     private class FileListener extends FileChangesListener {
         @Override
-        public void onFileCreated(File file) {
+        public void onFileCreated(Path file) {
             onFileChanged(file);
         }
 
         @Override
-        public void onFileDeleted(File file) {
+        public void onFileDeleted(Path file) {
             onFileChanged(file);
         }
 
         @Override
-        public void onFileChanged(File file) {
-            if (file.equals(FileUserPasswdStore.this.file.toFile())) {
-                logger.info("users file [{}] changed. updating users... )", file.getAbsolutePath());
-                users = parseFileLenient(file.toPath(), logger);
+        public void onFileChanged(Path file) {
+            if (file.equals(FileUserPasswdStore.this.file)) {
+                logger.info("users file [{}] changed. updating users... )", file.toAbsolutePath());
+                users = parseFileLenient(file, logger);
                 notifyRefresh();
             }
         }

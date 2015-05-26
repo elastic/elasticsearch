@@ -8,6 +8,7 @@ package org.elasticsearch.shield.client;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.ClusterAdminClient;
+import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.shield.action.authc.cache.ClearRealmCacheAction;
 import org.elasticsearch.shield.action.authc.cache.ClearRealmCacheRequest;
 import org.elasticsearch.shield.action.authc.cache.ClearRealmCacheRequestBuilder;
@@ -18,9 +19,9 @@ import org.elasticsearch.shield.action.authc.cache.ClearRealmCacheResponse;
  */
 public class ShieldAuthcClient {
 
-    private final ClusterAdminClient client;
+    private final ElasticsearchClient client;
 
-    ShieldAuthcClient(ClusterAdminClient client) {
+    ShieldAuthcClient(ElasticsearchClient client) {
         this.client = client;
     }
 

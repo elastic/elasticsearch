@@ -6,7 +6,6 @@
 package org.elasticsearch.shield.crypto;
 
 import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ElasticsearchTestCase;
@@ -16,7 +15,9 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-import java.io.File;
+import java.io.OutputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -32,16 +33,17 @@ public class InternalCryptoServiceTests extends ElasticsearchTestCase {
     private ResourceWatcherService watcherService;
     private Settings settings;
     private Environment env;
-    private File keyFile;
+    private Path keyFile;
     private ThreadPool threadPool;
 
     @Before
     public void init() throws Exception {
-        keyFile = new File(newTempDir(), "system_key");
-        Streams.copy(InternalCryptoService.generateKey(), keyFile);
-        settings = ImmutableSettings.builder()
-                .put("shield.system_key.file", keyFile.getAbsolutePath())
+        keyFile = createTempDir().resolve("system_key");
+        Files.write(keyFile, InternalCryptoService.generateKey());
+        settings = Settings.builder()
+                .put("shield.system_key.file", keyFile.toAbsolutePath())
                 .put("watcher.interval.high", "2s")
+                .put("path.home", createTempDir())
                 .build();
         env = new Environment(settings);
         threadPool = new ThreadPool("test");
@@ -75,7 +77,7 @@ public class InternalCryptoServiceTests extends ElasticsearchTestCase {
 
     @Test
     public void testSignAndUnsign_NoKeyFile() throws Exception {
-        InternalCryptoService service = new InternalCryptoService(ImmutableSettings.EMPTY, env, watcherService).start();
+        InternalCryptoService service = new InternalCryptoService(Settings.EMPTY, env, watcherService).start();
         String text = randomAsciiOfLength(10);
         String signed = service.sign(text);
         assertThat(text, equalTo(signed));
@@ -175,7 +177,7 @@ public class InternalCryptoServiceTests extends ElasticsearchTestCase {
 
     @Test
     public void testEncryptionAndDecryptionCharsWithoutKey() {
-        InternalCryptoService service = new InternalCryptoService(ImmutableSettings.EMPTY, env, watcherService).start();
+        InternalCryptoService service = new InternalCryptoService(Settings.EMPTY, env, watcherService).start();
         final char[] chars = randomAsciiOfLengthBetween(0, 1000).toCharArray();
         try {
             service.encrypt(chars);
@@ -195,7 +197,7 @@ public class InternalCryptoServiceTests extends ElasticsearchTestCase {
 
     @Test
     public void testEncryptionAndDecryptionBytesWithoutKey() {
-        InternalCryptoService service = new InternalCryptoService(ImmutableSettings.EMPTY, env, watcherService).start();
+        InternalCryptoService service = new InternalCryptoService(Settings.EMPTY, env, watcherService).start();
         final byte[] bytes = randomByteArray();
         try {
             service.encrypt(bytes);
@@ -250,9 +252,11 @@ public class InternalCryptoServiceTests extends ElasticsearchTestCase {
 
         // we need to sleep so to ensure the timestamp of the file will definitely change
         // and so the resource watcher will pick up the change.
-        sleep(1000);
+        Thread.sleep(1000L);
 
-        Streams.copy(InternalCryptoService.generateKey(), keyFile);
+        try (OutputStream os = Files.newOutputStream(keyFile)) {
+            Streams.copy(InternalCryptoService.generateKey(), os);
+        }
         if (!latch.await(10, TimeUnit.SECONDS)) {
             fail("waiting too long for test to complete. Expected callback is not called");
         }

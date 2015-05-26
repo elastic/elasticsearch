@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.shield.authc;
 
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.rest.RestRequest;
@@ -44,7 +43,8 @@ public class RealmsTests extends ElasticsearchTestCase {
 
     @Test
     public void testWithSettings() throws Exception {
-        ImmutableSettings.Builder builder = ImmutableSettings.builder();
+        Settings.Builder builder = Settings.builder()
+                .put("path.home", createTempDir());
         List<Integer> orders = new ArrayList<>(factories.size() - 1);
         for (int i = 0; i < factories.size() - 1; i++) {
             orders.add(i);
@@ -72,11 +72,12 @@ public class RealmsTests extends ElasticsearchTestCase {
 
     @Test(expected = ShieldSettingsException.class)
     public void testWithSettings_WithMultipleInternalRealmsOfSameType() throws Exception {
-        Settings settings = ImmutableSettings.builder()
+        Settings settings = Settings.builder()
                 .put("shield.authc.realms.realm_1.type", ESUsersRealm.TYPE)
                 .put("shield.authc.realms.realm_1.order", 0)
                 .put("shield.authc.realms.realm_2.type", ESUsersRealm.TYPE)
                 .put("shield.authc.realms.realm_2.order", 1)
+                .put("path.home", createTempDir())
                 .build();
         Environment env = new Environment(settings);
         new Realms(settings, env, factories, settingsFilter).start();
@@ -84,7 +85,7 @@ public class RealmsTests extends ElasticsearchTestCase {
 
     @Test
     public void testWithEmptySettings() throws Exception {
-        Realms realms = new Realms(ImmutableSettings.EMPTY, new Environment(ImmutableSettings.EMPTY), factories, settingsFilter);
+        Realms realms = new Realms(Settings.EMPTY, new Environment(Settings.builder().put("path.home", createTempDir()).build()), factories, settingsFilter);
         realms.start();
         Iterator<Realm> iter = realms.iterator();
         assertThat(iter.hasNext(), is(true));
@@ -97,7 +98,8 @@ public class RealmsTests extends ElasticsearchTestCase {
 
     @Test
     public void testDisabledRealmsAreNotAdded() throws Exception {
-        ImmutableSettings.Builder builder = ImmutableSettings.builder();
+        Settings.Builder builder = Settings.builder()
+                .put("path.home", createTempDir());
         List<Integer> orders = new ArrayList<>(factories.size() - 1);
         for (int i = 0; i < factories.size() - 1; i++) {
             orders.add(i);
@@ -179,7 +181,10 @@ public class RealmsTests extends ElasticsearchTestCase {
 
             @Override
             public DummyRealm createDefault(String name) {
-                return type().equals("esusers") ? new DummyRealm("esusers", new RealmConfig(name)) : null;
+                if (type().equals("esusers")) {
+                    return new DummyRealm("esusers", new RealmConfig(name, Settings.EMPTY, Settings.builder().put("path.home", createTempDir()).build()));
+                }
+                return null;
             }
         }
     }

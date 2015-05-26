@@ -10,9 +10,9 @@ import com.unboundid.ldap.sdk.LDAPConnection;
 import com.unboundid.ldap.sdk.LDAPConnectionOptions;
 import com.unboundid.ldap.sdk.LDAPURL;
 import org.elasticsearch.common.primitives.Ints;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.shield.authc.ldap.support.SessionFactory;
 import org.elasticsearch.shield.authc.ldap.support.LdapSearchScope;
 import org.elasticsearch.shield.ssl.ClientSSLService;
@@ -24,7 +24,6 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.List;
 import java.util.regex.Pattern;
 
@@ -39,12 +38,12 @@ public class ActiveDirectoryGroupsResolverTests extends ElasticsearchTestCase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        Path keystore = Paths.get(ActiveDirectoryGroupsResolverTests.class.getResource("../ldap/support/ldaptrust.jks").toURI()).toAbsolutePath();
-
-        ClientSSLService clientSSLService = new ClientSSLService(ImmutableSettings.builder()
+        Path keystore = getDataPath("../ldap/support/ldaptrust.jks");
+        Environment env = new Environment(Settings.builder().put("path.home", createTempDir()).build());
+        ClientSSLService clientSSLService = new ClientSSLService(Settings.builder()
                 .put("shield.ssl.keystore.path", keystore)
                 .put("shield.ssl.keystore.password", "changeit")
-                .build());
+                .build(), env);
 
         LDAPURL ldapurl = new LDAPURL(ActiveDirectorySessionFactoryTests.AD_LDAP_URL);
         LDAPConnectionOptions options = new LDAPConnectionOptions();
@@ -64,7 +63,7 @@ public class ActiveDirectoryGroupsResolverTests extends ElasticsearchTestCase {
 
     @Test
     public void testResolveSubTree() throws Exception {
-        Settings settings = ImmutableSettings.builder()
+        Settings settings = Settings.builder()
                 .put("scope", LdapSearchScope.SUB_TREE)
                 .build();
         ActiveDirectoryGroupsResolver resolver = new ActiveDirectoryGroupsResolver(settings, "DC=ad,DC=test,DC=elasticsearch,DC=com");
@@ -81,7 +80,7 @@ public class ActiveDirectoryGroupsResolverTests extends ElasticsearchTestCase {
 
     @Test
     public void testResolveOneLevel() throws Exception {
-        Settings settings = ImmutableSettings.builder()
+        Settings settings = Settings.builder()
                 .put("scope", LdapSearchScope.ONE_LEVEL)
                 .put("base_dn", "CN=Builtin, DC=ad, DC=test, DC=elasticsearch,DC=com")
                 .build();
@@ -92,7 +91,7 @@ public class ActiveDirectoryGroupsResolverTests extends ElasticsearchTestCase {
 
     @Test
     public void testResolveBaseLevel() throws Exception {
-        Settings settings = ImmutableSettings.builder()
+        Settings settings = Settings.builder()
                 .put("scope", LdapSearchScope.BASE)
                 .put("base_dn", "CN=Users, CN=Builtin, DC=ad, DC=test, DC=elasticsearch, DC=com")
                 .build();

@@ -6,6 +6,7 @@
 package org.elasticsearch.shield.authc.ldap;
 
 import com.unboundid.ldap.sdk.*;
+
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.shield.ShieldSettingsException;
 import org.elasticsearch.shield.authc.RealmConfig;
@@ -16,7 +17,9 @@ import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.ssl.ClientSSLService;
 
 import javax.net.SocketFactory;
+
 import java.text.MessageFormat;
+import java.util.Locale;
 
 import static org.elasticsearch.shield.authc.ldap.support.LdapUtils.escapedRDNValue;
 
@@ -117,7 +120,7 @@ public class LdapSessionFactory extends SessionFactory {
     String buildDnFromTemplate(String username, String template) {
         //this value must be escaped to avoid manipulation of the template DN.
         String escapedUsername = escapedRDNValue(username);
-        return MessageFormat.format(template, escapedUsername);
+        return new MessageFormat(template, Locale.ROOT).format(new Object[] { escapedUsername }, new StringBuffer(), null).toString();
     }
 
     static GroupsResolver groupResolver(Settings settings) {

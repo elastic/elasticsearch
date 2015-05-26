@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.shield;
 
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
@@ -21,7 +20,7 @@ public class ShieldPluginSettingsTests extends ElasticsearchTestCase {
 
     @Test
     public void testShieldIsMandatoryOnTribes() {
-        Settings settings = ImmutableSettings.builder().put("tribe.t1.cluster.name", "non_existing")
+        Settings settings = Settings.builder().put("tribe.t1.cluster.name", "non_existing")
                 .put("tribe.t2.cluster.name", "non_existing").build();
 
         ShieldPlugin shieldPlugin = new ShieldPlugin(settings);
@@ -35,13 +34,13 @@ public class ShieldPluginSettingsTests extends ElasticsearchTestCase {
 
     @Test
     public void testAdditionalMandatoryPluginsOnTribes() {
-        Settings settings = ImmutableSettings.builder().put("tribe.t1.cluster.name", "non_existing")
+        Settings settings = Settings.builder().put("tribe.t1.cluster.name", "non_existing")
                 .putArray("tribe.t1.plugin.mandatory", "test_plugin").build();
 
         ShieldPlugin shieldPlugin = new ShieldPlugin(settings);
 
         //simulate what PluginsService#updatedSettings does to make sure we don't override existing mandatory plugins
-        Settings finalSettings = ImmutableSettings.builder().put(settings).put(shieldPlugin.additionalSettings()).build();
+        Settings finalSettings = Settings.builder().put(settings).put(shieldPlugin.additionalSettings()).build();
 
         String[] finalMandatoryPlugins = finalSettings.getAsArray("tribe.t1.plugin.mandatory", null);
         assertThat(finalMandatoryPlugins, notNullValue());
@@ -52,13 +51,13 @@ public class ShieldPluginSettingsTests extends ElasticsearchTestCase {
 
     @Test
     public void testMandatoryPluginsOnTribesShieldAlreadyMandatory() {
-        Settings settings = ImmutableSettings.builder().put("tribe.t1.cluster.name", "non_existing")
+        Settings settings = Settings.builder().put("tribe.t1.cluster.name", "non_existing")
                 .putArray("tribe.t1.plugin.mandatory", "test_plugin", ShieldPlugin.NAME).build();
 
         ShieldPlugin shieldPlugin = new ShieldPlugin(settings);
 
         //simulate what PluginsService#updatedSettings does to make sure we don't override existing mandatory plugins
-        Settings finalSettings = ImmutableSettings.builder().put(settings).put(shieldPlugin.additionalSettings()).build();
+        Settings finalSettings = Settings.builder().put(settings).put(shieldPlugin.additionalSettings()).build();
 
         String[] finalMandatoryPlugins = finalSettings.getAsArray("tribe.t1.plugin.mandatory", null);
         assertThat(finalMandatoryPlugins, notNullValue());
@@ -69,7 +68,7 @@ public class ShieldPluginSettingsTests extends ElasticsearchTestCase {
 
     @Test
     public void testShieldAlwaysEnabledOnTribes() {
-        Settings settings = ImmutableSettings.builder().put("tribe.t1.cluster.name", "non_existing")
+        Settings settings = Settings.builder().put("tribe.t1.cluster.name", "non_existing")
                 .put(TRIBE_T1_SHIELD_ENABLED, false)
                 .put("tribe.t2.cluster.name", "non_existing").build();
 
@@ -81,14 +80,14 @@ public class ShieldPluginSettingsTests extends ElasticsearchTestCase {
         assertThat(additionalSettings.getAsBoolean(TRIBE_T2_SHIELD_ENABLED, null), equalTo(true));
 
         //simulate what PluginsService#updatedSettings does to make sure additional settings override existing settings with same name
-        Settings finalSettings = ImmutableSettings.builder().put(settings).put(shieldPlugin.additionalSettings()).build();
+        Settings finalSettings = Settings.builder().put(settings).put(shieldPlugin.additionalSettings()).build();
         assertThat(finalSettings.getAsBoolean(TRIBE_T1_SHIELD_ENABLED, null), equalTo(true));
         assertThat(finalSettings.getAsBoolean(TRIBE_T2_SHIELD_ENABLED, null), equalTo(true));
     }
 
     @Test
     public void testShieldAlwaysEnabledOnTribesShieldAlreadyMandatory() {
-        Settings settings = ImmutableSettings.builder().put("tribe.t1.cluster.name", "non_existing")
+        Settings settings = Settings.builder().put("tribe.t1.cluster.name", "non_existing")
                 .put(TRIBE_T1_SHIELD_ENABLED, false)
                 .put("tribe.t2.cluster.name", "non_existing")
                 .putArray("tribe.t1.plugin.mandatory", "test_plugin", ShieldPlugin.NAME).build();
@@ -101,7 +100,7 @@ public class ShieldPluginSettingsTests extends ElasticsearchTestCase {
         assertThat(additionalSettings.getAsBoolean(TRIBE_T2_SHIELD_ENABLED, null), equalTo(true));
 
         //simulate what PluginsService#updatedSettings does to make sure additional settings override existing settings with same name
-        Settings finalSettings = ImmutableSettings.builder().put(settings).put(shieldPlugin.additionalSettings()).build();
+        Settings finalSettings = Settings.builder().put(settings).put(shieldPlugin.additionalSettings()).build();
         assertThat(finalSettings.getAsBoolean(TRIBE_T1_SHIELD_ENABLED, null), equalTo(true));
         assertThat(finalSettings.getAsBoolean(TRIBE_T2_SHIELD_ENABLED, null), equalTo(true));
         String[] finalMandatoryPlugins = finalSettings.getAsArray("tribe.t1.plugin.mandatory", null);

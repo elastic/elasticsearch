@@ -42,19 +42,6 @@ import static org.hamcrest.Matchers.*;
  */
 public class LicensingTests extends ShieldIntegrationTest {
 
-    static final License DUMMY_LICENSE = License.builder()
-            .feature(LicenseService.FEATURE_NAME)
-            .expiryDate(System.currentTimeMillis())
-            .issueDate(System.currentTimeMillis())
-            .issuedTo("LicensingTests")
-            .issuer("test")
-            .maxNodes(Integer.MAX_VALUE)
-            .signature("_signature")
-            .type("test_license_for_shield")
-            .subscriptionType("all_is_good")
-            .uid(String.valueOf(CHILD_JVM_ID) + System.identityHashCode(LicensingTests.class))
-            .build();
-
     public static final String ROLES =
             ShieldSettingsSource.DEFAULT_ROLE + ":\n" +
                     "  cluster: all\n" +
@@ -221,6 +208,19 @@ public class LicensingTests extends ShieldIntegrationTest {
     public static class InternalLicensesClientService extends AbstractComponent implements LicensesClientService {
 
         private final List<Listener> listeners = new ArrayList<>();
+
+        static final License DUMMY_LICENSE = License.builder()
+                .feature(LicenseService.FEATURE_NAME)
+                .expiryDate(System.currentTimeMillis())
+                .issueDate(System.currentTimeMillis())
+                .issuedTo("LicensingTests")
+                .issuer("test")
+                .maxNodes(Integer.MAX_VALUE)
+                .signature("_signature")
+                .type("test_license_for_shield")
+                .subscriptionType("all_is_good")
+                .uid(String.valueOf(randomLong()) + System.identityHashCode(LicensingTests.class))
+                .build();
 
         @Inject
         public InternalLicensesClientService(Settings settings) {

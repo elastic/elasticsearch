@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.shield.ssl;
 
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ElasticsearchTestCase;
@@ -15,14 +14,14 @@ import org.junit.Test;
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.TrustManagerFactory;
 
-import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.*;
 
 public class SSLSettingsTests extends ElasticsearchTestCase {
 
     @Test
     public void testThatSSLSettingsWithEmptySettingsHaveCorrectDefaults() {
-        SSLSettings sslSettings = new SSLSettings(ImmutableSettings.EMPTY, ImmutableSettings.EMPTY);
+        SSLSettings sslSettings = new SSLSettings(Settings.EMPTY, Settings.EMPTY);
         assertThat(sslSettings.keyStorePath, is(nullValue()));
         assertThat(sslSettings.keyStorePassword, is(nullValue()));
         assertThat(sslSettings.keyPassword, is(nullValue()));
@@ -38,18 +37,22 @@ public class SSLSettingsTests extends ElasticsearchTestCase {
     @Test
     public void testThatOnlyKeystoreInSettingsSetsTruststoreSettings() {
         Settings settings = settingsBuilder()
-                .put("keystore.path", "path")
-                .put("keystore.password", "password")
+                .put("shield.ssl.keystore.path", "path")
+                .put("shield.ssl.keystore.password", "password")
                 .build();
         // Pass settings in as component settings
-        SSLSettings sslSettings = new SSLSettings(ImmutableSettings.EMPTY, settings);
+        SSLSettings sslSettings = new SSLSettings(Settings.EMPTY, settings);
         assertThat(sslSettings.keyStorePath, is(equalTo("path")));
         assertThat(sslSettings.keyStorePassword, is(equalTo("password")));
         assertThat(sslSettings.trustStorePath, is(equalTo(sslSettings.keyStorePath)));
         assertThat(sslSettings.trustStorePassword, is(equalTo(sslSettings.keyStorePassword)));
 
         // Pass settings in as profile settings
-        SSLSettings sslSettings1 = new SSLSettings(settings, ImmutableSettings.EMPTY);
+        settings = settingsBuilder()
+                .put("keystore.path", "path")
+                .put("keystore.password", "password")
+                .build();
+        SSLSettings sslSettings1 = new SSLSettings(settings, Settings.EMPTY);
         assertThat(sslSettings1.keyStorePath, is(equalTo("path")));
         assertThat(sslSettings1.keyStorePassword, is(equalTo("password")));
         assertThat(sslSettings1.trustStorePath, is(equalTo(sslSettings1.keyStorePath)));
@@ -59,36 +62,43 @@ public class SSLSettingsTests extends ElasticsearchTestCase {
     @Test
     public void testThatKeystorePasswordIsDefaultKeyPassword() {
         Settings settings = settingsBuilder()
-                .put("keystore.password", "password")
+                .put("shield.ssl.keystore.password", "password")
                 .build();
         // Pass settings in as component settings
-        SSLSettings sslSettings = new SSLSettings(ImmutableSettings.EMPTY, settings);
+        SSLSettings sslSettings = new SSLSettings(Settings.EMPTY, settings);
         assertThat(sslSettings.keyPassword, is(equalTo(sslSettings.keyStorePassword)));
 
+        settings = settingsBuilder()
+                .put("keystore.password", "password")
+                .build();
         // Pass settings in as profile settings
-        SSLSettings sslSettings1 = new SSLSettings(settings, ImmutableSettings.EMPTY);
+        SSLSettings sslSettings1 = new SSLSettings(settings, Settings.EMPTY);
         assertThat(sslSettings1.keyPassword, is(equalTo(sslSettings1.keyStorePassword)));
     }
 
     @Test
     public void testThatKeyPasswordCanBeSet() {
         Settings settings = settingsBuilder()
-                .put("keystore.password", "password")
-                .put("keystore.key_password", "key")
+                .put("shield.ssl.keystore.password", "password")
+                .put("shield.ssl.keystore.key_password", "key")
                 .build();
         // Pass settings in as component settings
-        SSLSettings sslSettings = new SSLSettings(ImmutableSettings.EMPTY, settings);
+        SSLSettings sslSettings = new SSLSettings(Settings.EMPTY, settings);
         assertThat(sslSettings.keyStorePassword, is(equalTo("password")));
         assertThat(sslSettings.keyPassword, is(equalTo("key")));
 
         // Pass settings in as profile settings
-        SSLSettings sslSettings1 = new SSLSettings(settings, ImmutableSettings.EMPTY);
+        settings = settingsBuilder()
+                .put("keystore.password", "password")
+                .put("keystore.key_password", "key")
+                .build();
+        SSLSettings sslSettings1 = new SSLSettings(settings, Settings.EMPTY);
         assertThat(sslSettings1.keyStorePassword, is(equalTo("password")));
         assertThat(sslSettings1.keyPassword, is(equalTo("key")));
     }
 
     @Test
-    public void testThatProfileSettingsOverrideComponentSettings() {
+    public void testThatProfileSettingsOverrideServiceSettings() {
         Settings profileSettings = settingsBuilder()
                 .put("keystore.path", "path")
                 .put("keystore.password", "password")
@@ -102,20 +112,20 @@ public class SSLSettingsTests extends ElasticsearchTestCase {
                 .put("session.cache_timeout", "10m")
                 .build();
 
-        Settings componentSettings = settingsBuilder()
-                .put("keystore.path", "comp path")
-                .put("keystore.password", "comp password")
-                .put("keystore.key_password", "comp key")
-                .put("keystore.algorithm", "comp algo")
-                .put("truststore.path", "comp trust path")
-                .put("truststore.password", "comp password for trust")
-                .put("truststore.algorithm", "comp trusted")
-                .put("protocol", "tls")
-                .put("session.cache_size", "7")
-                .put("session.cache_timeout", "20m")
+        Settings serviceSettings = settingsBuilder()
+                .put("shield.ssl.keystore.path", "comp path")
+                .put("shield.ssl.keystore.password", "comp password")
+                .put("shield.ssl.keystore.key_password", "comp key")
+                .put("shield.ssl.keystore.algorithm", "comp algo")
+                .put("shield.ssl.truststore.path", "comp trust path")
+                .put("shield.ssl.truststore.password", "comp password for trust")
+                .put("shield.ssl.truststore.algorithm", "comp trusted")
+                .put("shield.ssl.protocol", "tls")
+                .put("shield.ssl.session.cache_size", "7")
+                .put("shield.ssl.session.cache_timeout", "20m")
                 .build();
 
-        SSLSettings sslSettings = new SSLSettings(profileSettings, componentSettings);
+        SSLSettings sslSettings = new SSLSettings(profileSettings, serviceSettings);
         assertThat(sslSettings.keyStorePath, is(equalTo("path")));
         assertThat(sslSettings.keyStorePassword, is(equalTo("password")));
         assertThat(sslSettings.keyPassword, is(equalTo("key")));
@@ -130,8 +140,8 @@ public class SSLSettingsTests extends ElasticsearchTestCase {
 
     @Test
     public void testThatEmptySettingsAreEqual() {
-        SSLSettings sslSettings = new SSLSettings(ImmutableSettings.EMPTY, ImmutableSettings.EMPTY);
-        SSLSettings sslSettings1 = new SSLSettings(ImmutableSettings.EMPTY, ImmutableSettings.EMPTY);
+        SSLSettings sslSettings = new SSLSettings(Settings.EMPTY, Settings.EMPTY);
+        SSLSettings sslSettings1 = new SSLSettings(Settings.EMPTY, Settings.EMPTY);
         assertThat(sslSettings.equals(sslSettings1), is(equalTo(true)));
         assertThat(sslSettings1.equals(sslSettings), is(equalTo(true)));
         assertThat(sslSettings.equals(sslSettings), is(equalTo(true)));
@@ -140,10 +150,10 @@ public class SSLSettingsTests extends ElasticsearchTestCase {
 
     @Test
     public void testThatSettingsWithDifferentKeystoresAreNotEqual() {
-        SSLSettings sslSettings = new SSLSettings(ImmutableSettings.EMPTY, settingsBuilder()
-                .put("keystore.path", "path").build());
-        SSLSettings sslSettings1 = new SSLSettings(ImmutableSettings.EMPTY, settingsBuilder()
-                .put("keystore.path", "path1").build());
+        SSLSettings sslSettings = new SSLSettings(Settings.EMPTY, settingsBuilder()
+                .put("shield.ssl.keystore.path", "path").build());
+        SSLSettings sslSettings1 = new SSLSettings(Settings.EMPTY, settingsBuilder()
+                .put("shield.ssl.keystore.path", "path1").build());
         assertThat(sslSettings.equals(sslSettings1), is(equalTo(false)));
         assertThat(sslSettings1.equals(sslSettings), is(equalTo(false)));
         assertThat(sslSettings.equals(sslSettings), is(equalTo(true)));
@@ -152,10 +162,10 @@ public class SSLSettingsTests extends ElasticsearchTestCase {
 
     @Test
     public void testThatSettingsWithDifferentProtocolsAreNotEqual() {
-        SSLSettings sslSettings = new SSLSettings(ImmutableSettings.EMPTY, settingsBuilder()
-                .put("protocol", "ssl").build());
-        SSLSettings sslSettings1 = new SSLSettings(ImmutableSettings.EMPTY, settingsBuilder()
-                .put("protocol", "tls").build());
+        SSLSettings sslSettings = new SSLSettings(Settings.EMPTY, settingsBuilder()
+                .put("shield.ssl.protocol", "ssl").build());
+        SSLSettings sslSettings1 = new SSLSettings(Settings.EMPTY, settingsBuilder()
+                .put("shield.ssl.protocol", "tls").build());
         assertThat(sslSettings.equals(sslSettings1), is(equalTo(false)));
         assertThat(sslSettings1.equals(sslSettings), is(equalTo(false)));
         assertThat(sslSettings.equals(sslSettings), is(equalTo(true)));
@@ -164,10 +174,10 @@ public class SSLSettingsTests extends ElasticsearchTestCase {
 
     @Test
     public void testThatSettingsWithDifferentTruststoresAreNotEqual() {
-        SSLSettings sslSettings = new SSLSettings(ImmutableSettings.EMPTY, settingsBuilder()
-                .put("truststore.path", "/trust").build());
-        SSLSettings sslSettings1 = new SSLSettings(ImmutableSettings.EMPTY, settingsBuilder()
-                .put("truststore.path", "/truststore").build());
+        SSLSettings sslSettings = new SSLSettings(Settings.EMPTY, settingsBuilder()
+                .put("shield.ssl.truststore.path", "/trust").build());
+        SSLSettings sslSettings1 = new SSLSettings(Settings.EMPTY, settingsBuilder()
+                .put("shield.ssl.truststore.path", "/truststore").build());
         assertThat(sslSettings.equals(sslSettings1), is(equalTo(false)));
         assertThat(sslSettings1.equals(sslSettings), is(equalTo(false)));
         assertThat(sslSettings.equals(sslSettings), is(equalTo(true)));
@@ -176,35 +186,35 @@ public class SSLSettingsTests extends ElasticsearchTestCase {
 
     @Test
     public void testThatEmptySettingsHaveSameHashCode() {
-        SSLSettings sslSettings = new SSLSettings(ImmutableSettings.EMPTY, ImmutableSettings.EMPTY);
-        SSLSettings sslSettings1 = new SSLSettings(ImmutableSettings.EMPTY, ImmutableSettings.EMPTY);
+        SSLSettings sslSettings = new SSLSettings(Settings.EMPTY, Settings.EMPTY);
+        SSLSettings sslSettings1 = new SSLSettings(Settings.EMPTY, Settings.EMPTY);
         assertThat(sslSettings.hashCode(), is(equalTo(sslSettings1.hashCode())));
     }
 
     @Test
     public void testThatSettingsWithDifferentKeystoresHaveDifferentHashCode() {
-        SSLSettings sslSettings = new SSLSettings(ImmutableSettings.EMPTY, settingsBuilder()
-                .put("keystore.path", "path").build());
-        SSLSettings sslSettings1 = new SSLSettings(ImmutableSettings.EMPTY, settingsBuilder()
-                .put("keystore.path", "path1").build());
+        SSLSettings sslSettings = new SSLSettings(Settings.EMPTY, settingsBuilder()
+                .put("shield.ssl.keystore.path", "path").build());
+        SSLSettings sslSettings1 = new SSLSettings(Settings.EMPTY, settingsBuilder()
+                .put("shield.ssl.keystore.path", "path1").build());
         assertThat(sslSettings.hashCode(), is(not(equalTo(sslSettings1.hashCode()))));
     }
 
     @Test
     public void testThatSettingsWithDifferentProtocolsHaveDifferentHashCode() {
-        SSLSettings sslSettings = new SSLSettings(ImmutableSettings.EMPTY, settingsBuilder()
-                .put("protocol", "ssl").build());
-        SSLSettings sslSettings1 = new SSLSettings(ImmutableSettings.EMPTY, settingsBuilder()
-                .put("protocol", "tls").build());
+        SSLSettings sslSettings = new SSLSettings(Settings.EMPTY, settingsBuilder()
+                .put("shield.ssl.protocol", "ssl").build());
+        SSLSettings sslSettings1 = new SSLSettings(Settings.EMPTY, settingsBuilder()
+                .put("shield.ssl.protocol", "tls").build());
         assertThat(sslSettings.hashCode(), is(not(equalTo(sslSettings1.hashCode()))));
     }
 
     @Test
     public void testThatSettingsWithDifferentTruststoresHaveDifferentHashCode() {
-        SSLSettings sslSettings = new SSLSettings(ImmutableSettings.EMPTY, settingsBuilder()
-                .put("truststore.path", "/trust").build());
-        SSLSettings sslSettings1 = new SSLSettings(ImmutableSettings.EMPTY, settingsBuilder()
-                .put("truststore.path", "/truststore").build());
+        SSLSettings sslSettings = new SSLSettings(Settings.EMPTY, settingsBuilder()
+                .put("shield.ssl.truststore.path", "/trust").build());
+        SSLSettings sslSettings1 = new SSLSettings(Settings.EMPTY, settingsBuilder()
+                .put("shield.ssl.truststore.path", "/truststore").build());
         assertThat(sslSettings.hashCode(), is(not(equalTo(sslSettings1.hashCode()))));
     }
 }

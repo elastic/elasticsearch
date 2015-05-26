@@ -6,7 +6,6 @@
 package org.elasticsearch.shield.authc.esusers;
 
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.rest.RestController;
@@ -77,7 +76,7 @@ public class ESUsersRealm extends CachingUsernamePasswordRealm {
 
         @Override
         public ESUsersRealm createDefault(String name) {
-            RealmConfig config = new RealmConfig(name, ImmutableSettings.EMPTY, settings, env);
+            RealmConfig config = new RealmConfig(name, Settings.EMPTY, settings, env);
             return create(config);
         }
     }

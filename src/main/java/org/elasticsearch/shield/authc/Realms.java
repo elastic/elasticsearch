@@ -10,7 +10,6 @@ import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.collect.Sets;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.shield.ShieldSettingsException;
@@ -69,7 +68,7 @@ public class Realms extends AbstractLifecycleComponent<Realms> implements Iterab
     }
 
     protected List<Realm> initRealms() {
-        Settings realmsSettings = componentSettings.getAsSettings("realms");
+        Settings realmsSettings = settings.getAsSettings("shield.authc.realms");
         Set<String> internalTypes = Sets.newHashSet();
         List<Realm> realms = Lists.newArrayList();
         for (String name : realmsSettings.names()) {
@@ -116,10 +115,10 @@ public class Realms extends AbstractLifecycleComponent<Realms> implements Iterab
     /**
      * returns the settings for the internal realm of the given type. Typically, internal realms may or may
      * not be configured. If they are not configured, they work OOTB using default settings. If they are
-     * configured, there can only be one configure for an internal realm.
+     * configured, there can only be one configured for an internal realm.
      */
     public static Settings internalRealmSettings(Settings settings, String realmType) {
-        Settings realmsSettings = settings.getComponentSettings(Realms.class).getAsSettings("realms");
+        Settings realmsSettings = settings.getAsSettings("shield.authc.realms");
         Settings result = null;
         for (String name : realmsSettings.names()) {
             Settings realmSettings = realmsSettings.getAsSettings(name);
@@ -134,7 +133,7 @@ public class Realms extends AbstractLifecycleComponent<Realms> implements Iterab
                 result = realmSettings;
             }
         }
-        return result != null ? result : ImmutableSettings.EMPTY;
+        return result != null ? result : Settings.EMPTY;
     }
 
 }

@@ -6,21 +6,19 @@
 package org.elasticsearch.shield.transport.netty;
 
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ShieldIntegrationTest;
 import org.junit.Test;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 
-import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.CoreMatchers.is;
 
 public class IPHostnameVerificationTests extends ShieldIntegrationTest {
 
-    static Path keystore;
+    Path keystore;
 
     @Override
     protected boolean sslTransportEnabled() {
@@ -37,13 +35,13 @@ public class IPHostnameVerificationTests extends ShieldIntegrationTest {
             unicastAddresses[i] = address.replace("localhost", "127.0.0.1");
         }
 
-        ImmutableSettings.Builder settingsBuilder = settingsBuilder()
+        Settings.Builder settingsBuilder = settingsBuilder()
                 .put(settings)
                 .putArray("discovery.zen.ping.unicast.hosts", unicastAddresses);
 
         try {
             //This keystore uses a cert with a CN of "Elasticsearch Test Node" and IPv4+IPv6 ip addresses as SubjectAlternativeNames
-            keystore = Paths.get(getClass().getResource("/org/elasticsearch/shield/transport/ssl/certs/simple/testnode-ip-only.jks").toURI());
+            keystore = getDataPath("/org/elasticsearch/shield/transport/ssl/certs/simple/testnode-ip-only.jks");
             assertThat(Files.exists(keystore), is(true));
         } catch (Exception e) {
             throw new RuntimeException(e);
@@ -63,7 +61,7 @@ public class IPHostnameVerificationTests extends ShieldIntegrationTest {
 
     @Override
     protected Settings transportClientSettings() {
-        return ImmutableSettings.builder().put(super.transportClientSettings())
+        return settingsBuilder().put(super.transportClientSettings())
                 .put(ShieldNettyTransport.HOSTNAME_VERIFICATION_SETTING, true)
                 .put(ShieldNettyTransport.HOSTNAME_VERIFICATION_RESOLVE_NAME_SETTING, false)
                 .put("shield.ssl.keystore.path", keystore.toAbsolutePath())

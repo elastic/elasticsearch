@@ -10,37 +10,43 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.Streams;
 
-import java.io.File;
 import java.io.IOException;
+import java.io.OutputStream;
+import java.nio.file.Files;
 import java.nio.file.Path;
 
 public class ShieldTestUtils {
 
-    public static File createFolder(File parent, String name) {
-        File createdFolder = new File(parent, name);
+    public static Path createFolder(Path parent, String name) {
+        Path createdFolder = parent.resolve(name);
         //the directory might exist e.g. if the global cluster gets restarted, then we recreate the directory as well
-        if (createdFolder.exists()) {
-            if (!FileSystemUtils.deleteRecursively(createdFolder)) {
-                throw new RuntimeException("could not delete existing temporary folder: " + createdFolder.getAbsolutePath());
+        if (Files.exists(createdFolder)) {
+            try {
+                FileSystemUtils.deleteSubDirectories(createdFolder);
+            } catch (IOException e) {
+                throw new RuntimeException("could not delete existing temporary folder: " + createdFolder.toAbsolutePath(), e);
             }
-        }
-        if (!createdFolder.mkdir()) {
-            throw new RuntimeException("could not create temporary folder: " + createdFolder.getAbsolutePath());
+        } else {
+            try {
+                Files.createDirectory(createdFolder);
+            } catch (IOException e) {
+                throw new RuntimeException("could not create temporary folder: " + createdFolder.toAbsolutePath());
+            }
         }
         return createdFolder;
     }
 
-    public static String writeFile(File folder, String name, byte[] content) {
-        Path file = folder.toPath().resolve(name);
-        try {
-            Streams.copy(content, file.toFile());
+    public static String writeFile(Path folder, String name, byte[] content) {
+        Path file = folder.resolve(name);
+        try (OutputStream os = Files.newOutputStream(file)) {
+            Streams.copy(content, os);
         } catch (IOException e) {
             throw new ElasticsearchException("error writing file in test", e);
         }
-        return file.toFile().getAbsolutePath();
+        return file.toAbsolutePath().toString();
     }
 
-    public static String writeFile(File folder, String name, String content) {
+    public static String writeFile(Path folder, String name, String content) {
         return writeFile(folder, name, content.getBytes(Charsets.UTF_8));
     }
 }

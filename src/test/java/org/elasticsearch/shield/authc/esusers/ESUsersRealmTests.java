@@ -14,8 +14,8 @@ import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ClusterAdminClient;
 import org.elasticsearch.client.IndicesAdminClient;
+import org.elasticsearch.client.support.Headers;
 import org.elasticsearch.common.collect.ImmutableSet;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -49,6 +49,7 @@ public class ESUsersRealmTests extends ElasticsearchTestCase {
     private AdminClient adminClient;
     private FileUserPasswdStore userPasswdStore;
     private FileUserRolesStore userRolesStore;
+    private Settings globalSettings;
 
     @Before
     public void init() throws Exception {
@@ -57,11 +58,12 @@ public class ESUsersRealmTests extends ElasticsearchTestCase {
         restController = mock(RestController.class);
         userPasswdStore = mock(FileUserPasswdStore.class);
         userRolesStore = mock(FileUserRolesStore.class);
+        globalSettings = Settings.builder().put("path.home", createTempDir()).build();
     }
 
     @Test
     public void testRestHeaderRegistration() {
-        new ESUsersRealm.Factory(ImmutableSettings.EMPTY, mock(Environment.class), mock(ResourceWatcherService.class), restController);
+        new ESUsersRealm.Factory(Settings.EMPTY, mock(Environment.class), mock(ResourceWatcherService.class), restController);
         verify(restController).registerRelevantHeaders(UsernamePasswordToken.BASIC_AUTH_HEADER);
     }
 
@@ -69,7 +71,7 @@ public class ESUsersRealmTests extends ElasticsearchTestCase {
     public void testAuthenticate() throws Exception {
         when(userPasswdStore.verifyPassword("user1", SecuredStringTests.build("test123"))).thenReturn(true);
         when(userRolesStore.roles("user1")).thenReturn(new String[] { "role1", "role2" });
-        RealmConfig config = new RealmConfig("esusers-test");
+        RealmConfig config = new RealmConfig("esusers-test", Settings.EMPTY, globalSettings);
         ESUsersRealm realm = new ESUsersRealm(config, userPasswdStore, userRolesStore);
         User user = realm.authenticate(new UsernamePasswordToken("user1", SecuredStringTests.build("test123")));
         assertThat(user, notNullValue());
@@ -81,10 +83,10 @@ public class ESUsersRealmTests extends ElasticsearchTestCase {
 
     @Test @Repeat(iterations = 20)
     public void testAuthenticate_Caching() throws Exception {
-        Settings settings = ImmutableSettings.builder()
+        Settings settings = Settings.builder()
                 .put("cache.hash_algo", Hasher.values()[randomIntBetween(0, Hasher.values().length - 1)].name().toLowerCase(Locale.ROOT))
                 .build();
-        RealmConfig config = new RealmConfig("esusers-test", settings);
+        RealmConfig config = new RealmConfig("esusers-test", settings, globalSettings);
         when(userPasswdStore.verifyPassword("user1", SecuredStringTests.build("test123"))).thenReturn(true);
         when(userRolesStore.roles("user1")).thenReturn(new String[] { "role1", "role2" });
         ESUsersRealm realm = new ESUsersRealm(config, userPasswdStore, userRolesStore);
@@ -94,7 +96,7 @@ public class ESUsersRealmTests extends ElasticsearchTestCase {
     }
 
     public void testAuthenticate_Caching_Refresh() throws Exception {
-        RealmConfig config = new RealmConfig("esusers-test", ImmutableSettings.EMPTY);
+        RealmConfig config = new RealmConfig("esusers-test", Settings.EMPTY, globalSettings);
         userPasswdStore = spy(new UserPasswdStore(config));
         userRolesStore = spy(new UserRolesStore(config));
         doReturn(true).when(userPasswdStore).verifyPassword("user1", SecuredStringTests.build("test123"));
@@ -117,7 +119,7 @@ public class ESUsersRealmTests extends ElasticsearchTestCase {
 
     @Test
     public void testToken() throws Exception {
-        RealmConfig config = new RealmConfig("esusers-test", ImmutableSettings.EMPTY);
+        RealmConfig config = new RealmConfig("esusers-test", Settings.EMPTY, globalSettings);
         when(userPasswdStore.verifyPassword("user1", SecuredStringTests.build("test123"))).thenReturn(true);
         when(userRolesStore.roles("user1")).thenReturn(new String[] { "role1", "role2" });
         ESUsersRealm realm = new ESUsersRealm(config, userPasswdStore, userRolesStore);
@@ -134,11 +136,13 @@ public class ESUsersRealmTests extends ElasticsearchTestCase {
 
     @Test @SuppressWarnings("unchecked")
     public void testRestHeadersAreCopied() throws Exception {
-        RealmConfig config = new RealmConfig("esusers-test", ImmutableSettings.EMPTY);
+        RealmConfig config = new RealmConfig("esusers-test", Settings.EMPTY, globalSettings);
         // the required header will be registered only if ESUsersRealm is actually used.
         new ESUsersRealm(config, new UserPasswdStore(config), new UserRolesStore(config));
         when(restController.relevantHeaders()).thenReturn(ImmutableSet.of(UsernamePasswordToken.BASIC_AUTH_HEADER));
         when(client.admin()).thenReturn(adminClient);
+        when(client.settings()).thenReturn(Settings.EMPTY);
+        when(client.headers()).thenReturn(Headers.EMPTY);
         when(adminClient.cluster()).thenReturn(mock(ClusterAdminClient.class));
         when(adminClient.indices()).thenReturn(mock(IndicesAdminClient.class));
         final ActionRequest request = new ActionRequest() {
@@ -150,7 +154,7 @@ public class ESUsersRealmTests extends ElasticsearchTestCase {
         RestRequest restRequest = mock(RestRequest.class);
         final Action action = mock(Action.class);
         final ActionListener listener = mock(ActionListener.class);
-        BaseRestHandler handler = new BaseRestHandler(ImmutableSettings.EMPTY, restController, client) {
+        BaseRestHandler handler = new BaseRestHandler(Settings.EMPTY, restController, client) {
             @Override
             protected void handleRequest(RestRequest restRequest, RestChannel channel, Client client) throws Exception {
                 client.execute(action, request, listener);

@@ -6,7 +6,7 @@
 package org.elasticsearch.shield.audit;
 
 import com.google.common.collect.ImmutableSet;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.authc.AuthenticationToken;
@@ -42,7 +42,7 @@ public class AuditTrailServiceTests extends ElasticsearchTestCase {
             builder.add(mock(AuditTrail.class));
         }
         auditTrails = builder.build();
-        service = new AuditTrailService(ImmutableSettings.EMPTY, auditTrails);
+        service = new AuditTrailService(Settings.EMPTY, auditTrails);
         token = mock(AuthenticationToken.class);
         message = mock(TransportMessage.class);
         restRequest = mock(RestRequest.class);

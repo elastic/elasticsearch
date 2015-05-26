@@ -9,12 +9,19 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.collect.Maps;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.shield.ShieldException;
+import org.elasticsearch.shield.action.ShieldActionMapper;
+import org.elasticsearch.shield.authc.AuthenticationService;
+import org.elasticsearch.shield.authz.AuthorizationService;
 import org.elasticsearch.shield.transport.netty.ShieldNettyTransport;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
-import org.elasticsearch.transport.netty.NettyTransportChannel;
+import org.elasticsearch.transport.netty.NettyTransport;
 
+import java.util.Collections;
 import java.util.Map;
+
+import static org.elasticsearch.shield.transport.netty.ShieldNettyTransport.*;
 
 /**
  *
@@ -23,19 +30,23 @@ public class ShieldServerTransportService extends TransportService {
 
     public static final String SETTING_NAME = "shield.type";
 
-    private final ServerTransportFilter clientProfileFilter;
-    private final ServerTransportFilter nodeProfileFilter;
-    private final ClientTransportFilter clientFilter;
-    private final Map<String, ServerTransportFilter> profileFilters;
+    protected final AuthenticationService authcService;
+    protected final AuthorizationService authzService;
+    protected final ShieldActionMapper actionMapper;
+    protected final ClientTransportFilter clientFilter;
+
+    protected final Map<String, ServerTransportFilter> profileFilters;
 
     @Inject
     public ShieldServerTransportService(Settings settings, Transport transport, ThreadPool threadPool,
-                                        ServerTransportFilter.ClientProfile clientProfileFilter,
-                                        ServerTransportFilter.NodeProfile nodeProfileFilter,
+                                        AuthenticationService authcService,
+                                        AuthorizationService authzService,
+                                        ShieldActionMapper actionMapper,
                                         ClientTransportFilter clientTransportFilter) {
         super(settings, transport, threadPool);
-        this.clientProfileFilter = clientProfileFilter;
-        this.nodeProfileFilter = nodeProfileFilter;
+        this.authcService = authcService;
+        this.authzService = authzService;
+        this.actionMapper = actionMapper;
         this.clientFilter = clientTransportFilter;
         this.profileFilters = initializeProfileFilters();
     }
@@ -51,112 +62,77 @@ public class ShieldServerTransportService extends TransportService {
     }
 
     @Override
-    public void registerHandler(String action, TransportRequestHandler handler) {
-        // Only try to access the profile, if we use netty and SSL
-        // otherwise use the regular secured request handler (this still allows for LocalTransport)
-        if (profileFilters != null) {
-            super.registerHandler(action, new ProfileSecuredRequestHandler(action, handler, profileFilters));
-        } else {
-            super.registerHandler(action, new SecuredRequestHandler(action, handler, nodeProfileFilter));
-        }
+    public <Request extends TransportRequest> void registerRequestHandler(String action, Class<Request> request, String executor, boolean forceExecution, TransportRequestHandler<Request> handler) {
+        TransportRequestHandler<Request> wrappedHandler = new ProfileSecuredRequestHandler<>(action, handler, profileFilters);
+        super.registerRequestHandler(action, request, executor, forceExecution, wrappedHandler);
     }
 
-    private Map<String, ServerTransportFilter> initializeProfileFilters() {
+    protected Map<String, ServerTransportFilter> initializeProfileFilters() {
         if (!(transport instanceof ShieldNettyTransport)) {
-            return null;
+            return Collections.<String, ServerTransportFilter>singletonMap(NettyTransport.DEFAULT_PROFILE, new ServerTransportFilter.NodeProfile(authcService, authzService, actionMapper, false));
         }
 
-        Map<String, Settings> profileSettings = settings.getGroups("transport.profiles.", true);
-        Map<String, ServerTransportFilter> profileFilters = Maps.newHashMapWithExpectedSize(profileSettings.size());
+        Map<String, Settings> profileSettingsMap = settings.getGroups("transport.profiles.", true);
+        Map<String, ServerTransportFilter> profileFilters = Maps.newHashMapWithExpectedSize(profileSettingsMap.size() + 1);
 
-        for (Map.Entry<String, Settings> entry : profileSettings.entrySet()) {
+        for (Map.Entry<String, Settings> entry : profileSettingsMap.entrySet()) {
+            Settings profileSettings = entry.getValue();
+            final boolean profileSsl = profileSettings.getAsBoolean(TRANSPORT_PROFILE_SSL_SETTING, settings.getAsBoolean(TRANSPORT_SSL_SETTING, TRANSPORT_SSL_DEFAULT));
+            final boolean needClientAuth = profileSettings.getAsBoolean(TRANSPORT_PROFILE_CLIENT_AUTH_SETTING, settings.getAsBoolean(TRANSPORT_CLIENT_AUTH_SETTING, TRANSPORT_CLIENT_AUTH_DEFAULT));
+            final boolean extractClientCert = profileSsl && needClientAuth;
             String type = entry.getValue().get(SETTING_NAME, "node");
             switch (type) {
                 case "client":
-                    profileFilters.put(entry.getKey(), clientProfileFilter);
+                    profileFilters.put(entry.getKey(), new ServerTransportFilter.ClientProfile(authcService, authzService, actionMapper, extractClientCert));
                     break;
                 default:
-                    profileFilters.put(entry.getKey(), nodeProfileFilter);
+                    profileFilters.put(entry.getKey(), new ServerTransportFilter.NodeProfile(authcService, authzService, actionMapper, extractClientCert));
             }
         }
 
-        if (!profileFilters.containsKey("default")) {
-            profileFilters.put("default", nodeProfileFilter);
+        if (!profileFilters.containsKey(NettyTransport.DEFAULT_PROFILE)) {
+            final boolean profileSsl = settings.getAsBoolean(TRANSPORT_SSL_SETTING, TRANSPORT_SSL_DEFAULT);
+            final boolean needClientAuth = settings.getAsBoolean(TRANSPORT_CLIENT_AUTH_SETTING, TRANSPORT_CLIENT_AUTH_DEFAULT);
+            final boolean extractClientCert = profileSsl && needClientAuth;
+            profileFilters.put(NettyTransport.DEFAULT_PROFILE, new ServerTransportFilter.NodeProfile(authcService, authzService, actionMapper, extractClientCert));
         }
 
         return profileFilters;
     }
 
-    static abstract class AbstractSecuredRequestHandler implements TransportRequestHandler {
-
-        protected TransportRequestHandler handler;
-
-        public AbstractSecuredRequestHandler(TransportRequestHandler handler) {
-            this.handler = handler;
-        }
-
-        @Override
-        public TransportRequest newInstance() {
-            return handler.newInstance();
-        }
-
-        @Override
-        public String executor() {
-            return handler.executor();
-        }
-
-        @Override
-        public boolean isForceExecution() {
-            return handler.isForceExecution();
-        }
+    ServerTransportFilter transportFilter(String profile) {
+        return profileFilters.get(profile);
     }
 
-    static class SecuredRequestHandler extends AbstractSecuredRequestHandler {
+    static class ProfileSecuredRequestHandler<T extends TransportRequest> implements TransportRequestHandler<T> {
 
         protected final String action;
-        protected final ServerTransportFilter transportFilter;
-
-        SecuredRequestHandler(String action, TransportRequestHandler handler, ServerTransportFilter serverTransportFilter) {
-            super(handler);
-            this.action = action;
-            this.transportFilter = serverTransportFilter;
-        }
-
-        @Override
-        @SuppressWarnings("unchecked")
-        public void messageReceived(TransportRequest request, TransportChannel channel) throws Exception {
-            try {
-                transportFilter.inbound(action, request);
-            } catch (Throwable t) {
-                channel.sendResponse(t);
-                return;
-            }
-            handler.messageReceived(request, channel);
-        }
-    }
-
-    static class ProfileSecuredRequestHandler extends AbstractSecuredRequestHandler {
-
-        protected final String action;
+        protected final TransportRequestHandler<T> handler;
         private final Map<String, ServerTransportFilter> profileFilters;
 
         public ProfileSecuredRequestHandler(String action, TransportRequestHandler handler, Map<String, ServerTransportFilter> profileFilters) {
-            super(handler);
             this.action = action;
+            this.handler = handler;
             this.profileFilters = profileFilters;
         }
 
         @Override
         @SuppressWarnings("unchecked")
-        public void messageReceived(TransportRequest request, TransportChannel channel) throws Exception {
+        public void messageReceived(T request, TransportChannel channel) throws Exception {
             try {
-                NettyTransportChannel nettyTransportChannel = (NettyTransportChannel) channel;
-                String profile = nettyTransportChannel.getProfileName();
+                String profile = channel.getProfileName();
                 ServerTransportFilter filter = profileFilters.get(profile);
+
                 if (filter == null) {
-                    filter = profileFilters.get("default");
+                    if (TransportService.DIRECT_RESPONSE_PROFILE.equals(profile)) {
+                        // apply the default filter to local requests. We never know what the request is or who sent it...
+                        filter = profileFilters.get("default");
+                    } else {
+                        throw new ShieldException("transport profile [" + profile + "] is not associated with a transport filter");
+                    }
                 }
-                filter.inbound(action, request);
+                assert filter != null;
+                filter.inbound(action, request, channel);
             } catch (Throwable t) {
                 channel.sendResponse(t);
                 return;

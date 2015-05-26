@@ -20,7 +20,6 @@
 package org.elasticsearch.index.analysis;
 
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeResponse;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
@@ -35,7 +34,7 @@ public class SimpleSmartChineseIntegrationTests extends ElasticsearchIntegration
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return ImmutableSettings.builder()
+        return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put("path.home", createTempDir())
                 .put("plugins." + PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, true)

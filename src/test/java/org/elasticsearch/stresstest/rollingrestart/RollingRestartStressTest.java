@@ -28,7 +28,6 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -44,7 +43,7 @@ import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicLong;
 
-import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 
 /**
@@ -66,7 +65,7 @@ public class RollingRestartStressTest {
 
     private TimeValue indexerThrottle = TimeValue.timeValueMillis(100);
 
-    private Settings settings = ImmutableSettings.Builder.EMPTY_SETTINGS;
+    private Settings settings = Settings.Builder.EMPTY_SETTINGS;
 
     private TimeValue period = TimeValue.timeValueMinutes(20);
 

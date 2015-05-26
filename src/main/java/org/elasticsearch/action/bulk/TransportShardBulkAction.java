@@ -28,7 +28,7 @@ import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.replication.TransportShardReplicationOperationAction;
+import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.action.update.UpdateHelper;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
@@ -65,7 +65,7 @@ import java.util.Map;
 /**
  * Performs the index operation.
  */
-public class TransportShardBulkAction extends TransportShardReplicationOperationAction<BulkShardRequest, BulkShardRequest, BulkShardResponse> {
+public class TransportShardBulkAction extends TransportReplicationAction<BulkShardRequest, BulkShardRequest, BulkShardResponse> {
 
     private final static String OP_TYPE_UPDATE = "update";
     private final static String OP_TYPE_DELETE = "delete";

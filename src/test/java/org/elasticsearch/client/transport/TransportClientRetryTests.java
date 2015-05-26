@@ -26,7 +26,6 @@ import org.elasticsearch.action.support.PlainListenableActionFuture;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.plugins.PluginsService;
@@ -38,7 +37,7 @@ import org.junit.Test;
 import java.io.IOException;
 import java.util.concurrent.ExecutionException;
 
-import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -57,7 +56,7 @@ public class TransportClientRetryTests extends ElasticsearchIntegrationTest {
             addresses[i++] = instance.boundAddress().publishAddress();
         }
 
-        ImmutableSettings.Builder builder = settingsBuilder().put("client.transport.nodes_sampler_interval", "1s")
+        Settings.Builder builder = settingsBuilder().put("client.transport.nodes_sampler_interval", "1s")
                 .put("name", "transport_client_retry_test")
                 .put("node.mode", InternalTestCluster.nodeMode())
                 .put("plugins." + PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, false)

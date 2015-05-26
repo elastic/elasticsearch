@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.create;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
@@ -60,7 +59,12 @@ public class TransportCreateSnapshotAction extends TransportMasterNodeOperationA
 
     @Override
     protected ClusterBlockException checkBlock(CreateSnapshotRequest request, ClusterState state) {
-        return state.blocks().indexBlockedException(ClusterBlockLevel.METADATA_WRITE, "");
+        // We are writing to the cluster metadata and reading from indices - so we need to check both blocks
+        ClusterBlockException clusterBlockException = state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+        if (clusterBlockException != null) {
+            return clusterBlockException;
+        }
+        return state.blocks().indicesBlockedException(ClusterBlockLevel.READ, state.metaData().concreteIndices(request.indicesOptions(), request.indices()));
     }
 
     @Override

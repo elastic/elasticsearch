@@ -34,7 +34,7 @@ import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocators;
 import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.gateway.NoopGatewayAllocator;
 import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.test.ElasticsearchAllocationTestCase;
@@ -43,7 +43,7 @@ import org.junit.Test;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
-import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 
 public class BalanceConfigurationTests extends ElasticsearchAllocationTestCase {
 
@@ -61,7 +61,7 @@ public class BalanceConfigurationTests extends ElasticsearchAllocationTestCase {
         final float replicaBalance = 0.0f;
         final float balanceTreshold = 1.0f;
 
-        ImmutableSettings.Builder settings = settingsBuilder();
+        Settings.Builder settings = settingsBuilder();
         settings.put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE, ClusterRebalanceAllocationDecider.ClusterRebalanceType.ALWAYS.toString());
         settings.put(BalancedShardsAllocator.SETTING_INDEX_BALANCE_FACTOR, indexBalance);
         settings.put(BalancedShardsAllocator.SETTING_SHARD_BALANCE_FACTOR, replicaBalance);
@@ -87,7 +87,7 @@ public class BalanceConfigurationTests extends ElasticsearchAllocationTestCase {
         final float replicaBalance = 1.0f;
         final float balanceTreshold = 1.0f;
 
-        ImmutableSettings.Builder settings = settingsBuilder();
+        Settings.Builder settings = settingsBuilder();
         settings.put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE, ClusterRebalanceAllocationDecider.ClusterRebalanceType.ALWAYS.toString());
         settings.put(BalancedShardsAllocator.SETTING_INDEX_BALANCE_FACTOR, indexBalance);
         settings.put(BalancedShardsAllocator.SETTING_SHARD_BALANCE_FACTOR, replicaBalance);
@@ -277,7 +277,7 @@ public class BalanceConfigurationTests extends ElasticsearchAllocationTestCase {
 
     @Test
     public void testPersistedSettings() {
-        ImmutableSettings.Builder settings = settingsBuilder();
+        Settings.Builder settings = settingsBuilder();
         settings.put(BalancedShardsAllocator.SETTING_INDEX_BALANCE_FACTOR, 0.2);
         settings.put(BalancedShardsAllocator.SETTING_SHARD_BALANCE_FACTOR, 0.3);
         settings.put(BalancedShardsAllocator.SETTING_THRESHOLD, 2.0);
@@ -315,9 +315,9 @@ public class BalanceConfigurationTests extends ElasticsearchAllocationTestCase {
 
     @Test
     public void testNoRebalanceOnPrimaryOverload() {
-        ImmutableSettings.Builder settings = settingsBuilder();
+        Settings.Builder settings = settingsBuilder();
         AllocationService strategy = new AllocationService(settings.build(), randomAllocationDeciders(settings.build(),
-                new NodeSettingsService(ImmutableSettings.Builder.EMPTY_SETTINGS), getRandom()), new ShardsAllocators(settings.build(),
+                new NodeSettingsService(Settings.Builder.EMPTY_SETTINGS), getRandom()), new ShardsAllocators(settings.build(),
                 NoopGatewayAllocator.INSTANCE, new ShardsAllocator() {
 
             @Override

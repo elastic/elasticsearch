@@ -32,7 +32,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -55,7 +54,7 @@ public class TransportClientHeadersTests extends AbstractClientHeadersTests {
 
     @Override
     protected Client buildClient(Settings headersSettings, GenericAction[] testedActions) {
-        TransportClient client = TransportClient.builder().settings(ImmutableSettings.builder()
+        TransportClient client = TransportClient.builder().settings(Settings.builder()
                 .put("client.transport.sniff", false)
                 .put("node.name", "transport_client_" + this.getTestName())
                 .put(TransportModule.TRANSPORT_SERVICE_TYPE_KEY, InternalTransportService.class.getName())
@@ -68,7 +67,7 @@ public class TransportClientHeadersTests extends AbstractClientHeadersTests {
 
     @Test
     public void testWithSniffing() throws Exception {
-        TransportClient client = TransportClient.builder().settings(ImmutableSettings.builder()
+        TransportClient client = TransportClient.builder().settings(Settings.builder()
                 .put("client.transport.sniff", true)
                 .put("cluster.name", "cluster1")
                 .put("node.name", "transport_client_" + this.getTestName() + "_1")

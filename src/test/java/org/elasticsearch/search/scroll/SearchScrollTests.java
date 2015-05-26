@@ -23,7 +23,7 @@ import org.elasticsearch.action.search.*;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -54,7 +54,7 @@ public class SearchScrollTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testSimpleScrollQueryThenFetch() throws Exception {
-        client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 3)).execute().actionGet();
+        client().admin().indices().prepareCreate("test").setSettings(Settings.settingsBuilder().put("index.number_of_shards", 3)).execute().actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
@@ -106,7 +106,7 @@ public class SearchScrollTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testSimpleScrollQueryThenFetchSmallSizeUnevenDistribution() throws Exception {
-        client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 3)).execute().actionGet();
+        client().admin().indices().prepareCreate("test").setSettings(Settings.settingsBuilder().put("index.number_of_shards", 3)).execute().actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
@@ -180,7 +180,7 @@ public class SearchScrollTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testScrollAndUpdateIndex() throws Exception {
-        client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 5)).execute().actionGet();
+        client().admin().indices().prepareCreate("test").setSettings(Settings.settingsBuilder().put("index.number_of_shards", 5)).execute().actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
         for (int i = 0; i < 500; i++) {
@@ -225,7 +225,7 @@ public class SearchScrollTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testSimpleScrollQueryThenFetch_clearScrollIds() throws Exception {
-        client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 3)).execute().actionGet();
+        client().admin().indices().prepareCreate("test").setSettings(Settings.settingsBuilder().put("index.number_of_shards", 3)).execute().actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
@@ -337,7 +337,7 @@ public class SearchScrollTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testSimpleScrollQueryThenFetch_clearAllScrollIds() throws Exception {
-        client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 3)).execute().actionGet();
+        client().admin().indices().prepareCreate("test").setSettings(Settings.settingsBuilder().put("index.number_of_shards", 3)).execute().actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
@@ -456,7 +456,7 @@ public class SearchScrollTests extends ElasticsearchIntegrationTest {
     @Test
     public void testStringSortMissingAscTerminates() throws Exception {
         assertAcked(prepareCreate("test")
-                .setSettings(ImmutableSettings.settingsBuilder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0))
+                .setSettings(Settings.settingsBuilder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0))
                 .addMapping("test", "no_field", "type=string", "some_field", "type=string"));
         client().prepareIndex("test", "test", "1").setSource("some_field", "test").get();
         refresh();

@@ -30,8 +30,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.support.Headers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.junit.After;
-import org.junit.Before;
 
 import java.util.HashMap;
 

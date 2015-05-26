@@ -20,7 +20,6 @@
 package org.elasticsearch.index.aliases;
 
 import org.elasticsearch.common.compress.CompressedString;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -43,7 +42,7 @@ import static org.hamcrest.Matchers.nullValue;
 public class IndexAliasesServiceTests extends ElasticsearchSingleNodeTest {
 
     public IndexAliasesService newIndexAliasesService() {
-        Settings settings = ImmutableSettings.builder().put("name", "IndexAliasesServiceTests").build();
+        Settings settings = Settings.builder().put("name", "IndexAliasesServiceTests").build();
         IndexService indexService = createIndex("test", settings);
         return indexService.aliasesService();
     }

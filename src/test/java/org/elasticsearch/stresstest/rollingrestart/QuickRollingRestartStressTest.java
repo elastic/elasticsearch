@@ -23,7 +23,6 @@ import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.SizeValue;
 import org.elasticsearch.node.Node;
@@ -42,7 +41,7 @@ public class QuickRollingRestartStressTest {
 
         Random random = new Random();
 
-        Settings settings = ImmutableSettings.settingsBuilder().build();
+        Settings settings = Settings.settingsBuilder().build();
 
         Node[] nodes = new Node[5];
         for (int i = 0; i < nodes.length; i++) {

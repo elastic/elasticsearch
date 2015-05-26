@@ -20,7 +20,6 @@
 package org.elasticsearch.gateway;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;

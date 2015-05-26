@@ -24,7 +24,6 @@ import org.elasticsearch.cluster.routing.HashFunction;
 import org.elasticsearch.cluster.routing.SimpleHashFunction;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 
 /**
@@ -114,7 +113,7 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
         if (indexMetaData.settings().get(IndexMetaData.SETTING_LEGACY_ROUTING_HASH_FUNCTION) == null
                 && indexMetaData.getCreationVersion().before(Version.V_2_0_0)) {
             // these settings need an upgrade
-            Settings indexSettings = ImmutableSettings.builder().put(indexMetaData.settings())
+            Settings indexSettings = Settings.builder().put(indexMetaData.settings())
                     .put(IndexMetaData.SETTING_LEGACY_ROUTING_HASH_FUNCTION, pre20HashFunction)
                     .put(IndexMetaData.SETTING_LEGACY_ROUTING_USE_TYPE, pre20UseType == null ? false : pre20UseType)
                     .build();

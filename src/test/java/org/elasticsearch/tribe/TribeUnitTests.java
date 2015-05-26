@@ -22,7 +22,6 @@ package org.elasticsearch.tribe;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeBuilder;
@@ -51,14 +50,14 @@ public class TribeUnitTests extends ElasticsearchTestCase {
 
     @BeforeClass
     public static void createTribes() {
-        Settings baseSettings = ImmutableSettings.builder()
+        Settings baseSettings = Settings.builder()
             .put("config.ignore_system_properties", true)
             .put("http.enabled", false)
             .put("node.mode", NODE_MODE)
             .put("path.home", createTempDir()).build();
 
-        tribe1 = NodeBuilder.nodeBuilder().settings(ImmutableSettings.builder().put(baseSettings).put("cluster.name", "tribe1").put("node.name", "tribe1_node")).node();
-        tribe2 = NodeBuilder.nodeBuilder().settings(ImmutableSettings.builder().put(baseSettings).put("cluster.name", "tribe2").put("node.name", "tribe2_node")).node();
+        tribe1 = NodeBuilder.nodeBuilder().settings(Settings.builder().put(baseSettings).put("cluster.name", "tribe1").put("node.name", "tribe1_node")).node();
+        tribe2 = NodeBuilder.nodeBuilder().settings(Settings.builder().put(baseSettings).put("cluster.name", "tribe2").put("node.name", "tribe2_node")).node();
     }
 
     @AfterClass
@@ -76,7 +75,7 @@ public class TribeUnitTests extends ElasticsearchTestCase {
         System.setProperty("es.tribe.t2.cluster.name", "tribe2");
 
         try {
-            assertTribeNodeSuccesfullyCreated(ImmutableSettings.EMPTY);
+            assertTribeNodeSuccesfullyCreated(Settings.EMPTY);
         } finally {
             System.clearProperty("es.cluster.name");
             System.clearProperty("es.tribe.t1.cluster.name");
@@ -87,14 +86,14 @@ public class TribeUnitTests extends ElasticsearchTestCase {
     @Test
     public void testThatTribeClientsIgnoreGlobalConfig() throws Exception {
         Path pathConf = getDataPath("elasticsearch.yml").getParent();
-        Settings settings = ImmutableSettings.builder().put("config.ignore_system_properties", true).put("path.conf", pathConf).build();
+        Settings settings = Settings.builder().put("config.ignore_system_properties", true).put("path.conf", pathConf).build();
         assertTribeNodeSuccesfullyCreated(settings);
     }
 
     private static void assertTribeNodeSuccesfullyCreated(Settings extraSettings) throws Exception {
         //tribe node doesn't need the node.mode setting, as it's forced local internally anyways. The tribe clients do need it to make sure
         //they can find their corresponding tribes using the proper transport
-        Settings settings = ImmutableSettings.builder().put("http.enabled", false).put("node.name", "tribe_node")
+        Settings settings = Settings.builder().put("http.enabled", false).put("node.name", "tribe_node")
                 .put("tribe.t1.node.mode", NODE_MODE).put("tribe.t2.node.mode", NODE_MODE)
                 .put("path.home", createTempDir()).put(extraSettings).build();
 

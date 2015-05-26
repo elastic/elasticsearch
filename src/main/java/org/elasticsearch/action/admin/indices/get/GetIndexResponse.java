@@ -28,7 +28,6 @@ import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.warmer.IndexWarmersMetaData;
 
@@ -155,7 +154,7 @@ public class GetIndexResponse extends ActionResponse {
         ImmutableOpenMap.Builder<String, Settings> settingsMapBuilder = ImmutableOpenMap.builder();
         for (int i = 0; i < settingsSize; i++) {
             String key = in.readString();
-            settingsMapBuilder.put(key, ImmutableSettings.readSettingsFromStream(in));
+            settingsMapBuilder.put(key, Settings.readSettingsFromStream(in));
         }
         settings = settingsMapBuilder.build();
     }
@@ -195,7 +194,7 @@ public class GetIndexResponse extends ActionResponse {
         out.writeVInt(settings.size());
         for (ObjectObjectCursor<String, Settings> indexEntry : settings) {
             out.writeString(indexEntry.key);
-            ImmutableSettings.writeSettingsToStream(indexEntry.value, out);
+            Settings.writeSettingsToStream(indexEntry.value, out);
         }
     }
 }

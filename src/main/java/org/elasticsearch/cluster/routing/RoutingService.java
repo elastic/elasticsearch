@@ -19,7 +19,6 @@
 
 package org.elasticsearch.cluster.routing;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;

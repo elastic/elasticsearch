@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.indices.settings.put;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;

@@ -22,7 +22,6 @@ package org.elasticsearch.index.mapper.externalvalues;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -38,7 +37,7 @@ public class ExternalValuesMapperIntegrationTests extends ElasticsearchIntegrati
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return ImmutableSettings.settingsBuilder()
+        return Settings.settingsBuilder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put("plugin.types", ExternalMapperPlugin.class.getName())
                 .build();

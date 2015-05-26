@@ -24,7 +24,6 @@ import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.BoolQueryBuilder;
@@ -249,7 +248,7 @@ public class CountQueryTests extends ElasticsearchIntegrationTest {
     }
 
     private void typeFilterTests(String index) throws Exception {
-        Settings indexSettings = ImmutableSettings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build();
+        Settings indexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build();
         assertAcked(prepareCreate("test").setSettings(indexSettings)
                 .addMapping("type1", jsonBuilder().startObject().startObject("type1")
                         .startObject("_type").field("index", index).endObject()
@@ -283,7 +282,7 @@ public class CountQueryTests extends ElasticsearchIntegrationTest {
     }
 
     private void idsQueryTests(String index) throws Exception {
-        Settings indexSettings = ImmutableSettings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build();
+        Settings indexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build();
         assertAcked(prepareCreate("test").setSettings(indexSettings)
             .addMapping("type1", jsonBuilder().startObject().startObject("type1")
                 .startObject("_id").field("index", index).endObject()

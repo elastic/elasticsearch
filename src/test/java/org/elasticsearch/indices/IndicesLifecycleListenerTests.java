@@ -29,7 +29,6 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.settings.IndexSettings;
@@ -50,7 +49,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.cluster.routing.allocation.decider.DisableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_DISABLE_ALLOCATION;
-import static org.elasticsearch.common.settings.ImmutableSettings.builder;
+import static org.elasticsearch.common.settings.Settings.builder;
 import static org.elasticsearch.index.shard.IndexShardState.*;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
@@ -235,8 +234,8 @@ public class IndicesLifecycleListenerTests extends ElasticsearchIntegrationTest 
     private static class IndexShardStateChangeListener extends IndicesLifecycle.Listener {
         //we keep track of all the states (ordered) a shard goes through
         final ConcurrentMap<ShardId, List<IndexShardState>> shardStates = Maps.newConcurrentMap();
-        Settings creationSettings = ImmutableSettings.EMPTY;
-        Settings afterCloseSettings = ImmutableSettings.EMPTY;
+        Settings creationSettings = Settings.EMPTY;
+        Settings afterCloseSettings = Settings.EMPTY;
 
         @Override
         public void indexShardStateChanged(IndexShard indexShard, @Nullable IndexShardState previousState, IndexShardState newState, @Nullable String reason) {

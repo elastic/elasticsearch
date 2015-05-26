@@ -25,7 +25,6 @@ import org.elasticsearch.action.admin.cluster.node.info.PluginInfo;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.nodesinfo.SimpleNodesInfoTests;
 import org.elasticsearch.plugins.loading.classpath.InClassPathPlugin;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
@@ -34,9 +33,8 @@ import org.junit.Test;
 import java.net.URISyntaxException;
 import java.nio.file.Path;
 import java.nio.file.PathMatcher;
-import java.nio.file.Paths;
 
-import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.instanceOf;
 

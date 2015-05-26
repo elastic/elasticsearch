@@ -26,7 +26,6 @@ import org.elasticsearch.cluster.metadata.IndexTemplateFilter;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.AbstractPlugin;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
@@ -43,7 +42,7 @@ public class IndexTemplateFilteringTests extends ElasticsearchIntegrationTest{
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return ImmutableSettings.builder()
+        return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put("plugin.types", TestPlugin.class.getName())
                 .build();

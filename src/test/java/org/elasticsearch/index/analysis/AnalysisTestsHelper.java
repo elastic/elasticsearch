@@ -23,7 +23,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.env.Environment;
@@ -39,7 +38,7 @@ import java.nio.file.Path;
 public class AnalysisTestsHelper {
 
     public static AnalysisService createAnalysisServiceFromClassPath(Path baseDir, String resource) {
-        Settings settings = ImmutableSettings.settingsBuilder()
+        Settings settings = Settings.settingsBuilder()
                 .loadFromClasspath(resource)
                 .put("path.home", baseDir.toString())
                 .build();
@@ -51,7 +50,7 @@ public class AnalysisTestsHelper {
             Settings settings) {
         Index index = new Index("test");
         if (settings.get(IndexMetaData.SETTING_VERSION_CREATED) == null) {
-            settings = ImmutableSettings.builder().put(settings).put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
+            settings = Settings.builder().put(settings).put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
         }
         Injector parentInjector = new ModulesBuilder().add(new SettingsModule(settings),
                 new EnvironmentModule(new Environment(settings)), new IndicesAnalysisModule()).createInjector();

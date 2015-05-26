@@ -28,7 +28,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.search.stats.SearchStats.Stats;
@@ -63,7 +63,7 @@ public class SearchStatsTests extends ElasticsearchIntegrationTest {
         final int shardsIdx1 = randomIntBetween(1, 10); // we make sure each node gets at least a single shard...
         final int shardsIdx2 = Math.max(numNodes - shardsIdx1, randomIntBetween(1, 10));
         assertThat(numNodes, lessThanOrEqualTo(shardsIdx1 + shardsIdx2));
-        assertAcked(prepareCreate("test1").setSettings(ImmutableSettings.builder()
+        assertAcked(prepareCreate("test1").setSettings(Settings.builder()
                 .put(SETTING_NUMBER_OF_SHARDS, shardsIdx1)
                 .put(SETTING_NUMBER_OF_REPLICAS, 0)));
         int docsTest1 = scaledRandomIntBetween(3*shardsIdx1, 5*shardsIdx1);
@@ -73,7 +73,7 @@ public class SearchStatsTests extends ElasticsearchIntegrationTest {
                 refresh();
             }
         }
-        assertAcked(prepareCreate("test2").setSettings(ImmutableSettings.builder()
+        assertAcked(prepareCreate("test2").setSettings(Settings.builder()
                 .put(SETTING_NUMBER_OF_SHARDS, shardsIdx2)
                 .put(SETTING_NUMBER_OF_REPLICAS, 0)));
         int docsTest2 = scaledRandomIntBetween(3*shardsIdx2, 5*shardsIdx2);

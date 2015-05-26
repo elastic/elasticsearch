@@ -22,7 +22,7 @@ package org.elasticsearch.search.aggregations.metrics;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArray;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -139,7 +139,7 @@ public class GeoBoundsTests extends ElasticsearchIntegrationTest {
                     .field("tag", "tag" + i)
                     .endObject()));
         }
-        assertAcked(prepareCreate("high_card_idx").setSettings(ImmutableSettings.builder().put("number_of_shards", 2))
+        assertAcked(prepareCreate("high_card_idx").setSettings(Settings.builder().put("number_of_shards", 2))
                 .addMapping("type", SINGLE_VALUED_FIELD_NAME, "type=geo_point", MULTI_VALUED_FIELD_NAME, "type=geo_point", NUMBER_FIELD_NAME, "type=long", "tag", "type=string,index=not_analyzed"));
 
 

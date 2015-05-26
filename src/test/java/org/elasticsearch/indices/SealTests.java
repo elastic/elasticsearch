@@ -20,7 +20,7 @@ package org.elasticsearch.indices;
 
 import org.elasticsearch.action.admin.indices.seal.SealIndicesResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
@@ -32,7 +32,7 @@ public class SealTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testUnallocatedShardsDoesNotHang() throws InterruptedException {
-        ImmutableSettings.Builder settingsBuilder = ImmutableSettings.builder()
+        Settings.Builder settingsBuilder = Settings.builder()
                 .put("node.data", false)
                 .put("node.master", true)
                 .put("path.data", createTempDir().toString());

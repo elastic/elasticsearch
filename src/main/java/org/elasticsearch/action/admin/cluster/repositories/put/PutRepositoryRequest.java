@@ -26,7 +26,6 @@ import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -36,9 +35,9 @@ import java.io.IOException;
 import java.util.Map;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
-import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
-import static org.elasticsearch.common.settings.ImmutableSettings.readSettingsFromStream;
-import static org.elasticsearch.common.settings.ImmutableSettings.writeSettingsToStream;
+import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
+import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
+import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
 
 /**
  * Register repository request.
@@ -150,7 +149,7 @@ public class PutRepositoryRequest extends AcknowledgedRequest<PutRepositoryReque
      * @return this request
      */
     public PutRepositoryRequest settings(String source) {
-        this.settings = ImmutableSettings.settingsBuilder().loadFromSource(source).build();
+        this.settings = Settings.settingsBuilder().loadFromSource(source).build();
         return this;
     }
 

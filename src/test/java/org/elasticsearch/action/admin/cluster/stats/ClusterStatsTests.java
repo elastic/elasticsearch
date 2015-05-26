@@ -24,7 +24,7 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.monitor.sigar.SigarService;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
@@ -34,7 +34,7 @@ import org.junit.Test;
 
 import java.io.IOException;
 
-import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.*;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.is;
@@ -61,17 +61,17 @@ public class ClusterStatsTests extends ElasticsearchIntegrationTest {
         ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().get();
         assertCounts(response.getNodesStats().getCounts(), 1, 0, 0, 1, 0);
 
-        internalCluster().startNode(ImmutableSettings.builder().put("node.data", false));
+        internalCluster().startNode(Settings.builder().put("node.data", false));
         waitForNodes(2);
         response = client().admin().cluster().prepareClusterStats().get();
         assertCounts(response.getNodesStats().getCounts(), 2, 1, 0, 1, 0);
 
-        internalCluster().startNode(ImmutableSettings.builder().put("node.master", false));
+        internalCluster().startNode(Settings.builder().put("node.master", false));
         waitForNodes(3);
         response = client().admin().cluster().prepareClusterStats().get();
         assertCounts(response.getNodesStats().getCounts(), 3, 1, 1, 1, 0);
 
-        internalCluster().startNode(ImmutableSettings.builder().put("node.client", true));
+        internalCluster().startNode(Settings.builder().put("node.client", true));
         waitForNodes(4);
         response = client().admin().cluster().prepareClusterStats().get();
         assertCounts(response.getNodesStats().getCounts(), 4, 1, 1, 1, 1);

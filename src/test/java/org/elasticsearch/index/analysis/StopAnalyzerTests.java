@@ -35,7 +35,7 @@ import org.elasticsearch.indices.analysis.IndicesAnalysisService;
 import org.elasticsearch.test.ElasticsearchTokenStreamTestCase;
 import org.junit.Test;
 
-import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 
 public class StopAnalyzerTests extends ElasticsearchTokenStreamTestCase {
 

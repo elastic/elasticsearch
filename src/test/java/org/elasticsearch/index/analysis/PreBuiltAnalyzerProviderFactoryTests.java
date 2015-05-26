@@ -20,7 +20,7 @@ package org.elasticsearch.index.analysis;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.analysis.PreBuiltAnalyzers;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
@@ -37,8 +37,8 @@ public class PreBuiltAnalyzerProviderFactoryTests extends ElasticsearchTestCase 
     public void testVersioningInFactoryProvider() throws Exception {
         PreBuiltAnalyzerProviderFactory factory = new PreBuiltAnalyzerProviderFactory("default", AnalyzerScope.INDEX, PreBuiltAnalyzers.STANDARD.getAnalyzer(Version.CURRENT));
 
-        AnalyzerProvider former090AnalyzerProvider = factory.create("default", ImmutableSettings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_0_90_0).build());
-        AnalyzerProvider currentAnalyzerProviderReference = factory.create("default", ImmutableSettings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build());
+        AnalyzerProvider former090AnalyzerProvider = factory.create("default", Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_0_90_0).build());
+        AnalyzerProvider currentAnalyzerProviderReference = factory.create("default", Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build());
 
         // would love to access the version inside of the lucene analyzer, but that is not possible...
         assertThat(currentAnalyzerProviderReference, is(not(former090AnalyzerProvider)));

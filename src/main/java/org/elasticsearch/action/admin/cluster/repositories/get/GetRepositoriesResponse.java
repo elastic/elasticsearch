@@ -24,7 +24,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -63,7 +63,7 @@ public class GetRepositoriesResponse extends ActionResponse implements Iterable<
             repositoryListBuilder.add(new RepositoryMetaData(
                     in.readString(),
                     in.readString(),
-                    ImmutableSettings.readSettingsFromStream(in))
+                    Settings.readSettingsFromStream(in))
             );
         }
         repositories = repositoryListBuilder.build();
@@ -76,7 +76,7 @@ public class GetRepositoriesResponse extends ActionResponse implements Iterable<
         for (RepositoryMetaData repository : repositories) {
             out.writeString(repository.name());
             out.writeString(repository.type());
-            ImmutableSettings.writeSettingsToStream(repository.settings(), out);
+            Settings.writeSettingsToStream(repository.settings(), out);
         }
     }
 

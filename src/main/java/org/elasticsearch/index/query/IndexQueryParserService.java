@@ -21,7 +21,6 @@ package org.elasticsearch.index.query;
 
 import com.google.common.collect.ImmutableMap;
 
-import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.CloseableThreadLocal;
 import org.elasticsearch.Version;
@@ -54,7 +53,7 @@ import java.util.Map;
 
 import static com.google.common.collect.Lists.newArrayList;
 import static com.google.common.collect.Maps.newHashMap;
-import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
+import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 
 /**
  *

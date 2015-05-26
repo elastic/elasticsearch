@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.delete;
 
-import org.elasticsearch.action.support.replication.ShardReplicationOperationRequestBuilder;
+import org.elasticsearch.action.support.replication.ReplicationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.VersionType;
@@ -27,7 +27,7 @@ import org.elasticsearch.index.VersionType;
 /**
  * A delete document action request builder.
  */
-public class DeleteRequestBuilder extends ShardReplicationOperationRequestBuilder<DeleteRequest, DeleteResponse, DeleteRequestBuilder> {
+public class DeleteRequestBuilder extends ReplicationRequestBuilder<DeleteRequest, DeleteResponse, DeleteRequestBuilder> {
 
     public DeleteRequestBuilder(ElasticsearchClient client, DeleteAction action) {
         super(client, action, new DeleteRequest());

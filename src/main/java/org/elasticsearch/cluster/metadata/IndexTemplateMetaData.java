@@ -27,7 +27,6 @@ import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.loader.SettingsLoader;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -168,7 +167,7 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
         Builder builder = new Builder(in.readString());
         builder.order(in.readInt());
         builder.template(in.readString());
-        builder.settings(ImmutableSettings.readSettingsFromStream(in));
+        builder.settings(Settings.readSettingsFromStream(in));
         int mappingsSize = in.readVInt();
         for (int i = 0; i < mappingsSize; i++) {
             builder.putMapping(in.readString(), CompressedString.readCompressedString(in));
@@ -192,7 +191,7 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
         out.writeString(name);
         out.writeInt(order);
         out.writeString(template);
-        ImmutableSettings.writeSettingsToStream(settings, out);
+        Settings.writeSettingsToStream(settings, out);
         out.writeVInt(mappings.size());
         for (ObjectObjectCursor<String, CompressedString> cursor : mappings) {
             out.writeString(cursor.key);
@@ -222,7 +221,7 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
 
         private String template;
 
-        private Settings settings = ImmutableSettings.Builder.EMPTY_SETTINGS;
+        private Settings settings = Settings.Builder.EMPTY_SETTINGS;
 
         private final ImmutableOpenMap.Builder<String, CompressedString> mappings;
 
@@ -376,7 +375,7 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
                     currentFieldName = parser.currentName();
                 } else if (token == XContentParser.Token.START_OBJECT) {
                     if ("settings".equals(currentFieldName)) {
-                        ImmutableSettings.Builder templateSettingsBuilder = ImmutableSettings.settingsBuilder();
+                        Settings.Builder templateSettingsBuilder = Settings.settingsBuilder();
                         templateSettingsBuilder.put(SettingsLoader.Helper.loadNestedFromMap(parser.mapOrdered())).normalizePrefix(IndexMetaData.INDEX_SETTING_PREFIX);
                         builder.settings(templateSettingsBuilder.build());
                     } else if ("mappings".equals(currentFieldName)) {

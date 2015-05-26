@@ -33,8 +33,8 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.search.function.CombineFunction;
-import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.common.settings.ImmutableSettings.Builder;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.Settings.Builder;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -65,8 +65,8 @@ import java.util.Set;
 import java.util.TreeSet;
 
 import static org.elasticsearch.action.percolate.PercolateSourceBuilder.docBuilder;
-import static org.elasticsearch.common.settings.ImmutableSettings.builder;
-import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.common.settings.Settings.builder;
+import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.smileBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.yamlBuilder;
@@ -2018,7 +2018,7 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
     @Test
     public void testMapUnmappedFieldAsString() throws IOException{
         // If index.percolator.map_unmapped_fields_as_string is set to true, unmapped field is mapped as an analyzed string.
-        ImmutableSettings.Builder settings = ImmutableSettings.settingsBuilder()
+        Settings.Builder settings = Settings.settingsBuilder()
                 .put(indexSettings())
                 .put("index.percolator.map_unmapped_fields_as_string", true);
         assertAcked(prepareCreate("test")

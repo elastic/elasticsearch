@@ -18,14 +18,12 @@
  */
 package org.elasticsearch.cluster.routing.allocation.decider;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.util.Set;
 
-import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 

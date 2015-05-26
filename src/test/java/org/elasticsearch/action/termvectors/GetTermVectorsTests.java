@@ -32,7 +32,7 @@ import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.uid.Versions;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -45,7 +45,7 @@ import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
 
-import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
@@ -790,7 +790,7 @@ public class GetTermVectorsTests extends AbstractTermVectorsTests {
     @Test
     public void testArtificialVsExisting() throws ExecutionException, InterruptedException, IOException {
         // setup indices
-        ImmutableSettings.Builder settings = settingsBuilder()
+        Settings.Builder settings = settingsBuilder()
                 .put(indexSettings())
                 .put("index.analysis.analyzer", "standard");
         assertAcked(prepareCreate("test")
@@ -849,7 +849,7 @@ public class GetTermVectorsTests extends AbstractTermVectorsTests {
     @Test
     public void testArtificialNoDoc() throws IOException {
         // setup indices
-        ImmutableSettings.Builder settings = settingsBuilder()
+        Settings.Builder settings = settingsBuilder()
                 .put(indexSettings())
                 .put("index.analysis.analyzer", "standard");
         assertAcked(prepareCreate("test")
@@ -878,7 +878,7 @@ public class GetTermVectorsTests extends AbstractTermVectorsTests {
     @Test
     public void testArtificialNonExistingField() throws Exception {
         // setup indices
-        ImmutableSettings.Builder settings = settingsBuilder()
+        Settings.Builder settings = settingsBuilder()
                 .put(indexSettings())
                 .put("index.analysis.analyzer", "standard");
         assertAcked(prepareCreate("test")
@@ -946,7 +946,7 @@ public class GetTermVectorsTests extends AbstractTermVectorsTests {
         mapping.endObject().endObject().endObject();
 
         // setup indices with mapping
-        ImmutableSettings.Builder settings = settingsBuilder()
+        Settings.Builder settings = settingsBuilder()
                 .put(indexSettings())
                 .put("index.analysis.analyzer", "standard");
         assertAcked(prepareCreate("test")
@@ -1023,7 +1023,7 @@ public class GetTermVectorsTests extends AbstractTermVectorsTests {
     @Test
     public void testDfs() throws ExecutionException, InterruptedException, IOException {
         logger.info("Setting up the index ...");
-        ImmutableSettings.Builder settings = settingsBuilder()
+        Settings.Builder settings = settingsBuilder()
                 .put(indexSettings())
                 .put("index.analysis.analyzer", "standard")
                 .put("index.number_of_shards", randomIntBetween(2, 10)); // we need at least 2 shards
@@ -1128,7 +1128,7 @@ public class GetTermVectorsTests extends AbstractTermVectorsTests {
     @Test
     public void testTermVectorsWithVersion() {
         assertAcked(prepareCreate("test").addAlias(new Alias("alias"))
-                .setSettings(ImmutableSettings.settingsBuilder().put("index.refresh_interval", -1)));
+                .setSettings(Settings.settingsBuilder().put("index.refresh_interval", -1)));
         ensureGreen();
 
         TermVectorsResponse response = client().prepareTermVectors("test", "type1", "1").get();
@@ -1232,7 +1232,7 @@ public class GetTermVectorsTests extends AbstractTermVectorsTests {
     @Test
     public void testFilterLength() throws ExecutionException, InterruptedException, IOException {
         logger.info("Setting up the index ...");
-        ImmutableSettings.Builder settings = settingsBuilder()
+        Settings.Builder settings = settingsBuilder()
                 .put(indexSettings())
                 .put("index.analysis.analyzer", "keyword");
         assertAcked(prepareCreate("test")
@@ -1271,7 +1271,7 @@ public class GetTermVectorsTests extends AbstractTermVectorsTests {
     @Test
     public void testFilterTermFreq() throws ExecutionException, InterruptedException, IOException {
         logger.info("Setting up the index ...");
-        ImmutableSettings.Builder settings = settingsBuilder()
+        Settings.Builder settings = settingsBuilder()
                 .put(indexSettings())
                 .put("index.analysis.analyzer", "keyword");
         assertAcked(prepareCreate("test")
@@ -1312,7 +1312,7 @@ public class GetTermVectorsTests extends AbstractTermVectorsTests {
     @Test
     public void testFilterDocFreq() throws ExecutionException, InterruptedException, IOException {
         logger.info("Setting up the index ...");
-        ImmutableSettings.Builder settings = settingsBuilder()
+        Settings.Builder settings = settingsBuilder()
                 .put(indexSettings())
                 .put("index.analysis.analyzer", "keyword")
                 .put("index.number_of_shards", 1); // no dfs

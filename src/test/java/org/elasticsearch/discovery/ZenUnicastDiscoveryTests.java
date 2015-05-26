@@ -22,13 +22,11 @@ package org.elasticsearch.discovery;
 import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import org.elasticsearch.test.discovery.ClusterDiscoveryConfiguration;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -84,7 +82,7 @@ public class ZenUnicastDiscoveryTests extends ElasticsearchIntegrationTest {
         int currentNumNodes = randomIntBetween(3, 5);
         final int min_master_nodes = currentNumNodes / 2 + 1;
         int currentNumOfUnicastHosts = randomIntBetween(min_master_nodes, currentNumNodes);
-        final Settings settings = ImmutableSettings.settingsBuilder().put("discovery.zen.minimum_master_nodes", min_master_nodes).build();
+        final Settings settings = Settings.settingsBuilder().put("discovery.zen.minimum_master_nodes", min_master_nodes).build();
         discoveryConfig = new ClusterDiscoveryConfiguration.UnicastZen(currentNumNodes, currentNumOfUnicastHosts, settings);
 
         List<String> nodes = internalCluster().startNodesAsync(currentNumNodes).get();

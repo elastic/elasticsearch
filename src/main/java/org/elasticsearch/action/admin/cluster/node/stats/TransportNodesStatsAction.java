@@ -20,7 +20,6 @@
 package org.elasticsearch.action.admin.cluster.node.stats;
 
 import com.google.common.collect.Lists;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.NodeOperationRequest;
 import org.elasticsearch.action.support.nodes.TransportNodesOperationAction;

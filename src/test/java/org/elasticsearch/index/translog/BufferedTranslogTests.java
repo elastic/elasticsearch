@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.translog;
 
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 
@@ -33,7 +32,7 @@ public class BufferedTranslogTests extends TranslogTests {
 
     @Override
     protected Translog create(Path path) throws IOException {
-        Settings build = ImmutableSettings.settingsBuilder()
+        Settings build = Settings.settingsBuilder()
                 .put("index.translog.fs.type", TranslogWriter.Type.BUFFERED.name())
                 .put("index.translog.fs.buffer_size", 10 + randomInt(128 * 1024))
                 .build();

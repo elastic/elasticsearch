@@ -18,11 +18,9 @@
  */
 package org.elasticsearch.gateway;
 
-import com.google.common.collect.ImmutableList;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
@@ -41,7 +39,7 @@ import static org.hamcrest.Matchers.hasSize;
  */
 public class DanglingIndicesStateTests extends ElasticsearchTestCase {
 
-    private static Settings indexSettings = ImmutableSettings.builder()
+    private static Settings indexSettings = Settings.builder()
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
@@ -50,8 +48,8 @@ public class DanglingIndicesStateTests extends ElasticsearchTestCase {
     @Test
     public void testCleanupWhenEmpty() throws Exception {
         try (NodeEnvironment env = newNodeEnvironment()) {
-            MetaStateService metaStateService = new MetaStateService(ImmutableSettings.EMPTY, env);
-            DanglingIndicesState danglingState = new DanglingIndicesState(ImmutableSettings.EMPTY, env, metaStateService, null);
+            MetaStateService metaStateService = new MetaStateService(Settings.EMPTY, env);
+            DanglingIndicesState danglingState = new DanglingIndicesState(Settings.EMPTY, env, metaStateService, null);
 
             assertTrue(danglingState.getDanglingIndices().isEmpty());
             MetaData metaData = MetaData.builder().build();
@@ -63,8 +61,8 @@ public class DanglingIndicesStateTests extends ElasticsearchTestCase {
     @Test
     public void testDanglingProcessing() throws Exception {
         try (NodeEnvironment env = newNodeEnvironment()) {
-            MetaStateService metaStateService = new MetaStateService(ImmutableSettings.EMPTY, env);
-            DanglingIndicesState danglingState = new DanglingIndicesState(ImmutableSettings.EMPTY, env, metaStateService, null);
+            MetaStateService metaStateService = new MetaStateService(Settings.EMPTY, env);
+            DanglingIndicesState danglingState = new DanglingIndicesState(Settings.EMPTY, env, metaStateService, null);
 
             MetaData metaData = MetaData.builder().build();
 
@@ -107,8 +105,8 @@ public class DanglingIndicesStateTests extends ElasticsearchTestCase {
     @Test
     public void testRenameOfIndexState() throws Exception {
         try (NodeEnvironment env = newNodeEnvironment()) {
-            MetaStateService metaStateService = new MetaStateService(ImmutableSettings.EMPTY, env);
-            DanglingIndicesState danglingState = new DanglingIndicesState(ImmutableSettings.EMPTY, env, metaStateService, null);
+            MetaStateService metaStateService = new MetaStateService(Settings.EMPTY, env);
+            DanglingIndicesState danglingState = new DanglingIndicesState(Settings.EMPTY, env, metaStateService, null);
 
             MetaData metaData = MetaData.builder().build();
 

@@ -20,9 +20,6 @@
 package org.elasticsearch.monitor;
 
 import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.common.inject.Scopes;
-import org.elasticsearch.common.inject.assistedinject.FactoryProvider;
-import org.elasticsearch.common.inject.multibindings.MapBinder;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.monitor.fs.FsProbe;
@@ -44,8 +41,6 @@ import org.elasticsearch.monitor.process.ProcessProbe;
 import org.elasticsearch.monitor.process.ProcessService;
 import org.elasticsearch.monitor.process.SigarProcessProbe;
 import org.elasticsearch.monitor.sigar.SigarService;
-
-import java.util.Map;
 
 /**
  *

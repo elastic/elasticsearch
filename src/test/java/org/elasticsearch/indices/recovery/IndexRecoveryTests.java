@@ -37,7 +37,6 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.discovery.DiscoveryService;
@@ -63,7 +62,7 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 
-import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -125,7 +124,7 @@ public class IndexRecoveryTests extends ElasticsearchIntegrationTest {
     private void slowDownRecovery(ByteSizeValue shardSize) {
         long chunkSize = shardSize.bytes() / 10;
         assertTrue(client().admin().cluster().prepareUpdateSettings()
-                .setTransientSettings(ImmutableSettings.builder()
+                .setTransientSettings(Settings.builder()
                                 // one chunk per sec..
                                 .put(RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC, chunkSize)
                                 .put(RecoverySettings.INDICES_RECOVERY_FILE_CHUNK_SIZE, chunkSize)
@@ -135,7 +134,7 @@ public class IndexRecoveryTests extends ElasticsearchIntegrationTest {
 
     private void restoreRecoverySpeed() {
         assertTrue(client().admin().cluster().prepareUpdateSettings()
-                .setTransientSettings(ImmutableSettings.builder()
+                .setTransientSettings(Settings.builder()
                                 .put(RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC, "20mb")
                                 .put(RecoverySettings.INDICES_RECOVERY_FILE_CHUNK_SIZE, "512kb")
                 )
@@ -425,7 +424,7 @@ public class IndexRecoveryTests extends ElasticsearchIntegrationTest {
 
         logger.info("--> create repository");
         assertAcked(client().admin().cluster().preparePutRepository(REPO_NAME)
-                .setType("fs").setSettings(ImmutableSettings.settingsBuilder()
+                .setType("fs").setSettings(Settings.settingsBuilder()
                                 .put("location", randomRepoPath())
                                 .put("compress", false)
                 ).get());
@@ -516,7 +515,7 @@ public class IndexRecoveryTests extends ElasticsearchIntegrationTest {
     @Test
     public void disconnectsWhileRecoveringTest() throws Exception {
         final String indexName = "test";
-        final Settings nodeSettings = ImmutableSettings.builder()
+        final Settings nodeSettings = Settings.builder()
                 .put(RecoverySettings.INDICES_RECOVERY_RETRY_DELAY_NETWORK, "100ms")
                 .put(RecoverySettings.INDICES_RECOVERY_INTERNAL_ACTION_TIMEOUT, "1s")
                 .put("cluster.routing.schedule", "100ms") // aggressive reroute post shard failures
@@ -526,8 +525,8 @@ public class IndexRecoveryTests extends ElasticsearchIntegrationTest {
         // start a master node
         internalCluster().startNode(nodeSettings);
 
-        ListenableFuture<String> blueFuture = internalCluster().startNodeAsync(ImmutableSettings.builder().put("node.color", "blue").put(nodeSettings).build());
-        ListenableFuture<String> redFuture = internalCluster().startNodeAsync(ImmutableSettings.builder().put("node.color", "red").put(nodeSettings).build());
+        ListenableFuture<String> blueFuture = internalCluster().startNodeAsync(Settings.builder().put("node.color", "blue").put(nodeSettings).build());
+        ListenableFuture<String> redFuture = internalCluster().startNodeAsync(Settings.builder().put("node.color", "red").put(nodeSettings).build());
         final String blueNodeName = blueFuture.get();
         final String redNodeName = redFuture.get();
 
@@ -537,7 +536,7 @@ public class IndexRecoveryTests extends ElasticsearchIntegrationTest {
 
         client().admin().indices().prepareCreate(indexName)
                 .setSettings(
-                        ImmutableSettings.builder()
+                        Settings.builder()
                                 .put(FilterAllocationDecider.INDEX_ROUTING_INCLUDE_GROUP + "color", "blue")
                                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
@@ -583,7 +582,7 @@ public class IndexRecoveryTests extends ElasticsearchIntegrationTest {
 
         logger.info("--> starting recovery from blue to red");
         client().admin().indices().prepareUpdateSettings(indexName).setSettings(
-                ImmutableSettings.builder()
+                Settings.builder()
                         .put(FilterAllocationDecider.INDEX_ROUTING_INCLUDE_GROUP + "color", "red,blue")
                         .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
         ).get();

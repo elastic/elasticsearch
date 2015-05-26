@@ -20,7 +20,7 @@
 package org.elasticsearch.similarity;
 
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
@@ -54,7 +54,7 @@ public class SimilarityTests  extends ElasticsearchIntegrationTest {
                             .endObject()
                         .endObject()
                     .endObject())
-                .setSettings(ImmutableSettings.settingsBuilder()
+                .setSettings(Settings.settingsBuilder()
                         .put("index.number_of_shards", 1)
                         .put("index.number_of_replicas", 0)
                         .put("similarity.custom.type", "BM25")

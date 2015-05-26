@@ -21,7 +21,6 @@ package org.elasticsearch.gateway;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.NodeEnvironment;
@@ -35,7 +34,7 @@ import static org.hamcrest.Matchers.nullValue;
  */
 public class MetaStateServiceTests extends ElasticsearchTestCase {
 
-    private static Settings indexSettings = ImmutableSettings.builder()
+    private static Settings indexSettings = Settings.builder()
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
@@ -66,7 +65,7 @@ public class MetaStateServiceTests extends ElasticsearchTestCase {
             MetaStateService metaStateService = new MetaStateService(randomSettings(), env);
 
             MetaData metaData = MetaData.builder()
-                    .persistentSettings(ImmutableSettings.builder().put("test1", "value1").build())
+                    .persistentSettings(Settings.builder().put("test1", "value1").build())
                     .build();
             metaStateService.writeGlobalState("test_write", metaData);
             assertThat(metaStateService.loadGlobalState().persistentSettings(), equalTo(metaData.persistentSettings()));
@@ -79,7 +78,7 @@ public class MetaStateServiceTests extends ElasticsearchTestCase {
             MetaStateService metaStateService = new MetaStateService(randomSettings(), env);
 
             MetaData metaData = MetaData.builder()
-                    .persistentSettings(ImmutableSettings.builder().put("test1", "value1").build())
+                    .persistentSettings(Settings.builder().put("test1", "value1").build())
                     .build();
             IndexMetaData index = IndexMetaData.builder("test1").settings(indexSettings).build();
             MetaData metaDataWithIndex = MetaData.builder(metaData).put(index, true).build();
@@ -97,7 +96,7 @@ public class MetaStateServiceTests extends ElasticsearchTestCase {
 
             IndexMetaData index = IndexMetaData.builder("test1").settings(indexSettings).build();
             MetaData metaData = MetaData.builder()
-                    .persistentSettings(ImmutableSettings.builder().put("test1", "value1").build())
+                    .persistentSettings(Settings.builder().put("test1", "value1").build())
                     .put(index, true)
                     .build();
 
@@ -112,7 +111,7 @@ public class MetaStateServiceTests extends ElasticsearchTestCase {
     }
 
     private Settings randomSettings() {
-        ImmutableSettings.Builder builder = ImmutableSettings.builder();
+        Settings.Builder builder = Settings.builder();
         if (randomBoolean()) {
             builder.put(MetaStateService.FORMAT_SETTING, randomFrom(XContentType.values()).shortName());
         }

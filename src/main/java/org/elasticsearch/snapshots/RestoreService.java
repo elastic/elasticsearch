@@ -46,7 +46,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -208,7 +207,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
                                 createIndexService.validateIndexName(renamedIndex, currentState);
                                 createIndexService.validateIndexSettings(renamedIndex, snapshotIndexMetaData.settings());
                                 IndexMetaData.Builder indexMdBuilder = IndexMetaData.builder(snapshotIndexMetaData).state(IndexMetaData.State.OPEN).index(renamedIndex);
-                                indexMdBuilder.settings(ImmutableSettings.settingsBuilder().put(snapshotIndexMetaData.settings()).put(IndexMetaData.SETTING_UUID, Strings.randomBase64UUID()));
+                                indexMdBuilder.settings(Settings.settingsBuilder().put(snapshotIndexMetaData.settings()).put(IndexMetaData.SETTING_UUID, Strings.randomBase64UUID()));
                                 if (!request.includeAliases() && !snapshotIndexMetaData.aliases().isEmpty()) {
                                     // Remove all aliases - they shouldn't be restored
                                     indexMdBuilder.removeAllAliases();
@@ -242,7 +241,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
                                         aliases.add(alias.value);
                                     }
                                 }
-                                indexMdBuilder.settings(ImmutableSettings.settingsBuilder().put(snapshotIndexMetaData.settings()).put(IndexMetaData.SETTING_UUID, currentIndexMetaData.uuid()));
+                                indexMdBuilder.settings(Settings.settingsBuilder().put(snapshotIndexMetaData.settings()).put(IndexMetaData.SETTING_UUID, currentIndexMetaData.uuid()));
                                 IndexMetaData updatedIndexMetaData = indexMdBuilder.index(renamedIndex).build();
                                 rtBuilder.addAsRestore(updatedIndexMetaData, restoreSource);
                                 blocks.removeIndexBlock(renamedIndex, INDEX_CLOSED_BLOCK);
@@ -334,7 +333,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
                     if (changeSettings.names().isEmpty() && ignoreSettings.length == 0) {
                         return indexMetaData;
                     }
-                    Settings normalizedChangeSettings = ImmutableSettings.settingsBuilder().put(changeSettings).normalizePrefix(IndexMetaData.INDEX_SETTING_PREFIX).build();
+                    Settings normalizedChangeSettings = Settings.settingsBuilder().put(changeSettings).normalizePrefix(IndexMetaData.INDEX_SETTING_PREFIX).build();
                     IndexMetaData.Builder builder = IndexMetaData.builder(indexMetaData);
                     Map<String, String> settingsMap = newHashMap(indexMetaData.settings().getAsMap());
                     List<String> simpleMatchPatterns = newArrayList();
@@ -369,14 +368,14 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
                         }
                     }
 
-                    return builder.settings(ImmutableSettings.builder().put(settingsMap)).build();
+                    return builder.settings(Settings.builder().put(settingsMap)).build();
                 }
 
                 private void restoreGlobalStateIfRequested(MetaData.Builder mdBuilder) {
                     if (request.includeGlobalState()) {
                         if (metaData.persistentSettings() != null) {
                             boolean changed = false;
-                            ImmutableSettings.Builder persistentSettings = ImmutableSettings.settingsBuilder().put();
+                            Settings.Builder persistentSettings = Settings.settingsBuilder().put();
                             for (Map.Entry<String, String> entry : metaData.persistentSettings().getAsMap().entrySet()) {
                                 if (dynamicSettings.isDynamicOrLoggingSetting(entry.getKey())) {
                                     String error = dynamicSettings.validateDynamicSetting(entry.getKey(), entry.getValue());

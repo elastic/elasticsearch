@@ -21,7 +21,6 @@ package org.elasticsearch.search.aggregations.bucket;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermQueryBuilder;
@@ -64,7 +63,7 @@ public class SignificantTermsTests extends ElasticsearchIntegrationTest {
 
     @Override
     public Settings indexSettings() {
-        return ImmutableSettings.builder()
+        return Settings.builder()
                 .put("index.number_of_shards", numberOfShards())
                 .put("index.number_of_replicas", numberOfReplicas())
                 .build();

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.cluster.repositories.put;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.settings.Settings;

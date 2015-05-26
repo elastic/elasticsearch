@@ -28,7 +28,6 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -158,7 +157,7 @@ public class BulkProcessorTests extends ElasticsearchIntegrationTest {
     //https://github.com/elasticsearch/elasticsearch/issues/5038
     public void testBulkProcessorConcurrentRequestsNoNodeAvailableException() throws Exception {
         //we create a transport client with no nodes to make sure it throws NoNodeAvailableException
-        Settings settings = ImmutableSettings.builder()
+        Settings settings = Settings.builder()
                 .put("path.home", createTempDir().toString())
                 .build();
         Client transportClient = TransportClient.builder().settings(settings).build();
@@ -232,7 +231,7 @@ public class BulkProcessorTests extends ElasticsearchIntegrationTest {
     public void testBulkProcessorConcurrentRequestsReadOnlyIndex() throws Exception {
         createIndex("test-ro");
         assertAcked(client().admin().indices().prepareUpdateSettings("test-ro")
-                .setSettings(ImmutableSettings.builder().put(IndexMetaData.SETTING_BLOCKS_WRITE, true)));
+                .setSettings(Settings.builder().put(IndexMetaData.SETTING_BLOCKS_WRITE, true)));
         ensureGreen();
 
         int bulkActions = randomIntBetween(10, 100);

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.cluster.repositories.verify;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
@@ -64,7 +63,7 @@ public class TransportVerifyRepositoryAction extends TransportMasterNodeOperatio
 
     @Override
     protected ClusterBlockException checkBlock(VerifyRepositoryRequest request, ClusterState state) {
-        return state.blocks().indexBlockedException(ClusterBlockLevel.METADATA_READ, "");
+        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
     }
 
     @Override

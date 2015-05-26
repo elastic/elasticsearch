@@ -38,7 +38,6 @@ import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.Environment;
@@ -223,7 +222,7 @@ public class PluginsService extends AbstractComponent {
     }
 
     public Settings updatedSettings() {
-        ImmutableSettings.Builder builder = ImmutableSettings.settingsBuilder()
+        Settings.Builder builder = Settings.settingsBuilder()
                 .put(this.settings);
         for (Tuple<PluginInfo, Plugin> plugin : plugins) {
             builder.put(plugin.v2().additionalSettings());

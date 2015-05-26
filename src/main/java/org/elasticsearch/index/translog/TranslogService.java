@@ -21,7 +21,6 @@ package org.elasticsearch.index.translog;
 
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -34,8 +33,6 @@ import org.elasticsearch.index.shard.*;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
-import java.util.Arrays;
-import java.util.Locale;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ThreadLocalRandom;
 

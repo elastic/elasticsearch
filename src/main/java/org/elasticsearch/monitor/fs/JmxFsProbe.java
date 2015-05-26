@@ -25,11 +25,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.NodeEnvironment.NodePath;
 
-import java.io.File;
 import java.io.IOException;
-import java.nio.file.FileStore;
-import java.nio.file.Files;
-import java.nio.file.Path;
 
 public class JmxFsProbe extends AbstractComponent implements FsProbe {
 

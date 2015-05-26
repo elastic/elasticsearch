@@ -30,7 +30,6 @@ import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -47,7 +46,7 @@ import java.util.Arrays;
 import java.util.Random;
 import java.util.concurrent.ExecutionException;
 
-import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -107,7 +106,7 @@ public class RandomExceptionCircuitBreakerTests extends ElasticsearchIntegration
             lowLevelRate = 0d;
         }
 
-        ImmutableSettings.Builder settings = settingsBuilder()
+        Settings.Builder settings = settingsBuilder()
                 .put(indexSettings())
                 .put(MockEngineSupport.READER_WRAPPER_TYPE, RandomExceptionDirectoryReaderWrapper.class.getName())
                 .put(EXCEPTION_TOP_LEVEL_RATIO_KEY, topLevelRate)

@@ -21,6 +21,7 @@ package org.elasticsearch.search.basic;
 
 
 
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 
 import com.google.common.base.Charsets;
@@ -31,7 +32,6 @@ import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Requests;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.functionscore.script.ScriptScoreFunctionBuilder;
@@ -51,7 +51,7 @@ import java.util.Set;
 import static org.elasticsearch.action.search.SearchType.*;
 import static org.elasticsearch.client.Requests.*;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
-import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.common.unit.TimeValue.timeValueMinutes;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
@@ -75,7 +75,7 @@ public class TransportTwoNodesSearchTests extends ElasticsearchIntegrationTest {
     private Set<String> prepareData(int numShards) throws Exception {
         Set<String> fullExpectedIds = Sets.newTreeSet();
 
-        ImmutableSettings.Builder settingsBuilder = settingsBuilder()
+        Settings.Builder settingsBuilder = settingsBuilder()
                 .put(indexSettings())
                 .put("routing.hash.type", "simple");
 
@@ -116,7 +116,7 @@ public class TransportTwoNodesSearchTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testDfsQueryThenFetch() throws Exception {
-        ImmutableSettings.Builder settingsBuilder = settingsBuilder()
+        Settings.Builder settingsBuilder = settingsBuilder()
             .put(indexSettings())
             .put("routing.hash.type", "simple");
         client().admin().indices().create(createIndexRequest("test")

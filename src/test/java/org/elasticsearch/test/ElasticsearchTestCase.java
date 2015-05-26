@@ -44,7 +44,6 @@ import org.elasticsearch.cluster.routing.DjbHashFunction;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsAbortPolicy;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -183,7 +182,7 @@ public abstract class ElasticsearchTestCase extends LuceneTestCase {
     public static void setProcessors() {
         int numCpu = TestUtil.nextInt(random(), 1, 4);
         System.setProperty(EsExecutors.DEFAULT_SYSPROP, Integer.toString(numCpu));
-        assertEquals(numCpu, EsExecutors.boundedNumberOfProcessors(ImmutableSettings.EMPTY));
+        assertEquals(numCpu, EsExecutors.boundedNumberOfProcessors(Settings.EMPTY));
     }
 
     @AfterClass
@@ -493,11 +492,11 @@ public abstract class ElasticsearchTestCase extends LuceneTestCase {
     }
 
     public NodeEnvironment newNodeEnvironment() throws IOException {
-        return newNodeEnvironment(ImmutableSettings.EMPTY);
+        return newNodeEnvironment(Settings.EMPTY);
     }
 
     public NodeEnvironment newNodeEnvironment(Settings settings) throws IOException {
-        Settings build = ImmutableSettings.builder()
+        Settings build = Settings.builder()
                 .put(settings)
                 .put("path.home", createTempDir().toAbsolutePath())
                 .putArray("path.data", tmpPaths()).build();
@@ -505,8 +504,8 @@ public abstract class ElasticsearchTestCase extends LuceneTestCase {
     }
 
     /** Return consistent index settings for the provided index version. */
-    public static ImmutableSettings.Builder settings(Version version) {
-        ImmutableSettings.Builder builder = ImmutableSettings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version);
+    public static Settings.Builder settings(Version version) {
+        Settings.Builder builder = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version);
         if (version.before(Version.V_2_0_0)) {
             builder.put(IndexMetaData.SETTING_LEGACY_ROUTING_HASH_FUNCTION, DjbHashFunction.class);
         }

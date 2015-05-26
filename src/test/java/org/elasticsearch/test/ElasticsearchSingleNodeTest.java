@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.test;
 
-import com.carrotsearch.randomizedtesting.LifecycleScope;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
@@ -31,7 +30,6 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -119,7 +117,7 @@ public abstract class ElasticsearchSingleNodeTest extends ElasticsearchTestCase 
     }
 
     private static Node newNode() {
-        Node build = NodeBuilder.nodeBuilder().local(true).data(true).settings(ImmutableSettings.builder()
+        Node build = NodeBuilder.nodeBuilder().local(true).data(true).settings(Settings.builder()
             .put(ClusterName.SETTING, InternalTestCluster.clusterName("single-node-cluster", randomLong()))
             .put("path.home", createTempDir())
             .put("node.name", nodeName())
@@ -168,7 +166,7 @@ public abstract class ElasticsearchSingleNodeTest extends ElasticsearchTestCase 
      * Create a new index on the singleton node with empty index settings.
      */
     protected static IndexService createIndex(String index) {
-        return createIndex(index, ImmutableSettings.EMPTY);
+        return createIndex(index, Settings.EMPTY);
     }
 
     /**

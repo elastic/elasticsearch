@@ -24,7 +24,6 @@ import com.google.common.collect.Lists;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.env.Environment;
@@ -48,7 +47,7 @@ public class NativeScriptTests extends ElasticsearchTestCase {
 
     @Test
     public void testNativeScript() throws InterruptedException {
-        Settings settings = ImmutableSettings.settingsBuilder()
+        Settings settings = Settings.settingsBuilder()
                 .put("script.native.my.type", MyNativeScriptFactory.class.getName())
                 .put("name", "testNativeScript")
                 .put("path.home", createTempDir())
@@ -68,7 +67,7 @@ public class NativeScriptTests extends ElasticsearchTestCase {
 
     @Test
     public void testFineGrainedSettingsDontAffectNativeScripts() throws IOException {
-        ImmutableSettings.Builder builder = ImmutableSettings.settingsBuilder();
+        Settings.Builder builder = Settings.settingsBuilder();
         if (randomBoolean()) {
             ScriptType scriptType = randomFrom(ScriptType.values());
             builder.put(ScriptModes.SCRIPT_SETTINGS_PREFIX + scriptType, randomFrom(ScriptMode.values()));

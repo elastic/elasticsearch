@@ -19,10 +19,8 @@
 package org.elasticsearch.indices.analyze;
 
 import org.apache.lucene.analysis.hunspell.Dictionary;
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.analysis.HunspellService;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
@@ -44,7 +42,7 @@ public class HunspellServiceTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testLocaleDirectoryWithNodeLevelConfig() throws Exception {
-        Settings settings = ImmutableSettings.settingsBuilder()
+        Settings settings = Settings.settingsBuilder()
                 .put("path.conf", getDataPath("/indices/analyze/conf_dir"))
                 .put(HUNSPELL_LAZY_LOAD, randomBoolean())
                 .put(HUNSPELL_IGNORE_CASE, true)
@@ -58,7 +56,7 @@ public class HunspellServiceTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testLocaleDirectoryWithLocaleSpecificConfig() throws Exception {
-        Settings settings = ImmutableSettings.settingsBuilder()
+        Settings settings = Settings.settingsBuilder()
                 .put("path.conf", getDataPath("/indices/analyze/conf_dir"))
                 .put(HUNSPELL_LAZY_LOAD, randomBoolean())
                 .put(HUNSPELL_IGNORE_CASE, true)
@@ -81,7 +79,7 @@ public class HunspellServiceTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testDicWithNoAff() throws Exception {
-        Settings settings = ImmutableSettings.settingsBuilder()
+        Settings settings = Settings.settingsBuilder()
                 .put("path.conf", getDataPath("/indices/analyze/no_aff_conf_dir"))
                 .put(HUNSPELL_LAZY_LOAD, randomBoolean())
                 .build();
@@ -100,7 +98,7 @@ public class HunspellServiceTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testDicWithTwoAffs() throws Exception {
-        Settings settings = ImmutableSettings.settingsBuilder()
+        Settings settings = Settings.settingsBuilder()
                 .put("path.conf", getDataPath("/indices/analyze/two_aff_conf_dir"))
                 .put(HUNSPELL_LAZY_LOAD, randomBoolean())
                 .build();

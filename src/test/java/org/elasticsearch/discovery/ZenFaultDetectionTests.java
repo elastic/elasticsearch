@@ -25,7 +25,6 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.zen.fd.FaultDetection;
 import org.elasticsearch.discovery.zen.fd.MasterFaultDetection;
@@ -64,9 +63,9 @@ public class ZenFaultDetectionTests extends ElasticsearchTestCase {
     public void setUp() throws Exception {
         super.setUp();
         threadPool = new ThreadPool(getClass().getName());
-        serviceA = build(ImmutableSettings.builder().put("name", "TS_A").build(), version0);
+        serviceA = build(Settings.builder().put("name", "TS_A").build(), version0);
         nodeA = new DiscoveryNode("TS_A", "TS_A", serviceA.boundAddress().publishAddress(), ImmutableMap.<String, String>of(), version0);
-        serviceB = build(ImmutableSettings.builder().put("name", "TS_B").build(), version1);
+        serviceB = build(Settings.builder().put("name", "TS_B").build(), version1);
         nodeB = new DiscoveryNode("TS_B", "TS_B", serviceB.boundAddress().publishAddress(), ImmutableMap.<String, String>of(), version1);
 
         // wait till all nodes are properly connected and the event has been sent, so tests in this class
@@ -106,7 +105,7 @@ public class ZenFaultDetectionTests extends ElasticsearchTestCase {
     }
 
     protected MockTransportService build(Settings settings, Version version) {
-        MockTransportService transportService = new MockTransportService(ImmutableSettings.EMPTY, new LocalTransport(settings, threadPool, version), threadPool);
+        MockTransportService transportService = new MockTransportService(Settings.EMPTY, new LocalTransport(settings, threadPool, version), threadPool);
         transportService.start();
         return transportService;
     }
@@ -131,7 +130,7 @@ public class ZenFaultDetectionTests extends ElasticsearchTestCase {
 
     @Test
     public void testNodesFaultDetectionConnectOnDisconnect() throws InterruptedException {
-        ImmutableSettings.Builder settings = ImmutableSettings.builder();
+        Settings.Builder settings = Settings.builder();
         boolean shouldRetry = randomBoolean();
         // make sure we don't ping again after the initial ping
         settings.put(FaultDetection.SETTING_CONNECT_ON_NETWORK_DISCONNECT, shouldRetry)
@@ -181,7 +180,7 @@ public class ZenFaultDetectionTests extends ElasticsearchTestCase {
     @Test
     public void testMasterFaultDetectionConnectOnDisconnect() throws InterruptedException {
 
-        ImmutableSettings.Builder settings = ImmutableSettings.builder();
+        Settings.Builder settings = Settings.builder();
         boolean shouldRetry = randomBoolean();
         // make sure we don't ping
         settings.put(FaultDetection.SETTING_CONNECT_ON_NETWORK_DISCONNECT, shouldRetry)

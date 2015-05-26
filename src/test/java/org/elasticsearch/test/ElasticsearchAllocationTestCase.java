@@ -30,7 +30,6 @@ import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocators;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecidersModule;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -50,7 +49,7 @@ import static org.hamcrest.CoreMatchers.is;
 public abstract class ElasticsearchAllocationTestCase extends ElasticsearchTestCase {
 
     public static AllocationService createAllocationService() {
-        return createAllocationService(ImmutableSettings.Builder.EMPTY_SETTINGS);
+        return createAllocationService(Settings.Builder.EMPTY_SETTINGS);
     }
 
     public static AllocationService createAllocationService(Settings settings) {
@@ -58,7 +57,7 @@ public abstract class ElasticsearchAllocationTestCase extends ElasticsearchTestC
     }
 
     public static AllocationService createAllocationService(Settings settings, Random random) {
-        return createAllocationService(settings,  new NodeSettingsService(ImmutableSettings.Builder.EMPTY_SETTINGS), random);
+        return createAllocationService(settings,  new NodeSettingsService(Settings.Builder.EMPTY_SETTINGS), random);
     }
 
     public static AllocationService createAllocationService(Settings settings, NodeSettingsService nodeSettingsService, Random random) {

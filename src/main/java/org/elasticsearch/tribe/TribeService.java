@@ -39,7 +39,6 @@ import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.discovery.DiscoveryService;
@@ -80,7 +79,7 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
         if (settings.get(TRIBE_NAME) != null) {
             // if its a node client started by this service as tribe, remove any tribe group setting
             // to avoid recursive configuration
-            ImmutableSettings.Builder sb = ImmutableSettings.builder().put(settings);
+            Settings.Builder sb = Settings.builder().put(settings);
             for (String s : settings.getAsMap().keySet()) {
                 if (s.startsWith("tribe.") && !s.equals(TRIBE_NAME)) {
                     sb.remove(s);
@@ -93,7 +92,7 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
             return settings;
         }
         // its a tribe configured node..., force settings
-        ImmutableSettings.Builder sb = ImmutableSettings.builder().put(settings);
+        Settings.Builder sb = Settings.builder().put(settings);
         sb.put("node.client", true); // this node should just act as a node client
         sb.put("discovery.type", "local"); // a tribe node should not use zen discovery
         sb.put("discovery.initial_state_timeout", 0); // nothing is going to be discovered, since no master will be elected
@@ -125,7 +124,7 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
         nodesSettings.remove("blocks"); // remove prefix settings that don't indicate a client
         nodesSettings.remove("on_conflict"); // remove prefix settings that don't indicate a client
         for (Map.Entry<String, Settings> entry : nodesSettings.entrySet()) {
-            ImmutableSettings.Builder sb = ImmutableSettings.builder().put(entry.getValue());
+            Settings.Builder sb = Settings.builder().put(entry.getValue());
             sb.put("node.name", settings.get("name") + "/" + entry.getKey());
             sb.put("path.home", settings.get("path.home")); // pass through ES home dir
             sb.put(TRIBE_NAME, entry.getKey());
@@ -256,7 +255,7 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
                                 // always make sure to update the metadata and routing table, in case
                                 // there are changes in them (new mapping, shards moving from initializing to started)
                                 routingTable.add(tribeState.routingTable().index(index.index()));
-                                Settings tribeSettings = ImmutableSettings.builder().put(tribeIndex.settings()).put(TRIBE_NAME, tribeName).build();
+                                Settings tribeSettings = Settings.builder().put(tribeIndex.settings()).put(TRIBE_NAME, tribeName).build();
                                 metaData.put(IndexMetaData.builder(tribeIndex).settings(tribeSettings));
                             }
                         }
@@ -310,7 +309,7 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
                 }
 
                 private void addNewIndex(ClusterState tribeState, ClusterBlocks.Builder blocks, MetaData.Builder metaData, RoutingTable.Builder routingTable, IndexMetaData tribeIndex) {
-                    Settings tribeSettings = ImmutableSettings.builder().put(tribeIndex.settings()).put(TRIBE_NAME, tribeName).build();
+                    Settings tribeSettings = Settings.builder().put(tribeIndex.settings()).put(TRIBE_NAME, tribeName).build();
                     metaData.put(IndexMetaData.builder(tribeIndex).settings(tribeSettings));
                     routingTable.add(tribeState.routingTable().index(tribeIndex.index()));
                     if (Regex.simpleMatch(blockIndicesMetadata, tribeIndex.index())) {

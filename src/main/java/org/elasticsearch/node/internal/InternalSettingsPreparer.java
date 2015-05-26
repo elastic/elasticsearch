@@ -23,7 +23,6 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.Names;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.FailedToResolveConfigException;
@@ -31,7 +30,7 @@ import org.elasticsearch.env.FailedToResolveConfigException;
 import java.util.Map;
 
 import static org.elasticsearch.common.Strings.cleanPath;
-import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 
 /**
  *
@@ -43,7 +42,7 @@ public class InternalSettingsPreparer {
         String[] ignorePrefixes = new String[]{"es.default.", "elasticsearch.default."};
         boolean useSystemProperties = !pSettings.getAsBoolean("config.ignore_system_properties", false);
         // just create enough settings to build the environment
-        ImmutableSettings.Builder settingsBuilder = settingsBuilder().put(pSettings);
+        Settings.Builder settingsBuilder = settingsBuilder().put(pSettings);
         if (useSystemProperties) {
             settingsBuilder.putProperties("elasticsearch.default.", System.getProperties())
                     .putProperties("es.default.", System.getProperties())

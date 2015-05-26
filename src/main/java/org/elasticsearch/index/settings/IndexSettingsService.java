@@ -21,7 +21,6 @@ package org.elasticsearch.index.settings;
 
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
@@ -49,7 +48,7 @@ public class IndexSettingsService extends AbstractIndexComponent {
             // nothing to update, same settings
             return;
         }
-        this.settings = ImmutableSettings.settingsBuilder().put(this.settings).put(settings).build();
+        this.settings = Settings.settingsBuilder().put(this.settings).put(settings).build();
         for (Listener listener : listeners) {
             try {
                 listener.onRefreshSettings(settings);

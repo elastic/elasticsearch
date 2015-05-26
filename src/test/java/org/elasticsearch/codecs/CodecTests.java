@@ -23,7 +23,7 @@ import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
@@ -47,7 +47,7 @@ public class CodecTests extends ElasticsearchSingleNodeTest {
                 .endObject().endObject().string();
         int i = 0;
         for (Version v : VersionUtils.allVersions()) {
-            IndexService indexService = createIndex("test-" + i++, ImmutableSettings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, v).build());
+            IndexService indexService = createIndex("test-" + i++, Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, v).build());
             DocumentMapperParser parser = indexService.mapperService().documentMapperParser();
             try {
                 parser.parse(mapping);
@@ -70,7 +70,7 @@ public class CodecTests extends ElasticsearchSingleNodeTest {
                 .endObject().endObject().string();
         int i = 0;
         for (Version v : VersionUtils.allVersions()) {
-            IndexService indexService = createIndex("test-" + i++, ImmutableSettings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, v).build());
+            IndexService indexService = createIndex("test-" + i++, Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, v).build());
             DocumentMapperParser parser = indexService.mapperService().documentMapperParser();
             try {
                 parser.parse(mapping);

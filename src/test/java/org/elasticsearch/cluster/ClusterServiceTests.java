@@ -34,7 +34,6 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Singleton;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.plugins.AbstractPlugin;
@@ -50,7 +49,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.*;
@@ -650,7 +649,7 @@ public class ClusterServiceTests extends ElasticsearchIntegrationTest {
         assertThat(testService1.master(), is(true));
 
         // start another node and set min_master_node
-        internalCluster().startNode(ImmutableSettings.builder().put(settings));
+        internalCluster().startNode(Settings.builder().put(settings));
         assertFalse(client().admin().cluster().prepareHealth().setWaitForNodes("2").get().isTimedOut());
 
         Settings transientSettings = settingsBuilder()
@@ -671,7 +670,7 @@ public class ClusterServiceTests extends ElasticsearchIntegrationTest {
         assertThat(testService1.master(), is(false));
 
         // bring the node back up
-        String node_2 = internalCluster().startNode(ImmutableSettings.builder().put(settings).put(transientSettings));
+        String node_2 = internalCluster().startNode(Settings.builder().put(settings).put(transientSettings));
         ClusterService clusterService2 = internalCluster().getInstance(ClusterService.class, node_2);
         MasterAwareService testService2 = internalCluster().getInstance(MasterAwareService.class, node_2);
 

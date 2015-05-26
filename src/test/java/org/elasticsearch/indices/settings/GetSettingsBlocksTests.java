@@ -20,7 +20,7 @@
 package org.elasticsearch.indices.settings;
 
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
@@ -37,7 +37,7 @@ public class GetSettingsBlocksTests extends ElasticsearchIntegrationTest {
     @Test
     public void testGetSettingsWithBlocks() throws Exception {
         assertAcked(prepareCreate("test")
-                .setSettings(ImmutableSettings.settingsBuilder()
+                .setSettings(Settings.settingsBuilder()
                         .put("index.refresh_interval", -1)
                         .put("index.merge.policy.expunge_deletes_allowed", "30")
                         .put("index.mapper.dynamic", false)));

@@ -24,7 +24,7 @@ import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
@@ -41,7 +41,7 @@ public class WriteConsistencyLevelTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testWriteConsistencyLevelReplication2() throws Exception {
-        prepareCreate("test", 1, ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1).put("index.number_of_replicas", 2)).execute().actionGet();
+        prepareCreate("test", 1, Settings.settingsBuilder().put("index.number_of_shards", 1).put("index.number_of_replicas", 2)).execute().actionGet();
 
         ClusterHealthResponse clusterHealth = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForActiveShards(1).setWaitForYellowStatus().execute().actionGet();
         logger.info("Done Cluster Health, status " + clusterHealth.getStatus());

@@ -34,7 +34,6 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.discovery.DiscoverySettings;
@@ -271,7 +270,7 @@ public class ClusterStateDiffTests extends ElasticsearchIntegrationTest {
     }
 
     private Settings randomSettings(Settings settings) {
-        ImmutableSettings.Builder builder = ImmutableSettings.builder();
+        Settings.Builder builder = Settings.builder();
         if (randomBoolean()) {
             builder.put(settings);
         }
@@ -362,9 +361,9 @@ public class ClusterStateDiffTests extends ElasticsearchIntegrationTest {
             @Override
             public IndexMetaData randomCreate(String name) {
                 IndexMetaData.Builder builder = IndexMetaData.builder(name);
-                ImmutableSettings.Builder settingsBuilder = ImmutableSettings.builder();
+                Settings.Builder settingsBuilder = Settings.builder();
                 setRandomSettings(getRandom(), settingsBuilder);
-                settingsBuilder.put(randomSettings(ImmutableSettings.EMPTY)).put(IndexMetaData.SETTING_VERSION_CREATED, randomVersion(random()));
+                settingsBuilder.put(randomSettings(Settings.EMPTY)).put(IndexMetaData.SETTING_VERSION_CREATED, randomVersion(random()));
                 builder.settings(settingsBuilder);
                 builder.numberOfShards(randomIntBetween(1, 10)).numberOfReplicas(randomInt(10));
                 int aliasCount = randomInt(10);
@@ -382,7 +381,7 @@ public class ClusterStateDiffTests extends ElasticsearchIntegrationTest {
                 IndexMetaData.Builder builder = IndexMetaData.builder(part);
                 switch (randomIntBetween(0, 3)) {
                     case 0:
-                        builder.settings(ImmutableSettings.builder().put(part.settings()).put(randomSettings(ImmutableSettings.EMPTY)));
+                        builder.settings(Settings.builder().put(part.settings()).put(randomSettings(Settings.EMPTY)));
                         break;
                     case 1:
                         if (randomBoolean() && part.aliases().isEmpty() == false) {
@@ -392,7 +391,7 @@ public class ClusterStateDiffTests extends ElasticsearchIntegrationTest {
                         }
                         break;
                     case 2:
-                        builder.settings(ImmutableSettings.builder().put(part.settings()).put(IndexMetaData.SETTING_UUID, Strings.randomBase64UUID()));
+                        builder.settings(Settings.builder().put(part.settings()).put(IndexMetaData.SETTING_UUID, Strings.randomBase64UUID()));
                         break;
                     case 3:
                         builder.putCustom(IndexWarmersMetaData.TYPE, randomWarmers());
@@ -441,7 +440,7 @@ public class ClusterStateDiffTests extends ElasticsearchIntegrationTest {
                 IndexTemplateMetaData.Builder builder = IndexTemplateMetaData.builder(name);
                 builder.order(randomInt(1000))
                         .template(randomName("temp"))
-                        .settings(randomSettings(ImmutableSettings.EMPTY));
+                        .settings(randomSettings(Settings.EMPTY));
                 int aliasCount = randomIntBetween(0, 10);
                 for (int i = 0; i < aliasCount; i++) {
                     builder.putAlias(randomAlias());

@@ -20,11 +20,10 @@
 package org.elasticsearch.action.index;
 
 import com.google.common.base.Charsets;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.*;
-import org.elasticsearch.action.support.replication.ShardReplicationOperationRequest;
+import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -63,7 +62,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * @see org.elasticsearch.client.Requests#indexRequest(String)
  * @see org.elasticsearch.client.Client#index(IndexRequest)
  */
-public class IndexRequest extends ShardReplicationOperationRequest<IndexRequest> implements DocumentRequest<IndexRequest> {
+public class IndexRequest extends ReplicationRequest<IndexRequest> implements DocumentRequest<IndexRequest> {
 
     /**
      * Operation type controls if the type of the index operation.

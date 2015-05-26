@@ -33,7 +33,7 @@ public class SettingsFilterTests extends ElasticsearchTestCase {
 
     @Test
     public void testAddingAndRemovingFilters() {
-        SettingsFilter settingsFilter = new SettingsFilter(ImmutableSettings.EMPTY);
+        SettingsFilter settingsFilter = new SettingsFilter(Settings.EMPTY);
         settingsFilter.addFilter("foo");
         settingsFilter.addFilter("bar");
         settingsFilter.addFilter("baz");
@@ -52,51 +52,51 @@ public class SettingsFilterTests extends ElasticsearchTestCase {
     @Test
     public void testSettingsFiltering() throws IOException {
 
-        testFiltering(ImmutableSettings.builder()
+        testFiltering(Settings.builder()
                         .put("foo", "foo_test")
                         .put("foo1", "foo1_test")
                         .put("bar", "bar_test")
                         .put("bar1", "bar1_test")
                         .put("bar.2", "bar2_test")
                         .build(),
-                ImmutableSettings.builder()
+                Settings.builder()
                         .put("foo1", "foo1_test")
                         .build(),
                 "foo,bar*"
         );
 
-        testFiltering(ImmutableSettings.builder()
+        testFiltering(Settings.builder()
                         .put("foo", "foo_test")
                         .put("foo1", "foo1_test")
                         .put("bar", "bar_test")
                         .put("bar1", "bar1_test")
                         .put("bar.2", "bar2_test")
                         .build(),
-                ImmutableSettings.builder()
+                Settings.builder()
                         .put("foo", "foo_test")
                         .put("foo1", "foo1_test")
                         .build(),
                 "bar*"
         );
 
-        testFiltering(ImmutableSettings.builder()
+        testFiltering(Settings.builder()
                         .put("foo", "foo_test")
                         .put("foo1", "foo1_test")
                         .put("bar", "bar_test")
                         .put("bar1", "bar1_test")
                         .put("bar.2", "bar2_test")
                         .build(),
-                ImmutableSettings.builder()
+                Settings.builder()
                         .build(),
                 "foo,bar*,foo*"
         );
 
-        testFiltering(ImmutableSettings.builder()
+        testFiltering(Settings.builder()
                         .put("foo", "foo_test")
                         .put("bar", "bar_test")
                         .put("baz", "baz_test")
                         .build(),
-                ImmutableSettings.builder()
+                Settings.builder()
                         .put("foo", "foo_test")
                         .put("bar", "bar_test")
                         .put("baz", "baz_test")
@@ -105,7 +105,7 @@ public class SettingsFilterTests extends ElasticsearchTestCase {
     }
 
     private void testFiltering(Settings source, Settings filtered, String... patterns) throws IOException {
-        SettingsFilter settingsFilter = new SettingsFilter(ImmutableSettings.EMPTY);
+        SettingsFilter settingsFilter = new SettingsFilter(Settings.EMPTY);
         for (String pattern : patterns) {
             settingsFilter.addFilter(pattern);
         }
@@ -122,7 +122,7 @@ public class SettingsFilterTests extends ElasticsearchTestCase {
         source.toXContent(xContentBuilder, request);
         xContentBuilder.endObject();
         String filteredSettingsString = xContentBuilder.string();
-        filteredSettings = ImmutableSettings.builder().loadFromSource(filteredSettingsString).build();
+        filteredSettings = Settings.builder().loadFromSource(filteredSettingsString).build();
         assertThat(filteredSettings.getAsMap().entrySet(), equalTo(filtered.getAsMap().entrySet()));
     }
 }

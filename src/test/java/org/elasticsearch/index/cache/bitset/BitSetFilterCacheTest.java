@@ -36,7 +36,7 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.join.BitDocIdSetFilter;
 import org.apache.lucene.store.RAMDirectory;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
@@ -71,7 +71,7 @@ public class BitSetFilterCacheTest extends ElasticsearchTestCase {
         IndexReader reader = DirectoryReader.open(writer, false);
         IndexSearcher searcher = new IndexSearcher(reader);
 
-        BitsetFilterCache cache = new BitsetFilterCache(new Index("test"), ImmutableSettings.EMPTY);
+        BitsetFilterCache cache = new BitsetFilterCache(new Index("test"), Settings.EMPTY);
         BitDocIdSetFilter filter = cache.getBitDocIdSetFilter(new QueryWrapperFilter(new TermQuery(new Term("field", "value"))));
         TopDocs docs = searcher.search(new ConstantScoreQuery(filter), 1);
         assertThat(docs.totalHits, equalTo(3));

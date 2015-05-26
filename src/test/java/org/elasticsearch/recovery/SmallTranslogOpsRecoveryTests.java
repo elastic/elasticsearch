@@ -19,7 +19,6 @@
 
 package org.elasticsearch.recovery;
 
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 
 /**
@@ -29,6 +28,6 @@ public class SmallTranslogOpsRecoveryTests extends SimpleRecoveryTests {
 
     @Override
     protected Settings recoverySettings() {
-        return ImmutableSettings.settingsBuilder().put("index.shard.recovery.translog_ops", 1).build();
+        return Settings.settingsBuilder().put("index.shard.recovery.translog_ops", 1).build();
     }
 }

@@ -22,7 +22,6 @@ package org.elasticsearch.index.similarity;
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
@@ -59,7 +58,7 @@ public class SimilarityLookupService extends AbstractIndexComponent {
 
             Settings settings = similaritySettings.get(name);
             if (settings == null) {
-                settings = ImmutableSettings.Builder.EMPTY_SETTINGS;
+                settings = Settings.Builder.EMPTY_SETTINGS;
             }
             providers.put(name, factory.create(name, settings));
         }

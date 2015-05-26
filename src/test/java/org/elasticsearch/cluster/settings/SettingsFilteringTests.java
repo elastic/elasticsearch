@@ -23,7 +23,6 @@ import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.plugins.AbstractPlugin;
@@ -44,7 +43,7 @@ public class SettingsFilteringTests extends ElasticsearchIntegrationTest {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return ImmutableSettings.settingsBuilder()
+        return Settings.settingsBuilder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put("plugin.types", SettingsFilteringPlugin.class.getName())
                 .build();
@@ -95,7 +94,7 @@ public class SettingsFilteringTests extends ElasticsearchIntegrationTest {
     @Test
     public void testSettingsFiltering() {
 
-        assertAcked(client().admin().indices().prepareCreate("test-idx").setSettings(ImmutableSettings.builder()
+        assertAcked(client().admin().indices().prepareCreate("test-idx").setSettings(Settings.builder()
                 .put("filter_test.foo", "test")
                 .put("filter_test.bar1", "test")
                 .put("filter_test.bar2", "test")

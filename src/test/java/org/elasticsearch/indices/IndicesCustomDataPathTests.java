@@ -20,12 +20,11 @@
 package org.elasticsearch.indices;
 
 import org.apache.lucene.util.IOUtils;
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.io.PathUtils;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.After;
@@ -34,7 +33,6 @@ import org.junit.Test;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -73,9 +71,9 @@ public class IndicesCustomDataPathTests extends ElasticsearchIntegrationTest {
         // already existing
         IOUtils.rm(endDir);
 
-        ImmutableSettings.Builder sb = ImmutableSettings.builder().put(IndexMetaData.SETTING_DATA_PATH,
+        Settings.Builder sb = Settings.builder().put(IndexMetaData.SETTING_DATA_PATH,
                 startDir.toAbsolutePath().toString());
-        ImmutableSettings.Builder sb2 = ImmutableSettings.builder().put(IndexMetaData.SETTING_DATA_PATH,
+        Settings.Builder sb2 = Settings.builder().put(IndexMetaData.SETTING_DATA_PATH,
                 endDir.toAbsolutePath().toString());
 
         logger.info("--> creating an index with data_path [{}]", startDir.toAbsolutePath().toString());
@@ -132,7 +130,7 @@ public class IndicesCustomDataPathTests extends ElasticsearchIntegrationTest {
         final String INDEX = "myindex2";
 
         logger.info("--> creating an index with data_path [{}]", path);
-        ImmutableSettings.Builder sb = ImmutableSettings.builder().put(IndexMetaData.SETTING_DATA_PATH, path);
+        Settings.Builder sb = Settings.builder().put(IndexMetaData.SETTING_DATA_PATH, path);
 
         client().admin().indices().prepareCreate(INDEX).setSettings(sb).get();
         ensureGreen(INDEX);

@@ -21,19 +21,10 @@ package org.elasticsearch.client.node;
 
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.action.*;
-import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.action.support.TransportAction;
-import org.elasticsearch.client.AdminClient;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.ClusterAdminClient;
-import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.client.support.AbstractClient;
 import org.elasticsearch.client.support.Headers;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 

@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.snapshots;
 
-import com.carrotsearch.randomizedtesting.LifecycleScope;
 import com.google.common.collect.ImmutableList;
 
 import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryResponse;
@@ -31,7 +30,6 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.RepositoriesMetaData;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.io.FileSystemUtils;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.RepositoryVerificationException;
@@ -60,7 +58,7 @@ public class RepositoriesTests extends AbstractSnapshotTests {
 
         logger.info("-->  creating repository");
         PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo-1")
-                .setType("fs").setSettings(ImmutableSettings.settingsBuilder()
+                .setType("fs").setSettings(Settings.settingsBuilder()
                                 .put("location", location)
                 ).get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
@@ -83,7 +81,7 @@ public class RepositoriesTests extends AbstractSnapshotTests {
 
         logger.info("-->  creating another repository");
         putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo-2")
-                .setType("fs").setSettings(ImmutableSettings.settingsBuilder()
+                .setType("fs").setSettings(Settings.settingsBuilder()
                                 .put("location", randomRepoPath())
                 ).get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
@@ -142,7 +140,7 @@ public class RepositoriesTests extends AbstractSnapshotTests {
         String location = createTempDir().toAbsolutePath().toString();
         try {
             client().admin().cluster().preparePutRepository("test-repo")
-                    .setType("fs").setSettings(ImmutableSettings.settingsBuilder().put("location", location))
+                    .setType("fs").setSettings(Settings.settingsBuilder().put("location", location))
                     .get();
             fail("Shouldn't be here");
         } catch (RepositoryException ex) {
@@ -154,7 +152,7 @@ public class RepositoriesTests extends AbstractSnapshotTests {
     public void repositoryAckTimeoutTest() throws Exception {
         logger.info("-->  creating repository test-repo-1 with 0s timeout - shouldn't ack");
         PutRepositoryResponse putRepositoryResponse = client().admin().cluster().preparePutRepository("test-repo-1")
-                .setType("fs").setSettings(ImmutableSettings.settingsBuilder()
+                .setType("fs").setSettings(Settings.settingsBuilder()
                                 .put("location", randomRepoPath())
                                 .put("compress", randomBoolean())
                                 .put("chunk_size", randomIntBetween(5, 100))
@@ -164,7 +162,7 @@ public class RepositoriesTests extends AbstractSnapshotTests {
 
         logger.info("-->  creating repository test-repo-2 with standard timeout - should ack");
         putRepositoryResponse = client().admin().cluster().preparePutRepository("test-repo-2")
-                .setType("fs").setSettings(ImmutableSettings.settingsBuilder()
+                .setType("fs").setSettings(Settings.settingsBuilder()
                                 .put("location", randomRepoPath())
                                 .put("compress", randomBoolean())
                                 .put("chunk_size", randomIntBetween(5, 100))
@@ -185,7 +183,7 @@ public class RepositoriesTests extends AbstractSnapshotTests {
     public void repositoryVerificationTest() throws Exception {
         Client client = client();
 
-        Settings settings = ImmutableSettings.settingsBuilder()
+        Settings settings = Settings.settingsBuilder()
                 .put("location", randomRepoPath())
                 .put("random_control_io_exception_rate", 1.0).build();
         logger.info("-->  creating repository that cannot write any files - should fail");
@@ -206,7 +204,7 @@ public class RepositoriesTests extends AbstractSnapshotTests {
         try {
             client.admin().cluster().preparePutRepository("test-repo-1")
                     .setType(MockRepositoryModule.class.getCanonicalName())
-                    .setSettings(ImmutableSettings.settingsBuilder()
+                    .setSettings(Settings.settingsBuilder()
                                     .put("location", location)
                                     .put("localize_location", true)
                     ).get();
@@ -220,7 +218,7 @@ public class RepositoriesTests extends AbstractSnapshotTests {
     public void repositoryVerificationTimeoutTest() throws Exception {
         Client client = client();
 
-        Settings settings = ImmutableSettings.settingsBuilder()
+        Settings settings = Settings.settingsBuilder()
                 .put("location", randomRepoPath())
                 .put("random_control_io_exception_rate", 1.0).build();
         logger.info("-->  creating repository that cannot write any files - should fail");
@@ -241,7 +239,7 @@ public class RepositoriesTests extends AbstractSnapshotTests {
         try {
             client.admin().cluster().preparePutRepository("test-repo-1")
                     .setType(MockRepositoryModule.class.getCanonicalName())
-                    .setSettings(ImmutableSettings.settingsBuilder()
+                    .setSettings(Settings.settingsBuilder()
                                     .put("location", location)
                                     .put("localize_location", true)
                     ).get();

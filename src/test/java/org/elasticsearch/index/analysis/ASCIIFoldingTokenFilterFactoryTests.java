@@ -27,7 +27,7 @@ import org.junit.Test;
 import java.io.IOException;
 import java.io.StringReader;
 
-import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 
 public class ASCIIFoldingTokenFilterFactoryTests extends ElasticsearchTokenStreamTestCase {
     @Test

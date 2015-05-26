@@ -19,7 +19,6 @@
 
 package org.elasticsearch.indices.breaker;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Settings;

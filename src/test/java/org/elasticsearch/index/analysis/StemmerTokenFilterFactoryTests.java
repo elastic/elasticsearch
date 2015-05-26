@@ -24,7 +24,6 @@ import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.apache.lucene.analysis.en.PorterStemFilter;
 import org.apache.lucene.analysis.snowball.SnowballFilter;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchTokenStreamTestCase;
 import org.elasticsearch.test.VersionUtils;
@@ -48,7 +47,7 @@ public class StemmerTokenFilterFactoryTests extends ElasticsearchTokenStreamTest
         for (int i = 0; i < iters; i++) {
 
             Version v = VersionUtils.randomVersion(random());
-            Settings settings = ImmutableSettings.settingsBuilder()
+            Settings settings = Settings.settingsBuilder()
                     .put("index.analysis.filter.my_english.type", "stemmer")
                     .put("index.analysis.filter.my_english.language", "english")
                     .put("index.analysis.analyzer.my_english.tokenizer","whitespace")
@@ -82,7 +81,7 @@ public class StemmerTokenFilterFactoryTests extends ElasticsearchTokenStreamTest
         for (int i = 0; i < iters; i++) {
 
             Version v = VersionUtils.randomVersion(random());
-            Settings settings = ImmutableSettings.settingsBuilder()
+            Settings settings = Settings.settingsBuilder()
                     .put("index.analysis.filter.my_porter2.type", "stemmer")
                     .put("index.analysis.filter.my_porter2.language", "porter2")
                     .put("index.analysis.analyzer.my_porter2.tokenizer","whitespace")

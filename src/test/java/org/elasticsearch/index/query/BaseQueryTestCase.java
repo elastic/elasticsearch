@@ -20,6 +20,7 @@
 package org.elasticsearch.index.query;
 
 import com.carrotsearch.randomizedtesting.annotations.Repeat;
+
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
@@ -33,7 +34,6 @@ import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.inject.util.Providers;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -57,11 +57,18 @@ import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.test.TestSearchContext;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolModule;
-import org.junit.*;
+import org.junit.After;
+import org.junit.AfterClass;
+import org.junit.Before;
+import org.junit.BeforeClass;
+import org.junit.Ignore;
+import org.junit.Test;
 
 import java.io.IOException;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 
 @Ignore
 public abstract class BaseQueryTestCase<QB extends QueryBuilder<QB>> extends ElasticsearchTestCase {
@@ -88,7 +95,7 @@ public abstract class BaseQueryTestCase<QB extends QueryBuilder<QB>> extends Ela
      */
     @BeforeClass
     public static void init() throws IOException {
-        Settings settings = ImmutableSettings.settingsBuilder()
+        Settings settings = Settings.settingsBuilder()
                 .put("name", BaseQueryTestCase.class.toString())
                 .put("path.home", createTempDir())
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)

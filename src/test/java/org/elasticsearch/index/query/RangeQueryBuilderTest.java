@@ -27,7 +27,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.joda.DateMathParser;
 import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.lucene.BytesRefs;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
@@ -101,7 +101,7 @@ public class RangeQueryBuilderTest extends BaseQueryTestCase<RangeQueryBuilder> 
 
         } else if (queryBuilder.fieldName().equals(DATE_FIELD_NAME)) {
             DateFieldMapper.Builder fieldMapperBuilder = new DateFieldMapper.Builder(queryBuilder.fieldName());
-            DateFieldMapper fieldMapper = fieldMapperBuilder.build(new Mapper.BuilderContext(ImmutableSettings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build(), new ContentPath()));
+            DateFieldMapper fieldMapper = fieldMapperBuilder.build(new Mapper.BuilderContext(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build(), new ContentPath()));
             DateMathParser dateMathParser = null;
             if (queryBuilder.format() != null) {
                 dateMathParser = new DateMathParser(Joda.forPattern(queryBuilder.format()), DateFieldMapper.Defaults.TIME_UNIT);

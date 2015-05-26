@@ -251,7 +251,7 @@ public class AnalysisModuleTests extends ElasticsearchTestCase {
             fail("This should fail with IllegalArgumentException because the analyzers name starts with _");
         } catch (ProvisionException e) {
             assertTrue(e.getCause() instanceof IllegalArgumentException);
-            assertThat(e.getCause().getMessage(), equalTo("analyzer name must not start with _. got \"_invalid_name\""));
+            assertThat(e.getCause().getMessage(), equalTo("analyzer name must not start with '_'. got \"_invalid_name\""));
         }
     }
 
@@ -268,7 +268,7 @@ public class AnalysisModuleTests extends ElasticsearchTestCase {
             fail("This should fail with IllegalArgumentException because the analyzers alias starts with _");
         } catch (ProvisionException e) {
             assertTrue(e.getCause() instanceof IllegalArgumentException);
-            assertThat(e.getCause().getMessage(), equalTo("analyzer name must not start with _. got \"_invalid_name\""));
+            assertThat(e.getCause().getMessage(), equalTo("analyzer name must not start with '_'. got \"_invalid_name\""));
         }
     }
 }

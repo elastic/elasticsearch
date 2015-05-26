@@ -63,7 +63,15 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.arrayContaining;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
 
 /**
  *
@@ -228,7 +236,9 @@ public class TopHitsTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testBasics() throws Exception {
-        SearchResponse response = client().prepareSearch("idx").setTypes("type")
+        SearchResponse response = client()
+                .prepareSearch("idx")
+                .setTypes("type")
                 .addAggregation(terms("terms")
                         .executionHint(randomExecutionHint())
                         .field(TERMS_AGGS_FIELD)
@@ -263,6 +273,65 @@ public class TopHitsTests extends ElasticsearchIntegrationTest {
             assertThat(hits.getAt(0).sourceAsMap().size(), equalTo(4));
         }
     }
+
+    @Test
+    public void testIssue11119() throws Exception {
+        // Test that top_hits aggregation is fed scores if query results size=0
+        SearchResponse response = client()
+                .prepareSearch("idx")
+                .setTypes("field-collapsing")
+                .setSize(0)
+                .setQuery(matchQuery("text", "x y z"))
+                .addAggregation(terms("terms").executionHint(randomExecutionHint()).field("group").subAggregation(topHits("hits")))
+                .get();
+
+        assertSearchResponse(response);
+
+        assertThat(response.getHits().getTotalHits(), equalTo(8l));
+        assertThat(response.getHits().hits().length, equalTo(0));
+        assertThat(response.getHits().maxScore(), equalTo(0f));
+        Terms terms = response.getAggregations().get("terms");
+        assertThat(terms, notNullValue());
+        assertThat(terms.getName(), equalTo("terms"));
+        assertThat(terms.getBuckets().size(), equalTo(3));
+
+        for (Terms.Bucket bucket : terms.getBuckets()) {
+            assertThat(bucket, notNullValue());
+            TopHits topHits = bucket.getAggregations().get("hits");
+            SearchHits hits = topHits.getHits();
+            float bestScore = Float.MAX_VALUE;
+            for (int h = 0; h < hits.getHits().length; h++) {
+                float score=hits.getAt(h).getScore();
+                assertThat(score, lessThanOrEqualTo(bestScore));
+                assertThat(score, greaterThan(0f));
+                bestScore = hits.getAt(h).getScore();
+            }
+        }
+
+        // Also check that min_score setting works when size=0
+        // (technically not a test of top_hits but implementation details are
+        // tied up with the need to feed scores into the agg tree even when
+        // users don't want ranked set of query results.)
+        response = client()
+                .prepareSearch("idx")
+                .setTypes("field-collapsing")
+                .setSize(0)
+                .setMinScore(0.0001f)
+                .setQuery(matchQuery("text", "x y z"))
+                .addAggregation(terms("terms").executionHint(randomExecutionHint()).field("group"))
+                .get();
+
+        assertSearchResponse(response);
+
+        assertThat(response.getHits().getTotalHits(), equalTo(8l));
+        assertThat(response.getHits().hits().length, equalTo(0));
+        assertThat(response.getHits().maxScore(), equalTo(0f));
+        terms = response.getAggregations().get("terms");
+        assertThat(terms, notNullValue());
+        assertThat(terms.getName(), equalTo("terms"));
+        assertThat(terms.getBuckets().size(), equalTo(3));
+    }
+
 
     @Test
     public void testBreadthFirst() throws Exception {

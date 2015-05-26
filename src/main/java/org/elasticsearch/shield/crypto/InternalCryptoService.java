@@ -30,6 +30,9 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.regex.Pattern;
 
 import static org.elasticsearch.shield.authc.support.SecuredString.constantTimeEquals;
@@ -47,13 +50,15 @@ public class InternalCryptoService extends AbstractLifecycleComponent<InternalCr
     static final String HMAC_ALGO = "HmacSHA1";
     static final String DEFAULT_ENCRYPTION_ALGORITHM = "AES/CTR/NoPadding";
     static final String DEFAULT_KEY_ALGORITH = "AES";
+    static final String ENCRYPTED_TEXT_PREFIX = "::es_encrypted::";
+    static final byte[] ENCRYPTED_BYTE_PREFIX = ENCRYPTED_TEXT_PREFIX.getBytes(Charsets.UTF_8);
     static final int DEFAULT_KEY_LENGTH = 128;
 
     private static final Pattern SIG_PATTERN = Pattern.compile("^\\$\\$[0-9]+\\$\\$.+");
 
     private final Environment env;
     private final ResourceWatcherService watcherService;
-    private final Listener listener;
+    private final List<Listener> listeners;
     private final SecureRandom secureRandom = new SecureRandom();
     private final String encryptionAlgorithm;
     private final String keyAlgorithm;
@@ -67,14 +72,14 @@ public class InternalCryptoService extends AbstractLifecycleComponent<InternalCr
 
     @Inject
     public InternalCryptoService(Settings settings, Environment env, ResourceWatcherService watcherService) {
-        this(settings, env, watcherService, Listener.NOOP);
+        this(settings, env, watcherService, Collections.<Listener>emptyList());
     }
 
-    InternalCryptoService(Settings settings, Environment env, ResourceWatcherService watcherService, Listener listener) {
+    InternalCryptoService(Settings settings, Environment env, ResourceWatcherService watcherService, List<Listener> listeners) {
         super(settings);
         this.env = env;
         this.watcherService = watcherService;
-        this.listener = listener;
+        this.listeners = new CopyOnWriteArrayList<>(listeners);
         this.encryptionAlgorithm = settings.get("shield.encryption.algorithm", DEFAULT_ENCRYPTION_ALGORITHM);
         this.keyLength = settings.getAsInt("shield.encryption_key.length", DEFAULT_KEY_LENGTH);
         if (keyLength % 8 != 0) {
@@ -90,7 +95,7 @@ public class InternalCryptoService extends AbstractLifecycleComponent<InternalCr
         systemKey = readSystemKey(keyFile);
         encryptionKey = encryptionKey(systemKey, keyLength, keyAlgorithm);
         FileWatcher watcher = new FileWatcher(keyFile.getParent());
-        watcher.addListener(new FileListener(listener));
+        watcher.addListener(new FileListener(listeners));
         try {
             watcherService.add(watcher, ResourceWatcherService.Frequency.HIGH);
         } catch (IOException e) {
@@ -132,17 +137,25 @@ public class InternalCryptoService extends AbstractLifecycleComponent<InternalCr
 
     @Override
     public String sign(String text) {
-        SecretKey key = this.systemKey;
+        return sign(text, this.systemKey);
+    }
+
+    @Override
+    public String sign(String text, SecretKey key) {
         if (key == null) {
             return text;
         }
-        String sigStr = signInternal(text);
+        String sigStr = signInternal(text, key);
         return "$$" + sigStr.length() + "$$" + sigStr + text;
     }
 
     @Override
     public String unsignAndVerify(String signedText) {
-        SecretKey key = this.systemKey;
+        return unsignAndVerify(signedText, this.systemKey);
+    }
+
+    @Override
+    public String unsignAndVerify(String signedText, SecretKey key) {
         if (key == null) {
             return signedText;
         }
@@ -165,7 +178,7 @@ public class InternalCryptoService extends AbstractLifecycleComponent<InternalCr
         }
 
         try {
-            String sig = signInternal(text);
+            String sig = signInternal(text, key);
             if (constantTimeEquals(sig, receivedSignature)) {
                 return text;
             }
@@ -186,50 +199,94 @@ public class InternalCryptoService extends AbstractLifecycleComponent<InternalCr
     public char[] encrypt(char[] chars) {
         SecretKey key = this.encryptionKey;
         if (key == null) {
-            throw new UnsupportedOperationException("encryption cannot be performed without a system key. please run bin/shield/syskeygen on one node and copy\n"
-                + "the file [" + ShieldPlugin.resolveConfigFile(env, FILE_NAME) + "] to all nodes and the key will be loaded automatically.");
+            logger.warn("encrypt called without a key, returning plain text. run syskeygen and copy same key to all nodes to enable encryption");
+            return chars;
         }
 
         byte[] charBytes = CharArrays.toUtf8Bytes(chars);
-        return Base64.encodeBytes(encryptInternal(charBytes, key)).toCharArray();
+        String base64 = Base64.encodeBytes(encryptInternal(charBytes, key));
+        return ENCRYPTED_TEXT_PREFIX.concat(base64).toCharArray();
     }
 
     @Override
     public byte[] encrypt(byte[] bytes) {
         SecretKey key = this.encryptionKey;
         if (key == null) {
-            throw new UnsupportedOperationException("encryption cannot be performed without a system key. please run bin/shield/syskeygen on one node and copy\n"
-                    + "the file [" + ShieldPlugin.resolveConfigFile(env, FILE_NAME) + "] to all nodes and the key will be loaded automatically.");
+            logger.warn("encrypt called without a key, returning plain text. run syskeygen and copy same key to all nodes to enable encryption");
+            return bytes;
         }
-        return encryptInternal(bytes, key);
+        byte[] encrypted = encryptInternal(bytes, key);
+        byte[] prefixed = new byte[ENCRYPTED_BYTE_PREFIX.length + encrypted.length];
+        System.arraycopy(ENCRYPTED_BYTE_PREFIX, 0, prefixed, 0, ENCRYPTED_BYTE_PREFIX.length);
+        System.arraycopy(encrypted, 0, prefixed, ENCRYPTED_BYTE_PREFIX.length, encrypted.length);
+        return prefixed;
     }
 
     @Override
     public char[] decrypt(char[] chars) {
-        SecretKey key = this.encryptionKey;
+        return decrypt(chars, this.encryptionKey);
+    }
+
+    @Override
+    public char[] decrypt(char[] chars, SecretKey key) {
         if (key == null) {
-            throw new UnsupportedOperationException("decryption cannot be performed without a system key. please run bin/shield/syskeygen on one node and copy\n"
-                    + "the file [" + ShieldPlugin.resolveConfigFile(env, FILE_NAME) + "] to all nodes and the key will be loaded automatically.");
+            return chars;
         }
 
+        if (!encrypted(chars)) {
+            // Not encrypted
+            return chars;
+        }
+
+        String encrypted = new String(chars, ENCRYPTED_TEXT_PREFIX.length(), chars.length - ENCRYPTED_TEXT_PREFIX.length());
         byte[] bytes;
         try {
-            bytes = Base64.decode(new String(chars));
+            bytes = Base64.decode(encrypted);
         } catch (IOException e) {
             throw new ShieldException("unable to decode encrypted data", e);
         }
+
         byte[] decrypted = decryptInternal(bytes, key);
         return CharArrays.utf8BytesToChars(decrypted);
     }
 
     @Override
     public byte[] decrypt(byte[] bytes) {
-        SecretKey key = this.encryptionKey;
+        return decrypt(bytes, this.encryptionKey);
+    }
+
+    @Override
+    public byte[] decrypt(byte[] bytes, SecretKey key) {
         if (key == null) {
-            throw new UnsupportedOperationException("decryption cannot be performed without a system key. please run bin/shield/syskeygen on one node and copy\n"
-                    + "the file [" + ShieldPlugin.resolveConfigFile(env, FILE_NAME) + "] to all nodes and the key will be loaded automatically.");
+            return bytes;
         }
-        return decryptInternal(bytes, key);
+
+        if (!encrypted(bytes)) {
+            return bytes;
+        }
+
+        byte[] encrypted = Arrays.copyOfRange(bytes, ENCRYPTED_BYTE_PREFIX.length, bytes.length);
+        return decryptInternal(encrypted, key);
+    }
+
+    @Override
+    public boolean encrypted(char[] chars) {
+        return CharArrays.charsBeginsWith(ENCRYPTED_TEXT_PREFIX, chars);
+    }
+
+    @Override
+    public boolean encrypted(byte[] bytes) {
+        return bytesBeginsWith(ENCRYPTED_BYTE_PREFIX, bytes);
+    }
+
+    @Override
+    public void register(Listener listener) {
+        this.listeners.add(listener);
+    }
+
+    @Override
+    public boolean encryptionEnabled() {
+        return this.encryptionKey != null;
     }
 
     private byte[] encryptInternal(byte[] bytes, SecretKey key) {
@@ -276,8 +333,8 @@ public class InternalCryptoService extends AbstractLifecycleComponent<InternalCr
         }
     }
 
-    private String signInternal(String text) {
-        Mac mac = createMac(systemKey);
+    private static String signInternal(String text, SecretKey key) {
+        Mac mac = createMac(key);
         byte[] sig = mac.doFinal(text.getBytes(Charsets.UTF_8));
         try {
             return Base64.encodeBytes(sig, 0, sig.length, Base64.URL_SAFE);
@@ -323,54 +380,99 @@ public class InternalCryptoService extends AbstractLifecycleComponent<InternalCr
         }
     }
 
+    private static boolean bytesBeginsWith(byte[] prefix, byte[] bytes) {
+        if (bytes == null || prefix == null) {
+            return false;
+        }
+
+        if (prefix.length > bytes.length) {
+            return false;
+        }
+
+        for (int i = 0; i < prefix.length; i++) {
+            if (bytes[i] != prefix[i]) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     private class FileListener extends FileChangesListener {
 
-        private final Listener listener;
+        private final List<Listener> listeners;
 
-        private FileListener(Listener listener) {
-            this.listener = listener;
+        private FileListener(List<Listener> listeners) {
+            this.listeners = listeners;
         }
 
         @Override
         public void onFileCreated(Path file) {
             if (file.equals(keyFile)) {
+                final SecretKey oldSystemKey = systemKey;
+                final SecretKey oldEncryptionKey = encryptionKey;
+
                 systemKey = readSystemKey(file);
                 encryptionKey = encryptionKey(systemKey, keyLength, keyAlgorithm);
                 logger.info("system key [{}] has been loaded", file.toAbsolutePath());
-                listener.onKeyRefresh();
+
+                callListeners(oldSystemKey, oldEncryptionKey);
             }
         }
 
         @Override
         public void onFileDeleted(Path file) {
             if (file.equals(keyFile)) {
+                final SecretKey oldSystemKey = systemKey;
+                final SecretKey oldEncryptionKey = encryptionKey;
                 logger.error("system key file was removed! as long as the system key file is missing, elasticsearch " +
-                        "won't function as expected for some requests (e.g. scroll/scan) and won't be able to decrypt\n" +
-                        "previously encrypted values without the original key");
+                        "won't function as expected for some requests (e.g. scroll/scan)");
                 systemKey = null;
                 encryptionKey = null;
+
+                callListeners(oldSystemKey, oldEncryptionKey);
             }
         }
 
         @Override
         public void onFileChanged(Path file) {
             if (file.equals(keyFile)) {
-                logger.warn("system key file changed! previously encrypted values cannot be successfully decrypted with a different key");
+                final SecretKey oldSystemKey = systemKey;
+                final SecretKey oldEncryptionKey = encryptionKey;
+
+                logger.warn("system key file changed!");
                 systemKey = readSystemKey(file);
                 encryptionKey = encryptionKey(systemKey, keyLength, keyAlgorithm);
-                listener.onKeyRefresh();
+
+                callListeners(oldSystemKey, oldEncryptionKey);
             }
         }
-    }
 
-    static interface Listener {
-
-        final Listener NOOP = new Listener() {
-            @Override
-            public void onKeyRefresh() {
+        private void callListeners(SecretKey oldSystemKey, SecretKey oldEncryptionKey) {
+            Throwable th = null;
+            for (Listener listener : listeners) {
+                try {
+                    listener.onKeyChange(oldSystemKey, oldEncryptionKey);
+                } catch (Throwable t) {
+                    if (th == null) {
+                        th = t;
+                    } else {
+                        th.addSuppressed(t);
+                    }
+                }
             }
-        };
 
-        void onKeyRefresh();
+            // all listeners were notified now rethrow
+            if (th != null) {
+                logger.error("called all key change listeners but one or more exceptions was thrown", th);
+                if (th instanceof RuntimeException) {
+                    throw (RuntimeException) th;
+                } else if (th instanceof Error) {
+                    throw (Error) th;
+                } else {
+                    throw new RuntimeException(th);
+                }
+            }
+        }
     }
 }

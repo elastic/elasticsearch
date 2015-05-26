@@ -44,4 +44,22 @@ public class CharArrays {
         Arrays.fill(byteBuffer.array(), (byte) 0); // clear sensitive data
         return bytes;
     }
+
+    public static boolean charsBeginsWith(String prefix, char[] chars) {
+        if (chars == null || prefix == null) {
+            return false;
+        }
+
+        if (prefix.length() > chars.length) {
+            return false;
+        }
+
+        for (int i = 0; i < prefix.length(); i++) {
+            if (chars[i] != prefix.charAt(i)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
 }

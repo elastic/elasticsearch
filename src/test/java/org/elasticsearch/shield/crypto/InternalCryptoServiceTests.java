@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.shield.crypto;
 
+import org.elasticsearch.common.base.Charsets;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -18,7 +19,9 @@ import org.junit.Test;
 import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import javax.crypto.SecretKey;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -154,6 +157,7 @@ public class InternalCryptoServiceTests extends ElasticsearchTestCase {
     @Test
     public void testEncryptionAndDecryptionChars() {
         InternalCryptoService service = new InternalCryptoService(settings, env, watcherService).start();
+        assertThat(service.encryptionEnabled(), is(true));
         final char[] chars = randomAsciiOfLengthBetween(0, 1000).toCharArray();
         final char[] encrypted = service.encrypt(chars);
         assertThat(encrypted, notNullValue());
@@ -166,6 +170,7 @@ public class InternalCryptoServiceTests extends ElasticsearchTestCase {
     @Test
     public void testEncryptionAndDecryptionBytes() {
         InternalCryptoService service = new InternalCryptoService(settings, env, watcherService).start();
+        assertThat(service.encryptionEnabled(), is(true));
         final byte[] bytes = randomByteArray();
         final byte[] encrypted = service.encrypt(bytes);
         assertThat(encrypted, notNullValue());
@@ -178,53 +183,48 @@ public class InternalCryptoServiceTests extends ElasticsearchTestCase {
     @Test
     public void testEncryptionAndDecryptionCharsWithoutKey() {
         InternalCryptoService service = new InternalCryptoService(Settings.EMPTY, env, watcherService).start();
+        assertThat(service.encryptionEnabled(), is(false));
         final char[] chars = randomAsciiOfLengthBetween(0, 1000).toCharArray();
-        try {
-            service.encrypt(chars);
-            fail("exception should have been thrown");
-        } catch (Exception e) {
-            assertThat(e, instanceOf(UnsupportedOperationException.class));
-            assertThat(e.getMessage(), containsString("system_key"));
-        }
-
-        try {
-            service.decrypt(chars);
-        } catch (Exception e) {
-            assertThat(e, instanceOf(UnsupportedOperationException.class));
-            assertThat(e.getMessage(), containsString("system_key"));
-        }
+        final char[] encryptedChars = service.encrypt(chars);
+        final char[] decryptedChars = service.decrypt(encryptedChars);
+        assertThat(chars, equalTo(encryptedChars));
+        assertThat(chars, equalTo(decryptedChars));
     }
 
     @Test
     public void testEncryptionAndDecryptionBytesWithoutKey() {
         InternalCryptoService service = new InternalCryptoService(Settings.EMPTY, env, watcherService).start();
+        assertThat(service.encryptionEnabled(), is(false));
         final byte[] bytes = randomByteArray();
-        try {
-            service.encrypt(bytes);
-            fail("exception should have been thrown");
-        } catch (Exception e) {
-            assertThat(e, instanceOf(UnsupportedOperationException.class));
-            assertThat(e.getMessage(), containsString("system_key"));
-        }
+        final byte[] encryptedBytes = service.encrypt(bytes);
+        final byte[] decryptedBytes = service.decrypt(bytes);
+        assertThat(bytes, equalTo(encryptedBytes));
+        assertThat(decryptedBytes, equalTo(encryptedBytes));
+    }
 
-        try {
-            service.decrypt(bytes);
-        } catch (Exception e) {
-            assertThat(e, instanceOf(UnsupportedOperationException.class));
-            assertThat(e.getMessage(), containsString("system_key"));
-        }
+    @Test
+    public void testEncryptionEnabledWithKey() {
+        InternalCryptoService service = new InternalCryptoService(settings, env, watcherService).start();
+        assertThat(service.encryptionEnabled(), is(true));
+    }
+
+    @Test
+    public void testEncryptionEnabledWithoutKey() {
+        InternalCryptoService service = new InternalCryptoService(Settings.EMPTY, env, watcherService).start();
+        assertThat(service.encryptionEnabled(), is(false));
     }
 
     @Test
     public void testChangingAByte() {
         InternalCryptoService service = new InternalCryptoService(settings, env, watcherService).start();
+        assertThat(service.encryptionEnabled(), is(true));
         // We need at least one byte to test changing a byte, otherwise output is always the same
         final byte[] bytes = randomByteArray(1);
         final byte[] encrypted = service.encrypt(bytes);
         assertThat(encrypted, notNullValue());
         assertThat(Arrays.equals(encrypted, bytes), is(false));
 
-        int tamperedIndex = randomIntBetween(0, encrypted.length - 1);
+        int tamperedIndex = randomIntBetween(InternalCryptoService.ENCRYPTED_BYTE_PREFIX.length, encrypted.length - 1);
         final byte untamperedByte = encrypted[tamperedIndex];
         byte tamperedByte = randomByte();
         while (tamperedByte == untamperedByte) {
@@ -236,21 +236,56 @@ public class InternalCryptoServiceTests extends ElasticsearchTestCase {
     }
 
     @Test
+    public void testEncryptedChar() {
+        InternalCryptoService service = new InternalCryptoService(settings, env, watcherService).start();
+        assertThat(service.encryptionEnabled(), is(true));
+
+        assertThat(service.encrypted((char[]) null), is(false));
+        assertThat(service.encrypted(new char[0]), is(false));
+        assertThat(service.encrypted(new char[InternalCryptoService.ENCRYPTED_TEXT_PREFIX.length()]), is(false));
+        assertThat(service.encrypted(InternalCryptoService.ENCRYPTED_TEXT_PREFIX.toCharArray()), is(true));
+        assertThat(service.encrypted(randomAsciiOfLengthBetween(0, 100).toCharArray()), is(false));
+        assertThat(service.encrypted(service.encrypt(randomAsciiOfLength(10).toCharArray())), is(true));
+    }
+
+    @Test
+    public void testEncryptedByte() {
+        InternalCryptoService service = new InternalCryptoService(settings, env, watcherService).start();
+        assertThat(service.encryptionEnabled(), is(true));
+
+        assertThat(service.encrypted((byte[]) null), is(false));
+        assertThat(service.encrypted(new byte[0]), is(false));
+        assertThat(service.encrypted(new byte[InternalCryptoService.ENCRYPTED_BYTE_PREFIX.length]), is(false));
+        assertThat(service.encrypted(InternalCryptoService.ENCRYPTED_BYTE_PREFIX), is(true));
+        assertThat(service.encrypted(randomAsciiOfLengthBetween(0, 100).getBytes(Charsets.UTF_8)), is(false));
+        assertThat(service.encrypted(service.encrypt(randomAsciiOfLength(10).getBytes(Charsets.UTF_8))), is(true));
+    }
+
+    @Test
     public void testReloadKey() throws Exception {
         final CountDownLatch latch = new CountDownLatch(1);
-        InternalCryptoService service = new InternalCryptoService(settings, env, watcherService, new InternalCryptoService.Listener() {
+        final CryptoService.Listener listener = new CryptoService.Listener() {
             @Override
-            public void onKeyRefresh() {
+            public void onKeyChange(SecretKey oldSystemKey, SecretKey oldEncryptionKey) {
                 latch.countDown();
             }
-        }).start();
+        };
+
+        // randomize how we set the listener
+        InternalCryptoService service;
+        if (randomBoolean()) {
+            service = new InternalCryptoService(settings, env, watcherService, Collections.singletonList(listener)).start();
+        } else {
+            service = new InternalCryptoService(settings, env, watcherService).start();
+            service.register(listener);
+        }
 
         String text = randomAsciiOfLength(10);
         String signed = service.sign(text);
         char[] textChars = text.toCharArray();
         char[] encrypted = service.encrypt(textChars);
 
-        // we need to sleep so to ensure the timestamp of the file will definitely change
+        // we need to sleep to ensure the timestamp of the file will definitely change
         // and so the resource watcher will pick up the change.
         Thread.sleep(1000L);
 
@@ -269,6 +304,135 @@ public class InternalCryptoServiceTests extends ElasticsearchTestCase {
         char[] decrypted2 = service.decrypt(encrypted2);
         assertThat(Arrays.equals(textChars, decrypted), is(false));
         assertThat(Arrays.equals(textChars, decrypted2), is(true));
+    }
+
+    @Test
+    public void testReencryptValuesOnKeyChange() throws Exception {
+        final InternalCryptoService service = new InternalCryptoService(settings, env, watcherService).start();
+        assertThat(service.encryptionEnabled(), is(true));
+        final char[] text = randomAsciiOfLength(10).toCharArray();
+        final char[] encrypted = service.encrypt(text);
+        assertThat(text, not(equalTo(encrypted)));
+
+        final CountDownLatch latch = new CountDownLatch(1);
+        service.register(new CryptoService.Listener() {
+            @Override
+            public void onKeyChange(SecretKey oldSystemKey, SecretKey oldEncryptionKey) {
+                final char[] plainText = service.decrypt(encrypted, oldEncryptionKey);
+                assertThat(plainText, equalTo(text));
+                final char[] newEncrypted = service.encrypt(plainText);
+                assertThat(newEncrypted, not(equalTo(encrypted)));
+                assertThat(newEncrypted, not(equalTo(plainText)));
+                latch.countDown();
+            }
+        });
+
+        // we need to sleep to ensure the timestamp of the file will definitely change
+        // and so the resource watcher will pick up the change.
+        Thread.sleep(1000);
+
+        Files.write(keyFile, InternalCryptoService.generateKey());
+        if (!latch.await(10, TimeUnit.SECONDS)) {
+            fail("waiting too long for test to complete. Expected callback is not called or finished running");
+        }
+    }
+
+    @Test
+    public void testResignValuesOnKeyChange() throws Exception {
+        final InternalCryptoService service = new InternalCryptoService(settings, env, watcherService).start();
+        final String text = randomAsciiOfLength(10);
+        final String signed = service.sign(text);
+        assertThat(text, not(equalTo(signed)));
+
+        final CountDownLatch latch = new CountDownLatch(1);
+        service.register(new CryptoService.Listener() {
+            @Override
+            public void onKeyChange(SecretKey oldSystemKey, SecretKey oldEncryptionKey) {
+                assertThat(oldSystemKey, notNullValue());
+                final String unsigned = service.unsignAndVerify(signed, oldSystemKey);
+                assertThat(unsigned, equalTo(text));
+                final String newSigned = service.sign(unsigned);
+                assertThat(newSigned, not(equalTo(signed)));
+                assertThat(newSigned, not(equalTo(text)));
+                latch.countDown();
+            }
+        });
+
+        // we need to sleep to ensure the timestamp of the file will definitely change
+        // and so the resource watcher will pick up the change.
+        Thread.sleep(1000);
+
+        Files.write(keyFile, InternalCryptoService.generateKey());
+        if (!latch.await(10, TimeUnit.SECONDS)) {
+            fail("waiting too long for test to complete. Expected callback is not called or finished running");
+        }
+    }
+
+    @Test
+    public void testReencryptValuesOnKeyDeleted() throws Exception {
+        final InternalCryptoService service = new InternalCryptoService(settings, env, watcherService).start();
+        assertThat(service.encryptionEnabled(), is(true));
+        final char[] text = randomAsciiOfLength(10).toCharArray();
+        final char[] encrypted = service.encrypt(text);
+        assertThat(text, not(equalTo(encrypted)));
+
+        final CountDownLatch latch = new CountDownLatch(1);
+        service.register(new CryptoService.Listener() {
+            @Override
+            public void onKeyChange(SecretKey oldSystemKey, SecretKey oldEncryptionKey) {
+                final char[] plainText = service.decrypt(encrypted, oldEncryptionKey);
+                assertThat(plainText, equalTo(text));
+                final char[] newEncrypted = service.encrypt(plainText);
+                assertThat(newEncrypted, not(equalTo(encrypted)));
+                assertThat(newEncrypted, equalTo(plainText));
+                latch.countDown();
+            }
+        });
+
+        // we need to sleep to ensure the timestamp of the file will definitely change
+        // and so the resource watcher will pick up the change.
+        Thread.sleep(1000);
+
+        Files.delete(keyFile);
+        if (!latch.await(10, TimeUnit.SECONDS)) {
+            fail("waiting too long for test to complete. Expected callback is not called or finished running");
+        }
+    }
+
+    @Test
+    public void testAllListenersCalledWhenExceptionThrown() throws Exception {
+        final InternalCryptoService service = new InternalCryptoService(settings, env, watcherService).start();
+        assertThat(service.encryptionEnabled(), is(true));
+
+        final CountDownLatch latch = new CountDownLatch(3);
+        service.register(new CryptoService.Listener() {
+            @Override
+            public void onKeyChange(SecretKey oldSystemKey, SecretKey oldEncryptionKey) {
+                latch.countDown();
+            }
+        });
+        service.register(new CryptoService.Listener() {
+            @Override
+            public void onKeyChange(SecretKey oldSystemKey, SecretKey oldEncryptionKey) {
+                latch.countDown();
+                throw new RuntimeException("misbehaving listener");
+            }
+        });
+        service.register(new CryptoService.Listener() {
+            @Override
+            public void onKeyChange(SecretKey oldSystemKey, SecretKey oldEncryptionKey) {
+                latch.countDown();
+            }
+        });
+
+        // we need to sleep to ensure the timestamp of the file will definitely change
+        // and so the resource watcher will pick up the change.
+        Thread.sleep(1000);
+
+        Files.write(keyFile, InternalCryptoService.generateKey());
+        if (!latch.await(10, TimeUnit.SECONDS)) {
+            fail("waiting too long for test to complete. Expected callback is not called or finished running");
+        }
     }
 
     private static byte[] randomByteArray() {

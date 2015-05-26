@@ -23,7 +23,6 @@ import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.cloud.azure.management.AzureComputeService;
 import org.elasticsearch.cloud.azure.management.AzureComputeService.Discovery;
 import org.elasticsearch.cloud.azure.management.AzureComputeService.Management;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
@@ -39,7 +38,7 @@ public abstract class AbstractAzureComputeServiceTest extends ElasticsearchInteg
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        ImmutableSettings.Builder settings = ImmutableSettings.builder()
+        Settings.Builder settings = Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put(PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, true);
         return settings.build();
@@ -53,7 +52,7 @@ public abstract class AbstractAzureComputeServiceTest extends ElasticsearchInteg
     }
 
     protected Settings settingsBuilder() {
-        ImmutableSettings.Builder builder = ImmutableSettings.settingsBuilder()
+        Settings.Builder builder = Settings.settingsBuilder()
                 .put("discovery.type", "azure")
                 .put(Management.API_IMPLEMENTATION, mock)
                 // We need the network to make the mock working

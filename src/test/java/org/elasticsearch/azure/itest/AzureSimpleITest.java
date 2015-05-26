@@ -21,7 +21,6 @@ package org.elasticsearch.azure.itest;
 
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.cloud.azure.AbstractAzureTest;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.hamcrest.Matchers;
@@ -41,7 +40,7 @@ public class AzureSimpleITest extends AbstractAzureTest {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return ImmutableSettings.builder()
+        return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 // For now we let the user who runs tests to define if he wants or not to run discovery tests
                 // by setting in elasticsearch.yml: discovery.type: azure
@@ -62,7 +61,7 @@ public class AzureSimpleITest extends AbstractAzureTest {
     public Settings indexSettings() {
         // During restore we frequently restore index to exactly the same state it was before, that might cause the same
         // checksum file to be written twice during restore operation
-        return ImmutableSettings.builder().put(super.indexSettings())
+        return Settings.builder().put(super.indexSettings())
                 .build();
     }
 }

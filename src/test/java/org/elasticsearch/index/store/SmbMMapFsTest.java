@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.store;
 
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 
 
@@ -27,7 +26,7 @@ public class SmbMMapFsTest extends AbstractAzureFsTest {
 
     @Override
     public Settings indexSettings() {
-        return ImmutableSettings.builder()
+        return Settings.builder()
                 .put(super.indexSettings())
                 .put("index.store.type", "smb_mmap_fs")
                 .build();

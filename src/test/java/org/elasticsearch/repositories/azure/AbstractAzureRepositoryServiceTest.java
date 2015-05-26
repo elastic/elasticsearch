@@ -24,7 +24,6 @@ import org.elasticsearch.cloud.azure.AbstractAzureTest;
 import org.elasticsearch.cloud.azure.storage.AzureStorageService;
 import org.elasticsearch.cloud.azure.storage.AzureStorageService.Storage;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.repositories.RepositoryMissingException;
@@ -65,7 +64,7 @@ public abstract class AbstractAzureRepositoryServiceTest extends AbstractAzureTe
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        ImmutableSettings.Builder builder = ImmutableSettings.settingsBuilder()
+        Settings.Builder builder = Settings.settingsBuilder()
                 .put(PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, true)
                 .put(Storage.API_IMPLEMENTATION, mock)
                 .put(Storage.CONTAINER, "snapshots");
@@ -81,7 +80,7 @@ public abstract class AbstractAzureRepositoryServiceTest extends AbstractAzureTe
     public Settings indexSettings() {
         // During restore we frequently restore index to exactly the same state it was before, that might cause the same
         // checksum file to be written twice during restore operation
-        return ImmutableSettings.builder().put(super.indexSettings())
+        return Settings.builder().put(super.indexSettings())
                 .put(MockFSDirectoryService.RANDOM_PREVENT_DOUBLE_WRITE, false)
                 .put(MockFSDirectoryService.RANDOM_NO_DELETE_OPEN_FILE, false)
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)

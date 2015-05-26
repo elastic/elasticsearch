@@ -20,7 +20,6 @@
 package org.elasticsearch.discovery.azure;
 
 import org.elasticsearch.cloud.azure.management.AzureComputeServiceTwoNodesMock;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
@@ -47,7 +46,7 @@ public class AzureMinimumMasterNodesTest extends AbstractAzureComputeServiceTest
 
     @Override
     protected final Settings settingsBuilder() {
-        ImmutableSettings.Builder builder = ImmutableSettings.settingsBuilder()
+        Settings.Builder builder = Settings.settingsBuilder()
                 .put(super.settingsBuilder())
                 .put("discovery.zen.minimum_master_nodes", 2)
                 // Make the test run faster

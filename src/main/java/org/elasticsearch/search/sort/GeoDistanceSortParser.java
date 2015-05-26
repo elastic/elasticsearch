@@ -44,7 +44,7 @@ import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
-import org.elasticsearch.index.query.support.NestedInnerQueryParseSupport;
+import org.elasticsearch.index.query.support.NestedQueryParserHelper;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -70,7 +70,7 @@ public class GeoDistanceSortParser implements SortParser {
         GeoDistance geoDistance = GeoDistance.DEFAULT;
         boolean reverse = false;
         MultiValueMode sortMode = null;
-        NestedInnerQueryParseSupport nestedHelper = null;
+        NestedQueryParserHelper nestedHelper = null;
 
         boolean normalizeLon = true;
         boolean normalizeLat = true;
@@ -88,9 +88,9 @@ public class GeoDistanceSortParser implements SortParser {
                 // the json in the format of -> field : { lat : 30, lon : 12 }
                 if ("nested_filter".equals(currentName) || "nestedFilter".equals(currentName)) {
                     if (nestedHelper == null) {
-                        nestedHelper = new NestedInnerQueryParseSupport(parser, context);
+                        nestedHelper = new NestedQueryParserHelper(parser, context);
                     }
-                    nestedHelper.filter();
+                    nestedHelper.initializeFromContext();
                 } else {
                     fieldName = currentName;
                     GeoPoint point = new GeoPoint();
@@ -113,7 +113,7 @@ public class GeoDistanceSortParser implements SortParser {
                     sortMode = MultiValueMode.fromString(parser.text());
                 } else if ("nested_path".equals(currentName) || "nestedPath".equals(currentName)) {
                     if (nestedHelper == null) {
-                        nestedHelper = new NestedInnerQueryParseSupport(parser, context);
+                        nestedHelper = new NestedQueryParserHelper(parser, context);
                     }
                     nestedHelper.setPath(parser.text());
                 } else {
@@ -155,20 +155,19 @@ public class GeoDistanceSortParser implements SortParser {
             ObjectMapper objectMapper = context.mapperService().resolveClosestNestedObjectMapper(fieldName);
             if (objectMapper != null && objectMapper.nested().isNested()) {
                 if (nestedHelper == null) {
-                    nestedHelper = new NestedInnerQueryParseSupport(context.queryParserService().getParseContext());
+                    nestedHelper = new NestedQueryParserHelper(context.queryParserService().getParseContext());
                 }
                 nestedHelper.setPath(objectMapper.fullPath());
             }
         }
 
         final Nested nested;
-        if (nestedHelper != null && nestedHelper.getPath() != null) {
-            
+        if (nestedHelper != null) {            
             BitDocIdSetFilter rootDocumentsFilter = context.bitsetFilterCache().getBitDocIdSetFilter(Queries.newNonNestedFilter());
             Filter innerDocumentsFilter;
-            if (nestedHelper.filterFound()) {
+            if (nestedHelper.safeParseInnerFilter()) {
                 // TODO: use queries instead
-                innerDocumentsFilter = new QueryWrapperFilter(nestedHelper.getInnerFilter());
+                innerDocumentsFilter = new QueryWrapperFilter(nestedHelper.getInnerQuery());
             } else {
                 innerDocumentsFilter = nestedHelper.getNestedObjectMapper().nestedTypeFilter();
             }

@@ -38,7 +38,7 @@ import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
 import org.elasticsearch.index.fielddata.fieldcomparator.DoubleValuesComparatorSource;
-import org.elasticsearch.index.query.support.NestedInnerQueryParseSupport;
+import org.elasticsearch.index.query.support.NestedQueryParserHelper;
 import org.elasticsearch.script.LeafSearchScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
@@ -72,7 +72,7 @@ public class ScriptSortParser implements SortParser {
         Map<String, Object> params = null;
         boolean reverse = false;
         MultiValueMode sortMode = null;
-        NestedInnerQueryParseSupport nestedHelper = null;
+        NestedQueryParserHelper nestedHelper = null;
 
         XContentParser.Token token;
         String currentName = parser.currentName();
@@ -85,9 +85,9 @@ public class ScriptSortParser implements SortParser {
                     params = parser.map();
                 } else if ("nested_filter".equals(currentName) || "nestedFilter".equals(currentName)) {
                     if (nestedHelper == null) {
-                        nestedHelper = new NestedInnerQueryParseSupport(parser, context);
+                        nestedHelper = new NestedQueryParserHelper(parser, context);
                     }
-                    nestedHelper.filter();
+                    nestedHelper.initializeFromContext();
                 }
             } else if (token.isValue()) {
                 if ("reverse".equals(currentName)) {
@@ -111,7 +111,7 @@ public class ScriptSortParser implements SortParser {
                     sortMode = MultiValueMode.fromString(parser.text());
                 } else if ("nested_path".equals(currentName) || "nestedPath".equals(currentName)) {
                     if (nestedHelper == null) {
-                        nestedHelper = new NestedInnerQueryParseSupport(parser, context);
+                        nestedHelper = new NestedQueryParserHelper(parser, context);
                     }
                     nestedHelper.setPath(parser.text());
                 }
@@ -136,12 +136,12 @@ public class ScriptSortParser implements SortParser {
 
         // If nested_path is specified, then wrap the `fieldComparatorSource` in a `NestedFieldComparatorSource`
         final Nested nested;
-        if (nestedHelper != null && nestedHelper.getPath() != null) {
+        if (nestedHelper != null) {            
             BitDocIdSetFilter rootDocumentsFilter = context.bitsetFilterCache().getBitDocIdSetFilter(Queries.newNonNestedFilter());
             Filter innerDocumentsFilter;
-            if (nestedHelper.filterFound()) {
+            if (nestedHelper.safeParseInnerFilter()) {
                 // TODO: use queries instead
-                innerDocumentsFilter = new QueryWrapperFilter(nestedHelper.getInnerFilter());
+                innerDocumentsFilter = new QueryWrapperFilter(nestedHelper.getInnerQuery());
             } else {
                 innerDocumentsFilter = nestedHelper.getNestedObjectMapper().nestedTypeFilter();
             }

@@ -2609,6 +2609,18 @@ public class SearchQueryTests extends ElasticsearchIntegrationTest {
             assertHitCount(searchResponse, 2);
         }
         
+        // Check score mode settings propagate
+        {            
+            searchResponse = execNestedQueryString(queryStringQuery("children:\"children.first:(peggy ruby barbara)\"")
+                .nested("children", "max"));
+            assertHitCount(searchResponse, 2);
+            assertSearchHits(searchResponse, "2", "1");
+            searchResponse = execNestedQueryString(queryStringQuery("children:\"children.first:(peggy ruby barbara)\"")
+                .nested("children", "none"));
+            assertHitCount(searchResponse, 2);
+            assertSearchHits(searchResponse, "1", "2");
+        }
+        
         // Add more test data
         {
             client().prepareIndex("test", "type2", "3").setSource(jsonBuilder()

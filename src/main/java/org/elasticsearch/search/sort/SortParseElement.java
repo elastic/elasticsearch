@@ -37,7 +37,7 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.core.LongFieldMapper;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
-import org.elasticsearch.index.query.support.NestedInnerQueryParseSupport;
+import org.elasticsearch.index.query.support.NestedQueryParserHelper;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchParseException;
@@ -128,7 +128,7 @@ public class SortParseElement implements SearchParseElement {
                 String innerJsonName = null;
                 String unmappedType = null;
                 MultiValueMode sortMode = null;
-                NestedInnerQueryParseSupport nestedFilterParseHelper = null;
+                NestedQueryParserHelper nestedFilterParseHelper = null;
                 token = parser.nextToken();
                 if (token == XContentParser.Token.VALUE_STRING) {
                     String direction = parser.text();
@@ -170,7 +170,7 @@ public class SortParseElement implements SearchParseElement {
                                     sortMode = MultiValueMode.fromString(parser.text());
                                 } else if ("nested_path".equals(innerJsonName) || "nestedPath".equals(innerJsonName)) {
                                     if (nestedFilterParseHelper == null) {
-                                        nestedFilterParseHelper = new NestedInnerQueryParseSupport(parser, context);
+                                        nestedFilterParseHelper = new NestedQueryParserHelper(parser, context);
                                     }
                                     nestedFilterParseHelper.setPath(parser.text());
                                 } else {
@@ -179,9 +179,9 @@ public class SortParseElement implements SearchParseElement {
                             } else if (token == XContentParser.Token.START_OBJECT) {
                                 if ("nested_filter".equals(innerJsonName) || "nestedFilter".equals(innerJsonName)) {
                                     if (nestedFilterParseHelper == null) {
-                                        nestedFilterParseHelper = new NestedInnerQueryParseSupport(parser, context);
+                                        nestedFilterParseHelper = new NestedQueryParserHelper(parser, context);
                                     }
-                                    nestedFilterParseHelper.filter();
+                                    nestedFilterParseHelper.initializeFromContext();
                                 } else {
                                     throw new IllegalArgumentException("sort option [" + innerJsonName + "] not supported");
                                 }
@@ -194,7 +194,7 @@ public class SortParseElement implements SearchParseElement {
         }
     }
 
-    private void addSortField(SearchContext context, List<SortField> sortFields, String fieldName, boolean reverse, String unmappedType, @Nullable final String missing, MultiValueMode sortMode, NestedInnerQueryParseSupport nestedHelper) throws IOException {
+    private void addSortField(SearchContext context, List<SortField> sortFields, String fieldName, boolean reverse, String unmappedType, @Nullable final String missing, MultiValueMode sortMode, NestedQueryParserHelper nestedHelper) throws IOException {
         if (SCORE_FIELD_NAME.equals(fieldName)) {
             if (reverse) {
                 sortFields.add(SORT_SCORE_REVERSE);
@@ -245,19 +245,19 @@ public class SortParseElement implements SearchParseElement {
                     ObjectMapper objectMapper = context.mapperService().resolveClosestNestedObjectMapper(fieldName);
                     if (objectMapper != null && objectMapper.nested().isNested()) {
                         if (nestedHelper == null) {
-                            nestedHelper = new NestedInnerQueryParseSupport(context.queryParserService().getParseContext());
+                            nestedHelper = new NestedQueryParserHelper(context.queryParserService().getParseContext());
                         }
                         nestedHelper.setPath(objectMapper.fullPath());
                     }
                 }
             }
             final Nested nested;
-            if (nestedHelper != null && nestedHelper.getPath() != null) {
+            if (nestedHelper != null) {
                 BitDocIdSetFilter rootDocumentsFilter = context.bitsetFilterCache().getBitDocIdSetFilter(Queries.newNonNestedFilter());
                 Filter innerDocumentsFilter;
-                if (nestedHelper.filterFound()) {
+                if (nestedHelper.safeParseInnerFilter()) {
                     // TODO: use queries instead
-                    innerDocumentsFilter = new QueryWrapperFilter(nestedHelper.getInnerFilter());
+                    innerDocumentsFilter = new QueryWrapperFilter(nestedHelper.getInnerQuery());
                 } else {
                     innerDocumentsFilter = nestedHelper.getNestedObjectMapper().nestedTypeFilter();
                 }

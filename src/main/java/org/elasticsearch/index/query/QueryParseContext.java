@@ -44,6 +44,7 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilders;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
+import org.elasticsearch.index.query.support.NestedQueryStringSettings;
 import org.elasticsearch.index.query.support.NestedScope;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.script.ScriptService;
@@ -58,6 +59,8 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import static com.google.common.collect.Lists.newArrayList;
 
 /**
  *
@@ -106,6 +109,8 @@ public class QueryParseContext {
     private NestedScope nestedScope;
 
     private boolean isFilter;
+    
+    private List<NestedQueryStringSettings> nestedSettings = null;
 
     public QueryParseContext(Index index, IndexQueryParserService indexQueryParser) {
         this.index = index;
@@ -385,5 +390,27 @@ public class QueryParseContext {
      */
     public boolean isDeprecatedSetting(String setting) {
         return CACHE.match(setting) || CACHE_KEY.match(setting);
+    }
+    
+    public NestedQueryStringSettings getNestedQueryStringSettings(String path) {
+        if (nestedSettings == null) {
+            return null;
+        }
+        for (NestedQueryStringSettings settings : nestedSettings) {
+            if (settings != null && path.equals(settings.getPath())) {
+                return settings;
+            }
+        }
+        return null;
+    }
+    
+    public void addNestedQueryStringSettings(NestedQueryStringSettings settings) {
+        if (settings == null) {
+            return;
+        }
+        if (nestedSettings == null) {
+            nestedSettings = newArrayList();
+        }
+        nestedSettings.add(settings);
     }
 }

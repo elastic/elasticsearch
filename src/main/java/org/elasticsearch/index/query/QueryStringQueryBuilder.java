@@ -23,6 +23,7 @@ import com.carrotsearch.hppc.ObjectFloatHashMap;
 
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.query.support.QueryInnerHitBuilder;
 
 import java.io.IOException;
 import java.util.List;
@@ -98,6 +99,8 @@ public class QueryStringQueryBuilder extends QueryBuilder implements BoostableQu
 
     /** To limit effort spent determinizing regexp queries. */
     private Integer maxDeterminizedStates;
+    
+    private List<NestedSettingsBuilder> nestedSettings;
 
     public QueryStringQueryBuilder(String queryString) {
         this.queryString = queryString;
@@ -342,6 +345,42 @@ public class QueryStringQueryBuilder extends QueryBuilder implements BoostableQu
         return this;
     }
 
+    /**
+     * Adds settings for nested queries.
+     */
+    public QueryStringQueryBuilder nested(String path, String scoreMode) {
+        if (nestedSettings == null) {
+            nestedSettings = newArrayList();
+        }
+        NestedSettingsBuilder settings = new NestedSettingsBuilder(path).scoreMode(scoreMode);
+        nestedSettings.add(settings);
+        return this;
+    }
+
+    /**
+     * Adds settings for nested queries.
+     */
+    public QueryStringQueryBuilder nested(String path, QueryInnerHitBuilder innerHit) {
+        if (nestedSettings == null) {
+            nestedSettings = newArrayList();
+        }
+        NestedSettingsBuilder settings = new NestedSettingsBuilder(path).innerHit(innerHit);
+        nestedSettings.add(settings);
+        return this;
+    }
+
+    /**
+     * Adds settings for nested queries.
+     */
+    public QueryStringQueryBuilder nested(String path, String scoreMode, QueryInnerHitBuilder innerHit) {
+        if (nestedSettings == null) {
+            nestedSettings = newArrayList();
+        }
+        NestedSettingsBuilder settings = new NestedSettingsBuilder(path).scoreMode(scoreMode).innerHit(innerHit);
+        nestedSettings.add(settings);
+        return this;
+    }
+
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(QueryStringQueryParser.NAME);
@@ -431,6 +470,48 @@ public class QueryStringQueryBuilder extends QueryBuilder implements BoostableQu
         if (timeZone != null) {
             builder.field("time_zone", timeZone);
         }
+        if (nestedSettings != null) {
+            builder.startArray("nested");
+            for (NestedSettingsBuilder nested : nestedSettings) {
+                nested.doXContent(builder, params);
+            }
+            builder.endArray();
+        }
         builder.endObject();
+    }
+    
+    public class NestedSettingsBuilder extends QueryBuilder {
+        private String path;
+        private String scoreMode;
+        private QueryInnerHitBuilder innerHit;
+        
+        public NestedSettingsBuilder (String path) {
+            this.path = path; 
+        }
+        
+        public NestedSettingsBuilder scoreMode(String scoreMode) {
+            this.scoreMode = scoreMode;
+            return this;
+        }
+        
+        public NestedSettingsBuilder innerHit(QueryInnerHitBuilder innerHit) {
+            this.innerHit = innerHit;
+            return this;
+        }        
+        
+        @Override
+        protected void doXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field("path", path);
+            if (scoreMode != null) {
+                builder.field("score_mode", scoreMode);
+            }
+            if (innerHit != null) {
+                builder.startObject("inner_hits");
+                builder.value(innerHit);
+                builder.endObject();
+            }
+            builder.endObject();
+        }
     }
 }

@@ -42,7 +42,8 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.support.QueryParsers;
-import org.elasticsearch.index.query.support.NestedInnerQueryParseSupport;
+import org.elasticsearch.index.query.support.NestedQueryParserHelper;
+import org.elasticsearch.index.query.support.NestedQueryStringSettings;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -50,7 +51,6 @@ import java.util.Collection;
 import java.util.List;
 
 import static org.elasticsearch.common.lucene.search.Queries.fixNegativeQueryIfNeeded;
-import static org.elasticsearch.index.query.NestedQueryParser.DEFAULT_SCORE_MODE;
 
 /**
  * A query parser that uses the {@link MapperService} in order to build smarter
@@ -315,14 +315,18 @@ public class MapperQueryParser extends QueryParser {
 
     private Query tryGetNestedQuerySingle(String field, String queryText, boolean quoted) throws ParseException {
         Query nestedQuery = null;
-        MapperService.SmartNameObjectMapper smart = parseContext.smartObjectMapper(field);        
-        if (smart != null) {     
-            NestedInnerQueryParseSupport helper = new NestedInnerQueryParseSupport(parseContext);
-            Query innerQuery = null;            
+        MapperService.SmartNameObjectMapper smart = parseContext.smartObjectMapper(field); 
+        if (smart != null && smart.mapper().nested().isNested()) {     
+            NestedQueryStringSettings nestedSettings = parseContext.getNestedQueryStringSettings(field);
+            NestedQueryParserHelper helper = new NestedQueryParserHelper(parseContext);    
             helper.setPath(field);
             helper.setPathLevel();
-            innerQuery = parse(queryText);
-            nestedQuery = helper.toParentBlockJoinQuery(innerQuery, DEFAULT_SCORE_MODE);
+            if (nestedSettings != null) {
+                helper.setScoreMode(nestedSettings.getScoreMode());
+                helper.setInnerHits(nestedSettings.getInnerHits());
+            }
+            helper.setInnerQuery(parse(queryText));
+            nestedQuery = helper.toParentBlockJoinQuery();
             helper.resetPathLevel();
         }        
         return nestedQuery;

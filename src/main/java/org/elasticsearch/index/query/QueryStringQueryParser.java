@@ -37,6 +37,9 @@ import org.elasticsearch.common.util.LocaleUtils;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.query.support.QueryParsers;
+import org.elasticsearch.index.query.support.InnerHitsQueryParserHelper;
+import org.elasticsearch.index.query.support.NestedQueryParserHelper;
+import org.elasticsearch.index.query.support.NestedQueryStringSettings;
 import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
@@ -54,11 +57,13 @@ public class QueryStringQueryParser implements QueryParser {
 
     private final boolean defaultAnalyzeWildcard;
     private final boolean defaultAllowLeadingWildcard;
+    private final InnerHitsQueryParserHelper innerHitsParserHelper;
 
     @Inject
-    public QueryStringQueryParser(Settings settings) {
+    public QueryStringQueryParser(Settings settings, InnerHitsQueryParserHelper innerHitsParserHelper) {
         this.defaultAnalyzeWildcard = settings.getAsBoolean("indices.query.query_string.analyze_wildcard", QueryParserSettings.DEFAULT_ANALYZE_WILDCARD);
         this.defaultAllowLeadingWildcard = settings.getAsBoolean("indices.query.query_string.allowLeadingWildcard", QueryParserSettings.DEFAULT_ALLOW_LEADING_WILDCARD);
+        this.innerHitsParserHelper = innerHitsParserHelper;
     }
 
     @Override
@@ -69,6 +74,7 @@ public class QueryStringQueryParser implements QueryParser {
     @Override
     public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
+        NestedQueryParserHelper nestedHelper = new NestedQueryParserHelper(parseContext);
 
         String queryName = null;
         QueryParserSettings qpSettings = new QueryParserSettings();
@@ -123,6 +129,42 @@ public class QueryStringQueryParser implements QueryParser {
                                 }
                                 qpSettings.boosts().put(fField, fBoost);
                             }
+                        }
+                    }
+                }
+                else if ("nested".equals(currentFieldName)) {                    
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                        if (token == XContentParser.Token.START_OBJECT) {
+                            NestedQueryStringSettings nestedSettings = new NestedQueryStringSettings();
+                            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                                if (token == XContentParser.Token.FIELD_NAME) {
+                                    currentFieldName = parser.currentName();
+                                } else if (token.isValue()) {
+                                    if ("path".equals(currentFieldName)) {
+                                        nestedSettings.setPath(parser.text());
+                                    } else if ("score_mode".equals(currentFieldName) || "scoreMode".equals(currentFieldName)) {
+                                        nestedSettings.setScoreMode(nestedHelper.getScoreMode(parser.text()));
+                                    } else {
+                                        throw new QueryParsingException(parseContext, 
+                                            "[query_string] query does not support [nested[]." + currentFieldName + "]");
+                                    }
+                                } else if (token == XContentParser.Token.START_OBJECT) {
+                                    if ("inner_hits".equals(currentFieldName)) {
+                                        nestedSettings.setInnerHits(innerHitsParserHelper.parse(parseContext));
+                                    } else {
+                                        throw new QueryParsingException(parseContext, 
+                                            "[query_string] query does not support [nested[]." + currentFieldName + "]");
+                                    }
+                                }
+                            }
+                            if (nestedSettings.getPath() == null) {
+                                throw new QueryParsingException(parseContext, 
+                                    "[query_string] query nested settings must specify [path]");                                
+                            }
+                            parseContext.addNestedQueryStringSettings(nestedSettings);
+                        } else {
+                            throw new QueryParsingException(parseContext, 
+                                "[query_string] query nested settings must be an array of objects");
                         }
                     }
                 } else {

@@ -43,6 +43,7 @@ import java.util.Locale;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.hasChildQuery;
 import static org.elasticsearch.index.query.QueryBuilders.nestedQuery;
+import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
 import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.*;
@@ -114,9 +115,18 @@ public class InnerHitsTests extends ElasticsearchIntegrationTest {
                         .setQuery(nestedQuery("comments", matchQuery("comments.message", "elephant")))
                         .addInnerHit("comment", new InnerHitsBuilder.InnerHit().setPath("comments").setQuery(matchQuery("comments.message", "elephant"))).request(),
                 client().prepareSearch("articles")
-                        .setQuery(nestedQuery("comments", matchQuery("comments.message", "elephant")).innerHit(new QueryInnerHitBuilder().setName("comment"))).request(),
+                        .setQuery(nestedQuery("comments", matchQuery("comments.message", "elephant"))
+                            .innerHit(new QueryInnerHitBuilder().setName("comment"))).request(),
                 client().prepareSearch("articles")
-                        .setQuery(nestedQuery("comments", matchQuery("comments.message", "elephant")).innerHit(new QueryInnerHitBuilder().setName("comment").addSort("_doc", SortOrder.DESC))).request()
+                        .setQuery(nestedQuery("comments", matchQuery("comments.message", "elephant"))
+                            .innerHit(new QueryInnerHitBuilder().setName("comment").addSort("_doc", SortOrder.DESC))).request(),
+                client().prepareSearch("articles")
+                        .setQuery(queryStringQuery("comments:\"comments.message:elephant\"")
+                            .nested("comments", new QueryInnerHitBuilder().setName("comment"))).request(),
+                client().prepareSearch("articles")
+                        .setQuery(queryStringQuery("comments:\"comments.message:elephant\""))
+                        .addInnerHit("comment",  new InnerHitsBuilder.InnerHit().setPath("comments")
+                            .setQuery(queryStringQuery("comments.message:elephant"))).request()
         };
         for (SearchRequest searchRequest : searchRequests) {
             SearchResponse response = client().search(searchRequest).actionGet();
@@ -150,6 +160,22 @@ public class InnerHitsTests extends ElasticsearchIntegrationTest {
                                 .setSize(1)).request(),
                 client().prepareSearch("articles")
                         .setQuery(nestedQuery("comments", matchQuery("comments.message", "fox")).innerHit(new QueryInnerHitBuilder()
+                                .addHighlightedField("comments.message")
+                                .setExplain(true)
+                                .addFieldDataField("comments.message")
+                                .addScriptField("script", "doc['comments.message'].value")
+                                .setSize(1))).request(),
+                client().prepareSearch("articles")
+                        .setQuery(queryStringQuery("comments:\"comments.message:fox\""))
+                        .addInnerHit("comments", new InnerHitsBuilder.InnerHit().setPath("comments")
+                                .setQuery(queryStringQuery("comments.message:fox"))
+                                .addHighlightedField("comments.message")
+                                .setExplain(true)
+                                .addFieldDataField("comments.message")
+                                .addScriptField("script", "doc['comments.message'].value")
+                                .setSize(1)).request(),
+                client().prepareSearch("articles")
+                        .setQuery(queryStringQuery("comments:\"comments.message:fox\"").nested("comments", new QueryInnerHitBuilder()
                                 .addHighlightedField("comments.message")
                                 .setExplain(true)
                                 .addFieldDataField("comments.message")

@@ -34,7 +34,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.query.*;
-import org.elasticsearch.index.query.CommonTermsQueryBuilder.Operator;
 import org.elasticsearch.index.query.MatchQueryBuilder.Type;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.Script;

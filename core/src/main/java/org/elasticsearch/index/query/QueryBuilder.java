@@ -29,7 +29,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import java.io.IOException;
 
 public interface QueryBuilder<QB extends QueryBuilder> extends NamedWriteable<QB>, ToXContent {
-
+    
     /**
      * Validate the query.
      * @return a {@link QueryValidationException} containing error messages, {@code null} if query is valid.

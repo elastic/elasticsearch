@@ -21,7 +21,6 @@ package org.elasticsearch.index.analysis;
 
 import com.ibm.icu.text.Normalizer2;
 import org.apache.lucene.analysis.CharFilter;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
@@ -38,7 +37,7 @@ public class SimpleIcuNormalizerCharFilterTests extends ElasticsearchTestCase {
     @Test
     public void testDefaultSetting() throws Exception {
 
-        Settings settings = ImmutableSettings.settingsBuilder()
+        Settings settings = Settings.settingsBuilder()
             .put("path.home", createTempDir())
             .put("index.analysis.char_filter.myNormalizerChar.type", "icu_normalizer")
             .build();
@@ -64,7 +63,7 @@ public class SimpleIcuNormalizerCharFilterTests extends ElasticsearchTestCase {
     @Test
     public void testNameAndModeSetting() throws Exception {
 
-        Settings settings = ImmutableSettings.settingsBuilder()
+        Settings settings = Settings.settingsBuilder()
             .put("path.home", createTempDir())
             .put("index.analysis.char_filter.myNormalizerChar.type", "icu_normalizer")
             .put("index.analysis.char_filter.myNormalizerChar.name", "nfkc")

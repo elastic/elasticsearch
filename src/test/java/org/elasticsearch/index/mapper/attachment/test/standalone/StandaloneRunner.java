@@ -24,6 +24,7 @@ import org.elasticsearch.common.cli.CliTool;
 import org.elasticsearch.common.cli.CliToolConfig;
 import org.elasticsearch.common.cli.Terminal;
 import org.elasticsearch.common.cli.commons.CommandLine;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -39,7 +40,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.Locale;
 
 import static org.elasticsearch.common.cli.CliToolConfig.Builder.cmd;
@@ -83,7 +83,7 @@ public class StandaloneRunner extends CliTool {
             this.size = size;
             this.url = url;
             this.base64text = base64text;
-            DocumentMapperParser mapperParser = MapperTestUtils.newMapperParser(Paths.get(".")); // use CWD b/c it won't be used
+            DocumentMapperParser mapperParser = MapperTestUtils.newMapperParser(PathUtils.get(".")); // use CWD b/c it won't be used
             mapperParser.putTypeParser(AttachmentMapper.CONTENT_TYPE, new AttachmentMapper.TypeParser());
 
             String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/attachment/test/standalone/standalone-mapping.json");
@@ -99,7 +99,7 @@ public class StandaloneRunner extends CliTool {
                 builder.field("_content", base64text);
             } else {
                 // A file is provided
-                byte[] bytes = copyToBytes(Paths.get(url));
+                byte[] bytes = copyToBytes(PathUtils.get(url));
                 builder.field("_content", bytes);
             }
 

@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.mapper.attachment.test.unit;
 
+import java.nio.charset.StandardCharsets;
+
 import org.elasticsearch.common.Base64;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -91,7 +93,7 @@ public class MultifieldAttachmentMapperTests extends AttachmentUnitTestCase {
         String contentType = "text/plain; charset=ISO-8859-1";
         String forcedName = "dummyname.txt";
 
-        String bytes = Base64.encodeBytes(originalText.getBytes());
+        String bytes = Base64.encodeBytes(originalText.getBytes(StandardCharsets.ISO_8859_1));
         threadPool = new ThreadPool("testing-only");
 
         MapperService mapperService = MapperTestUtils.newMapperService(createTempDir(), threadPool);

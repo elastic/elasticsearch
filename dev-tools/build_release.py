@@ -30,6 +30,7 @@ import socket
 import urllib.request
 import subprocess
 
+from functools import partial
 from http.client import HTTPConnection
 from http.client import HTTPSConnection
 
@@ -71,6 +72,11 @@ PLUGINS = [('license', 'elasticsearch/license/latest'),
            ('head', 'mobz/elasticsearch-head')]
 
 LOG = env.get('ES_RELEASE_LOG', '/tmp/elasticsearch_release.log')
+
+# console colors
+COLOR_OK = '\033[92m'
+COLOR_END = '\033[0m'
+COLOR_FAIL = '\033[91m'
 
 def log(msg):
   log_plain('\n%s' % msg)
@@ -136,9 +142,6 @@ def get_tag_hash(tag):
 # Returns the name of the current branch
 def get_current_branch():
   return os.popen('git rev-parse --abbrev-ref HEAD  2>&1').read().strip()
-
-verify_java_version('1.7') # we require to build with 1.7
-verify_mvn_java_version('1.7', MVN)
 
 # Utility that returns the name of the release branch for a given version
 def release_branch(version):
@@ -545,14 +548,6 @@ def print_sonatype_notice():
   </settings>
   """)
 
-def check_s3_credentials():
-  if not env.get('AWS_ACCESS_KEY_ID', None) or not env.get('AWS_SECRET_ACCESS_KEY', None):
-    raise RuntimeError('Could not find "AWS_ACCESS_KEY_ID" / "AWS_SECRET_ACCESS_KEY" in the env variables please export in order to upload to S3')
-
-def check_gpg_credentials():
-  if not env.get('GPG_KEY_ID', None) or not env.get('GPG_PASSPHRASE', None):
-    raise RuntimeError('Could not find "GPG_KEY_ID" / "GPG_PASSPHRASE" in the env variables please export in order to sign the packages (also make sure that GPG_KEYRING is set when not in ~/.gnupg)')
-
 def check_command_exists(name, cmd):
   try:
     subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
@@ -561,9 +556,6 @@ def check_command_exists(name, cmd):
 
 VERSION_FILE = 'src/main/java/org/elasticsearch/Version.java'
 POM_FILE = 'pom.xml'
-
-# we print a notice if we can not find the relevant infos in the ~/.m2/settings.xml
-print_sonatype_notice()
 
 # finds the highest available bwc version to test against
 def find_bwc_version(release_version, bwc_dir='backwards'):
@@ -618,6 +610,60 @@ def check_norelease(path='src'):
           if pattern.search(line):
             raise RuntimeError('Found //norelease comment in %s line %s' % (full_path, line_number))
 
+def run_and_print(text, run_function):
+  try:
+    print(text, end='')
+    run_function()
+    print(COLOR_OK + 'OK' + COLOR_END)
+    return True
+  except RuntimeError:
+    print(COLOR_FAIL + 'NOT OK' + COLOR_END)
+    return False
+
+def check_env_var(text, env_var):
+  try:
+    print(text, end='')
+    env[env_var]
+    print(COLOR_OK + 'OK' + COLOR_END)
+    return True
+  except KeyError:
+    print(COLOR_FAIL + 'NOT OK' + COLOR_END)
+    return False
+
+def check_environment_and_commandline_tools(check_only):
+  checks = list()
+  checks.append(check_env_var('Checking for AWS env configuration AWS_SECRET_ACCESS_KEY_ID...     ', 'AWS_SECRET_ACCESS_KEY'))
+  checks.append(check_env_var('Checking for AWS env configuration AWS_ACCESS_KEY_ID...            ', 'AWS_ACCESS_KEY_ID'))
+  checks.append(check_env_var('Checking for SONATYPE env configuration SONATYPE_USERNAME...       ', 'SONATYPE_USERNAME'))
+  checks.append(check_env_var('Checking for SONATYPE env configuration SONATYPE_PASSWORD...       ', 'SONATYPE_PASSWORD'))
+  checks.append(check_env_var('Checking for GPG env configuration GPG_KEY_ID...                   ', 'GPG_KEY_ID'))
+  checks.append(check_env_var('Checking for GPG env configuration GPG_PASSPHRASE...               ', 'GPG_PASSPHRASE'))
+  checks.append(check_env_var('Checking for S3 repo upload env configuration S3_BUCKET_SYNC_TO... ', 'S3_BUCKET_SYNC_TO'))
+  checks.append(check_env_var('Checking for git env configuration GIT_AUTHOR_NAME...              ', 'GIT_AUTHOR_NAME'))
+  checks.append(check_env_var('Checking for git env configuration GIT_AUTHOR_EMAIL...             ', 'GIT_AUTHOR_EMAIL'))
+
+  checks.append(run_and_print('Checking command: rpm...            ', partial(check_command_exists, 'rpm', 'rpm --version')))
+  checks.append(run_and_print('Checking command: dpkg...           ', partial(check_command_exists, 'dpkg', 'dpkg --version')))
+  checks.append(run_and_print('Checking command: gpg...            ', partial(check_command_exists, 'gpg', 'gpg --version')))
+  checks.append(run_and_print('Checking command: expect...         ', partial(check_command_exists, 'expect', 'expect -v')))
+  checks.append(run_and_print('Checking command: createrepo...     ', partial(check_command_exists, 'createrepo', 'createrepo --version')))
+  checks.append(run_and_print('Checking command: s3cmd...          ', partial(check_command_exists, 's3cmd', 's3cmd --version')))
+  checks.append(run_and_print('Checking command: apt-ftparchive... ', partial(check_command_exists, 'apt-ftparchive', 'apt-ftparchive --version')))
+
+  # boto, check error code being returned
+  location = os.path.dirname(os.path.realpath(__file__))
+  command = 'python %s/upload-s3.py -h' % (location)
+  checks.append(run_and_print('Testing boto python dependency...   ', partial(check_command_exists, 'python-boto', command)))
+
+  checks.append(run_and_print('Checking java version...            ', partial(verify_java_version, '1.7')))
+  checks.append(run_and_print('Checking java mvn version...        ', partial(verify_mvn_java_version, '1.7', MVN)))
+
+  if check_only:
+    sys.exit(0)
+
+  if False in checks:
+    print("Exiting due to failing checks")
+    sys.exit(0)
 
 if __name__ == '__main__':
   parser = argparse.ArgumentParser(description='Builds and publishes a Elasticsearch Release')
@@ -636,9 +682,12 @@ if __name__ == '__main__':
                       help='Smoke tests the given release')
   parser.add_argument('--bwc', '-w', dest='bwc', metavar='backwards', default='backwards',
                       help='Backwards compatibility version path to use to run compatibility tests against')
+  parser.add_argument('--check-only', dest='check_only', action='store_true',
+                      help='Checks and reports for all requirements and then exits')
 
   parser.set_defaults(dryrun=True)
   parser.set_defaults(smoke=None)
+  parser.set_defaults(check_only=False)
   args = parser.parse_args()
   bwc_path = args.bwc
   src_branch = args.branch
@@ -649,18 +698,19 @@ if __name__ == '__main__':
   build = not args.smoke
   smoke_test_version = args.smoke
 
+  check_environment_and_commandline_tools(args.check_only)
+
+  # we print a notice if we can not find the relevant infos in the ~/.m2/settings.xml
+  print_sonatype_notice()
+
+  # we require to build with 1.7
+  verify_java_version('1.7')
+  verify_mvn_java_version('1.7', MVN)
+
   if os.path.exists(LOG):
     raise RuntimeError('please remove old release log %s first' % LOG)
 
-  check_gpg_credentials()
-  check_command_exists('gpg', 'gpg --version')
-  check_command_exists('expect', 'expect -v')
-  
   if not dry_run:
-    check_s3_credentials()
-    check_command_exists('createrepo', 'createrepo --version')
-    check_command_exists('s3cmd', 's3cmd --version')
-    check_command_exists('apt-ftparchive', 'apt-ftparchive --version')
     print('WARNING: dryrun is set to "false" - this will push and publish the release')
     input('Press Enter to continue...')
 

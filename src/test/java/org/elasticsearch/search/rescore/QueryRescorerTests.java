@@ -723,7 +723,7 @@ public class QueryRescorerTests extends ElasticsearchIntegrationTest {
 
     // #11277
     public void testFromSize() throws Exception {
-        Builder settings = Settings.builder();
+        Builder settings = ImmutableSettings.builder();
         settings.put(SETTING_NUMBER_OF_SHARDS, 1);
         settings.put(SETTING_NUMBER_OF_REPLICAS, 0);
         assertAcked(prepareCreate("test").setSettings(settings));

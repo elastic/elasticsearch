@@ -1067,12 +1067,17 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                     lastKnownCount.set(indexer.totalIndexedDocs());
                 }
                 if (lastKnownCount.get() >= numDocs) {
-                    long count = client().prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount();
-                    if (count == lastKnownCount.get()) {
-                        // no progress - try to refresh for the next time
-                        client().admin().indices().prepareRefresh().get();
+                    try {
+                        long count = client().prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount();
+                        if (count == lastKnownCount.get()) {
+                            // no progress - try to refresh for the next time
+                            client().admin().indices().prepareRefresh().get();
+                        }
+                        lastKnownCount.set(count);
+                    } catch (Throwable e) { // count now acts like search and barfs if all shards failed...
+                        logger.debug("failed to executed count", e);
+                        return false;
                     }
-                    lastKnownCount.set(count);
                     logger.debug("[{}] docs visible for search. waiting for [{}]", lastKnownCount.get(), numDocs);
                 } else {
                     logger.debug("[{}] docs indexed. waiting for [{}]", lastKnownCount.get(), numDocs);

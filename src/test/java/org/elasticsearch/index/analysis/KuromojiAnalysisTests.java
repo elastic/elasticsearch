@@ -28,7 +28,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.env.Environment;
@@ -192,7 +191,7 @@ public class KuromojiAnalysisTests extends ElasticsearchTestCase {
 
 
     public AnalysisService createAnalysisService() {
-        Settings settings = ImmutableSettings.settingsBuilder()
+        Settings settings = Settings.settingsBuilder()
                 .put("path.home", createTempDir())
                 .loadFromClasspath("org/elasticsearch/index/analysis/kuromoji_analysis.json")
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.admin.cluster.node.hotthreads;
 
-import org.elasticsearch.action.support.nodes.NodesOperationResponse;
+import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -28,7 +28,7 @@ import java.io.IOException;
 
 /**
  */
-public class NodesHotThreadsResponse extends NodesOperationResponse<NodeHotThreads> {
+public class NodesHotThreadsResponse extends BaseNodesResponse<NodeHotThreads> {
 
     NodesHotThreadsResponse() {
     }

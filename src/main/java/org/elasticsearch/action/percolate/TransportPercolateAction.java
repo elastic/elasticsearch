@@ -26,7 +26,7 @@ import org.elasticsearch.action.get.TransportGetAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
-import org.elasticsearch.action.support.broadcast.TransportBroadcastOperationAction;
+import org.elasticsearch.action.support.broadcast.TransportBroadcastAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -52,7 +52,7 @@ import static com.google.common.collect.Lists.newArrayList;
 /**
  *
  */
-public class TransportPercolateAction extends TransportBroadcastOperationAction<PercolateRequest, PercolateResponse, PercolateShardRequest, PercolateShardResponse> {
+public class TransportPercolateAction extends TransportBroadcastAction<PercolateRequest, PercolateResponse, PercolateShardRequest, PercolateShardResponse> {
 
     private final PercolatorService percolatorService;
     private final TransportGetAction getAction;

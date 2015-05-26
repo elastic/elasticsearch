@@ -29,15 +29,15 @@ import java.io.IOException;
 /**
  *
  */
-public abstract class BroadcastShardOperationResponse extends TransportResponse {
+public abstract class BroadcastShardResponse extends TransportResponse {
 
     ShardId shardId;
 
-    protected BroadcastShardOperationResponse() {
+    protected BroadcastShardResponse() {
 
     }
 
-    protected BroadcastShardOperationResponse(ShardId shardId) {
+    protected BroadcastShardResponse(ShardId shardId) {
         this.shardId = shardId;
     }
 

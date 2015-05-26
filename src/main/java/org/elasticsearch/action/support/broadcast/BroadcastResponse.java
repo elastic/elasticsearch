@@ -32,17 +32,17 @@ import static org.elasticsearch.action.support.DefaultShardOperationFailedExcept
 /**
  * Base class for all broadcast operation based responses.
  */
-public abstract class BroadcastOperationResponse extends ActionResponse {
+public abstract class BroadcastResponse extends ActionResponse {
     private static final ShardOperationFailedException[] EMPTY = new ShardOperationFailedException[0];
     private int totalShards;
     private int successfulShards;
     private int failedShards;
     private ShardOperationFailedException[] shardFailures = EMPTY;
 
-    protected BroadcastOperationResponse() {
+    protected BroadcastResponse() {
     }
 
-    protected BroadcastOperationResponse(int totalShards, int successfulShards, int failedShards, List<? extends ShardOperationFailedException> shardFailures) {
+    protected BroadcastResponse(int totalShards, int successfulShards, int failedShards, List<? extends ShardOperationFailedException> shardFailures) {
         this.totalShards = totalShards;
         this.successfulShards = successfulShards;
         this.failedShards = failedShards;
@@ -73,7 +73,7 @@ public abstract class BroadcastOperationResponse extends ActionResponse {
     /**
      * The list of shard failures exception.
      */
-    public ShardOperationFailedException[]  getShardFailures() {
+    public ShardOperationFailedException[] getShardFailures() {
         return shardFailures;
     }
 

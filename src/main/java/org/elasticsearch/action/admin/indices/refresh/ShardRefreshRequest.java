@@ -19,17 +19,13 @@
 
 package org.elasticsearch.action.admin.indices.refresh;
 
-import org.elasticsearch.action.support.broadcast.BroadcastShardOperationRequest;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.action.support.broadcast.BroadcastShardRequest;
 import org.elasticsearch.index.shard.ShardId;
-
-import java.io.IOException;
 
 /**
  *
  */
-class ShardRefreshRequest extends BroadcastShardOperationRequest {
+class ShardRefreshRequest extends BroadcastShardRequest {
 
     ShardRefreshRequest() {
     }

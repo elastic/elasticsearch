@@ -22,7 +22,7 @@ package org.elasticsearch.action.admin.cluster.health;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.master.TransportMasterNodeReadOperationAction;
+import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.common.Strings;
@@ -37,7 +37,7 @@ import org.elasticsearch.transport.TransportService;
 /**
  *
  */
-public class TransportClusterHealthAction extends TransportMasterNodeReadOperationAction<ClusterHealthRequest, ClusterHealthResponse> {
+public class TransportClusterHealthAction extends TransportMasterNodeReadAction<ClusterHealthRequest, ClusterHealthResponse> {
 
     private final ClusterName clusterName;
     private final GatewayAllocator gatewayAllocator;

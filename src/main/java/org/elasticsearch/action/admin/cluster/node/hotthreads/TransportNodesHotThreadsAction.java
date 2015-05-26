@@ -22,8 +22,8 @@ package org.elasticsearch.action.admin.cluster.node.hotthreads;
 import com.google.common.collect.Lists;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.nodes.NodeOperationRequest;
-import org.elasticsearch.action.support.nodes.TransportNodesOperationAction;
+import org.elasticsearch.action.support.nodes.BaseNodeRequest;
+import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.common.inject.Inject;
@@ -41,7 +41,7 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
 /**
  *
  */
-public class TransportNodesHotThreadsAction extends TransportNodesOperationAction<NodesHotThreadsRequest, NodesHotThreadsResponse, TransportNodesHotThreadsAction.NodeRequest, NodeHotThreads> {
+public class TransportNodesHotThreadsAction extends TransportNodesAction<NodesHotThreadsRequest, NodesHotThreadsResponse, TransportNodesHotThreadsAction.NodeRequest, NodeHotThreads> {
 
     @Inject
     public TransportNodesHotThreadsAction(Settings settings, ClusterName clusterName, ThreadPool threadPool,
@@ -92,7 +92,7 @@ public class TransportNodesHotThreadsAction extends TransportNodesOperationActio
         return false;
     }
 
-    static class NodeRequest extends NodeOperationRequest {
+    static class NodeRequest extends BaseNodeRequest {
 
         NodesHotThreadsRequest request;
 

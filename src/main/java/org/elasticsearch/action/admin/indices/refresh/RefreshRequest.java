@@ -20,11 +20,7 @@
 package org.elasticsearch.action.admin.indices.refresh;
 
 import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.support.broadcast.BroadcastOperationRequest;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-
-import java.io.IOException;
+import org.elasticsearch.action.support.broadcast.BroadcastRequest;
 
 /**
  * A refresh request making all operations performed since the last refresh available for search. The (near) real-time
@@ -35,7 +31,7 @@ import java.io.IOException;
  * @see org.elasticsearch.client.IndicesAdminClient#refresh(RefreshRequest)
  * @see RefreshResponse
  */
-public class RefreshRequest extends BroadcastOperationRequest<RefreshRequest> {
+public class RefreshRequest extends BroadcastRequest<RefreshRequest> {
 
 
     RefreshRequest() {

@@ -20,7 +20,7 @@
 package org.elasticsearch.action.count;
 
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.support.broadcast.BroadcastOperationResponse;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.rest.RestStatus;
@@ -31,7 +31,7 @@ import java.util.Arrays;
 /**
  * The response of the count action.
  */
-public class CountResponse extends BroadcastOperationResponse {
+public class CountResponse extends BroadcastResponse {
 
     private final boolean terminatedEarly;
     private final long count;

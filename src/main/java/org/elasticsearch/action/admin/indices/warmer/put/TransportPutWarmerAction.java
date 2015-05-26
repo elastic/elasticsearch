@@ -25,7 +25,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
+import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -51,7 +51,7 @@ import java.util.List;
  *
  * Note: this is an internal API and should not be used / called by any client code.
  */
-public class TransportPutWarmerAction extends TransportMasterNodeOperationAction<PutWarmerRequest, PutWarmerResponse> {
+public class TransportPutWarmerAction extends TransportMasterNodeAction<PutWarmerRequest, PutWarmerResponse> {
 
     private final TransportSearchAction searchAction;
 

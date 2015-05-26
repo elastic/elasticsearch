@@ -44,7 +44,7 @@ import static org.elasticsearch.action.support.TransportActions.isShardNotAvaila
 /**
  * A base class for single shard read operations.
  */
-public abstract class TransportShardSingleOperationAction<Request extends SingleShardOperationRequest, Response extends ActionResponse> extends TransportAction<Request, Response> {
+public abstract class TransportSingleShardAction<Request extends SingleShardRequest, Response extends ActionResponse> extends TransportAction<Request, Response> {
 
     protected final ClusterService clusterService;
 
@@ -53,8 +53,8 @@ public abstract class TransportShardSingleOperationAction<Request extends Single
     final String transportShardAction;
     final String executor;
 
-    protected TransportShardSingleOperationAction(Settings settings, String actionName, ThreadPool threadPool, ClusterService clusterService, TransportService transportService, ActionFilters actionFilters,
-                                                  Class<Request> request, String executor) {
+    protected TransportSingleShardAction(Settings settings, String actionName, ThreadPool threadPool, ClusterService clusterService, TransportService transportService, ActionFilters actionFilters,
+                                         Class<Request> request, String executor) {
         super(settings, actionName, threadPool, actionFilters);
         this.clusterService = clusterService;
         this.transportService = transportService;

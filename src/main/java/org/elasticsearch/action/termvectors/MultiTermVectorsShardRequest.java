@@ -20,7 +20,7 @@
 package org.elasticsearch.action.termvectors;
 
 import com.carrotsearch.hppc.IntArrayList;
-import org.elasticsearch.action.support.single.shard.SingleShardOperationRequest;
+import org.elasticsearch.action.support.single.shard.SingleShardRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -28,7 +28,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-public class MultiTermVectorsShardRequest extends SingleShardOperationRequest<MultiTermVectorsShardRequest> {
+public class MultiTermVectorsShardRequest extends SingleShardRequest<MultiTermVectorsShardRequest> {
 
     private int shardId;
     private String preference;

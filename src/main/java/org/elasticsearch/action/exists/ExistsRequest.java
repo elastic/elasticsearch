@@ -22,7 +22,7 @@ package org.elasticsearch.action.exists;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.QuerySourceBuilder;
-import org.elasticsearch.action.support.broadcast.BroadcastOperationRequest;
+import org.elasticsearch.action.support.broadcast.BroadcastRequest;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -38,7 +38,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
 
-public class ExistsRequest extends BroadcastOperationRequest<ExistsRequest> {
+public class ExistsRequest extends BroadcastRequest<ExistsRequest> {
 
     public static final float DEFAULT_MIN_SCORE = -1f;
     private float minScore = DEFAULT_MIN_SCORE;

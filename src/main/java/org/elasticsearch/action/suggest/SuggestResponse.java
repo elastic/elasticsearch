@@ -20,7 +20,7 @@
 package org.elasticsearch.action.suggest;
 
 import org.elasticsearch.action.ShardOperationFailedException;
-import org.elasticsearch.action.support.broadcast.BroadcastOperationResponse;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -35,7 +35,7 @@ import static org.elasticsearch.common.xcontent.ToXContent.EMPTY_PARAMS;
 /**
  * The response of the suggest action.
  */
-public final class SuggestResponse extends BroadcastOperationResponse {
+public final class SuggestResponse extends BroadcastResponse {
 
     private final Suggest suggest;
 

@@ -29,14 +29,14 @@ import java.io.IOException;
 /**
  * A base class for node level operations.
  */
-public abstract class NodeOperationResponse extends TransportResponse {
+public abstract class BaseNodeResponse extends TransportResponse {
 
     private DiscoveryNode node;
 
-    protected NodeOperationResponse() {
+    protected BaseNodeResponse() {
     }
 
-    protected NodeOperationResponse(DiscoveryNode node) {
+    protected BaseNodeResponse(DiscoveryNode node) {
         assert node != null;
         this.node = node;
     }

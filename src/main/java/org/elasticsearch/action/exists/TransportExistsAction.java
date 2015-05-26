@@ -25,7 +25,7 @@ import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
-import org.elasticsearch.action.support.broadcast.TransportBroadcastOperationAction;
+import org.elasticsearch.action.support.broadcast.TransportBroadcastAction;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -39,8 +39,8 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.script.ScriptService;
@@ -61,7 +61,7 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
 import static com.google.common.collect.Lists.newArrayList;
 import static org.elasticsearch.action.exists.ExistsRequest.DEFAULT_MIN_SCORE;
 
-public class TransportExistsAction extends TransportBroadcastOperationAction<ExistsRequest, ExistsResponse, ShardExistsRequest, ShardExistsResponse> {
+public class TransportExistsAction extends TransportBroadcastAction<ExistsRequest, ExistsResponse, ShardExistsRequest, ShardExistsResponse> {
 
     private final IndicesService indicesService;
     private final ScriptService scriptService;

@@ -39,7 +39,7 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
 /**
  *
  */
-public abstract class TransportNodesOperationAction<Request extends NodesOperationRequest, Response extends NodesOperationResponse, NodeRequest extends NodeOperationRequest, NodeResponse extends NodeOperationResponse> extends HandledTransportAction<Request, Response> {
+public abstract class TransportNodesAction<NodesRequest extends BaseNodesRequest, NodesResponse extends BaseNodesResponse, NodeRequest extends BaseNodeRequest, NodeResponse extends BaseNodeResponse> extends HandledTransportAction<NodesRequest, NodesResponse> {
 
     protected final ClusterName clusterName;
     protected final ClusterService clusterService;
@@ -47,9 +47,9 @@ public abstract class TransportNodesOperationAction<Request extends NodesOperati
 
     final String transportNodeAction;
 
-    protected TransportNodesOperationAction(Settings settings, String actionName, ClusterName clusterName, ThreadPool threadPool,
-                                            ClusterService clusterService, TransportService transportService, ActionFilters actionFilters,
-                                            Class<Request> request, Class<NodeRequest> nodeRequest, String nodeExecutor) {
+    protected TransportNodesAction(Settings settings, String actionName, ClusterName clusterName, ThreadPool threadPool,
+                                   ClusterService clusterService, TransportService transportService, ActionFilters actionFilters,
+                                   Class<NodesRequest> request, Class<NodeRequest> nodeRequest, String nodeExecutor) {
         super(settings, actionName, threadPool, transportService, actionFilters, request);
         this.clusterName = clusterName;
         this.clusterService = clusterService;
@@ -61,7 +61,7 @@ public abstract class TransportNodesOperationAction<Request extends NodesOperati
     }
 
     @Override
-    protected void doExecute(Request request, ActionListener<Response> listener) {
+    protected void doExecute(NodesRequest request, ActionListener<NodesResponse> listener) {
         new AsyncAction(request, listener).start();
     }
 
@@ -69,9 +69,9 @@ public abstract class TransportNodesOperationAction<Request extends NodesOperati
         return false;
     }
 
-    protected abstract Response newResponse(Request request, AtomicReferenceArray nodesResponses);
+    protected abstract NodesResponse newResponse(NodesRequest request, AtomicReferenceArray nodesResponses);
 
-    protected abstract NodeRequest newNodeRequest(String nodeId, Request request);
+    protected abstract NodeRequest newNodeRequest(String nodeId, NodesRequest request);
 
     protected abstract NodeResponse newNodeResponse();
 
@@ -85,14 +85,14 @@ public abstract class TransportNodesOperationAction<Request extends NodesOperati
 
     private class AsyncAction {
 
-        private final Request request;
+        private final NodesRequest request;
         private final String[] nodesIds;
-        private final ActionListener<Response> listener;
+        private final ActionListener<NodesResponse> listener;
         private final ClusterState clusterState;
         private final AtomicReferenceArray<Object> responses;
         private final AtomicInteger counter = new AtomicInteger();
 
-        private AsyncAction(Request request, ActionListener<Response> listener) {
+        private AsyncAction(NodesRequest request, ActionListener<NodesResponse> listener) {
             this.request = request;
             this.listener = listener;
             clusterState = clusterService.state();
@@ -179,7 +179,7 @@ public abstract class TransportNodesOperationAction<Request extends NodesOperati
         }
 
         private void finishHim() {
-            Response finalResponse;
+            NodesResponse finalResponse;
             try {
                 finalResponse = newResponse(request, responses);
             } catch (Throwable t) {

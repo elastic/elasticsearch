@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.recovery;
 
-import org.elasticsearch.action.support.broadcast.BroadcastShardOperationResponse;
+import org.elasticsearch.action.support.broadcast.BroadcastShardResponse;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -33,7 +33,7 @@ import java.io.IOException;
 /**
  * Information regarding the recovery state of a shard.
  */
-public class ShardRecoveryResponse extends BroadcastShardOperationResponse implements ToXContent {
+public class ShardRecoveryResponse extends BroadcastShardResponse implements ToXContent {
 
     RecoveryState recoveryState;
 

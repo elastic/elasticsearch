@@ -33,7 +33,7 @@ import java.io.IOException;
 /**
  *
  */
-public abstract class SingleShardOperationRequest<T extends SingleShardOperationRequest> extends ActionRequest<T> implements IndicesRequest {
+public abstract class SingleShardRequest<T extends SingleShardRequest> extends ActionRequest<T> implements IndicesRequest {
 
     ShardId internalShardId;
 
@@ -41,18 +41,18 @@ public abstract class SingleShardOperationRequest<T extends SingleShardOperation
     public static final IndicesOptions INDICES_OPTIONS = IndicesOptions.strictSingleIndexNoExpandForbidClosed();
     private boolean threadedOperation = true;
 
-    protected SingleShardOperationRequest() {
+    protected SingleShardRequest() {
     }
 
-    protected SingleShardOperationRequest(String index) {
+    protected SingleShardRequest(String index) {
         this.index = index;
     }
 
-    protected SingleShardOperationRequest(ActionRequest request) {
+    protected SingleShardRequest(ActionRequest request) {
         super(request);
     }
 
-    protected SingleShardOperationRequest(ActionRequest request, String index) {
+    protected SingleShardRequest(ActionRequest request, String index) {
         super(request);
         this.index = index;
     }

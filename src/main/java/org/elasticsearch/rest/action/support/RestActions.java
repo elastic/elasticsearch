@@ -22,7 +22,7 @@ package org.elasticsearch.rest.action.support;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.QuerySourceBuilder;
-import org.elasticsearch.action.support.broadcast.BroadcastOperationResponse;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.uid.Versions;
@@ -62,7 +62,7 @@ public class RestActions {
         static final XContentBuilderString FAILURES = new XContentBuilderString("failures");
     }
 
-    public static void buildBroadcastShardsHeader(XContentBuilder builder, ToXContent.Params params, BroadcastOperationResponse response) throws IOException {
+    public static void buildBroadcastShardsHeader(XContentBuilder builder, ToXContent.Params params, BroadcastResponse response) throws IOException {
         buildBroadcastShardsHeader(builder, params, response.getTotalShards(), response.getSuccessfulShards(), response.getFailedShards(), response.getShardFailures());
     }
 

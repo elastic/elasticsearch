@@ -22,7 +22,7 @@ package org.elasticsearch.action.admin.cluster.snapshots.get;
 import com.google.common.collect.ImmutableList;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
+import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -39,7 +39,7 @@ import org.elasticsearch.transport.TransportService;
 /**
  * Transport Action for get snapshots operation
  */
-public class TransportGetSnapshotsAction extends TransportMasterNodeOperationAction<GetSnapshotsRequest, GetSnapshotsResponse> {
+public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSnapshotsRequest, GetSnapshotsResponse> {
     private final SnapshotsService snapshotsService;
 
     @Inject

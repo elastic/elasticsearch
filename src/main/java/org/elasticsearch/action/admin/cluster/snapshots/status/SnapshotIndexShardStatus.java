@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.status;
 
-import org.elasticsearch.action.support.broadcast.BroadcastShardOperationResponse;
+import org.elasticsearch.action.support.broadcast.BroadcastShardResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -32,7 +32,7 @@ import java.io.IOException;
 
 /**
  */
-public class SnapshotIndexShardStatus extends BroadcastShardOperationResponse implements ToXContent {
+public class SnapshotIndexShardStatus extends BroadcastShardResponse implements ToXContent {
 
     private SnapshotIndexShardStage stage = SnapshotIndexShardStage.INIT;
 

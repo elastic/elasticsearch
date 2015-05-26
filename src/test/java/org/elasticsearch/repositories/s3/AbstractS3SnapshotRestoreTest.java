@@ -32,7 +32,6 @@ import org.elasticsearch.client.ClusterAdminClient;
 import org.elasticsearch.cloud.aws.AbstractAwsTest;
 import org.elasticsearch.cloud.aws.AwsS3Service;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.repositories.RepositoryMissingException;
@@ -60,7 +59,7 @@ abstract public class AbstractS3SnapshotRestoreTest extends AbstractAwsTest {
     public Settings indexSettings() {
         // During restore we frequently restore index to exactly the same state it was before, that might cause the same
         // checksum file to be written twice during restore operation
-        return ImmutableSettings.builder().put(super.indexSettings())
+        return Settings.builder().put(super.indexSettings())
                 .put(MockFSDirectoryService.RANDOM_PREVENT_DOUBLE_WRITE, false)
                 .put(MockFSDirectoryService.RANDOM_NO_DELETE_OPEN_FILE, false)
                 .put("cloud.enabled", true)
@@ -88,7 +87,7 @@ abstract public class AbstractS3SnapshotRestoreTest extends AbstractAwsTest {
         Client client = client();
         logger.info("-->  creating s3 repository with bucket[{}] and path [{}]", internalCluster().getInstance(Settings.class).get("repositories.s3.bucket"), basePath);
         PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
-                .setType("s3").setSettings(ImmutableSettings.settingsBuilder()
+                .setType("s3").setSettings(Settings.settingsBuilder()
                         .put("base_path", basePath)
                         .put("chunk_size", randomIntBetween(1000, 10000))
                         ).get();
@@ -160,7 +159,7 @@ abstract public class AbstractS3SnapshotRestoreTest extends AbstractAwsTest {
         Client client = client();
         logger.info("-->  creating s3 repository with bucket[{}] and path [{}]", internalCluster().getInstance(Settings.class).get("repositories.s3.bucket"), basePath);
         PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
-                .setType("s3").setSettings(ImmutableSettings.settingsBuilder()
+                .setType("s3").setSettings(Settings.settingsBuilder()
                         .put("base_path", basePath)
                         .put("chunk_size", randomIntBetween(1000, 10000))
                         .put("server_side_encryption", true)
@@ -254,7 +253,7 @@ abstract public class AbstractS3SnapshotRestoreTest extends AbstractAwsTest {
         Settings bucketSettings = internalCluster().getInstance(Settings.class).getByPrefix("repositories.s3.private-bucket.");
         logger.info("-->  creating s3 repository with bucket[{}] and path [{}]", bucketSettings.get("bucket"), basePath);
         client.admin().cluster().preparePutRepository("test-repo")
-        .setType("s3").setSettings(ImmutableSettings.settingsBuilder()
+        .setType("s3").setSettings(Settings.settingsBuilder()
                 .put("base_path", basePath)
                 .put("bucket", bucketSettings.get("bucket"))
                 ).get();
@@ -267,7 +266,7 @@ abstract public class AbstractS3SnapshotRestoreTest extends AbstractAwsTest {
         Settings bucketSettings = internalCluster().getInstance(Settings.class).getByPrefix("repositories.s3.private-bucket.");
         logger.info("-->  creating s3 repository with bucket[{}] and path [{}]", bucketSettings.get("bucket"), basePath);
         PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
-                .setType("s3").setSettings(ImmutableSettings.settingsBuilder()
+                .setType("s3").setSettings(Settings.settingsBuilder()
                         .put("base_path", basePath)
                         .put("region", bucketSettings.get("region"))
                         .put("access_key", bucketSettings.get("access_key"))
@@ -285,7 +284,7 @@ abstract public class AbstractS3SnapshotRestoreTest extends AbstractAwsTest {
         Settings bucketSettings = internalCluster().getInstance(Settings.class).getByPrefix("repositories.s3.external-bucket.");
         logger.info("--> creating s3 repostoriy with endpoint [{}], bucket[{}] and path [{}]", bucketSettings.get("endpoint"), bucketSettings.get("bucket"), basePath);
         PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
-                .setType("s3").setSettings(ImmutableSettings.settingsBuilder()
+                .setType("s3").setSettings(Settings.settingsBuilder()
                         .put("bucket", bucketSettings.get("bucket"))
                         .put("endpoint", bucketSettings.get("endpoint"))
                         .put("access_key", bucketSettings.get("access_key"))
@@ -306,7 +305,7 @@ abstract public class AbstractS3SnapshotRestoreTest extends AbstractAwsTest {
         Settings bucketSettings = internalCluster().getInstance(Settings.class).getByPrefix("repositories.s3.remote-bucket.");
         logger.info("-->  creating s3 repository with bucket[{}] and path [{}]", bucketSettings.get("bucket"), basePath);
         client.admin().cluster().preparePutRepository("test-repo")
-        .setType("s3").setSettings(ImmutableSettings.settingsBuilder()
+        .setType("s3").setSettings(Settings.settingsBuilder()
                 .put("base_path", basePath)
                 .put("bucket", bucketSettings.get("bucket"))
                 // Below setting intentionally omitted to assert bucket is not available in default region.
@@ -323,7 +322,7 @@ abstract public class AbstractS3SnapshotRestoreTest extends AbstractAwsTest {
         Settings bucketSettings = settings.getByPrefix("repositories.s3.remote-bucket.");
         logger.info("-->  creating s3 repository with bucket[{}] and path [{}]", bucketSettings.get("bucket"), basePath);
         PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
-                .setType("s3").setSettings(ImmutableSettings.settingsBuilder()
+                .setType("s3").setSettings(Settings.settingsBuilder()
                         .put("base_path", basePath)
                         .put("bucket", bucketSettings.get("bucket"))
                         .put("region", bucketSettings.get("region"))
@@ -341,7 +340,7 @@ abstract public class AbstractS3SnapshotRestoreTest extends AbstractAwsTest {
         Client client = client();
         logger.info("-->  creating s3 repository with bucket[{}] and path [{}]", internalCluster().getInstance(Settings.class).get("repositories.s3.bucket"), basePath);
         PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
-                .setType("s3").setSettings(ImmutableSettings.settingsBuilder()
+                .setType("s3").setSettings(Settings.settingsBuilder()
                         .put("base_path", basePath)
                         ).get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
@@ -363,7 +362,7 @@ abstract public class AbstractS3SnapshotRestoreTest extends AbstractAwsTest {
         ClusterAdminClient client = client().admin().cluster();
         logger.info("-->  creating s3 repository without any path");
         PutRepositoryResponse putRepositoryResponse = client.preparePutRepository("test-repo")
-                .setType("s3").setSettings(ImmutableSettings.settingsBuilder()
+                .setType("s3").setSettings(Settings.settingsBuilder()
                         .put("base_path", basePath)
                         ).get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));

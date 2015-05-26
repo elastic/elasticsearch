@@ -197,7 +197,7 @@ public interface Validator {
         @Override
         public String validate(String setting, String value) {
             try {
-                parseBytesSizeValue(value);
+                parseBytesSizeValue(value, setting);
             } catch (ElasticsearchParseException ex) {
                 return ex.getMessage();
             }
@@ -247,7 +247,7 @@ public interface Validator {
         @Override
         public String validate(String setting, String value) {
             try {
-                parseBytesSizeValueOrHeapRatio(value);
+                parseBytesSizeValueOrHeapRatio(value, setting);
             } catch (ElasticsearchParseException ex) {
                 return ex.getMessage();
             }

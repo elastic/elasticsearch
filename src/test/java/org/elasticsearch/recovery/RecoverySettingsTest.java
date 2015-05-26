@@ -123,7 +123,7 @@ public class RecoverySettingsTest extends ElasticsearchSingleNodeTest {
     }
 
     private void innerTestSettings(String key, int newValue, TimeUnit timeUnit, Validator validator) {
-        client().admin().cluster().prepareUpdateSettings().setTransientSettings(ImmutableSettings.builder().put(key, newValue, timeUnit)).get();
+        client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder().put(key, newValue, timeUnit)).get();
         validator.validate(getInstanceFromNode(RecoverySettings.class), newValue);
     }
 

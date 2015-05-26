@@ -144,7 +144,7 @@ public abstract class RestRequest extends ContextAndHeaderHolder implements ToXC
     }
 
     public ByteSizeValue paramAsSize(String key, ByteSizeValue defaultValue) {
-        return parseBytesSizeValue(param(key), defaultValue);
+        return parseBytesSizeValue(param(key), defaultValue, key);
     }
 
     public String[] paramAsStringArray(String key, String[] defaultValue) {

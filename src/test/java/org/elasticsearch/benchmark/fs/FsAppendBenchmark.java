@@ -39,8 +39,8 @@ public class FsAppendBenchmark {
         Path path = PathUtils.get("work/test.log");
         IOUtils.deleteFilesIgnoringExceptions(path);
 
-        int CHUNK = (int) ByteSizeValue.parseBytesSizeValue("1k").bytes();
-        long DATA = ByteSizeValue.parseBytesSizeValue("10gb").bytes();
+        int CHUNK = (int) ByteSizeValue.parseBytesSizeValue("1k", "CHUNK").bytes();
+        long DATA = ByteSizeValue.parseBytesSizeValue("10gb", "DATA").bytes();
 
         byte[] data = new byte[CHUNK];
         new Random().nextBytes(data);

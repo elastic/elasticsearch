@@ -65,7 +65,7 @@ public class IndicesFilterCache extends AbstractComponent implements QueryCache,
     public IndicesFilterCache(Settings settings) {
         super(settings);
         final String sizeString = settings.get(INDICES_CACHE_QUERY_SIZE, "10%");
-        final ByteSizeValue size = MemorySizeValue.parseBytesSizeValueOrHeapRatio(sizeString);
+        final ByteSizeValue size = MemorySizeValue.parseBytesSizeValueOrHeapRatio(sizeString, INDICES_CACHE_QUERY_SIZE);
         final int count = settings.getAsInt(INDICES_CACHE_QUERY_COUNT, 100000);
         logger.debug("using [node] weighted filter cache with size [{}], actual_size [{}], max filter count [{}]",
                 sizeString, size, count);

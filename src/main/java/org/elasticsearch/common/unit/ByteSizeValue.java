@@ -19,15 +19,16 @@
 
 package org.elasticsearch.common.unit;
 
+import java.io.IOException;
+import java.io.Serializable;
+import java.util.Locale;
+import java.util.Objects;
+
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
-
-import java.io.IOException;
-import java.io.Serializable;
-import java.util.Locale;
 
 /**
  *
@@ -171,11 +172,12 @@ public class ByteSizeValue implements Serializable, Streamable {
         return Strings.format1Decimals(value, suffix);
     }
 
-    public static ByteSizeValue parseBytesSizeValue(String sValue) throws ElasticsearchParseException {
-        return parseBytesSizeValue(sValue, null);
+    public static ByteSizeValue parseBytesSizeValue(String sValue, String settingName) throws ElasticsearchParseException {
+        return parseBytesSizeValue(sValue, null, settingName);
     }
 
-    public static ByteSizeValue parseBytesSizeValue(String sValue, ByteSizeValue defaultValue) throws ElasticsearchParseException {
+    public static ByteSizeValue parseBytesSizeValue(String sValue, ByteSizeValue defaultValue, String settingName) throws ElasticsearchParseException {
+        settingName = Objects.requireNonNull(settingName);
         if (sValue == null) {
             return defaultValue;
         }

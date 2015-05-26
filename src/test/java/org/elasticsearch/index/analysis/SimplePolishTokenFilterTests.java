@@ -28,7 +28,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.env.Environment;
@@ -61,7 +60,7 @@ public class SimplePolishTokenFilterTests extends ElasticsearchTestCase {
 
     private void testToken(String source, String expected) throws IOException {
         Index index = new Index("test");
-        Settings settings = ImmutableSettings.settingsBuilder()
+        Settings settings = Settings.settingsBuilder()
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .put("path.home", createTempDir())
                 .put("index.analysis.filter.myStemmer.type", "polish_stem")
@@ -83,7 +82,7 @@ public class SimplePolishTokenFilterTests extends ElasticsearchTestCase {
 
     private void testAnalyzer(String source, String... expected_terms) throws IOException {
         Index index = new Index("test");
-        Settings settings = ImmutableSettings.settingsBuilder()
+        Settings settings = Settings.settingsBuilder()
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .put("path.home", createTempDir())
                 .build();

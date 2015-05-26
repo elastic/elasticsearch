@@ -56,7 +56,8 @@ public class DirectBufferNetworkTests extends ElasticsearchIntegrationTest {
     public void verifySaneDirectBufferAllocations() throws Exception {
         createIndex("test");
 
-        int estimatedBytesSize = scaledRandomIntBetween(ByteSizeValue.parseBytesSizeValue("1.1mb").bytesAsInt(), ByteSizeValue.parseBytesSizeValue("1.5mb").bytesAsInt());
+        int estimatedBytesSize = scaledRandomIntBetween(ByteSizeValue.parseBytesSizeValue("1.1mb", "estimatedBytesSize").bytesAsInt(),
+                                                        ByteSizeValue.parseBytesSizeValue("1.5mb", "estimatedBytesSize").bytesAsInt());
         byte[] data = new byte[estimatedBytesSize];
         getRandom().nextBytes(data);
 

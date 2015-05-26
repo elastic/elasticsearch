@@ -58,9 +58,9 @@ public class DiskThresholdDeciderUnitTests extends ElasticsearchTestCase {
         };
         DiskThresholdDecider decider = new DiskThresholdDecider(Settings.EMPTY, nss, cis, null);
 
-        assertThat(decider.getFreeBytesThresholdHigh(), equalTo(ByteSizeValue.parseBytesSizeValue("0b")));
+        assertThat(decider.getFreeBytesThresholdHigh(), equalTo(ByteSizeValue.parseBytesSizeValue("0b", "decider")));
         assertThat(decider.getFreeDiskThresholdHigh(), equalTo(10.0d));
-        assertThat(decider.getFreeBytesThresholdLow(), equalTo(ByteSizeValue.parseBytesSizeValue("0b")));
+        assertThat(decider.getFreeBytesThresholdLow(), equalTo(ByteSizeValue.parseBytesSizeValue("0b", "decider")));
         assertThat(decider.getFreeDiskThresholdLow(), equalTo(15.0d));
         assertThat(decider.getRerouteInterval().seconds(), equalTo(60L));
         assertTrue(decider.isEnabled());
@@ -79,11 +79,11 @@ public class DiskThresholdDeciderUnitTests extends ElasticsearchTestCase {
         applySettings.onRefreshSettings(newSettings);
 
         assertThat("high threshold bytes should be unset",
-                decider.getFreeBytesThresholdHigh(), equalTo(ByteSizeValue.parseBytesSizeValue("0b")));
+                   decider.getFreeBytesThresholdHigh(), equalTo(ByteSizeValue.parseBytesSizeValue("0b", "high threshold")));
         assertThat("high threshold percentage should be changed",
                 decider.getFreeDiskThresholdHigh(), equalTo(30.0d));
         assertThat("low threshold bytes should be set to 500mb",
-                decider.getFreeBytesThresholdLow(), equalTo(ByteSizeValue.parseBytesSizeValue("500mb")));
+                   decider.getFreeBytesThresholdLow(), equalTo(ByteSizeValue.parseBytesSizeValue("500mb", "low threshold")));
         assertThat("low threshold bytes should be unset",
                 decider.getFreeDiskThresholdLow(), equalTo(0.0d));
         assertThat("reroute interval should be changed to 30 seconds",

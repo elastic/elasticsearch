@@ -129,7 +129,7 @@ public final class EngineConfig {
     public static final TimeValue DEFAULT_REFRESH_INTERVAL = new TimeValue(1, TimeUnit.SECONDS);
     public static final TimeValue DEFAULT_GC_DELETES = TimeValue.timeValueSeconds(60);
     public static final ByteSizeValue DEFAUTL_INDEX_BUFFER_SIZE = new ByteSizeValue(64, ByteSizeUnit.MB);
-    public static final ByteSizeValue INACTIVE_SHARD_INDEXING_BUFFER = ByteSizeValue.parseBytesSizeValue("500kb");
+    public static final ByteSizeValue INACTIVE_SHARD_INDEXING_BUFFER = ByteSizeValue.parseBytesSizeValue("500kb", "INACTIVE_SHARD_INDEXING_BUFFER");
 
     public static final String DEFAULT_VERSION_MAP_SIZE = "25%";
 
@@ -180,7 +180,7 @@ public final class EngineConfig {
             double percent = Double.parseDouble(versionMapSizeSetting.substring(0, versionMapSizeSetting.length() - 1));
             versionMapSize = new ByteSizeValue((long) (((double) indexingBufferSize.bytes() * (percent / 100))));
         } else {
-            versionMapSize = ByteSizeValue.parseBytesSizeValue(versionMapSizeSetting);
+            versionMapSize = ByteSizeValue.parseBytesSizeValue(versionMapSizeSetting, "VersionMapSize");
         }
     }
 

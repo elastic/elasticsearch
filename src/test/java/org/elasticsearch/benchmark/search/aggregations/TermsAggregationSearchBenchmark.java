@@ -397,6 +397,6 @@ public class TermsAggregationSearchBenchmark {
             totalQueryTime += searchResponse.getTookInMillis();
         }
         System.out.println("--> Terms stats agg (" + name + "): " + (totalQueryTime / QUERY_COUNT) + "ms");
-        return new StatsResult(name, totalQueryTime, ByteSizeValue.parseBytesSizeValue("0b"));
+        return new StatsResult(name, totalQueryTime, ByteSizeValue.parseBytesSizeValue("0b", "StatsResult"));
     }
 }

@@ -440,7 +440,7 @@ public final class Settings implements ToXContent {
      * returns the default value provided.
      */
     public ByteSizeValue getAsBytesSize(String setting, ByteSizeValue defaultValue) throws SettingsException {
-        return parseBytesSizeValue(get(setting), defaultValue);
+        return parseBytesSizeValue(get(setting), defaultValue, setting);
     }
 
     /**
@@ -448,7 +448,14 @@ public final class Settings implements ToXContent {
      * returns the default value provided.
      */
     public ByteSizeValue getAsBytesSize(String[] settings, ByteSizeValue defaultValue) throws SettingsException {
-        return parseBytesSizeValue(get(settings), defaultValue);
+        // NOTE: duplicated from get(String[]) so we can pass which setting name was actually used to parseBytesSizeValue
+        for (String setting : settings) {
+            String retVal = get(setting);
+            if (retVal != null) {
+                parseBytesSizeValue(get(settings), defaultValue, setting);
+            }
+        }
+        return defaultValue;
     }
 
     /**
@@ -457,7 +464,7 @@ public final class Settings implements ToXContent {
      * (eg. 12%). If it does not exists, parses the default value provided.
      */
     public ByteSizeValue getAsMemory(String setting, String defaultValue) throws SettingsException {
-        return MemorySizeValue.parseBytesSizeValueOrHeapRatio(get(setting, defaultValue));
+        return MemorySizeValue.parseBytesSizeValueOrHeapRatio(get(setting, defaultValue), setting);
     }
 
     /**
@@ -466,7 +473,14 @@ public final class Settings implements ToXContent {
      * (eg. 12%). If it does not exists, parses the default value provided.
      */
     public ByteSizeValue getAsMemory(String[] settings, String defaultValue) throws SettingsException {
-        return MemorySizeValue.parseBytesSizeValueOrHeapRatio(get(settings, defaultValue));
+        // NOTE: duplicated from get(String[]) so we can pass which setting name was actually used to parseBytesSizeValueOrHeapRatio
+        for (String setting : settings) {
+            String retVal = get(setting);
+            if (retVal != null) {
+                return MemorySizeValue.parseBytesSizeValueOrHeapRatio(retVal, setting);
+            }
+        }
+        return MemorySizeValue.parseBytesSizeValueOrHeapRatio(defaultValue, settings[0]);
     }
 
     /**

@@ -564,10 +564,11 @@ public class DiskThresholdDecider extends AllocationDecider {
      * a ByteSizeValue of 0 bytes if the value cannot be parsed.
      */
     public ByteSizeValue thresholdBytesFromWatermark(String watermark) {
+        // nocommit: why be lenient here?
         try {
-            return ByteSizeValue.parseBytesSizeValue(watermark);
+            return ByteSizeValue.parseBytesSizeValue(watermark, "DiskThresholdDecider watermark");
         } catch (ElasticsearchParseException ex) {
-            return ByteSizeValue.parseBytesSizeValue("0b");
+            return ByteSizeValue.parseBytesSizeValue("0b", "DiskThresholdDecider watermark");
         }
     }
 
@@ -581,7 +582,7 @@ public class DiskThresholdDecider extends AllocationDecider {
             return true;
         } catch (ElasticsearchParseException e) {
             try {
-                ByteSizeValue.parseBytesSizeValue(watermark);
+                ByteSizeValue.parseBytesSizeValue(watermark, "DiskThresholdDecider watermark");
                 return true;
             } catch (ElasticsearchParseException ex) {
                 return false;

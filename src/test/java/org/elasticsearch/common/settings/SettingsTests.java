@@ -36,7 +36,7 @@ import static org.hamcrest.Matchers.*;
 
 /**
  */
-public class ImmutableSettingsTests extends ElasticsearchTestCase {
+public class SettingsTests extends ElasticsearchTestCase {
 
     @Test
     public void testCamelCaseSupport() {

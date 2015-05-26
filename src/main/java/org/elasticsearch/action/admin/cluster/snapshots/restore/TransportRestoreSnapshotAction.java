@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.restore;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
@@ -62,11 +61,12 @@ public class TransportRestoreSnapshotAction extends TransportMasterNodeOperation
     protected ClusterBlockException checkBlock(RestoreSnapshotRequest request, ClusterState state) {
         // Restoring a snapshot might change the global state and create/change an index,
         // so we need to check for METADATA_WRITE and WRITE blocks
-        ClusterBlockException blockException = state.blocks().indexBlockedException(ClusterBlockLevel.METADATA_WRITE, "");
+        ClusterBlockException blockException = state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
         if (blockException != null) {
             return blockException;
         }
-        return state.blocks().indexBlockedException(ClusterBlockLevel.WRITE, "");
+        return state.blocks().globalBlockedException(ClusterBlockLevel.WRITE);
+
     }
 
     @Override

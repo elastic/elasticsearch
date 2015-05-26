@@ -38,7 +38,6 @@ import org.elasticsearch.cluster.settings.DynamicSettings;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -87,8 +86,8 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeOpe
 
     @Override
     protected void masterOperation(final ClusterUpdateSettingsRequest request, final ClusterState state, final ActionListener<ClusterUpdateSettingsResponse> listener) {
-        final ImmutableSettings.Builder transientUpdates = ImmutableSettings.settingsBuilder();
-        final ImmutableSettings.Builder persistentUpdates = ImmutableSettings.settingsBuilder();
+        final Settings.Builder transientUpdates = Settings.settingsBuilder();
+        final Settings.Builder persistentUpdates = Settings.settingsBuilder();
 
         clusterService.submitStateUpdateTask("cluster_update_settings", Priority.IMMEDIATE, new AckedClusterStateUpdateTask<ClusterUpdateSettingsResponse>(request, listener) {
 
@@ -178,7 +177,7 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeOpe
 
             @Override
             public ClusterState execute(final ClusterState currentState) {
-                ImmutableSettings.Builder transientSettings = ImmutableSettings.settingsBuilder();
+                Settings.Builder transientSettings = Settings.settingsBuilder();
                 transientSettings.put(currentState.metaData().transientSettings());
                 for (Map.Entry<String, String> entry : request.transientSettings().getAsMap().entrySet()) {
                     if (dynamicSettings.isDynamicOrLoggingSetting(entry.getKey())) {
@@ -195,7 +194,7 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeOpe
                     }
                 }
 
-                ImmutableSettings.Builder persistentSettings = ImmutableSettings.settingsBuilder();
+                Settings.Builder persistentSettings = Settings.settingsBuilder();
                 persistentSettings.put(currentState.metaData().persistentSettings());
                 for (Map.Entry<String, String> entry : request.persistentSettings().getAsMap().entrySet()) {
                     if (dynamicSettings.isDynamicOrLoggingSetting(entry.getKey())) {

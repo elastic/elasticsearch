@@ -20,7 +20,6 @@
 package org.elasticsearch.client.support;
 
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.transport.TransportMessage;
 
@@ -32,7 +31,7 @@ public class Headers {
 
     public static final String PREFIX = "request.headers";
 
-    public static final Headers EMPTY = new Headers(ImmutableSettings.EMPTY) {
+    public static final Headers EMPTY = new Headers(Settings.EMPTY) {
         @Override
         public <M extends TransportMessage<?>> M applyTo(M message) {
             return message;
@@ -61,6 +60,6 @@ public class Headers {
 
     static Settings resolveHeaders(Settings settings) {
         Settings headers = settings.getAsSettings(PREFIX);
-        return headers != null ? headers : ImmutableSettings.EMPTY;
+        return headers != null ? headers : Settings.EMPTY;
     }
 }

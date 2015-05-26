@@ -23,7 +23,6 @@ import com.google.common.base.Charsets;
 import com.google.common.collect.Sets;
 import com.google.common.jimfs.Configuration;
 import com.google.common.jimfs.Jimfs;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ElasticsearchTestCase;
@@ -130,7 +129,7 @@ public class CheckFileCommandTests extends ElasticsearchTestCase {
 
         try (FileSystem fs = Jimfs.newFileSystem(configuration)) {
             Path path = fs.getPath(randomAsciiOfLength(10));
-            Settings settings = ImmutableSettings.builder()
+            Settings settings = Settings.builder()
                     .put("path.home", createTempDir().toString())
                     .build();
             new CreateFileCommand(captureOutputTerminal, path).execute(settings, new Environment(settings));
@@ -148,7 +147,7 @@ public class CheckFileCommandTests extends ElasticsearchTestCase {
             Path path = fs.getPath(randomAsciiOfLength(10));
             Files.write(path, "anything".getBytes(Charsets.UTF_8));
 
-            Settings settings = ImmutableSettings.builder()
+            Settings settings = Settings.builder()
                     .put("path.home", createTempDir().toString())
                     .build();
             new DeleteFileCommand(captureOutputTerminal, path).execute(settings, new Environment(settings));
@@ -180,10 +179,10 @@ public class CheckFileCommandTests extends ElasticsearchTestCase {
         public CliTool.ExitStatus execute(FileSystem fs) throws Exception {
             this.fs = fs;
             this.paths = new Path[] { writePath(fs, "p1", "anything"), writePath(fs, "p2", "anything"), writePath(fs, "p3", "anything") };
-            Settings settings = ImmutableSettings.settingsBuilder()
+            Settings settings = Settings.settingsBuilder()
                     .put("path.home", baseDir.toString())
                     .build();
-            return super.execute(ImmutableSettings.EMPTY, new Environment(settings));
+            return super.execute(Settings.EMPTY, new Environment(settings));
         }
 
         private Path writePath(FileSystem fs, String name, String content) throws IOException {

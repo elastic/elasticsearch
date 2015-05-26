@@ -77,7 +77,6 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.search.function.BoostScoreFunction;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.common.lucene.search.function.WeightFactorFunction;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.unit.Fuzziness;
@@ -221,7 +220,7 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
 
     @Before
     public void setup() throws IOException {
-        Settings settings = ImmutableSettings.settingsBuilder()
+        Settings settings = Settings.settingsBuilder()
                 .put("index.queryparser.query.dummy.type", DummyQueryParser.class)
                 .put("index.cache.filter.type", "none")
                 .put("name", "SimpleIndexQueryParserTests")
@@ -1790,7 +1789,7 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
     private static class MockMoreLikeThisFetchService extends MoreLikeThisFetchService {
 
         public MockMoreLikeThisFetchService() {
-            super(null, ImmutableSettings.Builder.EMPTY_SETTINGS);
+            super(null, Settings.Builder.EMPTY_SETTINGS);
         }
 
         @Override

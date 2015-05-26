@@ -14,6 +14,8 @@ include::constant-score-query.asciidoc[]
 
 include::dis-max-query.asciidoc[]
 
+include::exists-query.asciidoc[]
+
 include::filtered-query.asciidoc[]
 
 include::function-score-query.asciidoc[]
@@ -43,6 +45,8 @@ include::indices-query.asciidoc[]
 include::limit-query.asciidoc[]
 
 include::match-all-query.asciidoc[]
+
+include::missing-query.asciidoc[]
 
 include::mlt-query.asciidoc[]
 

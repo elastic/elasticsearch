@@ -21,7 +21,7 @@ package org.elasticsearch.indices.breaker;
 
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 
 /**
  * Class that returns a breaker that never breaks
@@ -31,7 +31,7 @@ public class NoneCircuitBreakerService extends CircuitBreakerService {
     private final CircuitBreaker breaker = new NoopCircuitBreaker(CircuitBreaker.FIELDDATA);
 
     public NoneCircuitBreakerService() {
-        super(ImmutableSettings.EMPTY);
+        super(Settings.EMPTY);
     }
 
     @Override

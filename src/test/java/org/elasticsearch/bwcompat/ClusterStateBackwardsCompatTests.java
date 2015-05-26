@@ -28,7 +28,6 @@ import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchBackwardsCompatIntegrationTest;
 import org.junit.Test;
@@ -102,7 +101,7 @@ public class ClusterStateBackwardsCompatTests extends ElasticsearchBackwardsComp
     }
 
     private TransportClient newTransportClient() {
-        Settings settings = ImmutableSettings.settingsBuilder().put("client.transport.ignore_cluster_name", true)
+        Settings settings = Settings.settingsBuilder().put("client.transport.ignore_cluster_name", true)
                 .put("node.name", "transport_client_" + getTestName()).build();
         return TransportClient.builder().settings(settings).build();
     }

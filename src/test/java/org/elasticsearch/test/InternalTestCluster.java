@@ -58,9 +58,8 @@ import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkUtils;
-import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.common.settings.ImmutableSettings.Builder;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.Settings.Builder;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -82,7 +81,6 @@ import org.elasticsearch.index.shard.IndexShardModule;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.IndexStoreModule;
-import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.index.translog.TranslogWriter;
 import org.elasticsearch.indices.IndicesService;
@@ -90,7 +88,6 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.recovery.RecoverySettings;
-import org.elasticsearch.monitor.sigar.SigarService;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.plugins.PluginsService;
@@ -123,7 +120,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static junit.framework.Assert.fail;
 import static org.apache.lucene.util.LuceneTestCase.*;
-import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.node.NodeBuilder.nodeBuilder;
 import static org.elasticsearch.test.ElasticsearchTestCase.assertBusy;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
@@ -266,7 +263,7 @@ public final class InternalTestCluster extends TestCluster {
 
         logger.info("Setup InternalTestCluster [{}] with seed [{}] using [{}] data nodes and [{}] client nodes", clusterName, SeedUtils.formatSeed(clusterSeed), numSharedDataNodes, numSharedClientNodes);
         this.settingsSource = settingsSource;
-        Builder builder = ImmutableSettings.settingsBuilder();
+        Builder builder = Settings.settingsBuilder();
         if (random.nextInt(5) == 0) { // sometimes set this
             // randomize (multi/single) data path, special case for 0, don't set it at all...
             final int numOfDataPaths = random.nextInt(5);
@@ -278,7 +275,7 @@ public final class InternalTestCluster extends TestCluster {
                 builder.put("path.data", dataPath.toString());
             }
         }
-        builder.put("bootstrap.sigar", rarely());
+        builder.put("bootstrap.sigar", rarely(random));
         builder.put("path.home", baseDir);
         builder.put("path.repo", baseDir.resolve("repos"));
         builder.put("transport.tcp.port", BASE_PORT + "-" + (BASE_PORT+100));
@@ -314,7 +311,7 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     public static String nodeMode() {
-        Builder builder = ImmutableSettings.builder();
+        Builder builder = Settings.builder();
         if (Strings.isEmpty(System.getProperty("es.node.mode")) && Strings.isEmpty(System.getProperty("es.node.local"))) {
             return "local"; // default if nothing is specified
         }
@@ -348,7 +345,7 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     private Settings getSettings(int nodeOrdinal, long nodeSeed, Settings others) {
-        Builder builder = ImmutableSettings.settingsBuilder().put(defaultSettings)
+        Builder builder = Settings.settingsBuilder().put(defaultSettings)
                 .put(getRandomNodeSettings(nodeSeed));
         Settings settings = settingsSource.node(nodeOrdinal);
         if (settings != null) {
@@ -366,7 +363,7 @@ public final class InternalTestCluster extends TestCluster {
 
     private static Settings getRandomNodeSettings(long seed) {
         Random random = new Random(seed);
-        Builder builder = ImmutableSettings.settingsBuilder()
+        Builder builder = Settings.settingsBuilder()
                 // decrease the routing schedule so new nodes will be added quickly - some random value between 30 and 80 ms
                 .put("cluster.routing.schedule", (30 + random.nextInt(50)) + "ms")
                 .put(SETTING_CLUSTER_NODE_SEED, seed);
@@ -409,7 +406,7 @@ public final class InternalTestCluster extends TestCluster {
 
         if (random.nextInt(10) == 0) {
             // node gets an extra cpu this time
-            builder.put(EsExecutors.PROCESSORS, 1 + EsExecutors.boundedNumberOfProcessors(ImmutableSettings.EMPTY));
+            builder.put(EsExecutors.PROCESSORS, 1 + EsExecutors.boundedNumberOfProcessors(Settings.EMPTY));
         }
 
         if (random.nextBoolean()) {
@@ -656,7 +653,7 @@ public final class InternalTestCluster extends TestCluster {
             return randomNodeAndClient.client(random);
         }
         int nodeId = nextNodeId.getAndIncrement();
-        Settings settings = getSettings(nodeId, random.nextLong(), ImmutableSettings.EMPTY);
+        Settings settings = getSettings(nodeId, random.nextLong(), Settings.EMPTY);
         startNodeClient(settings);
         return getRandomNodeAndClient(new ClientNodePredicate()).client(random);
     }
@@ -826,7 +823,7 @@ public final class InternalTestCluster extends TestCluster {
             }
             Settings newSettings = callback.onNodeStopped(name);
             if (newSettings == null) {
-                newSettings = ImmutableSettings.EMPTY;
+                newSettings = Settings.EMPTY;
             }
             if (callback.clearData(name)) {
                 NodeEnvironment nodeEnv = getInstanceFromNode(NodeEnvironment.class, node);
@@ -862,7 +859,7 @@ public final class InternalTestCluster extends TestCluster {
 
         TransportClientFactory(boolean sniff, Settings settings, Path baseDir) {
             this.sniff = sniff;
-            this.settings = settings != null ? settings : ImmutableSettings.EMPTY;
+            this.settings = settings != null ? settings : Settings.EMPTY;
             this.baseDir = baseDir;
         }
 
@@ -934,7 +931,7 @@ public final class InternalTestCluster extends TestCluster {
             NodeAndClient nodeAndClient = nodes.get(buildNodeName);
             if (nodeAndClient == null) {
                 changed = true;
-                Builder clientSettingsBuilder = ImmutableSettings.builder().put("node.client", true);
+                Builder clientSettingsBuilder = Settings.builder().put("node.client", true);
                 nodeAndClient = buildNode(i, sharedNodesSeeds[i], clientSettingsBuilder.build(), Version.CURRENT);
                 nodeAndClient.node.start();
                 logger.info("Start Shared Node [{}] not shared", nodeAndClient.name);
@@ -1021,7 +1018,7 @@ public final class InternalTestCluster extends TestCluster {
             IndicesService indexServices = getInstance(IndicesService.class, nodeAndClient.name);
             for (IndexService indexService : indexServices) {
                 for (IndexShard indexShard : indexService) {
-                    assertThat(indexShard.getOperationsCount(), anyOf(equalTo(1), equalTo(0)));
+                    assertThat("index shard counter on shard " + indexShard.shardId() + " on node " + nodeAndClient.name + " not 0 or 1 ", indexShard.getOperationsCount(), anyOf(equalTo(1), equalTo(0)));
                     if (indexShard.getOperationsCount() == 0) {
                         assertThat(indexShard.state(), equalTo(IndexShardState.CLOSED));
                     }
@@ -1402,14 +1399,14 @@ public final class InternalTestCluster extends TestCluster {
      * Starts a node with default settings and returns it's name.
      */
     public synchronized String startNode() {
-        return startNode(ImmutableSettings.EMPTY, Version.CURRENT);
+        return startNode(Settings.EMPTY, Version.CURRENT);
     }
 
     /**
      * Starts a node with default settings ad the specified version and returns it's name.
      */
     public synchronized String startNode(Version version) {
-        return startNode(ImmutableSettings.EMPTY, version);
+        return startNode(Settings.EMPTY, version);
     }
 
     /**
@@ -1440,7 +1437,7 @@ public final class InternalTestCluster extends TestCluster {
      * Starts a node in an async manner with the given settings and returns future with its name.
      */
     public synchronized ListenableFuture<String> startNodeAsync() {
-        return startNodeAsync(ImmutableSettings.EMPTY, Version.CURRENT);
+        return startNodeAsync(Settings.EMPTY, Version.CURRENT);
     }
 
     /**
@@ -1476,7 +1473,7 @@ public final class InternalTestCluster extends TestCluster {
      * Starts multiple nodes in an async manner and returns future with its name.
      */
     public synchronized ListenableFuture<List<String>> startNodesAsync(final int numNodes) {
-        return startNodesAsync(numNodes, ImmutableSettings.EMPTY, Version.CURRENT);
+        return startNodesAsync(numNodes, Settings.EMPTY, Version.CURRENT);
     }
 
     /**
@@ -1713,7 +1710,7 @@ public final class InternalTestCluster extends TestCluster {
          * Executed once the give node name has been stopped.
          */
         public Settings onNodeStopped(String nodeName) throws Exception {
-            return ImmutableSettings.EMPTY;
+            return Settings.EMPTY;
         }
 
         /**

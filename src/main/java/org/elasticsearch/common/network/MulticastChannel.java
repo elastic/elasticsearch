@@ -25,7 +25,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 
 import java.io.Closeable;
 import java.net.*;
@@ -276,7 +276,7 @@ public abstract class MulticastChannel implements Closeable {
             this.datagramPacketSend = new DatagramPacket(new byte[config.bufferSize], config.bufferSize, InetAddress.getByName(config.group), config.port);
             this.multicastSocket = buildMulticastSocket(config);
             this.receiver = new Receiver();
-            this.receiverThread = daemonThreadFactory(ImmutableSettings.builder().put("name", name).build(), "discovery#multicast#receiver").newThread(receiver);
+            this.receiverThread = daemonThreadFactory(Settings.builder().put("name", name).build(), "discovery#multicast#receiver").newThread(receiver);
             this.receiverThread.start();
         }
 

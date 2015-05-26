@@ -21,7 +21,6 @@ package org.elasticsearch.search.suggest;
 import com.google.common.collect.Lists;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
@@ -44,7 +43,7 @@ public class CustomSuggesterSearchTests extends ElasticsearchIntegrationTest {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return ImmutableSettings.settingsBuilder().put(super.nodeSettings(nodeOrdinal)).put("plugin.types", CustomSuggesterPlugin.class.getName()).build();
+        return Settings.settingsBuilder().put(super.nodeSettings(nodeOrdinal)).put("plugin.types", CustomSuggesterPlugin.class.getName()).build();
     }
 
     @Test

@@ -21,7 +21,6 @@ package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchTokenStreamTestCase;
 import org.junit.Test;
@@ -33,7 +32,7 @@ public class LimitTokenCountFilterFactoryTests extends ElasticsearchTokenStreamT
 
     @Test
     public void testDefault() throws IOException {
-        Settings settings = ImmutableSettings.settingsBuilder()
+        Settings settings = Settings.settingsBuilder()
                 .put("index.analysis.filter.limit_default.type", "limit")
                 .put("path.home", createTempDir().toString())
                 .build();
@@ -59,7 +58,7 @@ public class LimitTokenCountFilterFactoryTests extends ElasticsearchTokenStreamT
     @Test
     public void testSettings() throws IOException {
         {
-            Settings settings = ImmutableSettings.settingsBuilder()
+            Settings settings = Settings.settingsBuilder()
                     .put("index.analysis.filter.limit_1.type", "limit")
                     .put("index.analysis.filter.limit_1.max_token_count", 3)
                     .put("index.analysis.filter.limit_1.consume_all_tokens", true)
@@ -74,7 +73,7 @@ public class LimitTokenCountFilterFactoryTests extends ElasticsearchTokenStreamT
             assertTokenStreamContents(tokenFilter.create(tokenizer), expected);
         }
         {
-            Settings settings = ImmutableSettings.settingsBuilder()
+            Settings settings = Settings.settingsBuilder()
                     .put("index.analysis.filter.limit_1.type", "limit")
                     .put("index.analysis.filter.limit_1.max_token_count", 3)
                     .put("index.analysis.filter.limit_1.consume_all_tokens", false)
@@ -90,7 +89,7 @@ public class LimitTokenCountFilterFactoryTests extends ElasticsearchTokenStreamT
         }
 
         {
-            Settings settings = ImmutableSettings.settingsBuilder()
+            Settings settings = Settings.settingsBuilder()
                     .put("index.analysis.filter.limit_1.type", "limit")
                     .put("index.analysis.filter.limit_1.max_token_count", 17)
                     .put("index.analysis.filter.limit_1.consume_all_tokens", true)

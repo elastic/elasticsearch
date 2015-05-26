@@ -20,7 +20,6 @@
 package org.elasticsearch.stresstest.gcbehavior;
 
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeBuilder;
@@ -35,7 +34,7 @@ public class FilterCacheGcStress {
 
     public static void main(String[] args) {
 
-        Settings settings = ImmutableSettings.EMPTY;
+        Settings settings = Settings.EMPTY;
 
         Node node = NodeBuilder.nodeBuilder().settings(settings).node();
         final Client client = node.client();

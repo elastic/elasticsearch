@@ -31,7 +31,6 @@ import org.elasticsearch.common.lucene.all.AllEntries;
 import org.elasticsearch.common.lucene.all.AllField;
 import org.elasticsearch.common.lucene.all.AllTermQuery;
 import org.elasticsearch.common.lucene.all.AllTokenStream;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -429,7 +428,7 @@ public class SimpleAllMapperTests extends ElasticsearchSingleNodeTest {
                 .startObject("fielddata")
                     .field("format", "doc_values")
             .endObject().endObject().endObject().endObject().string();
-        Settings legacySettings = ImmutableSettings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build();
+        Settings legacySettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build();
         try {
             createIndex("test_old", legacySettings).mapperService().documentMapperParser().parse(mapping);
             fail();
@@ -455,7 +454,7 @@ public class SimpleAllMapperTests extends ElasticsearchSingleNodeTest {
 
     public void testIncludeInObjectBackcompat() throws Exception {
         String mapping = jsonBuilder().startObject().startObject("type").endObject().endObject().string();
-        Settings settings = ImmutableSettings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build();
+        Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build();
         DocumentMapper docMapper = createIndex("test", settings).mapperService().documentMapperParser().parse(mapping);
         ParsedDocument doc = docMapper.parse("type", "1", XContentFactory.jsonBuilder()
             .startObject().field("_all", "foo").endObject().bytes());

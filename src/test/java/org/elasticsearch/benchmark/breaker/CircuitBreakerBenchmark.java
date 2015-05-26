@@ -21,10 +21,8 @@ package org.elasticsearch.benchmark.breaker;
 
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.IndexAlreadyExistsException;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
@@ -36,7 +34,7 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static junit.framework.Assert.assertNotNull;
-import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 
@@ -125,7 +123,7 @@ public class CircuitBreakerBenchmark {
     }
 
     public static void main(String args[]) throws Exception {
-        Node node = NodeBuilder.nodeBuilder().settings(ImmutableSettings.settingsBuilder()).node();
+        Node node = NodeBuilder.nodeBuilder().settings(Settings.settingsBuilder()).node();
         final Client client = node.client();
         try {
             try {

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.recovery;
 
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 
 /**
@@ -29,6 +28,6 @@ public class SmallFileChunkSizeRecoveryTests extends SimpleRecoveryTests {
 
     @Override
     protected Settings recoverySettings() {
-        return ImmutableSettings.settingsBuilder().put("index.shard.recovery.file_chunk_size", "3b").build();
+        return Settings.settingsBuilder().put("index.shard.recovery.file_chunk_size", "3b").build();
     }
 }

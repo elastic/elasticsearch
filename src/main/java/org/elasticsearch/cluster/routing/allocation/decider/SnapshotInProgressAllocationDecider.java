@@ -24,7 +24,6 @@ import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.settings.NodeSettingsService;
 
@@ -58,7 +57,7 @@ public class SnapshotInProgressAllocationDecider extends AllocationDecider {
      * Creates a new {@link org.elasticsearch.cluster.routing.allocation.decider.SnapshotInProgressAllocationDecider} instance
      */
     public SnapshotInProgressAllocationDecider() {
-        this(ImmutableSettings.Builder.EMPTY_SETTINGS);
+        this(Settings.Builder.EMPTY_SETTINGS);
     }
 
     /**

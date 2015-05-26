@@ -22,7 +22,7 @@ package org.elasticsearch.script;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -131,7 +131,7 @@ public class IndexLookupTests extends ElasticsearchIntegrationTest {
                 .startObject("int_payload_field").field("type", "string").field("index_options", "offsets")
                 .field("analyzer", "payload_int").endObject().endObject().endObject().endObject();
         assertAcked(prepareCreate("test").addMapping("type1", mapping).setSettings(
-                ImmutableSettings.settingsBuilder()
+                Settings.settingsBuilder()
                         .put(indexSettings())
                         .put("index.analysis.analyzer.payload_int.tokenizer", "whitespace")
                         .putArray("index.analysis.analyzer.payload_int.filter", "delimited_int")
@@ -406,7 +406,7 @@ public class IndexLookupTests extends ElasticsearchIntegrationTest {
                 .startObject("int_payload_field").field("type", "string").field("index_options", "offsets")
             .field("analyzer", "payload_int").endObject().endObject().endObject().endObject();
         assertAcked(prepareCreate("test").addMapping("type1", mapping).setSettings(
-                ImmutableSettings.settingsBuilder()
+                Settings.settingsBuilder()
                         .put(indexSettings())
                         .put("index.analysis.analyzer.payload_float.tokenizer", "whitespace")
                         .putArray("index.analysis.analyzer.payload_float.filter", "delimited_float")

@@ -22,7 +22,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.joda.Joda;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
@@ -1096,7 +1096,7 @@ public class DateHistogramTests extends ElasticsearchIntegrationTest {
 
         prepareCreate("idx2")
                 .setSettings(
-                        ImmutableSettings.builder().put(indexSettings()).put("index.number_of_shards", 1)
+                        Settings.builder().put(indexSettings()).put("index.number_of_shards", 1)
                                 .put("index.number_of_replicas", 0)).execute().actionGet();
         int numOfBuckets = randomIntBetween(3, 6);
         int emptyBucketIndex = randomIntBetween(1, numOfBuckets - 2); // should be in the middle

@@ -40,7 +40,6 @@ import org.elasticsearch.cluster.routing.MutableShardRouting;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -49,7 +48,7 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.*;
-import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.*;
@@ -61,7 +60,7 @@ public class AckTests extends ElasticsearchIntegrationTest {
     protected Settings nodeSettings(int nodeOrdinal) {
         //to test that the acknowledgement mechanism is working we better disable the wait for publish
         //otherwise the operation is most likely acknowledged even if it doesn't support ack
-        return ImmutableSettings.builder().put(super.nodeSettings(nodeOrdinal))
+        return Settings.builder().put(super.nodeSettings(nodeOrdinal))
                 .put(DiscoverySettings.PUBLISH_TIMEOUT, 0).build();
     }
 
@@ -70,7 +69,7 @@ public class AckTests extends ElasticsearchIntegrationTest {
         createIndex("test");
 
         assertAcked(client().admin().indices().prepareUpdateSettings("test")
-                .setSettings(ImmutableSettings.builder().put("refresh_interval", 9999)));
+                .setSettings(Settings.builder().put("refresh_interval", 9999)));
 
         for (Client client : clients()) {
             String refreshInterval = getLocalClusterState(client).metaData().index("test").settings().get("index.refresh_interval");
@@ -82,7 +81,7 @@ public class AckTests extends ElasticsearchIntegrationTest {
     public void testUpdateSettingsNoAcknowledgement() {
         createIndex("test");
         UpdateSettingsResponse updateSettingsResponse = client().admin().indices().prepareUpdateSettings("test").setTimeout("0s")
-                .setSettings(ImmutableSettings.builder().put("refresh_interval", 9999)).get();
+                .setSettings(Settings.builder().put("refresh_interval", 9999)).get();
         assertThat(updateSettingsResponse.isAcknowledged(), equalTo(false));
     }
 
@@ -175,7 +174,7 @@ public class AckTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testClusterRerouteAcknowledgement() throws InterruptedException {
-        assertAcked(prepareCreate("test").setSettings(ImmutableSettings.builder()
+        assertAcked(prepareCreate("test").setSettings(Settings.builder()
                 .put(indexSettings())
                 .put(SETTING_NUMBER_OF_SHARDS, between(cluster().numDataNodes(), DEFAULT_MAX_NUM_SHARDS))
                 .put(SETTING_NUMBER_OF_REPLICAS, 0)

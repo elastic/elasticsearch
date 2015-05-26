@@ -20,6 +20,7 @@ package org.elasticsearch.search.aggregations.bucket.sampler;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -154,7 +155,7 @@ public class SamplerAggregator extends SingleBucketAggregator {
 
     @Override
     public DeferringBucketCollector getDeferringCollector() {
-        bdd = new BestDocsDeferringCollector(shardSize);
+        bdd = new BestDocsDeferringCollector(shardSize, context.bigArrays());
         return bdd;
 
     }
@@ -168,7 +169,8 @@ public class SamplerAggregator extends SingleBucketAggregator {
     @Override
     public InternalAggregation buildAggregation(long owningBucketOrdinal) throws IOException {
         runDeferredCollections(owningBucketOrdinal);
-        return new InternalSampler(name, bdd == null ? 0 : bdd.getDocCount(), bucketAggregations(owningBucketOrdinal), pipelineAggregators(),
+        return new InternalSampler(name, bdd == null ? 0 : bdd.getDocCount(owningBucketOrdinal), bucketAggregations(owningBucketOrdinal),
+                pipelineAggregators(),
                 metaData());
     }
 
@@ -189,10 +191,6 @@ public class SamplerAggregator extends SingleBucketAggregator {
         @Override
         public Aggregator createInternal(AggregationContext context, Aggregator parent, boolean collectsFromSingleBucket,
                 List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-
-            if (collectsFromSingleBucket == false) {
-                return asMultiBucketAggregator(this, context, parent);
-            }
             return new SamplerAggregator(name, shardSize, factories, context, parent, pipelineAggregators, metaData);
         }
 
@@ -215,11 +213,6 @@ public class SamplerAggregator extends SingleBucketAggregator {
         protected Aggregator doCreateInternal(ValuesSource valuesSource, AggregationContext context, Aggregator parent,
                 boolean collectsFromSingleBucket, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
                 throws IOException {
-
-            if (collectsFromSingleBucket == false) {
-                return asMultiBucketAggregator(this, context, parent);
-            }
-
 
             if (valuesSource instanceof ValuesSource.Numeric) {
                 return new DiversifiedNumericSamplerAggregator(name, shardSize, factories, context, parent, pipelineAggregators, metaData,
@@ -270,6 +263,12 @@ public class SamplerAggregator extends SingleBucketAggregator {
             throw new AggregationExecutionException("Sampler aggregation must be used with child aggregations.");
         }
         return bdd.getLeafCollector(ctx);
+    }
+
+    @Override
+    protected void doClose() {
+        Releasables.close(bdd);
+        super.doClose();
     }
 
 }

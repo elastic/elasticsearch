@@ -34,7 +34,6 @@ import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.settings.IndexDynamicSettings;
@@ -138,7 +137,7 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
 
         if (nrReplicasChanged.size() > 0) {
             for (final Integer fNumberOfReplicas : nrReplicasChanged.keySet()) {
-                Settings settings = ImmutableSettings.settingsBuilder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, fNumberOfReplicas).build();
+                Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, fNumberOfReplicas).build();
                 final List<String> indices = nrReplicasChanged.get(fNumberOfReplicas);
 
                 UpdateSettingsClusterStateUpdateRequest updateRequest = new UpdateSettingsClusterStateUpdateRequest()
@@ -166,7 +165,7 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
     }
 
     public void updateSettings(final UpdateSettingsClusterStateUpdateRequest request, final ActionListener<ClusterStateUpdateResponse> listener) {
-        ImmutableSettings.Builder updatedSettingsBuilder = ImmutableSettings.settingsBuilder();
+        Settings.Builder updatedSettingsBuilder = Settings.settingsBuilder();
         updatedSettingsBuilder.put(request.settings()).normalizePrefix(IndexMetaData.INDEX_SETTING_PREFIX);
         // never allow to change the number of shards
         for (String key : updatedSettingsBuilder.internalMap().keySet()) {

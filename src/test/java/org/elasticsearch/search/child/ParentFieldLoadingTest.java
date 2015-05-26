@@ -24,7 +24,6 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -49,7 +48,7 @@ import static org.hamcrest.Matchers.greaterThan;
  */
 public class ParentFieldLoadingTest extends ElasticsearchIntegrationTest {
 
-    private final Settings indexSettings = ImmutableSettings.builder()
+    private final Settings indexSettings = Settings.builder()
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(IndexShard.INDEX_REFRESH_INTERVAL, -1)

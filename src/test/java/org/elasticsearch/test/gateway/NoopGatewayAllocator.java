@@ -22,7 +22,7 @@ package org.elasticsearch.test.gateway;
 import org.elasticsearch.cluster.routing.allocation.FailedRerouteAllocation;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.StartedRerouteAllocation;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.gateway.GatewayAllocator;
 
 /**
@@ -33,7 +33,7 @@ public class NoopGatewayAllocator extends GatewayAllocator {
     public static final NoopGatewayAllocator INSTANCE = new NoopGatewayAllocator();
 
     private NoopGatewayAllocator() {
-        super(ImmutableSettings.EMPTY, null, null);
+        super(Settings.EMPTY, null, null);
     }
 
     @Override

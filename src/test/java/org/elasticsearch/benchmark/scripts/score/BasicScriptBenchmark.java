@@ -27,10 +27,9 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.lucene.search.function.CombineFunction;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.functionscore.script.ScriptScoreFunctionBuilder;
 import org.joda.time.DateTime;
@@ -40,7 +39,6 @@ import java.io.IOException;
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
-import java.nio.file.Paths;
 import java.security.SecureRandom;
 import java.util.*;
 import java.util.Map.Entry;
@@ -215,7 +213,7 @@ public class BasicScriptBenchmark {
                 .prepareCreate("test")
                 .addMapping("type1", mapping)
                 .setSettings(
-                        ImmutableSettings.settingsBuilder().put("index.analysis.analyzer.payload_float.tokenizer", "whitespace")
+                        Settings.settingsBuilder().put("index.analysis.analyzer.payload_float.tokenizer", "whitespace")
                                 .putArray("index.analysis.analyzer.payload_float.filter", "delimited_float")
                                 .put("index.analysis.filter.delimited_float.delimiter", "|")
                                 .put("index.analysis.filter.delimited_float.encoding", "float")

@@ -25,7 +25,7 @@ import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchTestCase;
 
 import java.io.ByteArrayOutputStream;
@@ -43,7 +43,7 @@ public class CompressedStreamTests extends ElasticsearchTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        CompressorFactory.configure(ImmutableSettings.settingsBuilder().put("compress.default.type", "lzf").build());
+        CompressorFactory.configure(Settings.settingsBuilder().put("compress.default.type", "lzf").build());
     }
 
     public void testRandom() throws IOException {

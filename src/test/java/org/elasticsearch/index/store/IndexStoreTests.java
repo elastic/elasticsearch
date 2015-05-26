@@ -21,7 +21,6 @@ package org.elasticsearch.index.store;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.apache.lucene.store.*;
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
@@ -38,7 +37,7 @@ public class IndexStoreTests extends ElasticsearchTestCase {
         final Path tempDir = createTempDir();
         final IndexStoreModule.Type[] values = IndexStoreModule.Type.values();
         final IndexStoreModule.Type type = RandomPicks.randomFrom(random(), values);
-        Settings settings = ImmutableSettings.settingsBuilder().put(IndexStoreModule.STORE_TYPE, type.name()).build();
+        Settings settings = Settings.settingsBuilder().put(IndexStoreModule.STORE_TYPE, type.name()).build();
         FsDirectoryService service = new FsDirectoryService(settings, null, new ShardPath(tempDir, tempDir, "foo", new ShardId("foo", 0)));
         try (final Directory directory = service.newFSDirectory(tempDir, NoLockFactory.INSTANCE)) {
             switch (type) {
@@ -71,7 +70,7 @@ public class IndexStoreTests extends ElasticsearchTestCase {
 
     public void testStoreDirectoryDefault() throws IOException {
         final Path tempDir = createTempDir();
-        Settings settings = ImmutableSettings.EMPTY;
+        Settings settings = Settings.EMPTY;
         FsDirectoryService service = new FsDirectoryService(settings, null, new ShardPath(tempDir, tempDir, "foo", new ShardId("foo", 0)));
         try (final Directory directory = service.newFSDirectory(tempDir, NoLockFactory.INSTANCE)) {
             if (Constants.WINDOWS) {

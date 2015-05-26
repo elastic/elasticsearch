@@ -25,7 +25,6 @@ import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateRequest;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.transport.TransportMessage;
 
@@ -45,7 +44,7 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
 
     private IndexMetaData.State state = IndexMetaData.State.OPEN;
 
-    private Settings settings = ImmutableSettings.Builder.EMPTY_SETTINGS;
+    private Settings settings = Settings.Builder.EMPTY_SETTINGS;
 
     private final Map<String, String> mappings = Maps.newHashMap();
 

@@ -20,7 +20,6 @@
 package org.elasticsearch.plugins;
 
 import org.elasticsearch.cluster.ClusterService;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Ignore;
@@ -29,7 +28,7 @@ import java.net.URISyntaxException;
 import java.net.URL;
 
 import static org.elasticsearch.client.Requests.clusterHealthRequest;
-import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 
 /**
  * Base class that lets you start a node with plugins.
@@ -39,7 +38,7 @@ public abstract class PluginTestCase extends ElasticsearchIntegrationTest {
     
     public String startNodeWithPlugins(Settings nodeSettings, String pluginDir, String ... pluginClassNames) throws URISyntaxException {
         URL resource = getClass().getResource(pluginDir);
-        ImmutableSettings.Builder settings = settingsBuilder();
+        Settings.Builder settings = settingsBuilder();
         settings.put(nodeSettings);
         if (resource != null) {
             settings.put("path.plugins", getDataPath(pluginDir).toAbsolutePath());

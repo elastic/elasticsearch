@@ -26,7 +26,6 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.StartedRerouteAllocation;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.gateway.GatewayAllocator;
 
@@ -41,7 +40,7 @@ public class ShardsAllocators extends AbstractComponent implements ShardsAllocat
     private final ShardsAllocator allocator;
 
     public ShardsAllocators(GatewayAllocator allocator) {
-        this(ImmutableSettings.Builder.EMPTY_SETTINGS, allocator);
+        this(Settings.Builder.EMPTY_SETTINGS, allocator);
     }
 
     public ShardsAllocators(Settings settings, GatewayAllocator allocator) {

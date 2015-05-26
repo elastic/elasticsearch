@@ -78,7 +78,6 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -165,7 +164,7 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
-import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.test.XContentTestUtils.convertToMap;
 import static org.elasticsearch.test.XContentTestUtils.mapsEqualIgnoringArrayOrder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -383,8 +382,8 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
 
         // TODO move settings for random directory etc here into the index based randomized settings.
         if (cluster().size() > 0) {
-            ImmutableSettings.Builder randomSettingsBuilder =
-                    setRandomSettings(getRandom(), ImmutableSettings.builder())
+            Settings.Builder randomSettingsBuilder =
+                    setRandomSettings(getRandom(), Settings.builder())
                             .put(SETTING_INDEX_SEED, getRandom().nextLong());
 
             randomSettingsBuilder.put(SETTING_NUMBER_OF_SHARDS, numberOfShards())
@@ -488,7 +487,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         }
     }
 
-    protected ImmutableSettings.Builder setRandomSettings(Random random, ImmutableSettings.Builder builder) {
+    protected Settings.Builder setRandomSettings(Random random, Settings.Builder builder) {
         setRandomMerge(random, builder);
         setRandomTranslogSettings(random, builder);
         setRandomNormsLoading(random, builder);
@@ -542,7 +541,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         return builder;
     }
 
-    private static ImmutableSettings.Builder setRandomScriptingSettings(Random random, ImmutableSettings.Builder builder) {
+    private static Settings.Builder setRandomScriptingSettings(Random random, Settings.Builder builder) {
         if (random.nextBoolean()) {
             builder.put(ScriptService.SCRIPT_CACHE_SIZE_SETTING, RandomInts.randomIntBetween(random, -100, 2000));
         }
@@ -552,7 +551,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         return builder;
     }
 
-    private static ImmutableSettings.Builder setRandomMerge(Random random, ImmutableSettings.Builder builder) {
+    private static Settings.Builder setRandomMerge(Random random, Settings.Builder builder) {
         if (random.nextBoolean()) {
             builder.put(AbstractMergePolicyProvider.INDEX_COMPOUND_FORMAT,
                     random.nextBoolean() ? random.nextDouble() : random.nextBoolean());
@@ -585,14 +584,14 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         return builder;
     }
 
-    private static ImmutableSettings.Builder setRandomNormsLoading(Random random, ImmutableSettings.Builder builder) {
+    private static Settings.Builder setRandomNormsLoading(Random random, Settings.Builder builder) {
         if (random.nextBoolean()) {
             builder.put(SearchService.NORMS_LOADING_KEY, RandomPicks.randomFrom(random, Arrays.asList(FieldMapper.Loading.EAGER, FieldMapper.Loading.LAZY)));
         }
         return builder;
     }
 
-    private static ImmutableSettings.Builder setRandomTranslogSettings(Random random, ImmutableSettings.Builder builder) {
+    private static Settings.Builder setRandomTranslogSettings(Random random, Settings.Builder builder) {
         if (random.nextBoolean()) {
             builder.put(TranslogService.INDEX_TRANSLOG_FLUSH_THRESHOLD_OPS, RandomInts.randomIntBetween(random, 1, 10000));
         }
@@ -784,7 +783,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
      * can be controlled through specific methods.
      */
     public Settings indexSettings() {
-        ImmutableSettings.Builder builder = ImmutableSettings.builder();
+        Settings.Builder builder = Settings.builder();
         int numberOfShards = numberOfShards();
         if (numberOfShards > 0) {
             builder.put(SETTING_NUMBER_OF_SHARDS, numberOfShards).build();
@@ -840,7 +839,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
      * </p>
      */
     public final CreateIndexRequestBuilder prepareCreate(String index, int numNodes) {
-        return prepareCreate(index, numNodes, ImmutableSettings.builder());
+        return prepareCreate(index, numNodes, Settings.builder());
     }
 
     /**
@@ -852,10 +851,10 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
      * rules based on <code>index.routing.allocation.exclude._name</code>.
      * </p>
      */
-    public CreateIndexRequestBuilder prepareCreate(String index, int numNodes, ImmutableSettings.Builder settingsBuilder) {
+    public CreateIndexRequestBuilder prepareCreate(String index, int numNodes, Settings.Builder settingsBuilder) {
         internalCluster().ensureAtLeastNumDataNodes(numNodes);
 
-        ImmutableSettings.Builder builder = ImmutableSettings.builder().put(indexSettings()).put(settingsBuilder.build());
+        Settings.Builder builder = Settings.builder().put(indexSettings()).put(settingsBuilder.build());
 
         if (numNodes > 0) {
             getExcludeSettings(index, numNodes, builder);
@@ -863,7 +862,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         return client().admin().indices().prepareCreate(index).setSettings(builder.build());
     }
 
-    private ImmutableSettings.Builder getExcludeSettings(String index, int num, ImmutableSettings.Builder builder) {
+    private Settings.Builder getExcludeSettings(String index, int num, Settings.Builder builder) {
         String exclude = Joiner.on(',').join(internalCluster().allDataNodesButN(num));
         builder.put("index.routing.allocation.exclude._name", exclude);
         return builder;
@@ -954,7 +953,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
     public void allowNodes(String index, int n) {
         assert index != null;
         internalCluster().ensureAtLeastNumDataNodes(n);
-        ImmutableSettings.Builder builder = ImmutableSettings.builder();
+        Settings.Builder builder = Settings.builder();
         if (n > 0) {
             getExcludeSettings(index, n, builder);
         }
@@ -1466,25 +1465,25 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
 
     /** Disables translog flushing for the specified index */
     public static void disableTranslogFlush(String index) {
-        Settings settings = ImmutableSettings.builder().put(TranslogService.INDEX_TRANSLOG_DISABLE_FLUSH, true).build();
+        Settings settings = Settings.builder().put(TranslogService.INDEX_TRANSLOG_DISABLE_FLUSH, true).build();
         client().admin().indices().prepareUpdateSettings(index).setSettings(settings).get();
     }
 
     /** Enables translog flushing for the specified index */
     public static void enableTranslogFlush(String index) {
-        Settings settings = ImmutableSettings.builder().put(TranslogService.INDEX_TRANSLOG_DISABLE_FLUSH, false).build();
+        Settings settings = Settings.builder().put(TranslogService.INDEX_TRANSLOG_DISABLE_FLUSH, false).build();
         client().admin().indices().prepareUpdateSettings(index).setSettings(settings).get();
     }
 
     /** Disables an index block for the specified index */
     public static void disableIndexBlock(String index, String block) {
-        Settings settings = ImmutableSettings.builder().put(block, false).build();
+        Settings settings = Settings.builder().put(block, false).build();
         client().admin().indices().prepareUpdateSettings(index).setSettings(settings).get();
     }
 
     /** Enables an index block for the specified index */
     public static void enableIndexBlock(String index, String block) {
-        Settings settings = ImmutableSettings.builder().put(block, true).build();
+        Settings settings = Settings.builder().put(block, true).build();
         client().admin().indices().prepareUpdateSettings(index).setSettings(settings).get();
     }
 
@@ -1718,7 +1717,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
      * add by default.
      */
     protected Settings transportClientSettings() {
-        return ImmutableSettings.EMPTY;
+        return Settings.EMPTY;
     }
 
     private ExternalTestCluster buildExternalCluster(String clusterAddresses) {
@@ -1762,7 +1761,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         SettingsSource settingsSource = new SettingsSource() {
             @Override
             public Settings node(int nodeOrdinal) {
-                return ImmutableSettings.builder().put(Node.HTTP_ENABLED, false).
+                return Settings.builder().put(Node.HTTP_ENABLED, false).
                         put(nodeSettings(nodeOrdinal)).build();
             }
 
@@ -2049,7 +2048,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         Files.move(src, dest);
         assertFalse(Files.exists(src));
         assertTrue(Files.exists(dest));
-        ImmutableSettings.Builder builder = ImmutableSettings.builder()
+        Settings.Builder builder = Settings.builder()
                 .put(settings)
                 .put("path.data", dataDir.toAbsolutePath());
 

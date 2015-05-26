@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.support.replication;
 
-import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionWriteResponse;
@@ -27,8 +26,8 @@ import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.index.IndexRequest.OpType;
+import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.TransportActions;
@@ -51,7 +50,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.common.util.concurrent.RefCounted;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.DocumentAlreadyExistsException;
 import org.elasticsearch.index.engine.Engine;
@@ -70,17 +68,15 @@ import org.elasticsearch.river.RiverIndexName;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 
-import java.io.Closeable;
 import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
 
 /**
  */
-public abstract class TransportShardReplicationOperationAction<Request extends ShardReplicationOperationRequest, ReplicaRequest extends ShardReplicationOperationRequest, Response extends ActionWriteResponse> extends TransportAction<Request, Response> {
+public abstract class TransportReplicationAction<Request extends ReplicationRequest, ReplicaRequest extends ReplicationRequest, Response extends ActionWriteResponse> extends TransportAction<Request, Response> {
 
     protected final TransportService transportService;
     protected final ClusterService clusterService;
@@ -94,11 +90,11 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
     final String executor;
     final boolean checkWriteConsistency;
 
-    protected TransportShardReplicationOperationAction(Settings settings, String actionName, TransportService transportService,
-                                                       ClusterService clusterService, IndicesService indicesService,
-                                                       ThreadPool threadPool, ShardStateAction shardStateAction,
-                                                       MappingUpdatedAction mappingUpdatedAction, ActionFilters actionFilters,
-                                                       Class<Request> request, Class<ReplicaRequest> replicaRequest, String executor) {
+    protected TransportReplicationAction(Settings settings, String actionName, TransportService transportService,
+                                         ClusterService clusterService, IndicesService indicesService,
+                                         ThreadPool threadPool, ShardStateAction shardStateAction,
+                                         MappingUpdatedAction mappingUpdatedAction, ActionFilters actionFilters,
+                                         Class<Request> request, Class<ReplicaRequest> replicaRequest, String executor) {
         super(settings, actionName, threadPool, actionFilters);
         this.transportService = transportService;
         this.clusterService = clusterService;

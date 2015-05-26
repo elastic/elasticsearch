@@ -35,7 +35,6 @@ import org.elasticsearch.client.*;
 import org.elasticsearch.client.support.AbstractClient;
 import org.elasticsearch.client.support.Headers;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
@@ -56,7 +55,7 @@ public class HeadersAndContextCopyClientTests extends ElasticsearchTestCase {
     @Test
     public void testRegisterRelevantHeaders() throws InterruptedException {
 
-        final RestController restController = new RestController(ImmutableSettings.EMPTY);
+        final RestController restController = new RestController(Settings.EMPTY);
 
         int iterations = randomIntBetween(1, 5);
 
@@ -425,7 +424,7 @@ public class HeadersAndContextCopyClientTests extends ElasticsearchTestCase {
     private class NoOpClient extends AbstractClient {
 
         public NoOpClient() {
-            super(ImmutableSettings.EMPTY, new ThreadPool(getTestName()), Headers.EMPTY);
+            super(Settings.EMPTY, new ThreadPool(getTestName()), Headers.EMPTY);
         }
 
         @Override

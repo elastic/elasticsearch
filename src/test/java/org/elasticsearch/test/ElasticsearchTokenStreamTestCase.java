@@ -28,7 +28,7 @@ import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.Version;
 import org.elasticsearch.bootstrap.BootstrapForTesting;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
 
 @Listeners({
@@ -51,7 +51,7 @@ public abstract class ElasticsearchTokenStreamTestCase extends BaseTokenStreamTe
         return VersionUtils.randomVersion(random());
     }
 
-    public ImmutableSettings.Builder newAnalysisSettingsBuilder() {
-        return ImmutableSettings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT);
+    public Settings.Builder newAnalysisSettingsBuilder() {
+        return Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT);
     }
 }

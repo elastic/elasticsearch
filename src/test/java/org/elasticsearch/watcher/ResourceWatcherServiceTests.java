@@ -19,13 +19,10 @@
 
 package org.elasticsearch.watcher;
 
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.Test;
-
-import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 import static org.hamcrest.Matchers.*;
@@ -40,14 +37,14 @@ public class ResourceWatcherServiceTests extends ElasticsearchTestCase {
         ThreadPool threadPool = new ThreadPool("test");
 
         // checking the defaults
-        Settings settings = ImmutableSettings.builder().build();
+        Settings settings = Settings.builder().build();
         ResourceWatcherService service = new ResourceWatcherService(settings, threadPool);
         assertThat(service.highMonitor.interval, is(ResourceWatcherService.Frequency.HIGH.interval));
         assertThat(service.mediumMonitor.interval, is(ResourceWatcherService.Frequency.MEDIUM.interval));
         assertThat(service.lowMonitor.interval, is(ResourceWatcherService.Frequency.LOW.interval));
 
         // checking bwc
-        settings = ImmutableSettings.builder()
+        settings = Settings.builder()
                 .put("watcher.interval", "40s") // only applies to medium
                 .build();
         service = new ResourceWatcherService(settings, threadPool);
@@ -56,7 +53,7 @@ public class ResourceWatcherServiceTests extends ElasticsearchTestCase {
         assertThat(service.lowMonitor.interval.millis(), is(timeValueSeconds(60).millis()));
 
         // checking custom
-        settings = ImmutableSettings.builder()
+        settings = Settings.builder()
                 .put("watcher.interval.high", "10s")
                 .put("watcher.interval.medium", "20s")
                 .put("watcher.interval.low", "30s")
@@ -72,7 +69,7 @@ public class ResourceWatcherServiceTests extends ElasticsearchTestCase {
     @Test
     public void testHandle() throws Exception {
         ThreadPool threadPool = new ThreadPool("test");
-        Settings settings = ImmutableSettings.builder().build();
+        Settings settings = Settings.builder().build();
         ResourceWatcherService service = new ResourceWatcherService(settings, threadPool);
         ResourceWatcher watcher = new ResourceWatcher() {
             @Override

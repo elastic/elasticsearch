@@ -23,7 +23,7 @@ import com.google.common.collect.Lists;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
@@ -42,7 +42,7 @@ public class RestFilterChainTests extends ElasticsearchTestCase {
     @Test
     public void testRestFilters() throws InterruptedException {
 
-        RestController restController = new RestController(ImmutableSettings.EMPTY);
+        RestController restController = new RestController(Settings.EMPTY);
 
         int numFilters = randomInt(10);
         Set<Integer> orders = new HashSet<>(numFilters);
@@ -130,7 +130,7 @@ public class RestFilterChainTests extends ElasticsearchTestCase {
             }
         });
 
-        RestController restController = new RestController(ImmutableSettings.EMPTY);
+        RestController restController = new RestController(Settings.EMPTY);
         restController.registerFilter(testFilter);
 
         restController.registerHandler(RestRequest.Method.GET, "/", new RestHandler() {

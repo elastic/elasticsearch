@@ -20,7 +20,6 @@
 package org.elasticsearch.rest.action.admin.indices.upgrade;
 
 import com.google.common.base.Predicate;
-import org.apache.http.impl.client.HttpClients;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.segments.IndexSegments;
@@ -32,7 +31,6 @@ import org.elasticsearch.cluster.routing.allocation.decider.ConcurrentRebalanceA
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.node.Node;
@@ -43,7 +41,6 @@ import org.elasticsearch.test.rest.client.http.HttpResponse;
 import org.elasticsearch.test.rest.json.JsonPath;
 import org.junit.BeforeClass;
 
-import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -67,7 +64,7 @@ public class UpgradeTest extends ElasticsearchBackwardsCompatIntegrationTest {
 
     public void testUpgrade() throws Exception {
         // allow the cluster to rebalance quickly - 2 concurrent rebalance are default we can do higher
-        ImmutableSettings.Builder builder = ImmutableSettings.builder();
+        Settings.Builder builder = Settings.builder();
         builder.put(ConcurrentRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_REBALANCE, 100);
         client().admin().cluster().prepareUpdateSettings().setPersistentSettings(builder).get();
 
@@ -77,7 +74,7 @@ public class UpgradeTest extends ElasticsearchBackwardsCompatIntegrationTest {
             final String indexName = "test" + i;
             indexNames[i] = indexName;
             
-            Settings settings = ImmutableSettings.builder()
+            Settings settings = Settings.builder()
                 .put("index.routing.allocation.exclude._name", backwardsCluster().newNodePattern())
                 // don't allow any merges so that we can check segments are upgraded
                 // by the upgrader, and not just regular merging
@@ -124,11 +121,11 @@ public class UpgradeTest extends ElasticsearchBackwardsCompatIntegrationTest {
         backwardsCluster().allowOnAllNodes(indexNames);
         ensureGreen();
         // disable allocation entirely until all nodes are upgraded
-        builder = ImmutableSettings.builder();
+        builder = Settings.builder();
         builder.put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE, EnableAllocationDecider.Allocation.NONE);
         client().admin().cluster().prepareUpdateSettings().setTransientSettings(builder).get();
         backwardsCluster().upgradeAllNodes();
-        builder = ImmutableSettings.builder();
+        builder = Settings.builder();
         // disable rebalanceing entirely for the time being otherwise we might get relocations / rebalance from nodes with old segments
         builder.put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE, EnableAllocationDecider.Rebalance.NONE);
         builder.put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE, EnableAllocationDecider.Allocation.ALL);
@@ -311,7 +308,7 @@ public class UpgradeTest extends ElasticsearchBackwardsCompatIntegrationTest {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return ImmutableSettings.builder().put(super.nodeSettings(nodeOrdinal))
+        return Settings.builder().put(super.nodeSettings(nodeOrdinal))
             .put(Node.HTTP_ENABLED, true).build();
     }
 }

@@ -31,7 +31,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.node.Node;
@@ -106,13 +105,13 @@ public class TribeTests extends ElasticsearchIntegrationTest {
 
     private void setupTribeNode(Settings settings) {
         ImmutableMap<String,String> asMap = internalCluster().getDefaultSettings().getAsMap();
-        ImmutableSettings.Builder tribe1Defaults = ImmutableSettings.builder();
-        ImmutableSettings.Builder tribe2Defaults = ImmutableSettings.builder();
+        Settings.Builder tribe1Defaults = Settings.builder();
+        Settings.Builder tribe2Defaults = Settings.builder();
         for (Map.Entry<String, String> entry : asMap.entrySet()) {
             tribe1Defaults.put("tribe.t1." + entry.getKey(), entry.getValue());
             tribe2Defaults.put("tribe.t2." + entry.getKey(), entry.getValue());
         }
-        Settings merged = ImmutableSettings.builder()
+        Settings merged = Settings.builder()
                 .put("tribe.t1.cluster.name", internalCluster().getClusterName())
                 .put("tribe.t2.cluster.name", cluster2.getClusterName())
                 .put("tribe.blocks.write", false)
@@ -137,7 +136,7 @@ public class TribeTests extends ElasticsearchIntegrationTest {
         assertAcked(cluster2.client().admin().indices().prepareCreate("test2"));
 
 
-        setupTribeNode(ImmutableSettings.builder()
+        setupTribeNode(Settings.builder()
                 .put("tribe.blocks.write", true)
                 .put("tribe.blocks.metadata", true)
                 .build());
@@ -176,7 +175,7 @@ public class TribeTests extends ElasticsearchIntegrationTest {
         assertAcked(cluster2.client().admin().indices().prepareCreate("test2"));
         assertAcked(cluster2.client().admin().indices().prepareCreate("block_test2"));
 
-        setupTribeNode(ImmutableSettings.builder()
+        setupTribeNode(Settings.builder()
                 .put("tribe.blocks.write.indices", "block_*")
                 .build());
         logger.info("wait till tribe has the same nodes as the 2 clusters");
@@ -210,7 +209,7 @@ public class TribeTests extends ElasticsearchIntegrationTest {
         assertAcked(cluster().client().admin().indices().prepareCreate("test1"));
         assertAcked(cluster2.client().admin().indices().prepareCreate("test2"));
 
-        setupTribeNode(ImmutableSettings.builder()
+        setupTribeNode(Settings.builder()
                 .put("tribe.on_conflict", "drop")
                 .build());
 
@@ -240,7 +239,7 @@ public class TribeTests extends ElasticsearchIntegrationTest {
         assertAcked(internalCluster().client().admin().indices().prepareCreate("test1"));
         assertAcked(cluster2.client().admin().indices().prepareCreate("test2"));
 
-        setupTribeNode(ImmutableSettings.builder()
+        setupTribeNode(Settings.builder()
                 .put("tribe.on_conflict", "prefer_" + tribe)
                 .build());
         logger.info("wait till tribe has the same nodes as the 2 clusters");
@@ -256,7 +255,7 @@ public class TribeTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testTribeOnOneCluster() throws Exception {
-        setupTribeNode(ImmutableSettings.EMPTY);
+        setupTribeNode(Settings.EMPTY);
         logger.info("create 2 indices, test1 on t1, and test2 on t2");
         assertAcked(internalCluster().client().admin().indices().prepareCreate("test1"));
         assertAcked(cluster2.client().admin().indices().prepareCreate("test2"));
@@ -338,7 +337,7 @@ public class TribeTests extends ElasticsearchIntegrationTest {
         ensureGreen(internalCluster());
         assertAcked(internalCluster().client().admin().indices().prepareClose("test1"));
 
-        setupTribeNode(ImmutableSettings.EMPTY);
+        setupTribeNode(Settings.EMPTY);
         awaitSameNodeCounts();
 
         //the closed index is not part of the tribe node cluster state

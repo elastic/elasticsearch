@@ -25,7 +25,6 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLoggerFactory;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 
 import java.util.Map;
@@ -37,7 +36,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
  */
 public class NodeSettingsService extends AbstractComponent implements ClusterStateListener {
 
-    private static volatile Settings globalSettings = ImmutableSettings.Builder.EMPTY_SETTINGS;
+    private static volatile Settings globalSettings = Settings.Builder.EMPTY_SETTINGS;
 
     /**
      * Returns the global (static) settings last updated by a node. Note, if you have multiple

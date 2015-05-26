@@ -294,26 +294,23 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
         @Override
         protected NumericDoubleValues distance(LeafReaderContext context) {
             final MultiGeoPointValues geoPointValues = fieldData.load(context).getGeoPointValues();
-            return new NumericDoubleValues() {
-
+            return mode.select(new MultiValueMode.UnsortedNumericDoubleValues() {
                 @Override
-                public double get(int docID) {
-                    geoPointValues.setDocument(docID);
-                    final int num = geoPointValues.count();
-                    if (num > 0) {
-                        double value = mode.startDouble();
-                        for (int i = 0; i < num; i++) {
-                            GeoPoint other = geoPointValues.valueAt(i);
-                            value = mode.apply(Math.max(0.0d, distFunction.calculate(origin.lat(), origin.lon(), other.lat(), other.lon(),
-                                    DistanceUnit.METERS) - offset), value);
-                        }
-                        return mode.reduce(value, num);
-                    } else {
-                        return 0.0;
-                    }
+                public int count() {
+                    return geoPointValues.count();
                 }
 
-            };
+                @Override
+                public void setDocument(int docId) {
+                    geoPointValues.setDocument(docId);
+                }
+
+                @Override
+                public double valueAt(int index) {
+                    GeoPoint other = geoPointValues.valueAt(index);
+                    return Math.max(0.0d, distFunction.calculate(origin.lat(), origin.lon(), other.lat(), other.lon(), DistanceUnit.METERS) - offset);
+                }
+            }, 0.0);
         }
 
         @Override
@@ -360,23 +357,22 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
         @Override
         protected NumericDoubleValues distance(LeafReaderContext context) {
             final SortedNumericDoubleValues doubleValues = fieldData.load(context).getDoubleValues();
-            return new NumericDoubleValues() {
+            return mode.select(new MultiValueMode.UnsortedNumericDoubleValues() {
                 @Override
-                public double get(int docID) {
-                    doubleValues.setDocument(docID);
-                    final int num = doubleValues.count();
-                    if (num > 0) {
-                        double value = mode.startDouble();
-                        for (int i = 0; i < num; i++) {
-                            final double other = doubleValues.valueAt(i);
-                            value = mode.apply(Math.max(0.0d, Math.abs(other - origin) - offset), value);
-                        }
-                        return mode.reduce(value, num);
-                    } else {
-                        return 0.0;
-                    }
+                public int count() {
+                    return doubleValues.count();
                 }
-            };
+
+                @Override
+                public void setDocument(int docId) {
+                    doubleValues.setDocument(docId);
+                }
+
+                @Override
+                public double valueAt(int index) {
+                    return Math.max(0.0d, Math.abs(doubleValues.valueAt(index) - origin) - offset);
+                }
+            }, 0.0);
         }
 
         @Override

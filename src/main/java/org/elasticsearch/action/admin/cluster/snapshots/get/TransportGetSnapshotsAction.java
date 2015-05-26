@@ -20,7 +20,6 @@
 package org.elasticsearch.action.admin.cluster.snapshots.get;
 
 import com.google.common.collect.ImmutableList;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
@@ -62,7 +61,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeOperationAct
 
     @Override
     protected ClusterBlockException checkBlock(GetSnapshotsRequest request, ClusterState state) {
-        return state.blocks().indexBlockedException(ClusterBlockLevel.METADATA_READ, "");
+        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
     }
 
     @Override

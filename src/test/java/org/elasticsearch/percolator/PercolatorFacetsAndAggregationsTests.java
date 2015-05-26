@@ -20,7 +20,7 @@ package org.elasticsearch.percolator;
 
 import org.elasticsearch.action.percolate.PercolateRequestBuilder;
 import org.elasticsearch.action.percolate.PercolateResponse;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -201,7 +201,7 @@ public class PercolatorFacetsAndAggregationsTests extends ElasticsearchIntegrati
 
     @Test
     public void testSingleShardAggregations() throws Exception {
-        assertAcked(prepareCreate("test").setSettings(ImmutableSettings.builder().put(indexSettings()).put("SETTING_NUMBER_OF_SHARDS", 1))
+        assertAcked(prepareCreate("test").setSettings(Settings.builder().put(indexSettings()).put("SETTING_NUMBER_OF_SHARDS", 1))
                 .addMapping("type", "field1", "type=string", "field2", "type=string"));
         ensureGreen();
 

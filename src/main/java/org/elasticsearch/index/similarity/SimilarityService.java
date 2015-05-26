@@ -22,7 +22,6 @@ package org.elasticsearch.index.similarity;
 import org.apache.lucene.search.similarities.PerFieldSimilarityWrapper;
 import org.apache.lucene.search.similarities.Similarity;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
@@ -41,7 +40,7 @@ public class SimilarityService extends AbstractIndexComponent {
     private final Similarity perFieldSimilarity;
 
     public SimilarityService(Index index) {
-        this(index, ImmutableSettings.Builder.EMPTY_SETTINGS);
+        this(index, Settings.Builder.EMPTY_SETTINGS);
     }
 
     public SimilarityService(Index index, Settings settings) {

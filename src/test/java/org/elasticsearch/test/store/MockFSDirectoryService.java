@@ -32,9 +32,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.*;
@@ -210,7 +208,7 @@ public class MockFSDirectoryService extends FsDirectoryService {
     }
 
     private FsDirectoryService randomDirectorService(IndexStore indexStore, ShardPath path) {
-        ImmutableSettings.Builder builder = ImmutableSettings.settingsBuilder();
+        Settings.Builder builder = Settings.settingsBuilder();
         builder.put(indexSettings);
         builder.put(IndexStoreModule.STORE_TYPE, RandomPicks.randomFrom(random, IndexStoreModule.Type.values()));
         return new FsDirectoryService(builder.build(), indexStore, path);

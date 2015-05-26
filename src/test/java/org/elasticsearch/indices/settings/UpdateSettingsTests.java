@@ -29,7 +29,6 @@ import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.merge.policy.TieredMergePolicyProvider;
@@ -54,7 +53,7 @@ public class UpdateSettingsTests extends ElasticsearchIntegrationTest {
         createIndex("test");
         try {
             client().admin().indices().prepareUpdateSettings("test")
-                    .setSettings(ImmutableSettings.settingsBuilder()
+                    .setSettings(Settings.settingsBuilder()
                             .put("index.refresh_interval", -1) // this one can change
                             .put("index.cache.filter.type", "none") // this one can't
                     )
@@ -74,7 +73,7 @@ public class UpdateSettingsTests extends ElasticsearchIntegrationTest {
         assertThat(getSettingsResponse.getSetting("test", "index.cache.filter.type"), nullValue());
 
         client().admin().indices().prepareUpdateSettings("test")
-                .setSettings(ImmutableSettings.settingsBuilder()
+                .setSettings(Settings.settingsBuilder()
                         .put("index.refresh_interval", -1) // this one can change
                 )
                 .execute().actionGet();
@@ -94,7 +93,7 @@ public class UpdateSettingsTests extends ElasticsearchIntegrationTest {
         client().admin().indices().prepareClose("test").execute().actionGet();
 
         client().admin().indices().prepareUpdateSettings("test")
-                .setSettings(ImmutableSettings.settingsBuilder()
+                .setSettings(Settings.settingsBuilder()
                         .put("index.refresh_interval", "1s") // this one can change
                         .put("index.cache.filter.type", "none") // this one can't
                 )
@@ -117,7 +116,7 @@ public class UpdateSettingsTests extends ElasticsearchIntegrationTest {
         client().prepareDelete("test", "type", "1").get(); // sets version to 2
         client().prepareIndex("test", "type", "1").setSource("f", 2).setVersion(2).get(); // delete is still in cache this should work & set version to 3
         client().admin().indices().prepareUpdateSettings("test")
-                .setSettings(ImmutableSettings.settingsBuilder()
+                .setSettings(Settings.settingsBuilder()
                         .put("index.gc_deletes", 0)
                 ).get();
 
@@ -134,7 +133,7 @@ public class UpdateSettingsTests extends ElasticsearchIntegrationTest {
 
         // No throttling at first, only 1 non-replicated shard, force lots of merging:
         assertAcked(prepareCreate("test")
-                    .setSettings(ImmutableSettings.builder()
+                    .setSettings(Settings.builder()
                                  .put(IndexStore.INDEX_STORE_THROTTLE_TYPE, "none")
                                  .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, "1")
                                  .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "0")
@@ -172,7 +171,7 @@ public class UpdateSettingsTests extends ElasticsearchIntegrationTest {
             .admin()
             .indices()
             .prepareUpdateSettings("test")
-            .setSettings(ImmutableSettings.builder()
+            .setSettings(Settings.builder()
                          .put(IndexStore.INDEX_STORE_THROTTLE_TYPE, "merge")
                          .put(IndexStore.INDEX_STORE_THROTTLE_MAX_BYTES_PER_SEC, "1mb"))
             .get();
@@ -212,7 +211,7 @@ public class UpdateSettingsTests extends ElasticsearchIntegrationTest {
             .admin()
             .indices()
             .prepareUpdateSettings("test")
-            .setSettings(ImmutableSettings.builder()
+            .setSettings(Settings.builder()
                          .put(IndexStore.INDEX_STORE_THROTTLE_TYPE, "none"))
             .get();
 
@@ -307,7 +306,7 @@ public class UpdateSettingsTests extends ElasticsearchIntegrationTest {
         try {
             // No throttling at first, only 1 non-replicated shard, force lots of merging:
             assertAcked(prepareCreate("test")
-                        .setSettings(ImmutableSettings.builder()
+                        .setSettings(Settings.builder()
                                      .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, "1")
                                      .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "0")
                                      .put(TieredMergePolicyProvider.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE, "2")
@@ -322,7 +321,7 @@ public class UpdateSettingsTests extends ElasticsearchIntegrationTest {
                 .admin()
                 .indices()
                 .prepareUpdateSettings("test")
-                .setSettings(ImmutableSettings.builder()
+                .setSettings(Settings.builder()
                              .put(ConcurrentMergeSchedulerProvider.AUTO_THROTTLE, "no"))
                 .get();
 
@@ -351,7 +350,7 @@ public class UpdateSettingsTests extends ElasticsearchIntegrationTest {
         try {
 
             assertAcked(prepareCreate("test")
-                        .setSettings(ImmutableSettings.builder()
+                        .setSettings(Settings.builder()
                                      .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, "1")
                                      .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "0")
                                      .put(TieredMergePolicyProvider.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE, "2")
@@ -368,7 +367,7 @@ public class UpdateSettingsTests extends ElasticsearchIntegrationTest {
                 .admin()
                 .indices()
                 .prepareUpdateSettings("test")
-                .setSettings(ImmutableSettings.builder()
+                .setSettings(Settings.builder()
                              .put(ConcurrentMergeSchedulerProvider.MAX_THREAD_COUNT, "1")
                              )
                 .get();
@@ -391,7 +390,7 @@ public class UpdateSettingsTests extends ElasticsearchIntegrationTest {
         createIndex("test");
         ensureGreen("test");
 
-        Settings.Builder builder = ImmutableSettings.builder().put("index.refresh_interval", -1);
+        Settings.Builder builder = Settings.builder().put("index.refresh_interval", -1);
 
         for (String blockSetting : Arrays.asList(SETTING_BLOCKS_READ, SETTING_BLOCKS_WRITE)) {
             try {

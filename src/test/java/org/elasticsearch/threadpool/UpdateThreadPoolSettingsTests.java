@@ -20,7 +20,6 @@
 package org.elasticsearch.threadpool;
 
 import com.google.common.util.concurrent.MoreExecutors;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.test.ElasticsearchTestCase;
@@ -33,7 +32,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.*;
 
 /**
@@ -52,7 +51,7 @@ public class UpdateThreadPoolSettingsTests extends ElasticsearchTestCase {
     @Test
     public void testCachedExecutorType() throws InterruptedException {
         ThreadPool threadPool = new ThreadPool(
-                ImmutableSettings.settingsBuilder()
+                Settings.settingsBuilder()
                         .put("threadpool.search.type", "cached")
                         .put("name","testCachedExecutorType").build());
 
@@ -202,7 +201,7 @@ public class UpdateThreadPoolSettingsTests extends ElasticsearchTestCase {
 
     @Test(timeout = 10000)
     public void testShutdownDownNowDoesntBlock() throws Exception {
-        ThreadPool threadPool = new ThreadPool(ImmutableSettings.settingsBuilder()
+        ThreadPool threadPool = new ThreadPool(Settings.settingsBuilder()
                 .put("threadpool.search.type", "cached")
                 .put("name","testCachedExecutorType").build());
 
@@ -231,7 +230,7 @@ public class UpdateThreadPoolSettingsTests extends ElasticsearchTestCase {
 
     @Test
     public void testCustomThreadPool() throws Exception {
-        ThreadPool threadPool = new ThreadPool(ImmutableSettings.settingsBuilder()
+        ThreadPool threadPool = new ThreadPool(Settings.settingsBuilder()
                 .put("threadpool.my_pool1.type", "cached")
                 .put("threadpool.my_pool2.type", "fixed")
                 .put("threadpool.my_pool2.size", "1")
@@ -265,7 +264,7 @@ public class UpdateThreadPoolSettingsTests extends ElasticsearchTestCase {
         assertThat(foundPool2, is(true));
 
         // Updating my_pool2
-        Settings settings = ImmutableSettings.builder()
+        Settings settings = Settings.builder()
                 .put("threadpool.my_pool2.size", "10")
                 .build();
         threadPool.updateSettings(settings);

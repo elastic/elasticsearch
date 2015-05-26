@@ -32,7 +32,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.discovery.Discovery;
@@ -62,7 +61,7 @@ public class ZenDiscoveryTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testChangeRejoinOnMasterOptionIsDynamic() throws Exception {
-        Settings nodeSettings = ImmutableSettings.settingsBuilder()
+        Settings nodeSettings = Settings.settingsBuilder()
                 .put("discovery.type", "zen") // <-- To override the local setting if set externally
                 .build();
         String nodeName = internalCluster().startNode(nodeSettings);
@@ -70,7 +69,7 @@ public class ZenDiscoveryTests extends ElasticsearchIntegrationTest {
         assertThat(zenDiscovery.isRejoinOnMasterGone(), is(true));
 
         client().admin().cluster().prepareUpdateSettings()
-                .setTransientSettings(ImmutableSettings.builder().put(ZenDiscovery.SETTING_REJOIN_ON_MASTER_GONE, false))
+                .setTransientSettings(Settings.builder().put(ZenDiscovery.SETTING_REJOIN_ON_MASTER_GONE, false))
                 .get();
 
         assertThat(zenDiscovery.isRejoinOnMasterGone(), is(false));
@@ -78,18 +77,18 @@ public class ZenDiscoveryTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testNoShardRelocationsOccurWhenElectedMasterNodeFails() throws Exception {
-        Settings defaultSettings = ImmutableSettings.builder()
+        Settings defaultSettings = Settings.builder()
                 .put(FaultDetection.SETTING_PING_TIMEOUT, "1s")
                 .put(FaultDetection.SETTING_PING_RETRIES, "1")
                 .put("discovery.type", "zen")
                 .build();
 
-        Settings masterNodeSettings = ImmutableSettings.builder()
+        Settings masterNodeSettings = Settings.builder()
                 .put("node.data", false)
                 .put(defaultSettings)
                 .build();
         internalCluster().startNodesAsync(2, masterNodeSettings).get();
-        Settings dateNodeSettings = ImmutableSettings.builder()
+        Settings dateNodeSettings = Settings.builder()
                 .put("node.master", false)
                 .put(defaultSettings)
                 .build();
@@ -126,18 +125,18 @@ public class ZenDiscoveryTests extends ElasticsearchIntegrationTest {
     @Test
     @TestLogging(value = "action.admin.cluster.health:TRACE")
     public void testNodeFailuresAreProcessedOnce() throws ExecutionException, InterruptedException, IOException {
-        Settings defaultSettings = ImmutableSettings.builder()
+        Settings defaultSettings = Settings.builder()
                 .put(FaultDetection.SETTING_PING_TIMEOUT, "1s")
                 .put(FaultDetection.SETTING_PING_RETRIES, "1")
                 .put("discovery.type", "zen")
                 .build();
 
-        Settings masterNodeSettings = ImmutableSettings.builder()
+        Settings masterNodeSettings = Settings.builder()
                 .put("node.data", false)
                 .put(defaultSettings)
                 .build();
         String master = internalCluster().startNode(masterNodeSettings);
-        Settings dateNodeSettings = ImmutableSettings.builder()
+        Settings dateNodeSettings = Settings.builder()
                 .put("node.master", false)
                 .put(defaultSettings)
                 .build();
@@ -170,7 +169,7 @@ public class ZenDiscoveryTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testNodeRejectsClusterStateWithWrongMasterNode() throws Exception {
-        Settings settings = ImmutableSettings.builder()
+        Settings settings = Settings.builder()
                 .put("discovery.type", "zen")
                 .build();
         List<String> nodeNames = internalCluster().startNodesAsync(2, settings).get();

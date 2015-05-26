@@ -24,7 +24,6 @@ import com.google.common.collect.Lists;
 import org.apache.lucene.document.FieldType;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
@@ -174,7 +173,7 @@ public class FieldMappersLookupTests extends ElasticsearchTestCase {
 
     // this sucks how much must be overriden just do get a dummy field mapper...
     static class FakeFieldMapper extends AbstractFieldMapper {
-        static Settings dummySettings = ImmutableSettings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
+        static Settings dummySettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
         public FakeFieldMapper(String fullName, String indexName) {
             super(new Names(fullName, indexName, indexName, fullName), 1.0f, AbstractFieldMapper.Defaults.FIELD_TYPE, null, null, null, null, null, null, dummySettings, null, null);
         }

@@ -27,7 +27,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.http.HttpInfo;
 import org.elasticsearch.monitor.jvm.JvmInfo;
@@ -209,7 +208,7 @@ public class NodeInfo extends NodeOperationResponse {
             serviceAttributes = builder.build();
         }
         if (in.readBoolean()) {
-            settings = ImmutableSettings.readSettingsFromStream(in);
+            settings = Settings.readSettingsFromStream(in);
         }
         if (in.readBoolean()) {
             os = OsInfo.readOsInfo(in);
@@ -256,7 +255,7 @@ public class NodeInfo extends NodeOperationResponse {
             out.writeBoolean(false);
         } else {
             out.writeBoolean(true);
-            ImmutableSettings.writeSettingsToStream(settings, out);
+            Settings.writeSettingsToStream(settings, out);
         }
         if (os == null) {
             out.writeBoolean(false);

@@ -14,7 +14,7 @@ See <<setup-repositories>>.
 [float]
 == Installation
 
-After link:/download[downloading] the latest release and extracting it,
+After link:/downloads/elasticsearch[downloading] the latest release and extracting it,
 *elasticsearch* can be started using:
 
 [source,sh]
@@ -22,13 +22,36 @@ After link:/download[downloading] the latest release and extracting it,
 $ bin/elasticsearch
 --------------------------------------------------
 
-Under *nix system, the command will start the process in the foreground.
+On *nix systems, the command will start the process in the foreground.
+
+[[setup-installation-daemon]]
+[float]
+=== Running as a daemon
+
 To run it in the background, add the `-d` switch to it:
 
 [source,sh]
 --------------------------------------------------
 $ bin/elasticsearch -d
 --------------------------------------------------
+
+[[setup-installation-pid]]
+[float]
+=== PID
+
+The Elasticsearch process can write its PID to a specified file on startup,
+making it easy to shut down the process later on:
+
+[source,sh]
+--------------------------------------------------
+$ bin/elasticsearch -d -p pid <1>
+$ kill `cat pid` <2>
+--------------------------------------------------
+<1> The PID is written to a file called `pid`.
+<2> The `kill` command sends a `TERM` signal to the PID stored in the `pid` file.
+
+NOTE: The startup scripts provided for <<setup-service,Linux>> and <<setup-service-win,Windows>>
+take care of starting and stopping the Elasticsearch process for you.
 
 .*NIX
 *************************************************************************

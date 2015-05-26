@@ -24,8 +24,8 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.SimpleCollector;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.bulk.TransportBulkAction;
@@ -42,8 +42,6 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fieldvisitor.UidAndRoutingFieldsVisitor;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.FieldMappers;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.TTLFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
@@ -280,12 +278,28 @@ public class IndicesTTLService extends AbstractLifecycleComponent<IndicesTTLServ
                 bulkAction.executeBulk(bulkRequest, new ActionListener<BulkResponse>() {
                     @Override
                     public void onResponse(BulkResponse bulkResponse) {
-                        logger.trace("bulk took " + bulkResponse.getTookInMillis() + "ms");
+                        if (bulkResponse.hasFailures()) {
+                            int failedItems = 0;
+                            for (BulkItemResponse response : bulkResponse) {
+                                if (response.isFailed()) failedItems++;
+                            }
+                            if (logger.isTraceEnabled()) {
+                                logger.trace("bulk deletion failures for [{}]/[{}] items, failure message: [{}]", failedItems, bulkResponse.getItems().length, bulkResponse.buildFailureMessage());
+                            } else {
+                                logger.error("bulk deletion failures for [{}]/[{}] items", failedItems, bulkResponse.getItems().length);
+                            }
+                        } else {
+                            logger.trace("bulk deletion took " + bulkResponse.getTookInMillis() + "ms");
+                        }
                     }
 
                     @Override
                     public void onFailure(Throwable e) {
-                        logger.warn("failed to execute bulk");
+                        if (logger.isTraceEnabled()) {
+                            logger.trace("failed to execute bulk", e);
+                        } else {
+                            logger.warn("failed to execute bulk: [{}]", e.getMessage());
+                        }
                     }
                 });
             } catch (Exception e) {

@@ -71,7 +71,7 @@ public class DiversifiedBytesHashSamplerAggregator extends SamplerAggregator {
     class DiverseDocsDeferringCollector extends BestDocsDeferringCollector {
 
         public DiverseDocsDeferringCollector() {
-            super(shardSize);
+            super(shardSize, context.bigArrays());
         }
 
 

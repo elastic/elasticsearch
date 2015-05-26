@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common.component;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.settings.Settings;
 
 import java.util.List;

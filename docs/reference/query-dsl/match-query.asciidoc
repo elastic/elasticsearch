@@ -17,10 +17,11 @@ Note, `message` is the name of a field, you can substitute the name of
 any field (including `_all`) instead.
 
 [float]
-==== Types of Match Queries
+=== Types of Match Queries
 
 [float]
-===== boolean
+[[query-dsl-match-query-boolean]]
+==== boolean
 
 The default `match` query is of type `boolean`. It means that the text
 provided is analyzed and the analysis process constructs a boolean query
@@ -33,6 +34,14 @@ parameter.
 The `analyzer` can be set to control which analyzer will perform the
 analysis process on the text. It defaults to the field explicit mapping
 definition, or the default search analyzer.
+
+The `lenient` parameter can be set to `true` to ignore exceptions caused by
+data-type mismatches,  such as trying to query a numeric field with a text
+query string. Defaults to `false`.
+
+[[query-dsl-match-query-fuzziness]]
+[float]
+===== Fuzziness
 
 `fuzziness` allows _fuzzy matching_ based on the type of field being queried.
 See <<fuzziness>> for allowed settings.
@@ -59,7 +68,9 @@ change in structure, `message` is the field name):
 }
 --------------------------------------------------
 
-.zero_terms_query
+[[query-dsl-match-query-zero]]
+[float]
+===== Zero terms query
 If the analyzer used removes all tokens in a query like a `stop` filter
 does, the default behavior is to match no documents at all. In order to
 change that the `zero_terms_query` option can be used, which accepts
@@ -78,7 +89,10 @@ change that the `zero_terms_query` option can be used, which accepts
 }
 --------------------------------------------------
 
-.cutoff_frequency
+[[query-dsl-match-query-cutoff]]
+[float]
+===== Cutoff frequency
+
 The match query supports a `cutoff_frequency` that allows
 specifying an absolute or relative document frequency where high
 frequency terms are moved into an optional subquery and are only scored
@@ -117,8 +131,9 @@ IMPORTANT: The `cutoff_frequency` option operates on a per-shard-level. This mea
 that when trying it out on test indexes with low document numbers you
 should follow the advice in {defguide}/relevance-is-broken.html[Relevance is broken].
 
+[[query-dsl-match-query-phrase]]
 [float]
-===== phrase
+==== phrase
 
 The `match_phrase` query analyzes the text and creates a `phrase` query
 out of the analyzed text. For example:
@@ -167,6 +182,7 @@ definition, or the default search analyzer, for example:
 --------------------------------------------------
 
 [float]
+[[query-dsl-match-query-phrase-prefix]]
 ===== match_phrase_prefix
 
 The `match_phrase_prefix` is the same as `match_phrase`, except that it
@@ -213,8 +229,8 @@ For example:
 }
 --------------------------------------------------
 
-[float]
-==== Comparison to query_string / field
+.Comparison to query_string / field
+**************************************************
 
 The match family of queries does not go through a "query parsing"
 process. It does not support field name prefixes, wildcard characters,
@@ -225,8 +241,4 @@ usually what a text search box does). Also, the `phrase_prefix` type can
 provide a great "as you type" behavior to automatically load search
 results.
 
-[float]
-==== Other options
-
-* `lenient` - If set to true will cause format based failures (like
-providing text to a numeric field) to be ignored. Defaults to false.
+**************************************************

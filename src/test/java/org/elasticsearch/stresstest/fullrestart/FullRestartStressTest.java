@@ -27,7 +27,6 @@ import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -56,7 +55,7 @@ public class FullRestartStressTest {
     private int bulkSize = 1000;
     private int numberOfDocsPerRound = 50000;
 
-    private Settings settings = ImmutableSettings.Builder.EMPTY_SETTINGS;
+    private Settings settings = Settings.Builder.EMPTY_SETTINGS;
 
     private TimeValue period = TimeValue.timeValueMinutes(20);
 
@@ -201,7 +200,7 @@ public class FullRestartStressTest {
         System.setProperty("es.logger.prefix", "");
 
         int numberOfNodes = 2;
-        Settings settings = ImmutableSettings.settingsBuilder()
+        Settings settings = Settings.settingsBuilder()
                 .put("index.shard.check_on_startup", true)
                 .put("gateway.recover_after_nodes", numberOfNodes)
                 .put("index.number_of_shards", 1)

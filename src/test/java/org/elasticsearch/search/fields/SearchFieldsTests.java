@@ -30,7 +30,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.joda.Joda;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
@@ -435,7 +435,7 @@ public class SearchFieldsTests extends ElasticsearchIntegrationTest {
     @Test
     public void testGetFields_complexField() throws Exception {
         client().admin().indices().prepareCreate("my-index")
-                .setSettings(ImmutableSettings.settingsBuilder().put("index.refresh_interval", -1))
+                .setSettings(Settings.settingsBuilder().put("index.refresh_interval", -1))
                 .addMapping("my-type2", jsonBuilder().startObject().startObject("my-type2").startObject("properties")
                         .startObject("field1").field("type", "object").startObject("properties")
                         .startObject("field2").field("type", "object").startObject("properties")

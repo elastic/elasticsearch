@@ -27,11 +27,9 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.threadpool.ThreadPool;
 
 import java.net.MalformedURLException;
 import java.net.URL;
-import java.util.concurrent.Executor;
 
 /**
  * Read-only URL-based blob store

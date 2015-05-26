@@ -252,7 +252,7 @@ public class AsyncShardFetchTests extends ElasticsearchTestCase {
         private AtomicInteger reroute = new AtomicInteger();
 
         public TestFetch(ThreadPool threadPool) {
-            super(Loggers.getLogger(TestFetch.class), new ShardId("test", 1), null);
+            super(Loggers.getLogger(TestFetch.class), "test", new ShardId("test", 1), null);
             this.threadPool = threadPool;
         }
 

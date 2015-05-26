@@ -79,14 +79,18 @@ omit :
    each term in this field)
 
 [float]
-==== Distributed frequencies coming[2.0]
+==== Distributed frequencies
+
+coming[2.0]
 
 Setting `dfs` to `true` (default is `false`) will return the term statistics
 or the field statistics of the entire index, and not just at the shard. Use it
 with caution as distributed frequencies can have a serious performance impact.
 
 [float]
-==== Terms Filtering coming[2.0]
+==== Terms Filtering
+
+coming[2.0]
 
 With the parameter `filter`, the terms returned could also be filtered based
 on their tf-idf scores. This could be useful in order find out a good
@@ -124,8 +128,8 @@ whereas the absolute numbers have no meaning in this context. By default,
 when requesting term vectors of artificial documents, a shard to get the statistics
 from is randomly selected. Use `routing` only to hit a particular shard.
 
-[float]
-=== Example 1
+.Returning stored term vectors
+==================================================
 
 First, we create an index that stores term vectors, payloads etc. :
 
@@ -263,9 +267,10 @@ Response:
     }
 }
 --------------------------------------------------
+==================================================
 
-[float]
-=== Example 2
+.Generating term vectors on the fly
+==================================================
 
 Term vectors which are not explicitly stored in the index are automatically
 computed on the fly. The following request returns all information and statistics for the
@@ -282,10 +287,12 @@ curl -XGET 'http://localhost:9200/twitter/tweet/1/_termvectors?pretty=true' -d '
   "field_statistics" : true
 }'
 --------------------------------------------------
+==================================================
 
-[float]
 [[docs-termvectors-artificial-doc]]
-=== Example 3
+[example]
+.Artificial documents
+--
 
 Term vectors can also be generated for artificial documents,
 that is for documents not present in the index. The syntax is similar to the
@@ -293,11 +300,8 @@ that is for documents not present in the index. The syntax is similar to the
 return the same results as in example 1. The mapping used is determined by the
 `index` and `type`.
 
-[WARNING]
-======
-If dynamic mapping is turned on (default), the document fields not in the original
-mapping will be dynamically created.
-======
+*If dynamic mapping is turned on (default), the document fields not in the original
+mapping will be dynamically created.*
 
 [source,js]
 --------------------------------------------------
@@ -308,10 +312,11 @@ curl -XGET 'http://localhost:9200/twitter/tweet/_termvectors' -d '{
   }
 }'
 --------------------------------------------------
+--
 
-[float]
 [[docs-termvectors-per-field-analyzer]]
-=== Example 4
+.Per-field analyzer
+==================================================
 
 Additionally, a different analyzer than the one at the field may be provided
 by using the `per_field_analyzer` parameter. This is useful in order to
@@ -365,10 +370,11 @@ Response:
   }
 }
 --------------------------------------------------
+==================================================
 
-[float]
 [[docs-termvectors-terms-filtering]]
-=== Example 5
+.Terms filtering
+==================================================
 
 Finally, the terms returned could be filtered based on their tf-idf scores. In
 the example below we obtain the three most "interesting" keywords from the
@@ -437,3 +443,4 @@ Response:
    }
 }
 --------------------------------------------------
+==================================================

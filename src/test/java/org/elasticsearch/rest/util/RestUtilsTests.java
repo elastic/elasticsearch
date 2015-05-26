@@ -19,7 +19,7 @@
 
 package org.elasticsearch.rest.util;
 
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.support.RestUtils;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
@@ -29,7 +29,7 @@ import java.util.Map;
 import java.util.regex.Pattern;
 
 import static com.google.common.collect.Maps.newHashMap;
-import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.*;
 
 /**
@@ -137,7 +137,7 @@ public class RestUtilsTests extends ElasticsearchTestCase {
         assertCorsSettingRegexIsNull("/foo");
         assertCorsSettingRegexIsNull("foo");
         assertCorsSettingRegexIsNull("");
-        assertThat(RestUtils.getCorsSettingRegex(ImmutableSettings.EMPTY), is(nullValue()));
+        assertThat(RestUtils.getCorsSettingRegex(Settings.EMPTY), is(nullValue()));
     }
 
     private void assertCorsSettingRegexIsNull(String settingsValue) {

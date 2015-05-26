@@ -59,11 +59,11 @@ public abstract class QueryBuilders {
     /**
      * Creates a common query for the provided field name and text.
      *
-     * @param name The field name.
+     * @param fieldName The field name.
      * @param text The query text (to be analyzed).
      */
-    public static CommonTermsQueryBuilder commonTermsQuery(String name, Object text) {
-        return new CommonTermsQueryBuilder(name, text);
+    public static CommonTermsQueryBuilder commonTermsQuery(String fieldName, Object text) {
+        return new CommonTermsQueryBuilder(fieldName, text);
     }
 
     /**

@@ -159,8 +159,11 @@ public class Lucene {
     /**
      * Reads the segments infos from the given commit, failing if it fails to load
      */
-    public static SegmentInfos readSegmentInfos(IndexCommit commit, Directory directory) throws IOException {
-        return SegmentInfos.readCommit(directory, commit.getSegmentsFileName());
+    public static SegmentInfos readSegmentInfos(IndexCommit commit) throws IOException {
+        // Using commit.getSegmentsFileName() does NOT work here, have to
+        // manually create the segment filename
+        String filename = IndexFileNames.fileNameFromGeneration(IndexFileNames.SEGMENTS, "", commit.getGeneration());
+        return SegmentInfos.readCommit(commit.getDirectory(), filename);
     }
 
     /**

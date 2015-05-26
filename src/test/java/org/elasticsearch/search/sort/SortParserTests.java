@@ -22,7 +22,7 @@ package org.elasticsearch.search.sort;
 
 
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -39,7 +39,7 @@ public class SortParserTests extends ElasticsearchSingleNodeTest {
     public void testGeoDistanceSortParserManyPointsNoException() throws Exception {
         XContentBuilder mapping = jsonBuilder();
         mapping.startObject().startObject("type").startObject("properties").startObject("location").field("type", "geo_point").endObject().endObject().endObject().endObject();
-        IndexService indexService = createIndex("testidx", ImmutableSettings.settingsBuilder().build(), "type", mapping);
+        IndexService indexService = createIndex("testidx", Settings.settingsBuilder().build(), "type", mapping);
         TestSearchContext context = (TestSearchContext) createSearchContext(indexService);
         context.setTypes("type");
 

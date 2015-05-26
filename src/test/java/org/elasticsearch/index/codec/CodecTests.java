@@ -37,7 +37,6 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
@@ -91,7 +90,7 @@ public class CodecTests extends ElasticsearchSingleNodeTest {
     }
 
     private static CodecService createCodecService() {
-        return createCodecService(ImmutableSettings.Builder.EMPTY_SETTINGS);
+        return createCodecService(Settings.Builder.EMPTY_SETTINGS);
     }
 
     private static CodecService createCodecService(Settings settings) {

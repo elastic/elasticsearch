@@ -21,7 +21,7 @@ package org.elasticsearch.stresstest.refresh;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeBuilder;
@@ -36,13 +36,13 @@ public class RefreshStressTest1 {
     public static void main(String[] args) throws InterruptedException, IOException {
         int numberOfShards = 5;
         Node node = NodeBuilder.nodeBuilder().local(true).loadConfigSettings(false).clusterName("testCluster").settings(
-                ImmutableSettings.settingsBuilder()
+                Settings.settingsBuilder()
                         .put("node.name", "node1")
                         .put("index.number_of_shards", numberOfShards)
                                 //.put("path.data", new File("target/data").getAbsolutePath())
                         .build()).node();
         Node node2 = NodeBuilder.nodeBuilder().local(true).loadConfigSettings(false).clusterName("testCluster").settings(
-                ImmutableSettings.settingsBuilder()
+                Settings.settingsBuilder()
                         .put("node.name", "node2")
                         .put("index.number_of_shards", numberOfShards)
                                 //.put("path.data", new File("target/data").getAbsolutePath())

@@ -20,7 +20,7 @@
 package org.elasticsearch.cluster;
 
 import org.elasticsearch.cluster.metadata.MappingMetaData;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
@@ -40,8 +40,8 @@ import static org.hamcrest.Matchers.*;
 @Slow
 public class SpecificMasterNodesTests extends ElasticsearchIntegrationTest {
 
-    protected final ImmutableSettings.Builder settingsBuilder() {
-        return ImmutableSettings.builder().put("discovery.type", "zen");
+    protected final Settings.Builder settingsBuilder() {
+        return Settings.builder().put("discovery.type", "zen");
     }
 
     @Test

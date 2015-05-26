@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.plugins;
 
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.responseheader.TestResponseHeaderPlugin;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
@@ -40,7 +39,7 @@ public class ResponseHeaderPluginTests extends ElasticsearchIntegrationTest {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return ImmutableSettings.settingsBuilder()
+        return Settings.settingsBuilder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put("plugin.types", TestResponseHeaderPlugin.class.getName())
                 .put("force.http.enabled", true)

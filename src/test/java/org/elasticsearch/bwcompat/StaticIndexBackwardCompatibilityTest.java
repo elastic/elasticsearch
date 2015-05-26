@@ -25,8 +25,6 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 
-import java.nio.file.Paths;
-
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 /**

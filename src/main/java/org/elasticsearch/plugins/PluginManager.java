@@ -45,7 +45,7 @@ import java.util.*;
 
 import static org.elasticsearch.common.Strings.hasLength;
 import static org.elasticsearch.common.io.FileSystemUtils.moveFilesWithoutOverwriting;
-import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
+import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 
 /**
  *

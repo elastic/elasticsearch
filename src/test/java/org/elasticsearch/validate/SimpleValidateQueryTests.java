@@ -24,7 +24,7 @@ import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -121,7 +121,7 @@ public class SimpleValidateQueryTests extends ElasticsearchIntegrationTest {
 
     @Test //https://github.com/elasticsearch/elasticsearch/issues/3629
     public void explainDateRangeInQueryString() {
-        assertAcked(prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder()
+        assertAcked(prepareCreate("test").setSettings(Settings.settingsBuilder()
                 .put(indexSettings())
                 .put("index.number_of_shards", 1)));
 
@@ -180,7 +180,7 @@ public class SimpleValidateQueryTests extends ElasticsearchIntegrationTest {
     @Test
     public void explainMatchPhrasePrefix() {
         assertAcked(prepareCreate("test").setSettings(
-                ImmutableSettings.settingsBuilder().put(indexSettings())
+                Settings.settingsBuilder().put(indexSettings())
                         .put("index.analysis.filter.syns.type", "synonym")
                         .putArray("index.analysis.filter.syns.synonyms", "one,two")
                         .put("index.analysis.analyzer.syns.tokenizer", "standard")

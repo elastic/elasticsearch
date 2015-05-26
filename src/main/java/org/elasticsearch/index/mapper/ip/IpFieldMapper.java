@@ -158,7 +158,7 @@ public class IpFieldMapper extends NumberFieldMapper {
 
     protected IpFieldMapper(Names names, int precisionStep, float boost, FieldType fieldType, Boolean docValues,
                             String nullValue, Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce,
-                            SimilarityProvider similarity, Loading normsLoading, @Nullable Settings fieldDataSettings, 
+                            SimilarityProvider similarity, Loading normsLoading, @Nullable Settings fieldDataSettings,
                             Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
         super(names, precisionStep, boost, fieldType, docValues,
                 ignoreMalformed, coerce, new NamedAnalyzer("_ip/" + precisionStep, new NumericIpAnalyzer(precisionStep)),

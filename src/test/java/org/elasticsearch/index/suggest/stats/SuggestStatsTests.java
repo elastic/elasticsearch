@@ -28,7 +28,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
@@ -39,7 +39,6 @@ import java.util.Set;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope.SUITE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
 import static org.hamcrest.Matchers.*;
@@ -64,11 +63,11 @@ public class SuggestStatsTests extends ElasticsearchIntegrationTest {
         final int shardsIdx2 = Math.max(numNodes - shardsIdx1, randomIntBetween(1, 10));
         final int totalShards = shardsIdx1 + shardsIdx2;
         assertThat(numNodes, lessThanOrEqualTo(totalShards));
-        assertAcked(prepareCreate("test1").setSettings(ImmutableSettings.builder()
+        assertAcked(prepareCreate("test1").setSettings(Settings.builder()
                 .put(SETTING_NUMBER_OF_SHARDS, shardsIdx1)
                 .put(SETTING_NUMBER_OF_REPLICAS, 0))
                 .addMapping("type", "f", "type=string"));
-        assertAcked(prepareCreate("test2").setSettings(ImmutableSettings.builder()
+        assertAcked(prepareCreate("test2").setSettings(Settings.builder()
                 .put(SETTING_NUMBER_OF_SHARDS, shardsIdx2)
                 .put(SETTING_NUMBER_OF_REPLICAS, 0))
                 .addMapping("type", "f", "type=string"));

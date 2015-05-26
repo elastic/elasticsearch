@@ -24,7 +24,6 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -43,7 +42,7 @@ public class TransportClientBackwardsCompatibilityTest extends ElasticsearchBack
     @Test
     public void testSniffMode() throws ExecutionException, InterruptedException {
 
-        Settings settings = ImmutableSettings.builder().put(requiredSettings()).put("client.transport.nodes_sampler_interval", "1s")
+        Settings settings = Settings.builder().put(requiredSettings()).put("client.transport.nodes_sampler_interval", "1s")
                 .put("name", "transport_client_sniff_mode").put(ClusterName.SETTING, cluster().getClusterName())
                 .put("client.transport.sniff", true).build();
 

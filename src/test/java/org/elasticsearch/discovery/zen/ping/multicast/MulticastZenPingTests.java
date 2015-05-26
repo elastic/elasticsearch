@@ -24,7 +24,6 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -50,7 +49,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class MulticastZenPingTests extends ElasticsearchTestCase {
 
     private Settings buildRandomMulticast(Settings settings) {
-        ImmutableSettings.Builder builder = ImmutableSettings.builder().put(settings);
+        Settings.Builder builder = Settings.builder().put(settings);
         builder.put("discovery.zen.ping.multicast.group", "224.2.3." + randomIntBetween(0, 255));
         builder.put("discovery.zen.ping.multicast.port", randomIntBetween(55000, 56000));
         if (randomBoolean()) {
@@ -61,7 +60,7 @@ public class MulticastZenPingTests extends ElasticsearchTestCase {
 
     @Test
     public void testSimplePings() throws InterruptedException {
-        Settings settings = ImmutableSettings.EMPTY;
+        Settings settings = Settings.EMPTY;
         settings = buildRandomMulticast(settings);
 
         ThreadPool threadPool = new ThreadPool("testSimplePings");
@@ -134,7 +133,7 @@ public class MulticastZenPingTests extends ElasticsearchTestCase {
 
     @Test
     public void testExternalPing() throws Exception {
-        Settings settings = ImmutableSettings.EMPTY;
+        Settings settings = Settings.EMPTY;
         settings = buildRandomMulticast(settings);
 
         final ThreadPool threadPool = new ThreadPool("testExternalPing");

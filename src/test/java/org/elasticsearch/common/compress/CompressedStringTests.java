@@ -23,7 +23,7 @@ import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Assert;
 import org.junit.Test;
@@ -51,7 +51,7 @@ public class CompressedStringTests extends ElasticsearchTestCase {
     }
 
     public void simpleTests(String compressor) throws IOException {
-        CompressorFactory.configure(ImmutableSettings.settingsBuilder().put("compress.default.type", compressor).build());
+        CompressorFactory.configure(Settings.settingsBuilder().put("compress.default.type", compressor).build());
         String str = "this is a simple string";
         CompressedString cstr = new CompressedString(str);
         assertThat(cstr.string(), equalTo(str));
@@ -66,7 +66,7 @@ public class CompressedStringTests extends ElasticsearchTestCase {
 
     public void testRandom() throws IOException {
         String compressor = "lzf";
-        CompressorFactory.configure(ImmutableSettings.settingsBuilder().put("compress.default.type", compressor).build());
+        CompressorFactory.configure(Settings.settingsBuilder().put("compress.default.type", compressor).build());
         Random r = getRandom();
         for (int i = 0; i < 1000; i++) {
             String string = TestUtil.randomUnicodeString(r, 10000);

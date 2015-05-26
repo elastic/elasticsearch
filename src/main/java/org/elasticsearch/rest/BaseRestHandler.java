@@ -22,7 +22,6 @@ package org.elasticsearch.rest;
 import org.elasticsearch.action.*;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.FilterClient;
-import org.elasticsearch.client.support.AbstractClient;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 

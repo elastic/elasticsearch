@@ -210,8 +210,8 @@ comma separated string, in that case the request can be be executed on more than
 * `ignore_unavailable` - Controls if missing concrete indices should silently be ignored. Same as is in the search API.
 * `percolate_format` - If `ids` is specified then the matches array in the percolate response will contain a string
 array of the matching ids instead of an array of objects. This can be useful to reduce the amount of data being send
-back to the client. Obviously if there are to percolator queries with same id from different indices there is no way
-the find out which percolator query belongs to what index. Any other value to `percolate_format` will be ignored.
+back to the client. Obviously if there are two percolator queries with same id from different indices there is no way
+to find out which percolator query belongs to what index. Any other value to `percolate_format` will be ignored.
 
 .Additional request body options
 * `filter` - Reduces the number queries to execute during percolating. Only the percolator queries that match with the

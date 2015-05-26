@@ -22,13 +22,11 @@ package org.elasticsearch.index.mapper.core;
 import org.apache.lucene.index.IndexOptions;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
-import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.junit.Before;
@@ -99,7 +97,7 @@ public class Murmur3FieldMapperTests extends ElasticsearchSingleNodeTest {
     }
 
     public void testDocValuesSettingBackcompat() throws Exception {
-        Settings settings = ImmutableSettings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build();
+        Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build();
         indexService = createIndex("test_bwc", settings);
         parser = indexService.mapperService().documentMapperParser();
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
@@ -114,7 +112,7 @@ public class Murmur3FieldMapperTests extends ElasticsearchSingleNodeTest {
     }
 
     public void testIndexSettingBackcompat() throws Exception {
-        Settings settings = ImmutableSettings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build();
+        Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build();
         indexService = createIndex("test_bwc", settings);
         parser = indexService.mapperService().documentMapperParser();
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")

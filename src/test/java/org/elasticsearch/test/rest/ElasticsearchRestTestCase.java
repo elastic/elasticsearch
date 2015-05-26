@@ -32,7 +32,6 @@ import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.node.Node;
@@ -141,7 +140,7 @@ public abstract class ElasticsearchRestTestCase extends ElasticsearchIntegration
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return ImmutableSettings.builder()
+        return Settings.builder()
             .put(Node.HTTP_ENABLED, true)
             .put(super.nodeSettings(nodeOrdinal)).build();
     }
@@ -305,7 +304,7 @@ public abstract class ElasticsearchRestTestCase extends ElasticsearchIntegration
      * Used to obtain settings for the REST client that is used to send REST requests.
      */
     protected Settings restClientSettings() {
-        return ImmutableSettings.EMPTY;
+        return Settings.EMPTY;
     }
 
     @Before

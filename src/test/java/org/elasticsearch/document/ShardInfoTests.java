@@ -30,8 +30,7 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
@@ -111,7 +110,7 @@ public class ShardInfoTests extends ElasticsearchIntegrationTest {
         logger.info("Number of copies: {}", numCopies);
 
         assertAcked(prepareCreate("idx").setSettings(
-                ImmutableSettings.builder()
+                Settings.builder()
                         .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, numberOfPrimaryShards)
                         .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, numCopies - 1))
                 .addMapping("type", "_routing", "required=" + routingRequired)

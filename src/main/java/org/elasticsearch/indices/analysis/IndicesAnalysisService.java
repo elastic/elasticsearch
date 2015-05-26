@@ -31,7 +31,7 @@ import java.io.Closeable;
 import java.util.Locale;
 import java.util.Map;
 
-import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
+import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 
 /**
  * A node level registry of analyzers, to be reused by different indices which use default analyzers.

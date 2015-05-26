@@ -21,7 +21,6 @@ package org.elasticsearch.plugins;
 
 import com.google.common.collect.Lists;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
-import org.elasticsearch.nodesinfo.SimpleNodesInfoTests;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
@@ -30,7 +29,7 @@ import org.junit.Test;
 import java.net.URISyntaxException;
 import java.util.Collections;
 
-import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 
 /**
  *

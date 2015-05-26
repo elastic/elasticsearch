@@ -24,7 +24,6 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.SizeValue;
 import org.elasticsearch.common.unit.TimeValue;
@@ -64,7 +63,7 @@ public class Search1StressTest {
     private int numberOfHits = 300;
     private TimeValue flusherThrottle = TimeValue.timeValueMillis(1000);
 
-    private Settings settings = ImmutableSettings.Builder.EMPTY_SETTINGS;
+    private Settings settings = Settings.Builder.EMPTY_SETTINGS;
 
     private TimeValue period = TimeValue.timeValueMinutes(20);
 

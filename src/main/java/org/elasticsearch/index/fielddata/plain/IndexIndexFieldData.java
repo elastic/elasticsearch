@@ -26,7 +26,6 @@ import org.apache.lucene.index.RandomAccessOrds;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.AtomicOrdinalsFieldData;
@@ -103,7 +102,7 @@ public class IndexIndexFieldData extends AbstractIndexOrdinalsFieldData {
     private final AtomicOrdinalsFieldData atomicFieldData;
 
     private IndexIndexFieldData(Index index, FieldMapper.Names names) {
-        super(index, ImmutableSettings.EMPTY, names, new FieldDataType("string"), null, null);
+        super(index, Settings.EMPTY, names, new FieldDataType("string"), null, null);
         atomicFieldData = new IndexAtomicFieldData(index().name());
     }
 

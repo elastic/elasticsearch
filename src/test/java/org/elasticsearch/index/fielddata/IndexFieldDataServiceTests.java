@@ -25,7 +25,6 @@ import org.apache.lucene.document.Field.Store;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.*;
 import org.apache.lucene.store.RAMDirectory;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.fielddata.plain.*;
 import org.elasticsearch.index.mapper.ContentPath;
@@ -45,7 +44,7 @@ import static org.hamcrest.Matchers.instanceOf;
 
 public class IndexFieldDataServiceTests extends ElasticsearchSingleNodeTest {
 
-    private static Settings DOC_VALUES_SETTINGS = ImmutableSettings.builder().put(FieldDataType.FORMAT_KEY, FieldDataType.DOC_VALUES_FORMAT_VALUE).build();
+    private static Settings DOC_VALUES_SETTINGS = Settings.builder().put(FieldDataType.FORMAT_KEY, FieldDataType.DOC_VALUES_FORMAT_VALUE).build();
 
     public void testGetForFieldDefaults() {
         final IndexService indexService = createIndex("test");
@@ -101,12 +100,12 @@ public class IndexFieldDataServiceTests extends ElasticsearchSingleNodeTest {
         final IndexService indexService = createIndex("test");
         final IndexFieldDataService ifdService = indexService.fieldData();
         final BuilderContext ctx = new BuilderContext(indexService.settingsService().getSettings(), new ContentPath(1));
-        final StringFieldMapper stringMapper = MapperBuilders.stringField("string").tokenized(false).fieldDataSettings(DOC_VALUES_SETTINGS).fieldDataSettings(ImmutableSettings.builder().put("format", "fst").build()).build(ctx);
+        final StringFieldMapper stringMapper = MapperBuilders.stringField("string").tokenized(false).fieldDataSettings(DOC_VALUES_SETTINGS).fieldDataSettings(Settings.builder().put("format", "fst").build()).build(ctx);
         ifdService.clear();
         IndexFieldData<?> fd = ifdService.getForField(stringMapper);
         assertTrue(fd instanceof FSTBytesIndexFieldData);
 
-        final Settings fdSettings = ImmutableSettings.builder().put("format", "array").build();
+        final Settings fdSettings = Settings.builder().put("format", "array").build();
         for (FieldMapper mapper : Arrays.asList(
                 new ByteFieldMapper.Builder("int").fieldDataSettings(DOC_VALUES_SETTINGS).fieldDataSettings(fdSettings).build(ctx),
                 new ShortFieldMapper.Builder("int").fieldDataSettings(DOC_VALUES_SETTINGS).fieldDataSettings(fdSettings).build(ctx),
@@ -133,7 +132,7 @@ public class IndexFieldDataServiceTests extends ElasticsearchSingleNodeTest {
         final IndexService indexService = createIndex("test");
         final IndexFieldDataService ifdService = indexService.fieldData();
         final BuilderContext ctx = new BuilderContext(indexService.settingsService().getSettings(), new ContentPath(1));
-        final StringFieldMapper mapper1 = MapperBuilders.stringField("s").tokenized(false).fieldDataSettings(ImmutableSettings.builder().put(FieldDataType.FORMAT_KEY, "paged_bytes").build()).build(ctx);
+        final StringFieldMapper mapper1 = MapperBuilders.stringField("s").tokenized(false).fieldDataSettings(Settings.builder().put(FieldDataType.FORMAT_KEY, "paged_bytes").build()).build(ctx);
         final IndexWriter writer = new IndexWriter(new RAMDirectory(), new IndexWriterConfig(new KeywordAnalyzer()));
         Document doc = new Document();
         doc.add(new StringField("s", "thisisastring", Store.NO));
@@ -150,7 +149,7 @@ public class IndexFieldDataServiceTests extends ElasticsearchSingleNodeTest {
         // write new segment
         writer.addDocument(doc);
         final IndexReader reader2 = DirectoryReader.open(writer, true);
-        final StringFieldMapper mapper2 = MapperBuilders.stringField("s").tokenized(false).fieldDataSettings(ImmutableSettings.builder().put(FieldDataType.FORMAT_KEY, "fst").build()).build(ctx);
+        final StringFieldMapper mapper2 = MapperBuilders.stringField("s").tokenized(false).fieldDataSettings(Settings.builder().put(FieldDataType.FORMAT_KEY, "fst").build()).build(ctx);
         ifdService.onMappingUpdate();
         ifd = ifdService.getForField(mapper2);
         assertThat(ifd, instanceOf(FSTBytesIndexFieldData.class));

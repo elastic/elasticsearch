@@ -22,7 +22,6 @@ package org.elasticsearch.indices.memory;
 import com.google.common.base.Predicate;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.engine.EngineConfig;
@@ -38,7 +37,7 @@ public class IndexingMemoryControllerTests extends ElasticsearchIntegrationTest 
     @Test
     public void testIndexBufferSizeUpdateAfterCreationRemoval() throws InterruptedException {
 
-        createNode(ImmutableSettings.EMPTY);
+        createNode(Settings.EMPTY);
 
         prepareCreate("test1").setSettings(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1, IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0).get();
 
@@ -88,7 +87,7 @@ public class IndexingMemoryControllerTests extends ElasticsearchIntegrationTest 
     @Test
     public void testIndexBufferSizeUpdateInactiveShard() throws InterruptedException {
 
-        createNode(ImmutableSettings.builder().put("indices.memory.shard_inactive_time", "100ms").build());
+        createNode(Settings.builder().put("indices.memory.shard_inactive_time", "100ms").build());
 
         prepareCreate("test1").setSettings(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1, IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0).get();
 
@@ -137,7 +136,7 @@ public class IndexingMemoryControllerTests extends ElasticsearchIntegrationTest 
     }
 
     private void createNode(Settings settings) {
-        internalCluster().startNode(ImmutableSettings.builder()
+        internalCluster().startNode(Settings.builder()
                         .put(ClusterName.SETTING, "IndexingMemoryControllerTests")
                         .put("node.name", "IndexingMemoryControllerTests")
                         .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)

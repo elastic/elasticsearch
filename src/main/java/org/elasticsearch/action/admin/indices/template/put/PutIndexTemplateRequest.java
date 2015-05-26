@@ -32,7 +32,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -44,9 +43,9 @@ import java.util.Set;
 import static com.google.common.collect.Maps.newHashMap;
 import static com.google.common.collect.Sets.newHashSet;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
-import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
-import static org.elasticsearch.common.settings.ImmutableSettings.readSettingsFromStream;
-import static org.elasticsearch.common.settings.ImmutableSettings.writeSettingsToStream;
+import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
+import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
+import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
 
 /**
  * A request to create an index template.
@@ -159,7 +158,7 @@ public class PutIndexTemplateRequest extends MasterNodeOperationRequest<PutIndex
      * The settings to create the index template with (either json/yaml/properties format).
      */
     public PutIndexTemplateRequest settings(String source) {
-        this.settings = ImmutableSettings.settingsBuilder().loadFromSource(source).build();
+        this.settings = Settings.settingsBuilder().loadFromSource(source).build();
         return this;
     }
 

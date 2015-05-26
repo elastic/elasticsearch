@@ -20,7 +20,6 @@
 package org.elasticsearch.index.similarity;
 
 import org.apache.lucene.search.similarities.*;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -51,7 +50,7 @@ public class SimilarityTests extends ElasticsearchSingleNodeTest {
                 .endObject()
                 .endObject().endObject().string();
 
-        Settings indexSettings = ImmutableSettings.settingsBuilder()
+        Settings indexSettings = Settings.settingsBuilder()
                 .put("index.similarity.my_similarity.type", "default")
                 .put("index.similarity.my_similarity.discount_overlaps", false)
                 .build();
@@ -71,7 +70,7 @@ public class SimilarityTests extends ElasticsearchSingleNodeTest {
                 .endObject()
                 .endObject().endObject().string();
 
-        Settings indexSettings = ImmutableSettings.settingsBuilder()
+        Settings indexSettings = Settings.settingsBuilder()
                 .put("index.similarity.my_similarity.type", "BM25")
                 .put("index.similarity.my_similarity.k1", 2.0f)
                 .put("index.similarity.my_similarity.b", 1.5f)
@@ -95,7 +94,7 @@ public class SimilarityTests extends ElasticsearchSingleNodeTest {
                 .endObject()
                 .endObject().endObject().string();
 
-        Settings indexSettings = ImmutableSettings.settingsBuilder()
+        Settings indexSettings = Settings.settingsBuilder()
                 .put("index.similarity.my_similarity.type", "DFR")
                 .put("index.similarity.my_similarity.basic_model", "g")
                 .put("index.similarity.my_similarity.after_effect", "l")
@@ -121,7 +120,7 @@ public class SimilarityTests extends ElasticsearchSingleNodeTest {
                 .endObject()
                 .endObject().endObject().string();
 
-        Settings indexSettings = ImmutableSettings.settingsBuilder()
+        Settings indexSettings = Settings.settingsBuilder()
                 .put("index.similarity.my_similarity.type", "IB")
                 .put("index.similarity.my_similarity.distribution", "spl")
                 .put("index.similarity.my_similarity.lambda", "ttf")
@@ -147,7 +146,7 @@ public class SimilarityTests extends ElasticsearchSingleNodeTest {
                 .endObject()
                 .endObject().endObject().string();
 
-        Settings indexSettings = ImmutableSettings.settingsBuilder()
+        Settings indexSettings = Settings.settingsBuilder()
                 .put("index.similarity.my_similarity.type", "LMDirichlet")
                 .put("index.similarity.my_similarity.mu", 3000f)
                 .build();
@@ -167,7 +166,7 @@ public class SimilarityTests extends ElasticsearchSingleNodeTest {
                 .endObject()
                 .endObject().endObject().string();
 
-        Settings indexSettings = ImmutableSettings.settingsBuilder()
+        Settings indexSettings = Settings.settingsBuilder()
                 .put("index.similarity.my_similarity.type", "LMJelinekMercer")
                 .put("index.similarity.my_similarity.lambda", 0.7f)
                 .build();

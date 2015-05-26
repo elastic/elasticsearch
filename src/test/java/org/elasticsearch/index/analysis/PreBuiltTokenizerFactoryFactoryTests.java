@@ -20,7 +20,7 @@ package org.elasticsearch.index.analysis;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.analysis.PreBuiltTokenizers;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
@@ -37,9 +37,9 @@ public class PreBuiltTokenizerFactoryFactoryTests extends ElasticsearchTestCase 
         PreBuiltTokenizerFactoryFactory factory = new PreBuiltTokenizerFactoryFactory(PreBuiltTokenizers.STANDARD.getTokenizerFactory(Version.CURRENT));
 
         // different es versions, same lucene version, thus cached
-        TokenizerFactory former090TokenizerFactory = factory.create("standard", ImmutableSettings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_0_90_1).build());
-        TokenizerFactory former090TokenizerFactoryCopy = factory.create("standard", ImmutableSettings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_0_90_2).build());
-        TokenizerFactory currentTokenizerFactory = factory.create("standard", ImmutableSettings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build());
+        TokenizerFactory former090TokenizerFactory = factory.create("standard", Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_0_90_1).build());
+        TokenizerFactory former090TokenizerFactoryCopy = factory.create("standard", Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_0_90_2).build());
+        TokenizerFactory currentTokenizerFactory = factory.create("standard", Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build());
 
         assertThat(currentTokenizerFactory, is(not(former090TokenizerFactory)));
         assertThat(currentTokenizerFactory, is(not(former090TokenizerFactoryCopy)));

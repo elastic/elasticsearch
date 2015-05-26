@@ -37,7 +37,6 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.*;
 import org.elasticsearch.common.io.FileSystemUtils;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -89,7 +88,7 @@ import static com.google.common.collect.Maps.newHashMap;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.collect.MapBuilder.newMapBuilder;
-import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 
 /**
  *
@@ -605,7 +604,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
         // play safe here and make sure that we take node level settings into account.
         // we might run on nodes where we use shard FS and then in the future don't delete
         // actual content.
-        ImmutableSettings.Builder builder = settingsBuilder();
+        Settings.Builder builder = settingsBuilder();
         builder.put(settings);
         builder.put(metaData.getSettings());
         return builder.build();

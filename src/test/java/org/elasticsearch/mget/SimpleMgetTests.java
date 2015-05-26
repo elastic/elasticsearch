@@ -25,7 +25,7 @@ import org.elasticsearch.action.get.MultiGetRequestBuilder;
 import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
@@ -145,7 +145,7 @@ public class SimpleMgetTests extends ElasticsearchIntegrationTest {
     @Test
     public void testThatRoutingPerDocumentIsSupported() throws Exception {
         assertAcked(prepareCreate("test").addAlias(new Alias("alias"))
-                .setSettings(ImmutableSettings.builder()
+                .setSettings(Settings.builder()
                         .put(indexSettings())
                         .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, between(2, DEFAULT_MAX_NUM_SHARDS))));
         ensureYellow();

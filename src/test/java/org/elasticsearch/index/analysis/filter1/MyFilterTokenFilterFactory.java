@@ -22,7 +22,6 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.core.StopAnalyzer;
 import org.apache.lucene.analysis.core.StopFilter;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
@@ -32,7 +31,7 @@ public class MyFilterTokenFilterFactory extends AbstractTokenFilterFactory {
 
     @Inject
     public MyFilterTokenFilterFactory(Index index, @IndexSettings Settings indexSettings, String name) {
-        super(index, indexSettings, name, ImmutableSettings.Builder.EMPTY_SETTINGS);
+        super(index, indexSettings, name, Settings.Builder.EMPTY_SETTINGS);
     }
 
     @Override

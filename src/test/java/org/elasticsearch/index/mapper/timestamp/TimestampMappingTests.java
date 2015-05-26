@@ -31,7 +31,6 @@ import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.joda.Joda;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -109,7 +108,7 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
             for (String mapping : Arrays.asList(
                     XContentFactory.jsonBuilder().startObject().startObject("type").endObject().string(),
                     XContentFactory.jsonBuilder().startObject().startObject("type").startObject("_timestamp").endObject().endObject().string())) {
-                DocumentMapper docMapper = createIndex("test", ImmutableSettings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build()).mapperService().documentMapperParser().parse(mapping);
+                DocumentMapper docMapper = createIndex("test", Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build()).mapperService().documentMapperParser().parse(mapping);
                 assertThat(docMapper.timestampFieldMapper().enabled(), equalTo(TimestampFieldMapper.Defaults.ENABLED.enabled));
                 assertThat(docMapper.timestampFieldMapper().fieldType().stored(), equalTo(version.onOrAfter(Version.V_2_0_0) ? true : false));
                 assertThat(docMapper.timestampFieldMapper().fieldType().indexOptions(), equalTo(TimestampFieldMapper.Defaults.FIELD_TYPE.indexOptions()));
@@ -504,7 +503,7 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_timestamp").field("enabled", randomBoolean()).startObject("fielddata").field("loading", "lazy").field("format", "doc_values").endObject().field("store", "yes").endObject()
                 .endObject().endObject().string();
-        Settings indexSettings = ImmutableSettings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build();
+        Settings indexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build();
         DocumentMapperParser parser = createIndex("test", indexSettings).mapperService().documentMapperParser();
 
         DocumentMapper docMapper = parser.parse(mapping);
@@ -571,7 +570,7 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
                 .field("default", "1970-01-01")
                 .endObject()
                 .endObject().endObject().string();
-        Settings indexSettings = ImmutableSettings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build();
+        Settings indexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build();
         DocumentMapperParser parser = createIndex("test", indexSettings).mapperService().documentMapperParser();
 
         DocumentMapper docMapper = parser.parse(mapping);
@@ -764,7 +763,7 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("_timestamp").field("enabled", true).field("default", "1970").field("format", "YYYY").endObject()
             .endObject().endObject().string();
-        Settings settings = ImmutableSettings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build();
+        Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build();
         DocumentMapper docMapper = createIndex("test", settings).mapperService().documentMapperParser().parse(mapping);
 
         XContentBuilder doc = XContentFactory.jsonBuilder().startObject().field("_timestamp", 2000000).endObject();

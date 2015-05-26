@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.index.analysis;
 
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchTokenStreamTestCase;
 import org.junit.Ignore;
 
@@ -36,7 +36,7 @@ public class AnalyzerBackwardsCompatTests extends ElasticsearchTokenStreamTestCa
         final int iters = scaledRandomIntBetween(10, 100);
         org.elasticsearch.Version version = org.elasticsearch.Version.CURRENT;
         for (int i = 0; i < iters; i++) {
-            ImmutableSettings.Builder builder = ImmutableSettings.settingsBuilder().put("index.analysis.filter.my_stop.type", "stop");
+            Settings.Builder builder = Settings.settingsBuilder().put("index.analysis.filter.my_stop.type", "stop");
             if (version.onOrAfter(noStopwordVersion))  {
                 if (random().nextBoolean()) {
                     builder.put(SETTING_VERSION_CREATED, version);

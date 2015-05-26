@@ -25,7 +25,7 @@ import org.elasticsearch.action.explain.ExplainResponse;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.joda.time.DateTime;
@@ -51,7 +51,7 @@ public class ExplainActionTests extends ElasticsearchIntegrationTest {
     public void testSimple() throws Exception {
         assertAcked(prepareCreate("test")
                 .addAlias(new Alias("alias"))
-                .setSettings(ImmutableSettings.settingsBuilder().put("index.refresh_interval", -1)));
+                .setSettings(Settings.settingsBuilder().put("index.refresh_interval", -1)));
         ensureGreen("test");
 
         client().prepareIndex("test", "test", "1").setSource("field", "value1").get();

@@ -32,7 +32,6 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.PathUtils;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
@@ -289,8 +288,8 @@ public class NodeEnvironment extends AbstractComponent implements Closeable {
      * @throws IOException if an IOException occurs
      */
     public void deleteShardDirectorySafe(ShardId shardId, @IndexSettings Settings indexSettings) throws IOException {
-        // This is to ensure someone doesn't use ImmutableSettings.EMPTY
-        assert indexSettings != ImmutableSettings.EMPTY;
+        // This is to ensure someone doesn't use Settings.EMPTY
+        assert indexSettings != Settings.EMPTY;
         final Path[] paths = availableShardPaths(shardId);
         logger.trace("deleting shard {} directory, paths: [{}]", shardId, paths);
         try (ShardLock lock = shardLock(shardId)) {
@@ -339,7 +338,7 @@ public class NodeEnvironment extends AbstractComponent implements Closeable {
      * @throws ElasticsearchException if the write.lock is not acquirable
      */
     public void deleteShardDirectoryUnderLock(ShardLock lock, @IndexSettings Settings indexSettings) throws IOException {
-        assert indexSettings != ImmutableSettings.EMPTY;
+        assert indexSettings != Settings.EMPTY;
         final ShardId shardId = lock.getShardId();
         assert isShardLocked(shardId) : "shard " + shardId + " is not locked";
         final Path[] paths = availableShardPaths(shardId);
@@ -377,8 +376,8 @@ public class NodeEnvironment extends AbstractComponent implements Closeable {
      * @throws Exception if any of the shards data directories can't be locked or deleted
      */
     public void deleteIndexDirectorySafe(Index index, long lockTimeoutMS, @IndexSettings Settings indexSettings) throws IOException {
-        // This is to ensure someone doesn't use ImmutableSettings.EMPTY
-        assert indexSettings != ImmutableSettings.EMPTY;
+        // This is to ensure someone doesn't use Settings.EMPTY
+        assert indexSettings != Settings.EMPTY;
         final List<ShardLock> locks = lockAllForIndex(index, indexSettings, lockTimeoutMS);
         try {
             deleteIndexDirectoryUnderLock(index, indexSettings);
@@ -395,8 +394,8 @@ public class NodeEnvironment extends AbstractComponent implements Closeable {
      * @param indexSettings settings for the index being deleted
      */
     public void deleteIndexDirectoryUnderLock(Index index, @IndexSettings Settings indexSettings) throws IOException {
-        // This is to ensure someone doesn't use ImmutableSettings.EMPTY
-        assert indexSettings != ImmutableSettings.EMPTY;
+        // This is to ensure someone doesn't use Settings.EMPTY
+        assert indexSettings != Settings.EMPTY;
         final Path[] indexPaths = indexPaths(index);
         logger.trace("deleting index {} directory, paths({}): [{}]", index, indexPaths.length, indexPaths);
         IOUtils.rm(indexPaths);
@@ -733,7 +732,7 @@ public class NodeEnvironment extends AbstractComponent implements Closeable {
      */
     @SuppressForbidden(reason = "Lee is working on it: https://github.com/elastic/elasticsearch/pull/11065")
     private Path resolveCustomLocation(@IndexSettings Settings indexSettings) {
-        assert indexSettings != ImmutableSettings.EMPTY;
+        assert indexSettings != Settings.EMPTY;
         String customDataDir = indexSettings.get(IndexMetaData.SETTING_DATA_PATH);
         if (customDataDir != null) {
             // This assert is because this should be caught by MetaDataCreateIndexService

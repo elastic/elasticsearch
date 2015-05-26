@@ -26,7 +26,6 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -105,7 +104,7 @@ public class BinaryMappingTests extends ElasticsearchSingleNodeTest {
                 .endObject()
                 .endObject().endObject().string();
 
-        Settings settings = ImmutableSettings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_5_0).build();
+        Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_5_0).build();
         DocumentMapper mapper = createIndex("test", settings).mapperService().documentMapperParser().parse(mapping);
 
         final byte[] original = new byte[100];

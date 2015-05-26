@@ -19,7 +19,7 @@
 package org.elasticsearch.script.mustache;
 
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Before;
 import org.junit.Test;
@@ -41,7 +41,7 @@ public class MustacheScriptEngineTest extends ElasticsearchTestCase {
 
     @Before
     public void setup() {
-        qe = new MustacheScriptEngineService(ImmutableSettings.Builder.EMPTY_SETTINGS);
+        qe = new MustacheScriptEngineService(Settings.Builder.EMPTY_SETTINGS);
         escaper = new JsonEscapingMustacheFactory();
     }
 

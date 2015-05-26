@@ -20,7 +20,6 @@
 package org.elasticsearch.threadpool;
 
 import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.common.settings.Settings;
 
 /**
  *

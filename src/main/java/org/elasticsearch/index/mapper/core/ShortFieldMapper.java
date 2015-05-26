@@ -130,7 +130,7 @@ public class ShortFieldMapper extends NumberFieldMapper {
 
     protected ShortFieldMapper(Names names, int precisionStep, float boost, FieldType fieldType, Boolean docValues,
                                Short nullValue, Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce,
-                               SimilarityProvider similarity, Loading normsLoading, @Nullable Settings fieldDataSettings, 
+                               SimilarityProvider similarity, Loading normsLoading, @Nullable Settings fieldDataSettings,
                                Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
         super(names, precisionStep, boost, fieldType, docValues, ignoreMalformed, coerce, new NamedAnalyzer("_short/" + precisionStep,
                 new NumericIntegerAnalyzer(precisionStep)), new NamedAnalyzer("_short/max", new NumericIntegerAnalyzer(Integer.MAX_VALUE)),

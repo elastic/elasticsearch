@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.breaker;
 
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.indices.breaker.BreakerSettings;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -91,7 +91,7 @@ public class MemoryCircuitBreakerTests extends ElasticsearchTestCase {
         final AtomicReference<Throwable> lastException = new AtomicReference<>(null);
 
         final AtomicReference<ChildMemoryCircuitBreaker> breakerRef = new AtomicReference<>(null);
-        final CircuitBreakerService service = new HierarchyCircuitBreakerService(ImmutableSettings.EMPTY, new NodeSettingsService(ImmutableSettings.EMPTY)) {
+        final CircuitBreakerService service = new HierarchyCircuitBreakerService(Settings.EMPTY, new NodeSettingsService(Settings.EMPTY)) {
 
             @Override
             public CircuitBreaker getBreaker(String name) {
@@ -152,7 +152,7 @@ public class MemoryCircuitBreakerTests extends ElasticsearchTestCase {
 
         final AtomicInteger parentTripped = new AtomicInteger(0);
         final AtomicReference<ChildMemoryCircuitBreaker> breakerRef = new AtomicReference<>(null);
-        final CircuitBreakerService service = new HierarchyCircuitBreakerService(ImmutableSettings.EMPTY, new NodeSettingsService(ImmutableSettings.EMPTY)) {
+        final CircuitBreakerService service = new HierarchyCircuitBreakerService(Settings.EMPTY, new NodeSettingsService(Settings.EMPTY)) {
 
             @Override
             public CircuitBreaker getBreaker(String name) {

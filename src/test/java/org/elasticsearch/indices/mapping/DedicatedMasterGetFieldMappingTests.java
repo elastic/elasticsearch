@@ -19,12 +19,11 @@
 
 package org.elasticsearch.indices.mapping;
 
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.junit.Before;
 
 import static org.apache.lucene.util.LuceneTestCase.Slow;
-import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 
@@ -39,7 +38,7 @@ public class DedicatedMasterGetFieldMappingTests extends SimpleGetFieldMappingsT
         Settings settings = settingsBuilder()
                 .put("node.data", false)
                 .build();
-        internalCluster().startNodesAsync(settings, ImmutableSettings.EMPTY).get();
+        internalCluster().startNodesAsync(settings, Settings.EMPTY).get();
     }
 
 }

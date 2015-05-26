@@ -37,7 +37,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  *
  */
-public abstract class ShardReplicationOperationRequest<T extends ShardReplicationOperationRequest> extends ActionRequest<T> implements IndicesRequest {
+public abstract class ReplicationRequest<T extends ReplicationRequest> extends ActionRequest<T> implements IndicesRequest {
 
     public static final TimeValue DEFAULT_TIMEOUT = new TimeValue(1, TimeUnit.MINUTES);
 
@@ -50,21 +50,21 @@ public abstract class ShardReplicationOperationRequest<T extends ShardReplicatio
     private WriteConsistencyLevel consistencyLevel = WriteConsistencyLevel.DEFAULT;
     private volatile boolean canHaveDuplicates = false;
 
-    protected ShardReplicationOperationRequest() {
+    protected ReplicationRequest() {
 
     }
 
     /**
      * Creates a new request that inherits headers and context from the request provided as argument.
      */
-    protected ShardReplicationOperationRequest(ActionRequest request) {
+    protected ReplicationRequest(ActionRequest request) {
         super(request);
     }
 
     /**
      * Copy constructor that creates a new request that is a copy of the one provided as an argument.
      */
-    protected ShardReplicationOperationRequest(T request) {
+    protected ReplicationRequest(T request) {
         this(request, request);
     }
 
@@ -72,7 +72,7 @@ public abstract class ShardReplicationOperationRequest<T extends ShardReplicatio
      * Copy constructor that creates a new request that is a copy of the one provided as an argument.
      * The new request will inherit though headers and context from the original request that caused it.
      */
-    protected ShardReplicationOperationRequest(T request, ActionRequest originalRequest) {
+    protected ReplicationRequest(T request, ActionRequest originalRequest) {
         super(originalRequest);
         this.timeout = request.timeout();
         this.index = request.index();

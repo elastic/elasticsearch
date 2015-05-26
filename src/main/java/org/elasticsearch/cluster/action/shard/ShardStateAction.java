@@ -19,7 +19,6 @@
 
 package org.elasticsearch.cluster.action.shard;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;

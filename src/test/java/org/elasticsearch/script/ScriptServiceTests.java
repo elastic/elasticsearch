@@ -22,7 +22,6 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.script.ScriptService.ScriptType;
@@ -42,7 +41,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.*;
 
@@ -100,7 +99,7 @@ public class ScriptServiceTests extends ElasticsearchTestCase {
     }
 
     private void buildScriptService(Settings additionalSettings) throws IOException {
-        Settings finalSettings = ImmutableSettings.builder().put(baseSettings).put(additionalSettings).build();
+        Settings finalSettings = Settings.builder().put(baseSettings).put(additionalSettings).build();
         Environment environment = new Environment(finalSettings);
         scriptService = new ScriptService(finalSettings, environment, scriptEngineServices, resourceWatcherService, scriptContextRegistry) {
             @Override
@@ -114,7 +113,7 @@ public class ScriptServiceTests extends ElasticsearchTestCase {
     @Test
     public void testNotSupportedDisableDynamicSetting() throws IOException {
         try {
-            buildScriptService(ImmutableSettings.builder().put(ScriptService.DISABLE_DYNAMIC_SCRIPTING_SETTING, randomUnicodeOfLength(randomIntBetween(1, 10))).build());
+            buildScriptService(Settings.builder().put(ScriptService.DISABLE_DYNAMIC_SCRIPTING_SETTING, randomUnicodeOfLength(randomIntBetween(1, 10))).build());
             fail("script service should have thrown exception due to non supported script.disable_dynamic setting");
         } catch(IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString(ScriptService.DISABLE_DYNAMIC_SCRIPTING_SETTING + " is not a supported setting, replace with fine-grained script settings"));
@@ -123,7 +122,7 @@ public class ScriptServiceTests extends ElasticsearchTestCase {
 
     @Test
     public void testScriptsWithoutExtensions() throws IOException {
-        buildScriptService(ImmutableSettings.EMPTY);
+        buildScriptService(Settings.EMPTY);
         logger.info("--> setup two test files one with extension and another without");
         Path testFileNoExt = scriptsFilePath.resolve("test_no_ext");
         Path testFileWithExt = scriptsFilePath.resolve("test_script.tst");
@@ -151,7 +150,7 @@ public class ScriptServiceTests extends ElasticsearchTestCase {
 
     @Test
     public void testScriptsSameNameDifferentLanguage() throws IOException {
-        buildScriptService(ImmutableSettings.EMPTY);
+        buildScriptService(Settings.EMPTY);
         createFileScripts("groovy", "expression");
         CompiledScript groovyScript = scriptService.compile(new Script(GroovyScriptEngineService.NAME, "file_script", ScriptType.FILE, null), randomFrom(scriptContexts));
         assertThat(groovyScript.lang(), equalTo(GroovyScriptEngineService.NAME));
@@ -161,7 +160,7 @@ public class ScriptServiceTests extends ElasticsearchTestCase {
 
     @Test
     public void testInlineScriptCompiledOnceMultipleLangAcronyms() throws IOException {
-        buildScriptService(ImmutableSettings.EMPTY);
+        buildScriptService(Settings.EMPTY);
         CompiledScript compiledScript1 = scriptService.compile(new Script("test", "script", ScriptType.INLINE, null), randomFrom(scriptContexts));
         CompiledScript compiledScript2 = scriptService.compile(new Script("test2", "script", ScriptType.INLINE, null), randomFrom(scriptContexts));
         assertThat(compiledScript1, sameInstance(compiledScript2));
@@ -169,7 +168,7 @@ public class ScriptServiceTests extends ElasticsearchTestCase {
 
     @Test
     public void testFileScriptCompiledOnceMultipleLangAcronyms() throws IOException {
-        buildScriptService(ImmutableSettings.EMPTY);
+        buildScriptService(Settings.EMPTY);
         createFileScripts("test");
         CompiledScript compiledScript1 = scriptService.compile(new Script("test", "file_script", ScriptType.FILE, null), randomFrom(scriptContexts));
         CompiledScript compiledScript2 = scriptService.compile(new Script("test2", "file_script", ScriptType.FILE, null), randomFrom(scriptContexts));
@@ -178,7 +177,7 @@ public class ScriptServiceTests extends ElasticsearchTestCase {
 
     @Test
     public void testDefaultBehaviourFineGrainedSettings() throws IOException {
-        ImmutableSettings.Builder builder = ImmutableSettings.builder();
+        Settings.Builder builder = Settings.builder();
         //rarely inject the default settings, which have no effect
         if (rarely()) {
             builder.put("script.file", randomFrom(ScriptModesTests.ENABLE_VALUES));
@@ -247,7 +246,7 @@ public class ScriptServiceTests extends ElasticsearchTestCase {
             engineSettings.put(settingKey, randomFrom(ScriptMode.values()));
         }
         //set the selected fine-grained settings
-        ImmutableSettings.Builder builder = ImmutableSettings.builder();
+        Settings.Builder builder = Settings.builder();
         for (Map.Entry<ScriptType, ScriptMode> entry : scriptSourceSettings.entrySet()) {
             switch (entry.getValue()) {
                 case ON:
@@ -338,7 +337,7 @@ public class ScriptServiceTests extends ElasticsearchTestCase {
 
     @Test
     public void testCompileNonRegisteredContext() throws IOException {
-        buildScriptService(ImmutableSettings.EMPTY);
+        buildScriptService(Settings.EMPTY);
         String pluginName;
         String unknownContext;
         do {

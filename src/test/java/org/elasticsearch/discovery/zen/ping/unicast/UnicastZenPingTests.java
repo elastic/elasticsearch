@@ -24,7 +24,6 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.network.NetworkService;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
@@ -50,10 +49,10 @@ public class UnicastZenPingTests extends ElasticsearchTestCase {
 
     @Test
     public void testSimplePings() throws InterruptedException {
-        Settings settings = ImmutableSettings.EMPTY;
+        Settings settings = Settings.EMPTY;
         int startPort = 11000 + randomIntBetween(0, 1000);
         int endPort = startPort + 10;
-        settings = ImmutableSettings.builder().put(settings).put("transport.tcp.port", startPort + "-" + endPort).build();
+        settings = Settings.builder().put(settings).put("transport.tcp.port", startPort + "-" + endPort).build();
 
         ThreadPool threadPool = new ThreadPool(getClass().getName());
         ClusterName clusterName = new ClusterName("test");
@@ -72,7 +71,7 @@ public class UnicastZenPingTests extends ElasticsearchTestCase {
 
         InetSocketTransportAddress addressB = (InetSocketTransportAddress) transportB.boundAddress().publishAddress();
 
-        Settings hostsSettings = ImmutableSettings.settingsBuilder().putArray("discovery.zen.ping.unicast.hosts",
+        Settings hostsSettings = Settings.settingsBuilder().putArray("discovery.zen.ping.unicast.hosts",
                 addressA.address().getAddress().getHostAddress() + ":" + addressA.address().getPort(),
                 addressB.address().getAddress().getHostAddress() + ":" + addressB.address().getPort())
                 .build();

@@ -49,7 +49,7 @@ import org.elasticsearch.action.suggest.SuggestRequestBuilder;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.suggest.SuggestBuilders;
 import org.elasticsearch.search.warmer.IndexWarmersMetaData;
@@ -57,7 +57,6 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
 import static org.elasticsearch.action.percolate.PercolateSourceBuilder.docBuilder;
-import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -317,7 +316,7 @@ public class IndicesOptionsIntegrationTests extends ElasticsearchIntegrationTest
         waitForRelocation();
 
         PutRepositoryResponse putRepositoryResponse = client().admin().cluster().preparePutRepository("dummy-repo")
-                .setType("fs").setSettings(ImmutableSettings.settingsBuilder().put("location", randomRepoPath())).get();
+                .setType("fs").setSettings(Settings.settingsBuilder().put("location", randomRepoPath())).get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
         client().admin().cluster().prepareCreateSnapshot("dummy-repo", "snap1").setWaitForCompletion(true).get();
 
@@ -469,7 +468,7 @@ public class IndicesOptionsIntegrationTests extends ElasticsearchIntegrationTest
         waitForRelocation();
 
         PutRepositoryResponse putRepositoryResponse = client().admin().cluster().preparePutRepository("dummy-repo")
-                .setType("fs").setSettings(ImmutableSettings.settingsBuilder().put("location", randomRepoPath())).get();
+                .setType("fs").setSettings(Settings.settingsBuilder().put("location", randomRepoPath())).get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
         client().admin().cluster().prepareCreateSnapshot("dummy-repo", "snap1").setWaitForCompletion(true).get();
 
@@ -748,16 +747,16 @@ public class IndicesOptionsIntegrationTests extends ElasticsearchIntegrationTest
 
     @Test
     public void testUpdateSettings() throws Exception {
-        verify(client().admin().indices().prepareUpdateSettings("foo").setSettings(ImmutableSettings.builder().put("a", "b")), true);
-        verify(client().admin().indices().prepareUpdateSettings("_all").setSettings(ImmutableSettings.builder().put("a", "b")), true);
+        verify(client().admin().indices().prepareUpdateSettings("foo").setSettings(Settings.builder().put("a", "b")), true);
+        verify(client().admin().indices().prepareUpdateSettings("_all").setSettings(Settings.builder().put("a", "b")), true);
 
         createIndex("foo", "foobar", "bar", "barbaz");
         ensureGreen();
         assertAcked(client().admin().indices().prepareClose("_all").get());
 
-        verify(client().admin().indices().prepareUpdateSettings("foo").setSettings(ImmutableSettings.builder().put("a", "b")), false);
-        verify(client().admin().indices().prepareUpdateSettings("bar*").setSettings(ImmutableSettings.builder().put("a", "b")), false);
-        verify(client().admin().indices().prepareUpdateSettings("_all").setSettings(ImmutableSettings.builder().put("c", "d")), false);
+        verify(client().admin().indices().prepareUpdateSettings("foo").setSettings(Settings.builder().put("a", "b")), false);
+        verify(client().admin().indices().prepareUpdateSettings("bar*").setSettings(Settings.builder().put("a", "b")), false);
+        verify(client().admin().indices().prepareUpdateSettings("_all").setSettings(Settings.builder().put("c", "d")), false);
 
         GetSettingsResponse settingsResponse = client().admin().indices().prepareGetSettings("foo").get();
         assertThat(settingsResponse.getSetting("foo", "index.a"), equalTo("b"));
@@ -772,11 +771,11 @@ public class IndicesOptionsIntegrationTests extends ElasticsearchIntegrationTest
 
         assertAcked(client().admin().indices().prepareOpen("_all").get());
         try {
-            verify(client().admin().indices().prepareUpdateSettings("barbaz").setSettings(ImmutableSettings.builder().put("e", "f")), false);
+            verify(client().admin().indices().prepareUpdateSettings("barbaz").setSettings(Settings.builder().put("e", "f")), false);
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("Can't update non dynamic settings[[index.e]] for open indices[[barbaz]]"));
         }
-        verify(client().admin().indices().prepareUpdateSettings("baz*").setSettings(ImmutableSettings.builder().put("a", "b")), true);
+        verify(client().admin().indices().prepareUpdateSettings("baz*").setSettings(Settings.builder().put("a", "b")), true);
     }
 
     private static SearchRequestBuilder search(String... indices) {

@@ -21,7 +21,6 @@ package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.FailedToResolveConfigException;
 import org.elasticsearch.test.ElasticsearchTokenStreamTestCase;
@@ -47,7 +46,7 @@ public class KeepFilterFactoryTests extends ElasticsearchTokenStreamTestCase {
 
     @Test
     public void testLoadOverConfiguredSettings() {
-        Settings settings = ImmutableSettings.settingsBuilder()
+        Settings settings = Settings.settingsBuilder()
                 .put("path.home", createTempDir().toString())
                 .put("index.analysis.filter.broken_keep_filter.type", "keep")
                 .put("index.analysis.filter.broken_keep_filter.keep_words_path", "does/not/exists.txt")
@@ -63,7 +62,7 @@ public class KeepFilterFactoryTests extends ElasticsearchTokenStreamTestCase {
 
     @Test
     public void testKeepWordsPathSettings() {
-        Settings settings = ImmutableSettings.settingsBuilder()
+        Settings settings = Settings.settingsBuilder()
                 .put("path.home", createTempDir().toString())
                 .put("index.analysis.filter.non_broken_keep_filter.type", "keep")
                 .put("index.analysis.filter.non_broken_keep_filter.keep_words_path", "does/not/exists.txt")
@@ -76,7 +75,7 @@ public class KeepFilterFactoryTests extends ElasticsearchTokenStreamTestCase {
             assertThat(e.getCause(), instanceOf(FailedToResolveConfigException.class));
         }
 
-        settings = ImmutableSettings.settingsBuilder().put(settings)
+        settings = Settings.settingsBuilder().put(settings)
                 .put("index.analysis.filter.non_broken_keep_filter.keep_words", new String[]{"test"})
                 .build();
         try {

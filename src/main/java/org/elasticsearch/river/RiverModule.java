@@ -25,8 +25,8 @@ import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.inject.Modules;
 import org.elasticsearch.common.inject.SpawnModules;
-import org.elasticsearch.common.settings.NoClassSettingsException;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.NoClassSettingsException;
 
 import java.util.Locale;
 import java.util.Map;

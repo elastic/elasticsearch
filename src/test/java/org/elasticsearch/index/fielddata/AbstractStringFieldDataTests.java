@@ -49,7 +49,7 @@ import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.TestUtil;
 import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
@@ -474,7 +474,7 @@ public abstract class AbstractStringFieldDataTests extends AbstractFieldDataImpl
     public void testGlobalOrdinals() throws Exception {
         fillExtendedMvSet();
         refreshReader();
-        FieldDataType fieldDataType = new FieldDataType("string", ImmutableSettings.builder().put("global_values", "fixed"));
+        FieldDataType fieldDataType = new FieldDataType("string", Settings.builder().put("global_values", "fixed"));
         IndexOrdinalsFieldData ifd = getForField(fieldDataType, "value", hasDocValues());
         IndexOrdinalsFieldData globalOrdinals = ifd.loadGlobal(topLevelReader);
         assertThat(topLevelReader.leaves().size(), equalTo(3));
@@ -601,7 +601,7 @@ public abstract class AbstractStringFieldDataTests extends AbstractFieldDataImpl
     public void testGlobalOrdinalsGetRemovedOnceIndexReaderCloses() throws Exception {
         fillExtendedMvSet();
         refreshReader();
-        FieldDataType fieldDataType = new FieldDataType("string", ImmutableSettings.builder().put("global_values", "fixed").put("cache", "node"));
+        FieldDataType fieldDataType = new FieldDataType("string", Settings.builder().put("global_values", "fixed").put("cache", "node"));
         IndexOrdinalsFieldData ifd = getForField(fieldDataType, "value", hasDocValues());
         IndexOrdinalsFieldData globalOrdinals = ifd.loadGlobal(topLevelReader);
         assertThat(ifd.loadGlobal(topLevelReader), sameInstance(globalOrdinals));

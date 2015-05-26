@@ -28,8 +28,8 @@ import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.lucene.search.function.CombineFunction;
-import org.elasticsearch.common.settings.ImmutableSettings.Builder;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings.Builder;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.MatchQueryBuilder;
@@ -94,7 +94,7 @@ public class QueryRescorerTests extends ElasticsearchIntegrationTest {
                         "type1",
                         jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("field1")
                                 .field("analyzer", "whitespace").field("type", "string").endObject().endObject().endObject().endObject())
-                .setSettings(ImmutableSettings.settingsBuilder().put(indexSettings()).put("index.number_of_shards", 1)));
+                .setSettings(Settings.settingsBuilder().put(indexSettings()).put("index.number_of_shards", 1)));
 
         client().prepareIndex("test", "type1", "1").setSource("field1", "the quick brown fox").execute().actionGet();
         client().prepareIndex("test", "type1", "2").setSource("field1", "the quick lazy huge brown fox jumps over the tree ").get();
@@ -135,7 +135,7 @@ public class QueryRescorerTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testMoreDocs() throws Exception {
-        Builder builder = ImmutableSettings.builder();
+        Builder builder = Settings.builder();
         builder.put("index.analysis.analyzer.synonym.tokenizer", "whitespace");
         builder.putArray("index.analysis.analyzer.synonym.filter", "synonym", "lowercase");
         builder.put("index.analysis.filter.synonym.type", "synonym");
@@ -214,7 +214,7 @@ public class QueryRescorerTests extends ElasticsearchIntegrationTest {
     // Tests a rescore window smaller than number of hits:
     @Test
     public void testSmallRescoreWindow() throws Exception {
-        Builder builder = ImmutableSettings.builder();
+        Builder builder = Settings.builder();
         builder.put("index.analysis.analyzer.synonym.tokenizer", "whitespace");
         builder.putArray("index.analysis.analyzer.synonym.filter", "synonym", "lowercase");
         builder.put("index.analysis.filter.synonym.type", "synonym");
@@ -285,7 +285,7 @@ public class QueryRescorerTests extends ElasticsearchIntegrationTest {
     // Tests a rescorer that penalizes the scores:
     @Test
     public void testRescorerMadeScoresWorse() throws Exception {
-        Builder builder = ImmutableSettings.builder();
+        Builder builder = Settings.builder();
         builder.put("index.analysis.analyzer.synonym.tokenizer", "whitespace");
         builder.putArray("index.analysis.analyzer.synonym.filter", "synonym", "lowercase");
         builder.put("index.analysis.filter.synonym.type", "synonym");
@@ -697,7 +697,7 @@ public class QueryRescorerTests extends ElasticsearchIntegrationTest {
     }
 
     private int indexRandomNumbers(String analyzer, int shards, boolean dummyDocs) throws Exception {
-        Builder builder = ImmutableSettings.settingsBuilder().put(indexSettings());
+        Builder builder = Settings.settingsBuilder().put(indexSettings());
 
         if (shards > 0) {
             builder.put(SETTING_NUMBER_OF_SHARDS, shards);

@@ -20,7 +20,6 @@ package org.elasticsearch.update;
 
 import com.google.common.collect.Maps;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.*;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
@@ -41,7 +40,7 @@ public class UpdateByNativeScriptTests extends ElasticsearchIntegrationTest {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return ImmutableSettings.settingsBuilder()
+        return Settings.settingsBuilder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put("script.native.custom.type", CustomNativeScriptFactory.class.getName())
                 .build();

@@ -22,7 +22,6 @@ package org.elasticsearch.search.aggregations.metrics;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptResponse;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.groovy.GroovyScriptEngineService;
 import org.elasticsearch.search.aggregations.Aggregation;
@@ -113,7 +112,7 @@ public class ScriptedMetricTests extends ElasticsearchIntegrationTest {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        Settings settings = ImmutableSettings.settingsBuilder()
+        Settings settings = Settings.settingsBuilder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put("path.conf", getDataPath("/org/elasticsearch/search/aggregations/metrics/scripted/conf"))
                 .build();

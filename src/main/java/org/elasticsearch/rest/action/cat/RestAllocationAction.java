@@ -19,7 +19,6 @@
 
 package org.elasticsearch.rest.action.cat;
 
-import com.carrotsearch.hppc.ObjectIntHashMap;
 import com.carrotsearch.hppc.ObjectIntScatterMap;
 
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;

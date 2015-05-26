@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.cluster.repositories.delete;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
@@ -60,7 +59,7 @@ public class TransportDeleteRepositoryAction extends TransportMasterNodeOperatio
 
     @Override
     protected ClusterBlockException checkBlock(DeleteRepositoryRequest request, ClusterState state) {
-        return state.blocks().indexBlockedException(ClusterBlockLevel.METADATA_WRITE, "");
+        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }
 
     @Override

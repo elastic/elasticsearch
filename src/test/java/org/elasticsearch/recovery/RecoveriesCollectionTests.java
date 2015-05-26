@@ -23,7 +23,7 @@ import com.google.common.base.Predicates;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.shard.IndexShard;
@@ -160,7 +160,7 @@ public class RecoveriesCollectionTests extends ElasticsearchSingleNodeTest {
 
     protected void createIndex() {
         createIndex("test",
-                ImmutableSettings.builder()
+                Settings.builder()
                         .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1, IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
                         .build());
         ensureGreen();

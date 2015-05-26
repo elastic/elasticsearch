@@ -30,7 +30,6 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.TermsQuery;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -63,7 +62,7 @@ import static org.hamcrest.Matchers.nullValue;
  */
 public class SimpleStringMappingTests extends ElasticsearchSingleNodeTest {
 
-    private static Settings DOC_VALUES_SETTINGS = ImmutableSettings.builder().put(FieldDataType.FORMAT_KEY, FieldDataType.DOC_VALUES_FORMAT_VALUE).build();
+    private static Settings DOC_VALUES_SETTINGS = Settings.builder().put(FieldDataType.FORMAT_KEY, FieldDataType.DOC_VALUES_FORMAT_VALUE).build();
 
     IndexService indexService;
     DocumentMapperParser parser;

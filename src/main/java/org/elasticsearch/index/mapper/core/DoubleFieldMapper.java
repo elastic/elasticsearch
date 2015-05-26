@@ -133,7 +133,7 @@ public class DoubleFieldMapper extends NumberFieldMapper {
 
     protected DoubleFieldMapper(Names names, int precisionStep, float boost, FieldType fieldType, Boolean docValues,
                                 Double nullValue, Explicit<Boolean> ignoreMalformed,  Explicit<Boolean> coerce,
-                                SimilarityProvider similarity, Loading normsLoading, @Nullable Settings fieldDataSettings, 
+                                SimilarityProvider similarity, Loading normsLoading, @Nullable Settings fieldDataSettings,
                                 Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
         super(names, precisionStep, boost, fieldType, docValues, ignoreMalformed, coerce,
                 NumericDoubleAnalyzer.buildNamedAnalyzer(precisionStep), NumericDoubleAnalyzer.buildNamedAnalyzer(Integer.MAX_VALUE),

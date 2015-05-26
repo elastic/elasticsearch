@@ -25,7 +25,6 @@ import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -47,7 +46,7 @@ public class RecoveryBackwardsCompatibilityTests extends ElasticsearchBackwardsC
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return ImmutableSettings.builder()
+        return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put("action.admin.cluster.node.shutdown.delay", "10ms")
                 .put("gateway.recover_after_nodes", 2).build();
@@ -67,7 +66,7 @@ public class RecoveryBackwardsCompatibilityTests extends ElasticsearchBackwardsC
     @Test
     @LuceneTestCase.Slow
     public void testReusePeerRecovery() throws Exception {
-        assertAcked(prepareCreate("test").setSettings(ImmutableSettings.builder().put(indexSettings())
+        assertAcked(prepareCreate("test").setSettings(Settings.builder().put(indexSettings())
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
                 .put(EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE, EnableAllocationDecider.Rebalance.NONE)));
         logger.info("--> indexing docs");
@@ -81,7 +80,7 @@ public class RecoveryBackwardsCompatibilityTests extends ElasticsearchBackwardsC
 
         logger.info("--> bump number of replicas from 0 to 1");
         client().admin().indices().prepareFlush().execute().actionGet();
-        client().admin().indices().prepareUpdateSettings("test").setSettings(ImmutableSettings.builder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "1").build()).get();
+        client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "1").build()).get();
         ensureGreen();
 
         assertAllShardsOnNodes("test", backwardsCluster().backwardsNodePattern());
@@ -91,9 +90,9 @@ public class RecoveryBackwardsCompatibilityTests extends ElasticsearchBackwardsC
         CountResponse countResponse = client().prepareCount().get();
         assertHitCount(countResponse, numDocs);
 
-        client().admin().cluster().prepareUpdateSettings().setTransientSettings(ImmutableSettings.settingsBuilder().put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE, "none")).execute().actionGet();
+        client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.settingsBuilder().put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE, "none")).execute().actionGet();
         backwardsCluster().upgradeAllNodes();
-        client().admin().cluster().prepareUpdateSettings().setTransientSettings(ImmutableSettings.settingsBuilder().put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE, "all")).execute().actionGet();
+        client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.settingsBuilder().put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE, "all")).execute().actionGet();
         ensureGreen();
 
         countResponse = client().prepareCount().get();

@@ -22,7 +22,7 @@ package org.elasticsearch.index.fielddata;
 import com.carrotsearch.hppc.ObjectArrayList;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -115,6 +115,6 @@ public class BinaryDVFieldDataTests extends AbstractFieldDataTests {
 
     @Override
     protected FieldDataType getFieldDataType() {
-        return new FieldDataType("binary", ImmutableSettings.builder().put("format", "doc_values"));
+        return new FieldDataType("binary", Settings.builder().put("format", "doc_values"));
     }
 }

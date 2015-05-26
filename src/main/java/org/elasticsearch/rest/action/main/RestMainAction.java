@@ -19,7 +19,6 @@
 
 package org.elasticsearch.rest.action.main;
 
-import org.apache.lucene.util.Constants;
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Client;

@@ -21,9 +21,7 @@ package org.elasticsearch.http.netty;
 import com.google.common.base.Charsets;
 import com.google.common.collect.Lists;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.network.NetworkService;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.http.HttpServerTransport;
@@ -33,7 +31,6 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.test.cache.recycler.MockBigArrays;
 import org.elasticsearch.test.cache.recycler.MockPageCacheRecycler;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.jboss.netty.buffer.ChannelBuffer;
 import org.jboss.netty.buffer.ChannelBuffers;
@@ -49,15 +46,12 @@ import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.http.netty.NettyHttpClient.returnHttpResponseBodies;
 import static org.elasticsearch.http.netty.NettyHttpServerTransport.HttpChannelPipelineFactory;
 import static org.hamcrest.Matchers.*;
-import static org.jboss.netty.handler.codec.http.HttpHeaders.Names.CONNECTION;
 import static org.jboss.netty.handler.codec.http.HttpHeaders.Names.CONTENT_LENGTH;
-import static org.jboss.netty.handler.codec.http.HttpHeaders.Values.CLOSE;
 import static org.jboss.netty.handler.codec.http.HttpResponseStatus.OK;
-import static org.jboss.netty.handler.codec.http.HttpVersion.HTTP_1_0;
 import static org.jboss.netty.handler.codec.http.HttpVersion.HTTP_1_1;
 
 /**
@@ -73,9 +67,9 @@ public class NettyHttpServerPipeliningTest extends ElasticsearchTestCase {
 
     @Before
     public void setup() throws Exception {
-        networkService = new NetworkService(ImmutableSettings.EMPTY);
+        networkService = new NetworkService(Settings.EMPTY);
         threadPool = new ThreadPool("test");
-        mockPageCacheRecycler = new MockPageCacheRecycler(ImmutableSettings.EMPTY, threadPool);
+        mockPageCacheRecycler = new MockPageCacheRecycler(Settings.EMPTY, threadPool);
         bigArrays = new MockBigArrays(mockPageCacheRecycler, new NoneCircuitBreakerService());
     }
 

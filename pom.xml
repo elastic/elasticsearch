@@ -113,6 +113,13 @@
             <scope>test</scope>
         </dependency>
 
+        <!-- remove after es core bug fixed: https://github.com/elastic/elasticsearch/issues/11360 -->
+        <dependency>
+            <groupId>net.java.dev.jna</groupId>
+            <artifactId>jna</artifactId>
+            <scope>test</scope>
+        </dependency>
+
         <!-- real dependencies -->
         <dependency>
             <groupId>org.elasticsearch</groupId>

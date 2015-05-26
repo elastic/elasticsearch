@@ -127,7 +127,6 @@ public class StartRecoveryRequest extends TransportRequest {
         if (out.getVersion().onOrAfter(Version.V_1_2_2)) {
             out.writeByte(recoveryType.id());
         }
-        out.writeByte(recoveryType.id());
     }
 
 }

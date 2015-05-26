@@ -33,6 +33,7 @@ import org.junit.Test;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.EOFException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -79,6 +80,7 @@ public class StartRecoveryRequestTest extends ElasticsearchTestCase {
         } else {
             assertThat(inRequest.recoveryType(), nullValue());
         }
+        assertThat(in.read(), equalTo(-1));
     }
 
 }

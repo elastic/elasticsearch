@@ -377,9 +377,9 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
      * Sets the settings and mappings as a single source.
      */
     @SuppressWarnings("unchecked")
-    public CreateIndexRequest source(Map<String, Object> source) {
+    public CreateIndexRequest source(Map<String, ?> source) {
         boolean found = false;
-        for (Map.Entry<String, Object> entry : source.entrySet()) {
+        for (Map.Entry<String, ?> entry : source.entrySet()) {
             String name = entry.getKey();
             if (name.equals("settings")) {
                 found = true;

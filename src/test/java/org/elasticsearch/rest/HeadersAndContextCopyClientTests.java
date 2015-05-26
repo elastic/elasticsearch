@@ -20,8 +20,9 @@
 package org.elasticsearch.rest;
 
 import com.google.common.collect.Maps;
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.*;
+
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsRequest;
@@ -31,24 +32,26 @@ import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.client.*;
-import org.elasticsearch.client.support.AbstractClient;
-import org.elasticsearch.client.support.Headers;
+import org.elasticsearch.client.Client;
+import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.Test;
 
-import java.util.*;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.notNullValue;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.is;
 
 public class HeadersAndContextCopyClientTests extends ElasticsearchTestCase {
 
@@ -108,7 +111,7 @@ public class HeadersAndContextCopyClientTests extends ElasticsearchTestCase {
         expectedContext.putAll(transportContext);
         expectedContext.putAll(restContext);
 
-        try (Client client = client(new NoOpClient(), new FakeRestRequest(restHeaders, restContext), usefulRestHeaders)) {
+        try (Client client = client(new NoOpClient(getTestName()), new FakeRestRequest(restHeaders, restContext), usefulRestHeaders)) {
 
             SearchRequest searchRequest = Requests.searchRequest();
             putHeaders(searchRequest, transportHeaders);
@@ -154,7 +157,7 @@ public class HeadersAndContextCopyClientTests extends ElasticsearchTestCase {
         expectedContext.putAll(transportContext);
         expectedContext.putAll(restContext);
 
-        try (Client client = client(new NoOpClient(), new FakeRestRequest(restHeaders, expectedContext), usefulRestHeaders)) {
+        try (Client client = client(new NoOpClient(getTestName()), new FakeRestRequest(restHeaders, expectedContext), usefulRestHeaders)) {
 
             ClusterHealthRequest clusterHealthRequest = Requests.clusterHealthRequest();
             putHeaders(clusterHealthRequest, transportHeaders);
@@ -200,7 +203,7 @@ public class HeadersAndContextCopyClientTests extends ElasticsearchTestCase {
         expectedContext.putAll(transportContext);
         expectedContext.putAll(restContext);
 
-        try (Client client = client(new NoOpClient(), new FakeRestRequest(restHeaders, restContext), usefulRestHeaders)) {
+        try (Client client = client(new NoOpClient(getTestName()), new FakeRestRequest(restHeaders, restContext), usefulRestHeaders)) {
 
             CreateIndexRequest createIndexRequest = Requests.createIndexRequest("test");
             putHeaders(createIndexRequest, transportHeaders);
@@ -246,7 +249,7 @@ public class HeadersAndContextCopyClientTests extends ElasticsearchTestCase {
         expectedContext.putAll(transportContext);
         expectedContext.putAll(restContext);
 
-        try (Client client = client(new NoOpClient(), new FakeRestRequest(restHeaders, restContext), usefulRestHeaders)) {
+        try (Client client = client(new NoOpClient(getTestName()), new FakeRestRequest(restHeaders, restContext), usefulRestHeaders)) {
 
             ActionRequestBuilder requestBuilders[] = new ActionRequestBuilder[]{
                     client.prepareIndex("index", "type"),
@@ -287,7 +290,7 @@ public class HeadersAndContextCopyClientTests extends ElasticsearchTestCase {
         expectedContext.putAll(transportContext);
         expectedContext.putAll(restContext);
 
-        try (Client client = client(new NoOpClient(), new FakeRestRequest(restHeaders, restContext), usefulRestHeaders)) {
+        try (Client client = client(new NoOpClient(getTestName()), new FakeRestRequest(restHeaders, restContext), usefulRestHeaders)) {
 
             ActionRequestBuilder requestBuilders[] = new ActionRequestBuilder[]{
                     client.admin().cluster().prepareNodesInfo(),
@@ -327,7 +330,7 @@ public class HeadersAndContextCopyClientTests extends ElasticsearchTestCase {
         expectedContext.putAll(transportContext);
         expectedContext.putAll(restContext);
 
-        try (Client client = client(new NoOpClient(), new FakeRestRequest(restHeaders, restContext), usefulRestHeaders)) {
+        try (Client client = client(new NoOpClient(getTestName()), new FakeRestRequest(restHeaders, restContext), usefulRestHeaders)) {
 
             ActionRequestBuilder requestBuilders[] = new ActionRequestBuilder[]{
                     client.admin().indices().prepareValidateQuery(),
@@ -417,27 +420,6 @@ public class HeadersAndContextCopyClientTests extends ElasticsearchTestCase {
             assertThat(map.size(), equalTo(context.size()));
             for (Object key : map.keys()) {
                 assertThat(context.get(key), equalTo(request.getFromContext(key)));
-            }
-        }
-    }
-
-    private class NoOpClient extends AbstractClient {
-
-        public NoOpClient() {
-            super(Settings.EMPTY, new ThreadPool(getTestName()), Headers.EMPTY);
-        }
-
-        @Override
-        protected <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> void doExecute(Action<Request, Response, RequestBuilder> action, Request request, ActionListener<Response> listener) {
-            listener.onResponse(null);
-        }
-
-        @Override
-        public void close() {
-            try {
-                terminate(threadPool());
-            } catch (Throwable t) {
-                throw new ElasticsearchException(t.getMessage(), t);
             }
         }
     }

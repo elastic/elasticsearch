@@ -45,7 +45,7 @@ import org.elasticsearch.common.settings.Settings;
  * <p/>
  * <pre>
  * Node node = NodeBuilder.nodeBuilder()
- *                      .settings(ImmutableSettings.settingsBuilder().put("node.data", false)
+ *                      .settings(Settings.settingsBuilder().put("node.data", false)
  *                      .node();
  * </pre>
  * <p/>

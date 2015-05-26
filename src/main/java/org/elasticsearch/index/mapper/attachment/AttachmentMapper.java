@@ -28,7 +28,7 @@ import org.apache.tika.metadata.Metadata;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.collect.Lists;
-import org.elasticsearch.common.io.stream.BytesStreamInput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.Settings;
@@ -68,7 +68,7 @@ import static org.elasticsearch.plugin.mapper.attachments.tika.TikaInstance.tika
  * _content_length = Specify the maximum amount of characters to extract from the attachment. If not specified, then the default for
  * tika is 100,000 characters. Caution is required when setting large values as this can cause memory issues.
  */
-public class AttachmentMapper extends AbstractFieldMapper<Object> {
+public class AttachmentMapper extends AbstractFieldMapper {
 
     private static ESLogger logger = ESLoggerFactory.getLogger("mapper.attachment");
 
@@ -179,7 +179,7 @@ public class AttachmentMapper extends AbstractFieldMapper<Object> {
             ContentPath.Type origPathType = context.path().pathType();
             context.path().pathType(pathType);
 
-            FieldMapper<?> contentMapper;
+            FieldMapper contentMapper;
             if (context.indexCreatedVersion().before(Version.V_2_0_0)) {
                 // old behavior, we need the content to be indexed under the attachment field name
                 if (contentBuilder instanceof AbstractFieldMapper.Builder == false) {
@@ -187,21 +187,21 @@ public class AttachmentMapper extends AbstractFieldMapper<Object> {
                 }
                 ((AbstractFieldMapper.Builder)contentBuilder).indexName(name);
                 contentBuilder.name = name + "." + FieldNames.CONTENT;
-                contentMapper = (FieldMapper<?>) contentBuilder.build(context);
+                contentMapper = (FieldMapper) contentBuilder.build(context);
                 context.path().add(name);
             } else {
                 context.path().add(name);
-                contentMapper = (FieldMapper<?>) contentBuilder.build(context);
+                contentMapper = (FieldMapper) contentBuilder.build(context);
             }
 
-            FieldMapper<?> dateMapper = (FieldMapper<?>) dateBuilder.build(context);
-            FieldMapper<?> authorMapper = (FieldMapper<?>) authorBuilder.build(context);
-            FieldMapper<?> titleMapper = (FieldMapper<?>) titleBuilder.build(context);
-            FieldMapper<?> nameMapper = (FieldMapper<?>) nameBuilder.build(context);
-            FieldMapper<?> keywordsMapper = (FieldMapper<?>) keywordsBuilder.build(context);
-            FieldMapper<?> contentTypeMapper = (FieldMapper<?>) contentTypeBuilder.build(context);
-            FieldMapper<?> contentLength = (FieldMapper<?>) contentLengthBuilder.build(context);
-            FieldMapper<?> language = (FieldMapper<?>) languageBuilder.build(context);
+            FieldMapper dateMapper = (FieldMapper) dateBuilder.build(context);
+            FieldMapper authorMapper = (FieldMapper) authorBuilder.build(context);
+            FieldMapper titleMapper = (FieldMapper) titleBuilder.build(context);
+            FieldMapper nameMapper = (FieldMapper) nameBuilder.build(context);
+            FieldMapper keywordsMapper = (FieldMapper) keywordsBuilder.build(context);
+            FieldMapper contentTypeMapper = (FieldMapper) contentTypeBuilder.build(context);
+            FieldMapper contentLength = (FieldMapper) contentLengthBuilder.build(context);
+            FieldMapper language = (FieldMapper) languageBuilder.build(context);
             context.path().remove();
 
             context.path().pathType(origPathType);
@@ -353,29 +353,29 @@ public class AttachmentMapper extends AbstractFieldMapper<Object> {
 
     private final boolean defaultLangDetect;
 
-    private final FieldMapper<?> contentMapper;
+    private final FieldMapper contentMapper;
 
-    private final FieldMapper<?> dateMapper;
+    private final FieldMapper dateMapper;
 
-    private final FieldMapper<?> authorMapper;
+    private final FieldMapper authorMapper;
 
-    private final FieldMapper<?> titleMapper;
+    private final FieldMapper titleMapper;
 
-    private final FieldMapper<?> nameMapper;
+    private final FieldMapper nameMapper;
 
-    private final FieldMapper<?> keywordsMapper;
+    private final FieldMapper keywordsMapper;
 
-    private final FieldMapper<?> contentTypeMapper;
+    private final FieldMapper contentTypeMapper;
 
-    private final FieldMapper<?> contentLengthMapper;
+    private final FieldMapper contentLengthMapper;
 
-    private final FieldMapper<?> languageMapper;
+    private final FieldMapper languageMapper;
 
     public AttachmentMapper(Names names, ContentPath.Type pathType, int defaultIndexedChars, Boolean ignoreErrors,
-                            Boolean defaultLangDetect, FieldMapper<?> contentMapper,
-                            FieldMapper<?> dateMapper, FieldMapper<?> titleMapper, FieldMapper<?> nameMapper, FieldMapper<?> authorMapper,
-                            FieldMapper<?> keywordsMapper, FieldMapper<?> contentTypeMapper, FieldMapper<?> contentLengthMapper,
-                            FieldMapper<?> languageMapper, Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
+                            Boolean defaultLangDetect, FieldMapper contentMapper,
+                            FieldMapper dateMapper, FieldMapper titleMapper, FieldMapper nameMapper, FieldMapper authorMapper,
+                            FieldMapper keywordsMapper, FieldMapper contentTypeMapper, FieldMapper contentLengthMapper,
+                            FieldMapper languageMapper, Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
         super(names, 1.0f, AbstractFieldMapper.Defaults.FIELD_TYPE, false, null, null, null, null, null,
                 indexSettings, multiFields, copyTo);
         this.pathType = pathType;
@@ -476,7 +476,7 @@ public class AttachmentMapper extends AbstractFieldMapper<Object> {
                 }
             }
             // Set the maximum length of strings returned by the parseToString method, -1 sets no limit
-            parsedContent = tika.parseToString(new BytesStreamInput(content), metadata, indexedChars);
+            parsedContent = tika.parseToString(StreamInput.wrap(content), metadata, indexedChars);
         } catch (Throwable e) {
             // It could happen that Tika adds a System property `sun.font.fontmanager` which should not happen
             // TODO Remove when this will be fixed in Tika. See https://issues.apache.org/jira/browse/TIKA-1548
@@ -611,7 +611,7 @@ public class AttachmentMapper extends AbstractFieldMapper<Object> {
 
     @Override
     public Iterator<Mapper> iterator() {
-        List<FieldMapper<?>> extras = Lists.newArrayList(
+        List<FieldMapper> extras = Lists.newArrayList(
             contentMapper,
             dateMapper,
             titleMapper,
@@ -642,7 +642,7 @@ public class AttachmentMapper extends AbstractFieldMapper<Object> {
         builder.startObject(name());
         builder.field("type", CONTENT_TYPE);
         if (indexCreatedBefore2x) {
-            builder.field("path", pathType.name().toLowerCase());
+            builder.field("path", pathType.name().toLowerCase(Locale.ROOT));
         }
 
         builder.startObject("fields");

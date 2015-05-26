@@ -21,7 +21,6 @@ package org.elasticsearch.index.mapper.attachment.test.integration;
 
 import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -47,7 +46,7 @@ public class SimpleAttachmentIntegrationTests extends AttachmentIntegrationTestC
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return ImmutableSettings.builder()
+        return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put("plugins." + PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, true)
                 .build();

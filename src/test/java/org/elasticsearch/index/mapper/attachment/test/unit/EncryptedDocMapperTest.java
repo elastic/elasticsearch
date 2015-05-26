@@ -20,7 +20,7 @@
 package org.elasticsearch.index.mapper.attachment.test.unit;
 
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -110,7 +110,7 @@ public class EncryptedDocMapperTest extends AttachmentUnitTestCase {
     @Test(expected = MapperParsingException.class)
     public void testMultipleDocsEncryptedNotIgnoringErrors() throws IOException {
         DocumentMapperParser mapperParser = MapperTestUtils.newMapperParser(
-            ImmutableSettings.builder()
+            Settings.builder()
                              .put("path.home", createTempDir())
                              .put("index.mapping.attachment.ignore_errors", false)
                              .build());

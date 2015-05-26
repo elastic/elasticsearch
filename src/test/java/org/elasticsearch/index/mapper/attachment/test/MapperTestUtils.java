@@ -24,7 +24,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.env.Environment;
@@ -54,7 +53,7 @@ import static org.elasticsearch.plugin.mapper.attachments.tika.LocaleChecker.isL
 public class MapperTestUtils {
 
     public static MapperService newMapperService(Path tempDir, ThreadPool testingThreadPool) {
-        return newMapperService(new Index("test"), ImmutableSettings.builder()
+        return newMapperService(new Index("test"), Settings.builder()
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .put("path.home", tempDir)
                 .build(), testingThreadPool);
@@ -65,8 +64,8 @@ public class MapperTestUtils {
         return new MapperService(index, 
                                  indexSettings, 
                                  newAnalysisService(indexSettings),
-                                 new IndexFieldDataService(index, ImmutableSettings.Builder.EMPTY_SETTINGS,
-                                     new IndicesFieldDataCache(ImmutableSettings.Builder.EMPTY_SETTINGS, 
+                                 new IndexFieldDataService(index, Settings.Builder.EMPTY_SETTINGS,
+                                     new IndicesFieldDataCache(Settings.Builder.EMPTY_SETTINGS, 
                                                                new IndicesFieldDataCacheListener(circuitBreakerService), 
                                                                testingThreadPool),
                                      circuitBreakerService), 
@@ -75,7 +74,7 @@ public class MapperTestUtils {
     }
 
     public static AnalysisService newAnalysisService(Path tempDir) {
-        return newAnalysisService(ImmutableSettings.builder()
+        return newAnalysisService(Settings.builder()
                 .put("path.home", tempDir)
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .build());
@@ -97,13 +96,13 @@ public class MapperTestUtils {
     }
     
     public static DocumentMapperParser newMapperParser(Path tempDir) {
-      return newMapperParser(ImmutableSettings.builder()
+      return newMapperParser(Settings.builder()
                                               .put("path.home", tempDir)
                                               .build());
     }
 
     public static DocumentMapperParser newMapperParser(Settings settings) {
-        Settings forcedSettings = ImmutableSettings.builder()
+        Settings forcedSettings = Settings.builder()
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .put(settings)
                 .build();

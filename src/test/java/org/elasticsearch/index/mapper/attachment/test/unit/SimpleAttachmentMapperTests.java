@@ -22,7 +22,7 @@ package org.elasticsearch.index.mapper.attachment.test.unit;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.ParseContext;
@@ -71,7 +71,7 @@ public class SimpleAttachmentMapperTests extends AttachmentUnitTestCase {
     }
 
     public void testContentBackcompat() throws Exception {
-        DocumentMapperParser mapperParser = MapperTestUtils.newMapperParser(ImmutableSettings.builder()
+        DocumentMapperParser mapperParser = MapperTestUtils.newMapperParser(Settings.builder()
             .put("path.home", createTempDir())
             .put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id)
             .build());

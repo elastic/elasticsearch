@@ -22,7 +22,6 @@ package org.elasticsearch.index.mapper.attachment.test.unit;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
@@ -45,7 +44,7 @@ import static org.hamcrest.Matchers.*;
 public class MetadataMapperTest extends AttachmentUnitTestCase {
 
     protected void checkMeta(String filename, Settings otherSettings, Long expectedDate, Long expectedLength) throws IOException {
-        Settings settings = ImmutableSettings.builder()
+        Settings settings = Settings.builder()
                                              .put(this.testSettings)
                                              .put(otherSettings)
                                              .build();
@@ -81,31 +80,31 @@ public class MetadataMapperTest extends AttachmentUnitTestCase {
 
     @Test
     public void testIgnoreWithoutDate() throws Exception {
-        checkMeta("htmlWithoutDateMeta.html", ImmutableSettings.builder().build(), null, 300L);
+        checkMeta("htmlWithoutDateMeta.html", Settings.builder().build(), null, 300L);
     }
 
     @Test
     public void testIgnoreWithEmptyDate() throws Exception {
-        checkMeta("htmlWithEmptyDateMeta.html", ImmutableSettings.builder().build(), null, 334L);
+        checkMeta("htmlWithEmptyDateMeta.html", Settings.builder().build(), null, 334L);
     }
 
     @Test
     public void testIgnoreWithCorrectDate() throws Exception {
-        checkMeta("htmlWithValidDateMeta.html", ImmutableSettings.builder().build(), 1354233600000L, 344L);
+        checkMeta("htmlWithValidDateMeta.html", Settings.builder().build(), 1354233600000L, 344L);
     }
 
     @Test
     public void testWithoutDate() throws Exception {
-        checkMeta("htmlWithoutDateMeta.html", ImmutableSettings.builder().put("index.mapping.attachment.ignore_errors", false).build(), null, 300L);
+        checkMeta("htmlWithoutDateMeta.html", Settings.builder().put("index.mapping.attachment.ignore_errors", false).build(), null, 300L);
     }
 
     @Test(expected = MapperParsingException.class)
     public void testWithEmptyDate() throws Exception {
-        checkMeta("htmlWithEmptyDateMeta.html", ImmutableSettings.builder().put("index.mapping.attachment.ignore_errors", false).build(), null, null);
+        checkMeta("htmlWithEmptyDateMeta.html", Settings.builder().put("index.mapping.attachment.ignore_errors", false).build(), null, null);
     }
 
     @Test
     public void testWithCorrectDate() throws Exception {
-        checkMeta("htmlWithValidDateMeta.html", ImmutableSettings.builder().put("index.mapping.attachment.ignore_errors", false).build(), 1354233600000L, 344L);
+        checkMeta("htmlWithValidDateMeta.html", Settings.builder().put("index.mapping.attachment.ignore_errors", false).build(), 1354233600000L, 344L);
     }
 }

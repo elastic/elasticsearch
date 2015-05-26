@@ -21,7 +21,6 @@ package org.elasticsearch.index.mapper.attachment.test.unit;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Before;
@@ -43,9 +42,9 @@ public class AttachmentUnitTestCase extends ElasticsearchTestCase {
     
     @Before
     public void createSettings() throws Exception {
-      testSettings = ImmutableSettings.builder()
-                                      .put("path.home", createTempDir())
-                                      .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT.id)
-                                      .build();
+      testSettings = Settings.builder()
+                             .put("path.home", createTempDir())
+                             .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT.id)
+                             .build();
     }
 }

@@ -20,7 +20,6 @@
 package org.elasticsearch.index.mapper.attachment.test.integration;
 
 import org.elasticsearch.action.count.CountResponse;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.plugins.PluginsService;
@@ -29,7 +28,7 @@ import org.junit.Test;
 import static org.elasticsearch.client.Requests.putMappingRequest;
 import static org.elasticsearch.common.io.Streams.copyToBytesFromClasspath;
 import static org.elasticsearch.common.io.Streams.copyToStringFromClasspath;
-import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
 import static org.hamcrest.Matchers.equalTo;
@@ -42,7 +41,7 @@ public class EncryptedAttachmentIntegrationTests extends AttachmentIntegrationTe
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return ImmutableSettings.builder()
+        return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put("plugins." + PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, true)
                 .build();

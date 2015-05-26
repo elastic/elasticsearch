@@ -21,7 +21,6 @@ package org.elasticsearch.index.analysis;
 
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeResponse;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -41,7 +40,7 @@ public class SimplePhoneticIntegrationTests extends ElasticsearchIntegrationTest
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return ImmutableSettings.builder()
+        return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put("plugins." + PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, true)
                 .build();
@@ -49,7 +48,7 @@ public class SimplePhoneticIntegrationTests extends ElasticsearchIntegrationTest
 
     @Override
     public Settings indexSettings() {
-        Settings settings = ImmutableSettings.builder()
+        Settings settings = Settings.builder()
                 .put(super.indexSettings())
                 .put("index.analysis.analyzer.my_analyzer.tokenizer", "standard")
                 .putArray("index.analysis.analyzer.my_analyzer.filter", "standard", "lowercase", "my_metaphone")

@@ -72,10 +72,6 @@
           "type" : "boolean",
           "description" : "Specify whether query terms should be lowercased"
         },
-        "filter_path": {
-          "type" : "list",
-          "description" : "A comma-separated list of fields to include in the returned response"
-        },
         "preference": {
           "type" : "string",
           "description" : "Specify the node or shard the operation should be performed on (default: random)"

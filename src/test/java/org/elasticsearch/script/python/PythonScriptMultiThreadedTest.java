@@ -19,7 +19,7 @@
 
 package org.elasticsearch.script.python;
 
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.After;
@@ -48,7 +48,7 @@ public class PythonScriptMultiThreadedTest extends ElasticsearchTestCase {
 
     @Test
     public void testExecutableNoRuntimeParams() throws Exception {
-        final PythonScriptEngineService se = new PythonScriptEngineService(ImmutableSettings.Builder.EMPTY_SETTINGS);
+        final PythonScriptEngineService se = new PythonScriptEngineService(Settings.Builder.EMPTY_SETTINGS);
         final Object compiled = se.compile("x + y");
         final AtomicBoolean failed = new AtomicBoolean();
 
@@ -91,7 +91,7 @@ public class PythonScriptMultiThreadedTest extends ElasticsearchTestCase {
 
 
 //    @Test public void testExecutableWithRuntimeParams() throws Exception {
-//        final PythonScriptEngineService se = new PythonScriptEngineService(ImmutableSettings.Builder.EMPTY_SETTINGS);
+//        final PythonScriptEngineService se = new PythonScriptEngineService(Settings.Builder.EMPTY_SETTINGS);
 //        final Object compiled = se.compile("x + y");
 //        final AtomicBoolean failed = new AtomicBoolean();
 //
@@ -134,7 +134,7 @@ public class PythonScriptMultiThreadedTest extends ElasticsearchTestCase {
 
     @Test
     public void testExecute() throws Exception {
-        final PythonScriptEngineService se = new PythonScriptEngineService(ImmutableSettings.Builder.EMPTY_SETTINGS);
+        final PythonScriptEngineService se = new PythonScriptEngineService(Settings.Builder.EMPTY_SETTINGS);
         final Object compiled = se.compile("x + y");
         final AtomicBoolean failed = new AtomicBoolean();
 

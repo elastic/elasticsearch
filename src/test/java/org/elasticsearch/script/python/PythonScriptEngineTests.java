@@ -21,7 +21,7 @@ package org.elasticsearch.script.python;
 
 import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.After;
@@ -43,7 +43,7 @@ public class PythonScriptEngineTests extends ElasticsearchTestCase {
 
     @Before
     public void setup() {
-        se = new PythonScriptEngineService(ImmutableSettings.Builder.EMPTY_SETTINGS);
+        se = new PythonScriptEngineService(Settings.Builder.EMPTY_SETTINGS);
     }
 
     @After

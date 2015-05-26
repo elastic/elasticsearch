@@ -20,7 +20,7 @@
 package org.elasticsearch.script.python;
 
 import org.elasticsearch.common.StopWatch;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.ExecutableScript;
 
 import java.util.HashMap;
@@ -32,7 +32,7 @@ import java.util.Map;
 public class SimpleBench {
 
     public static void main(String[] args) {
-        PythonScriptEngineService se = new PythonScriptEngineService(ImmutableSettings.Builder.EMPTY_SETTINGS);
+        PythonScriptEngineService se = new PythonScriptEngineService(Settings.Builder.EMPTY_SETTINGS);
         Object compiled = se.compile("x + y");
 
         Map<String, Object> vars = new HashMap<String, Object>();

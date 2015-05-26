@@ -92,4 +92,9 @@ public class SpanTermQueryParser extends BaseQueryParser {
         result.validate();
         return result;
     }
+
+    @Override
+    public SpanTermQueryBuilder getBuilderPrototype() {
+        return SpanTermQueryBuilder.PROTOTYPE;
+    }
 }

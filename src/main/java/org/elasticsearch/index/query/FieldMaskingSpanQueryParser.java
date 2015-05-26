@@ -100,4 +100,9 @@ public class FieldMaskingSpanQueryParser extends BaseQueryParserTemp {
         }
         return query;
     }
+
+    @Override
+    public FieldMaskingSpanQueryBuilder getBuilderPrototype() {
+        return FieldMaskingSpanQueryBuilder.PROTOTYPE;
+    }
 }

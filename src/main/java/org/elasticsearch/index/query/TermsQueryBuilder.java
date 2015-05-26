@@ -45,6 +45,8 @@ public class TermsQueryBuilder extends QueryBuilder<TermsQueryBuilder> {
     private String lookupPath;
     private Boolean lookupCache;
 
+    static final TermsQueryBuilder PROTOTYPE = new TermsQueryBuilder(null, (Object) null);
+
     /**
      * A filter for a field based on several terms matching on any of them.
      *

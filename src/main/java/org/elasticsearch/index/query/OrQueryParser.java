@@ -112,4 +112,9 @@ public class OrQueryParser extends BaseQueryParserTemp {
         }
         return query;
     }
+
+    @Override
+    public OrQueryBuilder getBuilderPrototype() {
+        return OrQueryBuilder.PROTOTYPE;
+    }
 }

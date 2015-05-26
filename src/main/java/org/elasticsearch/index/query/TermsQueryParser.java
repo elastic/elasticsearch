@@ -207,4 +207,9 @@ public class TermsQueryParser extends BaseQueryParserTemp {
         }
         return query;
     }
+
+    @Override
+    public TermsQueryBuilder getBuilderPrototype() {
+        return TermsQueryBuilder.PROTOTYPE;
+    }
 }

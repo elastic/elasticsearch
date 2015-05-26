@@ -41,4 +41,9 @@ public class QueryFilterParser extends BaseQueryParserTemp {
     public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
         return new ConstantScoreQuery(parseContext.parseInnerQuery());
     }
+
+    @Override
+    public QueryFilterBuilder getBuilderPrototype() {
+        return QueryFilterBuilder.PROTOTYPE;
+    }
 }

@@ -35,6 +35,8 @@ public class SpanFirstQueryBuilder extends QueryBuilder implements SpanQueryBuil
 
     private String queryName;
 
+    static final SpanFirstQueryBuilder SPAN_FIRST_QUERY_BUILDER = new SpanFirstQueryBuilder(null, -1);
+
     public SpanFirstQueryBuilder(SpanQueryBuilder matchBuilder, int end) {
         this.matchBuilder = matchBuilder;
         this.end = end;

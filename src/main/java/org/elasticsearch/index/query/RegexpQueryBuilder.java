@@ -39,6 +39,7 @@ public class RegexpQueryBuilder extends MultiTermQueryBuilder implements Boostab
     private String queryName;
     private int maxDeterminizedStates = Operations.DEFAULT_MAX_DETERMINIZED_STATES;
     private boolean maxDetermizedStatesSet;
+    static final RegexpQueryBuilder PROTOTYPE = new RegexpQueryBuilder(null, null);
 
     /**
      * Constructs a new term query.

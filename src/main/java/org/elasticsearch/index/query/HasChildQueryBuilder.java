@@ -45,6 +45,8 @@ public class HasChildQueryBuilder extends QueryBuilder implements BoostableQuery
 
     private QueryInnerHitBuilder innerHit = null;
 
+    static final HasChildQueryBuilder PROTOTYPE = new HasChildQueryBuilder(null, null);
+
     public HasChildQueryBuilder(String type, QueryBuilder queryBuilder) {
         this.childType = type;
         this.queryBuilder = queryBuilder;

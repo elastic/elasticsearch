@@ -230,4 +230,9 @@ public class SimpleQueryStringParser extends BaseQueryParserTemp {
         }
         return query;
     }
+
+    @Override
+    public SimpleQueryStringBuilder getBuilderPrototype() {
+        return SimpleQueryStringBuilder.PROTOTYPE;
+    }
 }

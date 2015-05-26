@@ -86,4 +86,9 @@ public class ConstantScoreQueryParser extends BaseQueryParserTemp {
         filter.setBoost(boost);
         return filter;
     }
+
+    @Override
+    public ConstantScoreQueryBuilder getBuilderPrototype() {
+        return ConstantScoreQueryBuilder.PROTOTYPE;
+    }
 }

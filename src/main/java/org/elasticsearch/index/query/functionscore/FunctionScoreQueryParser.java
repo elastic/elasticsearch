@@ -277,4 +277,9 @@ public class FunctionScoreQueryParser implements QueryParser {
         Query query = parse(parseContext);
         return new QueryWrappingQueryBuilder(query);
     }
+
+    @Override
+    public FunctionScoreQueryBuilder getBuilderPrototype() {
+        return FunctionScoreQueryBuilder.PROTOTYPE;
+    }
 }

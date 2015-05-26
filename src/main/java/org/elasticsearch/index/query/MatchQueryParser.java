@@ -178,4 +178,9 @@ public class MatchQueryParser extends BaseQueryParserTemp {
         }
         return query;
     }
+
+    @Override
+    public MatchQueryBuilder getBuilderPrototype() {
+        return MatchQueryBuilder.PROTOTYPE;
+    }
 }

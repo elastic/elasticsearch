@@ -157,4 +157,9 @@ public class IndicesQueryParser extends BaseQueryParserTemp {
         }
         return false;
     }
+
+    @Override
+    public IndicesQueryBuilder getBuilderPrototype() {
+        return IndicesQueryBuilder.PROTOTYPE;
+    }
 }

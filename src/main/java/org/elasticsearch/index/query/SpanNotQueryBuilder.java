@@ -41,6 +41,8 @@ public class SpanNotQueryBuilder extends QueryBuilder implements SpanQueryBuilde
 
     private String queryName;
 
+    static final SpanNotQueryBuilder PROTOTYPE = new SpanNotQueryBuilder();
+
     public SpanNotQueryBuilder include(SpanQueryBuilder include) {
         this.include = include;
         return this;

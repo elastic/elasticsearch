@@ -72,6 +72,8 @@ public class CommonTermsQueryBuilder extends QueryBuilder implements BoostableQu
 
     private String queryName;
 
+    static final CommonTermsQueryBuilder PROTOTYPE = new CommonTermsQueryBuilder();
+
     /**
      * Constructs a new common terms query.
      */
@@ -84,6 +86,14 @@ public class CommonTermsQueryBuilder extends QueryBuilder implements BoostableQu
         }
         this.text = text;
         this.name = name;
+    }
+
+    /**
+     * private constructor used onyl internally
+     */
+    private CommonTermsQueryBuilder() {
+        this.text = null;
+        this.name = null;
     }
 
     /**

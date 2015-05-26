@@ -98,4 +98,9 @@ public class BoostingQueryParser extends BaseQueryParserTemp {
         }
         return boostingQuery;
     }
+
+    @Override
+    public BoostingQueryBuilder getBuilderPrototype() {
+        return BoostingQueryBuilder.PROTOTYPE;
+    }
 }

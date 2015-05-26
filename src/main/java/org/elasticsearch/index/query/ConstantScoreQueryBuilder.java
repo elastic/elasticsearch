@@ -37,6 +37,8 @@ public class ConstantScoreQueryBuilder extends QueryBuilder implements Boostable
 
     private float boost = -1;
 
+    static final ConstantScoreQueryBuilder PROTOTYPE = new ConstantScoreQueryBuilder();
+
     /**
      * A query that wraps a query and simply returns a constant score equal to the
      * query boost for every document in the query.
@@ -45,6 +47,13 @@ public class ConstantScoreQueryBuilder extends QueryBuilder implements Boostable
      */
     public ConstantScoreQueryBuilder(QueryBuilder filterBuilder) {
         this.filterBuilder = Objects.requireNonNull(filterBuilder);
+    }
+
+    /**
+     * private constructor only used for serialization
+     */
+    private ConstantScoreQueryBuilder() {
+        this.filterBuilder = null;
     }
 
     /**

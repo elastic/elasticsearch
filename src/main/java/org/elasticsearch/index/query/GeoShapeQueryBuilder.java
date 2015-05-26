@@ -49,6 +49,8 @@ public class GeoShapeQueryBuilder extends QueryBuilder {
 
     private ShapeRelation relation = null;
 
+    static final GeoShapeQueryBuilder PROTOTYPE = new GeoShapeQueryBuilder(null, null);
+
     /**
      * Creates a new GeoShapeQueryBuilder whose Filter will be against the
      * given field name using the given Shape

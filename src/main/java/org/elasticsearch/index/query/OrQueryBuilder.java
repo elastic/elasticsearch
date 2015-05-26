@@ -40,6 +40,8 @@ public class OrQueryBuilder extends QueryBuilder {
 
     private String queryName;
 
+    static final OrQueryBuilder PROTOTYPE = new OrQueryBuilder();
+
     public OrQueryBuilder(QueryBuilder... filters) {
         Collections.addAll(this.filters, filters);
     }

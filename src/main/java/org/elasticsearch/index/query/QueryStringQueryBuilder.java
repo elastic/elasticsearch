@@ -101,6 +101,8 @@ public class QueryStringQueryBuilder extends QueryBuilder implements BoostableQu
     /** To limit effort spent determinizing regexp queries. */
     private Integer maxDeterminizedStates;
 
+    static final QueryStringQueryBuilder PROTOTYPE = new QueryStringQueryBuilder(null);
+
     public QueryStringQueryBuilder(String queryString) {
         this.queryString = queryString;
     }

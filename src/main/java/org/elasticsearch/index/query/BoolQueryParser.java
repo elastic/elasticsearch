@@ -171,4 +171,9 @@ public class BoolQueryParser extends BaseQueryParserTemp {
         }
         return query;
     }
+
+    @Override
+    public BoolQueryBuilder getBuilderPrototype() {
+        return BoolQueryBuilder.PROTOTYPE;
+    }
 }

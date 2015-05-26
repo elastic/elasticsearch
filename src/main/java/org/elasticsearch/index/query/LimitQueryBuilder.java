@@ -32,6 +32,7 @@ public class LimitQueryBuilder extends QueryBuilder {
 
     public static final String NAME = "limit";
     private final int limit;
+    static final LimitQueryBuilder PROTOTYPE = new LimitQueryBuilder(-1);
 
     public LimitQueryBuilder(int limit) {
         this.limit = limit;

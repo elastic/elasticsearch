@@ -27,6 +27,7 @@ public class TypeQueryBuilder extends QueryBuilder {
 
     public static final String NAME = "type";
     private final String type;
+    static final TypeQueryBuilder PROTOTYPE = new TypeQueryBuilder(null);
 
     public TypeQueryBuilder(String type) {
         this.type = type;

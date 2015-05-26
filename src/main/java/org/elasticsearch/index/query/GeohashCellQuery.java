@@ -98,6 +98,7 @@ public class GeohashCellQuery {
         private String geohash;
         private int levels = -1;
         private boolean neighbors;
+        private static final Builder PROTOTYPE = new Builder(null);
 
 
         public Builder(String field) {
@@ -269,6 +270,11 @@ public class GeohashCellQuery {
             }
 
             return filter;
+        }
+
+        @Override
+        public GeohashCellQuery.Builder getBuilderPrototype() {
+            return Builder.PROTOTYPE;
         }
     }
 }

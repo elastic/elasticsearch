@@ -122,4 +122,9 @@ public class ExistsQueryParser extends BaseQueryParserTemp {
         return new ConstantScoreQuery(boolFilter);
     }
 
+    @Override
+    public ExistsQueryBuilder getBuilderPrototype() {
+        return ExistsQueryBuilder.PROTOTYPE;
+    }
+
 }

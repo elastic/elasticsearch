@@ -40,6 +40,8 @@ public class SpanNearQueryBuilder extends QueryBuilder implements SpanQueryBuild
 
     private String queryName;
 
+    static final SpanNearQueryBuilder PROTOTYPE = new SpanNearQueryBuilder();
+
     public SpanNearQueryBuilder clause(SpanQueryBuilder clause) {
         clauses.add(clause);
         return this;

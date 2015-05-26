@@ -355,4 +355,9 @@ public class MoreLikeThisQueryParser extends BaseQueryParserTemp {
             boolQuery.add(query, BooleanClause.Occur.MUST_NOT);
         }
     }
+
+    @Override
+    public MoreLikeThisQueryBuilder getBuilderPrototype() {
+        return MoreLikeThisQueryBuilder.PROTOTYPE;
+    }
 }

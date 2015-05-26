@@ -39,6 +39,8 @@ public class AndQueryBuilder extends QueryBuilder {
 
     private String queryName;
 
+    static final AndQueryBuilder PROTOTYPE = new AndQueryBuilder();
+
     public AndQueryBuilder(QueryBuilder... filters) {
         for (QueryBuilder filter : filters) {
             this.filters.add(filter);

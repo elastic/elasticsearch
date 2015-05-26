@@ -59,6 +59,8 @@ public class RangeQueryBuilder extends MultiTermQueryBuilder<RangeQueryBuilder> 
 
     private String format;
 
+    static final RangeQueryBuilder PROTOTYPE = new RangeQueryBuilder(null);
+
     /**
      * A Query that matches documents within an range of terms.
      *

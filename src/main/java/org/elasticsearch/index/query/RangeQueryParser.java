@@ -19,12 +19,9 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.TermRangeQuery;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.core.DateFieldMapper;
 
 import java.io.IOException;
 
@@ -124,5 +121,10 @@ public class RangeQueryParser extends BaseQueryParser {
             .format(format);
         rangeQuery.validate();
         return rangeQuery;
+    }
+
+    @Override
+    public RangeQueryBuilder getBuilderPrototype() {
+        return RangeQueryBuilder.PROTOTYPE;
     }
 }

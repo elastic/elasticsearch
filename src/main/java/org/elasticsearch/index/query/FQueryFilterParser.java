@@ -84,4 +84,9 @@ public class FQueryFilterParser extends BaseQueryParserTemp {
         }
         return query;
     }
+
+    @Override
+    public QueryFilterBuilder getBuilderPrototype() {
+        return QueryFilterBuilder.PROTOTYPE;
+    }
 }

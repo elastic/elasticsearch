@@ -59,4 +59,9 @@ public class MatchAllQueryParser extends BaseQueryParser {
         }
         return queryBuilder;
     }
+
+    @Override
+    public MatchAllQueryBuilder getBuilderPrototype() {
+        return MatchAllQueryBuilder.PROTOTYPE;
+    }
 }

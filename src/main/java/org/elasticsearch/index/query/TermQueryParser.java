@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 
@@ -95,5 +94,10 @@ public class TermQueryParser extends BaseQueryParser {
         }
         termQuery.validate();
         return termQuery;
+    }
+
+    @Override
+    public TermQueryBuilder getBuilderPrototype() {
+        return TermQueryBuilder.PROTOTYPE;
     }
 }

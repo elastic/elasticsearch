@@ -124,5 +124,10 @@ public class RegexpQueryParser extends BaseQueryParserTemp {
         return query;
     }
 
+    @Override
+    public RegexpQueryBuilder getBuilderPrototype() {
+        return RegexpQueryBuilder.PROTOTYPE;
+    }
+
 
 }

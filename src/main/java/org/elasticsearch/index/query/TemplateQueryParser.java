@@ -155,4 +155,9 @@ public class TemplateQueryParser extends BaseQueryParserTemp {
             return type + " " + template;
         }
     }
+
+    @Override
+    public TemplateQueryBuilder getBuilderPrototype() {
+        return TemplateQueryBuilder.PROTOTYPE;
+    }
 }

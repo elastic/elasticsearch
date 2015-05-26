@@ -189,4 +189,9 @@ public class GeoShapeQueryParser extends BaseQueryParserTemp {
             throw new IllegalArgumentException("");
         }
     }
+
+    @Override
+    public GeoShapeQueryBuilder getBuilderPrototype() {
+        return GeoShapeQueryBuilder.PROTOTYPE;
+    }
 }

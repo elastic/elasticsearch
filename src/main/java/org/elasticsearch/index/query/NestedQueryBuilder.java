@@ -41,10 +41,21 @@ public class NestedQueryBuilder extends QueryBuilder implements BoostableQueryBu
 
     private QueryInnerHitBuilder innerHit;
 
+    static final NestedQueryBuilder PROTOTYPE = new NestedQueryBuilder();
+
     public NestedQueryBuilder(String path, QueryBuilder queryBuilder) {
         this.path = path;
         this.queryBuilder = Objects.requireNonNull(queryBuilder);
     }
+
+    /**
+     * private constructor only used internally
+     */
+    private NestedQueryBuilder() {
+        this.path = null;
+        this.queryBuilder = null;
+    }
+
     /**
      * The score mode.
      */

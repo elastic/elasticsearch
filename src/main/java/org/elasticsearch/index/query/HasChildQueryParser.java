@@ -187,4 +187,9 @@ public class HasChildQueryParser extends BaseQueryParserTemp {
         query.setBoost(boost);
         return query;
     }
+
+    @Override
+    public HasChildQueryBuilder getBuilderPrototype() {
+        return HasChildQueryBuilder.PROTOTYPE;
+    }
 }

@@ -40,6 +40,8 @@ public class QueryFilterBuilder extends QueryBuilder {
 
     private String queryName;
 
+    static final QueryFilterBuilder PROTOTYPE = new QueryFilterBuilder(null);
+
     /**
      * A filter that simply wraps a query.
      *

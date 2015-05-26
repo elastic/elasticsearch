@@ -197,4 +197,9 @@ public class MultiMatchQueryParser extends BaseQueryParserTemp {
             fieldNameWithBoosts.put(fField, fBoost);
         }
     }
+
+    @Override
+    public MultiMatchQueryBuilder getBuilderPrototype() {
+        return MultiMatchQueryBuilder.PROTOTYPE;
+    }
 }

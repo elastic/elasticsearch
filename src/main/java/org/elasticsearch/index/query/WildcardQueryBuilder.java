@@ -45,6 +45,8 @@ public class WildcardQueryBuilder extends MultiTermQueryBuilder implements Boost
 
     private String queryName;
 
+    static final WildcardQueryBuilder PROTOTYPE = new WildcardQueryBuilder(null, null);
+
     /**
      * Implements the wildcard search query. Supported wildcards are <tt>*</tt>, which
      * matches any character sequence (including the empty one), and <tt>?</tt>,

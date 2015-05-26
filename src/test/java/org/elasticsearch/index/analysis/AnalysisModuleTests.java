@@ -52,7 +52,6 @@ import org.junit.Test;
 import java.io.*;
 import java.util.Set;
 
-import static org.apache.lucene.util.LuceneTestCase.createTempDir;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.hamcrest.Matchers.*;
 
@@ -236,7 +235,7 @@ public class AnalysisModuleTests extends ElasticsearchTestCase {
     public void testUnderscoreInAnalyzerName() {
         Settings settings = ImmutableSettings.builder()
                 .put("index.analysis.analyzer._invalid_name.tokenizer", "keyword")
-                .put("path.home", createTempDir().toString())
+                .put("path.home", newTempDir().toString())
                 .put(IndexMetaData.SETTING_VERSION_CREATED, "1")
                 .build();
         try {
@@ -253,7 +252,7 @@ public class AnalysisModuleTests extends ElasticsearchTestCase {
         Settings settings = ImmutableSettings.builder()
                 .put("index.analysis.analyzer.valid_name.tokenizer", "keyword")
                 .put("index.analysis.analyzer.valid_name.alias", "_invalid_name")
-                .put("path.home", createTempDir().toString())
+                .put("path.home", newTempDir().toString())
                 .put(IndexMetaData.SETTING_VERSION_CREATED, "1")
                 .build();
         try {

@@ -56,10 +56,6 @@
           "options" : ["node", "indices", "shards"],
           "default" : "node"
         },
-        "filter_path": {
-          "type" : "list",
-          "description" : "A comma-separated list of fields to include in the returned response"
-        },
         "types" : {
           "type" : "list",
           "description" : "A comma-separated list of document types for the `indexing` index metric"

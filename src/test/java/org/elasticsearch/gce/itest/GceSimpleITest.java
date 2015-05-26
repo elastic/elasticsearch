@@ -21,7 +21,6 @@ package org.elasticsearch.gce.itest;
 
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.cloud.gce.AbstractGceTest;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
@@ -43,7 +42,7 @@ public class GceSimpleITest extends AbstractGceTest {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return ImmutableSettings.builder()
+        return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put("plugins." + PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, true)
                 .build();
@@ -62,7 +61,7 @@ public class GceSimpleITest extends AbstractGceTest {
     public Settings indexSettings() {
         // During restore we frequently restore index to exactly the same state it was before, that might cause the same
         // checksum file to be written twice during restore operation
-        return ImmutableSettings.builder().put(super.indexSettings())
+        return Settings.builder().put(super.indexSettings())
                 .build();
     }
 }

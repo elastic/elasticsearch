@@ -22,7 +22,6 @@ package org.elasticsearch.cloud.aws;
 import com.carrotsearch.randomizedtesting.annotations.TestGroup;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.FailedToResolveConfigException;
@@ -79,7 +78,7 @@ public abstract class AbstractAwsTest extends ElasticsearchIntegrationTest {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-                ImmutableSettings.Builder settings = ImmutableSettings.builder()
+                Settings.Builder settings = Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put("path.home", createTempDir())
                 .put("plugins." + PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, true)

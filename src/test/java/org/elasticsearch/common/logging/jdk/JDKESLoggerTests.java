@@ -91,7 +91,6 @@ public class JDKESLoggerTests extends ElasticsearchTestCase {
         assertThat(record.getMessage(), equalTo("This is a trace"));
         assertThat(record.getSourceClassName(), equalTo(JDKESLoggerTests.class.getCanonicalName()));
         assertThat(record.getSourceMethodName(), equalTo("locationInfoTest"));
-        
     }
 
     private static class TestHandler extends Handler {

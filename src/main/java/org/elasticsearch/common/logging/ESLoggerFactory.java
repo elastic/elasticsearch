@@ -66,6 +66,14 @@ public abstract class ESLoggerFactory {
         return defaultFactory.newInstance(name.intern());
     }
 
+    public static DeprecationLogger getDeprecationLogger(String name) {
+        return new DeprecationLogger(getLogger(name));
+    }
+
+    public static DeprecationLogger getDeprecationLogger(String prefix, String name) {
+        return new DeprecationLogger(getLogger(prefix, name));
+    }
+
     public static ESLogger getRootLogger() {
         return defaultFactory.rootLogger();
     }

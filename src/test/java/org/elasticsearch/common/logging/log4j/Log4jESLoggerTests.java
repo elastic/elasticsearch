@@ -24,6 +24,7 @@ import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
 import org.apache.log4j.spi.LocationInfo;
 import org.apache.log4j.spi.LoggingEvent;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchTestCase;
@@ -42,6 +43,8 @@ public class Log4jESLoggerTests extends ElasticsearchTestCase {
     private ESLogger esTestLogger;
     private TestAppender testAppender;
     private String testLevel;
+    private DeprecationLogger deprecationLogger;
+    private TestAppender deprecationAppender;
 
     @Override
     public void setUp() throws Exception {
@@ -61,6 +64,13 @@ public class Log4jESLoggerTests extends ElasticsearchTestCase {
         assertThat(testLogger.getLevel(), equalTo(Level.TRACE));
         testAppender = new TestAppender();
         testLogger.addAppender(testAppender);
+
+        // deprecation setup, needs to be set to debug to log
+        deprecationLogger = Log4jESLoggerFactory.getDeprecationLogger("test");
+        deprecationAppender = new TestAppender();
+        ESLogger logger = Log4jESLoggerFactory.getLogger("deprecation.test");
+        logger.setLevel("DEBUG");
+        (((Log4jESLogger) logger).logger()).addAppender(deprecationAppender);
     }
 
     @Override
@@ -70,6 +80,8 @@ public class Log4jESLoggerTests extends ElasticsearchTestCase {
         esTestLogger.setLevel(testLevel);
         Logger testLogger = ((Log4jESLogger) esTestLogger).logger();
         testLogger.removeAppender(testAppender);
+        Logger deprecationLogger = ((Log4jESLogger) Log4jESLoggerFactory.getLogger("deprecation.test")).logger();
+        deprecationLogger.removeAppender(deprecationAppender);
     }
 
     @Test
@@ -122,7 +134,16 @@ public class Log4jESLoggerTests extends ElasticsearchTestCase {
         assertThat(locationInfo, notNullValue());
         assertThat(locationInfo.getClassName(), equalTo(Log4jESLoggerTests.class.getCanonicalName()));
         assertThat(locationInfo.getMethodName(), equalTo("locationInfoTest"));
-        
+    }
+
+    @Test
+    public void testDeprecationLogger() {
+        deprecationLogger.deprecated("This is a deprecation message");
+        List<LoggingEvent> deprecationEvents = deprecationAppender.getEvents();
+        LoggingEvent event = deprecationEvents.get(0);
+        assertThat(event, notNullValue());
+        assertThat(event.getLevel(), equalTo(Level.DEBUG));
+        assertThat(event.getRenderedMessage(), equalTo("This is a deprecation message"));
     }
 
     private static class TestAppender extends AppenderSkeleton {

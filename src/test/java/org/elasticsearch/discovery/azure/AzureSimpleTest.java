@@ -22,7 +22,7 @@ package org.elasticsearch.discovery.azure;
 import org.elasticsearch.cloud.azure.management.AzureComputeService.Discovery;
 import org.elasticsearch.cloud.azure.management.AzureComputeService.Management;
 import org.elasticsearch.cloud.azure.management.AzureComputeServiceSimpleMock;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
@@ -40,7 +40,7 @@ public class AzureSimpleTest extends AbstractAzureComputeServiceTest {
 
     @Test
     public void one_node_should_run_using_private_ip() {
-        ImmutableSettings.Builder settings = ImmutableSettings.settingsBuilder()
+        Settings.Builder settings = Settings.settingsBuilder()
                 .put(Management.SERVICE_NAME, "dummy")
                 .put(Discovery.HOST_TYPE, "private_ip")
                 .put(super.settingsBuilder());
@@ -55,7 +55,7 @@ public class AzureSimpleTest extends AbstractAzureComputeServiceTest {
 
     @Test
     public void one_node_should_run_using_public_ip() {
-        ImmutableSettings.Builder settings = ImmutableSettings.settingsBuilder()
+        Settings.Builder settings = Settings.settingsBuilder()
                 .put(Management.SERVICE_NAME, "dummy")
                 .put(Discovery.HOST_TYPE, "public_ip")
                 .put(super.settingsBuilder());
@@ -70,7 +70,7 @@ public class AzureSimpleTest extends AbstractAzureComputeServiceTest {
 
     @Test
     public void one_node_should_run_using_wrong_settings() {
-        ImmutableSettings.Builder settings = ImmutableSettings.settingsBuilder()
+        Settings.Builder settings = Settings.settingsBuilder()
                 .put(Management.SERVICE_NAME, "dummy")
                 .put(Discovery.HOST_TYPE, "do_not_exist")
                 .put(super.settingsBuilder());

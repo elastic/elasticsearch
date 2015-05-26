@@ -20,7 +20,6 @@
 package org.elasticsearch.cloud.azure;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.FailedToResolveConfigException;
@@ -39,7 +38,7 @@ public abstract class AbstractAzureTest extends ElasticsearchIntegrationTest {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return ImmutableSettings.builder()
+        return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put(PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, true)
                 .put(readSettingsFromFile())
@@ -47,7 +46,7 @@ public abstract class AbstractAzureTest extends ElasticsearchIntegrationTest {
     }
 
     protected Settings readSettingsFromFile() {
-        ImmutableSettings.Builder settings = ImmutableSettings.builder();
+        Settings.Builder settings = Settings.builder();
         settings.put("path.home", createTempDir());
         Environment environment = new Environment(settings.build());
 

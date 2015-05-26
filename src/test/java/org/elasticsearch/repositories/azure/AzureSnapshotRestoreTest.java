@@ -26,7 +26,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotR
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cloud.azure.storage.AzureStorageServiceMock;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
@@ -50,7 +50,7 @@ public class AzureSnapshotRestoreTest extends AbstractAzureRepositoryServiceTest
         Client client = client();
         logger.info("-->  creating azure repository with path [{}]", basePath);
         PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
-                .setType("azure").setSettings(ImmutableSettings.settingsBuilder()
+                .setType("azure").setSettings(Settings.settingsBuilder()
                         .put("base_path", basePath)
                         .put("chunk_size", randomIntBetween(1000, 10000))
                 ).get();

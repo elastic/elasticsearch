@@ -253,7 +253,7 @@ public class AnalysisService extends AbstractIndexComponent implements Closeable
 
         for (Map.Entry<String, NamedAnalyzer> analyzer : analyzers.entrySet()) {
             if (analyzer.getKey().startsWith("_")) {
-                throw new IllegalArgumentException("analyzer name must not start with _. got \"" + analyzer.getKey() + "\"");
+                throw new IllegalArgumentException("analyzer name must not start with '_'. got \"" + analyzer.getKey() + "\"");
             }
         }
         this.analyzers = ImmutableMap.copyOf(analyzers);

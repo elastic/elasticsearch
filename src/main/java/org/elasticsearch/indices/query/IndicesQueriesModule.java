@@ -46,6 +46,7 @@ public class IndicesQueriesModule extends AbstractModule {
     @Override
     protected void configure() {
         bind(IndicesQueriesRegistry.class).asEagerSingleton();
+        requestStaticInjection(QueryBuilderSerializer.class);
 
         Multibinder<QueryParser> qpBinders = Multibinder.newSetBinder(binder(), QueryParser.class);
         for (Class<QueryParser> queryParser : queryParsersClasses) {

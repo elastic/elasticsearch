@@ -162,12 +162,9 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         public String toString(String field) {
             return getClass().getSimpleName();
         }
-
     }
 
     public static class DummyQueryParser extends AbstractIndexComponent implements QueryParser {
-
-
 
         @Inject
         public DummyQueryParser(Index index, Settings indexSettings) {
@@ -182,7 +179,6 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         @Override
         public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
             return fromXContent(parseContext).toQuery(parseContext);
-
         }
 
         @Override

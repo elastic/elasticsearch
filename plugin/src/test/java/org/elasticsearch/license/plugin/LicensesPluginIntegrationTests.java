@@ -6,7 +6,6 @@
 package org.elasticsearch.license.plugin;
 
 import org.elasticsearch.common.base.Predicate;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.gateway.GatewayService;
@@ -29,7 +28,7 @@ public class LicensesPluginIntegrationTests extends AbstractLicensesIntegrationT
     private final int trialLicenseDurationInSeconds = 10;
 
     protected Settings nodeSettings(int nodeOrdinal) {
-        return ImmutableSettings.settingsBuilder()
+        return Settings.settingsBuilder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put(((useEagerLicenseRegistrationPlugin) ? EagerLicenseRegistrationConsumerPlugin.NAME : LazyLicenseRegistrationConsumerPlugin.NAME)
                         + ".trial_license_duration_in_seconds", trialLicenseDurationInSeconds)

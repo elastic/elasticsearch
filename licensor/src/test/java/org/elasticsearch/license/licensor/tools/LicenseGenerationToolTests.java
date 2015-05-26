@@ -7,7 +7,6 @@ package org.elasticsearch.license.licensor.tools;
 
 import org.elasticsearch.common.cli.CliToolTestCase;
 import org.elasticsearch.common.cli.commons.MissingOptionException;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.license.core.License;
@@ -186,7 +185,7 @@ public class LicenseGenerationToolTests extends CliToolTestCase {
 
     private String runLicenseGenerationTool(Path pubKeyPath, Path priKeyPath, Set<License> licenseSpecs, ExitStatus expectedExitStatus) throws Exception {
         CaptureOutputTerminal outputTerminal = new CaptureOutputTerminal();
-        Settings settings = ImmutableSettings.builder().put("path.home", homeDir).build();
+        Settings settings = Settings.builder().put("path.home", homeDir).build();
         LicenseGenerator licenseGenerator = new LicenseGenerator(outputTerminal, pubKeyPath, priKeyPath, licenseSpecs);
         assertThat(execute(licenseGenerator, settings), equalTo(expectedExitStatus));
         assertThat(outputTerminal.getTerminalOutput().size(), equalTo(1));

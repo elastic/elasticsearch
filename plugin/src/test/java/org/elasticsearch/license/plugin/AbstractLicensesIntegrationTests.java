@@ -15,7 +15,6 @@ import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.joda.DateMathParser;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.Joda;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.license.core.License;
@@ -66,7 +65,7 @@ public abstract class AbstractLicensesIntegrationTests extends ElasticsearchInte
     }
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return ImmutableSettings.settingsBuilder()
+        return Settings.settingsBuilder()
                 .put("plugins.load_classpath_plugins", false)
                 .put("plugin.types", LicensePlugin.class.getName())
                 .build();

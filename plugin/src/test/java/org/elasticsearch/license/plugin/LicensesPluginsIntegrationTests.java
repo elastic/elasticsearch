@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.license.plugin;
 
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.license.plugin.consumer.EagerLicenseRegistrationConsumerPlugin;
@@ -25,14 +24,14 @@ public class LicensesPluginsIntegrationTests extends AbstractLicensesIntegration
     private final String FEATURE_NAME_2 = LazyLicenseRegistrationPluginService.FEATURE_NAME;
 
     protected Settings nodeSettings(int nodeOrdinal) {
-        return ImmutableSettings.settingsBuilder()
+        return Settings.settingsBuilder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .putArray("plugin.types", LicensePlugin.class.getName(), EagerLicenseRegistrationConsumerPlugin.class.getName(), LazyLicenseRegistrationConsumerPlugin.class.getName())
                 .build();
     }
 
     private Settings nodeSettingsWithConsumerPlugin(int consumer1TrialLicenseDuration, int consumer2TrialLicenseDuration) {
-        return ImmutableSettings.settingsBuilder()
+        return Settings.settingsBuilder()
                 .put(super.nodeSettings(0))
                 .put(EagerLicenseRegistrationConsumerPlugin.NAME + ".trial_license_duration_in_seconds", consumer1TrialLicenseDuration)
                 .put(LazyLicenseRegistrationConsumerPlugin.NAME + ".trial_license_duration_in_seconds", consumer2TrialLicenseDuration)

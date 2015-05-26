@@ -7,7 +7,6 @@ package org.elasticsearch.license.licensor.tools;
 
 import org.elasticsearch.common.cli.CliToolTestCase;
 import org.elasticsearch.common.cli.commons.MissingOptionException;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.license.licensor.tools.KeyPairGeneratorTool.KeyGenerator;
@@ -73,7 +72,7 @@ public class KeyPairGenerationToolTests extends CliToolTestCase {
         KeyPairGeneratorTool keyPairGeneratorTool = new KeyPairGeneratorTool();
         Path publicKeyFilePath = createTempFile().toAbsolutePath();
         Path privateKeyFilePath = createTempFile().toAbsolutePath();
-        Settings settings = ImmutableSettings.builder().put("path.home", createTempDir()).build();
+        Settings settings = Settings.builder().put("path.home", createTempDir()).build();
 
         Files.delete(publicKeyFilePath);
         Files.delete(privateKeyFilePath);

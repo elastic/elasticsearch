@@ -7,7 +7,6 @@ package org.elasticsearch.license.licensor.tools;
 
 import org.elasticsearch.common.cli.CliToolTestCase;
 import org.elasticsearch.common.cli.commons.MissingOptionException;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.Environment;
@@ -199,7 +198,7 @@ public class LicenseVerificationToolTests extends CliToolTestCase {
 
     private String runLicenseVerificationTool(Set<License> licenses, Path publicKeyPath, ExitStatus expectedExitStatus) throws Exception {
         CaptureOutputTerminal outputTerminal = new CaptureOutputTerminal();
-        Settings settings = ImmutableSettings.builder().put("path.home", homeDir).build();
+        Settings settings = Settings.builder().put("path.home", homeDir).build();
         LicenseVerifier licenseVerifier = new LicenseVerifier(outputTerminal, licenses, publicKeyPath);
         assertThat(execute(licenseVerifier, settings), equalTo(expectedExitStatus));
         if (expectedExitStatus == ExitStatus.OK) {

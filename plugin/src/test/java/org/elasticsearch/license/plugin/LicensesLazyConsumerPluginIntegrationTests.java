@@ -5,12 +5,12 @@
  */
 package org.elasticsearch.license.plugin;
 
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.plugin.consumer.LazyLicenseRegistrationConsumerPlugin;
 
 public class LicensesLazyConsumerPluginIntegrationTests extends AbstractLicensesConsumerPluginIntegrationTests {
 
     public LicensesLazyConsumerPluginIntegrationTests() {
-        super(new LazyLicenseRegistrationConsumerPlugin(ImmutableSettings.EMPTY));
+        super(new LazyLicenseRegistrationConsumerPlugin(Settings.EMPTY));
     }
 }

@@ -6,7 +6,6 @@
 package org.elasticsearch.license.plugin;
 
 import org.elasticsearch.common.base.Predicate;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.plugin.consumer.EagerLicenseRegistrationConsumerPlugin;
 import org.elasticsearch.license.plugin.consumer.EagerLicenseRegistrationPluginService;
@@ -27,7 +26,7 @@ public class LicensesServiceNodeTests extends AbstractLicensesIntegrationTests {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return ImmutableSettings.settingsBuilder()
+        return Settings.settingsBuilder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put(EagerLicenseRegistrationConsumerPlugin.NAME + ".trial_license_duration_in_seconds", 60 * 5)
                 .putArray("plugin.types", LicensePlugin.class.getName(), EagerLicenseRegistrationConsumerPlugin.class.getName())

@@ -6,7 +6,6 @@
 package org.elasticsearch.license.plugin;
 
 import org.elasticsearch.client.ClusterAdminClient;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.license.core.License;
@@ -28,7 +27,6 @@ import org.junit.Test;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.license.plugin.TestUtils.generateSignedLicense;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope.TEST;
@@ -49,8 +47,8 @@ public class LicensesServiceClusterTest extends AbstractLicensesIntegrationTests
         return nodeSettingsBuilder(nodeOrdinal).build();
     }
 
-    private ImmutableSettings.Builder nodeSettingsBuilder(int nodeOrdinal) {
-        return settingsBuilder()
+    private Settings.Builder nodeSettingsBuilder(int nodeOrdinal) {
+        return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put("gateway.type", "local")
                 .put("plugins.load_classpath_plugins", false)

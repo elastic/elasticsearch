@@ -74,15 +74,15 @@
     <files>
         <file>
             <source>README.textile</source>
-            <outputDirectory>/</outputDirectory>
+            <outputDirectory></outputDirectory>
         </file>
         <file>
             <source>LICENSE.txt</source>
-            <outputDirectory>/</outputDirectory>
+            <outputDirectory></outputDirectory>
         </file>
         <file>
             <source>NOTICE.txt</source>
-            <outputDirectory>/</outputDirectory>
+            <outputDirectory></outputDirectory>
         </file>
     </files>
 </component>

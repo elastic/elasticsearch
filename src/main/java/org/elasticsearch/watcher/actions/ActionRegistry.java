@@ -10,6 +10,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.watcher.execution.Wid;
 import org.elasticsearch.watcher.license.LicenseService;
+import org.elasticsearch.watcher.support.Validation;
 import org.elasticsearch.watcher.support.clock.Clock;
 import org.elasticsearch.watcher.transform.TransformRegistry;
 
@@ -51,6 +52,10 @@ public class ActionRegistry  {
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 id = parser.currentName();
+                Validation.Error error = Validation.actionId(id);
+                if (error != null) {
+                    throw new ActionException("could not parse action [{}] for watch [{}]. {}", id, watchId, error);
+                }
             } else if (token == XContentParser.Token.START_OBJECT && id != null) {
                 ActionWrapper action = ActionWrapper.parse(watchId, id, parser, this, transformRegistry, clock, licenseService);
                 actions.add(action);

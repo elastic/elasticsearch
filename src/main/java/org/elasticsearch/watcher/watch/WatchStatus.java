@@ -159,7 +159,7 @@ public class WatchStatus implements ToXContent, Streamable {
      */
     boolean onAck(DateTime timestamp, String... actionIds) {
         boolean changed = false;
-        if (ArrayUtils.contains(actionIds, "_all")) {
+        if (ArrayUtils.contains(actionIds, Watch.ALL_ACTIONS_ID)) {
             for (ActionStatus status : actions.values()) {
                 changed |= status.onAck(timestamp);
             }
@@ -276,7 +276,5 @@ public class WatchStatus implements ToXContent, Streamable {
         ParseField LAST_MET_CONDITION = new ParseField("last_met_condition");
         ParseField ACTIONS = new ParseField("actions");
     }
-
-
 
 }

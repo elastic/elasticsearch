@@ -19,6 +19,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.watcher.WatcherService;
 import org.elasticsearch.watcher.license.LicenseService;
 import org.elasticsearch.watcher.transport.actions.WatcherTransportAction;
+import org.elasticsearch.watcher.watch.WatchStatus;
 import org.elasticsearch.watcher.watch.WatchStore;
 
 /**
@@ -53,7 +54,8 @@ public class TransportAckWatchAction extends WatcherTransportAction<AckWatchRequ
     @Override
     protected void masterOperation(AckWatchRequest request, ClusterState state, ActionListener<AckWatchResponse> listener) throws ElasticsearchException {
         try {
-            AckWatchResponse response = new AckWatchResponse(watcherService.ackWatch(request.getId(), request.masterNodeTimeout()));
+            WatchStatus watchStatus = watcherService.ackWatch(request.getWatchId(), request.getActionIds(), request.masterNodeTimeout());
+            AckWatchResponse response = new AckWatchResponse(watchStatus);
             listener.onResponse(response);
         } catch (Exception e) {
             listener.onFailure(e);

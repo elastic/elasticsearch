@@ -17,36 +17,48 @@ public enum ActionExecutionMode {
     /**
      * The action will be simulated (not actually executed) and it will be throttled if needed.
      */
-    SIMULATE((byte) 1),
+    SIMULATE((byte) 1, false, true),
 
     /**
      * The action will be simulated (not actually executed) and it will <b>not</b> be throttled.
      */
-    FORCE_SIMULATE((byte) 2),
+    FORCE_SIMULATE((byte) 2, true, true),
 
     /**
      * The action will be executed and it will be throttled if needed.
      */
-    EXECUTE((byte) 3),
+    EXECUTE((byte) 3, false, false),
 
     /**
      * The action will be executed and it will <b>not</b> be throttled.
      */
-    FORCE_EXECUTE((byte) 4),
+    FORCE_EXECUTE((byte) 4, true, false),
 
     /**
      * The action will be skipped (it won't be executed nor simulated) - effectively it will be forcefully throttled
      */
-    SKIP((byte) 5);
+    SKIP((byte) 5, false, false);
 
     private final byte id;
+    private final boolean force;
+    private final boolean simulate;
 
-    ActionExecutionMode(byte id) {
+    ActionExecutionMode(byte id, boolean froce, boolean simulate) {
         this.id = id;
+        this.force = froce;
+        this.simulate = simulate;
     }
 
     public final byte id() {
         return id;
+    }
+
+    public final boolean simulate() {
+        return simulate;
+    }
+
+    public final boolean force() {
+        return force;
     }
 
     public static ActionExecutionMode resolve(byte id) {

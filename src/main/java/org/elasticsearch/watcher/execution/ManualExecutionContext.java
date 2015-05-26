@@ -60,21 +60,19 @@ public class ManualExecutionContext extends WatchExecutionContext {
     @Override
     public final boolean simulateAction(String actionId) {
         ActionExecutionMode mode = actionModes.get(Builder.ALL);
-        if (mode == ActionExecutionMode.SIMULATE || mode == ActionExecutionMode.FORCE_SIMULATE) {
-            return true;
+        if (mode == null) {
+            mode = actionModes.get(actionId);
         }
-        mode = actionModes.get(actionId);
-        return mode == ActionExecutionMode.SIMULATE || mode == ActionExecutionMode.FORCE_SIMULATE;
+        return mode != null && mode.simulate();
     }
 
     @Override
     public boolean skipThrottling(String actionId) {
         ActionExecutionMode mode = actionModes.get(Builder.ALL);
-        if (mode == ActionExecutionMode.FORCE_EXECUTE || mode == ActionExecutionMode.FORCE_SIMULATE) {
-            return true;
+        if (mode == null) {
+            mode = actionModes.get(actionId);
         }
-        mode = actionModes.get(actionId);
-        return mode == ActionExecutionMode.FORCE_EXECUTE || mode == ActionExecutionMode.FORCE_SIMULATE;
+        return mode != null && mode.force();
     }
 
     @Override

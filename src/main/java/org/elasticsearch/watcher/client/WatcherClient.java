@@ -206,15 +206,6 @@ public class WatcherClient {
     }
 
     /**
-     * Creates a request builder that acks an watch
-     *
-     * @return The request builder
-     */
-    public AckWatchRequestBuilder prepareAckWatch() {
-        return new AckWatchRequestBuilder(client);
-    }
-
-    /**
      * Ack a watch
      *
      * @param request The ack request with the watch id to be acked

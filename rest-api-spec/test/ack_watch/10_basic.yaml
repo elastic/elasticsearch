@@ -32,6 +32,7 @@
               }
             }
           }
+
   - match: { _id: "my_watch" }
 
   - do:
@@ -40,9 +41,10 @@
 
   - do:
       watcher.ack_watch:
-        id: "my_watch"
+        watch_id: "my_watch"
+        action_id: "test_index"
 
-  - match: { "status.actions.test_index.ack_status.state" : "awaits_successful_execution" }
+  - match: { "status.actions.test_index.ack.state" : "awaits_successful_execution" }
 
   - do:
       watcher.delete_watch:

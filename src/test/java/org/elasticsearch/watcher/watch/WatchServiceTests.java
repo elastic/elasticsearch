@@ -7,11 +7,11 @@ package org.elasticsearch.watcher.watch;
 
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.joda.time.DateTime;
-import org.elasticsearch.common.joda.time.DateTimeZone;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ElasticsearchTestCase;
@@ -189,7 +189,7 @@ public class WatchServiceTests extends ElasticsearchTestCase {
         when(watch.status()).thenReturn(status);
         when(watchStore.get("_id")).thenReturn(watch);
 
-        WatchStatus result = watcherService.ackWatch("_id", timeout);
+        WatchStatus result = watcherService.ackWatch("_id", Strings.EMPTY_ARRAY, timeout);
         assertThat(result, not(sameInstance(status)));
 
         verify(watchStore, times(1)).updateStatus(watch);
@@ -199,7 +199,7 @@ public class WatchServiceTests extends ElasticsearchTestCase {
     public void testAckWatch_Timeout() throws Exception {
         TimeValue timeout = TimeValue.timeValueSeconds(5);
         when(watchLockService.tryAcquire("_id", timeout)).thenReturn(null);
-        watcherService.ackWatch("_id", timeout);
+        watcherService.ackWatch("_id", Strings.EMPTY_ARRAY, timeout);
     }
 
     @Test
@@ -214,7 +214,7 @@ public class WatchServiceTests extends ElasticsearchTestCase {
         when(watch.status()).thenReturn(status);
         when(watchStore.get("_id")).thenReturn(watch);
 
-        WatchStatus result = watcherService.ackWatch("_id", timeout);
+        WatchStatus result = watcherService.ackWatch("_id", Strings.EMPTY_ARRAY, timeout);
         assertThat(result, not(sameInstance(status)));
 
         verify(watchStore, never()).updateStatus(watch);
@@ -228,7 +228,7 @@ public class WatchServiceTests extends ElasticsearchTestCase {
         when(watchStore.get("_id")).thenReturn(null);
 
         try {
-            watcherService.ackWatch("_id", timeout);
+            watcherService.ackWatch("_id", Strings.EMPTY_ARRAY, timeout);
             fail();
         } catch (WatcherException e) {
             // expected

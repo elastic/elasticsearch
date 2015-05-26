@@ -15,6 +15,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.watcher.support.Validation;
 
 import java.io.IOException;
 
@@ -82,6 +83,10 @@ public class PutWatchRequest extends MasterNodeOperationRequest<PutWatchRequest>
         ActionRequestValidationException validationException = null;
         if (id == null) {
             validationException = ValidateActions.addValidationError("watch name is missing", validationException);
+        }
+        Validation.Error error = Validation.watchId(id);
+        if (error != null) {
+            validationException = ValidateActions.addValidationError(error.message(), validationException);
         }
         if (source == null) {
             validationException = ValidateActions.addValidationError("watch source is missing", validationException);

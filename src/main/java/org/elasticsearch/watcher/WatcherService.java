@@ -142,18 +142,21 @@ public class WatcherService extends AbstractComponent {
     /**
      * Acks the watch if needed
      */
-    public WatchStatus ackWatch(String id, TimeValue timeout) {
+    public WatchStatus ackWatch(String id, String[] actionIds, TimeValue timeout) {
         ensureStarted();
         WatchLockService.Lock lock = watchLockService.tryAcquire(id, timeout);
         if (lock == null) {
             throw new TimeoutException("could not ack watch [{}] within [{}]... wait and try again. If this error continues to occur there is a high chance that the watch execution is stuck (either due to unresponsive external system such as an email service, or due to a bad script", id, timeout.format(PeriodType.seconds()));
+        }
+        if (actionIds == null || actionIds.length == 0) {
+            actionIds = new String[] { Watch.ALL_ACTIONS_ID };
         }
         try {
             Watch watch = watchStore.get(id);
             if (watch == null) {
                 throw new WatcherException("watch [{}] does not exist", id);
             }
-            if (watch.ack(clock.now(UTC), "_all")) {
+            if (watch.ack(clock.now(UTC), actionIds)) {
                 try {
                     watchStore.updateStatus(watch);
                 } catch (IOException ioe) {

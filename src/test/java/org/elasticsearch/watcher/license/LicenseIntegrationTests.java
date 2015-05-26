@@ -246,7 +246,7 @@ public class LicenseIntegrationTests extends AbstractWatcherIntegrationTests {
             @Override
             public void run() {
                 XContentSource source = watcherClient().prepareGetWatch(watchName).get().getSource();
-                assertThat(source.getValue("status.actions._index.ack_status.state"), is((Object) "ackable"));
+                assertThat(source.getValue("status.actions._index.ack.state"), is((Object) "ackable"));
             }
         });
 

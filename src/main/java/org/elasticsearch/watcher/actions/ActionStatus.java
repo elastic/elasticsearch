@@ -505,7 +505,7 @@ public class ActionStatus implements ToXContent {
     }
 
     interface Field {
-        ParseField ACK_STATUS = new ParseField("ack_status");
+        ParseField ACK_STATUS = new ParseField("ack");
         ParseField ACK_STATUS_STATE = new ParseField("state");
 
         ParseField LAST_EXECUTION = new ParseField("last_execution");

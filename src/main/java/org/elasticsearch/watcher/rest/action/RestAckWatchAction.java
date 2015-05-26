@@ -28,11 +28,17 @@ public class RestAckWatchAction extends WatcherRestHandler {
         super(settings, controller, client);
         controller.registerHandler(RestRequest.Method.PUT, URI_BASE + "/watch/{id}/_ack", this);
         controller.registerHandler(RestRequest.Method.POST, URI_BASE + "/watch/{id}/_ack", this);
+        controller.registerHandler(RestRequest.Method.PUT, URI_BASE + "/watch/{id}/{actions}/_ack", this);
+        controller.registerHandler(RestRequest.Method.POST, URI_BASE + "/watch/{id}/{actions}/_ack", this);
     }
 
     @Override
     protected void handleRequest(RestRequest request, RestChannel restChannel, WatcherClient client) throws Exception {
         AckWatchRequest ackWatchRequest = new AckWatchRequest(request.param("id"));
+        String[] actions = request.paramAsStringArray("actions", null);
+        if (actions != null) {
+            ackWatchRequest.setActionIds(actions);
+        }
         ackWatchRequest.masterNodeTimeout(request.paramAsTime("master_timeout", ackWatchRequest.masterNodeTimeout()));
         client.ackWatch(ackWatchRequest, new RestBuilderListener<AckWatchResponse>(restChannel) {
             @Override

@@ -6,6 +6,8 @@
 package org.elasticsearch.watcher.test.integration;
 
 import com.carrotsearch.randomizedtesting.annotations.Repeat;
+import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.watcher.WatcherException;
 import org.elasticsearch.watcher.client.WatchSourceBuilder;
 import org.elasticsearch.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
@@ -65,6 +67,23 @@ public class WatchCrudTests extends AbstractWatcherIntegrationTests {
                 .get();
     }
 
+    @Test(expected = ActionRequestValidationException.class)
+    public void testPut_InvalidWatchId() throws Exception {
+        ensureWatcherStarted();
+        watcherClient().preparePutWatch("id with whitespaces").setSource(watchBuilder()
+                .trigger(schedule(interval("5m"))))
+                .get();
+    }
+
+    @Test(expected = WatcherException.class)
+    public void testPut_InvalidActionId() throws Exception {
+        ensureWatcherStarted();
+        watcherClient().preparePutWatch("_name").setSource(watchBuilder()
+                .trigger(schedule(interval("5m")))
+                .addAction("id with whitespaces", loggingAction("{{ctx.watch_id}}")))
+                .get();
+    }
+
     @Test
     public void testGet() throws Exception {
         ensureWatcherStarted();
@@ -90,6 +109,11 @@ public class WatchCrudTests extends AbstractWatcherIntegrationTests {
         assertThat(source, hasKey("condition"));
         assertThat(source, hasKey("actions"));
         assertThat(source, hasKey("status"));
+    }
+
+    @Test(expected = ActionRequestValidationException.class)
+    public void testGet_InvalidWatchId() throws Exception {
+        watcherClient().prepareGetWatch("id with whitespaces").get();
     }
 
     @Test
@@ -135,4 +159,8 @@ public class WatchCrudTests extends AbstractWatcherIntegrationTests {
         assertThat(response.isFound(), is(false));
     }
 
+    @Test(expected = ActionRequestValidationException.class)
+    public void testDelete_InvalidWatchId() throws Exception {
+        watcherClient().deleteWatch(new DeleteWatchRequest("id with whitespaces")).actionGet();
+    }
 }

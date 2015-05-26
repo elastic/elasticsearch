@@ -1018,7 +1018,7 @@ public final class InternalTestCluster extends TestCluster {
             IndicesService indexServices = getInstance(IndicesService.class, nodeAndClient.name);
             for (IndexService indexService : indexServices) {
                 for (IndexShard indexShard : indexService) {
-                    assertThat(indexShard.getOperationsCount(), anyOf(equalTo(1), equalTo(0)));
+                    assertThat("index shard counter on shard " + indexShard.shardId() + " on node " + nodeAndClient.name + " not 0 or 1 ", indexShard.getOperationsCount(), anyOf(equalTo(1), equalTo(0)));
                     if (indexShard.getOperationsCount() == 0) {
                         assertThat(indexShard.state(), equalTo(IndexShardState.CLOSED));
                     }

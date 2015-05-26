@@ -36,7 +36,8 @@ import org.elasticsearch.transport.*;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -55,6 +56,12 @@ public class ExceptionRetryTests extends ElasticsearchIntegrationTest {
                 .put(super.nodeSettings(nodeOrdinal))
                 .put(TransportModule.TRANSPORT_SERVICE_TYPE_KEY, MockTransportService.class.getName())
                 .build();
+    }
+
+    @Override
+    protected void beforeIndexDeletion() {
+        // a write operation might still be in flight when the test has finished
+        // so we should not check the operation counter here 
     }
 
     /**

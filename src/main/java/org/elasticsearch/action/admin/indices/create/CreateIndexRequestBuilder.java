@@ -93,7 +93,7 @@ public class CreateIndexRequestBuilder extends AcknowledgedRequestBuilder<Create
     /**
      * The settings to create the index with (either json/yaml/properties format)
      */
-    public CreateIndexRequestBuilder setSettings(Map<String, Object> source) {
+    public CreateIndexRequestBuilder setSettings(Map<String, ?> source) {
         request.settings(source);
         return this;
     }
@@ -223,7 +223,7 @@ public class CreateIndexRequestBuilder extends AcknowledgedRequestBuilder<Create
     /**
      * Sets the settings and mappings as a single source.
      */
-    public CreateIndexRequestBuilder setSource(Map<String, Object> source) {
+    public CreateIndexRequestBuilder setSource(Map<String, ?> source) {
         request.source(source);
         return this;
     }

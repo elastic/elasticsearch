@@ -338,6 +338,8 @@ Additional Appenders and other logging classes provided by
 http://logging.apache.org/log4j/extras/[log4j-extras] are also available, 
 out of the box.
 
+[float]
+[[deprecation-logging]]
 ==== Deprecation logging
 
 In addition to regular logging, Elasticsearch allows you to enable logging

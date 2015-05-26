@@ -21,7 +21,7 @@ package org.elasticsearch.script.javascript;
 
 import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.After;
@@ -44,7 +44,7 @@ public class JavaScriptScriptEngineTests extends ElasticsearchTestCase {
 
     @Before
     public void setup() {
-        se = new JavaScriptScriptEngineService(ImmutableSettings.Builder.EMPTY_SETTINGS);
+        se = new JavaScriptScriptEngineService(Settings.Builder.EMPTY_SETTINGS);
     }
 
     @After

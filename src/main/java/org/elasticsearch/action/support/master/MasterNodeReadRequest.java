@@ -17,39 +17,39 @@
  * under the License.
  */
 
-package org.elasticsearch.action.support.nodes;
+package org.elasticsearch.action.support.master;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
 
 /**
- *
+ * Base request for master based read operations that allows to read the cluster state from the local node if needed
  */
-public abstract class NodeOperationRequest extends TransportRequest {
+public abstract class MasterNodeReadRequest<T extends MasterNodeReadRequest> extends MasterNodeRequest<T> {
 
-    private String nodeId;
+    protected boolean local = false;
 
-    protected NodeOperationRequest() {
-
+    @SuppressWarnings("unchecked")
+    public final T local(boolean local) {
+        this.local = local;
+        return (T) this;
     }
 
-    protected NodeOperationRequest(NodesOperationRequest request, String nodeId) {
-        super(request);
-        this.nodeId = nodeId;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        nodeId = in.readString();
+    public final boolean local() {
+        return local;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeString(nodeId);
+        out.writeBoolean(local);
+    }
+
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
+        super.readFrom(in);
+        local = in.readBoolean();
     }
 }

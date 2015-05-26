@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.fieldstats;
 
-import org.elasticsearch.action.support.broadcast.BroadcastShardOperationRequest;
+import org.elasticsearch.action.support.broadcast.BroadcastShardRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.shard.ShardId;
@@ -28,7 +28,7 @@ import java.io.IOException;
 
 /**
  */
-public class FieldStatsShardRequest extends BroadcastShardOperationRequest {
+public class FieldStatsShardRequest extends BroadcastShardRequest {
 
     private String[] fields;
 

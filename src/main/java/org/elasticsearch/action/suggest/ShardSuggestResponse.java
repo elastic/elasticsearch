@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.suggest;
 
-import org.elasticsearch.action.support.broadcast.BroadcastShardOperationResponse;
+import org.elasticsearch.action.support.broadcast.BroadcastShardResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.shard.ShardId;
@@ -30,7 +30,7 @@ import java.io.IOException;
 /**
  * Internal suggest response of a shard suggest request executed directly against a specific shard.
  */
-class ShardSuggestResponse extends BroadcastShardOperationResponse {
+class ShardSuggestResponse extends BroadcastShardResponse {
 
     private final Suggest suggest;
 

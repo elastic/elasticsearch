@@ -21,7 +21,7 @@ package org.elasticsearch.action.admin.cluster.repositories.put;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
+import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
@@ -36,7 +36,7 @@ import org.elasticsearch.transport.TransportService;
 /**
  * Transport action for register repository operation
  */
-public class TransportPutRepositoryAction extends TransportMasterNodeOperationAction<PutRepositoryRequest, PutRepositoryResponse> {
+public class TransportPutRepositoryAction extends TransportMasterNodeAction<PutRepositoryRequest, PutRepositoryResponse> {
 
     private final RepositoriesService repositoriesService;
 

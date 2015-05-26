@@ -20,7 +20,7 @@
 package org.elasticsearch.action.termvectors.dfs;
 
 import org.elasticsearch.action.ShardOperationFailedException;
-import org.elasticsearch.action.support.broadcast.BroadcastOperationResponse;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
@@ -32,7 +32,7 @@ import java.util.List;
 /**
  * A response of a dfs only request.
  */
-public class DfsOnlyResponse extends BroadcastOperationResponse {
+public class DfsOnlyResponse extends BroadcastResponse {
 
     private AggregatedDfs dfs;
     private long tookInMillis;

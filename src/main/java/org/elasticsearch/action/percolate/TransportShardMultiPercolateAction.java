@@ -26,8 +26,8 @@ import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportActions;
-import org.elasticsearch.action.support.single.shard.SingleShardOperationRequest;
-import org.elasticsearch.action.support.single.shard.TransportShardSingleOperationAction;
+import org.elasticsearch.action.support.single.shard.SingleShardRequest;
+import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.ShardIterator;
@@ -49,7 +49,7 @@ import java.util.List;
 
 /**
  */
-public class TransportShardMultiPercolateAction extends TransportShardSingleOperationAction<TransportShardMultiPercolateAction.Request, TransportShardMultiPercolateAction.Response> {
+public class TransportShardMultiPercolateAction extends TransportSingleShardAction<TransportShardMultiPercolateAction.Request, TransportShardMultiPercolateAction.Response> {
 
     private final PercolatorService percolatorService;
 
@@ -108,7 +108,7 @@ public class TransportShardMultiPercolateAction extends TransportShardSingleOper
     }
 
 
-    public static class Request extends SingleShardOperationRequest implements IndicesRequest {
+    public static class Request extends SingleShardRequest implements IndicesRequest {
 
         private int shardId;
         private String preference;

@@ -21,7 +21,7 @@ package org.elasticsearch.action.admin.indices.validate.query;
 
 import com.google.common.collect.ImmutableList;
 import org.elasticsearch.action.ShardOperationFailedException;
-import org.elasticsearch.action.support.broadcast.BroadcastOperationResponse;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -36,7 +36,7 @@ import static org.elasticsearch.action.admin.indices.validate.query.QueryExplana
  *
  *
  */
-public class ValidateQueryResponse extends BroadcastOperationResponse {
+public class ValidateQueryResponse extends BroadcastResponse {
 
     private boolean valid;
     

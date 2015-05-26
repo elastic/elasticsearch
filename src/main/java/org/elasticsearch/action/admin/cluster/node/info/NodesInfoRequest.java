@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.admin.cluster.node.info;
 
-import org.elasticsearch.action.support.nodes.NodesOperationRequest;
+import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -28,7 +28,7 @@ import java.io.IOException;
 /**
  * A request to get node (cluster) level information.
  */
-public class NodesInfoRequest extends NodesOperationRequest<NodesInfoRequest> {
+public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
 
     private boolean settings = true;
     private boolean os = true;

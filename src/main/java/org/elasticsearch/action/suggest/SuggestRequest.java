@@ -20,7 +20,7 @@
 package org.elasticsearch.action.suggest;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.support.broadcast.BroadcastOperationRequest;
+import org.elasticsearch.action.support.broadcast.BroadcastRequest;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -48,7 +48,7 @@ import java.util.Arrays;
  * @see org.elasticsearch.client.Requests#suggestRequest(String...)
  * @see org.elasticsearch.search.suggest.SuggestBuilders
  */
-public final class SuggestRequest extends BroadcastOperationRequest<SuggestRequest> {
+public final class SuggestRequest extends BroadcastRequest<SuggestRequest> {
 
     @Nullable
     private String routing;

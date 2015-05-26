@@ -29,17 +29,17 @@ import java.io.IOException;
 /**
  * A based request for master based operation.
  */
-public abstract class MasterNodeOperationRequest<T extends MasterNodeOperationRequest> extends ActionRequest<T> {
+public abstract class MasterNodeRequest<T extends MasterNodeRequest> extends ActionRequest<T> {
 
     public static final TimeValue DEFAULT_MASTER_NODE_TIMEOUT = TimeValue.timeValueSeconds(30);
 
     protected TimeValue masterNodeTimeout = DEFAULT_MASTER_NODE_TIMEOUT;
 
-    protected MasterNodeOperationRequest() {
+    protected MasterNodeRequest() {
 
     }
 
-    protected MasterNodeOperationRequest(ActionRequest request) {
+    protected MasterNodeRequest(ActionRequest request) {
         super(request);
     }
 

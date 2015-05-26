@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.admin.cluster.node.info;
 
-import org.elasticsearch.action.support.nodes.NodesOperationResponse;
+import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -34,7 +34,7 @@ import java.util.Map;
 /**
  *
  */
-public class NodesInfoResponse extends NodesOperationResponse<NodeInfo> implements ToXContent {
+public class NodesInfoResponse extends BaseNodesResponse<NodeInfo> implements ToXContent {
 
     public NodesInfoResponse() {
     }

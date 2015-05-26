@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.admin.cluster.node.stats;
 
-import org.elasticsearch.action.support.nodes.NodesOperationResponse;
+import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -32,7 +32,7 @@ import java.io.IOException;
 /**
  *
  */
-public class NodesStatsResponse extends NodesOperationResponse<NodeStats> implements ToXContent {
+public class NodesStatsResponse extends BaseNodesResponse<NodeStats> implements ToXContent {
 
     NodesStatsResponse() {
     }

@@ -22,7 +22,7 @@ package org.elasticsearch.action.count;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.QuerySourceBuilder;
-import org.elasticsearch.action.support.broadcast.BroadcastOperationRequest;
+import org.elasticsearch.action.support.broadcast.BroadcastRequest;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -52,7 +52,7 @@ import static org.elasticsearch.search.internal.SearchContext.DEFAULT_TERMINATE_
  * @see org.elasticsearch.client.Client#count(CountRequest)
  * @see org.elasticsearch.client.Requests#countRequest(String...)
  */
-public class CountRequest extends BroadcastOperationRequest<CountRequest> {
+public class CountRequest extends BroadcastRequest<CountRequest> {
 
     public static final float DEFAULT_MIN_SCORE = -1f;
 

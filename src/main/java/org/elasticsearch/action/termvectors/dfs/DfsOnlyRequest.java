@@ -24,7 +24,7 @@ import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.support.broadcast.BroadcastOperationRequest;
+import org.elasticsearch.action.support.broadcast.BroadcastRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -38,7 +38,7 @@ import java.util.Set;
 
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 
-public class DfsOnlyRequest extends BroadcastOperationRequest<DfsOnlyRequest> {
+public class DfsOnlyRequest extends BroadcastRequest<DfsOnlyRequest> {
 
     private SearchRequest searchRequest = new SearchRequest();
 

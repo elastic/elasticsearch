@@ -21,7 +21,7 @@ package org.elasticsearch.action.admin.indices.mapping.put;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
+import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
@@ -36,7 +36,7 @@ import org.elasticsearch.transport.TransportService;
 /**
  * Put mapping action.
  */
-public class TransportPutMappingAction extends TransportMasterNodeOperationAction<PutMappingRequest, PutMappingResponse> {
+public class TransportPutMappingAction extends TransportMasterNodeAction<PutMappingRequest, PutMappingResponse> {
 
     private final MetaDataMappingService metaDataMappingService;
 

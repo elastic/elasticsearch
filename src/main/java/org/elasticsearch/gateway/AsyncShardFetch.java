@@ -24,8 +24,8 @@ import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
-import org.elasticsearch.action.support.nodes.NodeOperationResponse;
-import org.elasticsearch.action.support.nodes.NodesOperationResponse;
+import org.elasticsearch.action.support.nodes.BaseNodeResponse;
+import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -48,29 +48,29 @@ import java.util.*;
  * and once the results are back, it makes sure to schedule a reroute to make sure those results will
  * be taken into account.
  */
-public abstract class AsyncShardFetch<T extends NodeOperationResponse> implements Releasable {
+public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Releasable {
 
     /**
      * An action that lists the relevant shard data that needs to be fetched.
      */
-    public interface List<NodesResponse extends NodesOperationResponse<NodeResponse>, NodeResponse extends NodeOperationResponse> {
+    public interface List<NodesResponse extends BaseNodesResponse<NodeResponse>, NodeResponse extends BaseNodeResponse> {
         void list(ShardId shardId, IndexMetaData indexMetaData, String[] nodesIds, ActionListener<NodesResponse> listener);
     }
 
     protected final ESLogger logger;
     protected final String type;
     private final ShardId shardId;
-    private final List<NodesOperationResponse<T>, T> action;
+    private final List<BaseNodesResponse<T>, T> action;
     private final Map<String, NodeEntry<T>> cache = new HashMap<>();
     private final Set<String> nodesToIgnore = new HashSet<>();
     private boolean closed;
 
     @SuppressWarnings("unchecked")
-    protected AsyncShardFetch(ESLogger logger, String type, ShardId shardId, List<? extends NodesOperationResponse<T>, T> action) {
+    protected AsyncShardFetch(ESLogger logger, String type, ShardId shardId, List<? extends BaseNodesResponse<T>, T> action) {
         this.logger = logger;
         this.type = type;
         this.shardId = shardId;
-        this.action = (List<NodesOperationResponse<T>, T>) action;
+        this.action = (List<BaseNodesResponse<T>, T>) action;
     }
 
     public synchronized void close() {
@@ -253,9 +253,9 @@ public abstract class AsyncShardFetch<T extends NodeOperationResponse> implement
     // visible for testing
     void asyncFetch(final ShardId shardId, final String[] nodesIds, final MetaData metaData) {
         IndexMetaData indexMetaData = metaData.index(shardId.getIndex());
-        action.list(shardId, indexMetaData, nodesIds, new ActionListener<NodesOperationResponse<T>>() {
+        action.list(shardId, indexMetaData, nodesIds, new ActionListener<BaseNodesResponse<T>>() {
             @Override
-            public void onResponse(NodesOperationResponse<T> response) {
+            public void onResponse(BaseNodesResponse<T> response) {
                 processAsyncFetch(shardId, response.getNodes(), response.failures());
             }
 
@@ -274,7 +274,7 @@ public abstract class AsyncShardFetch<T extends NodeOperationResponse> implement
      * The result of a fetch operation. Make sure to first check {@link #hasData()} before
      * fetching the actual data.
      */
-    public static class FetchResult<T extends NodeOperationResponse> {
+    public static class FetchResult<T extends BaseNodeResponse> {
 
         private final ShardId shardId;
         private final Map<DiscoveryNode, T> data;

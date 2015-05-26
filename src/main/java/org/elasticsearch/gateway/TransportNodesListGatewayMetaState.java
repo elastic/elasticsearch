@@ -45,7 +45,7 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
 /**
  *
  */
-public class TransportNodesListGatewayMetaState extends TransportNodesOperationAction<TransportNodesListGatewayMetaState.Request, TransportNodesListGatewayMetaState.NodesGatewayMetaState, TransportNodesListGatewayMetaState.NodeRequest, TransportNodesListGatewayMetaState.NodeGatewayMetaState> {
+public class TransportNodesListGatewayMetaState extends TransportNodesAction<TransportNodesListGatewayMetaState.Request, TransportNodesListGatewayMetaState.NodesGatewayMetaState, TransportNodesListGatewayMetaState.NodeRequest, TransportNodesListGatewayMetaState.NodeGatewayMetaState> {
 
     public static final String ACTION_NAME = "internal:gateway/local/meta_state";
 
@@ -113,7 +113,7 @@ public class TransportNodesListGatewayMetaState extends TransportNodesOperationA
         return true;
     }
 
-    static class Request extends NodesOperationRequest<Request> {
+    static class Request extends BaseNodesRequest<Request> {
 
         public Request() {
         }
@@ -133,7 +133,7 @@ public class TransportNodesListGatewayMetaState extends TransportNodesOperationA
         }
     }
 
-    public static class NodesGatewayMetaState extends NodesOperationResponse<NodeGatewayMetaState> {
+    public static class NodesGatewayMetaState extends BaseNodesResponse<NodeGatewayMetaState> {
 
         private FailedNodeException[] failures;
 
@@ -170,7 +170,7 @@ public class TransportNodesListGatewayMetaState extends TransportNodesOperationA
     }
 
 
-    static class NodeRequest extends NodeOperationRequest {
+    static class NodeRequest extends BaseNodeRequest {
 
         NodeRequest() {
         }
@@ -190,7 +190,7 @@ public class TransportNodesListGatewayMetaState extends TransportNodesOperationA
         }
     }
 
-    public static class NodeGatewayMetaState extends NodeOperationResponse {
+    public static class NodeGatewayMetaState extends BaseNodeResponse {
 
         private MetaData metaData;
 

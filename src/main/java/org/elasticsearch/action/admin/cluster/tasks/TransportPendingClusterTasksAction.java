@@ -21,7 +21,7 @@ package org.elasticsearch.action.admin.cluster.tasks;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.TransportMasterNodeReadOperationAction;
+import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -33,7 +33,7 @@ import org.elasticsearch.transport.TransportService;
 
 /**
  */
-public class TransportPendingClusterTasksAction extends TransportMasterNodeReadOperationAction<PendingClusterTasksRequest, PendingClusterTasksResponse> {
+public class TransportPendingClusterTasksAction extends TransportMasterNodeReadAction<PendingClusterTasksRequest, PendingClusterTasksResponse> {
 
     private final ClusterService clusterService;
 

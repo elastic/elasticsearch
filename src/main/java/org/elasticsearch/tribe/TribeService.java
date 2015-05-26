@@ -23,7 +23,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.support.master.TransportMasterNodeReadOperationAction;
+import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -99,7 +99,7 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
         if (sb.get("cluster.name") == null) {
             sb.put("cluster.name", "tribe_" + Strings.randomBase64UUID()); // make sure it won't join other tribe nodes in the same JVM
         }
-        sb.put(TransportMasterNodeReadOperationAction.FORCE_LOCAL_SETTING, true);
+        sb.put(TransportMasterNodeReadAction.FORCE_LOCAL_SETTING, true);
         return sb.build();
     }
 

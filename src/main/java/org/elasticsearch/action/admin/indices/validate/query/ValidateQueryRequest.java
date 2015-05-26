@@ -23,7 +23,7 @@ import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.QuerySourceBuilder;
-import org.elasticsearch.action.support.broadcast.BroadcastOperationRequest;
+import org.elasticsearch.action.support.broadcast.BroadcastRequest;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -44,7 +44,7 @@ import java.util.Map;
  * <p>The request requires the query source to be set either using {@link #source(QuerySourceBuilder)},
  * or {@link #source(byte[])}.
  */
-public class ValidateQueryRequest extends BroadcastOperationRequest<ValidateQueryRequest> {
+public class ValidateQueryRequest extends BroadcastRequest<ValidateQueryRequest> {
 
     private BytesReference source;
 

@@ -19,13 +19,13 @@
 
 package org.elasticsearch.action.admin.indices.cache.clear;
 
-import org.elasticsearch.action.support.broadcast.BroadcastShardOperationResponse;
+import org.elasticsearch.action.support.broadcast.BroadcastShardResponse;
 import org.elasticsearch.index.shard.ShardId;
 
 /**
  *
  */
-class ShardClearIndicesCacheResponse extends BroadcastShardOperationResponse {
+class ShardClearIndicesCacheResponse extends BroadcastShardResponse {
 
     ShardClearIndicesCacheResponse() {
     }

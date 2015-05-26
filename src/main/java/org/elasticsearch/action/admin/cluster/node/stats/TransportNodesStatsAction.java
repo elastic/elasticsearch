@@ -21,8 +21,8 @@ package org.elasticsearch.action.admin.cluster.node.stats;
 
 import com.google.common.collect.Lists;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.nodes.NodeOperationRequest;
-import org.elasticsearch.action.support.nodes.TransportNodesOperationAction;
+import org.elasticsearch.action.support.nodes.BaseNodeRequest;
+import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.common.inject.Inject;
@@ -40,7 +40,7 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
 /**
  *
  */
-public class TransportNodesStatsAction extends TransportNodesOperationAction<NodesStatsRequest, NodesStatsResponse, TransportNodesStatsAction.NodeStatsRequest, NodeStats> {
+public class TransportNodesStatsAction extends TransportNodesAction<NodesStatsRequest, NodesStatsResponse, TransportNodesStatsAction.NodeStatsRequest, NodeStats> {
 
     private final NodeService nodeService;
 
@@ -87,7 +87,7 @@ public class TransportNodesStatsAction extends TransportNodesOperationAction<Nod
         return false;
     }
 
-    static class NodeStatsRequest extends NodeOperationRequest {
+    static class NodeStatsRequest extends BaseNodeRequest {
 
         NodesStatsRequest request;
 

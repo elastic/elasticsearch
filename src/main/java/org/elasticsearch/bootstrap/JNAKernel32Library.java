@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.common.jna;
+package org.elasticsearch.bootstrap;
 
 import com.google.common.collect.ImmutableList;
 import com.sun.jna.*;
@@ -35,9 +35,9 @@ import java.util.List;
 /**
  * Library for Windows/Kernel32
  */
-public class Kernel32Library {
+class JNAKernel32Library {
 
-    private static ESLogger logger = Loggers.getLogger(Kernel32Library.class);
+    private static final ESLogger logger = Loggers.getLogger(JNAKernel32Library.class);
 
     // Callbacks must be kept around in order to be able to be called later,
     // when the Windows ConsoleCtrlHandler sends an event.
@@ -45,10 +45,10 @@ public class Kernel32Library {
 
     // Native library instance must be kept around for the same reason.
     private final static class Holder {
-        private final static Kernel32Library instance = new Kernel32Library();
+        private final static JNAKernel32Library instance = new JNAKernel32Library();
     }
 
-    private Kernel32Library() {
+    private JNAKernel32Library() {
         if (Constants.WINDOWS) {
             try {
                 Native.register("kernel32");
@@ -61,7 +61,7 @@ public class Kernel32Library {
         }
     }
 
-    public static Kernel32Library getInstance() {
+    static JNAKernel32Library getInstance() {
         return Holder.instance;
     }
 
@@ -73,7 +73,7 @@ public class Kernel32Library {
      * @throws java.lang.UnsatisfiedLinkError if the Kernel32 library is not loaded or if the native function is not found
      * @throws java.lang.NoClassDefFoundError if the library for native calls is missing
      */
-    public boolean addConsoleCtrlHandler(ConsoleCtrlHandler handler) {
+    boolean addConsoleCtrlHandler(ConsoleCtrlHandler handler) {
         boolean result = false;
         if (handler != null) {
             NativeHandlerCallback callback = new NativeHandlerCallback(handler);
@@ -85,7 +85,7 @@ public class Kernel32Library {
         return result;
     }
 
-    public ImmutableList<Object> getCallbacks() {
+    ImmutableList<Object> getCallbacks() {
         return ImmutableList.builder().addAll(callbacks).build();
     }
 
@@ -98,7 +98,7 @@ public class Kernel32Library {
      * @throws java.lang.UnsatisfiedLinkError if the Kernel32 library is not loaded or if the native function is not found
      * @throws java.lang.NoClassDefFoundError if the library for native calls is missing
      */
-    public native boolean SetConsoleCtrlHandler(StdCallLibrary.StdCallCallback handler, boolean add);
+    native boolean SetConsoleCtrlHandler(StdCallLibrary.StdCallCallback handler, boolean add);
 
     /**
      * Handles consoles event with WIN API
@@ -122,20 +122,6 @@ public class Kernel32Library {
             return handler.handle(event);
         }
     }
-
-    public interface ConsoleCtrlHandler {
-
-        public static final int CTRL_CLOSE_EVENT = 2;
-
-        /**
-         * Handles the Ctrl event.
-         *
-         * @param code the code corresponding to the Ctrl sent.
-         * @return true if the handler processed the event, false otherwise. If false, the next handler will be called.
-         */
-        boolean handle(int code);
-    }
-
 
     /**
      * Memory protection constraints
@@ -167,6 +153,18 @@ public class Kernel32Library {
         }
     }
 
+    public static class SizeT extends IntegerType {
+
+        public SizeT() {
+            this(0);
+        }
+
+        public SizeT(long value) {
+            super(Native.SIZE_T_SIZE, value);
+        }
+
+    }
+
     /**
      * Locks the specified region of the process's virtual address space into physical
      * memory, ensuring that subsequent access to the region will not incur a page fault.
@@ -177,7 +175,7 @@ public class Kernel32Library {
      * @param size The size of the region to be locked, in bytes.
      * @return true if the function succeeds
      */
-    public native boolean VirtualLock(Pointer address, SizeT size);
+    native boolean VirtualLock(Pointer address, SizeT size);
 
     /**
      * Retrieves information about a range of pages within the virtual address space of a specified process.
@@ -190,7 +188,7 @@ public class Kernel32Library {
      * @param length The size of the buffer pointed to by the memoryInfo parameter, in bytes.
      * @return the actual number of bytes returned in the information buffer.
      */
-    public native int VirtualQueryEx(Pointer handle, Pointer address, MemoryBasicInformation memoryInfo, int length);
+    native int VirtualQueryEx(Pointer handle, Pointer address, MemoryBasicInformation memoryInfo, int length);
 
     /**
      * Sets the minimum and maximum working set sizes for the specified process.
@@ -202,7 +200,7 @@ public class Kernel32Library {
      * @param maxSize The maximum working set size for the process, in bytes.
      * @return true if the function succeeds.
      */
-    public native boolean SetProcessWorkingSetSize(Pointer handle, SizeT minSize, SizeT maxSize);
+    native boolean SetProcessWorkingSetSize(Pointer handle, SizeT minSize, SizeT maxSize);
 
     /**
      * Retrieves a pseudo handle for the current process.
@@ -211,7 +209,7 @@ public class Kernel32Library {
      *
      * @return a pseudo handle to the current process.
      */
-    public native Pointer GetCurrentProcess();
+    native Pointer GetCurrentProcess();
 
     /**
      * Closes an open object handle.
@@ -221,5 +219,5 @@ public class Kernel32Library {
      * @param handle A valid handle to an open object.
      * @return true if the function succeeds.
      */
-    public native boolean CloseHandle(Pointer handle);
+    native boolean CloseHandle(Pointer handle);
 }

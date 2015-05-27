@@ -189,7 +189,7 @@ public class HttpServer extends AbstractLifecycleComponent<HttpServer> {
             sitePath = null;
             // If a trailing / is missing, we redirect to the right page #2654
             String redirectUrl = request.rawPath() + "/";
-            BytesRestResponse restResponse = new BytesRestResponse(RestStatus.MOVED_PERMANENTLY, "text/html", "<head><meta http-equiv=\"refresh\" content=\"0; URL=" + redirectUrl + "></head>");
+            BytesRestResponse restResponse = new BytesRestResponse(RestStatus.MOVED_PERMANENTLY, "text/html", "<head><meta http-equiv=\"refresh\" content=\"0; URL=" + redirectUrl + "\"></head>");
             restResponse.addHeader("Location", redirectUrl);
             channel.sendResponse(restResponse);
             return;

@@ -39,6 +39,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -58,7 +59,6 @@ public class RecoveryStatus extends AbstractRefCounted {
     private final long recoveryId;
     private final IndexShard indexShard;
     private final DiscoveryNode sourceNode;
-    private final String tempFilePrefix;
     private final Store store;
     private final RecoveryTarget.RecoveryListener listener;
 
@@ -72,6 +72,11 @@ public class RecoveryStatus extends AbstractRefCounted {
     // last time this status was accessed
     private volatile long lastAccessTime = System.nanoTime();
 
+
+    // a counter which is incremented with each recovery attempt to make sure file names are unique
+    private final AtomicInteger attempt = new AtomicInteger();
+    private String tempFilePrefix;
+
     public RecoveryStatus(IndexShard indexShard, DiscoveryNode sourceNode, RecoveryTarget.RecoveryListener listener) {
 
         super("recovery_status");
@@ -81,11 +86,15 @@ public class RecoveryStatus extends AbstractRefCounted {
         this.indexShard = indexShard;
         this.sourceNode = sourceNode;
         this.shardId = indexShard.shardId();
-        this.tempFilePrefix = RECOVERY_PREFIX + indexShard.recoveryState().getTimer().startTime() + ".";
         this.store = indexShard.store();
         // make sure the store is not released until we are done.
         store.incRef();
         indexShard.recoveryStats().incCurrentAsTarget();
+        refreshTempFilesPrefix();
+    }
+
+    protected void refreshTempFilesPrefix() {
+        this.tempFilePrefix = RECOVERY_PREFIX + this.indexShard.recoveryState().getTimer().startTime() + "." + attempt.getAndIncrement() + ".";
     }
 
     private final Map<String, String> tempFileNames = ConcurrentCollections.newConcurrentMap();
@@ -236,6 +245,8 @@ public class RecoveryStatus extends AbstractRefCounted {
     public void resetRecovery() throws IOException {
         cleanOpenFiles();
         indexShard().performRecoveryRestart();
+        // ensure that all future temp files will have unique names
+        refreshTempFilesPrefix();
     }
 
     @Override

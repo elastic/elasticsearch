@@ -21,7 +21,6 @@ package org.elasticsearch.index.shard;
 
 import com.google.common.base.Charsets;
 import com.google.common.base.Preconditions;
-
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.search.Query;
@@ -107,6 +106,7 @@ import org.elasticsearch.index.warmer.WarmerStats;
 import org.elasticsearch.indices.IndicesLifecycle;
 import org.elasticsearch.indices.IndicesWarmer;
 import org.elasticsearch.indices.InternalIndicesLifecycle;
+import org.elasticsearch.indices.recovery.DelayRecoveryException;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.search.suggest.completion.Completion090PostingsFormat;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
@@ -801,14 +801,22 @@ public class IndexShard extends AbstractIndexShardComponent {
 
     /**
      * Applies all operations in the iterable to the current engine and returns the number of operations applied.
-     * This operation will stop applying operations once an opertion failed to apply.
-     * Note: This method is typically used in peer recovery to replay remote tansaction log entries.
+     * This operation will stop applying operations once an operation failed to apply.
+     * Note: This method is typically used in peer recovery to replay remote transaction log entries.
      */
     public int performBatchRecovery(Iterable<Translog.Operation> operations) {
         if (state != IndexShardState.RECOVERING) {
             throw new IndexShardNotRecoveringException(shardId, state);
         }
-        return engineConfig.getTranslogRecoveryPerformer().performBatchRecovery(engine(), operations);
+        final TranslogRecoveryPerformer performer = engineConfig.getTranslogRecoveryPerformer();
+        try {
+            return performer.performBatchRecovery(engine(), operations, false);
+        } catch (MapperException e) {
+            // in very rare cases a translog replay from primary is processed before a mapping update on this node
+            // which causes local mapping changes. we want to wait until these mappings are processed.
+            logger.trace("delaying recovery due to missing mapping changes", e);
+            throw new DelayRecoveryException("missing mapping changes", e);
+        }
     }
 
     /**

@@ -43,9 +43,9 @@
             }
           }
 
-  - match: { "watch_id": "my_logging_watch" }
-  - match: { "execution_result.condition.script.met": true }
-  - match: { "state": "executed" }
-  - match: { "execution_result.actions.0.id" : "logging" }
-  - match: { "execution_result.actions.0.logging.status" : "success" }
-  - match: { "execution_result.actions.0.logging.logged_text" : "foobar" }
+  - match: { "watch_record.watch_id": "my_logging_watch" }
+  - match: { "watch_record.execution_result.condition.script.met": true }
+  - match: { "watch_record.state": "executed" }
+  - match: { "watch_record.execution_result.actions.0.id" : "logging" }
+  - match: { "watch_record.execution_result.actions.0.logging.status" : "success" }
+  - match: { "watch_record.execution_result.actions.0.logging.logged_text" : "foobar" }

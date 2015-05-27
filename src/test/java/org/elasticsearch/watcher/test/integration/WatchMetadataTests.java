@@ -99,7 +99,7 @@ public class WatchMetadataTests extends AbstractWatcherIntegrationTests {
         TriggerEvent triggerEvent = new ScheduleTriggerEvent(new DateTime(UTC), new DateTime(UTC));
         ExecuteWatchResponse executeWatchResponse = watcherClient().prepareExecuteWatch("_name").setTriggerEvent(triggerEvent).setActionMode("_all", ActionExecutionMode.SIMULATE).get();
 
-        WatchRecord record = parser.parse("test_run", 1, executeWatchResponse.getSource().getBytes());
+        WatchRecord record = parser.parse("test_run", 1, executeWatchResponse.getRecordSource().getBytes());
         assertThat(record.metadata().get("foo").toString(), equalTo("bar"));
         assertThat(record.execution().actionsResults().get("testLogger").action(), instanceOf(LoggingAction.Result.Simulated.class));
         LoggingAction.Result.Simulated simulatedResult = (LoggingAction.Result.Simulated) (record.execution().actionsResults().get("testLogger").action());

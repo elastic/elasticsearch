@@ -142,7 +142,7 @@ public class EmailSecretsIntegrationTests extends AbstractWatcherIntegrationTest
                 .setTriggerEvent(triggerEvent)
                 .get();
         assertThat(executeResponse, notNullValue());
-        contentSource = executeResponse.getSource();
+        contentSource = executeResponse.getRecordSource();
 
         value = contentSource.getValue("execution_result.actions.0.email.status");
         assertThat((String) value, is("success"));

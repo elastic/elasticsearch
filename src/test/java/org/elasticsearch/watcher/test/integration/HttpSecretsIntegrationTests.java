@@ -151,7 +151,7 @@ public class HttpSecretsIntegrationTests extends AbstractWatcherIntegrationTests
                 .setTriggerEvent(triggerEvent)
                 .get();
         assertThat(executeResponse, notNullValue());
-        contentSource = executeResponse.getSource();
+        contentSource = executeResponse.getRecordSource();
         value = contentSource.getValue("execution_result.input.http.status");
         assertThat(value, notNullValue());
         assertThat(value, is((Object) 200));
@@ -223,7 +223,7 @@ public class HttpSecretsIntegrationTests extends AbstractWatcherIntegrationTests
                 .setTriggerEvent(triggerEvent)
                 .get();
         assertThat(executeResponse, notNullValue());
-        contentSource = executeResponse.getSource();
+        contentSource = executeResponse.getRecordSource();
 
         value = contentSource.getValue("execution_result.actions.0.webhook.response.status");
         assertThat(value, notNullValue());

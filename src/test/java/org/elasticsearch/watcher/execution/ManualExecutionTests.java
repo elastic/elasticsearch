@@ -210,7 +210,7 @@ public class ManualExecutionTests extends AbstractWatcherIntegrationTests {
                 .setTriggerEvent(triggerEvent)
                 .get();
 
-        WatchRecord watchRecord = watchRecordParser.parse(wid.value(), 1, executeWatchResponse.getSource().getBytes());
+        WatchRecord watchRecord = watchRecordParser.parse(wid.value(), 1, executeWatchResponse.getRecordSource().getBytes());
 
         assertThat(watchRecord.state(), equalTo(WatchRecord.State.EXECUTION_NOT_NEEDED));
         assertThat(watchRecord.execution().inputResult().payload().data().get("foo").toString(), equalTo("bar"));
@@ -225,7 +225,7 @@ public class ManualExecutionTests extends AbstractWatcherIntegrationTests {
 
 
         executeWatchResponse = watcherClient().prepareExecuteWatch().setId("_id").setTriggerEvent(triggerEvent).setRecordExecution(true).get();
-        watchRecord = watchRecordParser.parse(wid.value(), 1, executeWatchResponse.getSource().getBytes());
+        watchRecord = watchRecordParser.parse(wid.value(), 1, executeWatchResponse.getRecordSource().getBytes());
 
 
         assertThat(watchRecord.state(), equalTo(WatchRecord.State.EXECUTED));
@@ -235,7 +235,7 @@ public class ManualExecutionTests extends AbstractWatcherIntegrationTests {
 
         executeWatchResponse = watcherClient().prepareExecuteWatch().setId("_id").setTriggerEvent(triggerEvent).get();
 
-        watchRecord = watchRecordParser.parse(wid.value(), 1, executeWatchResponse.getSource().getBytes());
+        watchRecord = watchRecordParser.parse(wid.value(), 1, executeWatchResponse.getRecordSource().getBytes());
         assertThat(watchRecord.state(), equalTo(WatchRecord.State.THROTTLED));
     }
 

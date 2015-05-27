@@ -74,11 +74,11 @@
             },
             "record_execution" : true
           }
-  - match: { "watch_id": "my_exe_watch" }
-  - match: { "state": "executed" }
-  - match: { "trigger_event.manual.schedule.scheduled_time": "2015-05-05T20:58:02.443Z" }
-  - match: { "execution_result.condition.always": {} }
-  - match: { "execution_result.input.simple.payload.foo": "bar" }
-  - match: { "execution_result.actions.0.id" : "email_admin" }
-  - match: { "execution_result.actions.0.email.status" : "simulated" }
-  - match: { "execution_result.actions.0.email.email.subject" : "404 recently encountered" }
+  - match: { "watch_record.watch_id": "my_exe_watch" }
+  - match: { "watch_record.state": "executed" }
+  - match: { "watch_record.trigger_event.manual.schedule.scheduled_time": "2015-05-05T20:58:02.443Z" }
+  - match: { "watch_record.execution_result.condition.always": {} }
+  - match: { "watch_record.execution_result.input.simple.payload.foo": "bar" }
+  - match: { "watch_record.execution_result.actions.0.id" : "email_admin" }
+  - match: { "watch_record.execution_result.actions.0.email.status" : "simulated" }
+  - match: { "watch_record.execution_result.actions.0.email.email.subject" : "404 recently encountered" }

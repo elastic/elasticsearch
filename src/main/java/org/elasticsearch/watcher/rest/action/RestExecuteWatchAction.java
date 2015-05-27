@@ -9,6 +9,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -41,13 +42,16 @@ public class RestExecuteWatchAction extends WatcherRestHandler {
     }
 
     @Override
-    protected void handleRequest(RestRequest request, RestChannel channel, WatcherClient client) throws Exception {
+    protected void handleRequest(final RestRequest request, RestChannel channel, WatcherClient client) throws Exception {
         ExecuteWatchRequest executeWatchRequest = parseRequest(request, client);
 
         client.executeWatch(executeWatchRequest, new RestBuilderListener<ExecuteWatchResponse>(channel) {
             @Override
             public RestResponse buildResponse(ExecuteWatchResponse response, XContentBuilder builder) throws Exception {
-                builder.value(response.getSource());
+                builder.startObject();
+                builder.field(Field.ID.getPreferredName(), response.getRecordId());
+                builder.field(Field.WATCH_RECORD.getPreferredName(), response.getRecordSource(), ToXContent.EMPTY_PARAMS);
+                builder.endObject();
                 return new BytesRestResponse(RestStatus.OK, builder);
             }
         });
@@ -127,6 +131,9 @@ public class RestExecuteWatchAction extends WatcherRestHandler {
     }
 
     interface Field {
+        ParseField ID = new ParseField("_id");
+        ParseField WATCH_RECORD = new ParseField("watch_record");
+
         ParseField RECORD_EXECUTION = new ParseField("record_execution");
         ParseField ACTION_MODES = new ParseField("action_modes");
         ParseField ALTERNATIVE_INPUT = new ParseField("alternative_input");

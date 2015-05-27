@@ -6,7 +6,6 @@
 package org.elasticsearch.watcher.transport.actions.execute;
 
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -19,34 +18,42 @@ import java.io.IOException;
  */
 public class ExecuteWatchResponse extends ActionResponse {
 
-    private XContentSource source;
+    private String recordId;
+    private XContentSource recordSource;
 
     public ExecuteWatchResponse() {
     }
 
-    public ExecuteWatchResponse(@Nullable BytesReference source) {
-        this.source = source != null ? new XContentSource(source) : null;
+    public ExecuteWatchResponse(String recordId, BytesReference recordSource) {
+        this.recordId = recordId;
+        this.recordSource = new XContentSource(recordSource);
+    }
+
+    /**
+     * @return The id of the watch record holding the watch execution result.
+     */
+    public String getRecordId() {
+        return recordId;
     }
 
     /**
      * @return The watch record source
      */
-    public XContentSource getSource() {
-        return source;
+    public XContentSource getRecordSource() {
+        return recordSource;
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        source = in.readBoolean() ? XContentSource.readFrom(in) : null;
+        recordId = in.readString();
+        recordSource = XContentSource.readFrom(in);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeBoolean(source != null);
-        if (source != null) {
-            XContentSource.writeTo(source, out);
-        }
+        out.writeString(recordId);
+        XContentSource.writeTo(recordSource, out);
     }
 }

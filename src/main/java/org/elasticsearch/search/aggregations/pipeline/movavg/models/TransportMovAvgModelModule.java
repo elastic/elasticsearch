@@ -36,6 +36,7 @@ public class TransportMovAvgModelModule extends AbstractModule {
         registerStream(LinearModel.STREAM);
         registerStream(EwmaModel.STREAM);
         registerStream(HoltLinearModel.STREAM);
+        registerStream(HoltWintersModel.STREAM);
     }
 
     public void registerStream(MovAvgModelStreams.Stream stream) {

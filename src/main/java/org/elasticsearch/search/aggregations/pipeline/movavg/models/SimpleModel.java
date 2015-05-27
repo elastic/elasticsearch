@@ -25,6 +25,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.pipeline.movavg.MovAvgParser;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -63,7 +64,7 @@ public class SimpleModel extends MovAvgModel {
         out.writeString(STREAM.getName());
     }
 
-    public static class SimpleModelParser implements MovAvgModelParser {
+    public static class SimpleModelParser extends AbstractModelParser {
 
         @Override
         public String getName() {
@@ -71,7 +72,7 @@ public class SimpleModel extends MovAvgModel {
         }
 
         @Override
-        public MovAvgModel parse(@Nullable Map<String, Object> settings) {
+        public MovAvgModel parse(@Nullable Map<String, Object> settings, String pipelineName,  SearchContext context, int windowSize) {
             return new SimpleModel();
         }
     }

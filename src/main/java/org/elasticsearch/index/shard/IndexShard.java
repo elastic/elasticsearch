@@ -804,8 +804,8 @@ public class IndexShard extends AbstractIndexShardComponent {
 
     /**
      * Applies all operations in the iterable to the current engine and returns the number of operations applied.
-     * This operation will stop applying operations once an opertion failed to apply.
-     * Note: This method is typically used in peer recovery to replay remote tansaction log entries.
+     * This operation will stop applying operations once an operation failed to apply.
+     * Note: This method is typically used in peer recovery to replay remote transaction log entries.
      */
     public int performBatchRecovery(Iterable<Translog.Operation> operations) {
         if (state != IndexShardState.RECOVERING) {
@@ -1389,7 +1389,7 @@ public class IndexShard extends AbstractIndexShardComponent {
      * Returns the current translog durability mode
      */
     public Translog.Durabilty getTranslogDurability() {
-       return translogConfig.getDurabilty();
+        return translogConfig.getDurabilty();
     }
 
     private static Translog.Durabilty getFromSettings(ESLogger logger, Settings settings, Translog.Durabilty defaultValue) {

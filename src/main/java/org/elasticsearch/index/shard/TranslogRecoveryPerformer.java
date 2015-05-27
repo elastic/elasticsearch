@@ -33,12 +33,7 @@ import org.elasticsearch.index.aliases.IndexAliasesService;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.IgnoreOnRecoveryEngineException;
-import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.MapperAnalyzer;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.MapperUtils;
-import org.elasticsearch.index.mapper.Mapping;
-import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryParsingException;
@@ -73,20 +68,28 @@ public class TranslogRecoveryPerformer {
         return mapperService.documentMapperWithAutoCreate(type); // protected for testing
     }
 
-    /*
+    /**
      * Applies all operations in the iterable to the current engine and returns the number of operations applied.
-     * This operation will stop applying operations once an opertion failed to apply.
+     * This operation will stop applying operations once an operation failed to apply.
+     *
+     * Throws a {@link MapperException} to be thrown if a mapping update is encountered.
      */
     int performBatchRecovery(Engine engine, Iterable<Translog.Operation> operations) {
         int numOps = 0;
         for (Translog.Operation operation : operations) {
-            performRecoveryOperation(engine, operation);
+            performRecoveryOperation(engine, operation, false);
             numOps++;
         }
         return numOps;
     }
 
-    private void addMappingUpdate(String type, Mapping update) {
+    private void maybeAddMappingUpdate(String type, Mapping update, String docId, boolean allowMappingUpdates) {
+        if (update == null) {
+            return;
+        }
+        if (allowMappingUpdates == false) {
+            throw new MapperException("mapping updates are not allowed (type: [" + type + "], id: [" + docId + "])");
+        }
         Mapping currentUpdate = recoveredTypes.get(type);
         if (currentUpdate == null) {
             recoveredTypes.put(type, update);
@@ -96,10 +99,13 @@ public class TranslogRecoveryPerformer {
     }
 
     /**
-     * Performs a single recovery operation, and returns the indexing operation (or null if its not an indexing operation)
-     * that can then be used for mapping updates (for example) if needed.
+     * Performs a single recovery operation.
+     *
+     * @param allowMappingUpdates true if mapping update should be accepted (but collected). Setting it to false will
+     *                            cause a {@link MapperException} to be thrown if an update
+     *                            is encountered.
      */
-    public void performRecoveryOperation(Engine engine, Translog.Operation operation) {
+    public void performRecoveryOperation(Engine engine, Translog.Operation operation, boolean allowMappingUpdates) {
         try {
             switch (operation.opType()) {
                 case CREATE:
@@ -109,10 +115,8 @@ public class TranslogRecoveryPerformer {
                                     .routing(create.routing()).parent(create.parent()).timestamp(create.timestamp()).ttl(create.ttl()),
                             create.version(), create.versionType().versionTypeForReplicationAndRecovery(), Engine.Operation.Origin.RECOVERY, true, false);
                     mapperAnalyzer.setType(create.type()); // this is a PITA - once mappings are per index not per type this can go away an we can just simply move this to the engine eventually :)
+                    maybeAddMappingUpdate(engineCreate.type(), engineCreate.parsedDoc().dynamicMappingsUpdate(), engineCreate.id(), allowMappingUpdates);
                     engine.create(engineCreate);
-                    if (engineCreate.parsedDoc().dynamicMappingsUpdate() != null) {
-                        addMappingUpdate(engineCreate.type(), engineCreate.parsedDoc().dynamicMappingsUpdate());
-                    }
                     break;
                 case SAVE:
                     Translog.Index index = (Translog.Index) operation;
@@ -120,10 +124,8 @@ public class TranslogRecoveryPerformer {
                                     .routing(index.routing()).parent(index.parent()).timestamp(index.timestamp()).ttl(index.ttl()),
                             index.version(), index.versionType().versionTypeForReplicationAndRecovery(), Engine.Operation.Origin.RECOVERY, true);
                     mapperAnalyzer.setType(index.type());
+                    maybeAddMappingUpdate(engineIndex.type(), engineIndex.parsedDoc().dynamicMappingsUpdate(), engineIndex.id(), allowMappingUpdates);
                     engine.index(engineIndex);
-                    if (engineIndex.parsedDoc().dynamicMappingsUpdate() != null) {
-                        addMappingUpdate(engineIndex.type(), engineIndex.parsedDoc().dynamicMappingsUpdate());
-                    }
                     break;
                 case DELETE:
                     Translog.Delete delete = (Translog.Delete) operation;

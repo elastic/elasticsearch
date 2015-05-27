@@ -20,15 +20,10 @@
 package org.elasticsearch.index.engine;
 
 import com.google.common.collect.Lists;
-
 import org.apache.lucene.index.*;
 import org.apache.lucene.index.IndexWriter.IndexReaderWarmer;
 import org.apache.lucene.search.BooleanClause.Occur;
-import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.SearcherFactory;
-import org.apache.lucene.search.SearcherManager;
+import org.apache.lucene.search.*;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.util.BytesRef;
@@ -219,7 +214,7 @@ public class InternalEngine extends Engine {
             Translog.Operation operation;
             while ((operation = snapshot.next()) != null) {
                 try {
-                    handler.performRecoveryOperation(this, operation);
+                    handler.performRecoveryOperation(this, operation, true);
                     opsRecovered++;
                 } catch (ElasticsearchException e) {
                     if (e.status() == RestStatus.BAD_REQUEST) {

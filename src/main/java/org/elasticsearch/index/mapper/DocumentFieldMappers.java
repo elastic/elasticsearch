@@ -28,7 +28,6 @@ import org.elasticsearch.index.analysis.FieldNameAnalyzer;
 
 import java.util.Collection;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -98,11 +97,11 @@ public final class DocumentFieldMappers implements Iterable<FieldMapper> {
         return fieldMappers.get(field);
     }
 
-    List<String> simpleMatchToIndexNames(String pattern) {
+    Collection<String> simpleMatchToIndexNames(String pattern) {
         return fieldMappers.simpleMatchToIndexNames(pattern);
     }
 
-    public List<String> simpleMatchToFullName(String pattern) {
+    public Collection<String> simpleMatchToFullName(String pattern) {
         return fieldMappers.simpleMatchToFullName(pattern);
     }
 

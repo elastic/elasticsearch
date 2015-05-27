@@ -30,6 +30,7 @@ import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 import org.elasticsearch.test.ElasticsearchTestCase;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 
@@ -39,7 +40,7 @@ public class FieldMappersLookupTests extends ElasticsearchTestCase {
         FieldMappersLookup lookup = new FieldMappersLookup();
         assertNull(lookup.fullName("foo"));
         assertNull(lookup.indexName("foo"));
-        List<String> names = lookup.simpleMatchToFullName("foo");
+        Collection<String> names = lookup.simpleMatchToFullName("foo");
         assertNotNull(names);
         assertTrue(names.isEmpty());
         names = lookup.simpleMatchToFullName("foo");
@@ -105,7 +106,7 @@ public class FieldMappersLookupTests extends ElasticsearchTestCase {
         FakeFieldMapper f2 = new FakeFieldMapper("bar", "boo");
         FieldMappersLookup lookup = new FieldMappersLookup();
         lookup = lookup.copyAndAddAll(newList(f1, f2));
-        List<String> names = lookup.simpleMatchToIndexNames("b*");
+        Collection<String> names = lookup.simpleMatchToIndexNames("b*");
         assertTrue(names.contains("baz"));
         assertTrue(names.contains("boo"));
     }
@@ -115,7 +116,7 @@ public class FieldMappersLookupTests extends ElasticsearchTestCase {
         FakeFieldMapper f2 = new FakeFieldMapper("bar", "boo");
         FieldMappersLookup lookup = new FieldMappersLookup();
         lookup = lookup.copyAndAddAll(newList(f1, f2));
-        List<String> names = lookup.simpleMatchToFullName("b*");
+        Collection<String> names = lookup.simpleMatchToFullName("b*");
         assertTrue(names.contains("foo"));
         assertTrue(names.contains("bar"));
     }

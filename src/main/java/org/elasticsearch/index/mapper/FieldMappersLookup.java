@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.mapper;
 
-import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.CopyOnWriteHashMap;
 import org.elasticsearch.common.regex.Regex;
@@ -27,7 +27,7 @@ import org.elasticsearch.common.regex.Regex;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
-import java.util.List;
+import java.util.Set;
 
 /**
  * A class that holds a map of field mappers from name, index name, and full name.
@@ -114,8 +114,8 @@ class FieldMappersLookup implements Iterable<FieldMapper> {
     /**
      * Returns a list of the index names of a simple match regex like pattern against full name and index name.
      */
-    public List<String> simpleMatchToIndexNames(String pattern) {
-        List<String> fields = Lists.newArrayList();
+    public Collection<String> simpleMatchToIndexNames(String pattern) {
+        Set<String> fields = Sets.newHashSet();
         for (FieldMapper fieldMapper : this) {
             if (Regex.simpleMatch(pattern, fieldMapper.names().fullName())) {
                 fields.add(fieldMapper.names().indexName());
@@ -129,8 +129,8 @@ class FieldMappersLookup implements Iterable<FieldMapper> {
     /**
      * Returns a list of the full names of a simple match regex like pattern against full name and index name.
      */
-    public List<String> simpleMatchToFullName(String pattern) {
-        List<String> fields = Lists.newArrayList();
+    public Collection<String> simpleMatchToFullName(String pattern) {
+        Set<String> fields = Sets.newHashSet();
         for (FieldMapper fieldMapper : this) {
             if (Regex.simpleMatch(pattern, fieldMapper.names().fullName())) {
                 fields.add(fieldMapper.names().fullName());

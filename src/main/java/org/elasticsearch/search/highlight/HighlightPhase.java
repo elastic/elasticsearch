@@ -34,7 +34,7 @@ import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.SearchContext;
 
-import java.util.List;
+import java.util.Collection;
 import java.util.Map;
 
 import static com.google.common.collect.Maps.newHashMap;
@@ -77,7 +77,7 @@ public class HighlightPhase extends AbstractComponent implements FetchSubPhase {
     public void hitExecute(SearchContext context, HitContext hitContext) {
         Map<String, HighlightField> highlightFields = newHashMap();
         for (SearchContextHighlight.Field field : context.highlight().fields()) {
-            List<String> fieldNamesToHighlight;
+            Collection<String> fieldNamesToHighlight;
             if (Regex.isSimpleMatchPattern(field.field())) {
                 DocumentMapper documentMapper = context.mapperService().documentMapper(hitContext.hit().type());
                 fieldNamesToHighlight = documentMapper.mappers().simpleMatchToFullName(field.field());

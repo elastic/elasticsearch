@@ -145,15 +145,7 @@ import java.net.InetSocketAddress;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.IdentityHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Random;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
@@ -906,7 +898,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                     DocumentMapper documentMapper = indexService.mapperService().documentMapper(type);
                     assertThat("document mapper doesn't exists on " + node, documentMapper, notNullValue());
                     for (String fieldName : fieldNames) {
-                        List<String> matches = documentMapper.mappers().simpleMatchToFullName(fieldName);
+                        Collection<String> matches = documentMapper.mappers().simpleMatchToFullName(fieldName);
                         assertThat("field " + fieldName + " doesn't exists on " + node, matches, Matchers.not(emptyIterable()));
                     }
                 }

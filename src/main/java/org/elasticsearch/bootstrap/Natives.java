@@ -34,9 +34,9 @@ class Natives {
 
     static {
         try {
-            // load one of the main JNA classes to see if the classes are available. this does not ensure that native
-            // libraries are available
-            Class.forName("com.sun.jna.Native");
+            // load the JNA version class to see if the JNA is available. this does not ensure that native libraries are
+            // available
+            Class.forName("com.sun.jna.Version");
             jnaAvailable = true;
         } catch(ClassNotFoundException e) {
             logger.warn("JNA not found. native methods will be disabled.");

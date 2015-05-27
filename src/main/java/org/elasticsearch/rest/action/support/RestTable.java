@@ -157,16 +157,15 @@ public class RestTable {
     private static Set<String> expandHeadersFromRequest(Table table, RestRequest request) {
         Set<String> headers = new LinkedHashSet<>(table.getHeaders().size());
 
-        Map<String, Table.Cell> headerMap = table.getHeaderMap();
         // check headers and aliases
         for (String header : Strings.splitStringByCommaToArray(request.param("h"))) {
             if (Regex.isSimpleMatchPattern(header)) {
-                for (Map.Entry<String, Table.Cell> configuredHeaderEntry : headerMap.entrySet()) {
-                    String configuredHeader = configuredHeaderEntry.getKey();
+                for (Table.Cell tableHeaderCell : table.getHeaders()) {
+                    String configuredHeader = tableHeaderCell.value.toString();
                     if (Regex.simpleMatch(header, configuredHeader)) {
                         headers.add(configuredHeader);
-                    } else if (configuredHeaderEntry.getValue().attr.containsKey("alias")) {
-                        String[] aliases = Strings.splitStringByCommaToArray(configuredHeaderEntry.getValue().attr.get("alias"));
+                    } else if (tableHeaderCell.attr.containsKey("alias")) {
+                        String[] aliases = Strings.splitStringByCommaToArray(tableHeaderCell.attr.get("alias"));
                         for (String alias : aliases) {
                             if (Regex.simpleMatch(header, alias)) {
                                 headers.add(configuredHeader);

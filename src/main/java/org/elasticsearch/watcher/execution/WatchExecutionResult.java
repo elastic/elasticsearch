@@ -90,7 +90,7 @@ public class WatchExecutionResult implements ToXContent {
         return builder;
     }
 
-    interface Field {
+    public interface Field {
         ParseField EXECUTION_TIME = new ParseField("execution_time");
         ParseField EXECUTION_DURATION = new ParseField("execution_duration");
         ParseField INPUT = new ParseField("input");

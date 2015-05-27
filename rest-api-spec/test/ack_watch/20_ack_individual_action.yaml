@@ -1,5 +1,5 @@
 ---
-"Test ack watch api":
+"Test ack watch api on an individual action":
   - do:
       cluster.health:
           wait_for_status: yellow
@@ -42,6 +42,7 @@
   - do:
       watcher.ack_watch:
         watch_id: "my_watch"
+        action_id: "test_index"
 
   - match: { "status.actions.test_index.ack.state" : "awaits_successful_execution" }
 
@@ -50,3 +51,4 @@
         id: "my_watch"
 
   - match: { found: true }
+

@@ -1,17 +1,22 @@
 ---
-"Test ack watch api":
+"Test put watch api with watch level throttle":
   - do:
       cluster.health:
-          wait_for_status: yellow
+          wait_for_status: green
 
   - do:
       watcher.put_watch:
-        id: "my_watch"
+        id: "my_watch1"
         master_timeout: "40s"
         body:  >
           {
-            "trigger" : {
-              "schedule" : { "cron" : "0 0 0 1 * ? 2099" }
+            "throttle_period" : "10s",
+            "trigger": {
+              "schedule": {
+                "hourly": {
+                  "minute": [ 0, 5 ]
+                  }
+                }
             },
             "input": {
               "simple": {
@@ -32,21 +37,11 @@
               }
             }
           }
-
-  - match: { _id: "my_watch" }
-
-  - do:
-      cluster.health:
-          wait_for_status: yellow
+  - match: { _id: "my_watch1" }
 
   - do:
-      watcher.ack_watch:
-        watch_id: "my_watch"
-
-  - match: { "status.actions.test_index.ack.state" : "awaits_successful_execution" }
-
-  - do:
-      watcher.delete_watch:
-        id: "my_watch"
-
-  - match: { found: true }
+      watcher.get_watch:
+        id: "my_watch1"
+  - match: { found : true}
+  - match: { _id: "my_watch1" }
+  - match: { watch.throttle_period: 10000 }

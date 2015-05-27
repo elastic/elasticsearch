@@ -42,6 +42,7 @@ DATA_DIR="${packaging.elasticsearch.data.dir}"
 WORK_DIR="${packaging.elasticsearch.work.dir}"
 CONF_DIR="${packaging.elasticsearch.conf.dir}"
 CONF_FILE="${packaging.elasticsearch.conf.dir}/elasticsearch.yml"
+PID_DIR="${packaging.elasticsearch.pid.dir}"
 
 # Source the default env file
 ES_ENV_FILE="${packaging.env.file}"
@@ -51,7 +52,7 @@ fi
 
 exec="$ES_HOME/bin/elasticsearch"
 prog="elasticsearch"
-pidfile=/var/run/elasticsearch/${prog}.pid
+pidfile="$PID_DIR/${prog}.pid"
 
 export ES_HEAP_SIZE
 export ES_HEAP_NEWSIZE

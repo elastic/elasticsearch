@@ -34,12 +34,14 @@ class Natives {
 
     static {
         try {
-            // load one of the main JNA classes to see if the classes are available. this does not ensure that native
-            // libraries are available
+            // load one of the main JNA classes to see if the classes are available. this does not ensure that all native
+            // libraries are available, only the ones necessary by JNA to function
             Class.forName("com.sun.jna.Native");
             jnaAvailable = true;
-        } catch(ClassNotFoundException e) {
-            logger.warn("JNA not found. native methods will be disabled.");
+        } catch (ClassNotFoundException e) {
+            logger.warn("JNA not found. native methods will be disabled.", e);
+        } catch (UnsatisfiedLinkError e) {
+            logger.warn("unable to load JNA native support library, native methods will be disabled.", e);
         }
     }
 

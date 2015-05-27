@@ -31,6 +31,8 @@ import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.routing.operation.hash.djb.DjbHashFunction;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lease.Releasable;
@@ -118,7 +120,20 @@ public class InternalEngine extends Engine {
         boolean success = false;
         try {
             try {
-                upgrade3xSegments(store);
+                boolean autoUpgrade = true;
+                try {
+                    // If the index was created on 0.20.7 (Lucene 3.x) or earlier,
+                    // it needs to be upgraded
+                    autoUpgrade = Version.indexCreated(engineConfig.getIndexSettings()).onOrBefore(Version.V_0_20_7);
+                } catch (ElasticsearchIllegalStateException e) {
+                    // we weren't able to parse the version, that's fine
+                }
+                if (autoUpgrade) {
+                    logger.debug("[{}] checking for 3x segments to upgrade", shardId);
+                    upgrade3xSegments(store);
+                } else {
+                    logger.debug("[{}] skipping check for 3x segments", shardId);
+                }
             } catch (IOException ex) {
                 throw new EngineCreationFailureException(shardId, "failed to upgrade 3x segments", ex);
             }

@@ -152,7 +152,12 @@ public final class EngineConfig {
     /**
      * Creates a new {@link org.elasticsearch.index.engine.EngineConfig}
      */
-    public EngineConfig(ShardId shardId, boolean optimizeAutoGenerateId, ThreadPool threadPool, ShardIndexingService indexingService, IndexSettingsService indexSettingsService, IndicesWarmer warmer, Store store, SnapshotDeletionPolicy deletionPolicy, Translog translog, MergePolicyProvider mergePolicyProvider, MergeSchedulerProvider mergeScheduler, Analyzer analyzer, Similarity similarity, CodecService codecService, Engine.FailedEngineListener failedEngineListener) {
+    public EngineConfig(ShardId shardId, boolean optimizeAutoGenerateId, ThreadPool threadPool,
+                        ShardIndexingService indexingService, IndexSettingsService indexSettingsService,
+                        IndicesWarmer warmer, Store store, SnapshotDeletionPolicy deletionPolicy,
+                        Translog translog, MergePolicyProvider mergePolicyProvider,
+                        MergeSchedulerProvider mergeScheduler, Analyzer analyzer, Similarity similarity,
+                        CodecService codecService, Engine.FailedEngineListener failedEngineListener) {
         this.shardId = shardId;
         this.optimizeAutoGenerateId = optimizeAutoGenerateId;
         this.threadPool = threadPool;

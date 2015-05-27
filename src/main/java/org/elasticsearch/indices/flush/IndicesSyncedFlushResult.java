@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
+import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.util.List;
@@ -56,6 +57,10 @@ public class IndicesSyncedFlushResult implements ToXContent {
     /** total number of shards which were successfully sync-flushed */
     public int successfulShards() {
         return shardCounts.successful;
+    }
+
+    public RestStatus restStatus() {
+        return failedShards() == 0 ? RestStatus.OK : RestStatus.CONFLICT;
     }
 
     public Map<String, List<ShardsSyncedFlushResult>> getShardsResultPerIndex() {

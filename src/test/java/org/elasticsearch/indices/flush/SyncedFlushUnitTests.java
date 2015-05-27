@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.flush.IndicesSyncedFlushResult.ShardCounts;
 import org.elasticsearch.indices.flush.SyncedFlushService.SyncedFlushResponse;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ElasticsearchTestCase;
 
 import java.io.IOException;
@@ -56,6 +57,7 @@ public class SyncedFlushUnitTests extends ElasticsearchTestCase {
         assertThat(testPlan.result.totalShards(), equalTo(testPlan.totalCounts.total));
         assertThat(testPlan.result.successfulShards(), equalTo(testPlan.totalCounts.successful));
         assertThat(testPlan.result.failedShards(), equalTo(testPlan.totalCounts.failed));
+        assertThat(testPlan.result.restStatus(), equalTo(testPlan.totalCounts.failed > 0 ? RestStatus.CONFLICT : RestStatus.OK));
         Map<String, Object> asMap = convertToMap(testPlan.result);
         assertShardCount("_shards header", (Map<String, Object>) asMap.get("_shards"), testPlan.totalCounts);
 

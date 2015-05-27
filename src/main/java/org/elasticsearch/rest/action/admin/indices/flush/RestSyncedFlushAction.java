@@ -62,7 +62,7 @@ public class RestSyncedFlushAction extends BaseRestHandler {
                 builder.startObject();
                 results.toXContent(builder, request);
                 builder.endObject();
-                return new BytesRestResponse(RestStatus.OK, builder);
+                return new BytesRestResponse(results.restStatus(), builder);
             }
         });
     }

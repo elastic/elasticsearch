@@ -98,6 +98,10 @@ public class SyncedFlushService extends AbstractComponent {
         });
     }
 
+    /**
+     * a utility method to perform a synced flush for all shards of multiple indices. see {@link #attemptSyncedFlush(ShardId, ActionListener)}
+     * for more details.
+     */
     public void attemptSyncedFlush(final String[] aliasesOrIndices, IndicesOptions indicesOptions, final ActionListener<IndicesSyncedFlushResult> listener) {
         final ClusterState state = clusterService.state();
         final String[] concreteIndices = state.metaData().concreteIndices(indicesOptions, aliasesOrIndices);
@@ -110,6 +114,10 @@ public class SyncedFlushService extends AbstractComponent {
             numberOfShards += indexMetaData.getNumberOfShards();
             results.put(index, Collections.synchronizedList(new ArrayList<ShardsSyncedFlushResult>()));
 
+        }
+        if (numberOfShards == 0) {
+            listener.onResponse(new IndicesSyncedFlushResult(results));
+            return;
         }
         final int finalTotalNumberOfShards = totalNumberOfShards;
         final CountDown countDown = new CountDown(numberOfShards);

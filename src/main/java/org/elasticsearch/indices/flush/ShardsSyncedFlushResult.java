@@ -126,38 +126,6 @@ public class ShardsSyncedFlushResult {
         return shardResponses;
     }
 
-//    @Override
-//    public void writeTo(StreamOutput out) throws IOException {
-//        super.writeTo(out);
-//        out.writeOptionalString(failureReason);
-//        out.writeOptionalString(syncId);
-//        out.writeVInt(totalShards);
-//        out.writeVInt(shardResponses.size());
-//        for (Map.Entry<ShardRouting, SyncedFlushService.SyncedFlushResponse> result : shardResponses.entrySet()) {
-//            result.getKey().writeTo(out);
-//            result.getValue().writeTo(out);
-//        }
-//        shardId.writeTo(out);
-//    }
-
-//    @Override
-//    public void readFrom(StreamInput in) throws IOException {
-//        super.readFrom(in);
-//        failureReason = in.readOptionalString();
-//        syncId = in.readOptionalString();
-//        totalShards = in.readVInt();
-//        int size = in.readVInt();
-//        ImmutableMap.Builder<ShardRouting, SyncedFlushService.SyncedFlushResponse> builder = ImmutableMap.builder();
-//        for (int i = 0; i < size; i++) {
-//            ImmutableShardRouting shardRouting = ImmutableShardRouting.readShardRoutingEntry(in);
-//            SyncedFlushService.SyncedFlushResponse syncedFlushRsponse = new SyncedFlushService.SyncedFlushResponse();
-//            syncedFlushRsponse.readFrom(in);
-//            builder.put(shardRouting, syncedFlushRsponse);
-//        }
-//        shardResponses = builder.build();
-//        shardId = ShardId.readShardId(in);
-//    }
-
     public ShardId shardId() {
         return shardId;
     }

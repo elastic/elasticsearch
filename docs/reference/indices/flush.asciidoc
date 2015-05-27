@@ -50,7 +50,7 @@ POST /_flush
 === Synced Flush
 
 Elasticsearch tracks the indexing activity of each shards. Shards that have not
-received any indexing operations for, by default, 30m are automatically marked as inactive. This presents
+received any indexing operations for 30 minutes (configurable) are automatically marked as inactive. This presents
 an opportunity for Elasticsearch to reduce shard resources and also perform
 a special kind of flush, called `synced flush`. A synced flush performs normal
 flushing and adds a special uniquely generated marker (`sync_id`) to all shards.
@@ -79,18 +79,18 @@ GET /twitter/_stats/commit?level=shards
 [float]
 === Synced Flush API
 
-The Synced Flush API allows an administrator to initiate a synced flush manually. This can particularly useful for
-a planned (rolling) cluster restart where one can stop indexing and doesn't want to wait for the default 30m to pass
+The Synced Flush API allows an administrator to initiate a synced flush manually. This can be particularly useful for
+a planned (rolling) cluster restart where one can stop indexing and doesn't want to wait for the default 30 minutes to pass
 when the synced flush will be performed automatically.
 
 While handy, there are a couple of caveats for this API:
 
 1. Synced flush is a best effort operation. Any ongoing indexing operations will cause
 the synced flush to fail. This means that some shards may be synced flushed while others aren't. See below for more.
-2. The `sync_id` marker is removed as soon as the shard is flushed again. Uncommitted
-operations in the transaction log do not remove the marker. That is because the marker is store as part
-of a low level lucene commit, representing a point in time snapshot of the segments. In practice, one should consider
-any indexing operation on an index  as removing the marker.
+2. The `sync_id` marker is removed as soon as the shard is flushed again. That is because a flush replaces the low level
+lucene commit point where the marker is stored. Uncommitted operations in the transaction log do not remove the marker.
+In practice, one should consider any indexing operation on an index as removing the marker as a flush can be triggered by Elasticsearch
+at any time.
 
 
 [source,bash]
@@ -99,7 +99,7 @@ POST /twitter/_flush/synced
 --------------------------------------------------
 // AUTOSENSE
 
-The response contains details about how many shards were successfully synced-flushed and information about any failure.
+The response contains details about how many shards were successfully sync-flushed and information about any failure.
 
 Here is what it looks like when all shards of a two shards and one replica index successfully
 sync-flushed:
@@ -146,7 +146,8 @@ Here is what it looks like when one shard group failed due to pending operations
 --------------------------------------------------
 
 
-Sometimes the failures are specific to a shard copy, in which case they will be reported as follows:
+Sometimes the failures are specific to a shard copy. The copies that failed will not be eligible for
+fast recovery but those that succeeded still will be. This case is reported as follows:
 
 [source,js]
 --------------------------------------------------

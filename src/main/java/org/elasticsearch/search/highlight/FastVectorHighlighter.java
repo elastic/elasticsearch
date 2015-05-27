@@ -63,7 +63,7 @@ public class FastVectorHighlighter implements Highlighter {
         FetchSubPhase.HitContext hitContext = highlighterContext.hitContext;
         FieldMapper mapper = highlighterContext.mapper;
 
-        if (!(mapper.fieldType().storeTermVectors() && mapper.fieldType().storeTermVectorOffsets() && mapper.fieldType().storeTermVectorPositions())) {
+        if (canHighlight(mapper) == false) {
             throw new IllegalArgumentException("the field [" + highlighterContext.fieldName + "] should be indexed with term vector with position offsets to be used with fast vector highlighter");
         }
 
@@ -175,6 +175,11 @@ public class FastVectorHighlighter implements Highlighter {
         } catch (Exception e) {
             throw new FetchPhaseExecutionException(context, "Failed to highlight field [" + highlighterContext.fieldName + "]", e);
         }
+    }
+
+    @Override
+    public boolean canHighlight(FieldMapper fieldMapper) {
+        return fieldMapper.fieldType().storeTermVectors() && fieldMapper.fieldType().storeTermVectorOffsets() && fieldMapper.fieldType().storeTermVectorPositions();
     }
 
     private class MapperHighlightEntry {

@@ -57,7 +57,7 @@ public class RestTableTest extends ElasticsearchTestCase {
         List<RestTable.DisplayHeader> headers = buildDisplayHeaders(table, restRequest);
 
         List<String> headerNames = getHeaderNames(headers);
-        assertThat(headerNames, containsInAnyOrder("bulk.foo", "bulk.bar", "aliasedBulk", "aliasedSecondBulk"));
+        assertThat(headerNames, contains("bulk.foo", "bulk.bar", "aliasedBulk", "aliasedSecondBulk"));
         assertThat(headerNames, not(hasItem("unmatched")));
     }
 
@@ -67,7 +67,7 @@ public class RestTableTest extends ElasticsearchTestCase {
         List<RestTable.DisplayHeader> headers = buildDisplayHeaders(table, restRequest);
 
         List<String> headerNames = getHeaderNames(headers);
-        assertThat(headerNames, containsInAnyOrder("bulk.foo", "bulk.bar", "aliasedBulk", "aliasedSecondBulk"));
+        assertThat(headerNames, contains("bulk.foo", "bulk.bar", "aliasedBulk", "aliasedSecondBulk"));
         assertThat(headerNames, not(hasItem("unmatched")));
     }
 

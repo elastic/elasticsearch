@@ -9,7 +9,6 @@ import com.google.common.collect.ImmutableSet;
 
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.action.Action;
-import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.util.Callback;
@@ -116,7 +115,7 @@ public class KnownActionsTests extends ShieldIntegrationTest {
         return knownHandlersBuilder.build();
     }
 
-    private static ImmutableSet<String> loadCodeActions() throws IOException, ReflectiveOperationException {
+    private static ImmutableSet<String> loadCodeActions() throws IOException, ReflectiveOperationException, URISyntaxException {
         ImmutableSet.Builder<String> actions = ImmutableSet.builder();
 
         // loading es core actions
@@ -150,17 +149,16 @@ public class KnownActionsTests extends ShieldIntegrationTest {
     /**
      * finds all subclasses extending {@code subClass}, recursively from the package and codesource of {@code prototype}
      */
-    @SuppressForbidden(reason = "proper use of URL")
-    private static Collection<Class<?>> collectSubClasses(Class<?> subClass, Class<?> prototype) throws IOException, ReflectiveOperationException {
+    private static Collection<Class<?>> collectSubClasses(Class<?> subClass, Class<?> prototype) throws IOException, ReflectiveOperationException, URISyntaxException {
         URL codeLocation = prototype.getProtectionDomain().getCodeSource().getLocation();
         final FileSystem fileSystem;
         final Path root;
-        if (codeLocation.getFile().endsWith(".jar")) {
+        if (codeLocation.toURI().toString().endsWith(".jar")) {
             try {
                 // hack around a bug in the zipfilesystem implementation before java 9,
                 // its checkWritable was incorrect and it won't work without write permissions. 
                 // if we add the permission, it will open jars r/w, which is too scary! so copy to a safe r-w location.
-                Path tmp = Files.createTempFile(null, ".jar");
+                Path tmp = createTempFile(null, ".jar");
                 try (InputStream in = codeLocation.openStream()) {
                     Files.copy(in, tmp, StandardCopyOption.REPLACE_EXISTING);
                 }
@@ -171,7 +169,7 @@ public class KnownActionsTests extends ShieldIntegrationTest {
             }
         } else {
             fileSystem = null;
-            root = PathUtils.get(codeLocation.getFile());
+            root = PathUtils.get(codeLocation.toURI());
         }
         ClassLoader loader = prototype.getClassLoader();
         List<Class<?>> clazzes = new ArrayList<>();

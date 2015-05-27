@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.common.jna;
+package org.elasticsearch.bootstrap;
 
 import com.sun.jna.Native;
 import org.elasticsearch.common.logging.ESLogger;
@@ -27,9 +27,9 @@ import org.elasticsearch.common.logging.Loggers;
 /**
  *
  */
-public class CLibrary {
+class JNACLibrary {
 
-    private static ESLogger logger = Loggers.getLogger(CLibrary.class);
+    private static final ESLogger logger = Loggers.getLogger(JNACLibrary.class);
 
     public static final int MCL_CURRENT = 1;
     public static final int MCL_FUTURE = 2;
@@ -39,17 +39,15 @@ public class CLibrary {
     static {
         try {
             Native.register("c");
-        } catch (NoClassDefFoundError e) {
-            logger.warn("JNA not found. native methods (mlockall) will be disabled.");
         } catch (UnsatisfiedLinkError e) {
             logger.warn("unable to link C library. native methods (mlockall) will be disabled.");
         }
     }
 
-    public static native int mlockall(int flags);
+    static native int mlockall(int flags);
 
-    public static native int geteuid();
+    static native int geteuid();
 
-    private CLibrary() {
+    private JNACLibrary() {
     }
 }

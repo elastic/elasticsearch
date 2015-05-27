@@ -17,19 +17,17 @@
  * under the License.
  */
 
-package org.elasticsearch.common.jna;
+package org.elasticsearch.bootstrap;
 
-import com.sun.jna.IntegerType;
-import com.sun.jna.Native;
+public interface ConsoleCtrlHandler {
 
-public class SizeT extends IntegerType {
+    int CTRL_CLOSE_EVENT = 2;
 
-    public SizeT() {
-       this(0);
-    }
-
-    public SizeT(long value) {
-        super(Native.SIZE_T_SIZE, value);
-    }
-
+    /**
+     * Handles the Ctrl event.
+     *
+     * @param code the code corresponding to the Ctrl sent.
+     * @return true if the handler processed the event, false otherwise. If false, the next handler will be called.
+     */
+    boolean handle(int code);
 }

@@ -28,8 +28,6 @@ import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.CreationException;
 import org.elasticsearch.common.inject.spi.Message;
-import org.elasticsearch.common.jna.Kernel32Library;
-import org.elasticsearch.common.jna.Natives;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
@@ -48,7 +46,6 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 
 import static com.google.common.collect.Sets.newHashSet;
-import static org.elasticsearch.common.jna.Kernel32Library.ConsoleCtrlHandler;
 import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 
 /**
@@ -122,7 +119,7 @@ public class Bootstrap {
 
         // force remainder of JNA to be loaded (if available).
         try {
-            Kernel32Library.getInstance();
+            JNAKernel32Library.getInstance();
         } catch (Throwable ignored) {
             // we've already logged this.
         }
@@ -141,6 +138,10 @@ public class Bootstrap {
 
         // init lucene random seed. it will use /dev/urandom where available:
         StringHelper.randomId();
+    }
+
+    public static boolean isMemoryLocked() {
+        return Natives.isMemoryLocked();
     }
 
     private void setup(boolean addShutdownHook, Settings settings, Environment environment) throws Exception {

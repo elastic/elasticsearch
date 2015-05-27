@@ -52,7 +52,7 @@ public class PythonScriptMultiThreadedTest extends ElasticsearchTestCase {
         final Object compiled = se.compile("x + y");
         final AtomicBoolean failed = new AtomicBoolean();
 
-        Thread[] threads = new Thread[50];
+        Thread[] threads = new Thread[4];
         final CountDownLatch latch = new CountDownLatch(threads.length);
         final CyclicBarrier barrier = new CyclicBarrier(threads.length + 1);
         for (int i = 0; i < threads.length; i++) {
@@ -68,7 +68,7 @@ public class PythonScriptMultiThreadedTest extends ElasticsearchTestCase {
                         vars.put("x", x);
                         vars.put("y", y);
                         ExecutableScript script = se.executable(compiled, vars);
-                        for (int i = 0; i < 100000; i++) {
+                        for (int i = 0; i < 10000; i++) {
                             long result = ((Number) script.run()).longValue();
                             assertThat(result, equalTo(addition));
                         }
@@ -138,7 +138,7 @@ public class PythonScriptMultiThreadedTest extends ElasticsearchTestCase {
         final Object compiled = se.compile("x + y");
         final AtomicBoolean failed = new AtomicBoolean();
 
-        Thread[] threads = new Thread[50];
+        Thread[] threads = new Thread[4];
         final CountDownLatch latch = new CountDownLatch(threads.length);
         final CyclicBarrier barrier = new CyclicBarrier(threads.length + 1);
         for (int i = 0; i < threads.length; i++) {
@@ -148,7 +148,7 @@ public class PythonScriptMultiThreadedTest extends ElasticsearchTestCase {
                     try {
                         barrier.await();
                         Map<String, Object> runtimeVars = new HashMap<String, Object>();
-                        for (int i = 0; i < 100000; i++) {
+                        for (int i = 0; i < 10000; i++) {
                             long x = ThreadLocalRandom.current().nextInt();
                             long y = ThreadLocalRandom.current().nextInt();
                             long addition = x + y;

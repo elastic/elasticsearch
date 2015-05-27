@@ -195,6 +195,20 @@ public class RestSearchAction extends BaseRestHandler {
                 }
             }
         }
+        String sFieldDataFields = request.param("fielddata_fields");
+        if (sFieldDataFields != null) {
+            if (searchSourceBuilder == null) {
+                searchSourceBuilder = new SearchSourceBuilder();
+            }
+            if (Strings.hasText(sFieldDataFields)) {
+                String[] sFields = Strings.splitStringByCommaToArray(sFieldDataFields);
+                if (sFields != null) {
+                    for (String field : sFields) {
+                        searchSourceBuilder.fieldDataField(field);
+                    }
+                }
+            }
+        }
         FetchSourceContext fetchSourceContext = FetchSourceContext.parseFromRestRequest(request);
         if (fetchSourceContext != null) {
             if (searchSourceBuilder == null) {

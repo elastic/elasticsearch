@@ -111,7 +111,6 @@ public class MovAvgPipelineAggregator extends PipelineAggregator {
         EvictingQueue<Double> values = EvictingQueue.create(this.window);
 
         long lastKey = 0;
-        long interval = Long.MAX_VALUE;
         Object currentKey;
 
         for (InternalHistogram.Bucket bucket : buckets) {
@@ -135,10 +134,8 @@ public class MovAvgPipelineAggregator extends PipelineAggregator {
 
             if (predict > 0) {
                 if (currentKey instanceof Number) {
-                    interval = Math.min(interval, ((Number) bucket.getKey()).longValue() - lastKey);
                     lastKey  = ((Number) bucket.getKey()).longValue();
                 } else if (currentKey instanceof DateTime) {
-                    interval = Math.min(interval, ((DateTime) bucket.getKey()).getMillis() - lastKey);
                     lastKey = ((DateTime) bucket.getKey()).getMillis();
                 } else {
                     throw new AggregationExecutionException("Expected key of type Number or DateTime but got [" + currentKey + "]");
@@ -146,7 +143,6 @@ public class MovAvgPipelineAggregator extends PipelineAggregator {
             }
 
         }
-
 
         if (buckets.size() > 0 && predict > 0) {
 
@@ -159,9 +155,11 @@ public class MovAvgPipelineAggregator extends PipelineAggregator {
             for (int i = 0; i < predictions.length; i++) {
                 List<InternalAggregation> aggs = new ArrayList<>();
                 aggs.add(new InternalSimpleValue(name(), predictions[i], formatter, new ArrayList<PipelineAggregator>(), metaData()));
-                InternalHistogram.Bucket newBucket = factory.createBucket(lastKey + (interval * (i + 1)), 0, new InternalAggregations(
+                long newKey = histo.getRounding().nextRoundingValue(lastKey);
+                InternalHistogram.Bucket newBucket = factory.createBucket(newKey, 0, new InternalAggregations(
                         aggs), keyed, formatter);
                 newBuckets.add(newBucket);
+                lastKey = newKey;
             }
         }
 

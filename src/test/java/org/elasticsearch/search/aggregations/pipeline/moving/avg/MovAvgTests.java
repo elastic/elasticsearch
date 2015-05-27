@@ -22,7 +22,6 @@ package org.elasticsearch.search.aggregations.pipeline.moving.avg;
 
 import com.google.common.collect.EvictingQueue;
 
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
@@ -32,6 +31,7 @@ import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram.Bucket;
 import org.elasticsearch.search.aggregations.metrics.ValuesSourceMetricsAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.avg.Avg;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregationHelperTests;
 import org.elasticsearch.search.aggregations.pipeline.SimpleValue;
@@ -51,7 +51,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilders.movingAvg;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.avg;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.filter;
@@ -59,8 +58,12 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.histogra
 import static org.elasticsearch.search.aggregations.AggregationBuilders.max;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.min;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.range;
+import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilders.movingAvg;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.core.IsNull.notNullValue;
 import static org.hamcrest.core.IsNull.nullValue;
 
@@ -153,6 +156,11 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
         builders.add(client().prepareIndex("idx", "gap_type").setSource(jsonBuilder().startObject()
                 .field(INTERVAL_FIELD, 49)
                 .field(GAP_FIELD, 1).endObject()));
+
+        for (int i = -10; i < 10; i++) {
+            builders.add(client().prepareIndex("neg_idx", "type").setSource(
+                    jsonBuilder().startObject().field(INTERVAL_FIELD, i).field(VALUE_FIELD, 10).endObject()));
+        }
 
         indexRandom(true, builders);
         ensureSearchable();
@@ -511,6 +519,56 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
             assertThat("doc counts do not match", actual.getDocCount(), equalTo((long)expected.count));
 
             assertBucketContents(actual, expectedCount, expectedValue);
+        }
+    }
+
+    @Test
+    public void testPredictNegativeKeysAtStart() {
+
+        SearchResponse response = client()
+                .prepareSearch("neg_idx")
+                .setTypes("type")
+                .addAggregation(
+                        histogram("histo")
+                                .field(INTERVAL_FIELD)
+                                .interval(1)
+                                .subAggregation(avg("avg").field(VALUE_FIELD))
+                                .subAggregation(
+                                        movingAvg("movavg_values").window(windowSize).modelBuilder(new SimpleModel.SimpleModelBuilder())
+                                                .gapPolicy(gapPolicy).predict(5).setBucketsPaths("avg"))).execute().actionGet();
+
+        assertSearchResponse(response);
+
+        InternalHistogram<Bucket> histo = response.getAggregations().get("histo");
+        assertThat(histo, notNullValue());
+        assertThat(histo.getName(), equalTo("histo"));
+        List<? extends Bucket> buckets = histo.getBuckets();
+        assertThat("Size of buckets array is not correct.", buckets.size(), equalTo(25));
+
+        for (int i = 0; i < 20; i++) {
+            Bucket bucket = buckets.get(i);
+            assertThat(bucket, notNullValue());
+            assertThat((long) bucket.getKey(), equalTo((long) i - 10));
+            assertThat(bucket.getDocCount(), equalTo(1l));
+            Avg avgAgg = bucket.getAggregations().get("avg");
+            assertThat(avgAgg, notNullValue());
+            assertThat(avgAgg.value(), equalTo(10d));
+            SimpleValue movAvgAgg = bucket.getAggregations().get("movavg_values");
+            assertThat(movAvgAgg, notNullValue());
+            assertThat(movAvgAgg.value(), equalTo(10d));
+        }
+
+        for (int i = 20; i < 25; i++) {
+            System.out.println(i);
+            Bucket bucket = buckets.get(i);
+            assertThat(bucket, notNullValue());
+            assertThat((long) bucket.getKey(), equalTo((long) i - 10));
+            assertThat(bucket.getDocCount(), equalTo(0l));
+            Avg avgAgg = bucket.getAggregations().get("avg");
+            assertThat(avgAgg, nullValue());
+            SimpleValue movAvgAgg = bucket.getAggregations().get("movavg_values");
+            assertThat(movAvgAgg, notNullValue());
+            assertThat(movAvgAgg.value(), equalTo(10d));
         }
     }
 

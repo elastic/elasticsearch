@@ -17,19 +17,37 @@
  * under the License.
  */
 
-package org.elasticsearch.common.jna;
+package org.elasticsearch.bootstrap;
 
-import com.sun.jna.IntegerType;
 import com.sun.jna.Native;
+import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.Loggers;
 
-public class SizeT extends IntegerType {
 
-    public SizeT() {
-       this(0);
+/**
+ *
+ */
+class JNACLibrary {
+
+    private static final ESLogger logger = Loggers.getLogger(JNACLibrary.class);
+
+    public static final int MCL_CURRENT = 1;
+    public static final int MCL_FUTURE = 2;
+
+    public static final int ENOMEM = 12;
+
+    static {
+        try {
+            Native.register("c");
+        } catch (UnsatisfiedLinkError e) {
+            logger.warn("unable to link C library. native methods (mlockall) will be disabled.");
+        }
     }
 
-    public SizeT(long value) {
-        super(Native.SIZE_T_SIZE, value);
-    }
+    static native int mlockall(int flags);
 
+    static native int munlockall();
+
+    private JNACLibrary() {
+    }
 }

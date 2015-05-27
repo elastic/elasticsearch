@@ -27,8 +27,8 @@ import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.benchmark.search.aggregations.TermsAggregationSearchBenchmark.StatsResult;
+import org.elasticsearch.bootstrap.Bootstrap;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.jna.Natives;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -68,7 +68,7 @@ public class GlobalOrdinalsBenchmark {
 
     public static void main(String[] args) throws Exception {
         System.setProperty("es.logger.prefix", "");
-        Natives.tryMlockall();
+        Bootstrap.initializeNatives(true, false);
         Random random = new Random();
 
         Settings settings = settingsBuilder()

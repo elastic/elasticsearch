@@ -27,7 +27,6 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.CreationException;
 import org.elasticsearch.common.inject.spi.Message;
 import org.elasticsearch.common.io.FileSystemUtils;
-import org.elasticsearch.common.jna.Natives;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.logging.log4j.LogConfigurator;
@@ -46,7 +45,6 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 
 import static com.google.common.collect.Sets.newHashSet;
-import static org.elasticsearch.common.jna.Kernel32Library.ConsoleCtrlHandler;
 import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
 
 /**
@@ -62,13 +60,9 @@ public class Bootstrap {
     private static Bootstrap bootstrap;
 
     private void setup(boolean addShutdownHook, Tuple<Settings, Environment> tuple) throws Exception {
-        if (tuple.v1().getAsBoolean("bootstrap.mlockall", false)) {
-           if (Constants.WINDOWS) {
-               Natives.tryVirtualLock();
-            } else {
-               Natives.tryMlockall();
-            }
-        }
+        Settings settings = tuple.v1();
+        initializeNatives(settings.getAsBoolean("bootstrap.mlockall", false),
+                settings.getAsBoolean("bootstrap.ctrlhandler", true));
 
         NodeBuilder nodeBuilder = NodeBuilder.nodeBuilder().settings(tuple.v1()).loadConfigSettings(false);
         node = nodeBuilder.build();
@@ -80,8 +74,21 @@ public class Bootstrap {
                 }
             });
         }
+    }
 
-        if (tuple.v1().getAsBoolean("bootstrap.ctrlhandler", true)) {
+    /** initialize native resources */
+    public static void initializeNatives(boolean mlockAll, boolean ctrlHandler) {
+        // mlockall if requested
+        if (mlockAll) {
+            if (Constants.WINDOWS) {
+                Natives.tryVirtualLock();
+            } else {
+                Natives.tryMlockall();
+            }
+        }
+
+        // listener for windows close event
+        if (ctrlHandler) {
             Natives.addConsoleCtrlHandler(new ConsoleCtrlHandler() {
                 @Override
                 public boolean handle(int code) {
@@ -96,6 +103,17 @@ public class Bootstrap {
                 }
             });
         }
+
+        // force remainder of JNA to be loaded (if available).
+        try {
+            JNAKernel32Library.getInstance();
+        } catch (Throwable ignored) {
+            // we've already logged this.
+        }
+    }
+
+    public static boolean isMemoryLocked() {
+        return Natives.isMemoryLocked();
     }
 
     private static void setupLogging(Tuple<Settings, Environment> tuple) {

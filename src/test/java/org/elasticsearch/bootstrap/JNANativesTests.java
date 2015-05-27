@@ -17,10 +17,9 @@
  * under the License.
  */
 
-package org.elasticsearch.common.jna;
+package org.elasticsearch.bootstrap;
 
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.common.jna.Kernel32Library.ConsoleCtrlHandler;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.After;
 import org.junit.Before;
@@ -31,7 +30,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class NativesTests extends ElasticsearchTestCase {
+public class JNANativesTests extends ElasticsearchTestCase {
 
     /**
      * Those properties are set by the JNA Api and if not ignored,
@@ -71,7 +70,7 @@ public class NativesTests extends ElasticsearchTestCase {
         }
 
         if (Constants.MAC_OS_X) {
-            assertFalse("Memory locking is not available on OS X platforms", Natives.LOCAL_MLOCKALL);
+            assertFalse("Memory locking is not available on OS X platforms", JNANatives.LOCAL_MLOCKALL);
         }
     }
 
@@ -87,19 +86,11 @@ public class NativesTests extends ElasticsearchTestCase {
         Natives.addConsoleCtrlHandler(handler);
 
         if (Constants.WINDOWS) {
-            assertNotNull(Kernel32Library.getInstance());
-            assertThat(Kernel32Library.getInstance().getCallbacks().size(), equalTo(1));
-
+            assertNotNull(JNAKernel32Library.getInstance());
+            assertThat(JNAKernel32Library.getInstance().getCallbacks().size(), equalTo(1));
         } else {
-            assertNotNull(Kernel32Library.getInstance());
-            assertThat(Kernel32Library.getInstance().getCallbacks().size(), equalTo(0));
-
-            try {
-                Kernel32Library.getInstance().addConsoleCtrlHandler(handler);
-                fail("should have thrown an unsupported operation exception");
-            } catch (UnsatisfiedLinkError e) {
-                // UnsatisfiedLinkError is expected
-            }
+            assertNotNull(JNAKernel32Library.getInstance());
+            assertThat(JNAKernel32Library.getInstance().getCallbacks().size(), equalTo(0));
         }
     }
 }

@@ -21,8 +21,8 @@ package org.elasticsearch.benchmark.mapping;
 
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.bootstrap.Bootstrap;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.jna.Natives;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -86,7 +86,7 @@ public class ManyMappingsBenchmark {
 
     public static void main(String[] args) throws Exception {
         System.setProperty("es.logger.prefix", "");
-        Natives.tryMlockall();
+        Bootstrap.initializeNatives(true, false);
         Settings settings = settingsBuilder()
                 .put("gateway.type", "local")
                 .put(SETTING_NUMBER_OF_SHARDS, 5)

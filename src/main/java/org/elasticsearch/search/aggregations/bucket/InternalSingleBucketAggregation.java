@@ -21,6 +21,7 @@ package org.elasticsearch.search.aggregations.bucket;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
@@ -61,6 +62,18 @@ public abstract class InternalSingleBucketAggregation extends InternalAggregatio
     @Override
     public InternalAggregations getAggregations() {
         return aggregations;
+    }
+
+    /**
+     * Create a new copy of this {@link Aggregation} with the same settings as
+     * this {@link Aggregation} and contains the provided sub-aggregations.
+     * 
+     * @param subAggregations
+     *            the buckets to use in the new {@link Aggregation}
+     * @return the new {@link Aggregation}
+     */
+    public InternalSingleBucketAggregation create(InternalAggregations subAggregations) {
+        return newAggregation(getName(), getDocCount(), subAggregations);
     }
 
     /**

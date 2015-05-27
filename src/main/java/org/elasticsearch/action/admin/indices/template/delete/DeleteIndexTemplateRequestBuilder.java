@@ -33,4 +33,12 @@ public class DeleteIndexTemplateRequestBuilder extends MasterNodeOperationReques
     public DeleteIndexTemplateRequestBuilder(ElasticsearchClient client, DeleteIndexTemplateAction action, String name) {
         super(client, action, new DeleteIndexTemplateRequest(name));
     }
+
+    /**
+     * Sets the name of the index template to delete.
+     */
+    public DeleteIndexTemplateRequestBuilder setName(String name) {
+        request.name(name);
+        return this;
+    }
 }

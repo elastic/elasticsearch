@@ -34,7 +34,7 @@ public class DeleteIndexTemplateRequest extends MasterNodeRequest<DeleteIndexTem
 
     private String name;
 
-    DeleteIndexTemplateRequest() {
+    public DeleteIndexTemplateRequest() {
     }
 
     /**
@@ -42,6 +42,14 @@ public class DeleteIndexTemplateRequest extends MasterNodeRequest<DeleteIndexTem
      */
     public DeleteIndexTemplateRequest(String name) {
         this.name = name;
+    }
+
+    /**
+     * Set the index template name to delete.
+     */
+    public DeleteIndexTemplateRequest name(String name) {
+        this.name = name;
+        return this;
     }
 
     @Override

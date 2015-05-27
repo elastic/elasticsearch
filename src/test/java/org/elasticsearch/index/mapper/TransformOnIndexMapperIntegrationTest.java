@@ -20,11 +20,12 @@
 package org.elasticsearch.index.mapper;
 
 import com.google.common.collect.ImmutableMap;
-
 import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
+import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.suggest.SuggestResponse;
+import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -35,6 +36,7 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 
@@ -45,6 +47,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSuggestion;
 import static org.hamcrest.Matchers.both;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.not;
@@ -109,6 +112,42 @@ public class TransformOnIndexMapperIntegrationTest extends ElasticsearchIntegrat
         XContentBuilder expected = XContentFactory.contentBuilder(type);
         expected.startObject().field("display", "findme").field("display_detail", "on the fly").endObject();
         assertEquals(expected.string(), option.getPayloadAsString());
+    }
+
+    /**
+     * Make sure script transform part of mapping is retrieved in the same form as source.
+     */
+    @Test
+    @SuppressWarnings("unchecked")
+    public void transformMappingSerialization() throws IOException {
+        Map<String, Object> transformSource = new HashMap<>();
+
+        String scripType = randomFrom("script", "script_file", "script_id");
+        transformSource.put(scripType, "dummy_script");
+
+        String lang = randomFrom(null, "groovy", "expression");
+        if (lang != null) {
+            transformSource.put("lang", lang);
+        }
+
+        Map<String, String> params = new HashMap<>();
+        for (int i = 0; i < randomInt(5); i++) {
+            params.put("param_" + i, "value_" + i);
+        }
+
+        if (!params.isEmpty()) {
+            transformSource.put("params", params);
+        }
+
+        Map<String, Object> mapping = new HashMap<>();
+        mapping.put("transform", transformSource);
+
+        assertAcked(client().admin().indices().prepareCreate("mappingtest").addMapping("test", mapping));
+
+        // Get mapping and compare.
+        GetMappingsResponse response = client().admin().indices().prepareGetMappings("mappingtest").get();
+        MappingMetaData metaData = response.getMappings().get("mappingtest").get("test");
+        assertThat((Map<String, Object>) metaData.getSourceAsMap().get("transform"), equalTo(transformSource));
     }
 
     /**

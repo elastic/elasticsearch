@@ -62,10 +62,7 @@ import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.mapper.internal.VersionFieldMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.mapper.object.RootObjectMapper;
-import org.elasticsearch.script.ExecutableScript;
-import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptContext;
-import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.*;
 import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -542,7 +539,22 @@ public class DocumentMapper implements ToXContent {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field("script", script);
+            String key = null;
+            switch (scriptType) {
+                case INLINE:
+                    key = ScriptService.SCRIPT_INLINE.getPreferredName();
+                    break;
+                case FILE:
+                    key = ScriptService.SCRIPT_FILE.getPreferredName();
+                    break;
+                case INDEXED:
+                    key = ScriptService.SCRIPT_ID.getPreferredName();
+                    break;
+            }
+
+            assert key != null;
+
+            builder.field(key, script);
             if (language != null) {
                 builder.field("lang", language);
             }

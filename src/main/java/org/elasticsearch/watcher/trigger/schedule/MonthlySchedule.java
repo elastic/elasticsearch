@@ -7,7 +7,6 @@ package org.elasticsearch.watcher.trigger.schedule;
 
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.watcher.WatcherSettingsException;
 import org.elasticsearch.watcher.trigger.schedule.support.MonthTimes;
 
 import java.io.IOException;
@@ -83,7 +82,7 @@ public class MonthlySchedule extends CronnableSchedule {
                 try {
                     return new MonthlySchedule(MonthTimes.parse(parser, parser.currentToken()));
                 } catch (MonthTimes.ParseException pe) {
-                    throw new WatcherSettingsException("could not parse [monthly] schedule. invalid month times", pe);
+                    throw new ScheduleTriggerException("could not parse [monthly] schedule. invalid month times", pe);
                 }
             }
             if (parser.currentToken() == XContentParser.Token.START_ARRAY) {
@@ -93,12 +92,12 @@ public class MonthlySchedule extends CronnableSchedule {
                     try {
                         times.add(MonthTimes.parse(parser, token));
                     } catch (MonthTimes.ParseException pe) {
-                        throw new WatcherSettingsException("could not parse [monthly] schedule. invalid month times", pe);
+                        throw new ScheduleTriggerException("could not parse [monthly] schedule. invalid month times", pe);
                     }
                 }
                 return times.isEmpty() ? new MonthlySchedule() : new MonthlySchedule(times.toArray(new MonthTimes[times.size()]));
             }
-            throw new WatcherSettingsException("could not parse [monthly] schedule. expected either an object or an array " +
+            throw new ScheduleTriggerException("could not parse [monthly] schedule. expected either an object or an array " +
                     "of objects representing month times, but found [" + parser.currentToken() + "] instead");
         }
     }

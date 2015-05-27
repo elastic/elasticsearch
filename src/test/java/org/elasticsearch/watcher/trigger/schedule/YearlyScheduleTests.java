@@ -12,7 +12,6 @@ import org.elasticsearch.common.primitives.Ints;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.watcher.WatcherSettingsException;
 import org.elasticsearch.watcher.trigger.schedule.support.DayTimes;
 import org.elasticsearch.watcher.trigger.schedule.support.YearTimes;
 import org.junit.Test;
@@ -111,7 +110,7 @@ public class YearlyScheduleTests extends ScheduleTestCase {
         assertThat(schedule.times()[0].times(), hasItemInArray(time));
     }
 
-    @Test(expected = WatcherSettingsException.class) @Repeat(iterations = 20)
+    @Test(expected = ScheduleTriggerException.class) @Repeat(iterations = 20)
     public void testParser_SingleTime_Invalid() throws Exception {
         HourAndMinute time = invalidDayTime();
         XContentBuilder builder = jsonBuilder()
@@ -144,7 +143,7 @@ public class YearlyScheduleTests extends ScheduleTestCase {
         }
     }
 
-    @Test(expected = WatcherSettingsException.class) @Repeat(iterations = 20)
+    @Test(expected = ScheduleTriggerException.class) @Repeat(iterations = 20)
     public void testParser_MultipleTimes_Invalid() throws Exception {
         HourAndMinute[] times = invalidDayTimes();
         XContentBuilder builder = jsonBuilder()

@@ -26,6 +26,7 @@ import org.elasticsearch.watcher.support.http.HttpClientModule;
 import org.elasticsearch.watcher.support.init.InitializingModule;
 import org.elasticsearch.watcher.support.secret.SecretModule;
 import org.elasticsearch.watcher.support.template.TemplateModule;
+import org.elasticsearch.watcher.support.validation.WatcherSettingsValidation;
 import org.elasticsearch.watcher.transform.TransformModule;
 import org.elasticsearch.watcher.transport.WatcherTransportModule;
 import org.elasticsearch.watcher.trigger.TriggerModule;
@@ -67,6 +68,7 @@ public class WatcherModule extends AbstractModule implements SpawnModules {
     protected void configure() {
         bind(WatcherLifeCycleService.class).asEagerSingleton();
         bind(TemplateUtils.class).asEagerSingleton();
+        bind(WatcherSettingsValidation.class).asEagerSingleton();
     }
 
 }

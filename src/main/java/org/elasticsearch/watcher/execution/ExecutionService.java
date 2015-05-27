@@ -24,6 +24,7 @@ import org.elasticsearch.watcher.history.HistoryStore;
 import org.elasticsearch.watcher.history.WatchRecord;
 import org.elasticsearch.watcher.input.Input;
 import org.elasticsearch.watcher.support.clock.Clock;
+import org.elasticsearch.watcher.support.validation.WatcherSettingsValidation;
 import org.elasticsearch.watcher.trigger.TriggerEvent;
 import org.elasticsearch.watcher.watch.Watch;
 import org.elasticsearch.watcher.watch.WatchLockService;
@@ -53,15 +54,17 @@ public class ExecutionService extends AbstractComponent {
 
     @Inject
     public ExecutionService(Settings settings, HistoryStore historyStore, WatchExecutor executor, WatchStore watchStore,
-                            WatchLockService watchLockService, Clock clock) {
+                            WatchLockService watchLockService, Clock clock, WatcherSettingsValidation settingsValidation) {
         super(settings);
         this.historyStore = historyStore;
         this.executor = executor;
         this.watchStore = watchStore;
         this.watchLockService = watchLockService;
         this.clock = clock;
-        TimeValue throttlePeriod = componentSettings.getAsTime("default_throttle_period", TimeValue.timeValueSeconds(5));
-        this.defaultThrottlePeriod = throttlePeriod.millis() == 0 ? null : throttlePeriod;
+        this.defaultThrottlePeriod = componentSettings.getAsTime("default_throttle_period", TimeValue.timeValueSeconds(5));
+        if (ExecutionService.this.defaultThrottlePeriod.millis() < 0) {
+            settingsValidation.addError("watcher.execution.default_throttle_period", "time value cannot be negative");
+        }
     }
 
     public void start(ClusterState state) {

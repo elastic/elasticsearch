@@ -17,6 +17,7 @@ import org.elasticsearch.watcher.history.HistoryModule;
 import org.elasticsearch.watcher.license.LicenseService;
 import org.elasticsearch.watcher.support.http.HttpClient;
 import org.elasticsearch.watcher.support.init.InitializingService;
+import org.elasticsearch.watcher.support.validation.WatcherSettingsValidation;
 
 import java.util.Collection;
 
@@ -67,7 +68,8 @@ public class WatcherPlugin extends AbstractPlugin {
                 InitializingService.class,
                 LicenseService.class,
                 InternalEmailService.class,
-                HttpClient.class);
+                HttpClient.class,
+                WatcherSettingsValidation.class);
     }
 
     @Override

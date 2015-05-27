@@ -8,7 +8,6 @@ package org.elasticsearch.watcher.trigger.schedule;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.watcher.WatcherSettingsException;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -93,7 +92,7 @@ public class IntervalSchedule implements Schedule {
                 String value = parser.text();
                 return new IntervalSchedule(Interval.parse(value));
             }
-            throw new WatcherSettingsException("could not parse [interval] schedule. expected either a numeric value " +
+            throw new ScheduleTriggerException("could not parse [interval] schedule. expected either a numeric value " +
                     "(millis) or a string value representing time value (e.g. '5s'), but found [" + token + "]");
         }
     }
@@ -133,7 +132,7 @@ public class IntervalSchedule implements Schedule {
                 try {
                     return Long.parseLong(num);
                 } catch (NumberFormatException nfe) {
-                    throw new WatcherSettingsException("could not parse [interval] schedule. could not parse ["
+                    throw new ScheduleTriggerException("could not parse [interval] schedule. could not parse ["
                             + num + "] as a " + name().toLowerCase(Locale.ROOT) + " duration");
                 }
             }
@@ -196,7 +195,7 @@ public class IntervalSchedule implements Schedule {
                     return new Interval(unit.parse(value), unit);
                 }
             }
-            throw new WatcherSettingsException("could not parse [interval] schedule. unrecognized interval format [" + value + "]");
+            throw new ScheduleTriggerException("could not parse [interval] schedule. unrecognized interval format [" + value + "]");
         }
     }
 }

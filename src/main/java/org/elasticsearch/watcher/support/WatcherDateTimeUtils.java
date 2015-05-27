@@ -12,14 +12,11 @@ import org.elasticsearch.common.joda.DateMathParser;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.joda.time.DateTimeZone;
-import org.elasticsearch.common.joda.time.PeriodType;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
 import org.elasticsearch.watcher.WatcherException;
-import org.elasticsearch.watcher.actions.ActionException;
-import org.elasticsearch.watcher.rest.action.RestExecuteWatchAction;
 import org.elasticsearch.watcher.support.clock.Clock;
 
 import java.io.IOException;
@@ -130,12 +127,20 @@ public class WatcherDateTimeUtils {
             return defaultValue;
         }
         if (token == XContentParser.Token.VALUE_NUMBER) {
-            return new TimeValue(parser.longValue(), defaultTimeUnit);
-        } else if (token == XContentParser.Token.VALUE_STRING) {
-            return TimeValue.parseTimeValue(parser.text(), defaultValue);
-        } else {
-            throw new ParseException("could not parse time value. expected either a string or a numeric value but found [{}] instead", token);
+            long millis = parser.longValue();
+            if (millis < 0) {
+                throw new ParseException("could not parse milli-seconds time value [{}]. Time value cannot be negative.", millis);
+            }
+            return new TimeValue(millis, defaultTimeUnit);
         }
+        if (token == XContentParser.Token.VALUE_STRING) {
+            TimeValue value = TimeValue.parseTimeValue(parser.text(), defaultValue);
+            if (value.millis() < 0) {
+                throw new ParseException("could not parse time value [{}]. Time value cannot be negative.", parser.text());
+            }
+            return value;
+        }
+        throw new ParseException("could not parse time value. expected either a string or a numeric value but found [{}] instead", token);
     }
 
     public static class ParseException extends WatcherException {

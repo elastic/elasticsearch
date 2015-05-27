@@ -7,7 +7,6 @@ package org.elasticsearch.watcher.trigger.schedule;
 
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.watcher.WatcherSettingsException;
 import org.elasticsearch.watcher.trigger.schedule.support.YearTimes;
 
 import java.io.IOException;
@@ -83,7 +82,7 @@ public class YearlySchedule extends CronnableSchedule {
                 try {
                     return new YearlySchedule(YearTimes.parse(parser, parser.currentToken()));
                 } catch (YearTimes.ParseException pe) {
-                    throw new WatcherSettingsException("could not parse [yearly] schedule. invalid year times", pe);
+                    throw new ScheduleTriggerException("could not parse [yearly] schedule. invalid year times", pe);
                 }
             }
             if (parser.currentToken() == XContentParser.Token.START_ARRAY) {
@@ -93,12 +92,12 @@ public class YearlySchedule extends CronnableSchedule {
                     try {
                         times.add(YearTimes.parse(parser, token));
                     } catch (YearTimes.ParseException pe) {
-                        throw new WatcherSettingsException("could not parse [yearly] schedule. invalid year times", pe);
+                        throw new ScheduleTriggerException("could not parse [yearly] schedule. invalid year times", pe);
                     }
                 }
                 return times.isEmpty() ? new YearlySchedule() : new YearlySchedule(times.toArray(new YearTimes[times.size()]));
             }
-            throw new WatcherSettingsException("could not parse [yearly] schedule. expected either an object or an array " +
+            throw new ScheduleTriggerException("could not parse [yearly] schedule. expected either an object or an array " +
                     "of objects representing year times, but found [" + parser.currentToken() + "] instead");
         }
     }

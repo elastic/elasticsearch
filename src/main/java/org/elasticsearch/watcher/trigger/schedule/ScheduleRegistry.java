@@ -8,7 +8,6 @@ package org.elasticsearch.watcher.trigger.schedule;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.watcher.WatcherSettingsException;
 
 import java.io.IOException;
 import java.util.Map;
@@ -40,11 +39,11 @@ public class ScheduleRegistry {
             } else if (type != null) {
                 schedule = parse(context, type, parser);
             } else {
-                throw new WatcherSettingsException("could not parse schedule. expected a schedule type field, but found [" + token + "]");
+                throw new ScheduleTriggerException("could not parse schedule. expected a schedule type field, but found [" + token + "]");
             }
         }
         if (schedule == null) {
-            throw new WatcherSettingsException("could not parse schedule. expected a schedule type field, but no fields were found");
+            throw new ScheduleTriggerException("could not parse schedule. expected a schedule type field, but no fields were found");
         }
         return schedule;
     }
@@ -52,7 +51,7 @@ public class ScheduleRegistry {
     public Schedule parse(String context, String type, XContentParser parser) throws IOException {
         Schedule.Parser scheduleParser = parsers.get(type);
         if (scheduleParser == null) {
-            throw new WatcherSettingsException("could not parse schedule for [" + context + "]. unknown schedule type [" + type + "]");
+            throw new ScheduleTriggerException("could not parse schedule for [" + context + "]. unknown schedule type [" + type + "]");
         }
         return scheduleParser.parse(parser);
     }

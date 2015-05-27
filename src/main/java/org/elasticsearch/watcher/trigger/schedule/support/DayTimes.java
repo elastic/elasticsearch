@@ -9,7 +9,7 @@ import org.elasticsearch.common.primitives.Ints;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.watcher.WatcherException;
-import org.elasticsearch.watcher.WatcherSettingsException;
+import org.elasticsearch.watcher.trigger.schedule.ScheduleTriggerException;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -99,12 +99,12 @@ public class DayTimes implements Times {
     public void validate() {
         for (int i = 0; i < hour.length; i++) {
             if (!validHour(hour[i])) {
-                throw new WatcherSettingsException("invalid time [" + this + "]. invalid time hour value [" + hour[i] + "]. time hours must be between 0 and 23 incl.");
+                throw new ScheduleTriggerException("invalid time [" + this + "]. invalid time hour value [" + hour[i] + "]. time hours must be between 0 and 23 incl.");
             }
         }
         for (int i = 0; i < minute.length; i++) {
             if (!validMinute(minute[i])) {
-                throw new WatcherSettingsException("invalid time [" + this + "]. invalid time minute value [" + minute[i] + "]. time minutes must be between 0 and 59 incl.");
+                throw new ScheduleTriggerException("invalid time [" + this + "]. invalid time minute value [" + minute[i] + "]. time minutes must be between 0 and 59 incl.");
             }
         }
     }

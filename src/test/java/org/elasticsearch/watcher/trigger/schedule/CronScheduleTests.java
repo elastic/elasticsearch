@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.watcher.trigger.schedule;
 
-import org.elasticsearch.watcher.WatcherSettingsException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -64,13 +63,13 @@ public class CronScheduleTests extends ScheduleTestCase {
         try {
             new CronSchedule.Parser().parse(parser);
             fail("expected cron parsing to fail when using invalid cron expression");
-        } catch (WatcherSettingsException ase) {
+        } catch (ScheduleTriggerException ase) {
             // expected
             assertThat(ase.getCause(), instanceOf(CronSchedule.ValidationException.class));
         }
     }
 
-    @Test(expected = WatcherSettingsException.class)
+    @Test(expected = ScheduleTriggerException.class)
     public void testParse_Invalid_Empty() throws Exception {
         XContentBuilder builder = jsonBuilder();
         BytesReference bytes = builder.bytes();
@@ -79,7 +78,7 @@ public class CronScheduleTests extends ScheduleTestCase {
         new CronSchedule.Parser().parse(parser);
     }
 
-    @Test(expected = WatcherSettingsException.class)
+    @Test(expected = ScheduleTriggerException.class)
     public void testParse_Invalid_Object() throws Exception {
         XContentBuilder builder = jsonBuilder().startObject().endObject();
         BytesReference bytes = builder.bytes();
@@ -88,7 +87,7 @@ public class CronScheduleTests extends ScheduleTestCase {
         new CronSchedule.Parser().parse(parser);
     }
 
-    @Test(expected = WatcherSettingsException.class)
+    @Test(expected = ScheduleTriggerException.class)
     public void testParse_Invalid_EmptyArray() throws Exception {
         XContentBuilder builder = jsonBuilder().value(new String[0]);
         BytesReference bytes = builder.bytes();

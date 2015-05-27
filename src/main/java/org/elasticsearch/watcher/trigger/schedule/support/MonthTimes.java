@@ -11,7 +11,7 @@ import org.elasticsearch.common.primitives.Ints;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.watcher.WatcherException;
-import org.elasticsearch.watcher.WatcherSettingsException;
+import org.elasticsearch.watcher.trigger.schedule.ScheduleTriggerException;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -47,7 +47,7 @@ public class MonthTimes implements Times {
     void validate() {
         for (int day : days) {
             if (day < 1 || day > 32) { //32 represents the last day of the month
-                throw new WatcherSettingsException("invalid month day [" + day + "]");
+                throw new ScheduleTriggerException("invalid month day [" + day + "]");
             }
         }
         for (DayTimes dayTimes : times) {

@@ -8,7 +8,6 @@ package org.elasticsearch.watcher.trigger.schedule;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.watcher.WatcherSettingsException;
 import org.elasticsearch.watcher.trigger.schedule.support.DayTimes;
 
 import java.io.IOException;
@@ -96,19 +95,19 @@ public class DailySchedule extends CronnableSchedule {
                         try {
                             times.add(DayTimes.parse(parser, token));
                         } catch (DayTimes.ParseException pe) {
-                            throw new WatcherSettingsException("could not parse [daily] schedule. invalid time value for field [at] - [" + token + "]", pe);
+                            throw new ScheduleTriggerException("could not parse [daily] schedule. invalid time value for field [at] - [" + token + "]", pe);
                         }
                     } else {
                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                             try {
                                 times.add(DayTimes.parse(parser, token));
                             } catch (DayTimes.ParseException pe) {
-                                throw new WatcherSettingsException("could not parse [daily] schedule. invalid time value for field [at] - [" + token + "]", pe);
+                                throw new ScheduleTriggerException("could not parse [daily] schedule. invalid time value for field [at] - [" + token + "]", pe);
                             }
                         }
                     }
                 } else {
-                    throw new WatcherSettingsException("could not parse [daily] schedule. unexpected field [" + currentFieldName + "]");
+                    throw new ScheduleTriggerException("could not parse [daily] schedule. unexpected field [" + currentFieldName + "]");
                 }
             }
 

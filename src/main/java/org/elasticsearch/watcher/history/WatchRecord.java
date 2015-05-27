@@ -17,7 +17,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.watcher.WatcherException;
-import org.elasticsearch.watcher.WatcherSettingsException;
+import org.elasticsearch.watcher.support.validation.WatcherSettingsException;
 import org.elasticsearch.watcher.actions.ActionRegistry;
 import org.elasticsearch.watcher.condition.Condition;
 import org.elasticsearch.watcher.condition.ConditionRegistry;
@@ -197,7 +197,7 @@ public class WatchRecord implements ToXContent {
             try {
                 return valueOf(id.toUpperCase(Locale.ROOT));
             } catch (IllegalArgumentException iae) {
-                throw new WatcherSettingsException("unknown watch record state [{}]", id);
+                throw new HistoryException("unknown watch record state [{}]", id);
             }
         }
 

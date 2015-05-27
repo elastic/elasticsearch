@@ -7,7 +7,6 @@ package org.elasticsearch.watcher.trigger.schedule;
 
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.watcher.WatcherSettingsException;
 import org.elasticsearch.watcher.trigger.schedule.support.WeekTimes;
 
 import java.io.IOException;
@@ -83,7 +82,7 @@ public class WeeklySchedule extends CronnableSchedule {
                 try {
                     return new WeeklySchedule(WeekTimes.parse(parser, parser.currentToken()));
                 } catch (WeekTimes.ParseException pe) {
-                    throw new WatcherSettingsException("could not parse [weekly] schedule. invalid weekly times", pe);
+                    throw new ScheduleTriggerException("could not parse [weekly] schedule. invalid weekly times", pe);
                 }
             }
             if (parser.currentToken() == XContentParser.Token.START_ARRAY) {
@@ -93,12 +92,12 @@ public class WeeklySchedule extends CronnableSchedule {
                     try {
                         times.add(WeekTimes.parse(parser, token));
                     } catch (WeekTimes.ParseException pe) {
-                        throw new WatcherSettingsException("could not parse [weekly] schedule. invalid weekly times", pe);
+                        throw new ScheduleTriggerException("could not parse [weekly] schedule. invalid weekly times", pe);
                     }
                 }
                 return times.isEmpty() ? new WeeklySchedule() : new WeeklySchedule(times.toArray(new WeekTimes[times.size()]));
             }
-            throw new WatcherSettingsException("could not parse [weekly] schedule. expected either an object or an array " +
+            throw new ScheduleTriggerException("could not parse [weekly] schedule. expected either an object or an array " +
                     "of objects representing weekly times, but found [" + parser.currentToken() + "] instead");
         }
     }

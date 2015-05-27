@@ -58,7 +58,7 @@ public class Schedules {
      * @param minutes   the minutes within the hour that the schedule should trigger at. values must be
      *                  between 0 and 59 (inclusive).
      * @return          the newly created hourly schedule
-     * @throws org.elasticsearch.watcher.WatcherSettingsException if any of the provided minutes are out of valid range
+     * @throws ScheduleTriggerException if any of the provided minutes are out of valid range
      */
     public static HourlySchedule hourly(int... minutes) {
         return new HourlySchedule(minutes);

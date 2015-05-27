@@ -21,6 +21,7 @@ import org.elasticsearch.watcher.support.clock.Clock;
 import org.elasticsearch.watcher.support.clock.ClockMock;
 import org.elasticsearch.watcher.actions.throttler.ActionThrottler;
 import org.elasticsearch.watcher.actions.throttler.Throttler;
+import org.elasticsearch.watcher.support.validation.WatcherSettingsValidation;
 import org.elasticsearch.watcher.transform.ExecutableTransform;
 import org.elasticsearch.watcher.transform.Transform;
 import org.elasticsearch.watcher.trigger.schedule.ScheduleTriggerEvent;
@@ -58,8 +59,9 @@ public class ExecutionServiceTests extends ElasticsearchTestCase {
         WatchExecutor executor = mock(WatchExecutor.class);
         WatchStore watchStore = mock(WatchStore.class);
         WatchLockService watchLockService = mock(WatchLockService.class);
+        WatcherSettingsValidation settingsValidator = mock(WatcherSettingsValidation.class);
         Clock clock = new ClockMock();
-        executionService = new ExecutionService(ImmutableSettings.EMPTY, historyStore, executor, watchStore, watchLockService, clock);
+        executionService = new ExecutionService(ImmutableSettings.EMPTY, historyStore, executor, watchStore, watchLockService, clock, settingsValidator);
     }
 
     @Test

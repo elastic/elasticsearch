@@ -7,7 +7,6 @@ package org.elasticsearch.watcher.trigger.schedule;
 
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.watcher.WatcherSettingsException;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -56,24 +55,24 @@ public class CronSchedule extends CronnableSchedule {
                                 crons.add(parser.text());
                                 break;
                             default:
-                                throw new WatcherSettingsException("could not parse [cron] schedule. expected a string value in the cron array but found [" + token + "]");
+                                throw new ScheduleTriggerException("could not parse [cron] schedule. expected a string value in the cron array but found [" + token + "]");
                         }
                     }
                     if (crons.isEmpty()) {
-                        throw new WatcherSettingsException("could not parse [cron] schedule. no cron expression found in cron array");
+                        throw new ScheduleTriggerException("could not parse [cron] schedule. no cron expression found in cron array");
                     }
                     return new CronSchedule(crons.toArray(new String[crons.size()]));
                 } else {
-                    throw new WatcherSettingsException("could not parse [cron] schedule. expected either a cron string value or an array of cron string values, but found [" + token + "]");
+                    throw new ScheduleTriggerException("could not parse [cron] schedule. expected either a cron string value or an array of cron string values, but found [" + token + "]");
                 }
 
             } catch (ValidationException ve) {
-                throw new WatcherSettingsException("could not parse [cron] schedule. invalid cron expression [" + ve.expression + "]", ve);
+                throw new ScheduleTriggerException("could not parse [cron] schedule. invalid cron expression [" + ve.expression + "]", ve);
             }
         }
     }
 
-    public static class ValidationException extends WatcherSettingsException {
+    public static class ValidationException extends ScheduleTriggerException {
 
         private String expression;
 

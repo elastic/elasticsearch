@@ -9,7 +9,6 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.primitives.Ints;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.watcher.WatcherSettingsException;
 import org.elasticsearch.watcher.trigger.schedule.support.DayTimes;
 
 import java.io.IOException;
@@ -70,7 +69,7 @@ public class HourlySchedule extends CronnableSchedule {
                 sb.append(",");
             }
             if (!validMinute(minutes[i])) {
-                throw new WatcherSettingsException("invalid hourly minute [" + minutes[i] + "]. minute must be between 0 and 59 incl.");
+                throw new ScheduleTriggerException("invalid hourly minute [" + minutes[i] + "]. minute must be between 0 and 59 incl.");
             }
             sb.append(minutes[i]);
         }
@@ -100,27 +99,27 @@ public class HourlySchedule extends CronnableSchedule {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
                 } else if (currentFieldName == null) {
-                    throw new WatcherSettingsException("could not parse [{}] schedule. unexpected token [{}]", TYPE, token);
+                    throw new ScheduleTriggerException("could not parse [{}] schedule. unexpected token [{}]", TYPE, token);
                 } else if (MINUTE_FIELD.match(currentFieldName)) {
                     if (token.isValue()) {
                         try {
                             minutes.add(DayTimes.parseMinuteValue(parser, token));
                         } catch (DayTimes.ParseException pe) {
-                            throw new WatcherSettingsException("could not parse [hourly] schedule. invalid value for [minute]", pe);
+                            throw new ScheduleTriggerException("could not parse [hourly] schedule. invalid value for [minute]", pe);
                         }
                     } else if (token == XContentParser.Token.START_ARRAY) {
                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                             try {
                                 minutes.add(DayTimes.parseMinuteValue(parser, token));
                             } catch (DayTimes.ParseException pe) {
-                                throw new WatcherSettingsException("could not parse [hourly] schedule. invalid value for [minute]", pe);
+                                throw new ScheduleTriggerException("could not parse [hourly] schedule. invalid value for [minute]", pe);
                             }
                         }
                     } else {
-                        throw new WatcherSettingsException("could not parse [hourly] schedule. invalid minute value. expected either string/value or an array of string/number values, but found [" + token + "]");
+                        throw new ScheduleTriggerException("could not parse [hourly] schedule. invalid minute value. expected either string/value or an array of string/number values, but found [" + token + "]");
                     }
                 } else {
-                    throw new WatcherSettingsException("could not parse [hourly] schedule. unexpected field [" + currentFieldName + "]");
+                    throw new ScheduleTriggerException("could not parse [hourly] schedule. unexpected field [" + currentFieldName + "]");
                 }
             }
 

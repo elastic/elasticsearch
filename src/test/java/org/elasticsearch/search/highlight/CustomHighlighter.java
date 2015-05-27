@@ -21,6 +21,7 @@ package org.elasticsearch.search.highlight;
 import com.google.common.collect.Lists;
 import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.index.mapper.FieldMapper;
 
 import java.util.List;
 import java.util.Locale;
@@ -66,6 +67,11 @@ public class CustomHighlighter implements Highlighter {
         }
 
         return new HighlightField(highlighterContext.fieldName, responses.toArray(new Text[]{}));
+    }
+
+    @Override
+    public boolean canHighlight(FieldMapper fieldMapper) {
+        return true;
     }
 
     private static class CacheEntry {

@@ -21,7 +21,6 @@ package org.elasticsearch.search.highlight;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -44,6 +43,8 @@ import static com.google.common.collect.Maps.newHashMap;
  *
  */
 public class HighlightPhase extends AbstractComponent implements FetchSubPhase {
+
+    private static final ImmutableList<String> STANDARD_HIGHLIGHTERS_BY_PRECEDENCE = ImmutableList.of("fvh", "postings", "plain");
 
     private final Highlighters highlighters;
 
@@ -91,6 +92,7 @@ public class HighlightPhase extends AbstractComponent implements FetchSubPhase {
                 }
             }
 
+            boolean fieldNameContainsWildcards = field.field().contains("*");
             for (String fieldName : fieldNamesToHighlight) {
                 FieldMapper fieldMapper = getMapperForField(fieldName, context, hitContext);
                 if (fieldMapper == null) {
@@ -99,16 +101,14 @@ public class HighlightPhase extends AbstractComponent implements FetchSubPhase {
 
                 String highlighterType = field.fieldOptions().highlighterType();
                 if (highlighterType == null) {
-                    boolean useFastVectorHighlighter = fieldMapper.fieldType().storeTermVectors() && fieldMapper.fieldType().storeTermVectorOffsets() && fieldMapper.fieldType().storeTermVectorPositions();
-                    if (useFastVectorHighlighter) {
-                        highlighterType = "fvh";
-                    } else if (fieldMapper.fieldType().indexOptions() == IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS) {
-                        highlighterType = "postings";
-                    } else {
-                        highlighterType = "plain";
+                    for(String highlighterCandidate : STANDARD_HIGHLIGHTERS_BY_PRECEDENCE) {
+                        if (highlighters.get(highlighterCandidate).canHighlight(fieldMapper)) {
+                            highlighterType = highlighterCandidate;
+                            break;
+                        }
                     }
+                    assert highlighterType != null;
                 }
-
                 Highlighter highlighter = highlighters.get(highlighterType);
                 if (highlighter == null) {
                     throw new IllegalArgumentException("unknown highlighter type [" + highlighterType + "] for the field [" + fieldName + "]");
@@ -116,13 +116,17 @@ public class HighlightPhase extends AbstractComponent implements FetchSubPhase {
 
                 Query highlightQuery = field.fieldOptions().highlightQuery() == null ? context.parsedQuery().query() : field.fieldOptions().highlightQuery();
                 HighlighterContext highlighterContext = new HighlighterContext(fieldName, field, fieldMapper, context, hitContext, highlightQuery);
+
+                if ((highlighter.canHighlight(fieldMapper) == false) && fieldNameContainsWildcards) {
+                    // if several fieldnames matched the wildcard then we want to skip those that we cannot highlight
+                    continue;
+                }
                 HighlightField highlightField = highlighter.highlight(highlighterContext);
                 if (highlightField != null) {
                     highlightFields.put(highlightField.name(), highlightField);
                 }
             }
         }
-
         hitContext.hit().highlightFields(highlightFields);
     }
 

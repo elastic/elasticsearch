@@ -5,8 +5,8 @@
  */
 package org.elasticsearch.shield.action.authc.cache;
 
-import org.elasticsearch.action.support.nodes.NodeOperationResponse;
-import org.elasticsearch.action.support.nodes.NodesOperationResponse;
+import org.elasticsearch.action.support.nodes.BaseNodeResponse;
+import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -20,7 +20,7 @@ import java.io.IOException;
 /**
  *
  */
-public class ClearRealmCacheResponse extends NodesOperationResponse<ClearRealmCacheResponse.Node> implements ToXContent {
+public class ClearRealmCacheResponse extends BaseNodesResponse<ClearRealmCacheResponse.Node> implements ToXContent {
 
     public ClearRealmCacheResponse() {
     }
@@ -72,7 +72,7 @@ public class ClearRealmCacheResponse extends NodesOperationResponse<ClearRealmCa
         }
     }
 
-    public static class Node extends NodeOperationResponse {
+    public static class Node extends BaseNodeResponse {
 
         Node() {
         }

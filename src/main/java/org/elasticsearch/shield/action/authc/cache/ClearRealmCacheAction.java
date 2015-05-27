@@ -6,7 +6,6 @@
 package org.elasticsearch.shield.action.authc.cache;
 
 import org.elasticsearch.action.Action;
-import org.elasticsearch.client.ClusterAdminClient;
 import org.elasticsearch.client.ElasticsearchClient;
 
 /**

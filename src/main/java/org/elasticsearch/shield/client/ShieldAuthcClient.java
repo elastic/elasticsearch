@@ -7,7 +7,6 @@ package org.elasticsearch.shield.client;
 
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.client.ClusterAdminClient;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.shield.action.authc.cache.ClearRealmCacheAction;
 import org.elasticsearch.shield.action.authc.cache.ClearRealmCacheRequest;

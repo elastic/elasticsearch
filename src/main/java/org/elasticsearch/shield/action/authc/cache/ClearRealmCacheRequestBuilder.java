@@ -5,10 +5,7 @@
  */
 package org.elasticsearch.shield.action.authc.cache;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.nodes.NodesOperationRequestBuilder;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.ClusterAdminClient;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.shield.client.ShieldAuthcClient;
 import org.elasticsearch.shield.client.ShieldClient;

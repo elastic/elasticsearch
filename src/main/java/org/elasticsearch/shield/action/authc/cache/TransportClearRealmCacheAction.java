@@ -7,7 +7,7 @@ package org.elasticsearch.shield.action.authc.cache;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.nodes.TransportNodesOperationAction;
+import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.common.collect.Lists;
@@ -26,7 +26,7 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
 /**
  *
  */
-public class TransportClearRealmCacheAction extends TransportNodesOperationAction<ClearRealmCacheRequest, ClearRealmCacheResponse, ClearRealmCacheRequest.Node, ClearRealmCacheResponse.Node> {
+public class TransportClearRealmCacheAction extends TransportNodesAction<ClearRealmCacheRequest, ClearRealmCacheResponse, ClearRealmCacheRequest.Node, ClearRealmCacheResponse.Node> {
 
     private final Realms realms;
 

@@ -255,7 +255,7 @@ does not backcast.
 
 [[holt_winters_cold_start]]
 .Holt-Winters showing a "cold" start where no values are emitted
-image::images/reducers_movavg/triple_untruncated.png[]
+image::images/pipeline_movavg/triple_untruncated.png[]
 
 Because the "cold start" obscures what the moving average looks like, the rest of the Holt-Winters images are truncated
 to not show the "cold start".  Just be aware this will always be present at the beginning of your moving averages!
@@ -290,7 +290,7 @@ The default value of `period` is `1`.
 
 [[holt_winters_add]]
 .Holt-Winters moving average with window of size 120, alpha = 0.5, beta = 0.7, gamma = 0.3, period = 30
-image::images/reducers_movavg/triple.png[]
+image::images/pipeline_movavg/triple.png[]
 
 ===== Multiplicative Holt-Winters
 

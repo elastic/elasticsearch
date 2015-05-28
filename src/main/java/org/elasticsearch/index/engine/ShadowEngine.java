@@ -79,7 +79,7 @@ public class ShadowEngine extends Engine {
                 if (Lucene.waitForIndex(store.directory(), nonexistentRetryTime)) {
                     reader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(store.directory()), shardId);
                     this.searcherManager = new SearcherManager(reader, searcherFactory);
-                    this.lastCommittedSegmentInfos = readLastCommittedSegmentInfos(searcherManager);
+                    this.lastCommittedSegmentInfos = readLastCommittedSegmentInfos(searcherManager, store);
                     success = true;
                 } else {
                     throw new IndexShardException(shardId, "failed to open a shadow engine after" +
@@ -148,7 +148,7 @@ public class ShadowEngine extends Engine {
         store.incRef();
         try (ReleasableLock lock = readLock.acquire()) {
             // reread the last committed segment infos
-            lastCommittedSegmentInfos = readLastCommittedSegmentInfos(searcherManager);
+            lastCommittedSegmentInfos = readLastCommittedSegmentInfos(searcherManager, store);
         } catch (Throwable e) {
             if (isClosed.get() == false) {
                 logger.warn("failed to read latest segment infos on flush", e);

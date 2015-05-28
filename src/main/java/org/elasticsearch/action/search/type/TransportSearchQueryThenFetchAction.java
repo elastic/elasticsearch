@@ -35,8 +35,8 @@ import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.action.SearchServiceTransportAction;
 import org.elasticsearch.search.controller.SearchPhaseController;
-import org.elasticsearch.search.fetch.ShardFetchSearchRequest;
 import org.elasticsearch.search.fetch.FetchSearchResult;
+import org.elasticsearch.search.fetch.ShardFetchSearchRequest;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.internal.ShardSearchTransportRequest;
 import org.elasticsearch.search.query.QuerySearchResultProvider;
@@ -118,7 +118,10 @@ public class TransportSearchQueryThenFetchAction extends TransportSearchTypeActi
 
                 @Override
                 public void onFailure(Throwable t) {
-                    // the failure might happen without managing to clear the search context..., potentially need to clear its context (for example)
+                    // the search context might not be cleared on the node where the fetch was executed for example
+                    // because the action was rejected by the thread pool. in this case we need to send a dedicated
+                    // request to clear the search context. by setting docIdsToLoad to null, the context will be cleared
+                    // in TransportSearchTypeAction.releaseIrrelevantSearchContexts() after the search request is done.
                     docIdsToLoad.set(shardIndex, null);
                     onFetchFailure(t, fetchSearchRequest, shardIndex, shardTarget, counter);
                 }

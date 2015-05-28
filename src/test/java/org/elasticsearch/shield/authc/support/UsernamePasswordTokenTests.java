@@ -72,7 +72,7 @@ public class UsernamePasswordTokenTests extends ElasticsearchTestCase {
     }
 
     @Test
-    public void testThatAuthorizationExceptionContainsResponseHeaders() {
+    public void testThatAuthenticationExceptionContainsResponseHeaders() {
         TransportRequest request = new TransportRequest() {};
         String header = "BasicBroken";
         request.putHeader(UsernamePasswordToken.BASIC_AUTH_HEADER, header);

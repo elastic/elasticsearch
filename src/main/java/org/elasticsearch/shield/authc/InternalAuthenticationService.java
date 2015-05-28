@@ -6,7 +6,6 @@
 package org.elasticsearch.shield.authc;
 
 import org.elasticsearch.common.Base64;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -29,7 +28,6 @@ import java.io.IOException;
 public class InternalAuthenticationService extends AbstractComponent implements AuthenticationService {
 
     public static final String SETTING_SIGN_USER_HEADER = "shield.authc.sign_user_header";
-    static final String ANONYMOUS_USERNAME = "_es_anonymous_user";
 
     static final String TOKEN_KEY = "_shield_token";
     static final String USER_KEY = "_shield_user";
@@ -37,30 +35,28 @@ public class InternalAuthenticationService extends AbstractComponent implements 
     private final Realms realms;
     private final AuditTrail auditTrail;
     private final CryptoService cryptoService;
+    private final AnonymousService anonymousService;
     private final boolean signUserHeader;
 
-    @Nullable
-    private final User anonymouseUser;
-
     @Inject
-    public InternalAuthenticationService(Settings settings, Realms realms, AuditTrail auditTrail, CryptoService cryptoService) {
+    public InternalAuthenticationService(Settings settings, Realms realms, AuditTrail auditTrail, CryptoService cryptoService, AnonymousService anonymousService) {
         super(settings);
         this.realms = realms;
         this.auditTrail = auditTrail;
         this.cryptoService = cryptoService;
+        this.anonymousService = anonymousService;
         this.signUserHeader = settings.getAsBoolean(SETTING_SIGN_USER_HEADER, true);
-        anonymouseUser = resolveAnonymouseUser(settings);
     }
 
     @Override
     public User authenticate(RestRequest request) throws AuthenticationException {
         AuthenticationToken token = token(request);
         if (token == null) {
-            if (anonymouseUser != null) {
+            if (anonymousService.enabled()) {
                 // we must put the user in the request context, so it'll be copied to the
                 // transport request - without it, the transport will assume system user
-                request.putInContext(USER_KEY, anonymouseUser);
-                return anonymouseUser;
+                request.putInContext(USER_KEY, anonymousService.anonymousUser());
+                return anonymousService.anonymousUser();
             }
             auditTrail.anonymousAccessDenied(request);
             throw new AuthenticationException("missing authentication token for REST request [" + request.uri() + "]");
@@ -138,15 +134,6 @@ public class InternalAuthenticationService extends AbstractComponent implements 
         }
     }
 
-    static User resolveAnonymouseUser(Settings settings) {
-        String[] roles = settings.getAsArray("shield.authc.anonymous.roles", null);
-        if (roles == null) {
-            return null;
-        }
-        String username = settings.get("shield.authc.anonymous.username", ANONYMOUS_USERNAME);
-        return new User.Simple(username, roles);
-    }
-
     /**
      * Authenticates the user associated with the given request by delegating the authentication to
      * the configured realms. Each realm that supports the given token will be asked to perform authentication,
@@ -173,8 +160,8 @@ public class InternalAuthenticationService extends AbstractComponent implements 
             if (fallbackUser != null) {
                 return fallbackUser;
             }
-            if (anonymouseUser != null) {
-                return anonymouseUser;
+            if (anonymousService.enabled()) {
+                return anonymousService.anonymousUser();
             }
             auditTrail.anonymousAccessDenied(action, message);
             throw new AuthenticationException("missing authentication token for action [" + action + "]");

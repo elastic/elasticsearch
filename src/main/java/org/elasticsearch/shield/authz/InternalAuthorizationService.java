@@ -23,6 +23,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.action.SearchServiceTransportAction;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.audit.AuditTrail;
+import org.elasticsearch.shield.authc.AnonymousService;
+import org.elasticsearch.shield.authc.AuthenticationException;
 import org.elasticsearch.shield.authz.indicesresolver.DefaultIndicesResolver;
 import org.elasticsearch.shield.authz.indicesresolver.IndicesResolver;
 import org.elasticsearch.shield.authz.store.RolesStore;
@@ -40,9 +42,10 @@ public class InternalAuthorizationService extends AbstractComponent implements A
     private final RolesStore rolesStore;
     private final AuditTrail auditTrail;
     private final IndicesResolver[] indicesResolvers;
+    private final AnonymousService anonymousService;
 
     @Inject
-    public InternalAuthorizationService(Settings settings, RolesStore rolesStore, ClusterService clusterService, AuditTrail auditTrail) {
+    public InternalAuthorizationService(Settings settings, RolesStore rolesStore, ClusterService clusterService, AuditTrail auditTrail, AnonymousService anonymousService) {
         super(settings);
         this.rolesStore = rolesStore;
         this.clusterService = clusterService;
@@ -50,6 +53,7 @@ public class InternalAuthorizationService extends AbstractComponent implements A
         this.indicesResolvers = new IndicesResolver[] {
                 new DefaultIndicesResolver(this)
         };
+        this.anonymousService = anonymousService;
     }
 
     @Override
@@ -231,6 +235,12 @@ public class InternalAuthorizationService extends AbstractComponent implements A
 
     private AuthorizationException denial(User user, String action, TransportRequest request) {
         auditTrail.accessDenied(user, action, request);
+        // Special case for anonymous user
+        if (anonymousService.isAnonymous(user)) {
+            if (!anonymousService.authorizationExceptionsEnabled()) {
+                throw new AuthenticationException("action [" + action + "] requires authentication");
+            }
+        }
         return new AuthorizationException("action [" + action + "] is unauthorized for user [" + user.principal() + "]");
     }
 

@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.shield.authc;
 
-import com.carrotsearch.ant.tasks.junit4.dependencies.com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableList;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
@@ -49,6 +49,7 @@ public class InternalAuthenticationServiceTests extends ElasticsearchTestCase {
     AuditTrail auditTrail;
     AuthenticationToken token;
     CryptoService cryptoService;
+    AnonymousService anonymousService;
 
     @Before
     public void init() throws Exception {
@@ -70,7 +71,8 @@ public class InternalAuthenticationServiceTests extends ElasticsearchTestCase {
         cryptoService = mock(CryptoService.class);
 
         auditTrail = mock(AuditTrail.class);
-        service = new InternalAuthenticationService(Settings.EMPTY, realms, auditTrail, cryptoService);
+        anonymousService = mock(AnonymousService.class);
+        service = new InternalAuthenticationService(Settings.EMPTY, realms, auditTrail, cryptoService, anonymousService);
     }
 
     @Test @SuppressWarnings("unchecked")
@@ -335,7 +337,7 @@ public class InternalAuthenticationServiceTests extends ElasticsearchTestCase {
     @Test
     public void testAutheticate_Transport_ContextAndHeader_NoSigning() throws Exception {
         Settings settings = Settings.builder().put(InternalAuthenticationService.SETTING_SIGN_USER_HEADER, false).build();
-        service = new InternalAuthenticationService(settings, realms, auditTrail, cryptoService);
+        service = new InternalAuthenticationService(settings, realms, auditTrail, cryptoService, anonymousService);
 
         User user1 = new User.Simple("username", "r1", "r2");
         when(firstRealm.supports(token)).thenReturn(true);
@@ -401,43 +403,16 @@ public class InternalAuthenticationServiceTests extends ElasticsearchTestCase {
     }
 
     @Test
-    public void testResolveAnonymousUser() throws Exception {
-        Settings settings = Settings.builder()
-                .put("shield.authc.anonymous.username", "anonym1")
-                .putArray("shield.authc.anonymous.roles", "r1", "r2", "r3")
-                .build();
-        User user = InternalAuthenticationService.resolveAnonymouseUser(settings);
-        assertThat(user, notNullValue());
-        assertThat(user.principal(), equalTo("anonym1"));
-        assertThat(user.roles(), arrayContainingInAnyOrder("r1", "r2", "r3"));
-
-        settings = Settings.builder()
-                .putArray("shield.authc.anonymous.roles", "r1", "r2", "r3")
-                .build();
-        user = InternalAuthenticationService.resolveAnonymouseUser(settings);
-        assertThat(user, notNullValue());
-        assertThat(user.principal(), equalTo(InternalAuthenticationService.ANONYMOUS_USERNAME));
-        assertThat(user.roles(), arrayContainingInAnyOrder("r1", "r2", "r3"));
-    }
-
-    @Test
-    public void testResolveAnonymousUser_NoSettings() throws Exception {
-        Settings settings = randomBoolean() ?
-                Settings.EMPTY :
-                Settings.builder().put("shield.authc.anonymous.username", "user1").build();
-        User user = InternalAuthenticationService.resolveAnonymouseUser(settings);
-        assertThat(user, nullValue());
-    }
-
-    @Test
     public void testAnonymousUser_Rest() throws Exception {
-        String username = randomBoolean() ? InternalAuthenticationService.ANONYMOUS_USERNAME : "user1";
+        String username = randomBoolean() ? AnonymousService.ANONYMOUS_USERNAME : "user1";
         Settings.Builder builder = Settings.builder()
                 .putArray("shield.authc.anonymous.roles", "r1", "r2", "r3");
-        if (username != InternalAuthenticationService.ANONYMOUS_USERNAME) {
+        if (username != AnonymousService.ANONYMOUS_USERNAME) {
             builder.put("shield.authc.anonymous.username", username);
         }
-        service = new InternalAuthenticationService(builder.build(), realms, auditTrail, cryptoService);
+        Settings settings = builder.build();
+        AnonymousService holder = new AnonymousService(settings);
+        service = new InternalAuthenticationService(settings, realms, auditTrail, cryptoService, holder);
 
         RestRequest request = new FakeRestRequest();
 
@@ -454,13 +429,13 @@ public class InternalAuthenticationServiceTests extends ElasticsearchTestCase {
         Settings settings = Settings.builder()
                 .putArray("shield.authc.anonymous.roles", "r1", "r2", "r3")
                 .build();
-        service = new InternalAuthenticationService(settings, realms, auditTrail, cryptoService);
+        service = new InternalAuthenticationService(settings, realms, auditTrail, cryptoService, new AnonymousService(settings));
 
         InternalMessage message = new InternalMessage();
 
         User user = service.authenticate("_action", message, null);
         assertThat(user, notNullValue());
-        assertThat(user.principal(), equalTo(InternalAuthenticationService.ANONYMOUS_USERNAME));
+        assertThat(user.principal(), equalTo(AnonymousService.ANONYMOUS_USERNAME));
         assertThat(user.roles(), arrayContainingInAnyOrder("r1", "r2", "r3"));
     }
 
@@ -469,7 +444,7 @@ public class InternalAuthenticationServiceTests extends ElasticsearchTestCase {
         Settings settings = Settings.builder()
                 .putArray("shield.authc.anonymous.roles", "r1", "r2", "r3")
                 .build();
-        service = new InternalAuthenticationService(settings, realms, auditTrail, cryptoService);
+        service = new InternalAuthenticationService(settings, realms, auditTrail, cryptoService, new AnonymousService(settings));
 
         InternalMessage message = new InternalMessage();
 

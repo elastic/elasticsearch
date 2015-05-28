@@ -31,6 +31,7 @@ public class AuthenticationModule extends AbstractShieldModule.Node {
         mapBinder.addBinding(PkiRealm.TYPE).to(PkiRealm.Factory.class).asEagerSingleton();
 
         bind(Realms.class).asEagerSingleton();
+        bind(AnonymousService.class).asEagerSingleton();
         bind(AuthenticationService.class).to(InternalAuthenticationService.class).asEagerSingleton();
     }
 }

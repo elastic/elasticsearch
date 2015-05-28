@@ -121,13 +121,9 @@ public class InternalEngine extends Engine {
         try {
             try {
                 boolean autoUpgrade = true;
-                try {
-                    // If the index was created on 0.20.7 (Lucene 3.x) or earlier,
-                    // it needs to be upgraded
-                    autoUpgrade = Version.indexCreated(engineConfig.getIndexSettings()).onOrBefore(Version.V_0_20_7);
-                } catch (ElasticsearchIllegalStateException e) {
-                    // we weren't able to parse the version, that's fine
-                }
+                // If the index was created on 0.20.7 (Lucene 3.x) or earlier,
+                // it needs to be upgraded
+                autoUpgrade = Version.indexCreated(engineConfig.getIndexSettings()).onOrBefore(Version.V_0_20_7);
                 if (autoUpgrade) {
                     logger.debug("[{}] checking for 3x segments to upgrade", shardId);
                     upgrade3xSegments(store);

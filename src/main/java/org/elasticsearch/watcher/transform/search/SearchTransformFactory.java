@@ -10,7 +10,6 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
-import org.elasticsearch.watcher.support.init.proxy.ScriptServiceProxy;
 import org.elasticsearch.watcher.transform.TransformFactory;
 
 import java.io.IOException;
@@ -36,11 +35,6 @@ public class SearchTransformFactory extends TransformFactory<SearchTransform, Se
     @Override
     public SearchTransform parseTransform(String watchId, XContentParser parser) throws IOException {
         return SearchTransform.parse(watchId, parser);
-    }
-
-    @Override
-    public SearchTransform.Result parseResult(String watchId, XContentParser parser) throws IOException {
-        return SearchTransform.Result.parse(watchId, parser);
     }
 
     @Override

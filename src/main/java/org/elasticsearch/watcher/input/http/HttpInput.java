@@ -127,50 +127,6 @@ public class HttpInput implements Input {
             return builder.field(Field.REQUEST.getPreferredName(), request, params)
                     .field(Field.STATUS.getPreferredName(), status);
         }
-
-        public static Result parse(String watchId, XContentParser parser, HttpRequest.Parser requestParser) throws IOException {
-            HttpRequest sentRequest = null;
-            Payload payload = null;
-            int httpStatus = -1;
-
-            XContentParser.Token token;
-            String currentFieldName = null;
-            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                if (token == XContentParser.Token.FIELD_NAME) {
-                    currentFieldName = parser.currentName();
-                } else if (Field.REQUEST.match(currentFieldName)) {
-                    try {
-                        sentRequest = requestParser.parse(parser);
-                    } catch (HttpRequest.Parser.ParseException pe) {
-                        throw new HttpInputException("could not parse [{}] input result for watch [{}]. failed parsing [{}] field", pe, TYPE, watchId, Field.REQUEST.getPreferredName());
-                    }
-                } else if (token == XContentParser.Token.START_OBJECT) {
-                    if (Field.PAYLOAD.match(currentFieldName)) {
-                        payload = new Payload.XContent(parser);
-                    } else {
-                        throw new HttpInputException("could not parse [{}] input result for watch [{}]. unexpected object field [{}]", TYPE, watchId, currentFieldName);
-                    }
-                } else if (token == XContentParser.Token.VALUE_NUMBER) {
-                    if (Field.STATUS.match(currentFieldName)) {
-                        httpStatus = parser.intValue();
-                    } else {
-                        throw new HttpInputException("could not parse [{}] input result for watch [{}]. unexpected numeric field [{}]", TYPE, watchId, currentFieldName);
-                    }
-                } else {
-                    throw new HttpInputException("could not parse [{}] input result for watch [{}]. unexpected token [{}]", TYPE, watchId, token);
-                }
-            }
-
-            if (sentRequest == null) {
-                throw new HttpInputException("could not parse [{}] input result for watch [{}]. missing required [{}] field", TYPE, watchId, Field.REQUEST.getPreferredName());
-            }
-
-            if (httpStatus < 0) {
-                throw new HttpInputException("could not parse [{}] input result for watch [{}]. missing required [{}] field", TYPE, watchId, Field.STATUS.getPreferredName());
-            }
-
-            return new HttpInput.Result(payload, sentRequest, httpStatus);
-        }
     }
 
     public static class Builder implements Input.Builder<HttpInput> {

@@ -47,11 +47,6 @@ public final class HttpInputFactory extends InputFactory<HttpInput, HttpInput.Re
     }
 
     @Override
-    public HttpInput.Result parseResult(String watchId, XContentParser parser) throws IOException {
-        return HttpInput.Result.parse(watchId, parser, requestParser);
-    }
-
-    @Override
     public ExecutableHttpInput createExecutable(HttpInput input) {
         return new ExecutableHttpInput(input, inputLogger, httpClient, templateEngine);
     }

@@ -47,11 +47,6 @@ public class EmailActionFactory extends ActionFactory<EmailAction, ExecutableEma
     }
 
     @Override
-    public Action.Result parseResult(Wid wid, String actionId, XContentParser parser) throws IOException {
-        return EmailAction.Result.parse(wid.watchId(), actionId, parser);
-    }
-
-    @Override
     public ExecutableEmailAction createExecutable(EmailAction action) {
         return new ExecutableEmailAction(action, actionLogger, emailService, templateEngine);
     }

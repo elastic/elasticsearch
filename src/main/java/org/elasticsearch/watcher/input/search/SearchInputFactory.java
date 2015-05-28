@@ -39,11 +39,6 @@ public class SearchInputFactory extends InputFactory<SearchInput, SearchInput.Re
     }
 
     @Override
-    public SearchInput.Result parseResult(String watchId, XContentParser parser) throws IOException {
-        return SearchInput.Result.parse(watchId, parser);
-    }
-
-    @Override
     public ExecutableSearchInput createExecutable(SearchInput input) {
         return new ExecutableSearchInput(input, inputLogger, client);
     }

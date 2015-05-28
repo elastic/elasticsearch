@@ -10,6 +10,7 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.watcher.client.WatcherClient;
+import org.elasticsearch.watcher.execution.ExecutionState;
 import org.elasticsearch.watcher.history.HistoryStore;
 import org.elasticsearch.watcher.history.WatchRecord;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
@@ -94,7 +95,7 @@ public class WatchTimeThrottleTests extends AbstractWatcherIntegrationTests {
             assertThat(actionsCount, is(2L));
 
             long throttledCount = docCount(HistoryStore.INDEX_PREFIX + "*", null,
-                    matchQuery(WatchRecord.Field.STATE.getPreferredName(), WatchRecord.State.THROTTLED.id()));
+                    matchQuery(WatchRecord.Field.STATE.getPreferredName(), ExecutionState.THROTTLED.id()));
             assertThat(throttledCount, is(1L));
 
         } else {
@@ -118,7 +119,7 @@ public class WatchTimeThrottleTests extends AbstractWatcherIntegrationTests {
                     assertThat(actionsCount, is(1L));
 
                     long throttledCount = docCount(HistoryStore.INDEX_PREFIX + "*", null,
-                            matchQuery(WatchRecord.Field.STATE.getPreferredName(), WatchRecord.State.THROTTLED.id()));
+                            matchQuery(WatchRecord.Field.STATE.getPreferredName(), ExecutionState.THROTTLED.id()));
                     assertThat(throttledCount, greaterThanOrEqualTo(1L));
                 }
             }, 5, TimeUnit.SECONDS);
@@ -168,7 +169,7 @@ public class WatchTimeThrottleTests extends AbstractWatcherIntegrationTests {
             assertThat(actionsCount, is(2L));
 
             long throttledCount = docCount(HistoryStore.INDEX_PREFIX + "*", null,
-                    matchQuery(WatchRecord.Field.STATE.getPreferredName(), WatchRecord.State.THROTTLED.id()));
+                    matchQuery(WatchRecord.Field.STATE.getPreferredName(), ExecutionState.THROTTLED.id()));
             assertThat(throttledCount, is(1L));
         }
     }

@@ -91,41 +91,6 @@ public class SearchTransform implements Transform {
             WatcherUtils.writeSearchRequest(request, builder, params);
             return builder;
         }
-
-        public static Result parse(String watchId, XContentParser parser) throws IOException {
-            SearchRequest executedRequest = null;
-            Payload payload = null;
-
-            String currentFieldName = null;
-            XContentParser.Token token;
-            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                if (token == XContentParser.Token.FIELD_NAME) {
-                    currentFieldName = parser.currentName();
-                } else if (Field.REQUEST.match(currentFieldName)) {
-                    try {
-                        executedRequest = WatcherUtils.readSearchRequest(parser, ExecutableSearchTransform.DEFAULT_SEARCH_TYPE);
-                    } catch (SearchRequestParseException srpe) {
-                        throw new SearchTransformException("could not parse [{}] transform result for watch [{}]. failed to parse [{}]", srpe, TYPE, watchId, currentFieldName);
-                    }
-                } else if (token == XContentParser.Token.START_OBJECT && currentFieldName != null) {
-                    if (Field.PAYLOAD.match(currentFieldName)) {
-                        payload = new Payload.XContent(parser);
-                    } else {
-                        throw new SearchTransformException("could not parse [{}] transform result for watch [{}]. unexpected field [{}]", TYPE, watchId, currentFieldName);
-                    }
-                }
-            }
-
-            if (payload == null) {
-                throw new SearchTransformException("could not parse [{}] transform result for watch [{}]. missing required [{}] field", TYPE, watchId, Field.PAYLOAD.getPreferredName());
-            }
-
-            if (executedRequest == null) {
-                throw new SearchTransformException("could not parse [{}] transform result for watch [{}]. missing required [{}] field", TYPE, watchId, Field.REQUEST.getPreferredName());
-            }
-
-            return new SearchTransform.Result(executedRequest, payload);
-        }
     }
 
     public static class Builder implements Transform.Builder<SearchTransform> {

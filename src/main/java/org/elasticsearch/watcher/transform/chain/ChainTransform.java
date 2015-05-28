@@ -114,46 +114,6 @@ public class ChainTransform implements Transform {
             }
             return builder.endArray();
         }
-
-        public static Result parse(String watchId, XContentParser parser, TransformRegistry transformRegistry) throws IOException {
-            XContentParser.Token token = parser.currentToken();
-            if (token != XContentParser.Token.START_OBJECT) {
-                throw new ChainTransformException("could not parse [{}] transform result for watch [{}]. expected an object, but found [{}] instead", TYPE, watchId, token);
-            }
-
-            Payload payload = null;
-            ImmutableList.Builder<Transform.Result> results = ImmutableList.builder();
-
-            String currentFieldName = null;
-            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                if (token == XContentParser.Token.FIELD_NAME) {
-                    currentFieldName = parser.currentName();
-                } else {
-                    if (token == XContentParser.Token.START_OBJECT) {
-                        if (Field.PAYLOAD.match(currentFieldName)) {
-                            payload = new Payload.XContent(parser);
-                        } else {
-                            throw new ChainTransformException("could not parse [{}] transform result for watch [{}]. unexpected object field [{}]", TYPE, watchId, currentFieldName);
-                        }
-                    } else if (token == XContentParser.Token.START_ARRAY) {
-                        if (Field.RESULTS.match(currentFieldName)) {
-                            while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                                if (token == XContentParser.Token.START_OBJECT) {
-                                    results.add(transformRegistry.parseResult(watchId, parser));
-                                } else {
-                                    throw new ChainTransformException("could not parse [{}] transform result for watch [{}]. expected an object representing a transform result, but found [{}] instead", TYPE, watchId, token);
-                                }
-                            }
-                        } else {
-                            throw new ChainTransformException("could not parse [{}] transform result for watch [{}]. unexpected array field [{}]", TYPE, watchId, currentFieldName);
-                        }
-                    } else {
-                        throw new ChainTransformException("could not parse [{}] transform result for watch [{}]. unexpected token [{}]", TYPE, watchId, token);
-                    }
-                }
-            }
-            return new ChainTransform.Result(payload, results.build());
-        }
     }
 
     public static class Builder implements Transform.Builder<ChainTransform> {

@@ -37,11 +37,6 @@ public class AlwaysConditionFactory extends ConditionFactory<AlwaysCondition, Al
     }
 
     @Override
-    public AlwaysCondition.Result parseResult(String watchId, XContentParser parser) throws IOException {
-        return AlwaysCondition.Result.parse(watchId, parser);
-    }
-
-    @Override
     public ExecutableAlwaysCondition createExecutable(AlwaysCondition condition) {
         return this.condition;
     }

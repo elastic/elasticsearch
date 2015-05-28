@@ -10,7 +10,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.ElasticsearchTestCase;
-import org.elasticsearch.watcher.condition.Condition;
 import org.elasticsearch.watcher.condition.ConditionFactory;
 import org.elasticsearch.watcher.condition.ExecutableCondition;
 import org.elasticsearch.watcher.condition.always.AlwaysCondition;
@@ -57,32 +56,4 @@ public class NeverConditionTests extends ElasticsearchTestCase {
                 + AlwaysCondition.TYPE + "] condition should not parse with a body");
     }
 
-
-    @Test
-    public void testResultParser_Valid() throws Exception {
-        ConditionFactory factory = new NeverConditionFactory(ImmutableSettings.settingsBuilder().build());
-        XContentBuilder builder = jsonBuilder();
-        builder.startObject();
-        builder.endObject();
-        XContentParser parser = XContentFactory.xContent(builder.bytes()).createParser(builder.bytes());
-        parser.nextToken();
-
-        Condition.Result result = factory.parseResult("_id", parser);
-        assertFalse(result.met());
-    }
-
-    @Test(expected = NeverConditionException.class)
-    public void testResultParser_Invalid() throws Exception {
-        ConditionFactory factory = new NeverConditionFactory(ImmutableSettings.settingsBuilder().build());
-        XContentBuilder builder = jsonBuilder();
-        builder.startObject();
-        builder.field("met", false);
-        builder.endObject();
-        XContentParser parser = XContentFactory.xContent(builder.bytes()).createParser(builder.bytes());
-        parser.nextToken();
-
-        factory.parseResult("_id", parser);
-        fail("expected a condition exception trying to parse an invalid condition result XContent, ["
-                + NeverCondition.TYPE + "] condition result should not parse with a [met] field");
-    }
 }

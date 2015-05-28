@@ -193,37 +193,4 @@ public class HttpInputTests extends ElasticsearchTestCase {
         httpParser.parseInput("_id", parser);
     }
 
-    @Test
-    public void testParseResult() throws Exception {
-        HttpMethod httpMethod = HttpMethod.GET;
-        String body = "_body";
-        Map<String, Template> headers = new MapBuilder<String, Template>().put("a", Template.inline("b").build()).map();
-        HttpRequest request = HttpRequest.builder("_host", 123)
-                .method(httpMethod)
-                .body(body)
-                .setHeader("a", "b")
-                .build();
-
-        Map<String, Object> payload = MapBuilder.<String, Object>newMapBuilder().put("x", "y").map();
-
-        XContentBuilder builder = jsonBuilder().startObject();
-        builder.field(HttpInput.Field.STATUS.getPreferredName(), 123);
-        builder.field(HttpInput.Field.REQUEST.getPreferredName(), request);
-        builder.field(HttpInput.Field.PAYLOAD.getPreferredName(), payload);
-        builder.endObject();
-
-        XContentParser parser = XContentHelper.createParser(builder.bytes());
-        parser.nextToken();
-        HttpInput.Result result = httpParser.parseResult("_id", parser);
-        assertThat(result.type(), equalTo(HttpInput.TYPE));
-        assertThat(result.payload().data(), equalTo(payload));
-        assertThat(result.status(), equalTo(123));
-        assertThat(result.request().method().method(), equalTo("GET"));
-        assertThat(result.request().headers().size(), equalTo(headers.size()));
-        assertThat(result.request().headers(), hasEntry("a", (Object) "b"));
-        assertThat(result.request().host(), equalTo("_host"));
-        assertThat(result.request().port(), equalTo(123));
-        assertThat(result.request().body(), equalTo("_body"));
-    }
-
 }

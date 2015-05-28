@@ -9,9 +9,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.watcher.actions.Action;
 import org.elasticsearch.watcher.actions.ActionFactory;
-import org.elasticsearch.watcher.execution.Wid;
 import org.elasticsearch.watcher.support.http.HttpClient;
 import org.elasticsearch.watcher.support.http.HttpRequest;
 import org.elasticsearch.watcher.support.http.HttpRequestTemplate;
@@ -48,11 +46,6 @@ public class WebhookActionFactory extends ActionFactory<WebhookAction, Executabl
     @Override
     public WebhookAction parseAction(String watchId, String actionId, XContentParser parser) throws IOException {
         return WebhookAction.parse(watchId, actionId, parser, requestTemplateParser);
-    }
-
-    @Override
-    public Action.Result parseResult(Wid wid, String actionId, XContentParser parser) throws IOException {
-        return WebhookAction.parseResult(wid.watchId(), actionId, parser, requestParser);
     }
 
     @Override

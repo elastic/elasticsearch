@@ -76,30 +76,6 @@ public class SimpleInput implements Input {
         protected XContentBuilder toXContentBody(XContentBuilder builder, Params params) throws IOException {
             return builder;
         }
-
-        public static Result parse(String watchId, XContentParser parser) throws IOException {
-            Payload payload = null;
-
-            String currentFieldName = null;
-            XContentParser.Token token;
-            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                if (token == XContentParser.Token.FIELD_NAME) {
-                    currentFieldName = parser.currentName();
-                } else if (token == XContentParser.Token.START_OBJECT && currentFieldName != null) {
-                    if (Field.PAYLOAD.match(currentFieldName)) {
-                        payload = new Payload.XContent(parser);
-                    } else {
-                        throw new SimpleInputException("could not parse [{}] input result for watch [{}]. unexpected field [{}]", TYPE, watchId, currentFieldName);
-                    }
-                }
-            }
-
-            if (payload == null) {
-                throw new SimpleInputException("could not parse [{}] input result for watch [{}]. missing required [{}] field", TYPE, watchId, Field.PAYLOAD.getPreferredName());
-            }
-
-            return new Result(payload);
-        }
     }
 
     public static class Builder implements Input.Builder<SimpleInput> {

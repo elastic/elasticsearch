@@ -63,23 +63,4 @@ public class InputRegistry {
         return input;
     }
 
-    public Input.Result parseResult(String watchId, XContentParser parser) throws IOException {
-        String type = null;
-
-        XContentParser.Token token;
-        Input.Result inputResult = null;
-        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            if (token == XContentParser.Token.FIELD_NAME) {
-                type = parser.currentName();
-            } else if (token == XContentParser.Token.START_OBJECT && type != null) {
-                InputFactory factory = factories.get(type);
-                if (factory == null) {
-                    throw new InputException("could not parse input result for watch [{}]. unknown input type [{}]", watchId, type);
-                }
-                inputResult = factory.parseResult(watchId, parser);
-            }
-        }
-        return inputResult;
-    }
-
 }

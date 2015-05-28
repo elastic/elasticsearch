@@ -143,39 +143,6 @@ public class CompareCondition implements Condition {
                     .field(Field.RESOLVED_VALUE.getPreferredName(), resolveValue)
                     .endObject();
         }
-
-        public static Result parse(String watchId, XContentParser parser) throws IOException {
-            Object resolvedValue = null;
-            boolean foundResolvedValue = false;
-            Boolean met = null;
-
-            String currentFieldName = null;
-            XContentParser.Token token;
-            while((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                if (token == XContentParser.Token.FIELD_NAME) {
-                    currentFieldName = parser.currentName();
-                } else if (currentFieldName == null) {
-                    throw new CompareConditionException("could not parse condition result [{}] for watcher [{}]. expected a field but found [{}] instead", TYPE, watchId, token);
-                } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
-                    if (Field.MET.match(currentFieldName)) {
-                        met = parser.booleanValue();
-                    } else {
-                        throw new CompareConditionException("could not parse condition result [{}] for watcher [{}]. unexpected boolean field [{}]", TYPE, watchId, currentFieldName);
-                    }
-                } else if (Field.RESOLVED_VALUE.match(currentFieldName)) {
-                    resolvedValue = WatcherXContentUtils.readValue(parser, token);
-                    foundResolvedValue = true;
-                } else {
-                    throw new CompareConditionException("could not parse condition result [{}] for watcher [{}]. unexpected field [{}]", TYPE, watchId, currentFieldName);
-                }
-            }
-
-            if (!foundResolvedValue) {
-                throw new CompareConditionException("could not parse condition result [{}] for watcher [{}]. missing required field [{}]", TYPE, watchId, Field.RESOLVED_VALUE.getPreferredName());
-            }
-
-            return new Result(resolvedValue, met);
-        }
     }
 
     public enum Op {

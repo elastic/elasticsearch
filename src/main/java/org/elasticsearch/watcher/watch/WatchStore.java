@@ -16,6 +16,8 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -25,6 +27,8 @@ import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -139,25 +143,25 @@ public class WatchStore extends AbstractComponent {
      * Updates and persists the status of the given watch
      */
     public void updateStatus(Watch watch) throws IOException {
+        ensureStarted();
         // at the moment we store the status together with the watch,
         // so we just need to update the watch itself
         // TODO: consider storing the status in a different documment (watch_status doc) (must smaller docs... faster for frequent updates)
         if (watch.status().dirty()) {
-            update(watch);
+            XContentBuilder source = JsonXContent.contentBuilder().
+                    startObject()
+                        .field(Watch.Field.STATUS.getPreferredName(), watch.status(), ToXContent.EMPTY_PARAMS)
+                    .endObject();
+            UpdateRequest updateRequest = new UpdateRequest(INDEX, DOC_TYPE, watch.id());
+            updateRequest.listenerThreaded(false);
+            updateRequest.doc(source);
+            updateRequest.version(watch.version());
+            UpdateResponse response = client.update(updateRequest);
+            watch.status().version(response.getVersion());
+            watch.version(response.getVersion());
+            watch.status().resetDirty();
+            // Don't need to update the watches, since we are working on an instance from it.
         }
-    }
-
-    /**
-     * Updates and persists the given watch
-     */
-    void update(Watch watch) throws IOException {
-        ensureStarted();
-        BytesReference source = JsonXContent.contentBuilder().value(watch).bytes();
-        IndexResponse response = client.index(createIndexRequest(watch.id(), source, watch.version()));
-        watch.status().version(response.getVersion());
-        watch.version(response.getVersion());
-        watch.status().resetDirty();
-        // Don't need to update the watches, since we are working on an instance from it.
     }
 
     /**
@@ -172,7 +176,11 @@ public class WatchStore extends AbstractComponent {
         if (watch != null && !force) {
             request.version(watch.version());
         }
-        DeleteResponse response = client.delete(request).actionGet();
+        DeleteResponse response = client.delete(request);
+        // Another operation may hold the Watch instance, so lets set the version for consistency:
+        if (watch != null) {
+            watch.version(response.getVersion());
+        }
         return new WatchDelete(response);
     }
 

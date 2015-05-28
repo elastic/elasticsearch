@@ -32,11 +32,6 @@ public abstract class InputFactory<I extends Input, R extends Input.Result, E ex
     public abstract I parseInput(String watchId, XContentParser parser) throws IOException;
 
     /**
-     * Parses the given xContent and creates a concrete result
-     */
-    public abstract R parseResult(String watchId, XContentParser parser) throws IOException;
-
-    /**
      * Creates an executable input out of the given input.
      */
     public abstract E createExecutable(I input);

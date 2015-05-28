@@ -32,11 +32,6 @@ public abstract class ConditionFactory<C extends Condition, R extends Condition.
     public abstract C parseCondition(String watchId, XContentParser parser) throws IOException;
 
     /**
-     * Parses the given xContent and creates a concrete result
-     */
-    public abstract R parseResult(String watchId, XContentParser parser) throws IOException;
-
-    /**
      * Creates an {@link ExecutableCondition executable condition} for the given condition.
      */
     public abstract E createExecutable(C condition);

@@ -8,8 +8,8 @@ package org.elasticsearch.watcher.test.integration;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
+import org.elasticsearch.watcher.execution.ExecutionState;
 import org.elasticsearch.watcher.history.HistoryStore;
-import org.elasticsearch.watcher.history.WatchRecord;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
 import org.elasticsearch.watcher.transport.actions.put.PutWatchResponse;
 import org.junit.Test;
@@ -55,7 +55,7 @@ public class HistoryTemplateIndexActionMappingsTests extends AbstractWatcherInte
         refresh();
 
         // the action should fail as no email server is available
-        assertWatchWithMinimumActionsCount("_id", WatchRecord.State.EXECUTED, 1);
+        assertWatchWithMinimumActionsCount("_id", ExecutionState.EXECUTED, 1);
         flush();
         refresh();
 

@@ -43,8 +43,9 @@ import org.elasticsearch.watcher.actions.email.service.EmailService;
 import org.elasticsearch.watcher.actions.email.service.Profile;
 import org.elasticsearch.watcher.client.WatcherClient;
 import org.elasticsearch.watcher.execution.ExecutionService;
+import org.elasticsearch.watcher.execution.ExecutionState;
 import org.elasticsearch.watcher.history.HistoryStore;
-import org.elasticsearch.watcher.history.WatchRecord;
+import org.elasticsearch.watcher.execution.TriggeredWatchStore;
 import org.elasticsearch.watcher.license.LicenseService;
 import org.elasticsearch.watcher.support.clock.ClockMock;
 import org.elasticsearch.watcher.support.http.HttpClient;
@@ -53,6 +54,7 @@ import org.elasticsearch.watcher.trigger.ScheduleTriggerEngineMock;
 import org.elasticsearch.watcher.trigger.TriggerService;
 import org.elasticsearch.watcher.trigger.schedule.ScheduleModule;
 import org.elasticsearch.watcher.watch.Watch;
+import org.elasticsearch.watcher.watch.WatchStore;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -279,10 +281,6 @@ public abstract class AbstractWatcherIntegrationTests extends ElasticsearchInteg
         return getInstanceFromMaster(LicenseService.class);
     }
 
-    protected WatchRecord.Parser watchRecordParser() {
-        return internalTestCluster().getInstance(WatchRecord.Parser.class);
-    }
-
     protected void assertWatchWithMinimumPerformedActionsCount(final String watchName, final long minimumExpectedWatchActionsWithActionPerformed) throws Exception {
         assertWatchWithMinimumPerformedActionsCount(watchName, minimumExpectedWatchActionsWithActionPerformed, true);
     }
@@ -303,7 +301,7 @@ public abstract class AbstractWatcherIntegrationTests extends ElasticsearchInteg
                 refresh();
                 SearchResponse searchResponse = client().prepareSearch(HistoryStore.INDEX_PREFIX + "*")
                         .setIndicesOptions(IndicesOptions.lenientExpandOpen())
-                        .setQuery(boolQuery().must(matchQuery("watch_id", watchName)).must(matchQuery("state", WatchRecord.State.EXECUTED.id())))
+                        .setQuery(boolQuery().must(matchQuery("watch_id", watchName)).must(matchQuery("state", ExecutionState.EXECUTED.id())))
                         .get();
                 assertThat("could not find executed watch record", searchResponse.getHits().getTotalHits(), greaterThanOrEqualTo(minimumExpectedWatchActionsWithActionPerformed));
                 if (assertConditionMet) {
@@ -327,7 +325,7 @@ public abstract class AbstractWatcherIntegrationTests extends ElasticsearchInteg
         refresh();
         SearchResponse searchResponse = client().prepareSearch(HistoryStore.INDEX_PREFIX + "*")
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())
-                .setQuery(boolQuery().must(matchQuery("watch_id", watchName)).must(matchQuery("state", WatchRecord.State.EXECUTED.id())))
+                .setQuery(boolQuery().must(matchQuery("watch_id", watchName)).must(matchQuery("state", ExecutionState.EXECUTED.id())))
                 .get();
         return searchResponse.getHits().getTotalHits();
     }
@@ -349,14 +347,14 @@ public abstract class AbstractWatcherIntegrationTests extends ElasticsearchInteg
                 refresh();
                 SearchResponse searchResponse = client().prepareSearch(HistoryStore.INDEX_PREFIX + "*")
                         .setIndicesOptions(IndicesOptions.lenientExpandOpen())
-                        .setQuery(boolQuery().must(matchQuery("watch_id", watchName)).must(matchQuery("state", WatchRecord.State.EXECUTION_NOT_NEEDED.id())))
+                        .setQuery(boolQuery().must(matchQuery("watch_id", watchName)).must(matchQuery("state", ExecutionState.EXECUTION_NOT_NEEDED.id())))
                         .get();
                 assertThat(searchResponse.getHits().getTotalHits(), greaterThanOrEqualTo(expectedWatchActionsWithNoActionNeeded));
             }
         });
     }
 
-    protected void assertWatchWithMinimumActionsCount(final String watchName, final WatchRecord.State recordState, final long recordCount) throws Exception {
+    protected void assertWatchWithMinimumActionsCount(final String watchName, final ExecutionState recordState, final long recordCount) throws Exception {
         assertBusy(new Runnable() {
             @Override
             public void run() {
@@ -494,7 +492,7 @@ public abstract class AbstractWatcherIntegrationTests extends ElasticsearchInteg
                 List<String> templatesToWipe = new ArrayList<>();
                 ClusterState state = client().admin().cluster().prepareState().get().getState();
                 for (ObjectObjectCursor<String, IndexTemplateMetaData> cursor : state.getMetaData().templates()) {
-                    if (cursor.key.equals("watches") || cursor.key.equals("watch_history")) {
+                    if (cursor.key.equals(WatchStore.INDEX_TEMPLATE) || cursor.key.equals(HistoryStore.INDEX_TEMPLATE_NAME) || cursor.key.equals(TriggeredWatchStore.INDEX_TEMPLATE_NAME)) {
                         continue;
                     }
                     templatesToWipe.add(cursor.key);

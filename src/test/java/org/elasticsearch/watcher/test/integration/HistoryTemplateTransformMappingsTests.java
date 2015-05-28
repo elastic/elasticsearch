@@ -9,7 +9,7 @@ import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.hppc.cursors.ObjectObjectCursor;
-import org.elasticsearch.watcher.history.WatchRecord;
+import org.elasticsearch.watcher.execution.ExecutionState;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
 import org.elasticsearch.watcher.transport.actions.put.PutWatchResponse;
 import org.junit.Test;
@@ -78,8 +78,8 @@ public class HistoryTemplateTransformMappingsTests extends AbstractWatcherIntegr
         flush();
         refresh();
 
-        assertWatchWithMinimumActionsCount("_id1", WatchRecord.State.EXECUTED, 1);
-        assertWatchWithMinimumActionsCount("_id2", WatchRecord.State.EXECUTED, 1);
+        assertWatchWithMinimumActionsCount("_id1", ExecutionState.EXECUTED, 1);
+        assertWatchWithMinimumActionsCount("_id2", ExecutionState.EXECUTED, 1);
 
         refresh();
 

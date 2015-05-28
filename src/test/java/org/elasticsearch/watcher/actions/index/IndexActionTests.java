@@ -6,16 +6,11 @@
 package org.elasticsearch.watcher.actions.index;
 
 import com.carrotsearch.randomizedtesting.annotations.Repeat;
-import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.script.ScriptService;
@@ -28,7 +23,6 @@ import org.elasticsearch.watcher.actions.email.service.EmailService;
 import org.elasticsearch.watcher.actions.email.service.Profile;
 import org.elasticsearch.watcher.execution.TriggeredExecutionContext;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
-import org.elasticsearch.watcher.execution.Wid;
 import org.elasticsearch.watcher.support.http.HttpClient;
 import org.elasticsearch.watcher.support.http.auth.HttpAuthRegistry;
 import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
@@ -40,14 +34,13 @@ import org.elasticsearch.watcher.watch.Watch;
 import org.junit.Test;
 
 import java.util.HashMap;
-import java.util.Locale;
 import java.util.Map;
 
-import static org.elasticsearch.common.joda.time.DateTimeZone.UTC;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
 
 /**
@@ -144,115 +137,6 @@ public class IndexActionTests extends ElasticsearchIntegrationTest {
         } catch (IndexActionException iae) {
             assertThat(useIndex && useType, equalTo(false));
         }
-    }
-
-    @Test @Repeat(iterations = 30)
-    public void testParser_Result() throws Exception {
-        Status status = randomFrom(Status.SUCCESS, Status.SIMULATED, Status.FAILURE);
-
-        XContentBuilder builder = jsonBuilder().startObject()
-                .field("status", status.name().toLowerCase(Locale.ROOT));
-
-        Payload.Simple source = null;
-        String index = randomAsciiOfLength(5);
-        String docType = randomAsciiOfLength(5);
-
-        switch (status) {
-
-            case SIMULATED:
-                source = new Payload.Simple(ImmutableMap.<String, Object>builder()
-                        .put("data", new HashMap<String, Object>())
-                        .put("timestamp", DateTime.now(UTC).toString())
-                        .build());
-                builder.startObject(IndexAction.Field.REQUEST.getPreferredName())
-                        .field(IndexAction.Field.INDEX.getPreferredName(), index)
-                        .field(IndexAction.Field.DOC_TYPE.getPreferredName(), docType)
-                        .field(IndexAction.Field.SOURCE.getPreferredName(), source)
-                        .endObject();
-                break;
-
-            case SUCCESS:
-                Map<String,Object> data = new HashMap<>();
-                data.put("created", true);
-                data.put("id", "0");
-                data.put("version", 1);
-                data.put("type", "test-type");
-                data.put("index", "test-index");
-                builder.field(IndexAction.Field.RESPONSE.getPreferredName(), data);
-                break;
-
-            case FAILURE:
-                builder.field("reason", "_reason");
-        }
-
-        Wid wid = new Wid(randomAsciiOfLength(4), randomLong(), DateTime.now());
-        String actionId = randomAsciiOfLength(5);
-
-        XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes());
-        parser.nextToken();
-        Action.Result result = new IndexActionFactory(ImmutableSettings.EMPTY, ClientProxy.of(client()))
-                .parseResult(wid, actionId, parser);
-
-
-        assertThat(result.status(), is(status));
-
-        switch (status) {
-
-            case SIMULATED:
-                assertThat(result, instanceOf(IndexAction.Result.Simulated.class));
-                assertThat(((IndexAction.Result.Simulated) result).source(), equalTo((Payload) source));
-                assertThat(((IndexAction.Result.Simulated) result).index(), equalTo(index));
-                assertThat(((IndexAction.Result.Simulated) result).docType(), equalTo(docType));
-                break;
-
-            case SUCCESS:
-                assertThat(result, instanceOf(IndexAction.Result.Success.class));
-                Map<String, Object> responseData = ((IndexAction.Result.Success) result).response().data();
-                assertThat(responseData.get("created"), equalTo((Object) Boolean.TRUE));
-                assertThat(responseData.get("version"), equalTo((Object) 1));
-                assertThat(responseData.get("type").toString(), equalTo("test-type"));
-                assertThat(responseData.get("index").toString(), equalTo("test-index"));
-                break;
-
-            default: // failure
-                assertThat(result.status(), is(Status.FAILURE));
-                assertThat(result, instanceOf(Action.Result.Failure.class));
-                assertThat(((Action.Result.Failure) result).reason(), is("_reason"));
-        }
-    }
-
-    @Test
-    public void testParser_Result_Simulated_SelfGenerated() throws Exception {
-        IndexRequest request = new IndexRequest("test-index").type("test-type");
-        XContentBuilder resultBuilder = XContentFactory.jsonBuilder().prettyPrint();
-        resultBuilder.startObject();
-        resultBuilder.field("data", new HashMap<String, Object>());
-        resultBuilder.field("timestamp", new DateTime(UTC));
-        resultBuilder.endObject();
-        request.source(resultBuilder);
-        Payload.Simple requestPayload = new Payload.Simple(request.sourceAsMap());
-
-        String index = randomAsciiOfLength(4);
-        String docType = randomAsciiOfLength(5);
-        IndexAction.Result.Simulated simulatedResult = new IndexAction.Result.Simulated(index, docType, requestPayload);
-
-        XContentBuilder builder = XContentFactory.jsonBuilder();
-        simulatedResult.toXContent(builder, ToXContent.EMPTY_PARAMS);
-
-        BytesReference bytes = builder.bytes();
-        XContentParser parser = JsonXContent.jsonXContent.createParser(bytes);
-        parser.nextToken();
-
-        Wid wid = new Wid(randomAsciiOfLength(4), randomLong(), DateTime.now());
-        String actionId = randomAsciiOfLength(5);
-
-        Action.Result result = new IndexActionFactory(ImmutableSettings.EMPTY, ClientProxy.of(client()))
-                .parseResult(wid, actionId, parser);
-
-        assertThat(result, instanceOf(IndexAction.Result.Simulated.class));
-        assertThat(((IndexAction.Result.Simulated) result).source(), equalTo((Payload) requestPayload));
-        assertThat(((IndexAction.Result.Simulated) result).index(), equalTo(index));
-        assertThat(((IndexAction.Result.Simulated) result).docType(), equalTo(docType));
     }
 
 }

@@ -6,7 +6,6 @@
 package org.elasticsearch.watcher.transform.chain;
 
 import org.elasticsearch.common.collect.ImmutableList;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
@@ -59,11 +58,6 @@ public class ChainTransformFactory extends TransformFactory<ChainTransform, Chai
     @Override
     public ChainTransform parseTransform(String watchId, XContentParser parser) throws IOException {
         return ChainTransform.parse(watchId, parser, registry);
-    }
-
-    @Override
-    public ChainTransform.Result parseResult(String watchId, XContentParser parser) throws IOException {
-        return ChainTransform.Result.parse(watchId, parser, registry);
     }
 
     @Override

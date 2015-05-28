@@ -13,11 +13,9 @@ import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ElasticsearchTestCase;
-import org.elasticsearch.watcher.WatcherException;
 import org.elasticsearch.watcher.actions.Action;
 import org.elasticsearch.watcher.actions.email.service.*;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
@@ -30,7 +28,6 @@ import org.elasticsearch.watcher.watch.Payload;
 import org.junit.Test;
 
 import java.util.HashMap;
-import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.common.joda.time.DateTimeZone.UTC;
@@ -364,117 +361,6 @@ public class EmailActionTests extends ElasticsearchTestCase {
         parser.nextToken();
         new EmailActionFactory(ImmutableSettings.EMPTY, emailService, engine)
                 .parseExecutable(randomAsciiOfLength(3), randomAsciiOfLength(7), parser);
-    }
-
-    @Test @Repeat(iterations = 20)
-    public void testParser_Result() throws Exception {
-        Wid wid = new Wid(randomAsciiOfLength(3), randomLong(), DateTime.now(UTC));
-        String actionId = randomAsciiOfLength(5);
-
-        Action.Result.Status status = randomFrom(Action.Result.Status.values());
-        Email email = Email.builder().id("_id")
-                .from(new Email.Address("from@domain"))
-                .to(Email.AddressList.parse("to@domain"))
-                .sentDate(new DateTime(UTC))
-                .subject("_subject")
-                .textBody("_text_body")
-                .build();
-
-        XContentBuilder builder = jsonBuilder().startObject()
-                .field("status", status.name().toLowerCase(Locale.ROOT));
-
-        switch (status) {
-            case SUCCESS:
-                builder.field("email", email);
-                builder.field("account", "_account");
-                break;
-            case FAILURE:
-                builder.field("reason", "failure_reason");
-                break;
-            case THROTTLED:
-                builder.field("reason", "throttle_reason");
-                break;
-            case SIMULATED:
-                builder.field("email", email);
-                break;
-            default:
-                throw new WatcherException("unsupported action result status [{}]", status.name().toLowerCase(Locale.ROOT));
-        }
-        builder.endObject();
-
-        BytesReference bytes = builder.bytes();
-        XContentParser parser = JsonXContent.jsonXContent.createParser(bytes);
-        parser.nextToken();
-        EmailService service = mock(EmailService.class);
-        TemplateEngine engine = mock(TemplateEngine.class);
-        Action.Result result = new EmailActionFactory(ImmutableSettings.EMPTY, service, engine)
-                .parseResult(wid, actionId, parser);
-
-        assertThat(result.status(), is(status));
-        switch (status) {
-            case SUCCESS:
-                assertThat(result, instanceOf(EmailAction.Result.Success.class));
-                assertThat(((EmailAction.Result.Success) result).email(), equalTo(email));
-                assertThat(((EmailAction.Result.Success) result).account(), is("_account"));
-                break;
-            case FAILURE:
-                assertThat(result, instanceOf(Action.Result.Failure.class));
-                assertThat(((Action.Result.Failure) result).reason(), equalTo("failure_reason"));
-                break;
-            case THROTTLED:
-                assertThat(result, instanceOf(Action.Result.Throttled.class));
-                assertThat(((Action.Result.Throttled) result).reason(), equalTo("throttle_reason"));
-                break;
-            case SIMULATED:
-                assertThat(result, instanceOf(EmailAction.Result.Simulated.class));
-                assertThat(((EmailAction.Result.Simulated) result).email(), equalTo(email));
-                break;
-            default:
-                throw new WatcherException("unsupported action result status [{}]", status.name().toLowerCase(Locale.ROOT));
-        }
-    }
-
-    @Test
-    public void testParser_Result_Simulated_SelfGenerated() throws Exception {
-        Wid wid = new Wid(randomAsciiOfLength(3), randomLong(), DateTime.now(UTC));
-        String actionId = randomAsciiOfLength(5);
-
-        Email email = Email.builder().id("_id")
-                .from(new Email.Address("from@domain"))
-                .to(Email.AddressList.parse("to@domain"))
-                .sentDate(new DateTime(UTC))
-                .subject("_subject")
-                .textBody("_text_body")
-                .build();
-
-        EmailAction.Result.Simulated simulatedResult = new EmailAction.Result.Simulated(email);
-
-        XContentBuilder builder = XContentFactory.jsonBuilder();
-        simulatedResult.toXContent(builder, ToXContent.EMPTY_PARAMS);
-
-        BytesReference bytes = builder.bytes();
-        XContentParser parser = JsonXContent.jsonXContent.createParser(bytes);
-        parser.nextToken();
-        Action.Result result = new EmailActionFactory(ImmutableSettings.EMPTY, mock(EmailService.class), mock(TemplateEngine.class))
-                .parseResult(wid, actionId, parser);
-
-        assertThat(result, instanceOf(EmailAction.Result.Simulated.class));
-        assertThat(((EmailAction.Result.Simulated) result).email(), equalTo(email));
-    }
-
-    @Test(expected = EmailActionException.class)
-    public void testParser_Result_Invalid() throws Exception {
-        Wid wid = new Wid(randomAsciiOfLength(3), randomLong(), DateTime.now(UTC));
-        String actionId = randomAsciiOfLength(5);
-
-        XContentBuilder builder = jsonBuilder().startObject()
-                .field("unknown_field", "value")
-                .endObject();
-        BytesReference bytes = builder.bytes();
-        XContentParser parser = JsonXContent.jsonXContent.createParser(bytes);
-        parser.nextToken();
-        new EmailActionFactory(ImmutableSettings.EMPTY, mock(EmailService.class), mock(TemplateEngine.class))
-                .parseResult(wid, actionId, parser);
     }
 
     static DataAttachment randomDataAttachment() {

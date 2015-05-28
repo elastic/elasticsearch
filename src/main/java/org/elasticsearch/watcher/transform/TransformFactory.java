@@ -32,11 +32,6 @@ public abstract class TransformFactory<T extends Transform, R extends Transform.
     public abstract T parseTransform(String watchId, XContentParser parser) throws IOException;
 
     /**
-     * Parses the given xcontent and creates a concrete transform result
-     */
-    public abstract R parseResult(String watchId, XContentParser parser) throws IOException;
-
-    /**
      * Creates an executable transform out of the given transform.
      */
     public abstract E createExecutable(T transform);

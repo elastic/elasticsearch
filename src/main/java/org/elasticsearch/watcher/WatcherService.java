@@ -73,12 +73,12 @@ public class WatcherService extends AbstractComponent {
         if (state.compareAndSet(WatcherState.STARTED, WatcherState.STOPPING)) {
             logger.info("stopping watch service...");
             triggerService.stop();
-            executionService.stop();
             try {
                 watchLockService.stop();
             } catch (WatchLockService.TimeoutException we) {
                 logger.warn("error stopping WatchLockService", we);
             }
+            executionService.stop();
             watchStore.stop();
             state.set(WatcherState.STOPPED);
             logger.info("watch service has stopped");

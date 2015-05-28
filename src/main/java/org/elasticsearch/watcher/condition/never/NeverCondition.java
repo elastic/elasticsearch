@@ -52,17 +52,6 @@ public class NeverCondition implements Condition {
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             return builder.startObject().endObject();
         }
-
-        public static Result parse(String watchId, XContentParser parser) throws IOException {
-            if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
-                throw new NeverConditionException("could not parse [{}] condition result for watch [{}]. expected an empty object but found [{}]", TYPE, watchId, parser.currentName());
-            }
-            XContentParser.Token token = parser.nextToken();
-            if (token != XContentParser.Token.END_OBJECT) {
-                throw new NeverConditionException("could not parse [{}] condition result for watch [{}]. expected an empty object but found [{}]", TYPE, watchId, parser.currentName());
-            }
-            return INSTANCE;
-        }
     }
 
     public static class Builder implements Condition.Builder<NeverCondition> {

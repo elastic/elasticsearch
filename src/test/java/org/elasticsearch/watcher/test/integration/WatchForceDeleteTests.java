@@ -16,7 +16,6 @@ import org.junit.Test;
 import static org.elasticsearch.watcher.actions.ActionBuilders.loggingAction;
 import static org.elasticsearch.watcher.client.WatchSourceBuilders.watchBuilder;
 import static org.elasticsearch.watcher.condition.ConditionBuilders.scriptCondition;
-import static org.elasticsearch.watcher.input.InputBuilders.simpleInput;
 import static org.elasticsearch.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.watcher.trigger.schedule.Schedules.interval;
 import static org.hamcrest.Matchers.equalTo;
@@ -30,20 +29,21 @@ public class WatchForceDeleteTests extends AbstractWatcherIntegrationTests {
         return false; //Disable time warping for the force delete long running watch test
     }
 
+    @Override
+    protected boolean enableShield() {
+        return false;
+    }
+
     @Test
     @Slow
     public void testForceDelete_LongRunningWatch() throws Exception {
         PutWatchResponse putResponse = watcherClient().preparePutWatch("_name").setSource(watchBuilder()
                 .trigger(schedule(interval("1s")))
-                .input(simpleInput())
                 .condition(scriptCondition(Script.inline("sleep 5000; return true")))
                 .addAction("_action1", loggingAction("{{ctx.watch_id}}")))
                 .get();
         assertThat(putResponse.getId(), equalTo("_name"));
-        try {
-            Thread.sleep(5000);
-        } catch (InterruptedException ie) {
-        }
+        Thread.sleep(5000);
         DeleteWatchResponse deleteWatchResponse = watcherClient().prepareDeleteWatch("_name").setForce(true).get();
         assertThat(deleteWatchResponse.isFound(), is(true));
         deleteWatchResponse = watcherClient().prepareDeleteWatch("_name").get();

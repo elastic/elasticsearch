@@ -44,7 +44,7 @@ public class TemplateUtils extends AbstractComponent {
             }
             final byte[] template = Streams.copyToByteArray(is);
             PutIndexTemplateRequest request = new PutIndexTemplateRequest(templateName).source(template);
-            if (customSettings != null) {
+            if (customSettings != null && customSettings.names().size() > 0) {
                 Settings updatedSettings = ImmutableSettings.builder()
                         .put(request.settings())
                         .put(customSettings)

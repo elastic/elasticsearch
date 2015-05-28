@@ -6,11 +6,12 @@
 package org.elasticsearch.watcher.execution;
 
 import org.elasticsearch.common.joda.time.DateTime;
-import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.watcher.actions.ActionWrapper;
 import org.elasticsearch.watcher.actions.ExecutableActions;
 import org.elasticsearch.watcher.condition.Condition;
+import org.elasticsearch.watcher.history.WatchRecord;
 import org.elasticsearch.watcher.input.Input;
 import org.elasticsearch.watcher.transform.ExecutableTransform;
 import org.elasticsearch.watcher.transform.Transform;
@@ -18,8 +19,8 @@ import org.elasticsearch.watcher.trigger.TriggerEvent;
 import org.elasticsearch.watcher.watch.Payload;
 import org.elasticsearch.watcher.watch.Watch;
 
-import java.util.concurrent.ConcurrentMap;
 import java.io.IOException;
+import java.util.concurrent.ConcurrentMap;
 
 /**
  *
@@ -177,10 +178,15 @@ public abstract class WatchExecutionContext {
         actualExecutionStartMs = System.currentTimeMillis();
     }
 
-    public WatchExecutionResult finish() {
+    public WatchRecord finish() {
         executionPhase = ExecutionPhase.FINISHED;
         long executionFinishMs = System.currentTimeMillis();
-        return new WatchExecutionResult(this, executionFinishMs - actualExecutionStartMs);
+        WatchExecutionResult result = new WatchExecutionResult(this, executionFinishMs - actualExecutionStartMs);
+        return new WatchRecord(this, result);
+    }
+
+    public WatchRecord abort(String message, ExecutionState state) {
+        return new WatchRecord(id, triggerEvent, message, state);
     }
 
     public WatchExecutionSnapshot createSnapshot(Thread executionThread) {

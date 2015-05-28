@@ -38,11 +38,6 @@ public class ScriptTransformFactory extends TransformFactory<ScriptTransform, Sc
     }
 
     @Override
-    public ScriptTransform.Result parseResult(String watchId, XContentParser parser) throws IOException {
-        return ScriptTransform.Result.parse(watchId, parser);
-    }
-
-    @Override
     public ExecutableScriptTransform createExecutable(ScriptTransform transform) {
         return new ExecutableScriptTransform(transform, transformLogger, scriptService);
     }

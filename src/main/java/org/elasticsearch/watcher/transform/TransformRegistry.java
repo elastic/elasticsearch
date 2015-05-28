@@ -57,26 +57,4 @@ public class TransformRegistry {
         }
         return factory.parseTransform(watchId, parser);
     }
-
-    public Transform.Result parseResult(String watchId, XContentParser parser) throws IOException {
-        String type = null;
-        XContentParser.Token token;
-        Transform.Result result = null;
-        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            if (token == XContentParser.Token.FIELD_NAME) {
-                type = parser.currentName();
-            } else if (type != null) {
-                result = parseResult(watchId, type, parser);
-            }
-        }
-        return result;
-    }
-
-    public Transform.Result parseResult(String watchId, String type, XContentParser parser) throws IOException {
-        TransformFactory factory = factories.get(type);
-        if (factory == null) {
-            throw new TransformException("could not parse transform result for watch [{}]. unknown transform type [{}]", watchId, type);
-        }
-        return factory.parseResult(watchId, parser);
-    }
 }

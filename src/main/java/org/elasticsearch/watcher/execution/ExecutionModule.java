@@ -26,6 +26,8 @@ public class ExecutionModule extends AbstractModule {
 
     @Override
     protected void configure() {
+        bind(TriggeredWatch.Parser.class).asEagerSingleton();
+        bind(TriggeredWatchStore.class).asEagerSingleton();
         bind(ExecutionService.class).asEagerSingleton();
         bind(executorClass).asEagerSingleton();
         bind(triggerEngineListenerClass).asEagerSingleton();

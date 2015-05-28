@@ -38,11 +38,6 @@ public class CompareConditionFactory extends ConditionFactory<CompareCondition, 
     }
 
     @Override
-    public CompareCondition.Result parseResult(String watchId, XContentParser parser) throws IOException {
-        return CompareCondition.Result.parse(watchId, parser);
-    }
-
-    @Override
     public ExecutableCompareCondition createExecutable(CompareCondition condition) {
         return new ExecutableCompareCondition(condition, conditionLogger, clock);
     }

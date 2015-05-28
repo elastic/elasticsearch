@@ -5,17 +5,16 @@
  */
 package org.elasticsearch.watcher.input.simple;
 
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.watcher.input.Input;
-import org.elasticsearch.watcher.input.InputFactory;
-import org.elasticsearch.watcher.watch.Payload;
-import org.elasticsearch.watcher.input.ExecutableInput;
-import org.elasticsearch.watcher.input.InputException;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.watcher.input.ExecutableInput;
+import org.elasticsearch.watcher.input.Input;
+import org.elasticsearch.watcher.input.InputException;
+import org.elasticsearch.watcher.input.InputFactory;
+import org.elasticsearch.watcher.watch.Payload;
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -74,37 +73,6 @@ public class SimpleInputTests extends ElasticsearchTestCase {
         xContentParser.nextToken();
         parser.parseInput("_id", xContentParser);
         fail("[simple] input parse should fail with an InputException for an empty json object");
-    }
-
-    @Test
-    public void testResultParser_Valid() throws Exception {
-        Map<String, Object> data = new HashMap<>();
-        data.put("foo", "bar");
-        data.put("baz", new ArrayList<String>() );
-
-        XContentBuilder jsonBuilder = jsonBuilder();
-        jsonBuilder.startObject();
-        jsonBuilder.field(SimpleInput.Field.PAYLOAD.getPreferredName(), data);
-        jsonBuilder.endObject();
-
-        SimpleInputFactory parser = new SimpleInputFactory(ImmutableSettings.builder().build());
-        SimpleInput.Result staticResult  = parser.parseResult("_id", XContentFactory.xContent(jsonBuilder.bytes()).createParser(jsonBuilder.bytes()));
-        assertEquals(staticResult.type(), SimpleInput.TYPE);
-
-        assertEquals(staticResult.payload().data().get("foo"), "bar");
-        List baz = (List)staticResult.payload().data().get("baz");
-        assertTrue(baz.isEmpty());
-    }
-
-    @Test(expected = InputException.class)
-    public void testResultParser_Invalid() throws Exception {
-        XContentBuilder jsonBuilder = jsonBuilder();
-        jsonBuilder.startObject();
-        jsonBuilder.endObject();
-
-        InputFactory parser = new SimpleInputFactory(ImmutableSettings.builder().build());
-        parser.parseResult("_id", XContentFactory.xContent(jsonBuilder.bytes()).createParser(jsonBuilder.bytes()));
-        fail("[simple] input result parse should fail with an InputException for an empty json object");
     }
 
 }

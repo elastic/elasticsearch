@@ -38,11 +38,6 @@ public class ScriptConditionFactory extends ConditionFactory<ScriptCondition, Sc
     }
 
     @Override
-    public ScriptCondition.Result parseResult(String watchId, XContentParser parser) throws IOException {
-        return ScriptCondition.Result.parse(watchId, parser);
-    }
-
-    @Override
     public ExecutableScriptCondition createExecutable(ScriptCondition condition) {
         return new ExecutableScriptCondition(condition, conditionLogger, scriptService);
     }

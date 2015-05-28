@@ -64,16 +64,6 @@ public class NoneInput implements Input {
         protected XContentBuilder toXContentBody(XContentBuilder builder, Params params) throws IOException {
             return builder;
         }
-
-        public static Result parse(String watchId, XContentParser parser) throws IOException {
-            if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
-                throw new NoneInputException("could not parse [{}] input result for watch [{}]. expected an empty object but found [{}] instead", TYPE, watchId, parser.currentToken());
-            }
-            if (parser.nextToken() != XContentParser.Token.END_OBJECT) {
-                throw new NoneInputException("could not parse [{}] input result for watch [{}]. expected an empty object but found [{}] instead", TYPE, watchId, parser.currentToken());
-            }
-            return INSTANCE;
-        }
     }
 
     public static class Builder implements Input.Builder<NoneInput> {

@@ -8,7 +8,6 @@ package org.elasticsearch.watcher.actions;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.watcher.execution.Wid;
 import org.elasticsearch.watcher.license.LicenseService;
 import org.elasticsearch.watcher.support.validation.Validation;
 import org.elasticsearch.watcher.support.clock.Clock;
@@ -16,7 +15,6 @@ import org.elasticsearch.watcher.transform.TransformRegistry;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -62,21 +60,6 @@ public class ActionRegistry  {
             }
         }
         return new ExecutableActions(actions);
-    }
-
-    public ExecutableActions.Results parseResults(Wid wid, XContentParser parser) throws IOException {
-        Map<String, ActionWrapper.Result> results = new HashMap<>();
-
-        if (parser.currentToken() != XContentParser.Token.START_ARRAY) {
-            throw new ActionException("could not parse action results for watch [{}]. expected an array of actions, but found [{}]", parser.currentToken());
-        }
-
-        XContentParser.Token token;
-        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-            ActionWrapper.Result result = ActionWrapper.Result.parse(wid, parser, this, transformRegistry);
-            results.put(result.id(), result);
-        }
-        return new ExecutableActions.Results(results);
     }
 
 }

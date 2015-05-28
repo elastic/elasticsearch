@@ -13,7 +13,6 @@ import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -28,7 +27,6 @@ import org.elasticsearch.watcher.execution.TriggeredExecutionContext;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.watcher.input.simple.ExecutableSimpleInput;
 import org.elasticsearch.watcher.input.simple.SimpleInput;
-import org.elasticsearch.watcher.support.WatcherUtils;
 import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
 import org.elasticsearch.watcher.support.template.Template;
 import org.elasticsearch.watcher.trigger.schedule.IntervalSchedule;
@@ -42,7 +40,6 @@ import org.junit.Test;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.joda.time.DateTimeZone.UTC;
@@ -57,8 +54,6 @@ import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope.SUITE;
 import static org.elasticsearch.watcher.test.WatcherTestUtils.areJsonEquivalent;
 import static org.elasticsearch.watcher.test.WatcherTestUtils.getRandomSupportedSearchType;
 import static org.hamcrest.Matchers.*;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
 
 /**
  */
@@ -246,59 +241,6 @@ public class SearchInputTests extends ElasticsearchIntegrationTest {
 
         factory.parseInput("_id", parser);
         fail("expected a SearchInputException as search type SCAN should not be supported");
-    }
-
-    @Test(expected = SearchInputException.class)
-    public void testParser_Invalid() throws Exception {
-        SearchInputFactory factory = new SearchInputFactory(settingsBuilder().build(), ClientProxy.of(client()));
-
-        Map<String, Object> data = new HashMap<>();
-        data.put("foo", "bar");
-        data.put("baz", new ArrayList<String>());
-
-        XContentBuilder jsonBuilder = jsonBuilder();
-        jsonBuilder.startObject();
-        jsonBuilder.field(SearchInput.Field.PAYLOAD.getPreferredName(), data);
-        jsonBuilder.endObject();
-
-        XContentParser parser = JsonXContent.jsonXContent.createParser(jsonBuilder.bytes());
-        parser.nextToken();
-        factory.parseResult("_id", parser);
-        fail("result parsing should fail if payload is provided but request is missing");
-    }
-
-    @Test
-    public void testResultParser() throws Exception {
-        Map<String, Object> data = new HashMap<>();
-        data.put("foo", "bar");
-        data.put("baz", new ArrayList<String>() );
-
-        SearchSourceBuilder searchSourceBuilder = searchSource().query(
-                filteredQuery(matchQuery("event_type", "a"), rangeFilter("_timestamp").from("{{ctx.triggered.scheduled_time}}||-30s").to("{{ctx.triggered.triggered_time}}")));
-        SearchRequest request = client()
-                .prepareSearch()
-                .setSearchType(ExecutableSearchInput.DEFAULT_SEARCH_TYPE)
-                .request()
-                .source(searchSourceBuilder);
-
-        XContentBuilder jsonBuilder = jsonBuilder();
-        jsonBuilder.startObject();
-        jsonBuilder.field(SearchInput.Field.PAYLOAD.getPreferredName(), data);
-        jsonBuilder.field(SearchInput.Field.REQUEST.getPreferredName());
-        WatcherUtils.writeSearchRequest(request, jsonBuilder, ToXContent.EMPTY_PARAMS);
-        jsonBuilder.endObject();
-
-        SearchInputFactory factory = new SearchInputFactory(settingsBuilder().build(), ClientProxy.of(client()));
-
-        XContentParser parser = JsonXContent.jsonXContent.createParser(jsonBuilder.bytes());
-        parser.nextToken();
-        SearchInput.Result result = factory.parseResult("_id", parser);
-
-        assertEquals(SearchInput.TYPE, result.type());
-        assertEquals(result.payload().data().get("foo"), "bar");
-        List baz = (List)result.payload().data().get("baz");
-        assertTrue(baz.isEmpty());
-        assertNotNull(result.executedRequest());
     }
 
     private SearchInput.Result executeSearchInput(SearchRequest request) throws IOException {

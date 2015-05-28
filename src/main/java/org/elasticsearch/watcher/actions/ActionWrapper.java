@@ -8,17 +8,13 @@ package org.elasticsearch.watcher.actions;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.watcher.actions.throttler.ActionThrottler;
 import org.elasticsearch.watcher.actions.throttler.Throttler;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
-import org.elasticsearch.watcher.execution.Wid;
 import org.elasticsearch.watcher.license.LicenseService;
 import org.elasticsearch.watcher.support.WatcherDateTimeUtils;
 import org.elasticsearch.watcher.support.clock.Clock;
@@ -28,8 +24,6 @@ import org.elasticsearch.watcher.transform.TransformRegistry;
 import org.elasticsearch.watcher.watch.Payload;
 
 import java.io.IOException;
-
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
 /**
  *
@@ -236,68 +230,6 @@ public class ActionWrapper implements ToXContent {
             }
             builder.field(action.type(), action, params);
             return builder.endObject();
-        }
-
-        static Result parse(Wid wid, XContentParser parser, ActionRegistry actionRegistry, TransformRegistry transformRegistry) throws IOException {
-            assert parser.currentToken() == XContentParser.Token.START_OBJECT;
-
-            String id = null;
-            Transform.Result transformResult = null;
-            ActionFactory actionFactory = null;
-            BytesReference actionResultSource = null;
-
-            String currentFieldName = null;
-            XContentParser.Token token;
-            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                if (token == XContentParser.Token.FIELD_NAME) {
-                    currentFieldName = parser.currentName();
-                } else if (Transform.Field.TRANSFORM.match(currentFieldName)) {
-                    transformResult = transformRegistry.parseResult(wid.watchId(), parser);
-                } else if (Field.ID.match(currentFieldName)) {
-                    if (token == XContentParser.Token.VALUE_STRING) {
-                        id = parser.text();
-                    } else {
-                        throw new ActionException("could not parse action result for watch [{}]. expected a string value for [{}] but found [{}] instead", wid, currentFieldName, token);
-                    }
-                } else {
-
-                    // it's the type of the action
-
-                    // here we don't directly parse the action type. instead we'll collect
-                    // the bytes of the structure that makes the action result. The reason
-                    // for this is that we want to make sure to pass the action id to the
-                    // action factory when we parse the result (so that error messages will
-                    // point to the action result that failed to parse). It's an overhead,
-                    // but for worth it for usability purposes.
-
-                    actionFactory = actionRegistry.factory(currentFieldName);
-                    if (actionFactory == null) {
-                        throw new ActionException("could not parse action result for watch [{}]. unknown action type [{}]", wid, currentFieldName);
-                    }
-
-                    // it would have been nice if we had access to the underlying byte offset
-                    // of the parser... but for now we'll just need to create a new json
-                    // builder with its own (new) byte array and copy over the content.
-                    XContentBuilder resultBuilder = jsonBuilder();
-                    XContentHelper.copyCurrentStructure(resultBuilder.generator(), parser);
-                    actionResultSource = resultBuilder.bytes();
-                }
-            }
-
-            if (id == null) {
-                throw new ActionException("could not parse watch action result for watch [{}]. missing required [{}] field", wid, Field.ID.getPreferredName());
-            }
-
-            if (actionFactory == null) {
-                throw new ActionException("could not parse watch action result for watch [{}]. missing action result type", wid);
-            }
-
-            assert actionResultSource != null : "if we parsed the type name we must have collected the type bytes";
-
-            parser = JsonXContent.jsonXContent.createParser(actionResultSource);
-            parser.nextToken();
-            Action.Result actionResult = actionFactory.parseResult(wid, id, parser);
-            return new Result(id, transformResult, actionResult);
         }
     }
 

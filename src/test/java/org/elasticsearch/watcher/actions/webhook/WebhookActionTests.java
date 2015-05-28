@@ -6,26 +6,21 @@
 package org.elasticsearch.watcher.actions.webhook;
 
 import com.carrotsearch.randomizedtesting.annotations.Repeat;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.watcher.WatcherException;
 import org.elasticsearch.watcher.actions.Action;
 import org.elasticsearch.watcher.actions.Action.Result.Status;
-import org.elasticsearch.watcher.actions.ActionWrapper;
 import org.elasticsearch.watcher.actions.email.service.*;
 import org.elasticsearch.watcher.execution.TriggeredExecutionContext;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
-import org.elasticsearch.watcher.execution.Wid;
 import org.elasticsearch.watcher.support.http.*;
 import org.elasticsearch.watcher.support.http.auth.HttpAuthFactory;
 import org.elasticsearch.watcher.support.http.auth.HttpAuthRegistry;
@@ -48,7 +43,6 @@ import org.junit.Test;
 import javax.mail.internet.AddressException;
 import java.io.IOException;
 import java.util.HashMap;
-import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.common.joda.time.DateTimeZone.UTC;
@@ -228,170 +222,6 @@ public class WebhookActionTests extends ElasticsearchTestCase {
         actionParser.parseExecutable("_watch", randomAsciiOfLength(5), parser);
         fail("expected a WebhookActionException since we only provided either a host or a port but not both");
     }
-
-    @Test @Repeat(iterations = 30)
-    public void testParser_Result() throws Exception {
-        String body = "_body";
-        String host = "test.host";
-        String path = "/_url";
-        HttpMethod method = randomFrom(HttpMethod.GET, HttpMethod.POST, HttpMethod.PUT, HttpMethod.DELETE, HttpMethod.HEAD);
-
-        Wid wid = new Wid("_watch", randomLong(), DateTime.now());
-        String actionId = randomAsciiOfLength(5);
-
-        HttpRequest request = HttpRequest.builder(host, 123)
-                .path(path)
-                .body(body)
-                .method(method)
-                .build();
-
-        HttpResponse response = new HttpResponse(randomIntBetween(200, 599), randomAsciiOfLength(10).getBytes(UTF8));
-
-        Status status = randomFrom(Status.values());
-        boolean responseError = status == Status.FAILURE && randomBoolean();
-
-        HttpClient client = status == Status.SUCCESS ? ExecuteScenario.Success.client() :
-                responseError ? ExecuteScenario.ErrorCode.client() :
-                        status == Status.FAILURE ? ExecuteScenario.Error.client() : ExecuteScenario.NoExecute.client();
-
-
-        WebhookActionFactory actionParser = webhookFactory(client);
-
-        XContentBuilder builder = jsonBuilder()
-                .startObject()
-                .field(WebhookAction.Field.STATUS.getPreferredName(), status.name().toLowerCase(Locale.ROOT));
-
-        switch (status) {
-            case SUCCESS:
-                builder.field(WebhookAction.Field.REQUEST.getPreferredName(), request);
-                builder.field(WebhookAction.Field.RESPONSE.getPreferredName(), response);
-                break;
-            case SIMULATED:
-                builder.field(WebhookAction.Field.REQUEST.getPreferredName(), request);
-                break;
-            case FAILURE:
-                if (responseError) {
-                    builder.field(WebhookAction.Field.REASON.getPreferredName(), "status_code_failure_reason");
-                    builder.field(WebhookAction.Field.REQUEST.getPreferredName(), request);
-                    builder.field(WebhookAction.Field.RESPONSE.getPreferredName(), response);
-                } else {
-                    builder.field(WebhookAction.Field.REASON.getPreferredName(), "failure_reason");
-                }
-                break;
-            case THROTTLED:
-                builder.field(WebhookAction.Field.REASON.getPreferredName(), "throttle_reason");
-                break;
-            default:
-                throw new WatcherException("unsupported action result status [{}]", status.name());
-        }
-        builder.endObject();
-
-        XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes());
-        parser.nextToken();
-
-        Action.Result result = actionParser.parseResult(wid, actionId, parser);
-
-        assertThat(result.status(), is(status));
-
-        switch (status) {
-            case SUCCESS:
-                assertThat(result, instanceOf(WebhookAction.Result.Success.class));
-                WebhookAction.Result.Success success = (WebhookAction.Result.Success) result;
-                assertThat(success.request(), equalTo(request));
-                assertThat(success.response(), equalTo(response));
-                break;
-            case SIMULATED:
-                assertThat(result, instanceOf(WebhookAction.Result.Simulated.class));
-                WebhookAction.Result.Simulated simulated = (WebhookAction.Result.Simulated) result;
-                assertThat(simulated.request(), equalTo(request));
-                break;
-            case FAILURE:
-                if (responseError) {
-                    assertThat(result, instanceOf(WebhookAction.Result.Failure.class));
-                    WebhookAction.Result.Failure responseFailure = (WebhookAction.Result.Failure) result;
-                    assertThat(responseFailure.reason(), is("status_code_failure_reason"));
-                    assertThat(responseFailure.request(), equalTo(request));
-                    assertThat(responseFailure.response(), equalTo(response));
-                } else {
-                    assertThat(result, instanceOf(Action.Result.Failure.class));
-                    Action.Result.Failure failure = (Action.Result.Failure) result;
-                    assertThat(failure.reason(), is("failure_reason"));
-                }
-                break;
-            case THROTTLED:
-                assertThat(result, instanceOf(Action.Result.Throttled.class));
-                Action.Result.Throttled throttled = (Action.Result.Throttled) result;
-                assertThat(throttled.reason(), is("throttle_reason"));
-        }
-
-    }
-
-    @Test @Repeat(iterations = 5)
-    public void testParser_Result_Simulated() throws Exception {
-        String body = "_body";
-        String host = "test.host";
-        String path = "/_url";
-        HttpMethod method = randomFrom(HttpMethod.GET, HttpMethod.POST, HttpMethod.PUT, HttpMethod.DELETE, HttpMethod.HEAD);
-
-        Wid wid = new Wid("_watch", randomLong(), DateTime.now());
-        String actionId = randomAsciiOfLength(5);
-
-        HttpRequest request = HttpRequest.builder(host, 123)
-                .path(path)
-                .body(body)
-                .method(method)
-                .build();
-
-        XContentBuilder builder = jsonBuilder()
-                .startObject()
-                .field(Action.Field.STATUS.getPreferredName(), Status.SIMULATED.name().toLowerCase(Locale.ROOT))
-                .field(WebhookAction.Field.REQUEST.getPreferredName(), request)
-                .endObject();
-
-        HttpClient client = ExecuteScenario.Success.client();
-
-        WebhookActionFactory actionParser = webhookFactory(client);
-        XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes());
-        parser.nextToken();
-
-        Action.Result result = actionParser.parseResult(wid, actionId, parser);
-        assertThat(result, instanceOf(WebhookAction.Result.Simulated.class));
-        assertThat(((WebhookAction.Result.Simulated) result).request(), equalTo(request));
-    }
-
-
-    @Test
-    public void testParser_Result_Simulated_SelfGenerated() throws Exception {
-        String body = "_body";
-        String host = "test.host";
-        String path = "/_url";
-        HttpMethod method = HttpMethod.GET;
-
-        HttpRequest request = HttpRequest.builder(host, 123)
-                .path(path)
-                .body(body)
-                .method(method)
-                .build();
-
-        Wid wid = new Wid("_watch", randomLong(), DateTime.now());
-        String actionId = randomAsciiOfLength(5);
-
-        WebhookAction.Result.Simulated simulatedResult = new WebhookAction.Result.Simulated(request);
-
-        XContentBuilder builder = XContentFactory.jsonBuilder();
-        simulatedResult.toXContent(builder, ToXContent.EMPTY_PARAMS);
-
-        BytesReference bytes = builder.bytes();
-        XContentParser parser = JsonXContent.jsonXContent.createParser(bytes);
-        parser.nextToken();
-
-        Action.Result result = webhookFactory(ExecuteScenario.Success.client())
-                .parseResult(wid, actionId, parser);
-
-        assertThat(result, instanceOf(WebhookAction.Result.Simulated.class));
-        assertThat(((WebhookAction.Result.Simulated)result).request(), equalTo(request));
-    }
-
 
     private WebhookActionFactory webhookFactory(HttpClient client) {
         return new WebhookActionFactory(ImmutableSettings.EMPTY, client, new HttpRequest.Parser(authRegistry),

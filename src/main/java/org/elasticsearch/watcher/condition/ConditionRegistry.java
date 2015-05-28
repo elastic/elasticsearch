@@ -81,43 +81,6 @@ public class ConditionRegistry {
         return condition;
     }
 
-    /**
-     * Parses the xcontent and returns the appropriate condition result. Expecting the following format:
-     * <code><pre>
-     *     {
-     *         "met" : true | false,
-     *         "condition_type" : {
-     *             ...              // result body
-     *         }
-     *     }
-     * </pre></code>
-     */
-    public Condition.Result parseResult(String watchId, XContentParser parser) throws IOException {
-        Condition.Result result = null;
-
-        String currentFieldName = null;
-        XContentParser.Token token;
-        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            if (token == XContentParser.Token.FIELD_NAME) {
-                currentFieldName = parser.currentName();
-            } else if (currentFieldName == null) {
-                throw new ConditionException("could not parse condition result for watch [{}]. invalid definition. expected a field indicating the condition type, but found", watchId, token);
-            } else if (Condition.Field.MET.match(currentFieldName)) {
-                // we do nothing for now here.... the condition will still parse its state in the type itself
-            } else {
-                ConditionFactory factory = factories.get(currentFieldName);
-                if (factory == null) {
-                    throw new ConditionException("could not parse condition result for watch [{}]. un known condition type [{}]", watchId, currentFieldName);
-                }
-                result = factory.parseResult(watchId, parser);
-            }
-        }
-        if (result == null) {
-            throw new ConditionException("could not parse condition result for watch [{}]. missing required condition type field", watchId);
-        }
-        return result;
-    }
-
     public static void writeResult(Condition.Result result, XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject()
                 .field(Condition.Field.MET.getPreferredName(), result.met())

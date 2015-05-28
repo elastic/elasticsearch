@@ -34,11 +34,6 @@ public class SimpleInputFactory extends InputFactory<SimpleInput, SimpleInput.Re
     }
 
     @Override
-    public SimpleInput.Result parseResult(String watchId, XContentParser parser) throws IOException {
-        return SimpleInput.Result.parse(watchId, parser);
-    }
-
-    @Override
     public ExecutableSimpleInput createExecutable(SimpleInput input) {
         return new ExecutableSimpleInput(input, inputLogger);
     }

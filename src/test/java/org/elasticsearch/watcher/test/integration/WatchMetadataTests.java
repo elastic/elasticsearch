@@ -12,8 +12,8 @@ import org.elasticsearch.watcher.actions.logging.LoggingLevel;
 import org.elasticsearch.watcher.condition.always.AlwaysCondition;
 import org.elasticsearch.watcher.execution.ActionExecutionMode;
 import org.elasticsearch.watcher.history.HistoryStore;
-import org.elasticsearch.watcher.history.WatchRecord;
 import org.elasticsearch.watcher.support.template.Template;
+import org.elasticsearch.watcher.support.xcontent.MapPath;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
 import org.elasticsearch.watcher.test.WatcherTestUtils;
 import org.elasticsearch.watcher.transport.actions.execute.ExecuteWatchResponse;
@@ -36,7 +36,8 @@ import static org.elasticsearch.watcher.condition.ConditionBuilders.scriptCondit
 import static org.elasticsearch.watcher.input.InputBuilders.searchInput;
 import static org.elasticsearch.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.watcher.trigger.schedule.Schedules.cron;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 
 /**
  *
@@ -95,14 +96,12 @@ public class WatchMetadataTests extends AbstractWatcherIntegrationTests {
                         .metadata(metadata))
                 .get();
 
-        WatchRecord.Parser parser = getInstanceFromMaster(WatchRecord.Parser.class);
         TriggerEvent triggerEvent = new ScheduleTriggerEvent(new DateTime(UTC), new DateTime(UTC));
         ExecuteWatchResponse executeWatchResponse = watcherClient().prepareExecuteWatch("_name").setTriggerEvent(triggerEvent).setActionMode("_all", ActionExecutionMode.SIMULATE).get();
+        Map<String, Object> result = executeWatchResponse.getRecordSource().getAsMap();;
 
-        WatchRecord record = parser.parse("test_run", 1, executeWatchResponse.getRecordSource().getBytes());
-        assertThat(record.metadata().get("foo").toString(), equalTo("bar"));
-        assertThat(record.execution().actionsResults().get("testLogger").action(), instanceOf(LoggingAction.Result.Simulated.class));
-        LoggingAction.Result.Simulated simulatedResult = (LoggingAction.Result.Simulated) (record.execution().actionsResults().get("testLogger").action());
-        assertThat(simulatedResult.loggedText(), equalTo("This is a test"));
+        assertThat(MapPath.<String>eval("metadata.foo", result), equalTo("bar"));
+        assertThat(MapPath.<String>eval("execution_result.actions.0.id", result), equalTo("testLogger"));
+        assertThat(MapPath.<String>eval("execution_result.actions.0.logging.logged_text", result), equalTo("This is a test"));
     }
 }

@@ -242,43 +242,4 @@ public class CompareConditionTests extends ElasticsearchTestCase {
         factory.parseCondition("_id", parser);
     }
 
-
-    @Test @Repeat(iterations = 10)
-    public void testParse_Result_Valid() throws Exception {
-        CompareConditionFactory factory = new CompareConditionFactory(ImmutableSettings.EMPTY, SystemClock.INSTANCE);
-
-        boolean met = randomBoolean();
-        Object resolvedValue = randomFrom("1", 5, null, ImmutableList.of("1", "2"), ImmutableMap.of("key", "value"));
-
-        XContentBuilder builder = jsonBuilder();
-        builder.startObject();
-        builder.field("met", met);
-        builder.field("resolved_value", resolvedValue);
-        builder.endObject();
-
-        XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes());
-        parser.nextToken();
-
-        CompareCondition.Result result = factory.parseResult("_id", parser);
-        assertThat(result, notNullValue());
-        assertThat(result.met(), is(met));
-        assertThat(result.getResolveValue(), is(resolvedValue));
-    }
-
-    @Test(expected = CompareConditionException.class)
-    public void testParse_Result_Invalid_MissingResolvedValue() throws Exception {
-        CompareConditionFactory factory = new CompareConditionFactory(ImmutableSettings.EMPTY, SystemClock.INSTANCE);
-
-        boolean met = randomBoolean();
-
-        XContentBuilder builder = jsonBuilder();
-        builder.startObject();
-        builder.field("met", met);
-        builder.endObject();
-
-        XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes());
-        parser.nextToken();
-
-        factory.parseResult("_id", parser);
-    }
 }

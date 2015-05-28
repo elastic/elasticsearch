@@ -78,22 +78,6 @@ public class ScriptTransform implements Transform {
         protected XContentBuilder xContentBody(XContentBuilder builder, Params params) throws IOException {
             return builder;
         }
-
-        public static Result parse(String watchId, XContentParser parser) throws IOException {
-            XContentParser.Token token = parser.currentToken();
-            if (token != XContentParser.Token.START_OBJECT) {
-                throw new ScriptTransformException("could not parse [{}] transform result for watch [{}]. expected an object, but found [{}] instead", TYPE, watchId, token);
-            }
-            token = parser.nextToken();
-            if (token != XContentParser.Token.FIELD_NAME || !Field.PAYLOAD.match(parser.currentName())) {
-                throw new ScriptTransformException("could not parse [{}] transform result for watch [{}]. expected a [{}] object, but found [{}] instead", TYPE, watchId, Field.PAYLOAD.getPreferredName(), token);
-            }
-            token = parser.nextToken();
-            if (token != XContentParser.Token.START_OBJECT) {
-                throw new ScriptTransformException("could not parse [{}] transform result for watch [{}]. expected a [{}] object, but found [{}] instead", TYPE, watchId, Field.PAYLOAD.getPreferredName(), token);
-            }
-            return new ScriptTransform.Result(new Payload.XContent(parser));
-        }
     }
 
     public static class Builder implements Transform.Builder<ScriptTransform> {

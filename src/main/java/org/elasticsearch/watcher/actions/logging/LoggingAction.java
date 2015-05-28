@@ -10,8 +10,6 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.watcher.actions.Action;
-import org.elasticsearch.watcher.actions.Action.Result.Failure;
-import org.elasticsearch.watcher.actions.Action.Result.Throttled;
 import org.elasticsearch.watcher.support.template.Template;
 
 import java.io.IOException;
@@ -108,58 +106,6 @@ public class LoggingAction implements Action {
         }
 
         return new LoggingAction(text, level, category);
-    }
-
-    public static Action.Result parseResult(String watchId, String actionId, XContentParser parser) throws IOException {
-        Action.Result.Status status = null;
-        String loggedText = null;
-        String reason = null;
-
-        XContentParser.Token token;
-        String currentFieldName = null;
-        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            if (token == XContentParser.Token.FIELD_NAME) {
-                currentFieldName = parser.currentName();
-            } else if (token == XContentParser.Token.VALUE_STRING) {
-                if (Field.LOGGED_TEXT.match(currentFieldName)) {
-                    loggedText = parser.text();
-                } else if (Field.REASON.match(currentFieldName)) {
-                    reason = parser.text();
-                } else if (Field.STATUS.match(currentFieldName)) {
-                    try {
-                        status = Action.Result.Status.valueOf(parser.text().toUpperCase(Locale.ROOT));
-                    } catch (IllegalArgumentException iae) {
-                        throw new LoggingActionException("could not parse [{}] action result [{}/{}]. unknown result status value [{}]", TYPE, watchId, actionId, parser.text());
-                    }
-                } else {
-                    throw new LoggingActionException("could not parse [{}] action result [{}/{}]. unexpected string field [{}]", TYPE, watchId, actionId, currentFieldName);
-                }
-            } else {
-                throw new LoggingActionException("could not parse [{}] action result [{}/{}]. unexpected token [{}]", TYPE, watchId, actionId, token);
-            }
-        }
-
-        assertNotNull(status, "could not parse [{}] action result [{}/{}]. missing required [{}] field", TYPE, watchId, actionId, Field.STATUS.getPreferredName());
-
-        switch (status) {
-
-            case SUCCESS:
-                assertNotNull(loggedText, "could not parse successful [{}] action result [{}/{}]. missing required [{}] field", TYPE, watchId, actionId, Field.LOGGED_TEXT.getPreferredName());
-                return new Result.Success(loggedText);
-
-            case SIMULATED:
-                assertNotNull(loggedText, "could not parse simulated [{}] action result [{}/{}]. missing required [{}] field", TYPE, watchId, actionId, Field.LOGGED_TEXT.getPreferredName());
-                return new Result.Simulated(loggedText);
-
-            case THROTTLED:
-                assertNotNull(reason, "could not parse throttled [{}] action result [{}/{}]. missing required [{}] field", TYPE, watchId, actionId, Field.REASON.getPreferredName());
-                return new Throttled(TYPE, reason);
-
-            default: // FAILURE
-                assert status == Action.Result.Status.FAILURE : "unhandled action result status";
-                assertNotNull(reason, "could not parse failure [{}] action result [{}/{}]. missing required [{}] field", TYPE, watchId, actionId, Field.REASON.getPreferredName());
-                return new Failure(TYPE, reason);
-        }
     }
 
     private static void assertNotNull(Object value, String message, Object... args) {

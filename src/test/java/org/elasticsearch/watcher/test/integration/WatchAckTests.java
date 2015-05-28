@@ -14,6 +14,7 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.watcher.actions.ActionStatus;
 import org.elasticsearch.watcher.client.WatcherClient;
+import org.elasticsearch.watcher.execution.ExecutionState;
 import org.elasticsearch.watcher.history.HistoryStore;
 import org.elasticsearch.watcher.history.WatchRecord;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
@@ -127,7 +128,7 @@ public class WatchAckTests extends AbstractWatcherIntegrationTests {
         assertThat(parsedWatch.status().actionStatus("_a2").ackStatus().state(), is(ActionStatus.AckStatus.State.AWAITS_SUCCESSFUL_EXECUTION));
 
         long throttledCount = docCount(HistoryStore.INDEX_PREFIX + "*", null,
-                matchQuery(WatchRecord.Field.STATE.getPreferredName(), WatchRecord.State.THROTTLED.id()));
+                matchQuery(WatchRecord.Field.STATE.getPreferredName(), ExecutionState.THROTTLED.id()));
         assertThat(throttledCount, greaterThan(0L));
     }
 
@@ -208,7 +209,7 @@ public class WatchAckTests extends AbstractWatcherIntegrationTests {
         assertThat(parsedWatch.status().actionStatus("_a2").ackStatus().state(), is(ActionStatus.AckStatus.State.AWAITS_SUCCESSFUL_EXECUTION));
 
         long throttledCount = docCount(HistoryStore.INDEX_PREFIX + "*", null,
-                matchQuery(WatchRecord.Field.STATE.getPreferredName(), WatchRecord.State.THROTTLED.id()));
+                matchQuery(WatchRecord.Field.STATE.getPreferredName(), ExecutionState.THROTTLED.id()));
         assertThat(throttledCount, greaterThan(0L));
     }
 

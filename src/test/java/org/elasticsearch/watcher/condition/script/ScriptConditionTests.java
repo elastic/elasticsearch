@@ -6,7 +6,6 @@
 package org.elasticsearch.watcher.condition.script;
 
 import com.carrotsearch.randomizedtesting.annotations.Repeat;
-import com.carrotsearch.randomizedtesting.annotations.Seed;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.collect.ImmutableMap;
@@ -15,7 +14,6 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.search.internal.InternalSearchResponse;
@@ -110,43 +108,6 @@ public class ScriptConditionTests extends ElasticsearchTestCase {
         XContentParser parser = XContentFactory.xContent(builder.bytes()).createParser(builder.bytes());
         parser.nextToken();
         factory.parseCondition("_id", parser);
-        fail("expected a condition exception trying to parse an invalid condition XContent");
-    }
-
-
-    @Test
-    public void testScriptResultParser_Valid() throws Exception {
-        ScriptConditionFactory conditionParser = new ScriptConditionFactory(ImmutableSettings.settingsBuilder().build(), getScriptServiceProxy(tp));
-
-        XContentBuilder builder = jsonBuilder();
-        builder.startObject();
-        builder.field("met", true);
-        builder.endObject();
-
-        XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes());
-        parser.nextToken();
-        ScriptCondition.Result scriptResult = conditionParser.parseResult("_id", parser);
-        assertTrue(scriptResult.met());
-
-        builder = jsonBuilder();
-        builder.startObject();
-        builder.field("met", false);
-        builder.endObject();
-
-        parser = JsonXContent.jsonXContent.createParser(builder.bytes());
-        parser.nextToken();
-        scriptResult = conditionParser.parseResult("_id", parser);
-        assertFalse(scriptResult.met());
-    }
-
-    @Test(expected = ScriptConditionException.class)
-    public void testScriptResultParser_Invalid() throws Exception {
-        ScriptConditionFactory conditionParser = new ScriptConditionFactory(ImmutableSettings.settingsBuilder().build(), getScriptServiceProxy(tp));
-
-        XContentBuilder builder = jsonBuilder();
-        builder.startObject().endObject();
-
-        conditionParser.parseResult("_id", XContentFactory.xContent(builder.bytes()).createParser(builder.bytes()));
         fail("expected a condition exception trying to parse an invalid condition XContent");
     }
 

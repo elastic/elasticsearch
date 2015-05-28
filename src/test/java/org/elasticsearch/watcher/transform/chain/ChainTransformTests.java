@@ -173,19 +173,6 @@ public class ChainTransformTests extends ElasticsearchTestCase {
             }
 
             @Override
-            public Result parseResult(String watchId, XContentParser parser) throws IOException {
-                assert parser.currentToken() == XContentParser.Token.START_OBJECT;
-                XContentParser.Token token = parser.nextToken();
-                assert token == XContentParser.Token.FIELD_NAME; // the "payload" field
-                token = parser.nextToken();
-                assert token == XContentParser.Token.START_OBJECT;
-                Payload payload = new Payload.XContent(parser);
-                token = parser.nextToken();
-                assert token == XContentParser.Token.END_OBJECT;
-                return new Result("named", payload);
-            }
-
-            @Override
             public NamedExecutableTransform createExecutable(Transform transform) {
                 return new NamedExecutableTransform(transform);
             }

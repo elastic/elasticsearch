@@ -82,32 +82,6 @@ public class ScriptCondition implements Condition {
                     .field(Field.MET.getPreferredName(), met)
                     .endObject();
         }
-
-        public static Result parse(String watchId, XContentParser parser) throws IOException {
-            Boolean met = null;
-
-            String currentFieldName = null;
-            XContentParser.Token token;
-            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                if (token == XContentParser.Token.FIELD_NAME) {
-                    currentFieldName = parser.currentName();
-                } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
-                    if (Field.MET.match(currentFieldName)) {
-                        met = parser.booleanValue();
-                    } else {
-                        throw new ScriptConditionException("could not parse [{}] condition result for watch [{}]. unexpected boolean field [{}]", TYPE, watchId, currentFieldName);
-                    }
-                } else {
-                    throw new ScriptConditionException("could not parse [{}] condition result for watch [{}]. unexpected token [{}]", TYPE, watchId, token);
-                }
-            }
-
-            if (met == null) {
-                throw new ScriptConditionException("could not parse [{}] condition result for watch [{}]. missing required [{}] field", TYPE, watchId, Field.MET.getPreferredName());
-            }
-
-            return met ? ScriptCondition.Result.MET : ScriptCondition.Result.UNMET;
-        }
     }
 
     public static class Builder implements Condition.Builder<ScriptCondition> {

@@ -9,7 +9,7 @@ import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.engine.VersionConflictEngineException;
+import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.watcher.WatcherException;
 import org.elasticsearch.watcher.WatcherService;
 import org.elasticsearch.watcher.actions.ActionStatus;
@@ -21,9 +21,9 @@ import org.elasticsearch.watcher.history.HistoryStore;
 import org.elasticsearch.watcher.history.WatchRecord;
 import org.elasticsearch.watcher.input.simple.SimpleInput;
 import org.elasticsearch.watcher.support.Script;
+import org.elasticsearch.watcher.support.xcontent.MapPath;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
 import org.elasticsearch.watcher.transport.actions.delete.DeleteWatchResponse;
-import org.elasticsearch.watcher.transport.actions.execute.ExecuteWatchResponse;
 import org.elasticsearch.watcher.transport.actions.get.GetWatchRequest;
 import org.elasticsearch.watcher.transport.actions.put.PutWatchRequest;
 import org.elasticsearch.watcher.transport.actions.put.PutWatchResponse;
@@ -188,7 +188,6 @@ public class ManualExecutionTests extends AbstractWatcherIntegrationTests {
     @Test
     public void testExecutionRequestDefaults() throws Exception {
         ensureWatcherStarted();
-        WatchRecord.Parser watchRecordParser = internalTestCluster().getInstance(WatchRecord.Parser.class);
 
         WatchSourceBuilder watchBuilder = watchBuilder()
                 .trigger(schedule(cron("0 0 0 1 * ? 2099")))
@@ -203,15 +202,14 @@ public class ManualExecutionTests extends AbstractWatcherIntegrationTests {
         Wid wid = new Wid("_watchId",1,new DateTime());
 
 
-        ExecuteWatchResponse executeWatchResponse = watcherClient().prepareExecuteWatch()
+        Map<String, Object> executeWatchResult = watcherClient().prepareExecuteWatch()
                 .setId("_id")
                 .setTriggerEvent(triggerEvent)
-                .get();
+                .get().getRecordSource().getAsMap();
 
-        WatchRecord watchRecord = watchRecordParser.parse(wid.value(), 1, executeWatchResponse.getRecordSource().getBytes());
 
-        assertThat(watchRecord.state(), equalTo(WatchRecord.State.EXECUTION_NOT_NEEDED));
-        assertThat(watchRecord.execution().inputResult().payload().data().get("foo").toString(), equalTo("bar"));
+        assertThat(MapPath.<String>eval("state", executeWatchResult), equalTo(ExecutionState.EXECUTION_NOT_NEEDED.toString()));
+        assertThat(MapPath.<String>eval("execution_result.input.simple.payload.foo", executeWatchResult), equalTo("bar"));
 
         watchBuilder = watchBuilder()
                 .trigger(schedule(cron("0 0 0 1 * ? 2099")))
@@ -222,19 +220,20 @@ public class ManualExecutionTests extends AbstractWatcherIntegrationTests {
         watcherClient().putWatch(new PutWatchRequest("_id", watchBuilder)).actionGet();
 
 
-        executeWatchResponse = watcherClient().prepareExecuteWatch().setId("_id").setTriggerEvent(triggerEvent).setRecordExecution(true).get();
-        watchRecord = watchRecordParser.parse(wid.value(), 1, executeWatchResponse.getRecordSource().getBytes());
+        executeWatchResult = watcherClient().prepareExecuteWatch()
+                .setId("_id").setTriggerEvent(triggerEvent).setRecordExecution(true)
+                .get().getRecordSource().getAsMap();
+
+        assertThat(MapPath.<String>eval("state", executeWatchResult), equalTo(ExecutionState.EXECUTED.toString()));
+        assertThat(MapPath.<String>eval("execution_result.input.simple.payload.foo", executeWatchResult), equalTo("bar"));
+        assertThat(MapPath.<String>eval("execution_result.actions.0.id", executeWatchResult), equalTo("log"));
 
 
-        assertThat(watchRecord.state(), equalTo(WatchRecord.State.EXECUTED));
-        assertThat(watchRecord.execution().inputResult().payload().data().get("foo").toString(), equalTo("bar"));
-        assertThat(watchRecord.execution().actionsResults().get("log"), not(instanceOf(LoggingAction.Result.Simulated.class)));
+        executeWatchResult = watcherClient().prepareExecuteWatch()
+                .setId("_id").setTriggerEvent(triggerEvent)
+                .get().getRecordSource().getAsMap();
 
-
-        executeWatchResponse = watcherClient().prepareExecuteWatch().setId("_id").setTriggerEvent(triggerEvent).get();
-
-        watchRecord = watchRecordParser.parse(wid.value(), 1, executeWatchResponse.getRecordSource().getBytes());
-        assertThat(watchRecord.state(), equalTo(WatchRecord.State.THROTTLED));
+        assertThat(MapPath.<String>eval("state", executeWatchResult), equalTo(ExecutionState.THROTTLED.toString()));
     }
 
     @Test
@@ -320,8 +319,8 @@ public class ManualExecutionTests extends AbstractWatcherIntegrationTests {
                 startLatch.await();
                 executionService.execute(ctxBuilder.build());
                 fail("Execution of a deleted watch should fail but didn't");
-            } catch (WatcherException we) {
-                assertThat(we.getCause(), instanceOf(VersionConflictEngineException.class));
+            } catch (WatchMissingException we) {
+                assertThat(we.getCause(), instanceOf(DocumentMissingException.class));
             } catch (Throwable t) {
                 throw new WatcherException("Failure mode execution of [{}] failed in an unexpected way", t, watchId);
             }

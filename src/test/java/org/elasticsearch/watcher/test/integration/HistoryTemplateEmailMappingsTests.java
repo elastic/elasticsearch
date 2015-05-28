@@ -12,8 +12,8 @@ import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.watcher.actions.email.service.EmailTemplate;
 import org.elasticsearch.watcher.actions.email.service.support.EmailServer;
+import org.elasticsearch.watcher.execution.ExecutionState;
 import org.elasticsearch.watcher.history.HistoryStore;
-import org.elasticsearch.watcher.history.WatchRecord;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
 import org.elasticsearch.watcher.transport.actions.put.PutWatchResponse;
 import org.junit.After;
@@ -98,7 +98,7 @@ public class HistoryTemplateEmailMappingsTests extends AbstractWatcherIntegratio
         refresh();
 
         // the action should fail as no email server is available
-        assertWatchWithMinimumActionsCount("_id", WatchRecord.State.EXECUTED, 1);
+        assertWatchWithMinimumActionsCount("_id", ExecutionState.EXECUTED, 1);
 
         SearchResponse response = client().prepareSearch(HistoryStore.INDEX_PREFIX + "*").setSource(searchSource()
                 .aggregation(terms("from").field("execution_result.actions.email.email.from"))

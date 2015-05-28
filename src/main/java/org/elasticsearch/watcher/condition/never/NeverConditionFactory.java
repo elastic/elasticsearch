@@ -37,11 +37,6 @@ public class NeverConditionFactory extends ConditionFactory<NeverCondition, Neve
     }
 
     @Override
-    public NeverCondition.Result parseResult(String watchId, XContentParser parser) throws IOException {
-        return NeverCondition.Result.parse(watchId, parser);
-    }
-
-    @Override
     public ExecutableNeverCondition createExecutable(NeverCondition condition) {
         return this.condition;
     }

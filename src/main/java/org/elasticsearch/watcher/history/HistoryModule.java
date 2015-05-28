@@ -20,7 +20,6 @@ public class HistoryModule extends AbstractModule {
 
     @Override
     protected void configure() {
-        bind(WatchRecord.Parser.class).asEagerSingleton();
         bind(HistoryStore.class).asEagerSingleton();
     }
 

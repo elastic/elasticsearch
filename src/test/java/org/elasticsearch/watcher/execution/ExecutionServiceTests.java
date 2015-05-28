@@ -15,6 +15,7 @@ import org.elasticsearch.watcher.condition.ExecutableCondition;
 import org.elasticsearch.watcher.condition.always.AlwaysCondition;
 import org.elasticsearch.watcher.condition.never.NeverCondition;
 import org.elasticsearch.watcher.history.HistoryStore;
+import org.elasticsearch.watcher.history.WatchRecord;
 import org.elasticsearch.watcher.input.ExecutableInput;
 import org.elasticsearch.watcher.input.Input;
 import org.elasticsearch.watcher.support.clock.Clock;
@@ -56,12 +57,13 @@ public class ExecutionServiceTests extends ElasticsearchTestCase {
         when(input.execute(any(WatchExecutionContext.class))).thenReturn(inputResult);
 
         HistoryStore historyStore = mock(HistoryStore.class);
+        TriggeredWatchStore triggeredWatchStore = mock(TriggeredWatchStore.class);
         WatchExecutor executor = mock(WatchExecutor.class);
         WatchStore watchStore = mock(WatchStore.class);
         WatchLockService watchLockService = mock(WatchLockService.class);
         WatcherSettingsValidation settingsValidator = mock(WatcherSettingsValidation.class);
         Clock clock = new ClockMock();
-        executionService = new ExecutionService(ImmutableSettings.EMPTY, historyStore, executor, watchStore, watchLockService, clock, settingsValidator);
+        executionService = new ExecutionService(ImmutableSettings.EMPTY, historyStore, triggeredWatchStore, executor, watchStore, watchLockService, clock, settingsValidator);
     }
 
     @Test
@@ -112,10 +114,10 @@ public class ExecutionServiceTests extends ElasticsearchTestCase {
         when(watch.actions()).thenReturn(actions);
         when(watch.status()).thenReturn(watchStatus);
 
-        WatchExecutionResult executionResult = executionService.executeInner(context);
-        assertThat(executionResult.conditionResult(), sameInstance(conditionResult));
-        assertThat(executionResult.transformResult(), sameInstance(watchTransformResult));
-        ActionWrapper.Result result = executionResult.actionsResults().get("_action");
+        WatchRecord watchRecord = executionService.executeInner(context);
+        assertThat(watchRecord.execution().conditionResult(), sameInstance(conditionResult));
+        assertThat(watchRecord.execution().transformResult(), sameInstance(watchTransformResult));
+        ActionWrapper.Result result = watchRecord.execution().actionsResults().get("_action");
         assertThat(result, notNullValue());
         assertThat(result.id(), is("_action"));
         assertThat(result.transform(), sameInstance(actionTransformResult));
@@ -157,12 +159,12 @@ public class ExecutionServiceTests extends ElasticsearchTestCase {
         when(watch.actions()).thenReturn(actions);
         when(watch.status()).thenReturn(watchStatus);
 
-        WatchExecutionResult executionResult = executionService.executeInner(context);
-        assertThat(executionResult.inputResult(), sameInstance(inputResult));
-        assertThat(executionResult.conditionResult(), sameInstance(conditionResult));
-        assertThat(executionResult.transformResult(), nullValue());
-        assertThat(executionResult.actionsResults().count(), is(1));
-        ActionWrapper.Result result = executionResult.actionsResults().get("_action");
+        WatchRecord executionResult = executionService.executeInner(context);
+        assertThat(executionResult.execution().inputResult(), sameInstance(inputResult));
+        assertThat(executionResult.execution().conditionResult(), sameInstance(conditionResult));
+        assertThat(executionResult.execution().transformResult(), nullValue());
+        assertThat(executionResult.execution().actionsResults().count(), is(1));
+        ActionWrapper.Result result = executionResult.execution().actionsResults().get("_action");
         assertThat(result, notNullValue());
         assertThat(result.id(), is("_action"));
         assertThat(result.transform(), nullValue());
@@ -204,11 +206,11 @@ public class ExecutionServiceTests extends ElasticsearchTestCase {
         when(watch.actions()).thenReturn(actions);
         when(watch.status()).thenReturn(watchStatus);
 
-        WatchExecutionResult executionResult = executionService.executeInner(context);
-        assertThat(executionResult.inputResult(), sameInstance(inputResult));
-        assertThat(executionResult.conditionResult(), sameInstance(conditionResult));
-        assertThat(executionResult.transformResult(), nullValue());
-        assertThat(executionResult.actionsResults().count(), is(0));
+        WatchRecord executionResult = executionService.executeInner(context);
+        assertThat(executionResult.execution().inputResult(), sameInstance(inputResult));
+        assertThat(executionResult.execution().conditionResult(), sameInstance(conditionResult));
+        assertThat(executionResult.execution().transformResult(), nullValue());
+        assertThat(executionResult.execution().actionsResults().count(), is(0));
 
         verify(condition, times(1)).execute(context);
         verify(watchTransform, never()).execute(context, payload);

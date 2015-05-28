@@ -15,7 +15,6 @@ import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -30,7 +29,6 @@ import org.elasticsearch.watcher.execution.TriggeredExecutionContext;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.watcher.input.simple.ExecutableSimpleInput;
 import org.elasticsearch.watcher.input.simple.SimpleInput;
-import org.elasticsearch.watcher.support.WatcherUtils;
 import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
 import org.elasticsearch.watcher.support.template.Template;
 import org.elasticsearch.watcher.transform.Transform;
@@ -46,7 +44,6 @@ import org.junit.Test;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.joda.time.DateTimeZone.UTC;
@@ -356,41 +353,6 @@ public class SearchTransformTests extends ElasticsearchIntegrationTest {
         assertThat(result.executedRequest().indices(), arrayContainingInAnyOrder(request.indices()));
         assertThat(result.executedRequest().indicesOptions(), equalTo(request.indicesOptions()));
     }
-
-    @Test
-    public void testResultParser() throws Exception {
-        Map<String, Object> data = new HashMap<>();
-        data.put("foo", "bar");
-        data.put("baz", new ArrayList<String>() );
-
-        SearchSourceBuilder searchSourceBuilder = searchSource().query(
-                filteredQuery(matchQuery("event_type", "a"), rangeFilter("_timestamp").from("{{ctx.triggered.scheduled_time}}||-30s").to("{{ctx.triggered.triggered_time}}")));
-        SearchRequest request = client()
-                .prepareSearch()
-                .setSearchType(ExecutableSearchTransform.DEFAULT_SEARCH_TYPE)
-                .request()
-                .source(searchSourceBuilder);
-
-        XContentBuilder jsonBuilder = jsonBuilder();
-        jsonBuilder.startObject();
-        jsonBuilder.field(SearchTransform.Field.PAYLOAD.getPreferredName(), data);
-        jsonBuilder.field(SearchTransform.Field.REQUEST.getPreferredName());
-        WatcherUtils.writeSearchRequest(request, jsonBuilder, ToXContent.EMPTY_PARAMS);
-        jsonBuilder.endObject();
-
-        SearchTransformFactory factory = new SearchTransformFactory(settingsBuilder().build(), ClientProxy.of(client()));
-
-        XContentParser parser = JsonXContent.jsonXContent.createParser(jsonBuilder.bytes());
-        parser.nextToken();
-        SearchTransform.Result result = factory.parseResult("_id", parser);
-
-        assertEquals(SearchTransform.TYPE, result.type());
-        assertEquals(result.payload().data().get("foo"), "bar");
-        List baz = (List)result.payload().data().get("baz");
-        assertTrue(baz.isEmpty());
-        assertNotNull(result.executedRequest());
-    }
-
 
     private SearchTransform.Result executeSearchTransform(SearchRequest request) throws IOException {
         createIndex("test-search-index");

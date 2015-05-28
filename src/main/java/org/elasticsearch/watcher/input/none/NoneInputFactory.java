@@ -34,11 +34,6 @@ public class NoneInputFactory extends InputFactory<NoneInput, NoneInput.Result, 
     }
 
     @Override
-    public NoneInput.Result parseResult(String watchId, XContentParser parser) throws IOException {
-        return NoneInput.Result.parse(watchId, parser);
-    }
-
-    @Override
     public ExecutableNoneInput createExecutable(NoneInput input) {
         return new ExecutableNoneInput(inputLogger);
     }

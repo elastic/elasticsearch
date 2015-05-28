@@ -67,6 +67,7 @@ public class InternalSettingsPreparerTests extends ElasticsearchTestCase {
         // test that we can read config files with .yaml, .json, and .properties suffixes
         Tuple<Settings, Environment> tuple = InternalSettingsPreparer.prepareSettings(settingsBuilder()
                 .put("config.ignore_system_properties", true)
+                .put("path.home", createTempDir().toString())
                 .build(), true);
 
         assertThat(tuple.v1().get("yaml.config.exists"), equalTo("true"));

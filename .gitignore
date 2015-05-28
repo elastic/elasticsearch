@@ -12,3 +12,4 @@
 /.local-execution-hints.log
 /.local-*-execution-hints.log
 *.vmoptions
+/eclipse-build/

@@ -24,6 +24,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 
 import java.io.IOException;
 
@@ -38,6 +39,7 @@ import static org.hamcrest.Matchers.nullValue;
         numDataNodes = 0,
         transportClientRatio = 0.0,
         numClientNodes = 0)
+@AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-cloud-azure/issues/89")
 public class AzureMinimumMasterNodesTest extends AbstractAzureComputeServiceTest {
 
     public AzureMinimumMasterNodesTest() {

@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.watcher.execution;
 
-import com.carrotsearch.randomizedtesting.annotations.Seed;
 import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.unit.TimeValue;
@@ -54,7 +53,6 @@ import static org.elasticsearch.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.watcher.trigger.schedule.Schedules.cron;
 import static org.hamcrest.Matchers.*;
 
-@Seed("8E31841F5876336B:1A23AE04C0480F1")
 public class ManualExecutionTests extends AbstractWatcherIntegrationTests {
 
     @Override

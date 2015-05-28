@@ -6,7 +6,6 @@
 package org.elasticsearch.watcher.condition.compare;
 
 import com.carrotsearch.randomizedtesting.annotations.Repeat;
-import com.carrotsearch.randomizedtesting.annotations.Seed;
 import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.joda.time.DateTime;
@@ -31,7 +30,6 @@ import static org.hamcrest.Matchers.notNullValue;
 
 /**
  */
-@Seed("9E70A915296AA3F2:FAA20587D7DCA86B")
 public class CompareConditionTests extends ElasticsearchTestCase {
 
     @Test

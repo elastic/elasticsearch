@@ -29,6 +29,7 @@ import org.elasticsearch.search.highlight.HighlightField;
 import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Test;
+import org.apache.lucene.util.LuceneTestCase.Slow;
 
 import static org.elasticsearch.client.Requests.putMappingRequest;
 import static org.elasticsearch.common.io.Streams.copyToBytesFromClasspath;
@@ -37,11 +38,11 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
 import static org.hamcrest.Matchers.*;
-import static org.hamcrest.Matchers.containsString;
 
 /**
  *
  */
+@Slow
 public class SimpleAttachmentIntegrationTests extends AttachmentIntegrationTestCase {
 
     @Override

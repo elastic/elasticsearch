@@ -24,6 +24,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.plugins.PluginsService;
 import org.junit.Test;
+import org.apache.lucene.util.LuceneTestCase.Slow;
 
 import static org.elasticsearch.client.Requests.putMappingRequest;
 import static org.elasticsearch.common.io.Streams.copyToBytesFromClasspath;
@@ -36,6 +37,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  * Test case for issue https://github.com/elasticsearch/elasticsearch-mapper-attachments/issues/18
  */
+@Slow
 public class EncryptedAttachmentIntegrationTests extends AttachmentIntegrationTestCase {
     private boolean ignore_errors = true;
 

@@ -68,6 +68,7 @@ public class SecurityTests extends ElasticsearchTestCase {
         Settings.Builder settingsBuilder = Settings.builder();
         settingsBuilder.put("path.home", path.resolve("home").toString());
         settingsBuilder.put("path.conf", path.resolve("conf").toString());
+        settingsBuilder.put("path.conf.logging", path.resolve("conf/logging.yml").toString());
         settingsBuilder.put("path.plugins", path.resolve("plugins").toString());
         settingsBuilder.putArray("path.data", path.resolve("data1").toString(), path.resolve("data2").toString());
         settingsBuilder.put("path.logs", path.resolve("logs").toString());
@@ -93,6 +94,7 @@ public class SecurityTests extends ElasticsearchTestCase {
         // config file
         // TODO: make read-only
         assertTrue(permissions.implies(new FilePermission(environment.configFile().toString(), "read,readlink,write,delete")));
+        assertTrue(permissions.implies(new FilePermission(environment.loggingFile().toString(), "read,readlink,write,delete")));
         // plugins: r/w, TODO: can this be minimized?
         assertTrue(permissions.implies(new FilePermission(environment.pluginsFile().toString(), "read,readlink,write,delete")));
         // data paths: r/w

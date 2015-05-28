@@ -62,6 +62,7 @@ final class Security {
         addPath(policy, environment.tmpFile(), "read,readlink,write,delete");
         addPath(policy, environment.homeFile(), "read,readlink,write,delete");
         addPath(policy, environment.configFile(), "read,readlink,write,delete");
+        addPath(policy, environment.loggingFile(), "read,readlink,write,delete");
         addPath(policy, environment.logsFile(), "read,readlink,write,delete");
         addPath(policy, environment.pluginsFile(), "read,readlink,write,delete");
         for (Path path : environment.dataFiles()) {

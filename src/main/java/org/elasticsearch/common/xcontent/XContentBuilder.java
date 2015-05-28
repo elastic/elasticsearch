@@ -77,6 +77,10 @@ public final class XContentBuilder implements BytesStream, Releasable {
         return new XContentBuilder(xContent, new BytesStreamOutput());
     }
 
+    public static XContentBuilder builder(XContent xContent, String[] filters) throws IOException {
+        return new XContentBuilder(xContent, new BytesStreamOutput(), filters);
+    }
+
     private XContentGenerator generator;
 
     private final OutputStream bos;
@@ -92,8 +96,17 @@ public final class XContentBuilder implements BytesStream, Releasable {
      * to call {@link #close()} when the builder is done with.
      */
     public XContentBuilder(XContent xContent, OutputStream bos) throws IOException {
+        this(xContent, bos, null);
+    }
+
+    /**
+     * Constructs a new builder using the provided xcontent, an OutputStream and some filters. The
+     * filters are used to filter fields that won't be written to the OutputStream. Make sure
+     * to call {@link #close()} when the builder is done with.
+     */
+    public XContentBuilder(XContent xContent, OutputStream bos, String[] filters) throws IOException {
         this.bos = bos;
-        this.generator = xContent.createGenerator(bos);
+        this.generator = xContent.createGenerator(bos, filters);
     }
 
     public XContentBuilder fieldCaseConversion(FieldCaseConversion fieldCaseConversion) {

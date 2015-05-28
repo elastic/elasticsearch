@@ -50,7 +50,7 @@ import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.action.support.broadcast.BroadcastOperationResponse;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.block.ClusterBlock;
@@ -152,7 +152,7 @@ public class ElasticsearchAssertions {
         }
     }
 
-    public static String formatShardStatus(BroadcastOperationResponse response) {
+    public static String formatShardStatus(BroadcastResponse response) {
         String msg = " Total shards: " + response.getTotalShards() + " Successful shards: " + response.getSuccessfulShards() + " & "
                 + response.getFailedShards() + " shard failures:";
         for (ShardOperationFailedException failure : response.getShardFailures()) {
@@ -321,12 +321,12 @@ public class ElasticsearchAssertions {
         assertVersionSerializable(percolateResponse);
     }
 
-    public static void assertNoFailures(BroadcastOperationResponse response) {
+    public static void assertNoFailures(BroadcastResponse response) {
         assertThat("Unexpected ShardFailures: " + Arrays.toString(response.getShardFailures()), response.getFailedShards(), equalTo(0));
         assertVersionSerializable(response);
     }
 
-    public static void assertAllSuccessful(BroadcastOperationResponse response) {
+    public static void assertAllSuccessful(BroadcastResponse response) {
         assertNoFailures(response);
         assertThat("Expected all shards successful but got successful [" + response.getSuccessfulShards() + "] total [" + response.getTotalShards() + "]",
                 response.getTotalShards(), equalTo(response.getSuccessfulShards()));

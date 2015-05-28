@@ -22,7 +22,7 @@ import com.google.common.base.Predicate;
 import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.FailedNodeException;
-import org.elasticsearch.action.support.nodes.NodeOperationResponse;
+import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -314,7 +314,7 @@ public class AsyncShardFetchTests extends ElasticsearchTestCase {
     }
 
 
-    static class Response extends NodeOperationResponse {
+    static class Response extends BaseNodeResponse {
 
         public Response(DiscoveryNode node) {
             super(node);

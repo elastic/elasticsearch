@@ -246,6 +246,7 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
 
     public BulkRequest add(BytesReference data, @Nullable String defaultIndex, @Nullable String defaultType, @Nullable String defaultRouting, @Nullable Object payload, boolean allowExplicitIndex) throws Exception {
         XContent xContent = XContentFactory.xContent(data);
+        int line = 0;
         int from = 0;
         int length = data.length();
         byte marker = xContent.streamSeparator();
@@ -254,8 +255,9 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
             if (nextMarker == -1) {
                 break;
             }
-            // now parse the action
+            line++;
 
+            // now parse the action
             try (XContentParser parser = xContent.createParser(data.slice(from, nextMarker - from))) {
                 // move pointers
                 from = nextMarker + 1;
@@ -285,43 +287,53 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
 
                 // at this stage, next token can either be END_OBJECT (and use default index and type, with auto generated id)
                 // or START_OBJECT which will have another set of parameters
+                token = parser.nextToken();
 
-                String currentFieldName = null;
-                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                    if (token == XContentParser.Token.FIELD_NAME) {
-                        currentFieldName = parser.currentName();
-                    } else if (token.isValue()) {
-                        if ("_index".equals(currentFieldName)) {
-                            if (!allowExplicitIndex) {
-                                throw new IllegalArgumentException("explicit index in bulk is not allowed");
-                            }
-                            index = parser.text();
-                        } else if ("_type".equals(currentFieldName)) {
-                            type = parser.text();
-                        } else if ("_id".equals(currentFieldName)) {
-                            id = parser.text();
-                        } else if ("_routing".equals(currentFieldName) || "routing".equals(currentFieldName)) {
-                            routing = parser.text();
-                        } else if ("_parent".equals(currentFieldName) || "parent".equals(currentFieldName)) {
-                            parent = parser.text();
-                        } else if ("_timestamp".equals(currentFieldName) || "timestamp".equals(currentFieldName)) {
-                            timestamp = parser.text();
-                        } else if ("_ttl".equals(currentFieldName) || "ttl".equals(currentFieldName)) {
-                            if (parser.currentToken() == XContentParser.Token.VALUE_STRING) {
-                                ttl = TimeValue.parseTimeValue(parser.text(), null).millis();
+                if (token == XContentParser.Token.START_OBJECT) {
+                    String currentFieldName = null;
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                        if (token == XContentParser.Token.FIELD_NAME) {
+                            currentFieldName = parser.currentName();
+                        } else if (token.isValue()) {
+                            if ("_index".equals(currentFieldName)) {
+                                if (!allowExplicitIndex) {
+                                    throw new IllegalArgumentException("explicit index in bulk is not allowed");
+                                }
+                                index = parser.text();
+                            } else if ("_type".equals(currentFieldName)) {
+                                type = parser.text();
+                            } else if ("_id".equals(currentFieldName)) {
+                                id = parser.text();
+                            } else if ("_routing".equals(currentFieldName) || "routing".equals(currentFieldName)) {
+                                routing = parser.text();
+                            } else if ("_parent".equals(currentFieldName) || "parent".equals(currentFieldName)) {
+                                parent = parser.text();
+                            } else if ("_timestamp".equals(currentFieldName) || "timestamp".equals(currentFieldName)) {
+                                timestamp = parser.text();
+                            } else if ("_ttl".equals(currentFieldName) || "ttl".equals(currentFieldName)) {
+                                if (parser.currentToken() == XContentParser.Token.VALUE_STRING) {
+                                    ttl = TimeValue.parseTimeValue(parser.text(), null).millis();
+                                } else {
+                                    ttl = parser.longValue();
+                                }
+                            } else if ("op_type".equals(currentFieldName) || "opType".equals(currentFieldName)) {
+                                opType = parser.text();
+                            } else if ("_version".equals(currentFieldName) || "version".equals(currentFieldName)) {
+                                version = parser.longValue();
+                            } else if ("_version_type".equals(currentFieldName) || "_versionType".equals(currentFieldName) || "version_type".equals(currentFieldName) || "versionType".equals(currentFieldName)) {
+                                versionType = VersionType.fromString(parser.text());
+                            } else if ("_retry_on_conflict".equals(currentFieldName) || "_retryOnConflict".equals(currentFieldName)) {
+                                retryOnConflict = parser.intValue();
                             } else {
-                                ttl = parser.longValue();
+                                throw new IllegalArgumentException("Action/metadata line [" + line + "] contains an unknown parameter [" + currentFieldName + "]");
                             }
-                        } else if ("op_type".equals(currentFieldName) || "opType".equals(currentFieldName)) {
-                            opType = parser.text();
-                        } else if ("_version".equals(currentFieldName) || "version".equals(currentFieldName)) {
-                            version = parser.longValue();
-                        } else if ("_version_type".equals(currentFieldName) || "_versionType".equals(currentFieldName) || "version_type".equals(currentFieldName) || "versionType".equals(currentFieldName)) {
-                            versionType = VersionType.fromString(parser.text());
-                        } else if ("_retry_on_conflict".equals(currentFieldName) || "_retryOnConflict".equals(currentFieldName)) {
-                            retryOnConflict = parser.intValue();
+                        } else {
+                            throw new IllegalArgumentException("Malformed action/metadata line [" + line + "], expected a simple value for field [" + currentFieldName + "] but found [" + token + "]");
                         }
                     }
+                } else if (token != XContentParser.Token.END_OBJECT) {
+                    throw new IllegalArgumentException("Malformed action/metadata line [" + line + "], expected " + XContentParser.Token.START_OBJECT
+                            + " or " + XContentParser.Token.END_OBJECT + " but found [" + token + "]");
                 }
 
                 if ("delete".equals(action)) {
@@ -331,6 +343,8 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
                     if (nextMarker == -1) {
                         break;
                     }
+                    line++;
+
                     // order is important, we set parent after routing, so routing will be set to parent if not set explicitly
                     // we use internalAdd so we don't fork here, this allows us not to copy over the big byte array to small chunks
                     // of index request.

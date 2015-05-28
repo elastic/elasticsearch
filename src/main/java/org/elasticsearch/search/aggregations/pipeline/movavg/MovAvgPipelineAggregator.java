@@ -111,34 +111,36 @@ public class MovAvgPipelineAggregator extends PipelineAggregator {
         EvictingQueue<Double> values = EvictingQueue.create(this.window);
 
         long lastKey = 0;
-        long interval = Long.MAX_VALUE;
         Object currentKey;
 
         for (InternalHistogram.Bucket bucket : buckets) {
             Double thisBucketValue = resolveBucketValue(histo, bucket, bucketsPaths()[0], gapPolicy);
             currentKey = bucket.getKey();
 
+            // Default is to reuse existing bucket.  Simplifies the rest of the logic,
+            // since we only change newBucket if we can add to it
+            InternalHistogram.Bucket newBucket = bucket;
+
             if (!(thisBucketValue == null || thisBucketValue.equals(Double.NaN))) {
                 values.offer(thisBucketValue);
 
-                double movavg = model.next(values);
+                // Some models (e.g. HoltWinters) have certain preconditions that must be met
+                if (model.hasValue(values.size())) {
+                    double movavg = model.next(values);
 
-                List<InternalAggregation> aggs = new ArrayList<>(Lists.transform(bucket.getAggregations().asList(), FUNCTION));
-                aggs.add(new InternalSimpleValue(name(), movavg, formatter, new ArrayList<PipelineAggregator>(), metaData()));
-                InternalHistogram.Bucket newBucket = factory.createBucket(currentKey, bucket.getDocCount(), new InternalAggregations(
-                        aggs), bucket.getKeyed(), bucket.getFormatter());
-                newBuckets.add(newBucket);
-
-            } else {
-                newBuckets.add(bucket);
+                    List<InternalAggregation> aggs = new ArrayList<>(Lists.transform(bucket.getAggregations().asList(), AGGREGATION_TRANFORM_FUNCTION));
+                    aggs.add(new InternalSimpleValue(name(), movavg, formatter, new ArrayList<PipelineAggregator>(), metaData()));
+                    newBucket = factory.createBucket(currentKey, bucket.getDocCount(), new InternalAggregations(
+                            aggs), bucket.getKeyed(), bucket.getFormatter());
+                }
             }
+
+            newBuckets.add(newBucket);
 
             if (predict > 0) {
                 if (currentKey instanceof Number) {
-                    interval = Math.min(interval, ((Number) bucket.getKey()).longValue() - lastKey);
                     lastKey  = ((Number) bucket.getKey()).longValue();
                 } else if (currentKey instanceof DateTime) {
-                    interval = Math.min(interval, ((DateTime) bucket.getKey()).getMillis() - lastKey);
                     lastKey = ((DateTime) bucket.getKey()).getMillis();
                 } else {
                     throw new AggregationExecutionException("Expected key of type Number or DateTime but got [" + currentKey + "]");
@@ -146,7 +148,6 @@ public class MovAvgPipelineAggregator extends PipelineAggregator {
             }
 
         }
-
 
         if (buckets.size() > 0 && predict > 0) {
 
@@ -159,9 +160,11 @@ public class MovAvgPipelineAggregator extends PipelineAggregator {
             for (int i = 0; i < predictions.length; i++) {
                 List<InternalAggregation> aggs = new ArrayList<>();
                 aggs.add(new InternalSimpleValue(name(), predictions[i], formatter, new ArrayList<PipelineAggregator>(), metaData()));
-                InternalHistogram.Bucket newBucket = factory.createBucket(lastKey + (interval * (i + 1)), 0, new InternalAggregations(
+                long newKey = histo.getRounding().nextRoundingValue(lastKey);
+                InternalHistogram.Bucket newBucket = factory.createBucket(newKey, 0, new InternalAggregations(
                         aggs), keyed, formatter);
                 newBuckets.add(newBucket);
+                lastKey = newKey;
             }
         }
 

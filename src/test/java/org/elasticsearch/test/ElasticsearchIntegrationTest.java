@@ -145,15 +145,7 @@ import java.net.InetSocketAddress;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.IdentityHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Random;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
@@ -906,7 +898,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                     DocumentMapper documentMapper = indexService.mapperService().documentMapper(type);
                     assertThat("document mapper doesn't exists on " + node, documentMapper, notNullValue());
                     for (String fieldName : fieldNames) {
-                        List<String> matches = documentMapper.mappers().simpleMatchToFullName(fieldName);
+                        Collection<String> matches = documentMapper.mappers().simpleMatchToFullName(fieldName);
                         assertThat("field " + fieldName + " doesn't exists on " + node, matches, Matchers.not(emptyIterable()));
                     }
                 }
@@ -1067,12 +1059,17 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                     lastKnownCount.set(indexer.totalIndexedDocs());
                 }
                 if (lastKnownCount.get() >= numDocs) {
-                    long count = client().prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount();
-                    if (count == lastKnownCount.get()) {
-                        // no progress - try to refresh for the next time
-                        client().admin().indices().prepareRefresh().get();
+                    try {
+                        long count = client().prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount();
+                        if (count == lastKnownCount.get()) {
+                            // no progress - try to refresh for the next time
+                            client().admin().indices().prepareRefresh().get();
+                        }
+                        lastKnownCount.set(count);
+                    } catch (Throwable e) { // count now acts like search and barfs if all shards failed...
+                        logger.debug("failed to executed count", e);
+                        return false;
                     }
-                    lastKnownCount.set(count);
                     logger.debug("[{}] docs visible for search. waiting for [{}]", lastKnownCount.get(), numDocs);
                 } else {
                     logger.debug("[{}] docs indexed. waiting for [{}]", lastKnownCount.get(), numDocs);

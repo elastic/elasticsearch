@@ -22,7 +22,7 @@ package org.elasticsearch.action.admin.indices.delete;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DestructiveOperations;
-import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
+import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -38,7 +38,7 @@ import org.elasticsearch.transport.TransportService;
 /**
  * Delete index action.
  */
-public class TransportDeleteIndexAction extends TransportMasterNodeOperationAction<DeleteIndexRequest, DeleteIndexResponse> {
+public class TransportDeleteIndexAction extends TransportMasterNodeAction<DeleteIndexRequest, DeleteIndexResponse> {
 
     private final MetaDataDeleteIndexService deleteIndexService;
     private final DestructiveOperations destructiveOperations;

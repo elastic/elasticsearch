@@ -25,8 +25,8 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import org.apache.lucene.util.CollectionUtil;
-import org.elasticsearch.action.support.nodes.NodeOperationResponse;
-import org.elasticsearch.action.support.nodes.NodesOperationResponse;
+import org.elasticsearch.action.support.nodes.BaseNodeResponse;
+import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -513,12 +513,12 @@ public class GatewayAllocator extends AbstractComponent {
         return changed;
     }
 
-    static class InternalAsyncFetch<T extends NodeOperationResponse> extends AsyncShardFetch<T> {
+    static class InternalAsyncFetch<T extends BaseNodeResponse> extends AsyncShardFetch<T> {
 
         private final ClusterService clusterService;
         private final AllocationService allocationService;
 
-        public InternalAsyncFetch(ESLogger logger, String type, ShardId shardId, List<? extends NodesOperationResponse<T>, T> action,
+        public InternalAsyncFetch(ESLogger logger, String type, ShardId shardId, List<? extends BaseNodesResponse<T>, T> action,
                                   ClusterService clusterService, AllocationService allocationService) {
             super(logger, type, shardId, action);
             this.clusterService = clusterService;

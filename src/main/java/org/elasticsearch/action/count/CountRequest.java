@@ -20,9 +20,9 @@
 package org.elasticsearch.action.count;
 
 import org.elasticsearch.ElasticsearchGenerationException;
-import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.QuerySourceBuilder;
-import org.elasticsearch.action.support.broadcast.BroadcastOperationRequest;
+import org.elasticsearch.action.support.broadcast.BroadcastRequest;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -33,6 +33,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -51,7 +52,7 @@ import static org.elasticsearch.search.internal.SearchContext.DEFAULT_TERMINATE_
  * @see org.elasticsearch.client.Client#count(CountRequest)
  * @see org.elasticsearch.client.Requests#countRequest(String...)
  */
-public class CountRequest extends BroadcastOperationRequest<CountRequest> {
+public class CountRequest extends BroadcastRequest<CountRequest> {
 
     public static final float DEFAULT_MIN_SCORE = -1f;
 
@@ -67,11 +68,7 @@ public class CountRequest extends BroadcastOperationRequest<CountRequest> {
 
     private String[] types = Strings.EMPTY_ARRAY;
 
-    long nowInMillis;
     private int terminateAfter = DEFAULT_TERMINATE_AFTER;
-
-    CountRequest() {
-    }
 
     /**
      * Constructs a new count request against the provided indices. No indices provided means it will
@@ -79,12 +76,6 @@ public class CountRequest extends BroadcastOperationRequest<CountRequest> {
      */
     public CountRequest(String... indices) {
         super(indices);
-    }
-
-    @Override
-    public ActionRequestValidationException validate() {
-        ActionRequestValidationException validationException = super.validate();
-        return validationException;
     }
 
     /**
@@ -121,6 +112,7 @@ public class CountRequest extends BroadcastOperationRequest<CountRequest> {
     /**
      * The source to execute in the form of a map.
      */
+    @SuppressWarnings("unchecked")
     public CountRequest source(Map querySource) {
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(Requests.CONTENT_TYPE);
@@ -228,24 +220,12 @@ public class CountRequest extends BroadcastOperationRequest<CountRequest> {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        minScore = in.readFloat();
-        routing = in.readOptionalString();
-        preference = in.readOptionalString();
-        source = in.readBytesReference();
-        types = in.readStringArray();
-        terminateAfter = in.readVInt();
+        throw new UnsupportedOperationException("CountRequest doesn't support being sent over the wire, just a shortcut to the search api");
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeFloat(minScore);
-        out.writeOptionalString(routing);
-        out.writeOptionalString(preference);
-        out.writeBytesReference(source);
-        out.writeStringArray(types);
-        out.writeVInt(terminateAfter);
+        throw new UnsupportedOperationException("CountRequest doesn't support being sent over the wire, just a shortcut to the search api");
     }
 
     @Override
@@ -257,5 +237,24 @@ public class CountRequest extends BroadcastOperationRequest<CountRequest> {
             // ignore
         }
         return "[" + Arrays.toString(indices) + "]" + Arrays.toString(types) + ", source[" + sSource + "]";
+    }
+
+    public SearchRequest toSearchRequest() {
+        SearchRequest searchRequest = new SearchRequest(indices());
+        searchRequest.indicesOptions(indicesOptions());
+        searchRequest.types(types());
+        searchRequest.routing(routing());
+        searchRequest.preference(preference());
+        searchRequest.source(source());
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+        searchSourceBuilder.size(0);
+        if (minScore() != DEFAULT_MIN_SCORE) {
+            searchSourceBuilder.minScore(minScore());
+        }
+        if (terminateAfter() != DEFAULT_TERMINATE_AFTER) {
+            searchSourceBuilder.terminateAfter(terminateAfter());
+        }
+        searchRequest.extraSource(searchSourceBuilder);
+        return searchRequest;
     }
 }

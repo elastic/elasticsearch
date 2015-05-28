@@ -20,19 +20,15 @@
 package org.elasticsearch.action.get;
 
 import com.carrotsearch.hppc.IntArrayList;
-import com.carrotsearch.hppc.LongArrayList;
-import org.elasticsearch.Version;
-import org.elasticsearch.action.support.single.shard.SingleShardOperationRequest;
+import org.elasticsearch.action.support.single.shard.SingleShardRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.index.VersionType;
-import org.elasticsearch.search.fetch.source.FetchSourceContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-public class MultiGetShardRequest extends SingleShardOperationRequest<MultiGetShardRequest> {
+public class MultiGetShardRequest extends SingleShardRequest<MultiGetShardRequest> {
 
     private int shardId;
     private String preference;

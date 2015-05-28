@@ -23,8 +23,8 @@ import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
-import org.elasticsearch.action.support.broadcast.BroadcastShardOperationRequest;
-import org.elasticsearch.action.support.broadcast.TransportBroadcastOperationAction;
+import org.elasticsearch.action.support.broadcast.BroadcastShardRequest;
+import org.elasticsearch.action.support.broadcast.TransportBroadcastAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -36,8 +36,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -51,7 +51,7 @@ import static com.google.common.collect.Lists.newArrayList;
 /**
  *
  */
-public class TransportIndicesSegmentsAction extends TransportBroadcastOperationAction<IndicesSegmentsRequest, IndicesSegmentResponse, TransportIndicesSegmentsAction.IndexShardSegmentRequest, ShardSegments> {
+public class TransportIndicesSegmentsAction extends TransportBroadcastAction<IndicesSegmentsRequest, IndicesSegmentResponse, TransportIndicesSegmentsAction.IndexShardSegmentRequest, ShardSegments> {
 
     private final IndicesService indicesService;
 
@@ -122,7 +122,7 @@ public class TransportIndicesSegmentsAction extends TransportBroadcastOperationA
         return new ShardSegments(indexShard.routingEntry(), indexShard.engine().segments(request.verbose));
     }
 
-    static class IndexShardSegmentRequest extends BroadcastShardOperationRequest {
+    static class IndexShardSegmentRequest extends BroadcastShardRequest {
         boolean verbose;
         
         IndexShardSegmentRequest() {

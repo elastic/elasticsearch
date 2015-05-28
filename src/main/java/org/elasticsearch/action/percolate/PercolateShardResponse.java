@@ -19,9 +19,8 @@
 package org.elasticsearch.action.percolate;
 
 import com.google.common.collect.ImmutableList;
-
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.action.support.broadcast.BroadcastShardOperationResponse;
+import org.elasticsearch.action.support.broadcast.BroadcastShardResponse;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -42,7 +41,7 @@ import java.util.Map;
 
 /**
  */
-public class PercolateShardResponse extends BroadcastShardOperationResponse {
+public class PercolateShardResponse extends BroadcastShardResponse {
 
     private static final BytesRef[] EMPTY_MATCHES = new BytesRef[0];
     private static final float[] EMPTY_SCORES = new float[0];

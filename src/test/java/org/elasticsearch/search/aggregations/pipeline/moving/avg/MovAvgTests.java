@@ -22,7 +22,6 @@ package org.elasticsearch.search.aggregations.pipeline.moving.avg;
 
 import com.google.common.collect.EvictingQueue;
 
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
@@ -32,26 +31,17 @@ import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram.Bucket;
 import org.elasticsearch.search.aggregations.metrics.ValuesSourceMetricsAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.avg.Avg;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregationHelperTests;
 import org.elasticsearch.search.aggregations.pipeline.SimpleValue;
-import org.elasticsearch.search.aggregations.pipeline.movavg.models.EwmaModel;
-import org.elasticsearch.search.aggregations.pipeline.movavg.models.HoltLinearModel;
-import org.elasticsearch.search.aggregations.pipeline.movavg.models.LinearModel;
-import org.elasticsearch.search.aggregations.pipeline.movavg.models.MovAvgModelBuilder;
-import org.elasticsearch.search.aggregations.pipeline.movavg.models.SimpleModel;
+import org.elasticsearch.search.aggregations.pipeline.movavg.models.*;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
-import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilders.movingAvg;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.avg;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.filter;
@@ -59,8 +49,12 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.histogra
 import static org.elasticsearch.search.aggregations.AggregationBuilders.max;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.min;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.range;
+import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilders.movingAvg;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.core.IsNull.notNullValue;
 import static org.hamcrest.core.IsNull.nullValue;
 
@@ -76,6 +70,9 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
     static int windowSize;
     static double alpha;
     static double beta;
+    static double gamma;
+    static int period;
+    static HoltWintersModel.SeasonalityType seasonalityType;
     static BucketHelpers.GapPolicy gapPolicy;
     static ValuesSourceMetricsAggregationBuilder metric;
     static List<PipelineAggregationHelperTests.MockBucket> mockHisto;
@@ -84,7 +81,7 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
 
 
     enum MovAvgType {
-        SIMPLE ("simple"), LINEAR("linear"), EWMA("ewma"), HOLT("holt");
+        SIMPLE ("simple"), LINEAR("linear"), EWMA("ewma"), HOLT("holt"), HOLT_WINTERS("holt_winters");
 
         private final String name;
 
@@ -121,9 +118,13 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
 
         interval = 5;
         numBuckets = randomIntBetween(6, 80);
-        windowSize = randomIntBetween(3, 10);
+        period = randomIntBetween(1, 5);
+        windowSize = randomIntBetween(period * 2, 10);  // start must be 2*period to play nice with HW
         alpha = randomDouble();
         beta = randomDouble();
+        gamma = randomDouble();
+        seasonalityType = randomBoolean() ? HoltWintersModel.SeasonalityType.ADDITIVE : HoltWintersModel.SeasonalityType.MULTIPLICATIVE;
+
 
         gapPolicy = randomBoolean() ? BucketHelpers.GapPolicy.SKIP : BucketHelpers.GapPolicy.INSERT_ZEROS;
         metric = randomMetric("the_metric", VALUE_FIELD);
@@ -153,6 +154,11 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
         builders.add(client().prepareIndex("idx", "gap_type").setSource(jsonBuilder().startObject()
                 .field(INTERVAL_FIELD, 49)
                 .field(GAP_FIELD, 1).endObject()));
+
+        for (int i = -10; i < 10; i++) {
+            builders.add(client().prepareIndex("neg_idx", "type").setSource(
+                    jsonBuilder().startObject().field(INTERVAL_FIELD, i).field(VALUE_FIELD, 10).endObject()));
+        }
 
         indexRandom(true, builders);
         ensureSearchable();
@@ -204,6 +210,15 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
                     break;
                 case HOLT:
                     values.add(holt(window));
+                    break;
+                case HOLT_WINTERS:
+                    // HW needs at least 2 periods of data to start
+                    if (window.size() >= period * 2) {
+                        values.add(holtWinters(window));
+                    } else {
+                        values.add(null);
+                    }
+
                     break;
             }
 
@@ -300,7 +315,79 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
         return s + (0 * b) ;
     }
 
+    /**
+     * Holt winters (triple exponential) moving avg
+     * @param window Window of values to compute movavg for
+     * @return
+     */
+    private double holtWinters(Collection<Double> window) {
+        // Smoothed value
+        double s = 0;
+        double last_s = 0;
 
+        // Trend value
+        double b = 0;
+        double last_b = 0;
+
+        // Seasonal value
+        double[] seasonal = new double[window.size()];
+
+        double padding = seasonalityType.equals(HoltWintersModel.SeasonalityType.MULTIPLICATIVE) ? 0.0000000001 : 0;
+
+        int counter = 0;
+        double[] vs = new double[window.size()];
+        for (double v : window) {
+            vs[counter] = v + padding;
+            counter += 1;
+        }
+
+
+        // Initial level value is average of first season
+        // Calculate the slopes between first and second season for each period
+        for (int i = 0; i < period; i++) {
+            s += vs[i];
+            b += (vs[i] - vs[i + period]) / 2;
+        }
+        s /= (double) period;
+        b /= (double) period;
+        last_s = s;
+        last_b = b;
+
+        // Calculate first seasonal
+        if (Double.compare(s, 0.0) == 0 || Double.compare(s, -0.0) == 0) {
+            Arrays.fill(seasonal, 0.0);
+        } else {
+            for (int i = 0; i < period; i++) {
+                seasonal[i] = vs[i] / s;
+            }
+        }
+
+        for (int i = period; i < vs.length; i++) {
+            if (seasonalityType.equals(HoltWintersModel.SeasonalityType.MULTIPLICATIVE)) {
+                s = alpha * (vs[i] / seasonal[i - period]) + (1.0d - alpha) * (last_s + last_b);
+            } else {
+                s = alpha * (vs[i] - seasonal[i - period]) + (1.0d - alpha) * (last_s + last_b);
+            }
+
+            b = beta * (s - last_s) + (1 - beta) * last_b;
+
+            if (seasonalityType.equals(HoltWintersModel.SeasonalityType.MULTIPLICATIVE)) {
+                seasonal[i] = gamma * (vs[i] / (last_s + last_b )) + (1 - gamma) * seasonal[i - period];
+            } else {
+                seasonal[i] = gamma * (vs[i] - (last_s + last_b )) + (1 - gamma) * seasonal[i - period];
+            }
+
+            last_s = s;
+            last_b = b;
+        }
+
+        int seasonCounter = (window.size() - 1) - period;
+        if (seasonalityType.equals(HoltWintersModel.SeasonalityType.MULTIPLICATIVE)) {
+            return s + (0 * b) * seasonal[seasonCounter % window.size()];
+        } else {
+            return s + (0 * b) + seasonal[seasonCounter % window.size()];
+        }
+    }
 
 
     /**
@@ -513,6 +600,111 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
             assertBucketContents(actual, expectedCount, expectedValue);
         }
     }
+
+    @Test
+    public void HoltWintersValuedField() {
+
+        SearchResponse response = client()
+                .prepareSearch("idx").setTypes("type")
+                .addAggregation(
+                        histogram("histo").field(INTERVAL_FIELD).interval(interval)
+                                .extendedBounds(0L, (long) (interval * (numBuckets - 1)))
+                                .subAggregation(metric)
+                                .subAggregation(movingAvg("movavg_counts")
+                                        .window(windowSize)
+                                        .modelBuilder(new HoltWintersModel.HoltWintersModelBuilder()
+                                                .alpha(alpha).beta(beta).gamma(gamma).period(period).seasonalityType(seasonalityType))
+                                        .gapPolicy(gapPolicy)
+                                        .setBucketsPaths("_count"))
+                                .subAggregation(movingAvg("movavg_values")
+                                        .window(windowSize)
+                                        .modelBuilder(new HoltWintersModel.HoltWintersModelBuilder()
+                                                .alpha(alpha).beta(beta).gamma(gamma).period(period).seasonalityType(seasonalityType))
+                                        .gapPolicy(gapPolicy)
+                                        .setBucketsPaths("the_metric"))
+                ).execute().actionGet();
+
+        assertSearchResponse(response);
+
+        InternalHistogram<Bucket> histo = response.getAggregations().get("histo");
+        assertThat(histo, notNullValue());
+        assertThat(histo.getName(), equalTo("histo"));
+        List<? extends Bucket> buckets = histo.getBuckets();
+        assertThat("Size of buckets array is not correct.", buckets.size(), equalTo(mockHisto.size()));
+
+        List<Double> expectedCounts = testValues.get(MovAvgType.HOLT_WINTERS.toString() + "_" + MetricTarget.COUNT.toString());
+        List<Double> expectedValues = testValues.get(MovAvgType.HOLT_WINTERS.toString() + "_" + MetricTarget.VALUE.toString());
+
+        Iterator<? extends Histogram.Bucket> actualIter = buckets.iterator();
+        Iterator<PipelineAggregationHelperTests.MockBucket> expectedBucketIter = mockHisto.iterator();
+        Iterator<Double> expectedCountsIter = expectedCounts.iterator();
+        Iterator<Double> expectedValuesIter = expectedValues.iterator();
+
+        while (actualIter.hasNext()) {
+            assertValidIterators(expectedBucketIter, expectedCountsIter, expectedValuesIter);
+
+            Histogram.Bucket actual = actualIter.next();
+            PipelineAggregationHelperTests.MockBucket expected = expectedBucketIter.next();
+            Double expectedCount = expectedCountsIter.next();
+            Double expectedValue = expectedValuesIter.next();
+
+            assertThat("keys do not match", ((Number) actual.getKey()).longValue(), equalTo(expected.key));
+            assertThat("doc counts do not match", actual.getDocCount(), equalTo((long)expected.count));
+
+            assertBucketContents(actual, expectedCount, expectedValue);
+        }
+    }
+
+    @Test
+    public void testPredictNegativeKeysAtStart() {
+
+        SearchResponse response = client()
+                .prepareSearch("neg_idx")
+                .setTypes("type")
+                .addAggregation(
+                        histogram("histo")
+                                .field(INTERVAL_FIELD)
+                                .interval(1)
+                                .subAggregation(avg("avg").field(VALUE_FIELD))
+                                .subAggregation(
+                                        movingAvg("movavg_values").window(windowSize).modelBuilder(new SimpleModel.SimpleModelBuilder())
+                                                .gapPolicy(gapPolicy).predict(5).setBucketsPaths("avg"))).execute().actionGet();
+
+        assertSearchResponse(response);
+
+        InternalHistogram<Bucket> histo = response.getAggregations().get("histo");
+        assertThat(histo, notNullValue());
+        assertThat(histo.getName(), equalTo("histo"));
+        List<? extends Bucket> buckets = histo.getBuckets();
+        assertThat("Size of buckets array is not correct.", buckets.size(), equalTo(25));
+
+        for (int i = 0; i < 20; i++) {
+            Bucket bucket = buckets.get(i);
+            assertThat(bucket, notNullValue());
+            assertThat((long) bucket.getKey(), equalTo((long) i - 10));
+            assertThat(bucket.getDocCount(), equalTo(1l));
+            Avg avgAgg = bucket.getAggregations().get("avg");
+            assertThat(avgAgg, notNullValue());
+            assertThat(avgAgg.value(), equalTo(10d));
+            SimpleValue movAvgAgg = bucket.getAggregations().get("movavg_values");
+            assertThat(movAvgAgg, notNullValue());
+            assertThat(movAvgAgg.value(), equalTo(10d));
+        }
+
+        for (int i = 20; i < 25; i++) {
+            System.out.println(i);
+            Bucket bucket = buckets.get(i);
+            assertThat(bucket, notNullValue());
+            assertThat((long) bucket.getKey(), equalTo((long) i - 10));
+            assertThat(bucket.getDocCount(), equalTo(0l));
+            Avg avgAgg = bucket.getAggregations().get("avg");
+            assertThat(avgAgg, nullValue());
+            SimpleValue movAvgAgg = bucket.getAggregations().get("movavg_values");
+            assertThat(movAvgAgg, notNullValue());
+            assertThat(movAvgAgg.value(), equalTo(10d));
+        }
+    }
+
 
     @Test
     public void testSizeZeroWindow() {
@@ -1012,6 +1204,55 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
         }
     }
 
+    @Test
+    public void testHoltWintersNotEnoughData() {
+        try {
+            SearchResponse response = client()
+                    .prepareSearch("idx").setTypes("type")
+                    .addAggregation(
+                            histogram("histo").field(INTERVAL_FIELD).interval(interval)
+                                    .extendedBounds(0L, (long) (interval * (numBuckets - 1)))
+                                    .subAggregation(metric)
+                                    .subAggregation(movingAvg("movavg_counts")
+                                            .window(10)
+                                            .modelBuilder(new HoltWintersModel.HoltWintersModelBuilder()
+                                                    .alpha(alpha).beta(beta).gamma(gamma).period(20).seasonalityType(seasonalityType))
+                                            .gapPolicy(gapPolicy)
+                                            .setBucketsPaths("_count"))
+                                    .subAggregation(movingAvg("movavg_values")
+                                            .window(windowSize)
+                                            .modelBuilder(new HoltWintersModel.HoltWintersModelBuilder()
+                                                    .alpha(alpha).beta(beta).gamma(gamma).period(20).seasonalityType(seasonalityType))
+                                            .gapPolicy(gapPolicy)
+                                            .setBucketsPaths("the_metric"))
+                    ).execute().actionGet();
+        } catch (SearchPhaseExecutionException e) {
+            // All good
+        }
+
+    }
+
+    @Test
+    public void testBadModelParams() {
+        try {
+            SearchResponse response = client()
+                    .prepareSearch("idx").setTypes("type")
+                    .addAggregation(
+                            histogram("histo").field(INTERVAL_FIELD).interval(interval)
+                                    .extendedBounds(0L, (long) (interval * (numBuckets - 1)))
+                                    .subAggregation(metric)
+                                    .subAggregation(movingAvg("movavg_counts")
+                                            .window(10)
+                                            .modelBuilder(randomModelBuilder(100))
+                                            .gapPolicy(gapPolicy)
+                                            .setBucketsPaths("_count"))
+                    ).execute().actionGet();
+        } catch (SearchPhaseExecutionException e) {
+            // All good
+        }
+
+    }
+
 
     private void assertValidIterators(Iterator expectedBucketIter, Iterator expectedCountsIter, Iterator expectedValuesIter) {
         if (!expectedBucketIter.hasNext()) {
@@ -1030,6 +1271,8 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
         SimpleValue countMovAvg = actual.getAggregations().get("movavg_counts");
         if (expectedCount == null) {
             assertThat("[_count] movavg is not null", countMovAvg, nullValue());
+        } else if (Double.isNaN(expectedCount)) {
+            assertThat("[_count] movavg should be NaN, but is ["+countMovAvg.value()+"] instead", countMovAvg.value(), equalTo(Double.NaN));
         } else {
             assertThat("[_count] movavg is null", countMovAvg, notNullValue());
             assertThat("[_count] movavg does not match expected ["+countMovAvg.value()+" vs "+expectedCount+"]",
@@ -1040,6 +1283,8 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
         SimpleValue valuesMovAvg = actual.getAggregations().get("movavg_values");
         if (expectedValue == null) {
             assertThat("[value] movavg is not null", valuesMovAvg, Matchers.nullValue());
+        } else if (Double.isNaN(expectedValue)) {
+            assertThat("[value] movavg should be NaN, but is ["+valuesMovAvg.value()+"] instead", valuesMovAvg.value(), equalTo(Double.NaN));
         } else {
             assertThat("[value] movavg is null", valuesMovAvg, notNullValue());
             assertThat("[value] movavg does not match expected ["+valuesMovAvg.value()+" vs "+expectedValue+"]",
@@ -1048,17 +1293,24 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
     }
 
     private MovAvgModelBuilder randomModelBuilder() {
+        return randomModelBuilder(0);
+    }
+
+    private MovAvgModelBuilder randomModelBuilder(double padding) {
         int rand = randomIntBetween(0,3);
 
+        // HoltWinters is excluded from random generation, because it's "cold start" behavior makes
+        // randomized testing too tricky.  Should probably add dedicated, randomized tests just for HoltWinters,
+        // which can compensate for the idiosyncrasies
         switch (rand) {
             case 0:
                 return new SimpleModel.SimpleModelBuilder();
             case 1:
                 return new LinearModel.LinearModelBuilder();
             case 2:
-                return new EwmaModel.EWMAModelBuilder().alpha(alpha);
+                return new EwmaModel.EWMAModelBuilder().alpha(alpha + padding);
             case 3:
-                return new HoltLinearModel.HoltLinearModelBuilder().alpha(alpha).beta(beta);
+                return new HoltLinearModel.HoltLinearModelBuilder().alpha(alpha + padding).beta(beta + padding);
             default:
                 return new SimpleModel.SimpleModelBuilder();
         }

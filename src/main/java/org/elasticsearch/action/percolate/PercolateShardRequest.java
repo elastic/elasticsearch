@@ -19,9 +19,8 @@
 
 package org.elasticsearch.action.percolate;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.OriginalIndices;
-import org.elasticsearch.action.support.broadcast.BroadcastShardOperationRequest;
+import org.elasticsearch.action.support.broadcast.BroadcastShardRequest;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -31,7 +30,7 @@ import java.io.IOException;
 
 /**
  */
-public class PercolateShardRequest extends BroadcastShardOperationRequest {
+public class PercolateShardRequest extends BroadcastShardRequest {
 
     private String documentType;
     private BytesReference source;

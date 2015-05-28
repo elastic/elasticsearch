@@ -275,7 +275,7 @@ public class InternalEngine extends Engine {
             try {
                 final DirectoryReader directoryReader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(indexWriter, true), shardId);
                 searcherManager = new SearcherManager(directoryReader, searcherFactory);
-                lastCommittedSegmentInfos = store.readLastCommittedSegmentsInfo();
+                lastCommittedSegmentInfos = readLastCommittedSegmentInfos(searcherManager);
                 success = true;
                 return searcherManager;
             } catch (IOException e) {

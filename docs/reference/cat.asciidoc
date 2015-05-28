@@ -66,6 +66,10 @@ only those columns to appear.
 192.168.56.30 9300 43.9 Ramsey, Doug
 --------------------------------------------------
 
+You can also request multiple columns using simple wildcards like
+`/_cat/thread_pool?h=ip,bulk.*` to get all headers (or aliases) starting
+with `bulk.`.
+
 [float]
 [[numeric-formats]]
 === Numeric formats

@@ -22,7 +22,7 @@ package org.elasticsearch.action.admin.cluster.node.info;
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.support.nodes.NodeOperationResponse;
+import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -42,7 +42,7 @@ import java.util.Map;
 /**
  * Node information (static, does not change over time).
  */
-public class NodeInfo extends NodeOperationResponse {
+public class NodeInfo extends BaseNodeResponse {
 
     @Nullable
     private ImmutableMap<String, String> serviceAttributes;

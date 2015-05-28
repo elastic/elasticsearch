@@ -37,4 +37,4 @@ eclipse-build
 nb-configuration.xml
 nbactions.xml
 
-/dependency-reduced-pom.xml
+dependency-reduced-pom.xml

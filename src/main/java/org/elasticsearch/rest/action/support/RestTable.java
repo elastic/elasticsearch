@@ -24,6 +24,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.io.UTF8StreamWriter;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.SizeValue;
 import org.elasticsearch.common.unit.TimeValue;
@@ -32,8 +33,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.*;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 
 /**
  */
@@ -96,11 +96,12 @@ public class RestTable {
         return new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, bytesOut.bytes());
     }
 
-    private static List<DisplayHeader> buildDisplayHeaders(Table table, RestRequest request) {
-        String pHeaders = request.param("h");
+    static List<DisplayHeader> buildDisplayHeaders(Table table, RestRequest request) {
         List<DisplayHeader> display = new ArrayList<>();
-        if (pHeaders != null) {
-            for (String possibility : Strings.splitStringByCommaToArray(pHeaders)) {
+        if (request.hasParam("h")) {
+            Set<String> headers = expandHeadersFromRequest(table, request);
+
+            for (String possibility : headers) {
                 DisplayHeader dispHeader = null;
 
                 if (table.getAsMap().containsKey(possibility)) {
@@ -145,6 +146,40 @@ public class RestTable {
             }
         }
         return display;
+    }
+
+    /**
+     * Extracts all the required fields from the RestRequest 'h' parameter. In order to support wildcards like
+     * 'bulk.*' this needs potentially parse all the configured headers and its aliases and needs to ensure
+     * that everything is only added once to the returned headers, even if 'h=bulk.*.bulk.*' is specified
+     * or some headers are contained twice due to matching aliases
+     */
+    private static Set<String> expandHeadersFromRequest(Table table, RestRequest request) {
+        Set<String> headers = new LinkedHashSet<>(table.getHeaders().size());
+
+        // check headers and aliases
+        for (String header : Strings.splitStringByCommaToArray(request.param("h"))) {
+            if (Regex.isSimpleMatchPattern(header)) {
+                for (Table.Cell tableHeaderCell : table.getHeaders()) {
+                    String configuredHeader = tableHeaderCell.value.toString();
+                    if (Regex.simpleMatch(header, configuredHeader)) {
+                        headers.add(configuredHeader);
+                    } else if (tableHeaderCell.attr.containsKey("alias")) {
+                        String[] aliases = Strings.splitStringByCommaToArray(tableHeaderCell.attr.get("alias"));
+                        for (String alias : aliases) {
+                            if (Regex.simpleMatch(header, alias)) {
+                                headers.add(configuredHeader);
+                                break;
+                            }
+                        }
+                    }
+                }
+            } else {
+                headers.add(header);
+            }
+        }
+
+        return headers;
     }
 
     public static int[] buildHelpWidths(Table table, RestRequest request) {

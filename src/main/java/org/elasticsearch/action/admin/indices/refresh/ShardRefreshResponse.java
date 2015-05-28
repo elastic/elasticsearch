@@ -19,13 +19,13 @@
 
 package org.elasticsearch.action.admin.indices.refresh;
 
-import org.elasticsearch.action.support.broadcast.BroadcastShardOperationResponse;
+import org.elasticsearch.action.support.broadcast.BroadcastShardResponse;
 import org.elasticsearch.index.shard.ShardId;
 
 /**
  *
  */
-class ShardRefreshResponse extends BroadcastShardOperationResponse {
+class ShardRefreshResponse extends BroadcastShardResponse {
 
     ShardRefreshResponse() {
     }

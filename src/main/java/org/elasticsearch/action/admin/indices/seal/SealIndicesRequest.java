@@ -19,14 +19,14 @@
 
 package org.elasticsearch.action.admin.indices.seal;
 
-import org.elasticsearch.action.support.broadcast.BroadcastOperationRequest;
+import org.elasticsearch.action.support.broadcast.BroadcastRequest;
 
 import java.util.Arrays;
 
 /**
  * A request to seal one or more indices.
  */
-public class SealIndicesRequest extends BroadcastOperationRequest {
+public class SealIndicesRequest extends BroadcastRequest {
 
     SealIndicesRequest() {
     }

@@ -23,8 +23,8 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.analysis.tokenattributes.OffsetAttribute;
-import org.apache.lucene.search.Query;
 import org.apache.lucene.search.highlight.*;
+import org.apache.lucene.util.BytesRefHash;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.common.text.Text;
@@ -69,8 +69,7 @@ public class PlainHighlighter implements Highlighter {
 
         org.apache.lucene.search.highlight.Highlighter entry = cache.get(mapper);
         if (entry == null) {
-            Query query = highlighterContext.query.originalQuery();
-            QueryScorer queryScorer = new CustomQueryScorer(query, field.fieldOptions().requireFieldMatch() ? mapper.names().indexName() : null);
+            QueryScorer queryScorer = new CustomQueryScorer(highlighterContext.query, field.fieldOptions().requireFieldMatch() ? mapper.names().indexName() : null);
             queryScorer.setExpandMultiTermQuery(true);
             Fragmenter fragmenter;
             if (field.fieldOptions().numberOfFragments() == 0) {
@@ -119,7 +118,14 @@ public class PlainHighlighter implements Highlighter {
                 }
             }
         } catch (Exception e) {
-            throw new FetchPhaseExecutionException(context, "Failed to highlight field [" + highlighterContext.fieldName + "]", e);
+            if (e instanceof BytesRefHash.MaxBytesLengthExceededException) {
+                // this can happen if for example a field is not_analyzed and ignore_above option is set.
+                // the field will be ignored when indexing but the huge term is still in the source and
+                // the plain highlighter will parse the source and try to analyze it.
+                return null;
+            } else {
+                throw new FetchPhaseExecutionException(context, "Failed to highlight field [" + highlighterContext.fieldName + "]", e);
+            }
         }
         if (field.fieldOptions().scoreOrdered()) {
             CollectionUtil.introSort(fragsList, new Comparator<TextFragment>() {
@@ -164,6 +170,11 @@ public class PlainHighlighter implements Highlighter {
             }
         }
         return null;
+    }
+
+    @Override
+    public boolean canHighlight(FieldMapper fieldMapper) {
+        return true;
     }
 
     private static int findGoodEndForNoHighlightExcerpt(int noMatchSize, TokenStream tokenStream) throws IOException {

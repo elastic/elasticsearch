@@ -21,7 +21,7 @@ package org.elasticsearch.action.get;
 
 import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.single.shard.TransportShardSingleOperationAction;
+import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -40,7 +40,7 @@ import org.elasticsearch.transport.TransportService;
 /**
  * Performs the get operation.
  */
-public class TransportGetAction extends TransportShardSingleOperationAction<GetRequest, GetResponse> {
+public class TransportGetAction extends TransportSingleShardAction<GetRequest, GetResponse> {
 
     private final IndicesService indicesService;
     private final boolean realtime;

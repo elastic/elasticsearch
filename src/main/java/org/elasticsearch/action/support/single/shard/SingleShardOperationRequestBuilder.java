@@ -22,12 +22,11 @@ package org.elasticsearch.action.support.single.shard;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  */
-public abstract class SingleShardOperationRequestBuilder<Request extends SingleShardOperationRequest<Request>, Response extends ActionResponse, RequestBuilder extends SingleShardOperationRequestBuilder<Request, Response, RequestBuilder>>
+public abstract class SingleShardOperationRequestBuilder<Request extends SingleShardRequest<Request>, Response extends ActionResponse, RequestBuilder extends SingleShardOperationRequestBuilder<Request, Response, RequestBuilder>>
         extends ActionRequestBuilder<Request, Response, RequestBuilder> {
 
     protected SingleShardOperationRequestBuilder(ElasticsearchClient client, Action<Request, Response, RequestBuilder> action, Request request) {

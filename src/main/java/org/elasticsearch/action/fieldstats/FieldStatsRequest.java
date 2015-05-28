@@ -21,7 +21,7 @@ package org.elasticsearch.action.fieldstats;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ValidateActions;
-import org.elasticsearch.action.support.broadcast.BroadcastOperationRequest;
+import org.elasticsearch.action.support.broadcast.BroadcastRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -29,7 +29,7 @@ import java.io.IOException;
 
 /**
  */
-public class FieldStatsRequest extends BroadcastOperationRequest<FieldStatsRequest> {
+public class FieldStatsRequest extends BroadcastRequest<FieldStatsRequest> {
 
     public final static String DEFAULT_LEVEL = "cluster";
 

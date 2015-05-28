@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.fieldstats;
 
-import org.elasticsearch.action.support.broadcast.BroadcastShardOperationResponse;
+import org.elasticsearch.action.support.broadcast.BroadcastShardResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.shard.ShardId;
@@ -30,7 +30,7 @@ import java.util.Map;
 
 /**
  */
-public class FieldStatsShardResponse extends BroadcastShardOperationResponse {
+public class FieldStatsShardResponse extends BroadcastShardResponse {
 
     private Map<String, FieldStats> fieldStats;
 

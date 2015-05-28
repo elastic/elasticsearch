@@ -187,7 +187,7 @@ public class RestController extends AbstractLifecycleComponent<RestController> {
         // error_trace cannot be used when we disable detailed errors
         if (channel.detailedErrorsEnabled() == false && request.paramAsBoolean("error_trace", false)) {
             try {
-                XContentBuilder builder = channel.newBuilder();
+                XContentBuilder builder = channel.newErrorBuilder();
                 builder.startObject().field("error","error traces in responses are disabled.").endObject().string();
                 RestResponse response = new BytesRestResponse(BAD_REQUEST, builder);
                 response.addHeader("Content-Type", "application/json");

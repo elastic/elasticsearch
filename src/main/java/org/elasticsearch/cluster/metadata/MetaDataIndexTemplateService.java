@@ -23,7 +23,7 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import org.elasticsearch.action.admin.indices.alias.Alias;
-import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
+import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.TimeoutClusterStateUpdateTask;
@@ -231,7 +231,7 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
         List<Alias> aliases = Lists.newArrayList();
         Map<String, IndexMetaData.Custom> customs = Maps.newHashMap();
 
-        TimeValue masterTimeout = MasterNodeOperationRequest.DEFAULT_MASTER_NODE_TIMEOUT;
+        TimeValue masterTimeout = MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT;
 
         public PutRequest(String cause, String name) {
             this.cause = cause;
@@ -304,7 +304,7 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
 
     public static class RemoveRequest {
         final String name;
-        TimeValue masterTimeout = MasterNodeOperationRequest.DEFAULT_MASTER_NODE_TIMEOUT;
+        TimeValue masterTimeout = MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT;
 
         public RemoveRequest(String name) {
             this.name = name;

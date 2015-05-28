@@ -19,10 +19,10 @@
 
 package org.elasticsearch.common.xcontent.smile;
 
-import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.dataformat.smile.SmileParser;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.BaseJsonGenerator;
 import org.elasticsearch.common.xcontent.json.JsonXContentGenerator;
 
 import java.io.IOException;
@@ -34,7 +34,7 @@ import java.io.OutputStream;
  */
 public class SmileXContentGenerator extends JsonXContentGenerator {
 
-    public SmileXContentGenerator(JsonGenerator generator) {
+    public SmileXContentGenerator(BaseJsonGenerator generator) {
         super(generator);
     }
 

@@ -20,8 +20,7 @@
 package org.elasticsearch.action.admin.indices.optimize;
 
 
-import org.elasticsearch.Version;
-import org.elasticsearch.action.support.broadcast.BroadcastShardOperationRequest;
+import org.elasticsearch.action.support.broadcast.BroadcastShardRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.shard.ShardId;
@@ -31,7 +30,7 @@ import java.io.IOException;
 /**
  *
  */
-final class ShardOptimizeRequest extends BroadcastShardOperationRequest {
+final class ShardOptimizeRequest extends BroadcastShardRequest {
 
     private OptimizeRequest request = new OptimizeRequest();
 

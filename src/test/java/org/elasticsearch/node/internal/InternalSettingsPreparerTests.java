@@ -61,4 +61,16 @@ public class InternalSettingsPreparerTests extends ElasticsearchTestCase {
         // Should use setting from the system property
         assertThat(tuple.v1().get("node.zone"), equalTo("bar"));
     }
+
+    @Test
+    public void testAlternateConfigFileSuffixes() {
+        // test that we can read config files with .yaml, .json, and .properties suffixes
+        Tuple<Settings, Environment> tuple = InternalSettingsPreparer.prepareSettings(settingsBuilder()
+                .put("config.ignore_system_properties", true)
+                .build(), true);
+
+        assertThat(tuple.v1().get("yaml.config.exists"), equalTo("true"));
+        assertThat(tuple.v1().get("json.config.exists"), equalTo("true"));
+        assertThat(tuple.v1().get("properties.config.exists"), equalTo("true"));
+    }
 }

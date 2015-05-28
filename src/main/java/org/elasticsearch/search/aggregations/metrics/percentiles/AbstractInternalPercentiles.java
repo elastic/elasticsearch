@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.aggregations.metrics.percentiles;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -79,12 +78,6 @@ abstract class AbstractInternalPercentiles extends InternalNumericMetricsAggrega
     @Override
     protected void doReadFrom(StreamInput in) throws IOException {
         valueFormatter = ValueFormatterStreams.readOptional(in);
-        if (in.getVersion().before(Version.V_1_2_0)) {
-            final byte id = in.readByte();
-            if (id != 0) {
-                throw new IllegalArgumentException("Unexpected percentiles aggregator id [" + id + "]");
-            }
-        }
         keys = new double[in.readInt()];
         for (int i = 0; i < keys.length; ++i) {
             keys[i] = in.readDouble();
@@ -96,9 +89,6 @@ abstract class AbstractInternalPercentiles extends InternalNumericMetricsAggrega
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         ValueFormatterStreams.writeOptional(valueFormatter, out);
-        if (out.getVersion().before(Version.V_1_2_0)) {
-            out.writeByte((byte) 0);
-        }
         out.writeInt(keys.length);
         for (int i = 0 ; i < keys.length; ++i) {
             out.writeDouble(keys[i]);

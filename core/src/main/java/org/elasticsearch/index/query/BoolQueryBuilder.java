@@ -77,15 +77,6 @@ public class BoolQueryBuilder extends QueryBuilder<BoolQueryBuilder> implements 
     }
 
     /**
-     * Adds a list of queries that <b>must</b> appear in the matching documents and will
-     * contribute to scoring.
-     */
-    public BoolQueryBuilder must(List<QueryBuilder> queryBuilders) {
-        mustClauses.addAll(queryBuilders);
-        return this;
-    }
-
-    /**
      * Gets the queries that <b>must</b> appear in the matching documents.
      */
     public List<QueryBuilder> must() {
@@ -98,15 +89,6 @@ public class BoolQueryBuilder extends QueryBuilder<BoolQueryBuilder> implements 
      */
     public BoolQueryBuilder filter(QueryBuilder queryBuilder) {
         filterClauses.add(queryBuilder);
-        return this;
-    }
-
-    /**
-     * Adds a list of queries that <b>must</b> appear in the matching documents but will
-     * not contribute to scoring.
-     */
-    public BoolQueryBuilder filter(List<QueryBuilder> queryBuilders) {
-        filterClauses.addAll(queryBuilders);
         return this;
     }
 
@@ -126,14 +108,6 @@ public class BoolQueryBuilder extends QueryBuilder<BoolQueryBuilder> implements 
     }
 
     /**
-     * Adds a list of queries that <b>must not</b> appear in the matching documents.
-     */
-    public BoolQueryBuilder mustNot(List<QueryBuilder> queryBuilders) {
-        mustNotClauses.addAll(queryBuilders);
-        return this;
-    }
-
-    /**
      * Gets the queries that <b>must not</b> appear in the matching documents.
      */
     public List<QueryBuilder> mustNot() {
@@ -149,18 +123,6 @@ public class BoolQueryBuilder extends QueryBuilder<BoolQueryBuilder> implements 
      */
     public BoolQueryBuilder should(QueryBuilder queryBuilder) {
         shouldClauses.add(queryBuilder);
-        return this;
-    }
-
-    /**
-     * Adds a list of clauses that <i>should</i> be matched by the returned documents. For a boolean query with no
-     * <tt>MUST</tt> clauses one or more <code>SHOULD</code> clauses must match a document
-     * for the BooleanQuery to match.
-     *
-     * @see #minimumNumberShouldMatch(int)
-     */
-    public BoolQueryBuilder should(List<QueryBuilder> queryBuilders) {
-        shouldClauses.addAll(queryBuilders);
         return this;
     }
 
@@ -396,13 +358,13 @@ public class BoolQueryBuilder extends QueryBuilder<BoolQueryBuilder> implements 
     public BoolQueryBuilder readFrom(StreamInput in) throws IOException {
         BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
         List<QueryBuilder> queryBuilders = in.readNamedWritableList();
-        boolQueryBuilder.must(queryBuilders);
+        boolQueryBuilder.mustClauses.addAll(queryBuilders);
         queryBuilders = in.readNamedWritableList();
-        boolQueryBuilder.mustNot(queryBuilders);
+        boolQueryBuilder.mustNotClauses.addAll(queryBuilders);
         queryBuilders = in.readNamedWritableList();
-        boolQueryBuilder.should(queryBuilders);
+        boolQueryBuilder.shouldClauses.addAll(queryBuilders);
         queryBuilders = in.readNamedWritableList();
-        boolQueryBuilder.filter(queryBuilders);
+        boolQueryBuilder.filterClauses.addAll(queryBuilders);
         boolQueryBuilder.boost = in.readFloat();
         boolQueryBuilder.adjustPureNegative = in.readBoolean();
         boolQueryBuilder.disableCoord = in.readBoolean();

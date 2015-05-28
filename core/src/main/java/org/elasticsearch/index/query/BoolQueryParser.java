@@ -154,16 +154,23 @@ public class BoolQueryParser extends BaseQueryParser {
             }
         }
         BoolQueryBuilder boolQuery = new BoolQueryBuilder();
-        boolQuery.must(mustClauses);
-        boolQuery.mustNot(mustNotClauses);
-        boolQuery.should(shouldClauses);
-        boolQuery.filter(filterClauses);
+        for (QueryBuilder queryBuilder : mustClauses) {
+            boolQuery.must(queryBuilder);
+        }
+        for (QueryBuilder queryBuilder : mustNotClauses) {
+            boolQuery.mustNot(queryBuilder);
+        }
+        for (QueryBuilder queryBuilder : shouldClauses) {
+            boolQuery.should(queryBuilder);
+        }
+        for (QueryBuilder queryBuilder : filterClauses) {
+            boolQuery.filter(queryBuilder);
+        }
         boolQuery.boost(boost);
         boolQuery.disableCoord(disableCoord);
         boolQuery.adjustPureNegative(adjustPureNegative);
         boolQuery.minimumNumberShouldMatch(minimumShouldMatch);
         boolQuery.queryName(queryName);
-        boolQuery.validate();
         return boolQuery;
     }
 

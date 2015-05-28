@@ -42,7 +42,7 @@ public abstract class AbstractSSLService extends AbstractComponent {
     static final String[] DEFAULT_CIPHERS = new String[] { "TLS_RSA_WITH_AES_128_CBC_SHA256", "TLS_RSA_WITH_AES_128_CBC_SHA", "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA" };
     static final TimeValue DEFAULT_SESSION_CACHE_TIMEOUT = TimeValue.timeValueHours(24);
     static final int DEFAULT_SESSION_CACHE_SIZE = 1000;
-    static final String DEFAULT_PROTOCOL = "TLS";
+    static final String DEFAULT_PROTOCOL = "TLSv1.2";
 
     protected final Environment env;
     protected final LoadingCache<SSLSettings, SSLContext> sslContexts = CacheBuilder.newBuilder().build(new SSLContextCacheLoader());

@@ -263,10 +263,7 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
         metadataLock.writeLock().lock();
         // we make sure that nobody fetches the metadata while we do this rename operation here to ensure we don't
         // get exceptions if files are still open.
-        try (Lock writeLock = directory.makeLock(IndexWriter.WRITE_LOCK_NAME)) {
-            if (!writeLock.obtain(IndexWriterConfig.getDefaultWriteLockTimeout())) { // obtain write lock
-                throw new LockObtainFailedException("Index locked for write: " + writeLock);
-            }
+        try (Lock writeLock = Lucene.acquireWriteLock(directory())) {
             for (Map.Entry<String, String> entry : entries) {
                 String tempFile = entry.getKey();
                 String origFile = entry.getValue();
@@ -622,10 +619,7 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
      */
     public void cleanup(String reason, Set<String> filesToClean) throws IOException {
         metadataLock.writeLock().lock();
-        try (Lock writeLock = directory.makeLock(IndexWriter.WRITE_LOCK_NAME)) {
-            if (!writeLock.obtain(IndexWriterConfig.getDefaultWriteLockTimeout())) { // obtain write lock
-                throw new LockObtainFailedException("Index locked for write: " + writeLock);
-            }
+        try (Lock writeLock = Lucene.acquireWriteLock(directory)) {
             final StoreDirectory dir = directory;
             for (String existingFile : dir.listAll()) {
                 if (existingFile.equals(IndexWriter.WRITE_LOCK_NAME) || Store.isChecksum(existingFile) || filesToClean.contains(existingFile)) {

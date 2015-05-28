@@ -132,6 +132,27 @@ public class Lucene {
     }
 
     /**
+     * Tries to acquire the {@link IndexWriter#WRITE_LOCK_NAME} on the given directory. The returned lock must be closed once
+     * the lock is released. If the lock can't be obtained a {@link LockObtainFailedException} is thrown.
+     * This method uses the {@link IndexWriterConfig#getDefaultWriteLockTimeout()} as the lock timeout.
+     */
+    public static Lock acquireWriteLock(Directory directory) throws IOException {
+        return acquireLock(directory, IndexWriter.WRITE_LOCK_NAME, IndexWriterConfig.getDefaultWriteLockTimeout());
+    }
+
+    /**
+     * Tries to acquire a lock on the given directory. The returned lock must be closed once
+     * the lock is released. If the lock can't be obtained a {@link LockObtainFailedException} is thrown.
+     */
+    public static Lock acquireLock(Directory directory, String lockName, long timeout) throws IOException {
+        final Lock writeLock = directory.makeLock(lockName);
+        if (writeLock.obtain(timeout) == false) {
+            throw new LockObtainFailedException("failed to obtain lock: " + writeLock);
+        }
+        return writeLock;
+    }
+
+    /**
      * This method removes all files from the given directory that are not referenced by the given segments file.
      * This method will open an IndexWriter and relies on index file deleter to remove all unreferenced files. Segment files
      * that are newer than the given segments file are removed forcefully to prevent problems with IndexWriter opening a potentially
@@ -143,10 +164,7 @@ public class Lucene {
     public static SegmentInfos pruneUnreferencedFiles(String segmentsFileName, Directory directory) throws IOException {
         final SegmentInfos si = readSegmentInfos(segmentsFileName, directory);
         int foundSegmentFiles = 0;
-        try (Lock writeLock = directory.makeLock(IndexWriter.WRITE_LOCK_NAME)) {
-            if (!writeLock.obtain(IndexWriterConfig.getDefaultWriteLockTimeout())) { // obtain write lock
-                throw new LockObtainFailedException("Index locked for write: " + writeLock);
-            }
+        try (Lock writeLock = acquireWriteLock(directory)) {
             for (final String file : directory.listAll()) {
                 /**
                  * we could also use a deletion policy here but in the case of snapshot and restore
@@ -182,10 +200,7 @@ public class Lucene {
      * this operation fails.
      */
     public static void cleanLuceneIndex(Directory directory) throws IOException {
-        try (Lock writeLock = directory.makeLock(IndexWriter.WRITE_LOCK_NAME)) {
-            if (!writeLock.obtain(IndexWriterConfig.getDefaultWriteLockTimeout())) { // obtain write lock
-                throw new LockObtainFailedException("Index locked for write: " + writeLock);
-            }
+        try (Lock writeLock = acquireWriteLock(directory)) {
             for (final String file : directory.listAll()) {
                 if (file.startsWith(IndexFileNames.SEGMENTS) || file.equals(IndexFileNames.SEGMENTS_GEN)) {
                     directory.deleteFile(file); // remove all segment_N files

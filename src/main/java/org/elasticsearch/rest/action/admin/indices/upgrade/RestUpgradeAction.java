@@ -85,7 +85,7 @@ public class RestUpgradeAction extends BaseRestHandler {
             public RestResponse buildResponse(UpgradeResponse response, XContentBuilder builder) throws Exception {
                 builder.startObject();
                 buildBroadcastShardsHeader(builder, request, response);
-                builder.startArray("upgraded_indices");
+                builder.startObject("upgraded_indices");
                 for (Map.Entry<String, String> entry : response.versions().entrySet()) {
                     builder.field(entry.getKey(), entry.getValue(), XContentBuilder.FieldCaseConversion.NONE);
                 }

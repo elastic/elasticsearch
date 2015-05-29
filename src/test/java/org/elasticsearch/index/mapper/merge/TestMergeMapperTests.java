@@ -130,11 +130,11 @@ public class TestMergeMapperTests extends ElasticsearchSingleNodeTest {
         DocumentMapper existing = parser.parse(mapping1);
         DocumentMapper changed = parser.parse(mapping2);
 
-        assertThat(((NamedAnalyzer) existing.mappers().getMapper("field").searchAnalyzer()).name(), equalTo("whitespace"));
+        assertThat(((NamedAnalyzer) existing.mappers().getMapper("field").fieldType().searchAnalyzer()).name(), equalTo("whitespace"));
         MergeResult mergeResult = existing.merge(changed.mapping(), false);
 
         assertThat(mergeResult.hasConflicts(), equalTo(false));
-        assertThat(((NamedAnalyzer) existing.mappers().getMapper("field").searchAnalyzer()).name(), equalTo("keyword"));
+        assertThat(((NamedAnalyzer) existing.mappers().getMapper("field").fieldType().searchAnalyzer()).name(), equalTo("keyword"));
     }
 
     @Test
@@ -150,11 +150,11 @@ public class TestMergeMapperTests extends ElasticsearchSingleNodeTest {
         DocumentMapper existing = parser.parse(mapping1);
         DocumentMapper changed = parser.parse(mapping2);
 
-        assertThat(((NamedAnalyzer) existing.mappers().getMapper("field").searchAnalyzer()).name(), equalTo("whitespace"));
+        assertThat(((NamedAnalyzer) existing.mappers().getMapper("field").fieldType().searchAnalyzer()).name(), equalTo("whitespace"));
         MergeResult mergeResult = existing.merge(changed.mapping(), false);
 
         assertThat(mergeResult.hasConflicts(), equalTo(false));
-        assertThat(((NamedAnalyzer) existing.mappers().getMapper("field").searchAnalyzer()).name(), equalTo("standard"));
+        assertThat(((NamedAnalyzer) existing.mappers().getMapper("field").fieldType().searchAnalyzer()).name(), equalTo("standard"));
         assertThat(((StringFieldMapper) (existing.mappers().getMapper("field"))).getIgnoreAbove(), equalTo(14));
     }
 

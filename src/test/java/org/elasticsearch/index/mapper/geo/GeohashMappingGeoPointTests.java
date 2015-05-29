@@ -96,25 +96,25 @@ public class GeohashMappingGeoPointTests extends ElasticsearchSingleNodeTest {
     @Test
     public void testGeoHashPrecisionAsInteger() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").startObject("point").field("type", "geo_point").field("geohash_precision", 10).endObject().endObject()
+                .startObject("properties").startObject("point").field("type", "geo_point").field("geohash", true).field("geohash_precision", 10).endObject().endObject()
                 .endObject().endObject().string();
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
         FieldMapper mapper = defaultMapper.mappers().smartNameFieldMapper("point");
         assertThat(mapper, instanceOf(GeoPointFieldMapper.class));
         GeoPointFieldMapper geoPointFieldMapper = (GeoPointFieldMapper) mapper;
-        assertThat(geoPointFieldMapper.geoHashPrecision(), is(10));
+        assertThat(geoPointFieldMapper.fieldType().geohashPrecision(), is(10));
     }
 
     @Test
     public void testGeoHashPrecisionAsLength() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").startObject("point").field("type", "geo_point").field("geohash_precision", "5m").endObject().endObject()
+                .startObject("properties").startObject("point").field("type", "geo_point").field("geohash", true).field("geohash_precision", "5m").endObject().endObject()
                 .endObject().endObject().string();
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
         FieldMapper mapper = defaultMapper.mappers().smartNameFieldMapper("point");
         assertThat(mapper, instanceOf(GeoPointFieldMapper.class));
         GeoPointFieldMapper geoPointFieldMapper = (GeoPointFieldMapper) mapper;
-        assertThat(geoPointFieldMapper.geoHashPrecision(), is(10));
+        assertThat(geoPointFieldMapper.fieldType().geohashPrecision(), is(10));
     }
 
     @Test

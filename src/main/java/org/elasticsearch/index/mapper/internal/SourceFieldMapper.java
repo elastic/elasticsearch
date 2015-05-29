@@ -21,7 +21,6 @@ package org.elasticsearch.index.mapper.internal;
 
 import com.google.common.base.Objects;
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.util.BytesRef;
@@ -45,6 +44,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.fielddata.FieldDataType;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MergeMappingException;
@@ -78,12 +78,15 @@ public class SourceFieldMapper extends AbstractFieldMapper implements RootMapper
         public static final long COMPRESS_THRESHOLD = -1;
         public static final String FORMAT = null; // default format is to use the one provided
 
-        public static final FieldType FIELD_TYPE = new FieldType(AbstractFieldMapper.Defaults.FIELD_TYPE);
+        public static final MappedFieldType FIELD_TYPE = new SourceFieldType();
 
         static {
             FIELD_TYPE.setIndexOptions(IndexOptions.NONE); // not indexed
             FIELD_TYPE.setStored(true);
             FIELD_TYPE.setOmitNorms(true);
+            FIELD_TYPE.setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
+            FIELD_TYPE.setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
+            FIELD_TYPE.setNames(new MappedFieldType.Names(NAME));
             FIELD_TYPE.freeze();
         }
 
@@ -138,7 +141,7 @@ public class SourceFieldMapper extends AbstractFieldMapper implements RootMapper
 
         @Override
         public SourceFieldMapper build(BuilderContext context) {
-            return new SourceFieldMapper(name, enabled, format, compress, compressThreshold, includes, excludes, context.indexSettings());
+            return new SourceFieldMapper(enabled, format, compress, compressThreshold, includes, excludes, context.indexSettings());
         }
     }
 
@@ -195,6 +198,39 @@ public class SourceFieldMapper extends AbstractFieldMapper implements RootMapper
         }
     }
 
+    public static class SourceFieldType extends MappedFieldType {
+
+        public SourceFieldType() {
+            super(AbstractFieldMapper.Defaults.FIELD_TYPE);
+        }
+
+        protected SourceFieldType(SourceFieldType ref) {
+            super(ref);
+        }
+
+        @Override
+        public MappedFieldType clone() {
+            return new SourceFieldType(this);
+        }
+
+        @Override
+        public byte[] value(Object value) {
+            if (value == null) {
+                return null;
+            }
+            BytesReference bValue;
+            if (value instanceof BytesRef) {
+                bValue = new BytesArray((BytesRef) value);
+            } else {
+                bValue = (BytesReference) value;
+            }
+            try {
+                return CompressorFactory.uncompressIfNeeded(bValue).toBytes();
+            } catch (IOException e) {
+                throw new ElasticsearchParseException("failed to decompress source", e);
+            }
+        }
+    }
 
     private final boolean enabled;
 
@@ -212,13 +248,12 @@ public class SourceFieldMapper extends AbstractFieldMapper implements RootMapper
     private XContentType formatContentType;
 
     public SourceFieldMapper(Settings indexSettings) {
-        this(Defaults.NAME, Defaults.ENABLED, Defaults.FORMAT, null, -1, null, null, indexSettings);
+        this(Defaults.ENABLED, Defaults.FORMAT, null, -1, null, null, indexSettings);
     }
 
-    protected SourceFieldMapper(String name, boolean enabled, String format, Boolean compress, long compressThreshold,
+    protected SourceFieldMapper(boolean enabled, String format, Boolean compress, long compressThreshold,
                                 String[] includes, String[] excludes, Settings indexSettings) {
-        super(new Names(name, name, name, name), Defaults.BOOST, new FieldType(Defaults.FIELD_TYPE), false,
-                Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER, null, null, null, indexSettings); // Only stored.
+        super(Defaults.FIELD_TYPE.clone(), false, null, indexSettings); // Only stored.
         this.enabled = enabled;
         this.compress = compress;
         this.compressThreshold = compressThreshold;
@@ -247,7 +282,7 @@ public class SourceFieldMapper extends AbstractFieldMapper implements RootMapper
     }
 
     @Override
-    public FieldType defaultFieldType() {
+    public MappedFieldType defaultFieldType() {
         return Defaults.FIELD_TYPE;
     }
 
@@ -358,25 +393,7 @@ public class SourceFieldMapper extends AbstractFieldMapper implements RootMapper
         if (!source.hasArray()) {
             source = source.toBytesArray();
         }
-        fields.add(new StoredField(names().indexName(), source.array(), source.arrayOffset(), source.length()));
-    }
-
-    @Override
-    public byte[] value(Object value) {
-        if (value == null) {
-            return null;
-        }
-        BytesReference bValue;
-        if (value instanceof BytesRef) {
-            bValue = new BytesArray((BytesRef) value);
-        } else {
-            bValue = (BytesReference) value;
-        }
-        try {
-            return CompressorFactory.uncompressIfNeeded(bValue).toBytes();
-        } catch (IOException e) {
-            throw new ElasticsearchParseException("failed to decompress source", e);
-        }
+        fields.add(new StoredField(fieldType().names().indexName(), source.array(), source.arrayOffset(), source.length()));
     }
 
     @Override

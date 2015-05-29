@@ -34,6 +34,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 
@@ -47,7 +48,7 @@ public class IndexIndexFieldData extends AbstractIndexOrdinalsFieldData {
         @Override
         public IndexFieldData<?> build(Index index, Settings indexSettings, FieldMapper mapper, IndexFieldDataCache cache,
                 CircuitBreakerService breakerService, MapperService mapperService) {
-            return new IndexIndexFieldData(index, mapper.names());
+            return new IndexIndexFieldData(index, mapper.fieldType().names());
         }
 
     }
@@ -101,7 +102,7 @@ public class IndexIndexFieldData extends AbstractIndexOrdinalsFieldData {
 
     private final AtomicOrdinalsFieldData atomicFieldData;
 
-    private IndexIndexFieldData(Index index, FieldMapper.Names names) {
+    private IndexIndexFieldData(Index index, MappedFieldType.Names names) {
         super(index, Settings.EMPTY, names, new FieldDataType("string"), null, null);
         atomicFieldData = new IndexAtomicFieldData(index().name());
     }

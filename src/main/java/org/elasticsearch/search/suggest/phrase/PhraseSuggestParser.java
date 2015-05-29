@@ -191,10 +191,10 @@ public final class PhraseSuggestParser implements SuggestContextParser {
             throw new IllegalArgumentException("No mapping found for field [" + suggestion.getField() + "]");
         } else if (suggestion.getAnalyzer() == null) {
             // no analyzer name passed in, so try the field's analyzer, or the default analyzer
-            if (fieldMapper.searchAnalyzer() == null) {
+            if (fieldMapper.fieldType().searchAnalyzer() == null) {
                 suggestion.setAnalyzer(mapperService.searchAnalyzer());
             } else {
-                suggestion.setAnalyzer(fieldMapper.searchAnalyzer());
+                suggestion.setAnalyzer(fieldMapper.fieldType().searchAnalyzer());
             }
         }
         

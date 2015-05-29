@@ -16,16 +16,16 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.indices;
+package org.elasticsearch.indices.flush;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.LatchedActionListener;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.indices.SyncedFlushService;
+import org.elasticsearch.test.InternalTestCluster;
 
 import java.util.List;
 import java.util.Map;
@@ -39,10 +39,30 @@ public class SyncedFlushUtil {
     }
 
     /**
+     * Blocking single index version of {@link SyncedFlushService#attemptSyncedFlush(String[], IndicesOptions, ActionListener)}
+     */
+    public static IndicesSyncedFlushResult attemptSyncedFlush(InternalTestCluster cluster, String index) {
+        SyncedFlushService service = cluster.getInstance(SyncedFlushService.class);
+        LatchedListener<IndicesSyncedFlushResult> listener = new LatchedListener();
+        service.attemptSyncedFlush(new String[]{index}, IndicesOptions.lenientExpandOpen(), listener);
+        try {
+            listener.latch.await();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+        if (listener.error != null) {
+            throw ExceptionsHelper.convertToElastic(listener.error);
+        }
+        return listener.result;
+    }
+
+
+    /**
      * Blocking version of {@link SyncedFlushService#attemptSyncedFlush(ShardId, ActionListener)}
      */
-    public static SyncedFlushService.SyncedFlushResult attemptSyncedFlush(SyncedFlushService service, ShardId shardId) {
-        LatchedListener<SyncedFlushService.SyncedFlushResult> listener = new LatchedListener();
+    public static ShardsSyncedFlushResult attemptSyncedFlush(InternalTestCluster cluster, ShardId shardId) {
+        SyncedFlushService service = cluster.getInstance(SyncedFlushService.class);
+        LatchedListener<ShardsSyncedFlushResult> listener = new LatchedListener();
         service.attemptSyncedFlush(shardId, listener);
         try {
             listener.latch.await();

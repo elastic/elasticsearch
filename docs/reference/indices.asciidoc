@@ -59,7 +59,6 @@ and warmers.
 * <<indices-refresh>>
 * <<indices-flush>>
 * <<indices-optimize>>
-* <<indices-seal>>
 * <<indices-upgrade>>
 
 --
@@ -107,8 +106,6 @@ include::indices/flush.asciidoc[]
 include::indices/refresh.asciidoc[]
 
 include::indices/optimize.asciidoc[]
-
-include::indices/seal.asciidoc[]
 
 include::indices/shadow-replicas.asciidoc[]
 

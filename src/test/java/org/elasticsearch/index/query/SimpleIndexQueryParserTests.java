@@ -541,6 +541,13 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         assertThat(fieldQuery.getTerm().bytes(), equalTo(indexedValueForSearch(34l)));
     }
 
+    @Test(expected = QueryParsingException.class)
+    public void testTermQueryArrayInvalid() throws IOException {
+        IndexQueryParserService queryParser = queryParser();
+        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/term-array-invalid.json");
+        unwrapTermQuery(queryParser.parse(query).query());
+    }
+
     private static TermQuery unwrapTermQuery(Query q) {
         assertThat(q, instanceOf(TermQuery.class));
         return (TermQuery) q;

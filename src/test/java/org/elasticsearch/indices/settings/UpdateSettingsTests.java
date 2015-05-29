@@ -92,6 +92,17 @@ public class UpdateSettingsTests extends ElasticsearchIntegrationTest {
 
         client().admin().indices().prepareClose("test").execute().actionGet();
 
+        try {
+            client().admin().indices().prepareUpdateSettings("test")
+                    .setSettings(Settings.settingsBuilder()
+                                    .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+                    )
+                    .execute().actionGet();
+            fail("can't change number of replicas on a closed index");
+        } catch (IllegalArgumentException ex) {
+            assertEquals(ex.getMessage(), "Can't update [index.number_of_replicas] on closed indices [[test]] - can leave index in an unopenable state");
+            // expected
+        }
         client().admin().indices().prepareUpdateSettings("test")
                 .setSettings(Settings.settingsBuilder()
                         .put("index.refresh_interval", "1s") // this one can change

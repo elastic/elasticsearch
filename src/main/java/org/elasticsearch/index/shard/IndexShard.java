@@ -21,7 +21,6 @@ package org.elasticsearch.index.shard;
 
 import com.google.common.base.Charsets;
 import com.google.common.base.Preconditions;
-
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.search.Query;
@@ -162,7 +161,6 @@ public class IndexShard extends AbstractIndexShardComponent {
     private final SnapshotDeletionPolicy deletionPolicy;
     private final SimilarityService similarityService;
     private final MergePolicyProvider mergePolicyProvider;
-    private final BigArrays bigArrays;
     private final EngineConfig engineConfig;
     private final TranslogConfig translogConfig;
 
@@ -213,7 +211,6 @@ public class IndexShard extends AbstractIndexShardComponent {
         this.deletionPolicy = deletionPolicy;
         this.similarityService = similarityService;
         this.mergePolicyProvider = mergePolicyProvider;
-        this.bigArrays = bigArrays;
         Preconditions.checkNotNull(store, "Store must be provided to the index shard");
         Preconditions.checkNotNull(deletionPolicy, "Snapshot deletion policy must be provided to the index shard");
         this.engineFactory = factory;
@@ -795,7 +792,7 @@ public class IndexShard extends AbstractIndexShardComponent {
                         engine.flushAndClose();
                     }
                 } finally { // playing safe here and close the engine even if the above succeeds - close can be called multiple times
-                    IOUtils.close(engine, shardFilterCache);
+                    IOUtils.close(engine);
                 }
             }
         }
@@ -1397,7 +1394,7 @@ public class IndexShard extends AbstractIndexShardComponent {
     }
 
     public int getOperationsCount() {
-        return indexShardOperationCounter.refCount();
+        return Math.max(0, indexShardOperationCounter.refCount() - 1); // refCount is incremented on creation and decremented on close
     }
 
     /**

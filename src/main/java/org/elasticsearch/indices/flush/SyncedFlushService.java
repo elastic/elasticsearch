@@ -325,7 +325,7 @@ public class SyncedFlushService extends AbstractComponent {
                 contDownAndSendResponseIfDone(syncId, shards, shardId, totalShards, listener, countDown, results);
                 continue;
             }
-            assert node.version().onOrAfter(Version.V_1_6_0) : " node with version " + node.version() + " can not have a sync commit ID";
+            assert node.version().onOrAfter(Version.V_1_6_0) : " node with version " + node.version() + " can not have an expected commit ID";
             logger.trace("{} sending synced flush request to {}. sync id [{}].", shardId, shard, syncId);
             final ActionListener<SyncedFlushResponse> currentShardListener = new ActionListener<SyncedFlushResponse>() {
                 @Override
@@ -422,7 +422,7 @@ public class SyncedFlushService extends AbstractComponent {
 
                 @Override
                 public void onFailure(Throwable e) {
-                    logger.trace("{} error while performing pre synced flush on [{}], skipping", shardId, e, shard);
+                    logger.trace("{} error while performing pre synced flush on [{}], skipping", e, shardId, shard);
                     if (countDown.countDown()) {
                         listener.onResponse(commitIds);
                     }

@@ -24,6 +24,7 @@ import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResp
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.allocation.decider.DisableAllocationDecider;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
@@ -62,7 +63,7 @@ public class ClusterSettingsTests extends ElasticsearchIntegrationTest {
         String key2 = DisableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_DISABLE_ALLOCATION;
         boolean value2 = true;
 
-        Settings transientSettings1 = Settings.builder().put(key1, value1).build();
+        Settings transientSettings1 = Settings.builder().put(key1, value1, ByteSizeUnit.BYTES).build();
         Settings persistentSettings1 = Settings.builder().put(key2, value2).build();
 
         ClusterUpdateSettingsResponse response1 = client().admin().cluster()
@@ -78,7 +79,7 @@ public class ClusterSettingsTests extends ElasticsearchIntegrationTest {
         assertThat(response1.getPersistentSettings().get(key1), nullValue());
         assertThat(response1.getPersistentSettings().get(key2), notNullValue());
 
-        Settings transientSettings2 = Settings.builder().put(key1, value1).put(key2, value2).build();
+        Settings transientSettings2 = Settings.builder().put(key1, value1, ByteSizeUnit.BYTES).put(key2, value2).build();
         Settings persistentSettings2 = Settings.EMPTY;
 
         ClusterUpdateSettingsResponse response2 = client().admin().cluster()
@@ -95,7 +96,7 @@ public class ClusterSettingsTests extends ElasticsearchIntegrationTest {
         assertThat(response2.getPersistentSettings().get(key2), nullValue());
 
         Settings transientSettings3 = Settings.EMPTY;
-        Settings persistentSettings3 = Settings.builder().put(key1, value1).put(key2, value2).build();
+        Settings persistentSettings3 = Settings.builder().put(key1, value1, ByteSizeUnit.BYTES).put(key2, value2).build();
 
         ClusterUpdateSettingsResponse response3 = client().admin().cluster()
                 .prepareUpdateSettings()

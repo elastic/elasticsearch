@@ -56,7 +56,7 @@ import static org.elasticsearch.common.unit.SizeValue.parseSizeValue;
 import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
 
 /**
- * An immutable {@code Settings} implementation.
+ * An immutable settings implementation.
  */
 public final class Settings implements ToXContent {
 
@@ -986,7 +986,7 @@ public final class Settings implements ToXContent {
          * @return The builder
          */
         public Builder put(String setting, long value, ByteSizeUnit sizeUnit) {
-            put(setting, sizeUnit.toBytes(value));
+            put(setting, sizeUnit.toBytes(value) + "b");
             return this;
         }
 

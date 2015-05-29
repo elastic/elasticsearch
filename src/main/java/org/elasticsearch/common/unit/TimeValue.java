@@ -255,8 +255,6 @@ public class TimeValue implements Serializable, Streamable {
                 millis = 0;
             } else {
                 // Missing units:
-                // nocommit
-                System.out.println("MKM: Failed to parse setting [" + settingName + "] with value [" + sValue + "] as a time value: unit is missing or unrecognized");
                 throw new ElasticsearchParseException("Failed to parse setting [" + settingName + "] with value [" + sValue + "] as a time value: unit is missing or unrecognized");
             }
             return new TimeValue(millis, TimeUnit.MILLISECONDS);

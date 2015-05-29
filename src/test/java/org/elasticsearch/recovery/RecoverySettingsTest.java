@@ -19,6 +19,7 @@
 package org.elasticsearch.recovery;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.junit.Test;
@@ -34,7 +35,7 @@ public class RecoverySettingsTest extends ElasticsearchSingleNodeTest {
 
     @Test
     public void testAllSettingsAreDynamicallyUpdatable() {
-        innerTestSettings(RecoverySettings.INDICES_RECOVERY_FILE_CHUNK_SIZE, randomIntBetween(1, 200), new Validator() {
+        innerTestSettings(RecoverySettings.INDICES_RECOVERY_FILE_CHUNK_SIZE, randomIntBetween(1, 200), ByteSizeUnit.BYTES, new Validator() {
             @Override
             public void validate(RecoverySettings recoverySettings, int expectedValue) {
                 assertEquals(expectedValue, recoverySettings.fileChunkSize().bytesAsInt());
@@ -46,7 +47,7 @@ public class RecoverySettingsTest extends ElasticsearchSingleNodeTest {
                 assertEquals(expectedValue, recoverySettings.translogOps());
             }
         });
-        innerTestSettings(RecoverySettings.INDICES_RECOVERY_TRANSLOG_SIZE, randomIntBetween(1, 200), new Validator() {
+        innerTestSettings(RecoverySettings.INDICES_RECOVERY_TRANSLOG_SIZE, randomIntBetween(1, 200), ByteSizeUnit.BYTES, new Validator() {
             @Override
             public void validate(RecoverySettings recoverySettings, int expectedValue) {
                 assertEquals(expectedValue, recoverySettings.translogSize().bytesAsInt());
@@ -124,6 +125,11 @@ public class RecoverySettingsTest extends ElasticsearchSingleNodeTest {
 
     private void innerTestSettings(String key, int newValue, TimeUnit timeUnit, Validator validator) {
         client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder().put(key, newValue, timeUnit)).get();
+        validator.validate(getInstanceFromNode(RecoverySettings.class), newValue);
+    }
+
+    private void innerTestSettings(String key, int newValue, ByteSizeUnit byteSizeUnit, Validator validator) {
+        client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder().put(key, newValue, byteSizeUnit)).get();
         validator.validate(getInstanceFromNode(RecoverySettings.class), newValue);
     }
 

@@ -31,6 +31,7 @@ import org.elasticsearch.cluster.metadata.RepositoriesMetaData;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.RepositoryVerificationException;
 import org.elasticsearch.snapshots.mockstore.MockRepositoryModule;
@@ -155,7 +156,7 @@ public class RepositoriesTests extends AbstractSnapshotTests {
                 .setType("fs").setSettings(Settings.settingsBuilder()
                                 .put("location", randomRepoPath())
                                 .put("compress", randomBoolean())
-                                .put("chunk_size", randomIntBetween(5, 100))
+                                .put("chunk_size", randomIntBetween(5, 100), ByteSizeUnit.BYTES)
                 )
                 .setTimeout("0s").get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(false));
@@ -165,7 +166,7 @@ public class RepositoriesTests extends AbstractSnapshotTests {
                 .setType("fs").setSettings(Settings.settingsBuilder()
                                 .put("location", randomRepoPath())
                                 .put("compress", randomBoolean())
-                                .put("chunk_size", randomIntBetween(5, 100))
+                                .put("chunk_size", randomIntBetween(5, 100), ByteSizeUnit.BYTES)
                 ).get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
 

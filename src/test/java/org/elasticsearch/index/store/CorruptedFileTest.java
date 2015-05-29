@@ -48,6 +48,7 @@ import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.index.merge.policy.MergePolicyModule;
@@ -489,7 +490,7 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
                 .setType("fs").setSettings(settingsBuilder()
                         .put("location", randomRepoPath().toAbsolutePath())
                         .put("compress", randomBoolean())
-                        .put("chunk_size", randomIntBetween(100, 1000))));
+                        .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
         logger.info("--> snapshot");
         CreateSnapshotResponse createSnapshotResponse = client().admin().cluster().prepareCreateSnapshot("test-repo", "test-snap").setWaitForCompletion(true).setIndices("test").get();
         assertThat(createSnapshotResponse.getSnapshotInfo().state(), equalTo(SnapshotState.PARTIAL));

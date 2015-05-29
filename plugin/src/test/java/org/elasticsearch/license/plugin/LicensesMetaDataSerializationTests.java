@@ -6,10 +6,7 @@
 package org.elasticsearch.license.plugin;
 
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.license.core.License;
 import org.elasticsearch.license.plugin.core.LicensesMetaData;
 import org.elasticsearch.license.plugin.core.TrialLicenseUtils;
@@ -144,7 +141,7 @@ public class LicensesMetaDataSerializationTests extends ElasticsearchTestCase {
     }
 
     private static LicensesMetaData getLicensesMetaDataFromXContent(byte[] bytes) throws Exception {
-        final XContentParser parser = XContentFactory.xContent(bytes).createParser(bytes);
+        final XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(bytes);
         parser.nextToken(); // consume null
         parser.nextToken(); // consume "licensesMetaData"
         LicensesMetaData licensesMetaDataFromXContent = LicensesMetaData.PROTO.fromXContent(parser);

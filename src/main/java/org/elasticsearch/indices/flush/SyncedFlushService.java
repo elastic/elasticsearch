@@ -327,12 +327,29 @@ public class SyncedFlushService extends AbstractComponent {
             }
             assert node.version().onOrAfter(Version.V_1_6_0) : " node with version " + node.version() + " can not have a sync commit ID";
             logger.trace("{} sending synced flush request to {}. sync id [{}].", shardId, shard, syncId);
-            if (state.nodes().localNode().id().equals(node.id())) {
-                SyncedFlushResponse existing = results.put(shard, performSyncedFlush(new SyncedFlushRequest(shard.shardId(), syncId, expectedCommitId)));
-                assert existing == null : "got two answers for node [" + node + "]";
-                // count after the assert so we won't decrement twice in handleException
-                contDownAndSendResponseIfDone(syncId, shards, shardId, totalShards, listener, countDown, results);
+            final ActionListener<SyncedFlushResponse> currentShardListener = new ActionListener<SyncedFlushResponse>() {
+                @Override
+                public void onResponse(SyncedFlushResponse response) {
+                    SyncedFlushResponse existing = results.put(shard, response);
+                    assert existing == null : "got two answers for node [" + node + "]";
+                    // count after the assert so we won't decrement twice in handleException
+                    contDownAndSendResponseIfDone(syncId, shards, shardId, totalShards, listener, countDown, results);
+                }
 
+                @Override
+                public void onFailure(Throwable e) {
+                    logger.trace("{} error while performing synced flush on [{}], skipping", e, shardId, shard);
+                    results.put(shard, new SyncedFlushResponse(e.getMessage()));
+                    contDownAndSendResponseIfDone(syncId, shards, shardId, totalShards, listener, countDown, results);
+                }
+            };
+            if (state.nodes().localNode().id().equals(node.id())) {
+                execute(ThreadPool.Names.FLUSH, new Callable<SyncedFlushResponse>() {
+                    @Override
+                    public SyncedFlushResponse call() throws Exception {
+                        return performSyncedFlush(new SyncedFlushRequest(shard.shardId(), syncId, expectedCommitId));
+                    }
+                }, currentShardListener);
             } else {
                 transportService.sendRequest(node, SYNCED_FLUSH_ACTION_NAME, new SyncedFlushRequest(shard.shardId(), syncId, expectedCommitId),
                         new BaseTransportResponseHandler<SyncedFlushResponse>() {
@@ -343,17 +360,12 @@ public class SyncedFlushService extends AbstractComponent {
 
                             @Override
                             public void handleResponse(SyncedFlushResponse response) {
-                                SyncedFlushResponse existing = results.put(shard, response);
-                                assert existing == null : "got two answers for node [" + node + "]";
-                                // count after the assert so we won't decrement twice in handleException
-                                contDownAndSendResponseIfDone(syncId, shards, shardId, totalShards, listener, countDown, results);
+                                currentShardListener.onResponse(response);
                             }
 
                             @Override
                             public void handleException(TransportException exp) {
-                                logger.trace("{} error while performing synced flush on [{}], skipping", exp, shardId, shard);
-                                results.put(shard, new SyncedFlushResponse(exp.getMessage()));
-                                contDownAndSendResponseIfDone(syncId, shards, shardId, totalShards, listener, countDown, results);
+                                currentShardListener.onFailure(exp);
                             }
 
                             @Override

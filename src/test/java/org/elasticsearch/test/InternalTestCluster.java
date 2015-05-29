@@ -78,7 +78,6 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineClosedException;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardModule;
-import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.IndexStoreModule;
 import org.elasticsearch.index.translog.TranslogConfig;
@@ -975,7 +974,7 @@ public final class InternalTestCluster extends TestCluster {
 
     @Override
     public void beforeIndexDeletion() {
-        // Check that the operations counter on index shard has reached 1.
+        // Check that the operations counter on index shard has reached 0.
         // The assumption here is that after a test there are no ongoing write operations.
         // test that have ongoing write operations after the test (for example because ttl is used
         // and not all docs have been purged after the test) and inherit from
@@ -1018,10 +1017,7 @@ public final class InternalTestCluster extends TestCluster {
             IndicesService indexServices = getInstance(IndicesService.class, nodeAndClient.name);
             for (IndexService indexService : indexServices) {
                 for (IndexShard indexShard : indexService) {
-                    assertThat("index shard counter on shard " + indexShard.shardId() + " on node " + nodeAndClient.name + " not 0 or 1 ", indexShard.getOperationsCount(), anyOf(equalTo(1), equalTo(0)));
-                    if (indexShard.getOperationsCount() == 0) {
-                        assertThat(indexShard.state(), equalTo(IndexShardState.CLOSED));
-                    }
+                    assertThat("index shard counter on shard " + indexShard.shardId() + " on node " + nodeAndClient.name + " not 0", indexShard.getOperationsCount(), equalTo(0));
                 }
             }
         }

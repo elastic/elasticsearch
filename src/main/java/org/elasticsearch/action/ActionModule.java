@@ -103,8 +103,6 @@ import org.elasticsearch.action.admin.indices.settings.put.TransportUpdateSettin
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.admin.indices.stats.TransportIndicesStatsAction;
-import org.elasticsearch.action.admin.indices.seal.SealIndicesAction;
-import org.elasticsearch.action.admin.indices.seal.TransportSealIndicesAction;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.template.delete.TransportDeleteIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesAction;
@@ -260,7 +258,6 @@ public class ActionModule extends AbstractModule {
         registerAction(ValidateQueryAction.INSTANCE, TransportValidateQueryAction.class);
         registerAction(RefreshAction.INSTANCE, TransportRefreshAction.class);
         registerAction(FlushAction.INSTANCE, TransportFlushAction.class);
-        registerAction(SealIndicesAction.INSTANCE, TransportSealIndicesAction.class);
         registerAction(OptimizeAction.INSTANCE, TransportOptimizeAction.class);
         registerAction(UpgradeAction.INSTANCE, TransportUpgradeAction.class);
         registerAction(UpgradeStatusAction.INSTANCE, TransportUpgradeStatusAction.class);

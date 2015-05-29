@@ -21,7 +21,6 @@ package org.elasticsearch.index.shard;
 
 import com.google.common.base.Charsets;
 import com.google.common.base.Preconditions;
-
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.search.Query;
@@ -1397,7 +1396,7 @@ public class IndexShard extends AbstractIndexShardComponent {
     }
 
     public int getOperationsCount() {
-        return indexShardOperationCounter.refCount();
+        return Math.max(0, indexShardOperationCounter.refCount() - 1); // refCount is incremented on creation and decremented on close
     }
 
     /**

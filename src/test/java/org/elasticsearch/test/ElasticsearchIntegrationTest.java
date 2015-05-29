@@ -18,14 +18,15 @@
  */
 package org.elasticsearch.test;
 
-import com.carrotsearch.randomizedtesting.*;
+import com.carrotsearch.randomizedtesting.RandomizedContext;
+import com.carrotsearch.randomizedtesting.RandomizedTest;
+import com.carrotsearch.randomizedtesting.Randomness;
 import com.carrotsearch.randomizedtesting.annotations.TestGroup;
 import com.carrotsearch.randomizedtesting.generators.RandomInts;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.google.common.base.Joiner;
 import com.google.common.base.Predicate;
 import com.google.common.collect.Lists;
-
 import org.apache.commons.lang3.StringUtils;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.lucene.store.StoreRateLimiting;
@@ -49,7 +50,6 @@ import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.optimize.OptimizeResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentResponse;
-import org.elasticsearch.action.admin.indices.seal.SealIndicesResponse;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequestBuilder;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -101,21 +101,18 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldMapper.Loading;
 import org.elasticsearch.index.mapper.internal.SizeFieldMapper;
 import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
-import org.elasticsearch.index.merge.policy.AbstractMergePolicyProvider;
-import org.elasticsearch.index.merge.policy.LogByteSizeMergePolicyProvider;
-import org.elasticsearch.index.merge.policy.LogDocMergePolicyProvider;
-import org.elasticsearch.index.merge.policy.MergePolicyModule;
-import org.elasticsearch.index.merge.policy.MergePolicyProvider;
-import org.elasticsearch.index.merge.policy.TieredMergePolicyProvider;
+import org.elasticsearch.index.merge.policy.*;
 import org.elasticsearch.index.merge.scheduler.ConcurrentMergeSchedulerProvider;
 import org.elasticsearch.index.merge.scheduler.MergeSchedulerModule;
+import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.index.translog.TranslogService;
-import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogWriter;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.cache.query.IndicesQueryCache;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
+import org.elasticsearch.indices.flush.IndicesSyncedFlushResult;
+import org.elasticsearch.indices.flush.SyncedFlushService;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.node.Node;
@@ -128,45 +125,28 @@ import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
 import org.elasticsearch.transport.netty.NettyTransport;
 import org.hamcrest.Matchers;
 import org.joda.time.DateTimeZone;
-import org.junit.After;
-import org.junit.AfterClass;
-import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.Ignore;
+import org.junit.*;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.lang.annotation.ElementType;
-import java.lang.annotation.Inherited;
-import java.lang.annotation.Retention;
-import java.lang.annotation.RetentionPolicy;
-import java.lang.annotation.Target;
+import java.lang.annotation.*;
 import java.net.InetSocketAddress;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
-import java.util.concurrent.Callable;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
+import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.XContentTestUtils.convertToMap;
 import static org.elasticsearch.test.XContentTestUtils.mapsEqualIgnoringArrayOrder;
-import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
-import static org.hamcrest.Matchers.emptyIterable;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notNullValue;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
+import static org.hamcrest.Matchers.*;
 
 /**
  * {@link ElasticsearchIntegrationTest} is an abstract base class to run integration
@@ -244,7 +224,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
 
     /**
      * Annotation for third-party integration tests.
-     * <p>
+     * <p/>
      * These are tests the require a third-party service in order to run. They
      * may require the user to manually configure an external process (such as rabbitmq),
      * or may additionally require some external configuration (e.g. AWS credentials)
@@ -408,56 +388,56 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                 }
                 mappings.startArray("dynamic_templates")
                         .startObject()
-                    .startObject("template-strings")
-                    .field("match_mapping_type", "string")
+                        .startObject("template-strings")
+                        .field("match_mapping_type", "string")
                         .startObject("mapping")
-                    .startObject("fielddata")
-                    .field(FieldDataType.FORMAT_KEY, randomFrom("paged_bytes", "fst"))
-                    .field(Loading.KEY, randomLoadingValues())
+                        .startObject("fielddata")
+                        .field(FieldDataType.FORMAT_KEY, randomFrom("paged_bytes", "fst"))
+                        .field(Loading.KEY, randomLoadingValues())
                         .endObject()
                         .endObject()
                         .endObject()
                         .endObject()
                         .startObject()
-                    .startObject("template-longs")
-                    .field("match_mapping_type", "long")
-                    .startObject("mapping")
-                    .field("doc_values", randomBoolean())
-                    .startObject("fielddata")
-                    .field(Loading.KEY, randomFrom(Loading.LAZY, Loading.EAGER))
+                        .startObject("template-longs")
+                        .field("match_mapping_type", "long")
+                        .startObject("mapping")
+                        .field("doc_values", randomBoolean())
+                        .startObject("fielddata")
+                        .field(Loading.KEY, randomFrom(Loading.LAZY, Loading.EAGER))
                         .endObject()
                         .endObject()
                         .endObject()
                         .endObject()
                         .startObject()
-                    .startObject("template-doubles")
-                    .field("match_mapping_type", "double")
-                    .startObject("mapping")
-                    .field("doc_values", randomBoolean())
-                    .startObject("fielddata")
-                    .field(Loading.KEY, randomFrom(Loading.LAZY, Loading.EAGER))
+                        .startObject("template-doubles")
+                        .field("match_mapping_type", "double")
+                        .startObject("mapping")
+                        .field("doc_values", randomBoolean())
+                        .startObject("fielddata")
+                        .field(Loading.KEY, randomFrom(Loading.LAZY, Loading.EAGER))
                         .endObject()
                         .endObject()
                         .endObject()
                         .endObject()
                         .startObject()
-                    .startObject("template-geo_points")
-                    .field("match_mapping_type", "geo_point")
-                    .startObject("mapping")
-                    .field("doc_values", randomBoolean())
-                    .startObject("fielddata")
-                    .field(Loading.KEY, randomFrom(Loading.LAZY, Loading.EAGER))
+                        .startObject("template-geo_points")
+                        .field("match_mapping_type", "geo_point")
+                        .startObject("mapping")
+                        .field("doc_values", randomBoolean())
+                        .startObject("fielddata")
+                        .field(Loading.KEY, randomFrom(Loading.LAZY, Loading.EAGER))
                         .endObject()
                         .endObject()
                         .endObject()
                         .endObject()
                         .startObject()
-                    .startObject("template-booleans")
-                    .field("match_mapping_type", "boolean")
-                    .startObject("mapping")
-                    .startObject("fielddata")
-                    .field(FieldDataType.FORMAT_KEY, randomFrom("array", "doc_values"))
-                    .field(Loading.KEY, randomFrom(Loading.LAZY, Loading.EAGER))
+                        .startObject("template-booleans")
+                        .field("match_mapping_type", "boolean")
+                        .startObject("mapping")
+                        .startObject("fielddata")
+                        .field(FieldDataType.FORMAT_KEY, randomFrom("array", "doc_values"))
+                        .field(Loading.KEY, randomFrom(Loading.LAZY, Loading.EAGER))
                         .endObject()
                         .endObject()
                         .endObject()
@@ -512,7 +492,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         }
 
         if (random.nextBoolean()) {
-             builder.put(TranslogConfig.INDEX_TRANSLOG_FS_TYPE, RandomPicks.randomFrom(random, TranslogWriter.Type.values()).name());
+            builder.put(TranslogConfig.INDEX_TRANSLOG_FS_TYPE, RandomPicks.randomFrom(random, TranslogWriter.Type.values()).name());
         }
 
         if (random.nextBoolean()) {
@@ -652,9 +632,9 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                     if (currentClusterScope != Scope.TEST) {
                         MetaData metaData = client().admin().cluster().prepareState().execute().actionGet().getState().getMetaData();
                         assertThat("test leaves persistent cluster metadata behind: " + metaData.persistentSettings().getAsMap(), metaData
-                            .persistentSettings().getAsMap().size(), equalTo(0));
+                                .persistentSettings().getAsMap().size(), equalTo(0));
                         assertThat("test leaves transient cluster metadata behind: " + metaData.transientSettings().getAsMap(), metaData
-                            .transientSettings().getAsMap().size(), equalTo(0));
+                                .transientSettings().getAsMap().size(), equalTo(0));
                     }
                     ensureClusterSizeConsistency();
                     ensureClusterStateConsistency();
@@ -870,11 +850,11 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
             public void run() {
                 for (Client client : clients()) {
                     ClusterHealthResponse clusterHealth = client.admin().cluster().prepareHealth().setLocal(true).get();
-                    assertThat("client " + client  + " still has in flight fetch", clusterHealth.getNumberOfInFlightFetch(), equalTo(0));
+                    assertThat("client " + client + " still has in flight fetch", clusterHealth.getNumberOfInFlightFetch(), equalTo(0));
                     PendingClusterTasksResponse pendingTasks = client.admin().cluster().preparePendingClusterTasks().setLocal(true).get();
                     assertThat("client " + client + " still has pending tasks " + pendingTasks.prettyPrint(), pendingTasks, Matchers.emptyIterable());
                     clusterHealth = client.admin().cluster().prepareHealth().setLocal(true).get();
-                    assertThat("client " + client  + " still has in flight fetch", clusterHealth.getNumberOfInFlightFetch(), equalTo(0));
+                    assertThat("client " + client + " still has in flight fetch", clusterHealth.getNumberOfInFlightFetch(), equalTo(0));
                 }
             }
         });
@@ -961,7 +941,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
      * It is useful to ensure that all action on the cluster have finished and all shards that were currently relocating
      * are now allocated and started.
      */
-    public ClusterHealthStatus  ensureGreen(String... indices) {
+    public ClusterHealthStatus ensureGreen(String... indices) {
         return ensureGreen(TimeValue.timeValueSeconds(30), indices);
     }
 
@@ -1248,11 +1228,11 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
 
     /**
      * Syntactic sugar for:
-     *
+     * <p/>
      * <pre>
      *   return client().prepareIndex(index, type, id).setSource(source).execute().actionGet();
      * </pre>
-     *
+     * <p/>
      * where source is a String.
      */
     protected final IndexResponse index(String index, String type, String id, String source) {
@@ -1375,7 +1355,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
      * @param forceRefresh   if <tt>true</tt> all involved indices are refreshed once the documents are indexed.
      * @param dummyDocuments if <tt>true</tt> some empty dummy documents may be randomly inserted into the document list and deleted once
      *                       all documents are indexed. This is useful to produce deleted documents on the server side.
-     * @param maybeFlush if <tt>true</tt> this method may randomly execute full flushes after index operations.
+     * @param maybeFlush     if <tt>true</tt> this method may randomly execute full flushes after index operations.
      * @param builders       the documents to index.
      */
     public void indexRandom(boolean forceRefresh, boolean dummyDocuments, boolean maybeFlush, List<IndexRequestBuilder> builders) throws InterruptedException, ExecutionException {
@@ -1509,8 +1489,8 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                     client().admin().indices().prepareFlush(indices).setIndicesOptions(IndicesOptions.lenientExpandOpen()).execute(
                             new LatchedActionListener<FlushResponse>(newLatch(inFlightAsyncOperations)));
                 } else {
-                    client().admin().indices().prepareSealIndices(indices).execute(
-                            new LatchedActionListener<SealIndicesResponse>(newLatch(inFlightAsyncOperations)));
+                    internalCluster().getInstance(SyncedFlushService.class).attemptSyncedFlush(indices, IndicesOptions.lenientExpandOpen(),
+                            new LatchedActionListener<IndicesSyncedFlushResult>(newLatch(inFlightAsyncOperations)));
                 }
             } else if (rarely()) {
                 client().admin().indices().prepareOptimize(indices).setIndicesOptions(IndicesOptions.lenientExpandOpen()).setMaxNumSegments(between(1, 10)).setFlush(maybeFlush && randomBoolean()).execute(
@@ -1669,7 +1649,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
 
     private int getMinNumDataNodes() {
         ClusterScope annotation = getAnnotation(this.getClass());
-        return annotation == null || annotation.minNumDataNodes() == -1 ? InternalTestCluster.DEFAULT_MIN_NUM_DATA_NODES  : annotation.minNumDataNodes();
+        return annotation == null || annotation.minNumDataNodes() == -1 ? InternalTestCluster.DEFAULT_MIN_NUM_DATA_NODES : annotation.minNumDataNodes();
     }
 
     private int getMaxNumDataNodes() {
@@ -1702,7 +1682,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK, "1b")
                 .put("script.indexed", "on")
                 .put("script.inline", "on")
-                // wait short time for other active shards before actually deleting, default 30s not needed in tests
+                        // wait short time for other active shards before actually deleting, default 30s not needed in tests
                 .put(IndicesStore.INDICES_STORE_DELETE_SHARD_TIMEOUT, new TimeValue(1, TimeUnit.SECONDS))
                 .build();
     }
@@ -1886,7 +1866,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         for (IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
             for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
                 for (ShardRouting shardRouting : indexShardRoutingTable) {
-                    if (shardRouting.currentNodeId() != null &&  index.equals(shardRouting.getIndex())) {
+                    if (shardRouting.currentNodeId() != null && index.equals(shardRouting.getIndex())) {
                         String name = clusterState.nodes().get(shardRouting.currentNodeId()).name();
                         nodes.add(name);
                         assertThat("Allocated on new node: " + name, Regex.simpleMatch(pattern, name), is(true));

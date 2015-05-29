@@ -801,12 +801,11 @@ public final class InternalTestCluster extends TestCluster {
         }
 
         void resetClient() throws IOException {
-            if (closed.get()) {
-                throw new RuntimeException("already closed");
+            if (closed.get() == false) {
+                Releasables.close(nodeClient, transportClient);
+                nodeClient = null;
+                transportClient = null;
             }
-            Releasables.close(nodeClient, transportClient);
-            nodeClient = null;
-            transportClient = null;
         }
 
         void closeNode() {

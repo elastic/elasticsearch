@@ -37,6 +37,7 @@ import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.cache.bitset.ShardBitsetFilterCacheModule;
+import org.elasticsearch.index.cache.filter.ShardFilterCache;
 import org.elasticsearch.index.cache.filter.ShardFilterCacheModule;
 import org.elasticsearch.index.cache.query.ShardQueryCacheModule;
 import org.elasticsearch.index.deletionpolicy.DeletionPolicyModule;
@@ -69,6 +70,7 @@ import org.elasticsearch.index.translog.TranslogService;
 import org.elasticsearch.indices.IndicesLifecycle;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InternalIndicesLifecycle;
+import org.elasticsearch.indices.cache.filter.IndicesFilterCache;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.ShardsPluginsModule;
 
@@ -298,11 +300,11 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
             }
 
             indicesLifecycle.beforeIndexShardCreated(shardId, indexSettings);
-
             logger.debug("creating shard_id {}", shardId);
             // if we are on a shared FS we only own the shard (ie. we can safely delete it) if we are the primary.
             final boolean canDeleteShardContent = IndexMetaData.isOnSharedFilesystem(indexSettings) == false ||
                     (primary && IndexMetaData.isOnSharedFilesystem(indexSettings));
+            final ShardFilterCache shardFilterCache = new ShardFilterCache(shardId, injector.getInstance(IndicesFilterCache.class));
             ModulesBuilder modules = new ModulesBuilder();
             modules.add(new ShardsPluginsModule(indexSettings, pluginsService));
             modules.add(new IndexShardModule(shardId, primary, indexSettings));
@@ -310,11 +312,11 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
             modules.add(new ShardSearchModule());
             modules.add(new ShardGetModule());
             modules.add(new StoreModule(injector.getInstance(IndexStore.class).shardDirectory(), lock,
-                    new StoreCloseListener(shardId, canDeleteShardContent), path));
+                    new StoreCloseListener(shardId, canDeleteShardContent, shardFilterCache), path));
             modules.add(new DeletionPolicyModule(indexSettings));
             modules.add(new MergePolicyModule(indexSettings));
             modules.add(new MergeSchedulerModule(indexSettings));
-            modules.add(new ShardFilterCacheModule());
+            modules.add(new ShardFilterCacheModule(shardFilterCache));
             modules.add(new ShardQueryCacheModule());
             modules.add(new ShardBitsetFilterCacheModule());
             modules.add(new ShardFieldDataModule());
@@ -465,16 +467,27 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
     private class StoreCloseListener implements Store.OnClose {
         private final ShardId shardId;
         private final boolean ownsShard;
+        private final Closeable[] toClose;
 
-        public StoreCloseListener(ShardId shardId, boolean ownsShard) {
+        public StoreCloseListener(ShardId shardId, boolean ownsShard, Closeable... toClose) {
             this.shardId = shardId;
             this.ownsShard = ownsShard;
+            this.toClose = toClose;
         }
 
         @Override
         public void handle(ShardLock lock) {
-            assert lock.getShardId().equals(shardId) : "shard id mismatch, expected: " + shardId + " but got: " + lock.getShardId();
-            onShardClose(lock, ownsShard);
+            try {
+                assert lock.getShardId().equals(shardId) : "shard id mismatch, expected: " + shardId + " but got: " + lock.getShardId();
+                onShardClose(lock, ownsShard);
+            } finally {
+                try {
+                    IOUtils.close(toClose);
+                } catch (IOException ex) {
+                    logger.debug("failed to close resource", ex);
+                }
+            }
+
         }
     }
 

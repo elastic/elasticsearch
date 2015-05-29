@@ -25,8 +25,14 @@ import org.elasticsearch.common.inject.AbstractModule;
  */
 public class ShardFilterCacheModule extends AbstractModule {
 
+    private final ShardFilterCache shardFilterCache;
+
+    public ShardFilterCacheModule(ShardFilterCache shardFilterCache) {
+        this.shardFilterCache = shardFilterCache;
+    }
+
     @Override
     protected void configure() {
-        bind(ShardFilterCache.class).asEagerSingleton();
+        bind(ShardFilterCache.class).toInstance(shardFilterCache);
     }
 }

@@ -28,17 +28,18 @@ import org.elasticsearch.indices.cache.filter.IndicesFilterCache;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 /**
  */
-public class ShardFilterCache extends AbstractIndexShardComponent implements Closeable {
-
+public class ShardFilterCache  implements Closeable {
     final IndicesFilterCache cache;
+    final ShardId shardId;
 
-    @Inject
-    public ShardFilterCache(ShardId shardId, @IndexSettings Settings indexSettings, IndicesFilterCache cache) {
-        super(shardId, indexSettings);
+    public ShardFilterCache(ShardId shardId, IndicesFilterCache cache) {
         this.cache = cache;
+        this.shardId = shardId;
     }
 
     public FilterCacheStats stats() {

@@ -1847,7 +1847,12 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
      * Returns path to a random directory that can be used to create a temporary file system repo
      */
     public Path randomRepoPath() {
-        return randomRepoPath(internalCluster().getDefaultSettings());
+        if (currentCluster instanceof InternalTestCluster) {
+            return randomRepoPath(((InternalTestCluster) currentCluster).getDefaultSettings());
+        } else if (currentCluster instanceof CompositeTestCluster) {
+            return randomRepoPath(((CompositeTestCluster) currentCluster).internalCluster().getDefaultSettings());
+        }
+        throw new UnsupportedOperationException("unsupported cluster type");
     }
 
     /**

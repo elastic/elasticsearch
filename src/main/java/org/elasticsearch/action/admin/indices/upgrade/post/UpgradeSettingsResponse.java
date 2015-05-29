@@ -17,23 +17,35 @@
  * under the License.
  */
 
-package org.elasticsearch.common.lucene.store;
+package org.elasticsearch.action.admin.indices.upgrade.post;
 
-import org.apache.lucene.store.IndexInput;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
 /**
- *
+ * A response for an update index settings action
  */
-public class ThreadSafeInputStreamIndexInput extends InputStreamIndexInput {
+public class UpgradeSettingsResponse extends AcknowledgedResponse {
 
-    public ThreadSafeInputStreamIndexInput(IndexInput indexInput, long limit) {
-        super(indexInput, limit);
+    UpgradeSettingsResponse() {
+    }
+
+    UpgradeSettingsResponse(boolean acknowledged) {
+        super(acknowledged);
     }
 
     @Override
-    public synchronized int read(byte[] b, int off, int len) throws IOException {
-        return super.read(b, off, len);
+    public void readFrom(StreamInput in) throws IOException {
+        super.readFrom(in);
+        readAcknowledged(in);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        writeAcknowledged(out);
     }
 }

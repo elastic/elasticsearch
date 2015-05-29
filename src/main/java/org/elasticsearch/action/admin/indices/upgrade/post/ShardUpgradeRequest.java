@@ -17,48 +17,44 @@
  * under the License.
  */
 
-package org.elasticsearch.common.unit;
+package org.elasticsearch.action.admin.indices.upgrade.post;
 
+
+import org.elasticsearch.action.support.broadcast.BroadcastShardRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
-import java.io.Serializable;
 
 /**
  *
  */
-public class Percent implements Streamable, Serializable {
+final class ShardUpgradeRequest extends BroadcastShardRequest {
 
-    private double value;
+    private UpgradeRequest request = new UpgradeRequest();
 
-    public Percent(double value) {
-        this.value = value;
+    ShardUpgradeRequest() {
     }
 
-    public double value() {
-        return value;
-    }
-
-    @Override
-    public String toString() {
-        return format(value);
-    }
-
-    public static String format(double value) {
-        String p = String.valueOf(value * 100.0);
-        int ix = p.indexOf(".") + 1;
-        return p.substring(0, ix) + p.substring(ix, ix + 1) + "%";
+    ShardUpgradeRequest(ShardId shardId, UpgradeRequest request) {
+        super(shardId, request);
+        this.request = request;
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        value = in.readDouble();
+        super.readFrom(in);
+        request.readFrom(in);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeDouble(value);
+        super.writeTo(out);
+        request.writeTo(out);
+    }
+
+    public UpgradeRequest upgradeRequest() {
+        return this.request;
     }
 }

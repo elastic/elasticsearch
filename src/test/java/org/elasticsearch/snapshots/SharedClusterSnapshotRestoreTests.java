@@ -1907,7 +1907,7 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
                 }
                 assertThat(count, equalTo(expectedCount));
             }
-        });
+        }, 1, TimeUnit.MINUTES);
     }
 
     /**

@@ -19,8 +19,6 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import com.google.common.collect.Maps;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.TimestampParsingException;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.common.Nullable;
@@ -40,10 +38,8 @@ import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.Map;
 
-import static com.google.common.collect.Maps.newHashMap;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
 
 /**
@@ -571,10 +567,7 @@ public class MappingMetaData extends AbstractDiffable<MappingMetaData> {
         out.writeOptionalString(timestamp().path());
         out.writeString(timestamp().format());
         out.writeOptionalString(timestamp().defaultTimestamp());
-        // TODO Remove the test in elasticsearch 2.0.0
-        if (out.getVersion().onOrAfter(Version.V_1_5_0)) {
-            out.writeOptionalBoolean(timestamp().ignoreMissing());
-        }
+        out.writeOptionalBoolean(timestamp().ignoreMissing());
         out.writeBoolean(hasParentField());
     }
 
@@ -619,10 +612,7 @@ public class MappingMetaData extends AbstractDiffable<MappingMetaData> {
         String defaultTimestamp = in.readOptionalString();
         Boolean ignoreMissing = null;
 
-        // TODO Remove the test in elasticsearch 2.0.0
-        if (in.getVersion().onOrAfter(Version.V_1_5_0)) {
-            ignoreMissing = in.readOptionalBoolean();
-        }
+        ignoreMissing = in.readOptionalBoolean();
 
         final Timestamp timestamp = new Timestamp(enabled, path, format, defaultTimestamp, ignoreMissing);
         final boolean hasParentField = in.readBoolean();

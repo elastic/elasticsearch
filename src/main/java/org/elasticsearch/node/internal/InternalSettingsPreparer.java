@@ -19,6 +19,7 @@
 
 package org.elasticsearch.node.internal;
 
+import com.google.common.collect.ImmutableList;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.Names;
 import org.elasticsearch.common.Strings;
@@ -27,6 +28,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.FailedToResolveConfigException;
 
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.Strings.cleanPath;
@@ -36,6 +38,8 @@ import static org.elasticsearch.common.settings.Settings.settingsBuilder;
  *
  */
 public class InternalSettingsPreparer {
+
+    static final List<String> ALLOWED_SUFFIXES = ImmutableList.of(".yml", ".yaml", ".json", ".properties");
 
     public static Tuple<Settings, Environment> prepareSettings(Settings pSettings, boolean loadConfigSettings) {
         // ignore this prefixes when getting properties from es. and elasticsearch.
@@ -72,22 +76,12 @@ public class InternalSettingsPreparer {
                 }
             }
             if (loadFromEnv) {
-                try {
-                    settingsBuilder.loadFromUrl(environment.resolveConfig("elasticsearch.yml"));
-                } catch (FailedToResolveConfigException e) {
-                    // ignore
-                } catch (NoClassDefFoundError e) {
-                    // ignore, no yaml
-                }
-                try {
-                    settingsBuilder.loadFromUrl(environment.resolveConfig("elasticsearch.json"));
-                } catch (FailedToResolveConfigException e) {
-                    // ignore
-                }
-                try {
-                    settingsBuilder.loadFromUrl(environment.resolveConfig("elasticsearch.properties"));
-                } catch (FailedToResolveConfigException e) {
-                    // ignore
+                for (String allowedSuffix : ALLOWED_SUFFIXES) {
+                    try {
+                        settingsBuilder.loadFromUrl(environment.resolveConfig("elasticsearch" + allowedSuffix));
+                    } catch (FailedToResolveConfigException e) {
+                        // ignore
+                    }
                 }
             }
         }

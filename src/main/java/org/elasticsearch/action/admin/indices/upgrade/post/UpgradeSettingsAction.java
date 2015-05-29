@@ -17,47 +17,29 @@
  * under the License.
  */
 
-package org.elasticsearch.common.collect;
+package org.elasticsearch.action.admin.indices.upgrade.post;
 
-import java.util.Collection;
-import java.util.Comparator;
-import java.util.TreeSet;
+import org.elasticsearch.action.Action;
+import org.elasticsearch.client.ElasticsearchClient;
 
 /**
- * A {@link TreeSet} that is bounded by size.
- *
- *
  */
-public class BoundedTreeSet<E> extends TreeSet<E> {
+public class UpgradeSettingsAction extends Action<UpgradeSettingsRequest, UpgradeSettingsResponse, UpgradeSettingsRequestBuilder> {
 
-    private final int size;
+    public static final UpgradeSettingsAction INSTANCE = new UpgradeSettingsAction();
+    public static final String NAME = "internal:indices/admin/upgrade";
 
-    public BoundedTreeSet(int size) {
-        this.size = size;
-    }
-
-    public BoundedTreeSet(Comparator<? super E> comparator, int size) {
-        super(comparator);
-        this.size = size;
+    private UpgradeSettingsAction() {
+        super(NAME);
     }
 
     @Override
-    public boolean add(E e) {
-        boolean result = super.add(e);
-        rebound();
-        return result;
+    public UpgradeSettingsResponse newResponse() {
+        return new UpgradeSettingsResponse();
     }
 
     @Override
-    public boolean addAll(Collection<? extends E> c) {
-        boolean result = super.addAll(c);
-        rebound();
-        return result;
-    }
-
-    private void rebound() {
-        while (size() > size) {
-            remove(last());
-        }
+    public UpgradeSettingsRequestBuilder newRequestBuilder(ElasticsearchClient client) {
+        return new UpgradeSettingsRequestBuilder(client, this);
     }
 }

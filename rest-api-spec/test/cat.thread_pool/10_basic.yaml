@@ -29,18 +29,6 @@
                /  #pid       id          host       ip                          port
                ^  (\d+  \s+  \S{4}  \s+  \S+   \s+  (\d{1,3}\.){3}\d{1,3}  \s+  (\d+|-) \s+ \n)+  $/
 
-
-  - do:
-      cat.thread_pool:
-          h: bulk.m*
-
-  - match:
-      $body: |
-               /^ bulk.min  \s+  bulk.max \s+ \n
-                 (\s+  \d+  \s+  \d+  \s+ \n)+  $/
-
-#(\s+  \d+  \s+  \d+ \n)+  $/
-
   - do:
       cat.thread_pool:
           h: id,ba,fa,gea,ga,ia,maa,ma,oa,pa

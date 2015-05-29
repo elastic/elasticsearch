@@ -478,23 +478,11 @@ public abstract class AbstractFieldMapper implements FieldMapper {
 
     @Override
     public Query termsQuery(List values, @Nullable QueryParseContext context) {
-        switch (values.size()) {
-        case 0:
-            return Queries.newMatchNoDocsQuery();
-        case 1:
-            // When there is a single term, it's important to return a term filter so that
-            // it can return a DocIdSet that is directly backed by a postings list, instead
-            // of loading everything into a bit set and returning an iterator based on the
-            // bit set
-            return termQuery(values.get(0), context);
-        default:
-            BytesRef[] bytesRefs = new BytesRef[values.size()];
-            for (int i = 0; i < bytesRefs.length; i++) {
-                bytesRefs[i] = indexedValueForSearch(values.get(i));
-            }
-            return new TermsQuery(names.indexName(), bytesRefs);
-            
+        BytesRef[] bytesRefs = new BytesRef[values.size()];
+        for (int i = 0; i < bytesRefs.length; i++) {
+            bytesRefs[i] = indexedValueForSearch(values.get(i));
         }
+        return new TermsQuery(names.indexName(), bytesRefs);
     }
 
     @Override

@@ -20,7 +20,6 @@
 package org.elasticsearch.discovery.zen.fd;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -428,19 +427,11 @@ public class MasterFaultDetection extends FaultDetection {
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            if (in.getVersion().onOrBefore(Version.V_1_4_0_Beta1)) {
-                // old listedOnMaster
-                in.readBoolean();
-            }
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            if (out.getVersion().onOrBefore(Version.V_1_4_0_Beta1)) {
-                // old listedOnMaster
-                out.writeBoolean(true);
-            }
         }
     }
 }

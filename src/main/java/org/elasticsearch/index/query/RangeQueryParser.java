@@ -128,7 +128,7 @@ public class RangeQueryParser implements QueryParser {
                             "[range] time_zone when using ms since epoch format as it's UTC based can not be applied to [" + fieldName
                                     + "]");
                 }
-                query = ((DateFieldMapper) mapper).rangeQuery(from, to, includeLower, includeUpper, timeZone, forcedDateParser, parseContext);
+                query = ((DateFieldMapper) mapper).fieldType().rangeQuery(from, to, includeLower, includeUpper, timeZone, forcedDateParser, parseContext);
             } else  {
                 if (timeZone != null) {
                     throw new QueryParsingException(parseContext, "[range] time_zone can not be applied to non date field ["

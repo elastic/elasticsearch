@@ -53,7 +53,7 @@ class FieldMappersLookup implements Iterable<FieldMapper> {
         CopyOnWriteHashMap<String, FieldMappers> map = this.mappers;
 
         for (FieldMapper mapper : newMappers) {
-            String key = mapper.names().fullName();
+            String key = mapper.fieldType().names().fullName();
             FieldMappers mappers = map.get(key);
 
             if (mappers == null) {
@@ -76,13 +76,13 @@ class FieldMappersLookup implements Iterable<FieldMapper> {
     public FieldMappers indexName(String indexName) {
         FieldMappers fieldMappers = fullName(indexName);
         if (fieldMappers != null) {
-            if (fieldMappers.mapper().names().indexName().equals(indexName)) {
+            if (fieldMappers.mapper().fieldType().names().indexName().equals(indexName)) {
                 return fieldMappers;
             }
         }
         fieldMappers = new FieldMappers();
         for (FieldMapper mapper : this) {
-            if (mapper.names().indexName().equals(indexName)) {
+            if (mapper.fieldType().names().indexName().equals(indexName)) {
                 fieldMappers = fieldMappers.concat(mapper);
             }
         }
@@ -117,10 +117,10 @@ class FieldMappersLookup implements Iterable<FieldMapper> {
     public Collection<String> simpleMatchToIndexNames(String pattern) {
         Set<String> fields = Sets.newHashSet();
         for (FieldMapper fieldMapper : this) {
-            if (Regex.simpleMatch(pattern, fieldMapper.names().fullName())) {
-                fields.add(fieldMapper.names().indexName());
-            } else if (Regex.simpleMatch(pattern, fieldMapper.names().indexName())) {
-                fields.add(fieldMapper.names().indexName());
+            if (Regex.simpleMatch(pattern, fieldMapper.fieldType().names().fullName())) {
+                fields.add(fieldMapper.fieldType().names().indexName());
+            } else if (Regex.simpleMatch(pattern, fieldMapper.fieldType().names().indexName())) {
+                fields.add(fieldMapper.fieldType().names().indexName());
             }
         }
         return fields;
@@ -132,10 +132,10 @@ class FieldMappersLookup implements Iterable<FieldMapper> {
     public Collection<String> simpleMatchToFullName(String pattern) {
         Set<String> fields = Sets.newHashSet();
         for (FieldMapper fieldMapper : this) {
-            if (Regex.simpleMatch(pattern, fieldMapper.names().fullName())) {
-                fields.add(fieldMapper.names().fullName());
-            } else if (Regex.simpleMatch(pattern, fieldMapper.names().indexName())) {
-                fields.add(fieldMapper.names().fullName());
+            if (Regex.simpleMatch(pattern, fieldMapper.fieldType().names().fullName())) {
+                fields.add(fieldMapper.fieldType().names().fullName());
+            } else if (Regex.simpleMatch(pattern, fieldMapper.fieldType().names().indexName())) {
+                fields.add(fieldMapper.fieldType().names().fullName());
             }
         }
         return fields;

@@ -72,7 +72,7 @@ public class ValueFormat {
         }
 
         public static DateTime mapper(DateFieldMapper mapper) {
-            return new DateTime(mapper.dateTimeFormatter().format(), ValueFormatter.DateTime.mapper(mapper), ValueParser.DateMath.mapper(mapper));
+            return new DateTime(mapper.fieldType().dateTimeFormatter().format(), ValueFormatter.DateTime.mapper(mapper), ValueParser.DateMath.mapper(mapper));
         }
 
         public DateTime(String pattern, ValueFormatter formatter, ValueParser parser) {

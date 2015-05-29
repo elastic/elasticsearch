@@ -92,7 +92,7 @@ public class FieldMaskingSpanQueryParser implements QueryParser {
 
         FieldMapper mapper = parseContext.fieldMapper(field);
         if (mapper != null) {
-            field = mapper.names().indexName();
+            field = mapper.fieldType().names().indexName();
         }
 
         FieldMaskingSpanQuery query = new FieldMaskingSpanQuery(inner, field);

@@ -69,7 +69,7 @@ public class FieldNamesFieldMapperTests extends ElasticsearchSingleNodeTest {
 
         DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
         FieldNamesFieldMapper fieldNamesMapper = docMapper.rootMapper(FieldNamesFieldMapper.class);
-        assertFalse(fieldNamesMapper.hasDocValues());
+        assertFalse(fieldNamesMapper.fieldType().hasDocValues());
         assertEquals(IndexOptions.DOCS, fieldNamesMapper.fieldType().indexOptions());
         assertFalse(fieldNamesMapper.fieldType().tokenized());
         assertFalse(fieldNamesMapper.fieldType().stored());

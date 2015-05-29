@@ -25,7 +25,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.*;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.FieldMapper.Names;
+import org.elasticsearch.index.mapper.MappedFieldType.Names;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.search.MultiValueMode;
@@ -42,7 +42,7 @@ public final class DisabledIndexFieldData extends AbstractIndexFieldData<AtomicF
         public IndexFieldData<AtomicFieldData> build(Index index, @IndexSettings Settings indexSettings, FieldMapper mapper,
                                                         IndexFieldDataCache cache, CircuitBreakerService breakerService, MapperService mapperService) {
             // Ignore Circuit Breaker
-            return new DisabledIndexFieldData(index, indexSettings, mapper.names(), mapper.fieldDataType(), cache);
+            return new DisabledIndexFieldData(index, indexSettings, mapper.fieldType().names(), mapper.fieldType().fieldDataType(), cache);
         }
     }
 

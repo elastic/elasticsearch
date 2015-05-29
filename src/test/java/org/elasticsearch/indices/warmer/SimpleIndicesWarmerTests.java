@@ -36,7 +36,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.engine.Segment;
-import org.elasticsearch.index.mapper.FieldMapper.Loading;
+import org.elasticsearch.index.mapper.MappedFieldType.Loading;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.cache.query.IndicesQueryCache;
 import org.elasticsearch.search.SearchService;

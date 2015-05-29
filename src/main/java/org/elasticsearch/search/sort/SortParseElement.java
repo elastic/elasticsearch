@@ -268,7 +268,7 @@ public class SortParseElement implements SearchParseElement {
 
             IndexFieldData.XFieldComparatorSource fieldComparatorSource = context.fieldData().getForField(fieldMapper)
                     .comparatorSource(missing, sortMode, nested);
-            sortFields.add(new SortField(fieldMapper.names().indexName(), fieldComparatorSource, reverse));
+            sortFields.add(new SortField(fieldMapper.fieldType().names().indexName(), fieldComparatorSource, reverse));
         }
     }
 

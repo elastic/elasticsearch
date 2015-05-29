@@ -38,7 +38,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
-import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
@@ -113,8 +113,8 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
                 assertThat(docMapper.timestampFieldMapper().fieldType().stored(), equalTo(version.onOrAfter(Version.V_2_0_0) ? true : false));
                 assertThat(docMapper.timestampFieldMapper().fieldType().indexOptions(), equalTo(TimestampFieldMapper.Defaults.FIELD_TYPE.indexOptions()));
                 assertThat(docMapper.timestampFieldMapper().path(), equalTo(TimestampFieldMapper.Defaults.PATH));
-                assertThat(docMapper.timestampFieldMapper().dateTimeFormatter().format(), equalTo(TimestampFieldMapper.DEFAULT_DATE_TIME_FORMAT));
-                assertThat(docMapper.timestampFieldMapper().hasDocValues(), equalTo(false));
+                assertThat(docMapper.timestampFieldMapper().fieldType().dateTimeFormatter().format(), equalTo(TimestampFieldMapper.DEFAULT_DATE_TIME_FORMAT));
+                assertThat(docMapper.timestampFieldMapper().fieldType().hasDocValues(), equalTo(false));
                 assertAcked(client().admin().indices().prepareDelete("test").execute().get());
             }
         }
@@ -135,8 +135,8 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
         assertThat(docMapper.timestampFieldMapper().fieldType().stored(), equalTo(false));
         assertEquals(IndexOptions.NONE, docMapper.timestampFieldMapper().fieldType().indexOptions());
         assertThat(docMapper.timestampFieldMapper().path(), equalTo("timestamp"));
-        assertThat(docMapper.timestampFieldMapper().dateTimeFormatter().format(), equalTo("year"));
-        assertThat(docMapper.timestampFieldMapper().hasDocValues(), equalTo(true));
+        assertThat(docMapper.timestampFieldMapper().fieldType().dateTimeFormatter().format(), equalTo("year"));
+        assertThat(docMapper.timestampFieldMapper().fieldType().hasDocValues(), equalTo(true));
     }
 
     @Test
@@ -507,16 +507,16 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
         DocumentMapperParser parser = createIndex("test", indexSettings).mapperService().documentMapperParser();
 
         DocumentMapper docMapper = parser.parse(mapping);
-        assertThat(docMapper.timestampFieldMapper().fieldDataType().getLoading(), equalTo(FieldMapper.Loading.LAZY));
-        assertThat(docMapper.timestampFieldMapper().fieldDataType().getFormat(indexSettings), equalTo("doc_values"));
+        assertThat(docMapper.timestampFieldMapper().fieldType().fieldDataType().getLoading(), equalTo(MappedFieldType.Loading.LAZY));
+        assertThat(docMapper.timestampFieldMapper().fieldType().fieldDataType().getFormat(indexSettings), equalTo("doc_values"));
         mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_timestamp").field("enabled", randomBoolean()).startObject("fielddata").field("loading", "eager").field("format", "array").endObject().field("store", "yes").endObject()
                 .endObject().endObject().string();
 
         MergeResult mergeResult = docMapper.merge(parser.parse(mapping).mapping(), false);
         assertThat(mergeResult.buildConflicts().length, equalTo(0));
-        assertThat(docMapper.timestampFieldMapper().fieldDataType().getLoading(), equalTo(FieldMapper.Loading.EAGER));
-        assertThat(docMapper.timestampFieldMapper().fieldDataType().getFormat(indexSettings), equalTo("array"));
+        assertThat(docMapper.timestampFieldMapper().fieldType().fieldDataType().getLoading(), equalTo(MappedFieldType.Loading.EAGER));
+        assertThat(docMapper.timestampFieldMapper().fieldType().fieldDataType().getFormat(indexSettings), equalTo("array"));
     }
 
     @Test
@@ -574,7 +574,7 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
         DocumentMapperParser parser = createIndex("test", indexSettings).mapperService().documentMapperParser();
 
         DocumentMapper docMapper = parser.parse(mapping);
-        assertThat(docMapper.timestampFieldMapper().fieldDataType().getLoading(), equalTo(FieldMapper.Loading.LAZY));
+        assertThat(docMapper.timestampFieldMapper().fieldType().fieldDataType().getLoading(), equalTo(MappedFieldType.Loading.LAZY));
         mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_timestamp").field("enabled", false)
                 .startObject("fielddata").field("format", "array").endObject()
@@ -597,9 +597,9 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
             assertTrue("found unexpected conflict [" + conflict + "]", expectedConflicts.remove(conflict));
         }
         assertTrue("missing conflicts: " + Arrays.toString(expectedConflicts.toArray()), expectedConflicts.isEmpty());
-        assertThat(docMapper.timestampFieldMapper().fieldDataType().getLoading(), equalTo(FieldMapper.Loading.LAZY));
+        assertThat(docMapper.timestampFieldMapper().fieldType().fieldDataType().getLoading(), equalTo(MappedFieldType.Loading.LAZY));
         assertTrue(docMapper.timestampFieldMapper().enabled());
-        assertThat(docMapper.timestampFieldMapper().fieldDataType().getFormat(indexSettings), equalTo("doc_values"));
+        assertThat(docMapper.timestampFieldMapper().fieldType().fieldDataType().getFormat(indexSettings), equalTo("doc_values"));
     }
 
     @Test
@@ -739,9 +739,9 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
     void assertDocValuesSerialization(String mapping) throws Exception {
         DocumentMapperParser parser = createIndex("test_doc_values").mapperService().documentMapperParser();
         DocumentMapper docMapper = parser.parse(mapping);
-        boolean docValues= docMapper.timestampFieldMapper().hasDocValues();
+        boolean docValues = docMapper.timestampFieldMapper().fieldType().hasDocValues();
         docMapper = parser.parse(docMapper.mappingSource().string());
-        assertThat(docMapper.timestampFieldMapper().hasDocValues(), equalTo(docValues));
+        assertThat(docMapper.timestampFieldMapper().fieldType().hasDocValues(), equalTo(docValues));
         assertAcked(client().admin().indices().prepareDelete("test_doc_values"));
     }
 

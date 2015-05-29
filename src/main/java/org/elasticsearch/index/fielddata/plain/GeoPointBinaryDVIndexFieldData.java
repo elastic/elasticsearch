@@ -27,7 +27,8 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.*;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.FieldMapper.Names;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedFieldType.Names;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.MultiValueMode;
@@ -65,8 +66,8 @@ public class GeoPointBinaryDVIndexFieldData extends DocValuesIndexFieldData impl
         public IndexFieldData<?> build(Index index, Settings indexSettings, FieldMapper mapper, IndexFieldDataCache cache,
                                        CircuitBreakerService breakerService, MapperService mapperService) {
             // Ignore breaker
-            final FieldMapper.Names fieldNames = mapper.names();
-            return new GeoPointBinaryDVIndexFieldData(index, fieldNames, mapper.fieldDataType());
+            final Names fieldNames = mapper.fieldType().names();
+            return new GeoPointBinaryDVIndexFieldData(index, fieldNames, mapper.fieldType().fieldDataType());
         }
 
     }

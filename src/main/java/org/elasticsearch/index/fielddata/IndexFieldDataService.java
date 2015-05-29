@@ -32,6 +32,7 @@ import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.plain.*;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.core.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.internal.IndexFieldMapper;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
@@ -45,6 +46,8 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
+
+import static org.elasticsearch.index.mapper.MappedFieldType.Names;
 
 /**
  */
@@ -226,12 +229,12 @@ public class IndexFieldDataService extends AbstractIndexComponent {
 
     @SuppressWarnings("unchecked")
     public <IFD extends IndexFieldData<?>> IFD getForField(FieldMapper mapper) {
-        final FieldMapper.Names fieldNames = mapper.names();
-        final FieldDataType type = mapper.fieldDataType();
+        final Names fieldNames = mapper.fieldType().names();
+        final FieldDataType type = mapper.fieldType().fieldDataType();
         if (type == null) {
             throw new IllegalArgumentException("found no fielddata type for field [" + fieldNames.fullName() + "]");
         }
-        final boolean docValues = mapper.hasDocValues();
+        final boolean docValues = mapper.fieldType().hasDocValues();
         final String key = fieldNames.indexName();
         IndexFieldData<?> fieldData = loadedFieldData.get(key);
         if (fieldData == null) {

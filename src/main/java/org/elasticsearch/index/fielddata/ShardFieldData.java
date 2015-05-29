@@ -26,7 +26,7 @@ import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
@@ -62,7 +62,7 @@ public class ShardFieldData extends AbstractIndexShardComponent implements Index
     }
 
     @Override
-    public void onLoad(FieldMapper.Names fieldNames, FieldDataType fieldDataType, Accountable ramUsage) {
+    public void onLoad(MappedFieldType.Names fieldNames, FieldDataType fieldDataType, Accountable ramUsage) {
         totalMetric.inc(ramUsage.ramBytesUsed());
         String keyFieldName = fieldNames.indexName();
         CounterMetric total = perFieldTotals.get(keyFieldName);
@@ -79,7 +79,7 @@ public class ShardFieldData extends AbstractIndexShardComponent implements Index
     }
 
     @Override
-    public void onUnload(FieldMapper.Names fieldNames, FieldDataType fieldDataType, boolean wasEvicted, long sizeInBytes) {
+    public void onUnload(MappedFieldType.Names fieldNames, FieldDataType fieldDataType, boolean wasEvicted, long sizeInBytes) {
         if (wasEvicted) {
             evictionsMetric.inc();
         }

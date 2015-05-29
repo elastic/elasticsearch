@@ -54,6 +54,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
 
+import static org.elasticsearch.index.mapper.core.StringFieldMapper.Builder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -371,9 +372,9 @@ public class SimpleStringMappingTests extends ElasticsearchSingleNodeTest {
         DocumentMapperParser parser = indexService.mapperService().documentMapperParser();
         final BuilderContext ctx = new BuilderContext(indexService.settingsService().getSettings(), new ContentPath(1));
 
-        assertFalse(new StringFieldMapper.Builder("anything").index(false).build(ctx).hasDocValues());
-        assertTrue(new StringFieldMapper.Builder("anything").index(false).fieldDataSettings(DOC_VALUES_SETTINGS).build(ctx).hasDocValues());
-        assertTrue(new StringFieldMapper.Builder("anything").index(false).docValues(true).build(ctx).hasDocValues());
+        assertFalse(new Builder("anything").index(false).build(ctx).fieldType().hasDocValues());
+        assertTrue(new Builder("anything").index(false).fieldDataSettings(DOC_VALUES_SETTINGS).build(ctx).fieldType().hasDocValues());
+        assertTrue(new Builder("anything").index(false).docValues(true).build(ctx).fieldType().hasDocValues());
 
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("properties")
@@ -414,11 +415,11 @@ public class SimpleStringMappingTests extends ElasticsearchSingleNodeTest {
             fail();
         } catch (Exception e) { /* OK */ }
 
-        assertFalse(new StringFieldMapper.Builder("anything").index(false).build(ctx).hasDocValues());
-        assertTrue(new StringFieldMapper.Builder("anything").index(true).tokenized(false).build(ctx).hasDocValues());
-        assertFalse(new StringFieldMapper.Builder("anything").index(true).tokenized(true).build(ctx).hasDocValues());
-        assertFalse(new StringFieldMapper.Builder("anything").index(false).tokenized(false).docValues(false).build(ctx).hasDocValues());
-        assertTrue(new StringFieldMapper.Builder("anything").index(false).docValues(true).build(ctx).hasDocValues());
+        assertFalse(new Builder("anything").index(false).build(ctx).fieldType().hasDocValues());
+        assertTrue(new Builder("anything").index(true).tokenized(false).build(ctx).fieldType().hasDocValues());
+        assertFalse(new Builder("anything").index(true).tokenized(true).build(ctx).fieldType().hasDocValues());
+        assertFalse(new Builder("anything").index(false).tokenized(false).docValues(false).build(ctx).fieldType().hasDocValues());
+        assertTrue(new Builder("anything").index(false).docValues(true).build(ctx).fieldType().hasDocValues());
 
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties")

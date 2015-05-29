@@ -60,8 +60,8 @@ class SingleDocumentPercolatorIndex implements PercolatorIndex {
                 if (tokenStream != null) {
                     memoryIndex.addField(field.name(), tokenStream, field.boost());
                 }
-            } catch (IOException e) {
-                throw new ElasticsearchException("Failed to create token stream", e);
+            } catch (Exception e) {
+                throw new ElasticsearchException("Failed to create token stream for [" + field.name() + "]", e);
             }
         }
         context.initialize(new DocEngineSearcher(memoryIndex), parsedDocument);

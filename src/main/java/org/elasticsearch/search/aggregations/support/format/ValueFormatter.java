@@ -105,7 +105,7 @@ public interface ValueFormatter extends Streamable {
         private DateTimeZone timeZone = DateTimeZone.UTC;
 
         public static DateTime mapper(DateFieldMapper mapper) {
-            return new DateTime(mapper.dateTimeFormatter());
+            return new DateTime(mapper.fieldType().dateTimeFormatter());
         }
 
         static final byte ID = 2;

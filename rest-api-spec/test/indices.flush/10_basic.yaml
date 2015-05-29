@@ -10,7 +10,7 @@
        cluster.health:
           wait_for_status: green
     - do:
-       indices.flush.synced:
+       indices.flush_synced:
           index: testing
 
     - is_false: _shards.failed

@@ -84,9 +84,6 @@ import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRespons
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequestBuilder;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
-import org.elasticsearch.action.admin.indices.seal.SealIndicesRequest;
-import org.elasticsearch.action.admin.indices.seal.SealIndicesRequestBuilder;
-import org.elasticsearch.action.admin.indices.seal.SealIndicesResponse;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateRequestBuilder;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateResponse;
@@ -122,7 +119,6 @@ import org.elasticsearch.common.Nullable;
  * @see AdminClient#indices()
  */
 public interface IndicesAdminClient extends ElasticsearchClient {
-
 
     /**
      * Indices Exists.
@@ -367,27 +363,6 @@ public interface IndicesAdminClient extends ElasticsearchClient {
      * Explicitly flush one or more indices (releasing memory from the node).
      */
     FlushRequestBuilder prepareFlush(String... indices);
-
-    /**
-     * Explicitly sync flush one or more indices
-     *
-     * @param request The seal indices request
-     * @return A result future
-     */
-    ActionFuture<SealIndicesResponse> sealIndices(SealIndicesRequest request);
-
-    /**
-     * Explicitly sync flush one or more indices
-     *
-     * @param request  The seal indices request
-     * @param listener A listener to be notified with a result
-     */
-    void sealIndices(SealIndicesRequest request, ActionListener<SealIndicesResponse> listener);
-
-    /**
-     * Explicitly seal one or more indices
-     */
-    SealIndicesRequestBuilder prepareSealIndices(String... indices);
 
     /**
      * Explicitly optimize one or more indices into a the number of segments.

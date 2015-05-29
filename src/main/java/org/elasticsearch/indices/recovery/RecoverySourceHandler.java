@@ -21,7 +21,6 @@ package org.elasticsearch.indices.recovery;
 
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
-
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
@@ -199,6 +198,8 @@ public class RecoverySourceHandler {
                 }
                 // we shortcut recovery here because we have nothing to copy. but we must still start the engine on the target.
                 // so we don't return here
+                logger.trace("[{}][{}] skipping [phase1] to {} - identical sync id [{}] found on both source and target", indexName, shardId,
+                        request.targetNode(), recoverySourceSyncId);
             } else {
                 final Store.RecoveryDiff diff = recoverySourceMetadata.recoveryDiff(request.metadataSnapshot());
                 for (StoreFileMetaData md : diff.identical) {

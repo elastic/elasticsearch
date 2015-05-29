@@ -87,7 +87,6 @@ public class MetaDataCreateIndexService extends AbstractComponent {
     public final static int MAX_INDEX_NAME_BYTES = 255;
     private static final DefaultIndexTemplateFilter DEFAULT_INDEX_TEMPLATE_FILTER = new DefaultIndexTemplateFilter();
 
-    private final Environment environment;
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
     private final IndicesService indicesService;
@@ -100,12 +99,11 @@ public class MetaDataCreateIndexService extends AbstractComponent {
     private final NodeEnvironment nodeEnv;
 
     @Inject
-    public MetaDataCreateIndexService(Settings settings, Environment environment, ThreadPool threadPool, ClusterService clusterService,
+    public MetaDataCreateIndexService(Settings settings, ThreadPool threadPool, ClusterService clusterService,
                                       IndicesService indicesService, AllocationService allocationService, MetaDataService metaDataService,
                                       Version version, @RiverIndexName String riverIndexName, AliasValidator aliasValidator,
                                       Set<IndexTemplateFilter> indexTemplateFilters, NodeEnvironment nodeEnv) {
         super(settings);
-        this.environment = environment;
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.indicesService = indicesService;

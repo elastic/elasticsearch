@@ -1478,8 +1478,27 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                     client().admin().indices().prepareFlush(indices).setIndicesOptions(IndicesOptions.lenientExpandOpen()).execute(
                             new LatchedActionListener<FlushResponse>(newLatch(inFlightAsyncOperations)));
                 } else {
-                    internalCluster().getInstance(SyncedFlushService.class).attemptSyncedFlush(indices, IndicesOptions.lenientExpandOpen(),
-                            new LatchedActionListener<IndicesSyncedFlushResult>(newLatch(inFlightAsyncOperations)));
+                    InternalTestCluster internalTestCluster = null;
+                    // get an instance of InternalTestCluster if possible
+                    if (!isInternalCluster()) {
+                        // see if it is a composite cluster and get the internal cluster from it
+                        // for a backwards compat test this would contain the nodes with the current version
+                        if (cluster() instanceof CompositeTestCluster) {
+                            CompositeTestCluster compositeTestCluster = (CompositeTestCluster) cluster();
+                            // we should not try a synced flush if we do not have at least one node with current version in it
+                            // because old versions might not have an instance of SyncedFlushService (added in 1.6)
+                            if (compositeTestCluster.numNewDataNodes() > 0) {
+                                internalTestCluster = compositeTestCluster.internalCluster();
+                            }
+                        }
+                    } else {
+                        internalTestCluster = internalCluster();
+                    }
+                    if (internalTestCluster != null) {
+                        // try a synced flush on the index
+                        internalTestCluster.getInstance(SyncedFlushService.class).attemptSyncedFlush(indices, IndicesOptions.lenientExpandOpen(),
+                                new LatchedActionListener<IndicesSyncedFlushResult>(newLatch(inFlightAsyncOperations)));
+                    }
                 }
             } else if (rarely()) {
                 client().admin().indices().prepareOptimize(indices).setIndicesOptions(IndicesOptions.lenientExpandOpen()).setMaxNumSegments(between(1, 10)).setFlush(maybeFlush && randomBoolean()).execute(

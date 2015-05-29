@@ -30,7 +30,7 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.MalformedURLException;
 import java.net.URL;
-import java.nio.file.FileSystem;
+import java.nio.file.Path;
 
 import static org.elasticsearch.common.Strings.cleanPath;
 import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
@@ -249,19 +249,10 @@ public class Environment {
      */
     public static File resolve(File[] roots, String path) {
         for (File root : roots) {
-            File file = new File(path);
-            final File normalizedPath;
-            try {
-                if (file.isAbsolute()) {
-                    normalizedPath = file.getCanonicalFile();
-                } else {
-                    normalizedPath = new File(root, path).getCanonicalFile();
-                }
-            } catch (IOException ex) {
-                continue;
-            }
-            if(normalizedPath.getAbsolutePath().startsWith(root.getAbsolutePath())) {
-                return normalizedPath;
+            Path rootPath = root.toPath().normalize();
+            Path normalizedPath = rootPath.resolve(path).normalize();
+            if(normalizedPath.startsWith(rootPath)) {
+                return normalizedPath.toFile();
             }
         }
         return null;

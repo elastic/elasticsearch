@@ -57,4 +57,13 @@ public class EnvironmentTests extends ElasticsearchTestCase {
         assertThat(environment.resolveRepoFile("/test/repos/../repos/repo1"), notNullValue());
         assertThat(environment.resolveRepoFile("/somethingeles/repos/repo1"), nullValue());
     }
+
+    @Test
+    public void testRepositoryResolutionWithActualFile() throws IOException {
+        File tempDir = newTempDir();
+        Environment environment = newEnvironment(settingsBuilder().putArray("path.repo", tempDir.getAbsolutePath()).build());
+        assertThat(environment.resolveRepoFile(tempDir.getAbsolutePath()), notNullValue());
+        assertThat(environment.resolveRepoFile(new File(tempDir, "repo").getAbsolutePath()), notNullValue());
+        assertThat(environment.resolveRepoFile("/test/somewhere"), nullValue());
+    }
 }

@@ -50,6 +50,7 @@ import org.elasticsearch.cluster.service.PendingClusterTask;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.IndexStore;
@@ -91,7 +92,7 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
                 .setType("fs").setSettings(Settings.settingsBuilder()
                         .put("location", randomRepoPath())
                         .put("compress", randomBoolean())
-                        .put("chunk_size", randomIntBetween(100, 1000))));
+                        .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
 
         createIndex("test-idx-1", "test-idx-2", "test-idx-3");
         ensureGreen();
@@ -232,7 +233,7 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
                 .setType("fs").setSettings(Settings.settingsBuilder()
                         .put("location", randomRepoPath())
                         .put("compress", randomBoolean())
-                        .put("chunk_size", randomIntBetween(100, 1000))));
+                        .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
 
         createIndex("test");
         String originalIndexUUID = client().admin().indices().prepareGetSettings("test").get().getSetting("test", IndexMetaData.SETTING_UUID);
@@ -281,7 +282,7 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
                 .setType("fs").setSettings(Settings.settingsBuilder()
                         .put("location", randomRepoPath())
                         .put("compress", randomBoolean())
-                        .put("chunk_size", randomIntBetween(100, 1000))));
+                        .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
 
         logger.info("--> create index with foo type");
         assertAcked(prepareCreate("test-idx", 2, Settings.builder()
@@ -761,7 +762,7 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
                 .setType("fs").setSettings(Settings.settingsBuilder()
                         .put("location", repo)
                         .put("compress", false)
-                        .put("chunk_size", randomIntBetween(100, 1000))));
+                        .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
 
         createIndex("test-idx");
         ensureGreen();
@@ -818,7 +819,7 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
                 .setType("fs").setSettings(Settings.settingsBuilder()
                         .put("location", repo)
                         .put("compress", false)
-                        .put("chunk_size", randomIntBetween(100, 1000))));
+                        .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
 
         createIndex("test-idx-1", "test-idx-2");
         ensureYellow();
@@ -857,7 +858,7 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
                 .setType("fs").setSettings(Settings.settingsBuilder()
                         .put("location", repo)
                         .put("compress", false)
-                        .put("chunk_size", randomIntBetween(100, 1000))));
+                        .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
 
         createIndex("test-idx-1", "test-idx-2");
         ensureYellow();
@@ -892,7 +893,7 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
                 .setType("fs").setSettings(Settings.settingsBuilder()
                         .put("location", repo)
                         .put("compress", false)
-                        .put("chunk_size", randomIntBetween(100, 1000))));
+                        .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
 
         createIndex("test-idx-1", "test-idx-2");
         ensureYellow();
@@ -1247,7 +1248,7 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
                 .setType("fs").setSettings(Settings.settingsBuilder()
                         .put("location", repositoryLocation)
                         .put("compress", randomBoolean())
-                        .put("chunk_size", randomIntBetween(100, 1000))));
+                        .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
 
         createIndex("test-idx");
         ensureGreen();
@@ -1307,7 +1308,7 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
                 .setType("fs").setSettings(Settings.settingsBuilder()
                         .put("location", repositoryLocation)
                         .put("compress", randomBoolean())
-                        .put("chunk_size", randomIntBetween(1000, 10000))
+                        .put("chunk_size", randomIntBetween(1000, 10000), ByteSizeUnit.BYTES)
                         .put("max_restore_bytes_per_sec", throttleRestore ? "0.5k" : "0")
                         .put("max_snapshot_bytes_per_sec", throttleSnapshot ? "0.5k" : "0")));
 
@@ -1463,7 +1464,7 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
                 .setType("fs").setSettings(Settings.settingsBuilder()
                         .put("location", randomRepoPath())
                         .put("compress", randomBoolean())
-                        .put("chunk_size", randomIntBetween(100, 1000))));
+                        .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
 
         // Create index on 1 nodes and make sure each node has a primary by setting no replicas
         assertAcked(prepareCreate("test-idx", 1, Settings.builder().put("number_of_replicas", 0)));
@@ -1511,7 +1512,7 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
                 .setType("fs").setSettings(Settings.settingsBuilder()
                         .put("location", randomRepoPath())
                         .put("compress", randomBoolean())
-                        .put("chunk_size", randomIntBetween(100, 1000))));
+                        .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
 
         // only one shard
         assertAcked(prepareCreate("test").setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)));
@@ -1574,7 +1575,7 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
                 .setType("fs").setSettings(Settings.settingsBuilder()
                         .put("location", randomRepoPath())
                         .put("compress", randomBoolean())
-                        .put("chunk_size", randomIntBetween(100, 1000))));
+                        .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
 
         logger.info("--> create test index with synonyms search analyzer");
 
@@ -1691,7 +1692,7 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
                 .setType(MockRepositoryModule.class.getCanonicalName()).setSettings(Settings.settingsBuilder()
                         .put("location", randomRepoPath())
                         .put("compress", randomBoolean())
-                        .put("chunk_size", randomIntBetween(100, 1000))
+                        .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)
                         .put("block_on_init", true)
                 ));
 
@@ -1743,7 +1744,7 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
                 .setType(MockRepositoryModule.class.getCanonicalName()).setSettings(Settings.settingsBuilder()
                                 .put("location", randomRepoPath())
                                 .put("compress", randomBoolean())
-                                .put("chunk_size", randomIntBetween(100, 1000))
+                                .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)
                 ));
 
         createIndex("test-idx");
@@ -1823,7 +1824,7 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
                 .setType("fs").setSettings(Settings.settingsBuilder()
                         .put("location", randomRepoPath())
                         .put("compress", randomBoolean())
-                        .put("chunk_size", randomIntBetween(100, 1000))));
+                        .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
 
         assertAcked(prepareCreate("test-idx", 0, settingsBuilder().put("number_of_shards", between(1, 20))
                 .put("number_of_replicas", 0)));

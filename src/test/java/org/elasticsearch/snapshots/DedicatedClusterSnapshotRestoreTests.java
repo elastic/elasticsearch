@@ -35,19 +35,20 @@ import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
 import org.elasticsearch.action.admin.indices.recovery.ShardRecoveryResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ProcessedClusterStateUpdateTask;
-import org.elasticsearch.cluster.AbstractDiffable;
-import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.MetaData.Custom;
-import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
+import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -638,7 +639,7 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
                 .setType("fs").setSettings(Settings.settingsBuilder()
                         .put("location", randomRepoPath())
                         .put("compress", randomBoolean())
-                        .put("chunk_size", randomIntBetween(100, 1000))));
+                        .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
 
         int initialIndices = between(1, 3);
         logger.info("--> create {} indices", initialIndices);

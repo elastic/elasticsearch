@@ -30,9 +30,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 
-/**
- *
- */
 public class ByteSizeValue implements Serializable, Streamable {
 
     private long size;
@@ -206,8 +203,15 @@ public class ByteSizeValue implements Serializable, Streamable {
                 bytes = (long) (Double.parseDouble(sValue.substring(0, sValue.length() - 2)) * ByteSizeUnit.C5);
             } else if (lastTwoChars.endsWith("b")) {
                 bytes = Long.parseLong(sValue.substring(0, sValue.length() - 1));
+            } else if (sValue.equals("-1")) {
+                // Allow this special value to be unit-less:
+                bytes = -1;
+            } else if (sValue.equals("0")) {
+                // Allow this special value to be unit-less:
+                bytes = 0;
             } else {
-                bytes = Long.parseLong(sValue);
+                // Missing units:
+                throw new ElasticsearchParseException("Failed to parse setting [" + settingName + "] with value [" + sValue + "] as a size in bytes: unit is missing or unrecognized") ;
             }
         } catch (NumberFormatException e) {
             throw new ElasticsearchParseException("Failed to parse [" + sValue + "]", e);

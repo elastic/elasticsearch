@@ -189,8 +189,16 @@ public class Lucene {
     @SuppressForbidden(reason = "this method uses trappy Directory#makeLock API")
     public static Lock acquireLock(Directory directory, String lockName, long timeout) throws IOException {
         final Lock writeLock = directory.makeLock(lockName);
-        if (writeLock.obtain(timeout) == false) {
-            throw new LockObtainFailedException("failed to obtain lock: " + writeLock);
+        boolean success = false;
+        try {
+            if (writeLock.obtain(timeout) == false) {
+                throw new LockObtainFailedException("failed to obtain lock: " + writeLock);
+            }
+            success = true;
+        } finally {
+            if (success == false) {
+                writeLock.close();
+            }
         }
         return writeLock;
     }

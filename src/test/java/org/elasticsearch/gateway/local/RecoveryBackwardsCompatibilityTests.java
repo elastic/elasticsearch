@@ -22,7 +22,6 @@ import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.admin.indices.recovery.ShardRecoveryResponse;
-import org.elasticsearch.action.admin.indices.seal.SealIndicesResponse;
 import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -32,6 +31,7 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.indices.flush.SyncedFlushUtil;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.test.ElasticsearchBackwardsCompatIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
@@ -77,7 +77,8 @@ public class RecoveryBackwardsCompatibilityTests extends ElasticsearchBackwardsC
         indexRandom(true, builders);
         ensureGreen();
         if (randomBoolean()) { // just make sure it doesn't break anything - we seal before we actually bump replicas
-            backwardsCluster().internalCluster().client().admin().indices().prepareSealIndices("test").get();
+            logger.info("--> trying to sync flush");
+            assertEquals(SyncedFlushUtil.attemptSyncedFlush(internalCluster(), "test").failedShards(), 0);
         }
         logger.info("--> bump number of replicas from 0 to 1");
         client().admin().indices().prepareFlush().execute().actionGet();

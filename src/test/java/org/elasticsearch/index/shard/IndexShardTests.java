@@ -20,16 +20,9 @@ package org.elasticsearch.index.shard;
 
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.routing.MutableShardRouting;
-import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.ShardRoutingState;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.junit.Test;
@@ -94,13 +87,14 @@ public class IndexShardTests extends ElasticsearchSingleNodeTest {
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         IndexService indexService = indicesService.indexServiceSafe("test");
         IndexShard indexShard = indexService.shard(0);
+        assertEquals(0, indexShard.getOperationsCount());
+        indexShard.incrementOperationCounter();
+        assertEquals(1, indexShard.getOperationsCount());
         indexShard.incrementOperationCounter();
         assertEquals(2, indexShard.getOperationsCount());
-        indexShard.incrementOperationCounter();
-        assertEquals(3, indexShard.getOperationsCount());
         indexShard.decrementOperationCounter();
         indexShard.decrementOperationCounter();
-        assertEquals(1, indexShard.getOperationsCount());
+        assertEquals(0, indexShard.getOperationsCount());
     }
 
     @Test

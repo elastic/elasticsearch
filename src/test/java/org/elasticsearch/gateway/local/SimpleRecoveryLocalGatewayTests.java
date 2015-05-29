@@ -37,15 +37,12 @@ import org.elasticsearch.index.gateway.local.LocalIndexShardGateway;
 import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.indices.SyncedFlushService;
+import org.elasticsearch.indices.flush.SyncedFlushUtil;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.test.InternalTestCluster.RestartCallback;
 import org.elasticsearch.test.store.MockDirectoryHelper;
-import org.elasticsearch.indices.SyncedFlushUtil;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.store.MockFSDirectoryService;
 import org.junit.Test;
 
@@ -400,16 +397,7 @@ public class SimpleRecoveryLocalGatewayTests extends ElasticsearchIntegrationTes
             ensureGreen();
         } else {
             logger.info("--> trying to sync flush");
-            int numShards = Integer.parseInt(client().admin().indices().prepareGetSettings("test").get().getSetting("test", "index.number_of_shards"));
-            SyncedFlushService syncedFlushService = internalCluster().getInstance(SyncedFlushService.class);
-            for (int i = 0; i < numShards; i++) {
-                SyncedFlushService.SyncedFlushResult result = SyncedFlushUtil.attemptSyncedFlush(syncedFlushService, new ShardId("test", i));
-                assertTrue(result.success());
-                Map<ShardRouting, SyncedFlushService.SyncedFlushResponse> shardRoutingSyncedFlushResponseMap = result.shardResponses();
-                for (Map.Entry<ShardRouting, SyncedFlushService.SyncedFlushResponse> shardResponse : shardRoutingSyncedFlushResponseMap.entrySet()) {
-                    assertTrue(shardResponse.getKey() + " " + shardResponse.getValue().failureReason(), shardResponse.getValue().success());
-                }
-            }
+            assertEquals(SyncedFlushUtil.attemptSyncedFlush(internalCluster(), "test").failedShards(), 0);
             assertSyncIdsNotNull();
         }
 

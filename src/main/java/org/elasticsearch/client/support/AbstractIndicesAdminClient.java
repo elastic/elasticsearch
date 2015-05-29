@@ -94,10 +94,6 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequestBuilder;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
-import org.elasticsearch.action.admin.indices.seal.SealIndicesAction;
-import org.elasticsearch.action.admin.indices.seal.SealIndicesRequest;
-import org.elasticsearch.action.admin.indices.seal.SealIndicesRequestBuilder;
-import org.elasticsearch.action.admin.indices.seal.SealIndicesResponse;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentResponse;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsAction;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsRequest;
@@ -769,20 +765,5 @@ public abstract class AbstractIndicesAdminClient implements IndicesAdminClient {
     @Override
     public void getSettings(GetSettingsRequest request, ActionListener<GetSettingsResponse> listener) {
         execute(GetSettingsAction.INSTANCE, request, listener);
-    }
-
-    @Override
-    public ActionFuture<SealIndicesResponse> sealIndices(SealIndicesRequest request) {
-        return execute(SealIndicesAction.INSTANCE, request);
-    }
-
-    @Override
-    public void sealIndices(SealIndicesRequest request, ActionListener<SealIndicesResponse> listener) {
-        execute(SealIndicesAction.INSTANCE, request, listener);
-    }
-
-    @Override
-    public SealIndicesRequestBuilder prepareSealIndices(String... indices) {
-        return new SealIndicesRequestBuilder(this).indices(indices);
     }
 }

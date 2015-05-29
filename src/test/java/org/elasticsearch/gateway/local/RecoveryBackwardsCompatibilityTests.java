@@ -78,7 +78,7 @@ public class RecoveryBackwardsCompatibilityTests extends ElasticsearchBackwardsC
         ensureGreen();
         if (randomBoolean()) { // just make sure it doesn't break anything - we seal before we actually bump replicas
             logger.info("--> trying to sync flush");
-            assertEquals(SyncedFlushUtil.attemptSyncedFlush(internalCluster(), "test").failedShards(), 0);
+            assertEquals(SyncedFlushUtil.attemptSyncedFlush(backwardsCluster().internalCluster(), "test").failedShards(), 0);
         }
         logger.info("--> bump number of replicas from 0 to 1");
         client().admin().indices().prepareFlush().execute().actionGet();

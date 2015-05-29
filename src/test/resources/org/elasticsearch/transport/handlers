@@ -14,6 +14,8 @@ indices:admin/mappings/fields/get[index]
 indices:admin/mappings/fields/get[index][s]
 indices:admin/optimize[s]
 indices:admin/refresh[s]
+indices:admin/upgrade
+indices:admin/upgrade[s]
 indices:admin/validate/query[s]
 indices:data/read/exists[s]
 indices:data/read/explain[s]
@@ -46,6 +48,8 @@ indices:data/write/index[r]
 indices:monitor/recovery[s]
 indices:monitor/segments[s]
 indices:monitor/stats[s]
+indices:monitor/upgrade[s]
+indices:monitor/upgrade
 internal:cluster/node/index/deleted
 internal:cluster/node/index_store/deleted
 internal:cluster/node/mapping/refresh
@@ -78,6 +82,7 @@ internal:index/shard/recovery/start_recovery
 internal:index/shard/recovery/translog_ops
 internal:index/termvectors/dfs
 internal:index/termvectors/dfs[s]
+internal:indices/admin/upgrade
 internal:indices/flush/synced/in_flight
 internal:indices/flush/synced/pre
 internal:indices/flush/synced/sync

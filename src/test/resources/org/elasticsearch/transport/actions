@@ -33,13 +33,13 @@ indices:admin/mappings/get
 indices:admin/open
 indices:admin/optimize
 indices:admin/refresh
-indices:admin/seal
 indices:admin/settings/update
 indices:admin/shards/search_shards
 indices:admin/template/delete
 indices:admin/template/get
 indices:admin/template/put
 indices:admin/types/exists
+indices:admin/upgrade
 indices:admin/validate/query
 indices:admin/warmers/delete
 indices:admin/warmers/get
@@ -48,6 +48,7 @@ indices:monitor/recovery
 indices:monitor/segments
 indices:monitor/settings/get
 indices:monitor/stats
+indices:monitor/upgrade
 indices:data/read/count
 indices:data/read/exists
 indices:data/read/explain
@@ -74,3 +75,4 @@ cluster:admin/plugin/license/get
 cluster:admin/plugin/license/delete
 cluster:admin/plugin/license/put
 cluster:admin/shield/realm/cache/clear
+internal:indices/admin/upgrade

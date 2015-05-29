@@ -25,11 +25,6 @@ import org.apache.lucene.search.TermQuery;
 
 public class TermQueryBuilderTest extends BaseTermQueryTestCase<TermQueryBuilder> {
 
-    @Override
-    protected TermQueryBuilder createEmptyQueryBuilder() {
-        return new TermQueryBuilder(null, null);
-    }
-
     /**
      * @return a TermQuery with random field name and value, optional random boost and queryname
      */

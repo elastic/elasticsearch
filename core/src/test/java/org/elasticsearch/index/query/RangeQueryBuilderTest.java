@@ -154,9 +154,4 @@ public class RangeQueryBuilderTest extends BaseQueryTestCase<RangeQueryBuilder> 
         query.from(1).to(10).timeZone("UTC");
         query.toQuery(createContext());
     }
-
-    @Override
-    protected RangeQueryBuilder createEmptyQueryBuilder() {
-        return new RangeQueryBuilder(null);
-    }
 }

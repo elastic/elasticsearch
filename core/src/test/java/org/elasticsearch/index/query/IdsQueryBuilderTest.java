@@ -53,11 +53,6 @@ public class IdsQueryBuilderTest extends BaseQueryTestCase<IdsQueryBuilder> {
     }
 
     @Override
-    protected IdsQueryBuilder createEmptyQueryBuilder() {
-        return new IdsQueryBuilder();
-    }
-
-    @Override
     protected Query createExpectedQuery(IdsQueryBuilder queryBuilder, QueryParseContext context) throws IOException {
         Query expectedQuery;
         if (queryBuilder.ids().size() == 0) {

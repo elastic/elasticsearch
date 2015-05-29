@@ -21,7 +21,7 @@ package org.elasticsearch.index.mapper.merge;
 
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.compress.CompressedString;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.analysis.FieldNameAnalyzer;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -160,7 +160,7 @@ public class TestMergeMapperTests extends ElasticsearchSingleNodeTest {
 
     public void testConcurrentMergeTest() throws Throwable {
         final MapperService mapperService = createIndex("test").mapperService();
-        mapperService.merge("test", new CompressedString("{\"test\":{}}"), true);
+        mapperService.merge("test", new CompressedXContent("{\"test\":{}}"), true);
         final DocumentMapper documentMapper = mapperService.documentMapper("test");
 
         DocumentFieldMappers dfm = documentMapper.mappers();
@@ -186,7 +186,7 @@ public class TestMergeMapperTests extends ElasticsearchSingleNodeTest {
                         Mapping update = doc.dynamicMappingsUpdate();
                         assert update != null;
                         lastIntroducedFieldName.set(fieldName);
-                        mapperService.merge("test", new CompressedString(update.toString()), false);
+                        mapperService.merge("test", new CompressedXContent(update.toString()), false);
                     }
                 } catch (Throwable t) {
                     error.set(t);

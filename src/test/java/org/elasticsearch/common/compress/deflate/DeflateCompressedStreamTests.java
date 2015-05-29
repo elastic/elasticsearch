@@ -17,42 +17,14 @@
  * under the License.
  */
 
-package org.elasticsearch.index.aliases;
+package org.elasticsearch.common.compress.deflate;
 
-import org.apache.lucene.search.Query;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.compress.AbstractCompressedStreamTests;
 
-/**
- *
- */
-public class IndexAlias {
+public class DeflateCompressedStreamTests extends AbstractCompressedStreamTests {
 
-    private final String alias;
-
-    private final CompressedXContent filter;
-
-    private final Query parsedFilter;
-
-    public IndexAlias(String alias, @Nullable CompressedXContent filter, @Nullable Query parsedFilter) {
-        this.alias = alias;
-        this.filter = filter;
-        this.parsedFilter = parsedFilter;
+    public DeflateCompressedStreamTests() {
+        super(new DeflateCompressor());
     }
-
-    public String alias() {
-        return alias;
-    }
-
-    @Nullable
-    public CompressedXContent filter() {
-        return filter;
-    }
-
-    @Nullable
-    public Query parsedFilter() {
-        return parsedFilter;
-    }
-
 
 }

@@ -23,7 +23,7 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.compress.CompressedString;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -63,11 +63,11 @@ public class IndexAliasesService extends AbstractIndexComponent implements Itera
         return aliases.get(alias);
     }
 
-    public IndexAlias create(String alias, @Nullable CompressedString filter) {
+    public IndexAlias create(String alias, @Nullable CompressedXContent filter) {
         return new IndexAlias(alias, filter, parse(alias, filter));
     }
 
-    public void add(String alias, @Nullable CompressedString filter) {
+    public void add(String alias, @Nullable CompressedXContent filter) {
         add(new IndexAlias(alias, filter, parse(alias, filter)));
     }
 
@@ -120,7 +120,7 @@ public class IndexAliasesService extends AbstractIndexComponent implements Itera
         aliases.remove(alias);
     }
 
-    private Query parse(String alias, CompressedString filter) {
+    private Query parse(String alias, CompressedXContent filter) {
         if (filter == null) {
             return null;
         }

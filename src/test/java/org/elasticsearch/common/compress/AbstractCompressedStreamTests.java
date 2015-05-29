@@ -38,12 +38,12 @@ import java.util.concurrent.CountDownLatch;
 /**
  * Test streaming compression (e.g. used for recovery)
  */
-public class CompressedStreamTests extends ElasticsearchTestCase {
-    
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
-        CompressorFactory.configure(Settings.settingsBuilder().put("compress.default.type", "lzf").build());
+public abstract class AbstractCompressedStreamTests extends ElasticsearchTestCase {
+
+    private final Compressor compressor;
+
+    protected AbstractCompressedStreamTests(Compressor compressor) {
+        this.compressor = compressor;
     }
 
     public void testRandom() throws IOException {
@@ -54,7 +54,7 @@ public class CompressedStreamTests extends ElasticsearchTestCase {
             doTest(bytes);
         }
     }
-    
+
     public void testRandomThreads() throws Exception {
         final Random r = getRandom();
         int threadCount = TestUtil.nextInt(r, 2, 10);
@@ -85,7 +85,7 @@ public class CompressedStreamTests extends ElasticsearchTestCase {
             t.join();
         }
     }
-    
+
     public void testLineDocs() throws IOException {
         Random r = getRandom();
         LineFileDocs lineFileDocs = new LineFileDocs(r);
@@ -100,7 +100,7 @@ public class CompressedStreamTests extends ElasticsearchTestCase {
         }
         lineFileDocs.close();
     }
-    
+
     public void testLineDocsThreads() throws Exception {
         final Random r = getRandom();
         int threadCount = TestUtil.nextInt(r, 2, 10);
@@ -137,7 +137,7 @@ public class CompressedStreamTests extends ElasticsearchTestCase {
             t.join();
         }
     }
-    
+
     public void testRepetitionsL() throws IOException {
         Random r = getRandom();
         for (int i = 0; i < 10; i++) {
@@ -160,7 +160,7 @@ public class CompressedStreamTests extends ElasticsearchTestCase {
             doTest(bos.toByteArray());
         }
     }
-    
+
     public void testRepetitionsLThreads() throws Exception {
         final Random r = getRandom();
         int threadCount = TestUtil.nextInt(r, 2, 10);
@@ -205,7 +205,7 @@ public class CompressedStreamTests extends ElasticsearchTestCase {
             t.join();
         }
     }
-    
+
     public void testRepetitionsI() throws IOException {
         Random r = getRandom();
         for (int i = 0; i < 10; i++) {
@@ -224,7 +224,7 @@ public class CompressedStreamTests extends ElasticsearchTestCase {
             doTest(bos.toByteArray());
         }
     }
-    
+
     public void testRepetitionsIThreads() throws Exception {
         final Random r = getRandom();
         int threadCount = TestUtil.nextInt(r, 2, 10);
@@ -265,7 +265,7 @@ public class CompressedStreamTests extends ElasticsearchTestCase {
             t.join();
         }
     }
-    
+
     public void testRepetitionsS() throws IOException {
         Random r = getRandom();
         for (int i = 0; i < 10; i++) {
@@ -348,7 +348,7 @@ public class CompressedStreamTests extends ElasticsearchTestCase {
         r.nextBytes(bytes);
         bos.write(bytes);
     }
-    
+
     public void testRepetitionsSThreads() throws Exception {
         final Random r = getRandom();
         int threadCount = TestUtil.nextInt(r, 2, 10);
@@ -387,16 +387,16 @@ public class CompressedStreamTests extends ElasticsearchTestCase {
             t.join();
         }
     }
-       
+
     private void doTest(byte bytes[]) throws IOException {
         ByteBuffer bb = ByteBuffer.wrap(bytes);
         StreamInput rawIn = new ByteBufferStreamInput(bb);
-        Compressor c = CompressorFactory.defaultCompressor();
-        
+        Compressor c = compressor;
+
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
         OutputStreamStreamOutput rawOs = new OutputStreamStreamOutput(bos);
         StreamOutput os = c.streamOutput(rawOs);
-        
+
         Random r = getRandom();
         int bufferSize = r.nextBoolean() ? 65535 : TestUtil.nextInt(getRandom(), 1, 70000);
         int prepadding = r.nextInt(70000);
@@ -409,27 +409,27 @@ public class CompressedStreamTests extends ElasticsearchTestCase {
         }
         os.close();
         rawIn.close();
-        
+
         // now we have compressed byte array
-        
+
         byte compressed[] = bos.toByteArray();
         ByteBuffer bb2 = ByteBuffer.wrap(compressed);
         StreamInput compressedIn = new ByteBufferStreamInput(bb2);
         StreamInput in = c.streamInput(compressedIn);
-        
+
         // randomize constants again
         bufferSize = r.nextBoolean() ? 65535 : TestUtil.nextInt(getRandom(), 1, 70000);
         prepadding = r.nextInt(70000);
         postpadding = r.nextInt(70000);
         buffer = new byte[prepadding + bufferSize + postpadding];
         r.nextBytes(buffer); // fill block completely with junk
-        
+
         ByteArrayOutputStream uncompressedOut = new ByteArrayOutputStream();
         while ((len = in.read(buffer, prepadding, bufferSize)) != -1) {
             uncompressedOut.write(buffer, prepadding, len);
         }
         uncompressedOut.close();
-        
+
         assertArrayEquals(bytes, uncompressedOut.toByteArray());
     }
 }

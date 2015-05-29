@@ -17,42 +17,16 @@
  * under the License.
  */
 
-package org.elasticsearch.index.aliases;
+package org.elasticsearch.common.compress;
 
-import org.apache.lucene.search.Query;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.xcontent.XContent;
 
-/**
- *
- */
-public class IndexAlias {
+/** Exception indicating that we were expecting some {@link XContent} but could
+ *  not detect its type. */
+public class NotXContentException extends RuntimeException {
 
-    private final String alias;
-
-    private final CompressedXContent filter;
-
-    private final Query parsedFilter;
-
-    public IndexAlias(String alias, @Nullable CompressedXContent filter, @Nullable Query parsedFilter) {
-        this.alias = alias;
-        this.filter = filter;
-        this.parsedFilter = parsedFilter;
+    public NotXContentException(String message) {
+        super(message);
     }
-
-    public String alias() {
-        return alias;
-    }
-
-    @Nullable
-    public CompressedXContent filter() {
-        return filter;
-    }
-
-    @Nullable
-    public Query parsedFilter() {
-        return parsedFilter;
-    }
-
 
 }

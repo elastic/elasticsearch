@@ -70,7 +70,7 @@ import org.elasticsearch.action.termvectors.TermVectorsRequest;
 import org.elasticsearch.action.termvectors.TermVectorsResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.compress.CompressedString;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.MoreLikeThisQuery;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -209,7 +209,7 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         MapperService mapperService = indexService.mapperService();
 
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/query/mapping.json");
-        mapperService.merge("person", new CompressedString(mapping), true);
+        mapperService.merge("person", new CompressedXContent(mapping), true);
         ParsedDocument doc = mapperService.documentMapper("person").parse("person", "1", new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/index/query/data.json")));
         assertNotNull(doc.dynamicMappingsUpdate());
         client().admin().indices().preparePutMapping("test").setType("person").setSource(doc.dynamicMappingsUpdate().toString()).get();

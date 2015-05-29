@@ -36,6 +36,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
+import org.elasticsearch.common.compress.NotXContentException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -144,10 +145,18 @@ public class BinaryFieldMapper extends AbstractFieldMapper {
         }
         try {
             if (indexCreatedBefore2x) {
-                return CompressorFactory.uncompressIfNeeded(bytes);
-            } else {
-                return bytes;
+                try {
+                    return CompressorFactory.uncompressIfNeeded(bytes);
+                } catch (NotXContentException e) {
+                    // NOTE: previous versions of Elasticsearch used to try to detect if
+                    // data was compressed. However this could cause decompression failures
+                    // as a user may have submitted arbitrary data which looks like it is
+                    // compressed to elasticsearch but is not. So we removed the ability to
+                    // compress binary fields and keep this empty catch block for backward
+                    // compatibility with 1.x
+                }
             }
+            return bytes;
         } catch (IOException e) {
             throw new ElasticsearchParseException("failed to decompress source", e);
         }

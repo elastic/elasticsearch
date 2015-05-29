@@ -27,7 +27,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.compress.CompressedString;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.geo.ShapesAvailability;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
@@ -194,15 +194,15 @@ public class DocumentMapperParser extends AbstractIndexComponent {
         return parse(type, mapping, defaultSource);
     }
 
-    public DocumentMapper parseCompressed(@Nullable String type, CompressedString source) throws MapperParsingException {
+    public DocumentMapper parseCompressed(@Nullable String type, CompressedXContent source) throws MapperParsingException {
         return parseCompressed(type, source, null);
     }
 
     @SuppressWarnings({"unchecked"})
-    public DocumentMapper parseCompressed(@Nullable String type, CompressedString source, String defaultSource) throws MapperParsingException {
+    public DocumentMapper parseCompressed(@Nullable String type, CompressedXContent source, String defaultSource) throws MapperParsingException {
         Map<String, Object> mapping = null;
         if (source != null) {
-            Map<String, Object> root = XContentHelper.convertToMap(source.compressed(), true).v2();
+            Map<String, Object> root = XContentHelper.convertToMap(source.compressedReference(), true).v2();
             Tuple<String, Map<String, Object>> t = extractMapping(type, root);
             type = t.v1();
             mapping = t.v2();

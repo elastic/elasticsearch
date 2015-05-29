@@ -22,6 +22,7 @@ package org.elasticsearch.common.compress;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -34,33 +35,32 @@ import java.util.Arrays;
  * memory. Note that the compressed string might still sometimes need to be
  * decompressed in order to perform equality checks or to compute hash codes.
  */
-public final class CompressedString {
+public final class CompressedXContent {
 
     private final byte[] bytes;
     private int hashCode;
 
-    public CompressedString(BytesReference data) throws IOException {
+    public CompressedXContent(BytesReference data) throws IOException {
         Compressor compressor = CompressorFactory.compressor(data);
         if (compressor != null) {
             // already compressed...
             this.bytes = data.toBytes();
         } else {
-            BytesArray bytesArray = data.toBytesArray();
-            this.bytes = CompressorFactory.defaultCompressor().compress(bytesArray.array(), bytesArray.arrayOffset(), bytesArray.length());
-            assert CompressorFactory.compressor(bytes) != null;
+            BytesStreamOutput out = new BytesStreamOutput();
+            try (StreamOutput compressedOutput = CompressorFactory.defaultCompressor().streamOutput(out)) {
+                data.writeTo(compressedOutput);
+            }
+            this.bytes = out.bytes().toBytes();
+            assert CompressorFactory.compressor(new BytesArray(bytes)) != null;
         }
 
     }
 
-    public CompressedString(byte[] data, int offset, int length) throws IOException {
-        this(new BytesArray(data, offset, length));
+    public CompressedXContent(byte[] data) throws IOException {
+        this(new BytesArray(data));
     }
 
-    public CompressedString(byte[] data) throws IOException {
-        this(data, 0, data.length);
-    }
-
-    public CompressedString(String str) throws IOException {
+    public CompressedXContent(String str) throws IOException {
         this(new BytesArray(new BytesRef(str)));
     }
 
@@ -69,12 +69,15 @@ public final class CompressedString {
         return this.bytes;
     }
 
+    /** Return the compressed bytes as a {@link BytesReference}. */
+    public BytesReference compressedReference() {
+        return new BytesArray(bytes);
+    }
+
     /** Return the uncompressed bytes. */
     public byte[] uncompressed() {
-        Compressor compressor = CompressorFactory.compressor(bytes);
-        assert compressor != null;
         try {
-            return compressor.uncompress(bytes, 0, bytes.length);
+            return CompressorFactory.uncompress(new BytesArray(bytes)).toBytes();
         } catch (IOException e) {
             throw new IllegalStateException("Cannot decompress compressed string", e);
         }
@@ -84,10 +87,10 @@ public final class CompressedString {
         return new BytesRef(uncompressed()).utf8ToString();
     }
 
-    public static CompressedString readCompressedString(StreamInput in) throws IOException {
+    public static CompressedXContent readCompressedString(StreamInput in) throws IOException {
         byte[] bytes = new byte[in.readVInt()];
         in.readBytes(bytes, 0, bytes.length);
-        return new CompressedString(bytes);
+        return new CompressedXContent(bytes);
     }
 
     public void writeTo(StreamOutput out) throws IOException {
@@ -100,7 +103,7 @@ public final class CompressedString {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
 
-        CompressedString that = (CompressedString) o;
+        CompressedXContent that = (CompressedXContent) o;
 
         if (Arrays.equals(compressed(), that.compressed())) {
             return true;

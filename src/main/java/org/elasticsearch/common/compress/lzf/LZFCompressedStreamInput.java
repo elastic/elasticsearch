@@ -29,7 +29,7 @@ import java.io.IOException;
 
 /**
  */
-public class LZFCompressedStreamInput extends CompressedStreamInput<LZFCompressorContext> {
+public class LZFCompressedStreamInput extends CompressedStreamInput {
 
     private final BufferRecycler recycler;
 
@@ -39,7 +39,7 @@ public class LZFCompressedStreamInput extends CompressedStreamInput<LZFCompresso
     private byte[] inputBuffer;
 
     public LZFCompressedStreamInput(StreamInput in, ChunkDecoder decoder) throws IOException {
-        super(in, LZFCompressorContext.INSTANCE);
+        super(in);
         this.recycler = BufferRecycler.instance();
         this.decoder = decoder;
 

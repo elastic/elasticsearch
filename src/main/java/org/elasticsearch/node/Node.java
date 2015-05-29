@@ -36,7 +36,6 @@ import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleComponent;
-import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.lease.Releasable;
@@ -151,7 +150,6 @@ public class Node implements Releasable {
         // create the environment based on the finalized (processed) view of the settings
         this.environment = new Environment(this.settings());
 
-        CompressorFactory.configure(settings);
         final NodeEnvironment nodeEnvironment;
         try {
             nodeEnvironment = new NodeEnvironment(this.settings, this.environment);

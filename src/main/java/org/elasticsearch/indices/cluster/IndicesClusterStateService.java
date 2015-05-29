@@ -41,7 +41,7 @@ import org.elasticsearch.cluster.routing.*;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.compress.CompressedString;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -369,7 +369,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 for (ObjectCursor<MappingMetaData> cursor : indexMetaData.mappings().values()) {
                     MappingMetaData mappingMd = cursor.value;
                     String mappingType = mappingMd.type();
-                    CompressedString mappingSource = mappingMd.source();
+                    CompressedXContent mappingSource = mappingMd.source();
                     if (mappingType.equals(MapperService.DEFAULT_MAPPING)) { // we processed _default_ first
                         continue;
                     }
@@ -396,7 +396,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
         }
     }
 
-    private boolean processMapping(String index, MapperService mapperService, String mappingType, CompressedString mappingSource) throws Throwable {
+    private boolean processMapping(String index, MapperService mapperService, String mappingType, CompressedXContent mappingSource) throws Throwable {
         if (!seenMappings.containsKey(new Tuple<>(index, mappingType))) {
             seenMappings.put(new Tuple<>(index, mappingType), true);
         }
@@ -484,7 +484,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
         for (ObjectCursor<AliasMetaData> cursor : aliases) {
             AliasMetaData aliasMd = cursor.value;
             String alias = aliasMd.alias();
-            CompressedString filter = aliasMd.filter();
+            CompressedXContent filter = aliasMd.filter();
             try {
                 if (!indexAliasesService.hasAlias(alias)) {
                     if (logger.isDebugEnabled()) {

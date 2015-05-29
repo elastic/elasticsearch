@@ -19,11 +19,12 @@
 
 package org.elasticsearch.common.compress.lzf;
 
-import org.elasticsearch.common.compress.CompressorContext;
+import org.elasticsearch.common.compress.AbstractCompressedStreamTests;
 
-/**
- */
-public class LZFCompressorContext implements CompressorContext {
+public class LZFCompressedStreamTests extends AbstractCompressedStreamTests {
 
-    public static final LZFCompressorContext INSTANCE = new LZFCompressorContext();
+    public LZFCompressedStreamTests() {
+        super(new LZFTestCompressor());
+    }
+
 }

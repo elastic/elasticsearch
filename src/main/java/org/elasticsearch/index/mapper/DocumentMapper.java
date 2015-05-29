@@ -35,7 +35,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.common.compress.CompressedString;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
@@ -150,7 +150,7 @@ public class DocumentMapper implements ToXContent {
     private final String type;
     private final StringAndBytesText typeText;
 
-    private volatile CompressedString mappingSource;
+    private volatile CompressedXContent mappingSource;
 
     private final Mapping mapping;
 
@@ -235,7 +235,7 @@ public class DocumentMapper implements ToXContent {
         return mapping.meta;
     }
 
-    public CompressedString mappingSource() {
+    public CompressedXContent mappingSource() {
         return this.mappingSource;
     }
 
@@ -468,12 +468,12 @@ public class DocumentMapper implements ToXContent {
     private void refreshSource() throws ElasticsearchGenerationException {
         try {
             BytesStreamOutput bStream = new BytesStreamOutput();
-            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON, CompressorFactory.defaultCompressor().streamOutput(bStream));
-            builder.startObject();
-            toXContent(builder, ToXContent.EMPTY_PARAMS);
-            builder.endObject();
-            builder.close();
-            mappingSource = new CompressedString(bStream.bytes());
+            try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON, CompressorFactory.defaultCompressor().streamOutput(bStream))) {
+                builder.startObject();
+                toXContent(builder, ToXContent.EMPTY_PARAMS);
+                builder.endObject();
+            }
+            mappingSource = new CompressedXContent(bStream.bytes());
         } catch (Exception e) {
             throw new ElasticsearchGenerationException("failed to serialize source for type [" + type + "]", e);
         }

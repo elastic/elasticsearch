@@ -17,42 +17,14 @@
  * under the License.
  */
 
-package org.elasticsearch.index.aliases;
+package org.elasticsearch.common.compress.lzf;
 
-import org.apache.lucene.search.Query;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.compress.AbstractCompressedXContentTests;
 
-/**
- *
- */
-public class IndexAlias {
+public class LZFXContentTests extends AbstractCompressedXContentTests {
 
-    private final String alias;
-
-    private final CompressedXContent filter;
-
-    private final Query parsedFilter;
-
-    public IndexAlias(String alias, @Nullable CompressedXContent filter, @Nullable Query parsedFilter) {
-        this.alias = alias;
-        this.filter = filter;
-        this.parsedFilter = parsedFilter;
+    public LZFXContentTests() {
+        super(new LZFTestCompressor());
     }
-
-    public String alias() {
-        return alias;
-    }
-
-    @Nullable
-    public CompressedXContent filter() {
-        return filter;
-    }
-
-    @Nullable
-    public Query parsedFilter() {
-        return parsedFilter;
-    }
-
 
 }

@@ -19,7 +19,13 @@
 
 package org.elasticsearch.common.compress;
 
-/**
- */
-public interface CompressorContext {
+/** Exception indicating that we were expecting something compressed, which
+ *  was not compressed or corrupted so that the compression format could not
+ *  be detected. */
+public class NotCompressedException extends RuntimeException {
+
+    public NotCompressedException() {
+        super();
+    }
+
 }

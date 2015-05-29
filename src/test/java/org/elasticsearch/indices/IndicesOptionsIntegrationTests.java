@@ -760,7 +760,7 @@ public class IndicesOptionsIntegrationTests extends ElasticsearchIntegrationTest
 
         verify(client().admin().indices().prepareDeleteMapping("foo*").setType("type1"), true);
 
-        verify(client().admin().indices().prepareDeleteMapping("_all").setType("type3","type4"), false);
+        verify(client().admin().indices().prepareDeleteMapping("_all").setType("type3", "type4"), false);
         assertThat(client().admin().indices().prepareTypesExists("bar").setTypes("type3").get().isExists(), equalTo(false));
         assertThat(client().admin().indices().prepareTypesExists("barbaz").setTypes("type4").get().isExists(), equalTo(false));
     }
@@ -867,7 +867,7 @@ public class IndicesOptionsIntegrationTests extends ElasticsearchIntegrationTest
         try {
             verify(client().admin().indices().prepareUpdateSettings("barbaz").setSettings(ImmutableSettings.builder().put("e", "f")), false);
         } catch (ElasticsearchIllegalArgumentException e) {
-            assertThat(e.getMessage(), equalTo("Can't update non dynamic settings[[index.e]] for open indices[[barbaz]]"));
+            assertThat(e.getMessage(), equalTo("Can't update non dynamic settings[[index.e]] for open indices [[barbaz]]"));
         }
         verify(client().admin().indices().prepareUpdateSettings("baz*").setSettings(ImmutableSettings.builder().put("a", "b")), true);
     }

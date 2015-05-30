@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.unit;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ElasticsearchTestCase;
@@ -85,5 +86,15 @@ public class TimeValueTests extends ElasticsearchTestCase {
         assertEqualityAfterSerialize(new TimeValue(-1));
         assertEqualityAfterSerialize(new TimeValue(1, TimeUnit.NANOSECONDS));
 
+    }
+
+    @Test(expected = ElasticsearchParseException.class)
+    public void testFailOnUnknownUnits() {
+        TimeValue.parseTimeValue("23tw", null, "test");
+    }
+
+    @Test(expected = ElasticsearchParseException.class)
+    public void testFailOnMissingUnits() {
+        TimeValue.parseTimeValue("42", null, "test");
     }
 }

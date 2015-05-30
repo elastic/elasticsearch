@@ -1307,7 +1307,7 @@ public class DateHistogramTests extends ElasticsearchIntegrationTest {
     /**
      * see issue #9634, negative interval in date_histogram should raise exception
      */
-    public void testExeptionOnNegativeInterval() {
+    public void testExceptionOnNegativeInterval() {
         try {
             client().prepareSearch("idx")
                     .addAggregation(dateHistogram("histo").field("date").interval(-TimeUnit.DAYS.toMillis(1)).minDocCount(0)).execute()

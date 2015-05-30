@@ -72,10 +72,19 @@ class JNANatives {
         }
 
         // mlockall failed for some reason
-        logger.warn("Unable to lock JVM Memory: error=" + errno + ",reason=" + errMsg + ". This can result in part of the JVM being swapped out");
+        logger.warn("Unable to lock JVM Memory: error=" + errno + ",reason=" + errMsg + ". This can result in part of the JVM being swapped out.");
         if (errno == JNACLibrary.ENOMEM) {
             if (rlimitSuccess) {
-                logger.warn("Increase RLIMIT_MEMLOCK (ulimit). soft limit: " + rlimitToString(softLimit) + ", hard limit: " + rlimitToString(hardLimit));
+                logger.warn("Increase RLIMIT_MEMLOCK, soft limit: " + rlimitToString(softLimit) + ", hard limit: " + rlimitToString(hardLimit));
+                if (Constants.LINUX) {
+                    // give specific instructions for the linux case to make it easy
+                    logger.warn("These can be adjusted by modifying /etc/security/limits.conf, for example: \n" +
+                                "\t# allow user 'esuser' mlockall\n" +
+                                "\tesuser soft memlock unlimited\n" +
+                                "\tesuser hard memlock unlimited"
+                               );
+                    logger.warn("If you are logged in interactively, you will have to re-login for the new limits to take effect.");
+                }
             } else {
                 logger.warn("Increase RLIMIT_MEMLOCK (ulimit).");
             }

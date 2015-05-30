@@ -29,9 +29,8 @@ import org.elasticsearch.common.logging.Loggers;
 import java.util.Arrays;
 import java.util.List;
 
-
 /**
- *
+ * java mapping to some libc functions
  */
 final class JNACLibrary {
 
@@ -69,9 +68,5 @@ final class JNACLibrary {
     static native String strerror(int errno);
 
     private JNACLibrary() {
-    }
-    
-    public static void main(String args[]) throws Exception {
-        JNANatives.tryMlockall();
     }
 }

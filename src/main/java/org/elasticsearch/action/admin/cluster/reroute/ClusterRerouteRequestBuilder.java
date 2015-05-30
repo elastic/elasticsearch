@@ -23,6 +23,7 @@ import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommand;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.unit.TimeValue;
 
 /**
  * Builder for a cluster reroute request
@@ -57,6 +58,15 @@ public class ClusterRerouteRequestBuilder extends AcknowledgedRequestBuilder<Clu
      */
     public ClusterRerouteRequestBuilder setExplain(boolean explain) {
         request.explain(explain);
+        return this;
+    }
+
+    /**
+     * Overrides the delayed duration setting, typically used to set "0" here to
+     * make sure delayed allocations are cleared.
+     */
+    public ClusterRerouteRequestBuilder setDelayedDuration(TimeValue delayedDuration) {
+        request.delayedDuration(delayedDuration);
         return this;
     }
 

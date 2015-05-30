@@ -160,12 +160,12 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
     }
 
     private boolean validateRequest(final ClusterHealthRequest request, ClusterState clusterState, final int waitFor) {
-        ClusterHealthResponse response = clusterHealth(request, clusterState, clusterService.numberOfPendingTasks(), gatewayAllocator.getNumberOfInFlightFetch());
+        ClusterHealthResponse response = clusterHealth(request, clusterState, clusterService.numberOfPendingTasks(), gatewayAllocator.getNumberOfInFlightFetch(), gatewayAllocator.getDelayedUnassignedShards());
         return prepareResponse(request, response, clusterState, waitFor);
     }
 
     private ClusterHealthResponse getResponse(final ClusterHealthRequest request, ClusterState clusterState, final int waitFor, boolean timedOut) {
-        ClusterHealthResponse response = clusterHealth(request, clusterState, clusterService.numberOfPendingTasks(), gatewayAllocator.getNumberOfInFlightFetch());
+        ClusterHealthResponse response = clusterHealth(request, clusterState, clusterService.numberOfPendingTasks(), gatewayAllocator.getNumberOfInFlightFetch(), gatewayAllocator.getDelayedUnassignedShards());
         boolean valid = prepareResponse(request, response, clusterState, waitFor);
         assert valid || timedOut;
         // we check for a timeout here since this method might be called from the wait_for_events
@@ -249,7 +249,7 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
     }
 
 
-    private ClusterHealthResponse clusterHealth(ClusterHealthRequest request, ClusterState clusterState, int numberOfPendingTasks, int numberOfInFlightFetch) {
+    private ClusterHealthResponse clusterHealth(ClusterHealthRequest request, ClusterState clusterState, int numberOfPendingTasks, int numberOfInFlightFetch, int delayedUnassigedShards) {
         if (logger.isTraceEnabled()) {
             logger.trace("Calculating health based on state version [{}]", clusterState.version());
         }
@@ -258,11 +258,11 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
             concreteIndices = clusterState.metaData().concreteIndices(request.indicesOptions(), request.indices());
         } catch (IndexMissingException e) {
             // one of the specified indices is not there - treat it as RED.
-            ClusterHealthResponse response = new ClusterHealthResponse(clusterName.value(), Strings.EMPTY_ARRAY, clusterState, numberOfPendingTasks, numberOfInFlightFetch);
+            ClusterHealthResponse response = new ClusterHealthResponse(clusterName.value(), Strings.EMPTY_ARRAY, clusterState, numberOfPendingTasks, numberOfInFlightFetch, delayedUnassigedShards);
             response.status = ClusterHealthStatus.RED;
             return response;
         }
 
-        return new ClusterHealthResponse(clusterName.value(), concreteIndices, clusterState, numberOfPendingTasks, numberOfInFlightFetch);
+        return new ClusterHealthResponse(clusterName.value(), concreteIndices, clusterState, numberOfPendingTasks, numberOfInFlightFetch, delayedUnassigedShards);
     }
 }

@@ -40,6 +40,7 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.FailedRerouteAllocation;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.StartedRerouteAllocation;
+import org.elasticsearch.cluster.routing.allocation.allocator.DelayUnassignedAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -48,11 +49,14 @@ import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.indices.store.TransportNodesListShardStoreMetaData;
+import org.elasticsearch.node.settings.NodeSettingsService;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentMap;
@@ -67,6 +71,8 @@ public class GatewayAllocator extends AbstractComponent {
 
     private final String initialShards;
 
+    private final ThreadPool threadPool;
+    private final DelayUnassignedAllocation delayUnassignedAllocation;
     private final TransportNodesListGatewayStartedShards startedAction;
     private final TransportNodesListShardStoreMetaData storeAction;
     private ClusterService clusterService;
@@ -76,14 +82,30 @@ public class GatewayAllocator extends AbstractComponent {
     private final ConcurrentMap<ShardId, AsyncShardFetch<TransportNodesListShardStoreMetaData.NodeStoreFilesMetaData>> asyncFetchStore = ConcurrentCollections.newConcurrentMap();
 
     @Inject
-    public GatewayAllocator(Settings settings, TransportNodesListGatewayStartedShards startedAction, TransportNodesListShardStoreMetaData storeAction) {
+    public GatewayAllocator(Settings settings, ThreadPool threadPool, NodeSettingsService nodeSettingsService,
+                            TransportNodesListGatewayStartedShards startedAction, TransportNodesListShardStoreMetaData storeAction) {
         super(settings);
+        this.threadPool = threadPool;
+        this.delayUnassignedAllocation = new DelayUnassignedAllocation(settings);
         this.startedAction = startedAction;
         this.storeAction = storeAction;
-
         this.initialShards = settings.get("gateway.initial_shards", settings.get("gateway.local.initial_shards", "quorum"));
 
+        nodeSettingsService.addListener(new ApplySettings());
+
         logger.debug("using initial_shards [{}]", initialShards);
+    }
+
+    class ApplySettings implements NodeSettingsService.Listener {
+        @Override
+        public void onRefreshSettings(Settings settings) {
+            TimeValue delayedDuration = settings.getAsTime(DelayUnassignedAllocation.DELAY_ALLOCATION_DURATION, delayUnassignedAllocation.getDuration());
+            if (delayedDuration.equals(delayUnassignedAllocation.getDuration()) == false) {
+                logger.info("updating {} from {} to {}", DelayUnassignedAllocation.DELAY_ALLOCATION_DURATION, delayUnassignedAllocation.getDuration(), delayedDuration);
+                delayUnassignedAllocation.setDuration(delayedDuration);
+                performReroute("delay_duration_updated");
+            }
+        }
     }
 
     public void setReallocation(final ClusterService clusterService, final AllocationService allocationService) {
@@ -92,20 +114,21 @@ public class GatewayAllocator extends AbstractComponent {
         clusterService.add(new ClusterStateListener() {
             @Override
             public void clusterChanged(ClusterChangedEvent event) {
-                boolean cleanCache = false;
+                boolean noMaster = false;
                 DiscoveryNode localNode = event.state().nodes().localNode();
                 if (localNode != null) {
                     if (localNode.masterNode() == true && event.localNodeMaster() == false) {
-                        cleanCache = true;
+                        noMaster = true;
                     }
                 } else {
-                    cleanCache = true;
+                    noMaster = true;
                 }
-                if (cleanCache) {
+                if (noMaster) {
                     Releasables.close(asyncFetchStarted.values());
                     asyncFetchStarted.clear();
                     Releasables.close(asyncFetchStore.values());
                     asyncFetchStore.clear();
+                    delayUnassignedAllocation.clearDelayedAllocations();
                 }
             }
         });
@@ -120,6 +143,10 @@ public class GatewayAllocator extends AbstractComponent {
             count += fetch.getNumberOfInFlightFetches();
         }
         return count;
+    }
+
+    public int getDelayedUnassignedShards() {
+        return delayUnassignedAllocation.getNumberOfDelayedShards();
     }
 
     public void applyStartedShards(StartedRerouteAllocation allocation) {
@@ -147,6 +174,18 @@ public class GatewayAllocator extends AbstractComponent {
 
     public boolean allocateUnassigned(RoutingAllocation allocation) {
         boolean changed = false;
+
+        DelayUnassignedAllocation.Result delayedResult = delayUnassignedAllocation.delayUnassignedAllocation(allocation);
+        changed |= delayedResult.isChanged();
+        if (delayedResult.isRerouteRequired()) {
+            threadPool.schedule(delayedResult.getRerouteSchedule(), ThreadPool.Names.SAME, new Runnable() {
+                @Override
+                public void run() {
+                    performReroute("delayed_allocation_reroute");
+                }
+            });
+        }
+
         DiscoveryNodes nodes = allocation.nodes();
         RoutingNodes routingNodes = allocation.routingNodes();
 
@@ -516,6 +555,32 @@ public class GatewayAllocator extends AbstractComponent {
 
     private final AtomicBoolean rerouting = new AtomicBoolean();
 
+    private void performReroute(String reason) {
+        if (rerouting.compareAndSet(false, true) == false) {
+            logger.trace("already has pending reroute, ignoring {}", reason);
+            return;
+        }
+        clusterService.submitStateUpdateTask(reason, Priority.HIGH, new ClusterStateUpdateTask() {
+            @Override
+            public ClusterState execute(ClusterState currentState) throws Exception {
+                rerouting.set(false);
+                if (currentState.nodes().masterNode() == null) {
+                    return currentState;
+                }
+                RoutingAllocation.Result routingResult = allocationService.reroute(currentState);
+                if (!routingResult.changed()) {
+                    return currentState;
+                }
+                return ClusterState.builder(currentState).routingResult(routingResult).build();
+            }
+
+            @Override
+            public void onFailure(String source, Throwable t) {
+                logger.warn("failed to perform reroute for {}", t, source);
+            }
+        });
+    }
+
     class InternalAsyncFetch<T extends BaseNodeResponse> extends AsyncShardFetch<T> {
 
         public InternalAsyncFetch(ESLogger logger, String type, ShardId shardId, List<? extends BaseNodesResponse<T>, T> action) {
@@ -524,29 +589,7 @@ public class GatewayAllocator extends AbstractComponent {
 
         @Override
         protected void reroute(ShardId shardId, String reason) {
-            if (rerouting.compareAndSet(false, true) == false) {
-                logger.trace("{} already has pending reroute, ignoring {}", shardId, reason);
-                return;
-            }
-            clusterService.submitStateUpdateTask("async_shard_fetch", Priority.HIGH, new ClusterStateUpdateTask() {
-                @Override
-                public ClusterState execute(ClusterState currentState) throws Exception {
-                    rerouting.set(false);
-                    if (currentState.nodes().masterNode() == null) {
-                        return currentState;
-                    }
-                    RoutingAllocation.Result routingResult = allocationService.reroute(currentState);
-                    if (!routingResult.changed()) {
-                        return currentState;
-                    }
-                    return ClusterState.builder(currentState).routingResult(routingResult).build();
-                }
-
-                @Override
-                public void onFailure(String source, Throwable t) {
-                    logger.warn("failed to perform reroute post async fetch for {}", t, source);
-                }
-            });
+            performReroute("async_shard_fetch for " + shardId);
         }
     }
 }

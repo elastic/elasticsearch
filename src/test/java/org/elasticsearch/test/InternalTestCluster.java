@@ -48,6 +48,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.allocation.allocator.DelayUnassignedAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.common.Nullable;
@@ -450,6 +451,8 @@ public final class InternalTestCluster extends TestCluster {
                 builder.put(TranslogConfig.INDEX_TRANSLOG_SYNC_INTERVAL, RandomInts.randomIntBetween(random, 100, 5000));
             }
         }
+
+        builder.put(DelayUnassignedAllocation.DELAY_ALLOCATION_DURATION, TimeValue.timeValueMillis(RandomInts.randomIntBetween(random, 0, 100)));
 
         return builder.build();
     }

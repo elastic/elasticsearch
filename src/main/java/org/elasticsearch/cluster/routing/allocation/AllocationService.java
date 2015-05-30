@@ -31,9 +31,11 @@ import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocators;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -114,15 +116,16 @@ public class AllocationService extends AbstractComponent {
     }
 
     public RoutingAllocation.Result reroute(ClusterState clusterState, AllocationCommands commands) {
-        return reroute(clusterState, commands, false);
+        return reroute(clusterState, commands, false, null);
     }
 
-    public RoutingAllocation.Result reroute(ClusterState clusterState, AllocationCommands commands, boolean explain) {
+    public RoutingAllocation.Result reroute(ClusterState clusterState, AllocationCommands commands, boolean explain, @Nullable TimeValue delayedDuration) {
         RoutingNodes routingNodes = clusterState.routingNodes();
         // we don't shuffle the unassigned shards here, to try and get as close as possible to
         // a consistent result of the effect the commands have on the routing
         // this allows systems to dry run the commands, see the resulting cluster state, and act on it
         RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, routingNodes, clusterState.nodes(), clusterInfoService.getClusterInfo());
+        allocation.setDelayedDuration(delayedDuration);
         // don't short circuit deciders, we want a full explanation
         allocation.debugDecision(true);
         // we ignore disable allocation, because commands are explicit
@@ -476,8 +479,10 @@ public class AllocationService extends AbstractComponent {
                                 allocation.addIgnoreShardForNode(failedShard.shardId(), failedShard.currentNodeId());
                             }
 
-                            routingNodes.unassigned().add(new MutableShardRouting(failedShard.index(), failedShard.id(),
-                                    null, failedShard.primary(), ShardRoutingState.UNASSIGNED, failedShard.version() + 1));
+                            MutableShardRouting unassignedRouting = new MutableShardRouting(failedShard.index(), failedShard.id(),
+                                    null, failedShard.primary(), ShardRoutingState.UNASSIGNED, failedShard.version() + 1);
+                            routingNodes.unassigned().add(unassignedRouting);
+                            allocation.addFailedShard(routingNodes.node(failedShard.currentNodeId()).nodeId(), unassignedRouting);
                             break;
                         }
                     }
@@ -529,9 +534,10 @@ public class AllocationService extends AbstractComponent {
                             routingNodes.unassigned().addAll(shardsToMove);
                         }
 
-                        routingNodes.unassigned().add(new MutableShardRouting(failedShard.index(), failedShard.id(), null,
-                                null, failedShard.restoreSource(), failedShard.primary(), ShardRoutingState.UNASSIGNED, failedShard.version() + 1));
-
+                        MutableShardRouting unassignedShard = new MutableShardRouting(failedShard.index(), failedShard.id(), null,
+                                null, failedShard.restoreSource(), failedShard.primary(), ShardRoutingState.UNASSIGNED, failedShard.version() + 1);
+                        routingNodes.unassigned().add(unassignedShard);
+                        allocation.addFailedShard(routingNodes.node(failedShard.currentNodeId()).nodeId(), unassignedShard);
                         break;
                     }
                 }

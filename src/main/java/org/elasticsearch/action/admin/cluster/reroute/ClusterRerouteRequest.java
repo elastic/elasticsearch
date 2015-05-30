@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 
@@ -41,6 +42,7 @@ public class ClusterRerouteRequest extends AcknowledgedRequest<ClusterRerouteReq
     AllocationCommands commands = new AllocationCommands();
     boolean dryRun;
     boolean explain;
+    TimeValue delayedDuration = null;
 
     public ClusterRerouteRequest() {
     }
@@ -89,6 +91,23 @@ public class ClusterRerouteRequest extends AcknowledgedRequest<ClusterRerouteReq
     }
 
     /**
+     * Overrides the delayed duration setting, typically used to set "0" here to
+     * make sure delayed allocations are cleared.
+     */
+    public ClusterRerouteRequest delayedDuration(TimeValue delayedDuration) {
+        this.delayedDuration = delayedDuration;
+        return this;
+    }
+
+    /**
+     * Overrides the delayed duration setting, typically used to set "0" here to
+     * make sure delayed allocations are cleared.
+     */
+    public TimeValue delayedDuration() {
+        return this.delayedDuration;
+    }
+
+    /**
      * Sets the source for the request.
      */
     public ClusterRerouteRequest source(BytesReference source) throws Exception {
@@ -128,6 +147,9 @@ public class ClusterRerouteRequest extends AcknowledgedRequest<ClusterRerouteReq
         dryRun = in.readBoolean();
         explain = in.readBoolean();
         readTimeout(in);
+        if (in.getVersion().onOrAfter(Version.V_1_6_0)) {
+            delayedDuration = in.readOptionalStreamable(new TimeValue(0));
+        }
     }
 
     @Override
@@ -137,5 +159,8 @@ public class ClusterRerouteRequest extends AcknowledgedRequest<ClusterRerouteReq
         out.writeBoolean(dryRun);
         out.writeBoolean(explain);
         writeTimeout(out);
+        if (out.getVersion().onOrAfter(Version.V_1_6_0)) {
+            out.writeOptionalStreamable(delayedDuration);
+        }
     }
 }

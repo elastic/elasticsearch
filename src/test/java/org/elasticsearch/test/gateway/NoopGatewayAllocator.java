@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.StartedRerouteAllocation;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.gateway.GatewayAllocator;
+import org.elasticsearch.node.settings.NodeSettingsService;
 
 /**
  * An allocator used for tests that doesn't do anything
@@ -33,7 +34,7 @@ public class NoopGatewayAllocator extends GatewayAllocator {
     public static final NoopGatewayAllocator INSTANCE = new NoopGatewayAllocator();
 
     private NoopGatewayAllocator() {
-        super(Settings.EMPTY, null, null);
+        super(Settings.EMPTY, null, new NodeSettingsService(Settings.EMPTY), null, null);
     }
 
     @Override

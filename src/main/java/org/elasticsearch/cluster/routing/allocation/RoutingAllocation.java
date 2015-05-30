@@ -19,20 +19,22 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
+import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 /**
  * The {@link RoutingAllocation} keep the state of the current allocation
@@ -101,20 +103,15 @@ public class RoutingAllocation {
     }
 
     private final AllocationDeciders deciders;
-
     private final RoutingNodes routingNodes;
-
     private final DiscoveryNodes nodes;
-
     private final AllocationExplanation explanation = new AllocationExplanation();
-
     private final ClusterInfo clusterInfo;
-
     private Map<ShardId, Set<String>> ignoredShardToNodes = null;
-
+    private Map<String, List<ShardRouting>> failedShards;
     private boolean ignoreDisable = false;
-
     private boolean debugDecision = false;
+    private TimeValue delayedDuration = null;
 
     /**
      * Creates a new {@link RoutingAllocation}
@@ -128,6 +125,15 @@ public class RoutingAllocation {
         this.routingNodes = routingNodes;
         this.nodes = nodes;
         this.clusterInfo = clusterInfo;
+    }
+
+    @Nullable
+    public TimeValue getDelayedDuration() {
+        return this.delayedDuration;
+    }
+
+    public void setDelayedDuration(TimeValue delayedDuration) {
+        this.delayedDuration = delayedDuration;
     }
 
     /**
@@ -227,6 +233,25 @@ public class RoutingAllocation {
             return ImmutableSet.of();
         }
         return ImmutableSet.copyOf(ignore);
+    }
+
+    public void addFailedShard(String nodeId, ShardRouting shardRouting) {
+        if (failedShards == null) {
+            failedShards = new HashMap<>();
+        }
+        List<ShardRouting> shardRoutings = failedShards.get(nodeId);
+        if (shardRoutings == null) {
+            shardRoutings = new ArrayList<>();
+            failedShards.put(nodeId, shardRoutings);
+        }
+        shardRoutings.add(shardRouting);
+    }
+
+    public Map<String, List<ShardRouting>> getFailedShards() {
+        if (this.failedShards == null) {
+            return ImmutableMap.of();
+        }
+        return this.failedShards;
     }
 
     /**

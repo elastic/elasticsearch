@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
+import org.elasticsearch.cluster.routing.allocation.allocator.DelayUnassignedAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.*;
 import org.elasticsearch.cluster.service.InternalClusterService;
 import org.elasticsearch.common.inject.AbstractModule;
@@ -100,6 +101,7 @@ public class ClusterDynamicSettingsModule extends AbstractModule {
         clusterDynamicSettings.addDynamicSetting(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING, Validator.MEMORY_SIZE);
         clusterDynamicSettings.addDynamicSetting(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_OVERHEAD_SETTING, Validator.NON_NEGATIVE_DOUBLE);
         clusterDynamicSettings.addDynamicSetting(InternalClusterService.SETTING_CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD, Validator.TIME_NON_NEGATIVE);
+        clusterDynamicSettings.addDynamicSetting(DelayUnassignedAllocation.DELAY_ALLOCATION_DURATION, Validator.TIME_NON_NEGATIVE);
     }
 
     public void addDynamicSettings(String... settings) {

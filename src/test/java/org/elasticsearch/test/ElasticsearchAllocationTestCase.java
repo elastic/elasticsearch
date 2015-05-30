@@ -33,6 +33,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecidersMo
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.test.gateway.NoopGatewayAllocator;
 import org.elasticsearch.node.settings.NodeSettingsService;
 
@@ -61,11 +62,14 @@ public abstract class ElasticsearchAllocationTestCase extends ElasticsearchTestC
     }
 
     public static AllocationService createAllocationService(Settings settings, NodeSettingsService nodeSettingsService, Random random) {
-        return new AllocationService(settings,
-                randomAllocationDeciders(settings, nodeSettingsService, random),
-                new ShardsAllocators(settings, NoopGatewayAllocator.INSTANCE), ClusterInfoService.EMPTY);
+        return createAllocationService(settings, nodeSettingsService, NoopGatewayAllocator.INSTANCE, random);
     }
 
+    public static AllocationService createAllocationService(Settings settings, NodeSettingsService nodeSettingsService, GatewayAllocator allocator, Random random) {
+        return new AllocationService(settings,
+                randomAllocationDeciders(settings, nodeSettingsService, random),
+                new ShardsAllocators(settings, allocator), ClusterInfoService.EMPTY);
+    }
 
     public static AllocationDeciders randomAllocationDeciders(Settings settings, NodeSettingsService nodeSettingsService, Random random) {
         final ImmutableSet<Class<? extends AllocationDecider>> defaultAllocationDeciders = AllocationDecidersModule.DEFAULT_ALLOCATION_DECIDERS;

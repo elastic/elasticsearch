@@ -178,6 +178,8 @@ public class RecoverySourceHandler implements Engine.RecoveryHandler {
                 }
                 // we shortcut recovery here because we have nothing to copy. but we must still start the engine on the target.
                 // so we don't return here
+                logger.trace("[{}][{}] skipping [phase1] to {} - identical sync id [{}] found on both source and target", indexName, shardId,
+                        request.targetNode(), recoverySourceSyncId);
             } else {
 
                 // Generate a "diff" of all the identical, different, and missing

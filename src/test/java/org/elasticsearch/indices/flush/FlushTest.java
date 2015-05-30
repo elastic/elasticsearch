@@ -16,14 +16,13 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.indices;
+package org.elasticsearch.indices.flush;
 
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
-import org.elasticsearch.action.admin.indices.seal.SealIndicesResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -38,6 +37,7 @@ import org.junit.Test;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
@@ -45,7 +45,6 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static java.lang.Thread.sleep;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
 @ElasticsearchIntegrationTest.ClusterScope(numDataNodes = 0, scope = ElasticsearchIntegrationTest.Scope.SUITE)
@@ -100,8 +99,16 @@ public class FlushTest extends ElasticsearchIntegrationTest {
             assertNull(shardStats.getCommitStats().getUserData().get(Engine.SYNC_COMMIT_ID));
         }
 
-        SyncedFlushService.SyncedFlushResult result = SyncedFlushUtil.attemptSyncedFlush(internalCluster().getInstance(SyncedFlushService.class), new ShardId("test", 0));
-        assertTrue(result.success());
+        ShardsSyncedFlushResult result;
+        if (randomBoolean()) {
+            logger.info("--> sync flushing shard 0");
+            result = SyncedFlushUtil.attemptSyncedFlush(internalCluster(), new ShardId("test", 0));
+        } else {
+            logger.info("--> sync flushing index [test]");
+            IndicesSyncedFlushResult indicesResult = SyncedFlushUtil.attemptSyncedFlush(internalCluster(), "test");
+            result = indicesResult.getShardsResultPerIndex().get("test").get(0);
+        }
+        assertFalse(result.failed());
         assertThat(result.totalShards(), equalTo(indexStats.getShards().length));
         assertThat(result.successfulShards(), equalTo(indexStats.getShards().length));
 
@@ -143,26 +150,7 @@ public class FlushTest extends ElasticsearchIntegrationTest {
     }
 
     @TestLogging("indices:TRACE")
-    public void testSyncedFlushWithApi() throws ExecutionException, InterruptedException, IOException {
-
-        createIndex("test");
-        ensureGreen();
-
-        IndexStats indexStats = client().admin().indices().prepareStats("test").get().getIndex("test");
-        for (ShardStats shardStats : indexStats.getShards()) {
-            assertNull(shardStats.getCommitStats().getUserData().get(Engine.SYNC_COMMIT_ID));
-        }
-        logger.info("--> trying sync flush");
-        SealIndicesResponse sealIndicesResponse = client().admin().indices().prepareSealIndices("test").get();
-        logger.info("--> sync flush done");
-        indexStats = client().admin().indices().prepareStats("test").get().getIndex("test");
-        for (ShardStats shardStats : indexStats.getShards()) {
-            assertNotNull(shardStats.getCommitStats().getUserData().get(Engine.SYNC_COMMIT_ID));
-        }
-    }
-
-    @TestLogging("indices:TRACE")
-    public void testSyncedFlushWithApiAndConcurrentIndexing() throws Exception {
+    public void testSyncedFlushWithConcurrentIndexing() throws Exception {
 
         internalCluster().ensureAtLeastNumDataNodes(3);
         createIndex("test");
@@ -189,14 +177,12 @@ public class FlushTest extends ElasticsearchIntegrationTest {
             assertNull(shardStats.getCommitStats().getUserData().get(Engine.SYNC_COMMIT_ID));
         }
         logger.info("--> trying sync flush");
-        SealIndicesResponse sealIndicesResponse = client().admin().indices().prepareSealIndices("test").get();
+        IndicesSyncedFlushResult syncedFlushResult = SyncedFlushUtil.attemptSyncedFlush(internalCluster(), "test");
         logger.info("--> sync flush done");
         stop.set(true);
         indexingThread.join();
         indexStats = client().admin().indices().prepareStats("test").get().getIndex("test");
-        for (ShardStats shardStats : indexStats.getShards()) {
-            assertFlushResponseEqualsShardStats(shardStats, sealIndicesResponse);
-        }
+        assertFlushResponseEqualsShardStats(indexStats.getShards(), syncedFlushResult.getShardsResultPerIndex().get("test"));
         refresh();
         assertThat(client().prepareCount().get().getCount(), equalTo((long) numDocs.get()));
         logger.info("indexed {} docs", client().prepareCount().get().getCount());
@@ -206,18 +192,20 @@ public class FlushTest extends ElasticsearchIntegrationTest {
         assertThat(client().prepareCount().get().getCount(), equalTo((long) numDocs.get()));
     }
 
-    private void assertFlushResponseEqualsShardStats(ShardStats shardStats, SealIndicesResponse sealIndicesResponse) {
+    private void assertFlushResponseEqualsShardStats(ShardStats[] shardsStats, List<ShardsSyncedFlushResult> syncedFlushResults) {
 
-        for (SyncedFlushService.SyncedFlushResult shardResult : sealIndicesResponse.results()) {
-            if (shardStats.getShardRouting().getId() == shardResult.shardId().getId()) {
-                for (Map.Entry<ShardRouting, SyncedFlushService.SyncedFlushResponse> singleResponse : shardResult.shardResponses().entrySet()) {
-                    if (singleResponse.getKey().currentNodeId().equals(shardStats.getShardRouting().currentNodeId())) {
-                        if (singleResponse.getValue().success()) {
-                            assertNotNull(shardStats.getCommitStats().getUserData().get(Engine.SYNC_COMMIT_ID));
-                            logger.info("sync flushed {} on node {}", singleResponse.getKey().shardId(), singleResponse.getKey().currentNodeId());
-                        } else {
-                            assertNull(shardStats.getCommitStats().getUserData().get(Engine.SYNC_COMMIT_ID));
-                            logger.info("sync flush failed for {} on node {}", singleResponse.getKey().shardId(), singleResponse.getKey().currentNodeId());
+        for (final ShardStats shardStats : shardsStats) {
+            for (final ShardsSyncedFlushResult shardResult : syncedFlushResults) {
+                if (shardStats.getShardRouting().getId() == shardResult.shardId().getId()) {
+                    for (Map.Entry<ShardRouting, SyncedFlushService.SyncedFlushResponse> singleResponse : shardResult.shardResponses().entrySet()) {
+                        if (singleResponse.getKey().currentNodeId().equals(shardStats.getShardRouting().currentNodeId())) {
+                            if (singleResponse.getValue().success()) {
+                                logger.info("{} sync flushed on node {}", singleResponse.getKey().shardId(), singleResponse.getKey().currentNodeId());
+                                assertNotNull(shardStats.getCommitStats().getUserData().get(Engine.SYNC_COMMIT_ID));
+                            } else {
+                                logger.info("{} sync flush failed for on node {}", singleResponse.getKey().shardId(), singleResponse.getKey().currentNodeId());
+                                assertNull(shardStats.getCommitStats().getUserData().get(Engine.SYNC_COMMIT_ID));
+                            }
                         }
                     }
                 }
@@ -229,4 +217,18 @@ public class FlushTest extends ElasticsearchIntegrationTest {
     protected Settings nodeSettings(int nodeOrdinal) {
         return ImmutableSettings.settingsBuilder().put(super.nodeSettings(nodeOrdinal)).put("gateway.type", "local").build();
     }
+
+    @Test
+    public void testUnallocatedShardsDoesNotHang() throws InterruptedException {
+        //  create an index but disallow allocation
+        prepareCreate("test").setSettings(ImmutableSettings.builder().put("index.routing.allocation.include._name", "nonexistent")).get();
+
+        // this should not hang but instead immediately return with empty result set
+        List<ShardsSyncedFlushResult> shardsResult = SyncedFlushUtil.attemptSyncedFlush(internalCluster(), "test").getShardsResultPerIndex().get("test");
+        // just to make sure the test actually tests the right thing
+        int numShards = client().admin().indices().prepareGetSettings("test").get().getIndexToSettings().get("test").getAsInt(IndexMetaData.SETTING_NUMBER_OF_SHARDS, -1);
+        assertThat(shardsResult.size(), equalTo(numShards));
+        assertThat(shardsResult.get(0).failureReason(), equalTo("no active shards"));
+    }
+
 }

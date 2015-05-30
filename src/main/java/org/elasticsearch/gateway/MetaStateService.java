@@ -116,7 +116,14 @@ public class MetaStateService extends AbstractComponent {
      * Loads the global state, *without* index state, see {@link #loadFullState()} for that.
      */
     MetaData loadGlobalState() throws IOException {
-        return globalStateFormat.loadLatestState(logger, nodeEnv.nodeDataPaths());
+        MetaData globalState = globalStateFormat.loadLatestState(logger, nodeEnv.nodeDataPaths());
+        // ES 2.0 now requires units for all time and byte-sized settings, so we add the default unit if it's missing
+        // TODO: can we somehow only do this for pre-2.0 cluster state?
+        if (globalState != null) {
+            return MetaData.addDefaultUnitsIfNeeded(logger, globalState);
+        } else {
+            return null;
+        }
     }
 
     /**

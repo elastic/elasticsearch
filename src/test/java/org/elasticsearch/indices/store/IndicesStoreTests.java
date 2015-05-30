@@ -210,7 +210,7 @@ public class IndicesStoreTests extends ElasticsearchTestCase {
         IndicesStore.ShardActiveRequest readShardActiveRequest = new IndicesStore.ShardActiveRequest();
         readShardActiveRequest.readFrom(in);
         in.close();
-        if (version.onOrAfter(Version.V_1_5_0)) {
+        if (version.onOrAfter(Version.V_1_6_0)) {
             assertThat(shardActiveRequest.timeout, equalTo(readShardActiveRequest.timeout));
         } else {
             assertThat(readShardActiveRequest.timeout, equalTo(IndicesStore.DEFAULT_SHARD_DELETE_TIMEOUT));

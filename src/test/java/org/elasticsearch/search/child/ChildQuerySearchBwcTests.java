@@ -24,7 +24,6 @@ import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheRespo
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.explain.ExplainResponse;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.fielddata.FieldDataType;
@@ -46,8 +45,7 @@ public class ChildQuerySearchBwcTests extends ChildQuerySearchTests {
 
     @Override
     public Settings indexSettings() {
-        return Settings.builder()
-                .put(super.indexSettings()).put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_6_0).build();
+        return settings(Version.V_1_6_0).put(super.indexSettings()).build();
     }
 
     public void testSelfReferentialIsForbidden() {

@@ -25,6 +25,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.settings.Settings;
 import org.joda.time.Period;
 import org.joda.time.PeriodType;
 import org.joda.time.format.PeriodFormat;
@@ -256,8 +257,13 @@ public class TimeValue implements Serializable, Streamable {
                 // Allow this special value to be unit-less:
                 millis = 0;
             } else {
-                // Missing units:
-                throw new ElasticsearchParseException("Failed to parse setting [" + settingName + "] with value [" + sValue + "] as a time value: unit is missing or unrecognized");
+                if (Settings.getSettingsRequireUnits()) {
+                    // Missing units:
+                    throw new ElasticsearchParseException("Failed to parse setting [" + settingName + "] with value [" + sValue + "] as a time value: unit is missing or unrecognized");
+                } else {
+                    // Leniency default to msec for bwc:
+                    millis = Long.parseLong(sValue);
+                }
             }
             return new TimeValue(millis, TimeUnit.MILLISECONDS);
         } catch (NumberFormatException e) {

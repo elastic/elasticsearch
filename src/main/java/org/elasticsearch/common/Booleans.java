@@ -84,7 +84,7 @@ public class Booleans {
      * @return true/false
      * throws exception if string cannot be parsed to boolean
      */
-    public static Boolean parseBooleanExact(String value){
+    public static Boolean parseBooleanExact(String value) {
 
         boolean isFalse = isExplicitFalse(value);
         if (isFalse) {

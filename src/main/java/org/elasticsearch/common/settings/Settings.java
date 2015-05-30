@@ -61,7 +61,20 @@ import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
 public final class Settings implements ToXContent {
 
     public static final Settings EMPTY = new Builder().build();
-    private final static Pattern ARRAY_PATTERN = Pattern.compile("(.*)\\.\\d+$");
+    private static final Pattern ARRAY_PATTERN = Pattern.compile("(.*)\\.\\d+$");
+
+    /** Name of the setting to use to disable required units for byte size, time settings. */
+    public static final String SETTINGS_REQUIRE_UNITS = "settings_require_units";
+
+    private static boolean settingsRequireUnits = true;
+
+    public static void setSettingsRequireUnits(boolean v) {
+        settingsRequireUnits = v;
+    }
+
+    public static boolean getSettingsRequireUnits() {
+        return settingsRequireUnits;
+    }
 
     private ImmutableMap<String, String> settings;
     private final ImmutableMap<String, String> forcedUnderscoreSettings;

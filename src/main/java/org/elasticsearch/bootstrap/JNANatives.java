@@ -26,8 +26,6 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 
-import java.util.Locale;
-
 import static org.elasticsearch.bootstrap.JNAKernel32Library.SizeT;
 
 /**

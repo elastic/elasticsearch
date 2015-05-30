@@ -55,13 +55,16 @@ class JNANatives {
             
             errno = Native.getLastError();
             errMsg = JNACLibrary.strerror(errno);
-            JNACLibrary.Rlimit rlimit = new JNACLibrary.Rlimit();
-            if (JNACLibrary.getrlimit(JNACLibrary.RLIMIT_MEMLOCK, rlimit) == 0) {
-              rlimitSuccess = true;
-              softLimit = rlimit.rlim_cur;
-              hardLimit = rlimit.rlim_max;
-            } else {
-              logger.warn("Unable to retrieve resource limits: " + JNACLibrary.strerror(Native.getLastError()));
+            if (Constants.LINUX || Constants.MAC_OS_X) {
+                // we only know RLIMIT_MEMLOCK for these two at the moment. 
+                JNACLibrary.Rlimit rlimit = new JNACLibrary.Rlimit();
+                if (JNACLibrary.getrlimit(JNACLibrary.RLIMIT_MEMLOCK, rlimit) == 0) {
+                    rlimitSuccess = true;
+                    softLimit = rlimit.rlim_cur;
+                    hardLimit = rlimit.rlim_max;
+                } else {
+                    logger.warn("Unable to retrieve resource limits: " + JNACLibrary.strerror(Native.getLastError()));
+                }
             }
         } catch (UnsatisfiedLinkError e) {
             // this will have already been logged by CLibrary, no need to repeat it

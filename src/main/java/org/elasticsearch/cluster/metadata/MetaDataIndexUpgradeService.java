@@ -178,6 +178,7 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
      */
     private IndexMetaData addDefaultUnitsIfNeeded(IndexMetaData indexMetaData) {
         if (indexMetaData.getCreationVersion().before(Version.V_2_0_0)) {
+            // TODO: can we somehow only do this *once* for a pre-2.0 index?  Maybe we could stuff a "fake marker setting" here?  Seems hackish...
             // Created lazily if we find any settings that are missing units:
             Settings settings = indexMetaData.settings();
             Settings.Builder newSettings = null;
@@ -190,7 +191,7 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
                         continue;
                     }
                     // It's a naked number; add default unit (b for bytes):
-                    logger.warn("byte-sized setting [{}] with value [{}] is missing units; now adding default units (b)", byteSizeSetting, value);
+                    logger.warn("byte-sized index setting [{}] with value [{}] is missing units; now adding default units (b)", byteSizeSetting, value);
                     if (newSettings == null) {
                         newSettings = Settings.builder();
                         newSettings.put(settings);
@@ -207,7 +208,7 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
                         continue;
                     }
                     // It's a naked number; add default unit (ms for msec):
-                    logger.warn("time setting [{}] with value [{}] is missing units; now adding default units (ms)", timeSetting, value);
+                    logger.warn("time index setting [{}] with value [{}] is missing units; now adding default units (ms)", timeSetting, value);
                     if (newSettings == null) {
                         newSettings = Settings.builder();
                         newSettings.put(settings);

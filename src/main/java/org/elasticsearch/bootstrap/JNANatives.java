@@ -43,26 +43,40 @@ class JNANatives {
 
     static void tryMlockall() {
         int errno = Integer.MIN_VALUE;
+        String errMsg = null;
+        boolean rlimitSuccess = false;
+        long softLimit = 0;
+        long hardLimit = 0;
+        
         try {
             int result = JNACLibrary.mlockall(JNACLibrary.MCL_CURRENT);
-            if (result != 0) {
-                errno = Native.getLastError();
-            } else {
+            if (result == 0) {
                 LOCAL_MLOCKALL = true;
+                return;
+            }
+            
+            errno = Native.getLastError();
+            errMsg = JNACLibrary.strerror(errno);
+            JNACLibrary.Rlimit rlimit = new JNACLibrary.Rlimit();
+            if (JNACLibrary.getrlimit(JNACLibrary.RLIMIT_MEMLOCK, rlimit) == 0) {
+              rlimitSuccess = true;
+              softLimit = rlimit.rlim_cur;
+              hardLimit = rlimit.rlim_max;
+            } else {
+              logger.warn("Unable to retrieve resource limits: " + JNACLibrary.strerror(Native.getLastError()));
             }
         } catch (UnsatisfiedLinkError e) {
             // this will have already been logged by CLibrary, no need to repeat it
             return;
         }
 
-        if (errno != Integer.MIN_VALUE) {
-            if (errno == JNACLibrary.ENOMEM && System.getProperty("os.name").toLowerCase(Locale.ROOT).contains("linux")) {
-                logger.warn("Unable to lock JVM memory (ENOMEM)."
-                        + " This can result in part of the JVM being swapped out."
-                        + " Increase RLIMIT_MEMLOCK (ulimit).");
-            } else if (!System.getProperty("os.name").toLowerCase(Locale.ROOT).contains("mac")) {
-                // OS X allows mlockall to be called, but always returns an error
-                logger.warn("Unknown mlockall error " + errno);
+        // mlockall failed for some reason
+        logger.warn("Unable to lock JVM Memory: error=" + errno + ",reason=" + errMsg + ". This can result in part of the JVM being swapped out");
+        if (errno == JNACLibrary.ENOMEM) {
+            if (rlimitSuccess) {
+                logger.warn("Increase RLIMIT_MEMLOCK (ulimit). soft limit:" + softLimit + ", hard limit:" + hardLimit);
+            } else {
+                logger.warn("Increase RLIMIT_MEMLOCK (ulimit).");
             }
         }
     }

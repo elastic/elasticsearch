@@ -75,13 +75,23 @@ class JNANatives {
         logger.warn("Unable to lock JVM Memory: error=" + errno + ",reason=" + errMsg + ". This can result in part of the JVM being swapped out");
         if (errno == JNACLibrary.ENOMEM) {
             if (rlimitSuccess) {
-                logger.warn("Increase RLIMIT_MEMLOCK (ulimit). soft limit:" + softLimit + ", hard limit:" + hardLimit);
+                logger.warn("Increase RLIMIT_MEMLOCK (ulimit). soft limit: " + rlimitToString(softLimit) + ", hard limit: " + rlimitToString(hardLimit));
             } else {
                 logger.warn("Increase RLIMIT_MEMLOCK (ulimit).");
             }
         }
     }
     
+    static String rlimitToString(long value) {
+        assert Constants.LINUX || Constants.MAC_OS_X;
+        if (value == JNACLibrary.RLIM_INFINITY) {
+            return "unlimited";
+        } else {
+            // TODO, on java 8 use Long.toUnsignedString, since thats what it is.
+            return Long.toString(value);
+        }
+    }
+
     /** Returns true if user is root, false if not, or if we don't know */
     static boolean definitelyRunningAsRoot() {
         if (Constants.WINDOWS) {

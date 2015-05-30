@@ -21,10 +21,13 @@ package org.elasticsearch.cluster.settings;
 
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequestBuilder;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.allocation.decider.DisableAllocationDecider;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
@@ -188,5 +191,33 @@ public class ClusterSettingsTests extends ElasticsearchIntegrationTest {
 
         // Should fail (missing units for refresh_interval):
         client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder().put("index.refresh_interval", "10")).execute().actionGet();
+    }
+
+    @Test
+    public void testMissingUnitsLenient() {
+        try {
+            createNode(Settings.builder().put(Settings.SETTINGS_REQUIRE_UNITS, "false").build());
+            assertAcked(prepareCreate("test"));
+            client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder().put("index.refresh_interval", "10")).execute().actionGet();
+        } finally {
+            // Restore the default so subsequent tests require units:
+            assertFalse(Settings.getSettingsRequireUnits());
+            Settings.setSettingsRequireUnits(true);
+        }
+    }
+    private void createNode(Settings settings) {
+        internalCluster().startNode(Settings.builder()
+                        .put(ClusterName.SETTING, "ClusterSettingsTests")
+                        .put("node.name", "ClusterSettingsTests")
+                        .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+                        .put(EsExecutors.PROCESSORS, 1) // limit the number of threads created
+                        .put("http.enabled", false)
+                        .put("index.store.type", "ram")
+                        .put("config.ignore_system_properties", true) // make sure we get what we set :)
+                        .put("gateway.type", "none")
+                        .put("indices.memory.interval", "100ms")
+                        .put(settings)
+        );
     }
 }

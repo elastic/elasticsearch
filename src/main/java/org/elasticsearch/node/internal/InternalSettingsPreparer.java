@@ -20,6 +20,7 @@
 package org.elasticsearch.node.internal;
 
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Names;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
@@ -129,6 +130,10 @@ public class InternalSettingsPreparer {
             settingsBuilder.put(ClusterName.SETTING, ClusterName.DEFAULT.value());
         }
 
+        String v = settingsBuilder.get(Settings.SETTINGS_REQUIRE_UNITS);
+        if (v != null) {
+            Settings.setSettingsRequireUnits(Booleans.parseBoolean(v, true));
+        }
         Settings v1 = settingsBuilder.build();
         environment = new Environment(v1);
 

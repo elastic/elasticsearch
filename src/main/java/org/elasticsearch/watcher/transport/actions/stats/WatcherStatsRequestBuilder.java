@@ -23,8 +23,8 @@ public class WatcherStatsRequestBuilder extends MasterNodeOperationRequestBuilde
         request().includeCurrentWatches(includeCurrentWatches);
         return this;
     }
-    public WatcherStatsRequestBuilder setIncludePendingWatches(boolean includePendingWatches) {
-        request().includePendingWatches(includePendingWatches);
+    public WatcherStatsRequestBuilder setIncludeQueuedWatches(boolean includeQueuedWatches) {
+        request().includeQueuedWatches(includeQueuedWatches);
         return this;
     }
 

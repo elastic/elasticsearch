@@ -14,8 +14,6 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.watcher.actions.ActionWrapper;
 import org.elasticsearch.watcher.actions.ExecutableActions;
-import org.elasticsearch.watcher.execution.ExecutionPhase;
-import org.elasticsearch.watcher.execution.ExecutionService;
 
 import java.io.IOException;
 
@@ -88,7 +86,7 @@ public class WatchExecutionSnapshot implements Streamable, ToXContent {
         for (int i = 0; i < size; i++) {
             String declaringClass = in.readString();
             String methodName = in.readString();
-            String fileName = in.readString();
+            String fileName = in.readOptionalString();
             int lineNumber = in.readInt();
             executionStackTrace[i] = new StackTraceElement(declaringClass, methodName, fileName, lineNumber);
         }
@@ -105,7 +103,7 @@ public class WatchExecutionSnapshot implements Streamable, ToXContent {
         for (StackTraceElement element : executionStackTrace) {
             out.writeString(element.getClassName());
             out.writeString(element.getMethodName());
-            out.writeString(element.getFileName());
+            out.writeOptionalString(element.getFileName());
             out.writeInt(element.getLineNumber());
         }
     }

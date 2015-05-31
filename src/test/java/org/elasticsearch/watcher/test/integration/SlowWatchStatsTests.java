@@ -32,7 +32,7 @@ import static org.hamcrest.Matchers.*;
 /**
  */
 @LuceneTestCase.Slow
-@ElasticsearchIntegrationTest.ClusterScope(scope = TEST, numClientNodes = 0, transportClientRatio = 0, randomDynamicTemplates = false, numDataNodes = 1)
+@ElasticsearchIntegrationTest.ClusterScope(scope = TEST, numClientNodes = 0, transportClientRatio = 0, randomDynamicTemplates = false, numDataNodes = 2)
 public class SlowWatchStatsTests extends AbstractWatcherIntegrationTests {
 
     @Override
@@ -88,7 +88,7 @@ public class SlowWatchStatsTests extends AbstractWatcherIntegrationTests {
         assertBusy(new Runnable() {
             @Override
             public void run() {
-                WatcherStatsResponse response = watcherClient().prepareWatcherStats().setIncludePendingWatches(true).get();
+                WatcherStatsResponse response = watcherClient().prepareWatcherStats().setIncludeQueuedWatches(true).get();
                 assertThat(response.getWatcherState(), equalTo(WatcherState.STARTED));
                 assertThat(response.getWatchesCount(), equalTo(5l));
                 assertThat(response.getSnapshots(), nullValue());

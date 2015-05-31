@@ -38,10 +38,10 @@ public class RestWatcherStatsAction extends WatcherRestHandler {
         WatcherStatsRequest request = new WatcherStatsRequest();
         if (metrics.contains("_all")) {
             request.includeCurrentWatches(true);
-            request.includePendingWatches(true);
+            request.includeQueuedWatches(true);
         } else {
             request.includeCurrentWatches(metrics.contains("queued_watches"));
-            request.includePendingWatches(metrics.contains("pending_watches"));
+            request.includeQueuedWatches(metrics.contains("pending_watches"));
         }
 
         client.watcherStats(request, new RestBuilderListener<WatcherStatsResponse>(restChannel) {

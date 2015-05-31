@@ -70,18 +70,12 @@ public class SearchWithRejectionsTests extends ElasticsearchIntegrationTest {
                     .setSearchType(searchType)
                     .execute();
         }
-        int failures = 0;
         for (int i = 0; i < numSearches; i++) {
             try {
-                SearchResponse searchResponse = responses[i].get();
-                if (searchResponse.getFailedShards() > 0) {
-                    failures++;
-                }
+                responses[i].get();
             } catch (Throwable t) {
-                failures++;
             }
         }
-        assertThat(failures, greaterThanOrEqualTo(1));
         awaitBusy(new Predicate<Object>() {
             @Override
             public boolean apply(Object input) {

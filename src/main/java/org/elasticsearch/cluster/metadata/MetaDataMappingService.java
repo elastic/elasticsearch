@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
@@ -37,10 +38,10 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MergeMappingException;
-import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.indices.IndicesService;
@@ -396,8 +397,11 @@ public class MetaDataMappingService extends AbstractComponent {
                                 // and a put mapping api call, so we don't which type did exist before.
                                 // Also the order of the mappings may be backwards.
                                 if (Version.indexCreated(indexService.getIndexSettings()).onOrAfter(Version.V_2_0_0) && newMapper.parentFieldMapper().active()) {
-                                    if (indexService.mapperService().types().contains(newMapper.parentFieldMapper().type())) {
-                                        throw new IllegalArgumentException("can't add a _parent field that points to an already existing type");
+                                    IndexMetaData indexMetaData = currentState.metaData().index(index);
+                                    for (ObjectCursor<MappingMetaData> mapping : indexMetaData.mappings().values()) {
+                                        if (newMapper.parentFieldMapper().type().equals(mapping.value.type())) {
+                                            throw new IllegalArgumentException("can't add a _parent field that points to an already existing type");
+                                        }
                                     }
                                 }
                             }

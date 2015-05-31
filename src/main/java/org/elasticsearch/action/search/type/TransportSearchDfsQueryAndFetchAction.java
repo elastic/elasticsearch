@@ -104,11 +104,14 @@ public class TransportSearchDfsQueryAndFetchAction extends TransportSearchTypeAc
 
                 @Override
                 public void onFailure(Throwable t) {
-                    onSecondPhaseFailure(t, querySearchRequest, shardIndex, dfsResult, counter);
-                    // the query might not have been executed at all (for example because thread pool rejected execution)
-                    // and the search context that was created in dfs phase might not be released.
-                    // release it again to be in the safe side
-                    sendReleaseSearchContext(querySearchRequest.id(), node);
+                    try {
+                        onSecondPhaseFailure(t, querySearchRequest, shardIndex, dfsResult, counter);
+                    } finally {
+                        // the query might not have been executed at all (for example because thread pool rejected execution)
+                        // and the search context that was created in dfs phase might not be released.
+                        // release it again to be in the safe side
+                        sendReleaseSearchContext(querySearchRequest.id(), node);
+                    }
                 }
             });
         }

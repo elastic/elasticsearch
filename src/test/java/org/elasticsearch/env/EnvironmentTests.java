@@ -77,13 +77,14 @@ public class EnvironmentTests extends ElasticsearchTestCase {
         Environment environment = newEnvironment();
         assertThat(environment.resolveRepoFile("/test/repos/repo1"), nullValue());
         assertThat(environment.resolveRepoFile("test/repos/repo1"), nullValue());
-        environment = newEnvironment(settingsBuilder().putArray("path.repo", "/test/repos", "/another/repos").build());
+        environment = newEnvironment(settingsBuilder().putArray("path.repo", "/test/repos", "/another/repos", "/test/repos/../other").build());
         assertThat(environment.resolveRepoFile("/test/repos/repo1"), notNullValue());
         assertThat(environment.resolveRepoFile("test/repos/repo1"), notNullValue());
         assertThat(environment.resolveRepoFile("/another/repos/repo1"), notNullValue());
         assertThat(environment.resolveRepoFile("/test/repos/../repo1"), nullValue());
         assertThat(environment.resolveRepoFile("/test/repos/../repos/repo1"), notNullValue());
         assertThat(environment.resolveRepoFile("/somethingeles/repos/repo1"), nullValue());
+        assertThat(environment.resolveRepoFile("/test/other/repo"), notNullValue());
     }
 
 }

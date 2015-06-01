@@ -34,6 +34,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotR
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
 import org.elasticsearch.action.admin.indices.recovery.ShardRecoveryResponse;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -41,6 +42,7 @@ import org.elasticsearch.cluster.ProcessedClusterStateUpdateTask;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.MetaData.Custom;
+import org.elasticsearch.cluster.metadata.SnapshotMetaData;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
 import org.elasticsearch.common.Nullable;
@@ -64,6 +66,7 @@ import org.elasticsearch.rest.action.admin.cluster.state.RestClusterStateAction;
 import org.elasticsearch.snapshots.mockstore.MockRepositoryModule;
 import org.elasticsearch.snapshots.mockstore.MockRepositoryPlugin;
 import org.elasticsearch.test.InternalTestCluster;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.junit.Ignore;
 import org.junit.Test;
@@ -790,6 +793,83 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
         asyncNodesFuture.get();
         logger.info("--> done");
     }
+
+    @Test
+    public void masterShutdownDuringSnapshotTest() throws Exception {
+
+        Settings masterSettings = settingsBuilder().put("node.data", false).build();
+        Settings dataSettings = settingsBuilder().put("node.master", false).build();
+
+        logger.info("-->  starting two master nodes and two data nodes");
+        internalCluster().startNode(masterSettings);
+        internalCluster().startNode(masterSettings);
+        internalCluster().startNode(dataSettings);
+        internalCluster().startNode(dataSettings);
+
+        final Client client = client();
+
+        logger.info("-->  creating repository");
+        assertAcked(client.admin().cluster().preparePutRepository("test-repo")
+                .setType("fs").setSettings(Settings.settingsBuilder()
+                        .put("location", randomRepoPath())
+                        .put("compress", randomBoolean())
+                        .put("chunk_size", randomIntBetween(100, 1000))));
+
+        assertAcked(prepareCreate("test-idx", 0, settingsBuilder().put("number_of_shards", between(1, 20))
+                .put("number_of_replicas", 0)));
+        ensureGreen();
+
+        logger.info("--> indexing some data");
+        final int numdocs = randomIntBetween(10, 100);
+        IndexRequestBuilder[] builders = new IndexRequestBuilder[numdocs];
+        for (int i = 0; i < builders.length; i++) {
+            builders[i] = client().prepareIndex("test-idx", "type1", Integer.toString(i)).setSource("field1", "bar " + i);
+        }
+        indexRandom(true, builders);
+        flushAndRefresh();
+
+        final int numberOfShards = getNumShards("test-idx").numPrimaries;
+        logger.info("number of shards: {}", numberOfShards);
+
+        final ClusterService clusterService = internalCluster().clusterService(internalCluster().getMasterName());
+        BlockingClusterStateListener snapshotListener = new BlockingClusterStateListener(clusterService, "update_snapshot [", "update snapshot state", Priority.HIGH);
+        try {
+            clusterService.addFirst(snapshotListener);
+            logger.info("--> snapshot");
+            dataNodeClient().admin().cluster().prepareCreateSnapshot("test-repo", "test-snap").setWaitForCompletion(false).setIndices("test-idx").get();
+
+            // Await until some updates are in pending state.
+            assertBusyPendingTasks("update snapshot state", 1);
+
+            logger.info("--> stopping master node");
+            internalCluster().stopCurrentMasterNode();
+
+            logger.info("--> unblocking snapshot execution");
+            snapshotListener.unblock();
+
+            logger.info("--> wait until the snapshot is done");
+
+        } finally {
+            clusterService.remove(snapshotListener);
+        }
+
+        assertBusy(new Runnable() {
+            @Override
+            public void run() {
+                SnapshotsStatusResponse snapshotsStatusResponse = client().admin().cluster().prepareSnapshotStatus("test-repo").setSnapshots("test-snap").get();
+                ImmutableList<SnapshotStatus> snapshotStatuses = snapshotsStatusResponse.getSnapshots();
+                assertEquals(1, snapshotStatuses.size());
+                assertTrue(snapshotStatuses.get(0).getState().completed());
+            }
+        });
+
+        GetSnapshotsResponse snapshotsStatusResponse = client().admin().cluster().prepareGetSnapshots("test-repo").setSnapshots("test-snap").get();
+        SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots().get(0);
+        assertEquals(SnapshotState.SUCCESS, snapshotInfo.state());
+        assertEquals(snapshotInfo.totalShards(), snapshotInfo.successfulShards());
+        assertEquals(0, snapshotInfo.failedShards());
+    }
+
 
     private boolean snapshotIsDone(String repository, String snapshot) {
         try {

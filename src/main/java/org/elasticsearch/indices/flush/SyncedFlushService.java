@@ -381,7 +381,7 @@ public class SyncedFlushService extends AbstractComponent {
 
                 @Override
                 public void handleException(TransportException exp) {
-                    logger.trace("{} error while performing pre synced flush on [{}], skipping", shardId, exp, shard);
+                    logger.trace("{} error while performing pre synced flush on [{}], skipping", exp, shardId, shard);
                     if (countDown.countDown()) {
                         listener.onResponse(commitIds);
                     }

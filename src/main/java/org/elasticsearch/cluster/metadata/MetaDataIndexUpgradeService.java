@@ -186,11 +186,11 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
                 String value = settings.get(byteSizeSetting);
                 if (value != null) {
                     try {
-                        Double.parseDouble(value);
+                        Long.parseLong(value);
                     } catch (NumberFormatException nfe) {
                         continue;
                     }
-                    // It's a naked number; add default unit (b for bytes):
+                    // It's a naked number that previously would be interpreted as default unit (bytes); now we add it:
                     logger.warn("byte-sized index setting [{}] with value [{}] is missing units; now adding default units (b)", byteSizeSetting, value);
                     if (newSettings == null) {
                         newSettings = Settings.builder();
@@ -203,11 +203,11 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
                 String value = settings.get(timeSetting);
                 if (value != null) {
                     try {
-                        Double.parseDouble(value);
+                        Long.parseLong(value);
                     } catch (NumberFormatException nfe) {
                         continue;
                     }
-                    // It's a naked number; add default unit (ms for msec):
+                    // It's a naked number that previously would be interpreted as default unit (ms); now we add it:
                     logger.warn("time index setting [{}] with value [{}] is missing units; now adding default units (ms)", timeSetting, value);
                     if (newSettings == null) {
                         newSettings = Settings.builder();

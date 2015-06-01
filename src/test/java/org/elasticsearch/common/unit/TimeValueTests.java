@@ -97,4 +97,19 @@ public class TimeValueTests extends ElasticsearchTestCase {
     public void testFailOnMissingUnits() {
         TimeValue.parseTimeValue("42", null, "test");
     }
+
+    public void testSpaceAllowed() {
+        TimeValue result = TimeValue.parseTimeValue("42 ms", null, "test");
+        assertEquals(42, result.millis());
+    }
+
+    @Test(expected = ElasticsearchParseException.class)
+    public void testNoDotsAllowed() {
+        TimeValue.parseTimeValue("42ms.", null, "test");
+    }
+
+    @Test(expected = ElasticsearchParseException.class)
+    public void testNoCapsAllowed() {
+        TimeValue.parseTimeValue("42MS", null, "test");
+    }
 }

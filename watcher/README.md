@@ -9,5 +9,3 @@ The testing framework is written in Node.js and use ESVM to create an Elasticsea
 - Run `npm install` in this directory
 - Ensure you have `mocha` installed globally
 - Run `mocha` in this directory
-
-Once the tests are completed you wan delete the `esvm` directory.

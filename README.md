@@ -224,6 +224,52 @@ Here is a sample settings:
 }
 ```
 
+ICU Transform
+-------------
+Transforms are used to process Unicode text in many different ways. Some include case mapping, normalization,
+transliteration and bidirectional text handling.
+
+You can defined transliterator identifiers by using `id` property, and specify direction  to `forward` or `reverse` by
+using `dir` property, The default value of both properties are `Null` and `forward`.
+
+For example:
+
+```js
+{
+    "index" : {
+        "analysis" : {
+            "analyzer" : {
+                "latin" : {
+                    "tokenizer" : "keyword",
+                    "filter" : ["myLatinTransform"]
+                }
+            },
+            "filter" : {
+                "myLatinTransform" : {
+                    "type" : "icu_transform",
+                    "id" : "Any-Latin; NFD; [:Nonspacing Mark:] Remove; NFC"
+                }
+            }
+        }
+    }
+}
+```
+
+This transform transliterated characters to latin, and separates accents from their base characters, removes the accents,
+and then puts the remaining text into an unaccented form.
+
+The results are:
+
+`你好` to `ni hao`
+
+`здравствуйте` to `zdravstvujte`
+
+`こんにちは` to `kon'nichiha`
+
+Currently the filter only supports identifier and direction, custom rulesets are not yet supported.
+
+For more documentation, Please see the [user guide of ICU Transform](http://userguide.icu-project.org/transforms/general).
+
 License
 -------
 

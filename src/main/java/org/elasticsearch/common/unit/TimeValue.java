@@ -236,6 +236,8 @@ public class TimeValue implements Serializable, Streamable {
         }
         try {
             long millis;
+            // TODO: we should be consistent about whether upper-case is allowed (it is always allowed for ByteSizeValue, but here only for
+            // s/S and h/H):
             if (sValue.endsWith("S")) {
                 millis = Long.parseLong(sValue.substring(0, sValue.length() - 1));
             } else if (sValue.endsWith("ms")) {

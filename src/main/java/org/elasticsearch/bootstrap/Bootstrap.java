@@ -84,14 +84,6 @@ public class Bootstrap {
     /** initialize native resources */
     public static void initializeNatives(boolean mlockAll, boolean ctrlHandler, boolean loadSigar) {
         final ESLogger logger = Loggers.getLogger(Bootstrap.class);
-        // mlockall if requested
-        if (mlockAll) {
-            if (Constants.WINDOWS) {
-               Natives.tryVirtualLock();
-            } else {
-               Natives.tryMlockall();
-            }
-        }
         
         // check if the user is running as root, and bail
         if (Natives.definitelyRunningAsRoot()) {
@@ -99,6 +91,15 @@ public class Bootstrap {
                 logger.warn("running as ROOT user. this is a bad idea!");
             } else {
                 throw new RuntimeException("don't run elasticsearch as root.");
+            }
+        }
+        
+        // mlockall if requested
+        if (mlockAll) {
+            if (Constants.WINDOWS) {
+               Natives.tryVirtualLock();
+            } else {
+               Natives.tryMlockall();
             }
         }
 

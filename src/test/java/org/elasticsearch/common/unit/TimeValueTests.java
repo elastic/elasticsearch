@@ -108,8 +108,8 @@ public class TimeValueTests extends ElasticsearchTestCase {
         TimeValue.parseTimeValue("42ms.", null, "test");
     }
 
-    @Test(expected = ElasticsearchParseException.class)
-    public void testNoCapsAllowed() {
-        TimeValue.parseTimeValue("42MS", null, "test");
+    public void testCapsAllowed() {
+        TimeValue result = TimeValue.parseTimeValue("42MS", null, "test");
+        assertEquals(42, result.millis());
     }
 }

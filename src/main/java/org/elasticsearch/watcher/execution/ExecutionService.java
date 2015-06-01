@@ -14,13 +14,13 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.watcher.WatcherException;
 import org.elasticsearch.watcher.actions.ActionWrapper;
 import org.elasticsearch.watcher.condition.Condition;
-import org.elasticsearch.watcher.history.*;
+import org.elasticsearch.watcher.history.HistoryStore;
+import org.elasticsearch.watcher.history.WatchRecord;
 import org.elasticsearch.watcher.input.Input;
 import org.elasticsearch.watcher.support.clock.Clock;
 import org.elasticsearch.watcher.support.validation.WatcherSettingsValidation;
@@ -31,7 +31,7 @@ import org.elasticsearch.watcher.watch.WatchStore;
 
 import java.io.IOException;
 import java.util.*;
-import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.common.joda.time.DateTimeZone.UTC;
@@ -40,6 +40,9 @@ import static org.elasticsearch.common.joda.time.DateTimeZone.UTC;
  */
 public class ExecutionService extends AbstractComponent {
 
+    private static final TimeValue DEFAULT_MAX_STOP_TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
+    private static final String DEFAULT_MAX_STOP_TIMEOUT_SETTING = "watcher.stop.timeout";
+
     private final HistoryStore historyStore;
     private final TriggeredWatchStore triggeredWatchStore;
     private final WatchExecutor executor;
@@ -47,9 +50,9 @@ public class ExecutionService extends AbstractComponent {
     private final WatchLockService watchLockService;
     private final Clock clock;
     private final TimeValue defaultThrottlePeriod;
+    private final TimeValue maxStopTimeout;
 
-    private final ConcurrentMap<String, WatchExecution> currentExecutions = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
-
+    private volatile CurrentExecutions currentExecutions = null;
     private final AtomicBoolean started = new AtomicBoolean(false);
 
     @Inject
@@ -63,6 +66,7 @@ public class ExecutionService extends AbstractComponent {
         this.watchLockService = watchLockService;
         this.clock = clock;
         this.defaultThrottlePeriod = componentSettings.getAsTime("default_throttle_period", TimeValue.timeValueSeconds(5));
+        maxStopTimeout = settings.getAsTime(DEFAULT_MAX_STOP_TIMEOUT_SETTING, DEFAULT_MAX_STOP_TIMEOUT);
         if (ExecutionService.this.defaultThrottlePeriod.millis() < 0) {
             settingsValidation.addError("watcher.execution.default_throttle_period", "time value cannot be negative");
         }
@@ -78,6 +82,7 @@ public class ExecutionService extends AbstractComponent {
             logger.debug("starting execution service");
             historyStore.start();
             triggeredWatchStore.start();
+            currentExecutions = new CurrentExecutions();
             Collection<TriggeredWatch> records = triggeredWatchStore.loadTriggeredWatches(state);
             executeRecords(records);
             logger.debug("started execution service");
@@ -95,6 +100,8 @@ public class ExecutionService extends AbstractComponent {
             // this is a forceful shutdown that also interrupts the worker threads in the threadpool
             List<Runnable> cancelledTasks = new ArrayList<>();
             executor.queue().drainTo(cancelledTasks);
+
+            currentExecutions.sealAndAwaitEmpty(maxStopTimeout);
             triggeredWatchStore.stop();
             historyStore.stop();
             logger.debug("cancelled [{}] queued tasks", cancelledTasks.size());
@@ -120,7 +127,7 @@ public class ExecutionService extends AbstractComponent {
 
     public List<WatchExecutionSnapshot> currentExecutions() {
         List<WatchExecutionSnapshot> currentExecutions = new ArrayList<>();
-        for (WatchExecution watchExecution : this.currentExecutions.values()) {
+        for (WatchExecution watchExecution : this.currentExecutions) {
             currentExecutions.add(watchExecution.createSnapshot());
         }
         // Lets show the longest running watch first:

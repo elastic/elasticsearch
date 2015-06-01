@@ -78,6 +78,9 @@ public class InetSocketTransportAddress implements TransportAddress {
     }
 
     public InetSocketAddress address() {
+        if (address.isUnresolved()) {
+            address = new InetSocketAddress(address.getHostName(), address.getPort());
+        }
         return this.address;
     }
 

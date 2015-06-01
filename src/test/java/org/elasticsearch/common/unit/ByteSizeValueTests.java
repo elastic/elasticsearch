@@ -104,4 +104,19 @@ public class ByteSizeValueTests extends ElasticsearchTestCase {
     public void testFailOnEmptyNumberParsing() {
         assertThat(ByteSizeValue.parseBytesSizeValue("g", "emptyNumberParsing").toString(), is("23b"));
     }
+
+    public void testSpaceAllowed() {
+        ByteSizeValue result = ByteSizeValue.parseBytesSizeValue("42 gb", "test");
+        assertEquals(42L*1024*1024*1024, result.bytes());
+    }
+
+    @Test(expected = ElasticsearchParseException.class)
+    public void testNoDotsAllowed() {
+        ByteSizeValue.parseBytesSizeValue("42b.", null, "test");
+    }
+
+    public void testCapsAllowed() {
+        ByteSizeValue result = ByteSizeValue.parseBytesSizeValue("42B", null, "test");
+        assertEquals(42, result.bytes());
+    }
 }

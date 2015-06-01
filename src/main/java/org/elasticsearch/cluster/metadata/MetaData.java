@@ -1324,11 +1324,11 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData> {
             String settingValue = ent.getValue();
             if (CLUSTER_BYTES_SIZE_SETTINGS.contains(settingName)) {
                 try {
-                    Double.parseDouble(settingValue);
+                    Long.parseLong(settingValue);
                 } catch (NumberFormatException nfe) {
                     continue;
                 }
-                // It's a naked number; add default unit (b for bytes):
+                // It's a naked number that previously would be interpreted as default unit (bytes); now we add it:
                 logger.warn("byte-sized cluster setting [{}] with value [{}] is missing units; now adding default units (b)", settingName, settingValue);
                 if (newPersistentSettings == null) {
                     newPersistentSettings = Settings.builder();
@@ -1338,11 +1338,11 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData> {
             }
             if (CLUSTER_TIME_SETTINGS.contains(settingName)) {
                 try {
-                    Double.parseDouble(settingValue);
+                    Long.parseLong(settingValue);
                 } catch (NumberFormatException nfe) {
                     continue;
                 }
-                // It's a naked number; add default unit (b for bytes):
+                // It's a naked number that previously would be interpreted as default unit (ms); now we add it:
                 logger.warn("time cluster setting [{}] with value [{}] is missing units; now adding default units (ms)", settingName, settingValue);
                 if (newPersistentSettings == null) {
                     newPersistentSettings = Settings.builder();

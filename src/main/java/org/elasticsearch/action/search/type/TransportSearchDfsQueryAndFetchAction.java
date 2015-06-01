@@ -92,7 +92,7 @@ public class TransportSearchDfsQueryAndFetchAction extends TransportSearchTypeAc
             }
         }
 
-        void executeSecondPhase(final int shardIndex, final DfsSearchResult dfsResult, final AtomicInteger counter, DiscoveryNode node, final QuerySearchRequest querySearchRequest) {
+        void executeSecondPhase(final int shardIndex, final DfsSearchResult dfsResult, final AtomicInteger counter, final DiscoveryNode node, final QuerySearchRequest querySearchRequest) {
             searchService.sendExecuteFetch(node, querySearchRequest, new SearchServiceListener<QueryFetchSearchResult>() {
                 @Override
                 public void onResult(QueryFetchSearchResult result) {
@@ -105,7 +105,14 @@ public class TransportSearchDfsQueryAndFetchAction extends TransportSearchTypeAc
 
                 @Override
                 public void onFailure(Throwable t) {
-                    onSecondPhaseFailure(t, querySearchRequest, shardIndex, dfsResult, counter);
+                    try {
+                        onSecondPhaseFailure(t, querySearchRequest, shardIndex, dfsResult, counter);
+                    } finally {
+                        // the query might not have been executed at all (for example because thread pool rejected execution)
+                        // and the search context that was created in dfs phase might not be released.
+                        // release it again to be in the safe side
+                        sendReleaseSearchContext(querySearchRequest.id(), node);
+                    }
                 }
             });
         }

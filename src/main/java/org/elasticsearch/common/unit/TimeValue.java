@@ -33,6 +33,7 @@ import org.joda.time.format.PeriodFormatter;
 
 import java.io.IOException;
 import java.io.Serializable;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
@@ -238,24 +239,25 @@ public class TimeValue implements Serializable, Streamable {
             long millis;
             // TODO: we should be consistent about whether upper-case is allowed (it is always allowed for ByteSizeValue, but here only for
             // s/S and h/H):
-            if (sValue.endsWith("S")) {
-                millis = (long) Double.parseDouble(sValue.substring(0, sValue.length() - 1)) * 1000;
-            } else if (sValue.endsWith("ms")) {
-                millis = (long) (Double.parseDouble(sValue.substring(0, sValue.length() - 2)));
-            } else if (sValue.endsWith("s")) {
-                millis = (long) (Double.parseDouble(sValue.substring(0, sValue.length() - 1)) * 1000);
-            } else if (sValue.endsWith("m")) {
-                millis = (long) (Double.parseDouble(sValue.substring(0, sValue.length() - 1)) * 60 * 1000);
-            } else if (sValue.endsWith("H") || sValue.endsWith("h")) {
-                millis = (long) (Double.parseDouble(sValue.substring(0, sValue.length() - 1)) * 60 * 60 * 1000);
-            } else if (sValue.endsWith("d")) {
-                millis = (long) (Double.parseDouble(sValue.substring(0, sValue.length() - 1)) * 24 * 60 * 60 * 1000);
-            } else if (sValue.endsWith("w")) {
-                millis = (long) (Double.parseDouble(sValue.substring(0, sValue.length() - 1)) * 7 * 24 * 60 * 60 * 1000);
-            } else if (sValue.equals("-1")) {
+            String lowerSValue = sValue.toLowerCase(Locale.ROOT);
+            if (lowerSValue.endsWith("S")) {
+                millis = (long) Double.parseDouble(lowerSValue.substring(0, lowerSValue.length() - 1)) * 1000;
+            } else if (lowerSValue.endsWith("ms")) {
+                millis = (long) (Double.parseDouble(lowerSValue.substring(0, lowerSValue.length() - 2)));
+            } else if (lowerSValue.endsWith("s")) {
+                millis = (long) (Double.parseDouble(lowerSValue.substring(0, lowerSValue.length() - 1)) * 1000);
+            } else if (lowerSValue.endsWith("m")) {
+                millis = (long) (Double.parseDouble(lowerSValue.substring(0, lowerSValue.length() - 1)) * 60 * 1000);
+            } else if (lowerSValue.endsWith("H") || lowerSValue.endsWith("h")) {
+                millis = (long) (Double.parseDouble(lowerSValue.substring(0, lowerSValue.length() - 1)) * 60 * 60 * 1000);
+            } else if (lowerSValue.endsWith("d")) {
+                millis = (long) (Double.parseDouble(lowerSValue.substring(0, lowerSValue.length() - 1)) * 24 * 60 * 60 * 1000);
+            } else if (lowerSValue.endsWith("w")) {
+                millis = (long) (Double.parseDouble(lowerSValue.substring(0, lowerSValue.length() - 1)) * 7 * 24 * 60 * 60 * 1000);
+            } else if (lowerSValue.equals("-1")) {
                 // Allow this special value to be unit-less:
                 millis = -1;
-            } else if (sValue.equals("0")) {
+            } else if (lowerSValue.equals("0")) {
                 // Allow this special value to be unit-less:
                 millis = 0;
             } else {

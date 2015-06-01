@@ -41,6 +41,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -215,7 +216,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             return context.dfsResult();
         } catch (Throwable e) {
             logger.trace("Dfs phase failed", e);
-            freeContext(context.id());
+            processFailure(context, e);
             throw ExceptionsHelper.convertToRuntime(e);
         } finally {
             cleanContext(context);
@@ -241,7 +242,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             return context.queryResult();
         } catch (Throwable e) {
             logger.trace("Scan phase failed", e);
-            freeContext(context.id());
+            processFailure(context, e);
             throw ExceptionsHelper.convertToRuntime(e);
         } finally {
             cleanContext(context);
@@ -269,7 +270,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             return new ScrollQueryFetchSearchResult(new QueryFetchSearchResult(context.queryResult(), context.fetchResult()), context.shardTarget());
         } catch (Throwable e) {
             logger.trace("Scan phase failed", e);
-            freeContext(context.id());
+            processFailure(context, e);
             throw ExceptionsHelper.convertToRuntime(e);
         } finally {
             cleanContext(context);
@@ -313,7 +314,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             }
             context.indexShard().searchService().onFailedQueryPhase(context);
             logger.trace("Query phase failed", e);
-            freeContext(context.id());
+            processFailure(context, e);
             throw ExceptionsHelper.convertToRuntime(e);
         } finally {
             cleanContext(context);
@@ -334,7 +335,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         } catch (Throwable e) {
             context.indexShard().searchService().onFailedQueryPhase(context);
             logger.trace("Query phase failed", e);
-            freeContext(context.id());
+            processFailure(context, e);
             throw ExceptionsHelper.convertToRuntime(e);
         } finally {
             cleanContext(context);
@@ -347,7 +348,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         try {
             context.searcher().dfSource(new CachedDfSource(context.searcher().getIndexReader(), request.dfs(), context.similarityService().similarity()));
         } catch (Throwable e) {
-            freeContext(context.id());
+            processFailure(context, e);
             cleanContext(context);
             throw new QueryPhaseExecutionException(context, "Failed to set aggregated df", e);
         }
@@ -361,7 +362,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         } catch (Throwable e) {
             context.indexShard().searchService().onFailedQueryPhase(context);
             logger.trace("Query phase failed", e);
-            freeContext(context.id());
+            processFailure(context, e);
             throw ExceptionsHelper.convertToRuntime(e);
         } finally {
             cleanContext(context);
@@ -399,7 +400,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             return new QueryFetchSearchResult(context.queryResult(), context.fetchResult());
         } catch (Throwable e) {
             logger.trace("Fetch phase failed", e);
-            freeContext(context.id());
+            processFailure(context, e);
             throw ExceptionsHelper.convertToRuntime(e);
         } finally {
             cleanContext(context);
@@ -444,7 +445,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             return new QueryFetchSearchResult(context.queryResult(), context.fetchResult());
         } catch (Throwable e) {
             logger.trace("Fetch phase failed", e);
-            freeContext(context.id());
+            processFailure(context, e);
             throw ExceptionsHelper.convertToRuntime(e);
         } finally {
             cleanContext(context);
@@ -483,7 +484,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             return new ScrollQueryFetchSearchResult(new QueryFetchSearchResult(context.queryResult(), context.fetchResult()), context.shardTarget());
         } catch (Throwable e) {
             logger.trace("Fetch phase failed", e);
-            freeContext(context.id());
+            processFailure(context, e);
             throw ExceptionsHelper.convertToRuntime(e);
         } finally {
             cleanContext(context);
@@ -511,7 +512,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         } catch (Throwable e) {
             context.indexShard().searchService().onFailedFetchPhase(context);
             logger.trace("Fetch phase failed", e);
-            freeContext(context.id()); // we just try to make sure this is freed - rethrow orig exception.
+            processFailure(context, e);
             throw ExceptionsHelper.convertToRuntime(e);
         } finally {
             cleanContext(context);
@@ -630,6 +631,17 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         assert context == SearchContext.current();
         context.clearReleasables(Lifetime.PHASE);
         SearchContext.removeCurrent();
+    }
+
+    private void processFailure(SearchContext context, Throwable t) {
+        freeContext(context.id());
+        try {
+            if (Lucene.isCorruptionException(t)) {
+                context.indexShard().failShard("search execution corruption failure", t);
+            }
+        } catch (Throwable e) {
+            logger.warn("failed to process shard failure to (potentially) send back shard failure on corruption", e);
+        }
     }
 
     private void parseTemplate(ShardSearchRequest request) {

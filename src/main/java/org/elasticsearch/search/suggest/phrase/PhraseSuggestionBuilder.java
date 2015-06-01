@@ -182,16 +182,9 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
     /**
      * Sets a filter used for filtering out suggested phrases (collation).
      */
+    @Deprecated
     public PhraseSuggestionBuilder collateFilter(String collateFilter) {
         this.collateFilter = collateFilter;
-        return this;
-    }
-
-    /**
-     * Sets routing preferences for executing filter query (collation).
-     */
-    public PhraseSuggestionBuilder collatePreference(String collatePreference) {
-        this.collatePreference = collatePreference;
         return this;
     }
 

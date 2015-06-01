@@ -317,9 +317,7 @@ public abstract class TransportSearchTypeAction extends TransportAction<SearchRe
             for (AtomicArray.Entry<FirstResult> entry : firstResults.asList()) {
                 try {
                     DiscoveryNode node = nodes.get(entry.value.shardTarget().nodeId());
-                    if (node != null) { // should not happen (==null) but safeguard anyhow
-                        searchService.sendFreeContext(node, entry.value.id(), request);
-                    }
+                    sendReleaseSearchContext(entry.value.id(), node);
                 } catch (Throwable t1) {
                     logger.trace("failed to release context", t1);
                 }
@@ -341,14 +339,18 @@ public abstract class TransportSearchTypeAction extends TransportAction<SearchRe
                     if (docIdsToLoad.get(entry.index) == null) {
                         try {
                             DiscoveryNode node = nodes.get(entry.value.queryResult().shardTarget().nodeId());
-                            if (node != null) { // should not happen (==null) but safeguard anyhow
-                                searchService.sendFreeContext(node, entry.value.queryResult().id(), request);
-                            }
+                            sendReleaseSearchContext(entry.value.queryResult().id(), node);
                         } catch (Throwable t1) {
                             logger.trace("failed to release context", t1);
                         }
                     }
                 }
+            }
+        }
+
+        protected void sendReleaseSearchContext(long contextId, DiscoveryNode node) {
+            if (node != null) {
+                searchService.sendFreeContext(node, contextId, request);
             }
         }
 

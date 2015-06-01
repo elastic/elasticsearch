@@ -105,6 +105,10 @@ public abstract class ElasticsearchAllocationTestCase extends ElasticsearchTestC
         return new DiscoveryNode("", nodeId, DummyTransportAddress.INSTANCE, attributes, Version.CURRENT);
     }
 
+    public static DiscoveryNode newNode(String nodeName,String nodeId, Map<String, String> attributes) {
+        return new DiscoveryNode(nodeName, nodeId, DummyTransportAddress.INSTANCE, attributes, Version.CURRENT);
+    }
+
     public static DiscoveryNode newNode(String nodeId, Version version) {
         return new DiscoveryNode(nodeId, DummyTransportAddress.INSTANCE, version);
     }

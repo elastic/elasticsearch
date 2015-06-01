@@ -25,7 +25,6 @@ import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 import com.google.common.collect.Lists;
 
 import org.apache.lucene.util.IOUtils;
-import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
 import org.apache.lucene.util.LuceneTestCase.SuppressFsync;
@@ -85,7 +84,6 @@ import java.util.Set;
 @SuppressCodecs("*") // requires custom completion postings format
 @ClusterScope(randomDynamicTemplates = false)
 @TimeoutSuite(millis = 40 * TimeUnits.MINUTE) // timeout the suite after 40min and fail the test.
-@AwaitsFix(bugUrl = "script/10_basic/Indexed script and update/15_script/Script fail due to commit 35a58d874ef56be50a0ad1d7bfb13edb4204d0a3")
 public abstract class ElasticsearchRestTestCase extends ElasticsearchIntegrationTest {
 
     /**

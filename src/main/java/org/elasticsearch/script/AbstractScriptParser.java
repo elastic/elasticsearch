@@ -125,7 +125,7 @@ public abstract class AbstractScriptParser<S extends Script> {
         return null;
     }
 
-    public Script parse(Map<String, Object> config, boolean removeMatchedEntries) {
+    public S parse(Map<String, Object> config, boolean removeMatchedEntries) {
         String script = null;
         ScriptType type = null;
         String lang = null;

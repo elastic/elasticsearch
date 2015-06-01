@@ -25,6 +25,7 @@ import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.RemovalListener;
 import com.google.common.cache.RemovalNotification;
 import com.google.common.collect.ImmutableMap;
+
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -317,7 +318,7 @@ public class ScriptService extends AbstractComponent implements Closeable {
         try {
             XContentParser parser = XContentFactory.xContent(scriptBytes).createParser(scriptBytes);
             parser.nextToken();
-            Template template = TemplateQueryParser.parse(parser, "params", "script", "template");
+            Template template = TemplateQueryParser.parse(scriptLang, parser, "params", "script", "template");
             if (Strings.hasLength(template.getScript())) {
                 //Just try and compile it
                 //This will have the benefit of also adding the script to the cache if it compiles

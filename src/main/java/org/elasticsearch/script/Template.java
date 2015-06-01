@@ -120,17 +120,22 @@ public class Template extends Script {
 
     @SuppressWarnings("unchecked")
     public static Script parse(Map<String, Object> config, boolean removeMatchedEntries) {
-        return new TemplateParser(Collections.EMPTY_MAP).parse(config, removeMatchedEntries);
+        return new TemplateParser(Collections.EMPTY_MAP, MustacheScriptEngineService.NAME).parse(config, removeMatchedEntries);
     }
 
     @SuppressWarnings("unchecked")
     public static Template parse(XContentParser parser) throws IOException {
-        return new TemplateParser(Collections.EMPTY_MAP).parse(parser);
+        return new TemplateParser(Collections.EMPTY_MAP, MustacheScriptEngineService.NAME).parse(parser);
     }
 
     @Deprecated
     public static Template parse(XContentParser parser, Map<String, ScriptType> additionalTemplateFieldNames) throws IOException {
-        return new TemplateParser(additionalTemplateFieldNames).parse(parser);
+        return new TemplateParser(additionalTemplateFieldNames, MustacheScriptEngineService.NAME).parse(parser);
+    }
+
+    @Deprecated
+    public static Template parse(XContentParser parser, Map<String, ScriptType> additionalTemplateFieldNames, String defaultLang) throws IOException {
+        return new TemplateParser(additionalTemplateFieldNames, defaultLang).parse(parser);
     }
 
     @Override
@@ -159,9 +164,11 @@ public class Template extends Script {
 
         private XContentType contentType = null;
         private final Map<String, ScriptType> additionalTemplateFieldNames;
+        private String defaultLang;
 
-        public TemplateParser(Map<String, ScriptType> additionalTemplateFieldNames) {
+        public TemplateParser(Map<String, ScriptType> additionalTemplateFieldNames, String defaultLang) {
             this.additionalTemplateFieldNames = additionalTemplateFieldNames;
+            this.defaultLang = defaultLang;
         }
 
         @Override
@@ -171,7 +178,7 @@ public class Template extends Script {
 
         @Override
         protected Template createScript(String script, ScriptType type, String lang, Map<String, Object> params) {
-            return new Template(script, type, lang == null ? MustacheScriptEngineService.NAME : lang, contentType, params);
+            return new Template(script, type, lang, contentType, params);
         }
 
         @Override
@@ -192,7 +199,7 @@ public class Template extends Script {
 
         @Override
         protected String getDefaultScriptLang() {
-            return MustacheScriptEngineService.NAME;
+            return defaultLang;
         }
     }
 }

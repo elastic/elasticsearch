@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster.routing.allocation.decider;
 
 import com.google.common.collect.ImmutableMap;
+
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.DiskUsage;
@@ -62,6 +63,7 @@ public class DiskThresholdDeciderUnitTests extends ElasticsearchTestCase {
         assertThat(decider.getFreeDiskThresholdHigh(), equalTo(10.0d));
         assertThat(decider.getFreeBytesThresholdLow(), equalTo(ByteSizeValue.parseBytesSizeValue("0b")));
         assertThat(decider.getFreeDiskThresholdLow(), equalTo(15.0d));
+        assertThat(decider.getUsedDiskThresholdLow(), equalTo(85.0d));
         assertThat(decider.getRerouteInterval().seconds(), equalTo(60L));
         assertTrue(decider.isEnabled());
         assertTrue(decider.isIncludeRelocations());

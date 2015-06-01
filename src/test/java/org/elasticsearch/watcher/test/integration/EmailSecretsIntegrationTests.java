@@ -144,7 +144,7 @@ public class EmailSecretsIntegrationTests extends AbstractWatcherIntegrationTest
         assertThat(executeResponse, notNullValue());
         contentSource = executeResponse.getRecordSource();
 
-        value = contentSource.getValue("execution_result.actions.0.email.status");
+        value = contentSource.getValue("result.actions.0.status");
         assertThat((String) value, is("success"));
 
         if (!latch.await(5, TimeUnit.SECONDS)) {

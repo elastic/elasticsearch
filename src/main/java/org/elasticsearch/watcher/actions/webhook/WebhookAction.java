@@ -66,12 +66,6 @@ public class WebhookAction implements Action {
         }
     }
 
-    private static void assertNotNull(Object value, String message, Object... args) {
-        if (value == null) {
-            throw new WebhookActionException(message, args);
-        }
-    }
-
     public static Builder builder(HttpRequestTemplate requestTemplate) {
         return new Builder(requestTemplate);
     }
@@ -98,9 +92,11 @@ public class WebhookAction implements Action {
             }
 
             @Override
-            protected XContentBuilder xContentBody(XContentBuilder builder, Params params) throws IOException {
-                return builder.field(Field.REQUEST.getPreferredName(), request, params)
-                        .field(Field.RESPONSE.getPreferredName(), response, params);
+            public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+                return builder.startObject(type)
+                        .field(Field.REQUEST.getPreferredName(), request, params)
+                        .field(Field.RESPONSE.getPreferredName(), response, params)
+                        .endObject();
             }
         }
 
@@ -128,10 +124,12 @@ public class WebhookAction implements Action {
             }
 
             @Override
-            protected XContentBuilder xContentBody(XContentBuilder builder, Params params) throws IOException {
-                super.xContentBody(builder, params);
-                return builder.field(Field.REQUEST.getPreferredName(), request, params)
-                        .field(Field.RESPONSE.getPreferredName(), response, params);
+            public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+                super.toXContent(builder, params);
+                return builder.startObject(type)
+                        .field(Field.REQUEST.getPreferredName(), request, params)
+                        .field(Field.RESPONSE.getPreferredName(), response, params)
+                        .endObject();
             }
         }
 
@@ -149,8 +147,10 @@ public class WebhookAction implements Action {
             }
 
             @Override
-            protected XContentBuilder xContentBody(XContentBuilder builder, Params params) throws IOException {
-                return builder.field(Field.REQUEST.getPreferredName(), request, params);
+            public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+                return builder.startObject(type)
+                        .field(Field.REQUEST.getPreferredName(), request, params)
+                        .endObject();
             }
         }
 

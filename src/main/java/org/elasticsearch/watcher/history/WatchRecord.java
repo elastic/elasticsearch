@@ -29,12 +29,12 @@ public class WatchRecord implements ToXContent {
     private final @Nullable Map<String,Object> metadata;
 
     private final @Nullable String message;
-    private final @Nullable WatchExecutionResult execution;
+    private final @Nullable WatchExecutionResult executionResult;
 
     public WatchRecord(Wid id, TriggerEvent triggerEvent, String message, ExecutionState state) {
         this.id = id;
         this.triggerEvent = triggerEvent;
-        this.execution = null;
+        this.executionResult = null;
         this.state = state;
         this.message = message;
         this.condition = null;
@@ -42,19 +42,19 @@ public class WatchRecord implements ToXContent {
         this.metadata = null;
     }
 
-    public WatchRecord(WatchExecutionContext context, WatchExecutionResult execution) {
+    public WatchRecord(WatchExecutionContext context, WatchExecutionResult executionResult) {
         this.id = context.id();
         this.triggerEvent = context.triggerEvent();
         this.condition = context.watch().condition().condition();
         this.input = context.watch().input();
-        this.execution = execution;
+        this.executionResult = executionResult;
         this.metadata = context.watch().metadata();
         this.message = null;
 
-        if (!this.execution.conditionResult().met()) {
+        if (!this.executionResult.conditionResult().met()) {
             state = ExecutionState.EXECUTION_NOT_NEEDED;
         } else {
-            if (this.execution.actionsResults().throttled()) {
+            if (this.executionResult.actionsResults().throttled()) {
                 state = ExecutionState.THROTTLED;
             } else {
                 state = ExecutionState.EXECUTED;
@@ -93,16 +93,17 @@ public class WatchRecord implements ToXContent {
     }
 
     public WatchExecutionResult execution() {
-        return execution;
+        return executionResult;
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(Field.WATCH_ID.getPreferredName(), id.watchId());
-        builder.startObject(Field.TRIGGER_EVENT.getPreferredName())
-                .field(triggerEvent.type(), triggerEvent, params)
-                .endObject();
+
+        builder.field(Field.TRIGGER_EVENT.getPreferredName());
+        triggerEvent.recordXContent(builder, params);
+
         builder.field(Field.STATE.getPreferredName(), state.id());
         if (input != null) {
             builder.startObject(Watch.Field.INPUT.getPreferredName())
@@ -122,8 +123,8 @@ public class WatchRecord implements ToXContent {
             builder.field(Field.METADATA.getPreferredName(), metadata);
         }
 
-        if (execution != null) {
-            builder.field(Field.EXECUTION_RESULT.getPreferredName(), execution, params);
+        if (executionResult != null) {
+            builder.field(Field.EXECUTION_RESULT.getPreferredName(), executionResult, params);
         }
 
         builder.endObject();
@@ -157,6 +158,6 @@ public class WatchRecord implements ToXContent {
         ParseField MESSAGE = new ParseField("message");
         ParseField STATE = new ParseField("state");
         ParseField METADATA = new ParseField("metadata");
-        ParseField EXECUTION_RESULT = new ParseField("execution_result");
+        ParseField EXECUTION_RESULT = new ParseField("result");
     }
 }

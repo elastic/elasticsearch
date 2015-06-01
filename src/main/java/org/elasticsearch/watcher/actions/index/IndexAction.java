@@ -100,12 +100,6 @@ public class IndexAction implements Action {
         return new IndexAction(index, docType);
     }
 
-    private static void assertNotNull(Object value, String message, Object... args) {
-        if (value == null) {
-            throw new IndexActionException(message, args);
-        }
-    }
-
     public static Builder builder(String index, String docType) {
         return new Builder(index, docType);
     }
@@ -126,11 +120,10 @@ public class IndexAction implements Action {
             }
 
             @Override
-            protected XContentBuilder xContentBody(XContentBuilder builder, Params params) throws IOException {
-                if (response != null) {
-                    builder.field(Field.RESPONSE.getPreferredName(), response, params);
-                }
-                return builder;
+            public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+                return builder.startObject(type)
+                        .field(Field.RESPONSE.getPreferredName(), response, params)
+                        .endObject();
             }
         }
 
@@ -160,11 +153,13 @@ public class IndexAction implements Action {
             }
 
             @Override
-            protected XContentBuilder xContentBody(XContentBuilder builder, Params params) throws IOException {
-                return builder.startObject(Field.REQUEST.getPreferredName())
-                        .field(Field.INDEX.getPreferredName(), index)
-                        .field(Field.DOC_TYPE.getPreferredName(), docType)
-                        .field(Field.SOURCE.getPreferredName(), source, params)
+            public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+                return builder.startObject(type)
+                        .startObject(Field.REQUEST.getPreferredName())
+                            .field(Field.INDEX.getPreferredName(), index)
+                            .field(Field.DOC_TYPE.getPreferredName(), docType)
+                            .field(Field.SOURCE.getPreferredName(), source, params)
+                        .endObject()
                         .endObject();
             }
         }

@@ -105,14 +105,14 @@ public class ChainTransform implements Transform {
         }
 
         @Override
-        protected XContentBuilder xContentBody(XContentBuilder builder, Params params) throws IOException {
+        protected XContentBuilder typeXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject(type);
             builder.startArray(Field.RESULTS.getPreferredName());
             for (Transform.Result result : results) {
-                builder.startObject()
-                        .field(result.type(), result, params)
-                        .endObject();
+                result.toXContent(builder, params);
             }
-            return builder.endArray();
+            builder.endArray();
+            return builder.endObject();
         }
     }
 

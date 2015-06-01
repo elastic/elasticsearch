@@ -305,7 +305,7 @@ public abstract class AbstractWatcherIntegrationTests extends ElasticsearchInteg
                         .get();
                 assertThat("could not find executed watch record", searchResponse.getHits().getTotalHits(), greaterThanOrEqualTo(minimumExpectedWatchActionsWithActionPerformed));
                 if (assertConditionMet) {
-                    assertThat((Integer) XContentMapValues.extractValue("execution_result.input.search.payload.hits.total", searchResponse.getHits().getAt(0).sourceAsMap()), greaterThanOrEqualTo(1));
+                    assertThat((Integer) XContentMapValues.extractValue("result.input.payload.hits.total", searchResponse.getHits().getAt(0).sourceAsMap()), greaterThanOrEqualTo(1));
                 }
             }
         });

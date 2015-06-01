@@ -223,17 +223,19 @@ public class ActionWrapper implements ToXContent {
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field(Field.ID.getPreferredName(), id);
+            builder.field(Field.TYPE.getPreferredName(), action.type());
+            builder.field(Field.STATUS.getPreferredName(), action.status, params);
             if (transform != null) {
-                builder.startObject(Transform.Field.TRANSFORM.getPreferredName())
-                        .field(transform.type(), transform, params)
-                        .endObject();
+                builder.field(Transform.Field.TRANSFORM.getPreferredName(), transform, params);
             }
-            builder.field(action.type(), action, params);
+            action.toXContent(builder, params);
             return builder.endObject();
         }
     }
 
     interface Field {
         ParseField ID = new ParseField("id");
+        ParseField TYPE = new ParseField("type");
+        ParseField STATUS = new ParseField("status");
     }
 }

@@ -101,7 +101,7 @@ public class WatchMetadataTests extends AbstractWatcherIntegrationTests {
         Map<String, Object> result = executeWatchResponse.getRecordSource().getAsMap();;
 
         assertThat(MapPath.<String>eval("metadata.foo", result), equalTo("bar"));
-        assertThat(MapPath.<String>eval("execution_result.actions.0.id", result), equalTo("testLogger"));
-        assertThat(MapPath.<String>eval("execution_result.actions.0.logging.logged_text", result), equalTo("This is a test"));
+        assertThat(MapPath.<String>eval("result.actions.0.id", result), equalTo("testLogger"));
+        assertThat(MapPath.<String>eval("result.actions.0.logging.logged_text", result), equalTo("This is a test"));
     }
 }

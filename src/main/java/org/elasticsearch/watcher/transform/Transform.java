@@ -40,12 +40,13 @@ public interface Transform extends ToXContent {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
+            builder.field(Field.TYPE.getPreferredName(), type);
             builder.field(Field.PAYLOAD.getPreferredName(), payload, params);
-            xContentBody(builder, params);
+            typeXContent(builder, params);
             return builder.endObject();
         }
 
-        protected abstract XContentBuilder xContentBody(XContentBuilder builder, Params params) throws IOException;
+        protected abstract XContentBuilder typeXContent(XContentBuilder builder, Params params) throws IOException;
 
     }
 
@@ -55,6 +56,7 @@ public interface Transform extends ToXContent {
     }
 
     interface Field {
+        ParseField TYPE = new ParseField("type");
         ParseField PAYLOAD = new ParseField("payload");
         ParseField TRANSFORM = new ParseField("transform");
     }

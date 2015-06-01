@@ -162,8 +162,8 @@ public class LicenseIntegrationTests extends AbstractWatcherIntegrationTests {
 
         // and last... lets verify that we have throttled watches due to license expiration
         long throttledCount = docCount(HistoryStore.INDEX_PREFIX + "*", HistoryStore.DOC_TYPE, filteredQuery(
-                matchQuery("execution_result.actions.index.reason", "watcher license expired"),
-                termFilter("execution_result.actions.index.status", "throttled")));
+                matchQuery("result.actions.reason", "watcher license expired"),
+                termFilter("result.actions.status", "throttled")));
         assertThat(throttledCount, is(1L));
 
         //=====

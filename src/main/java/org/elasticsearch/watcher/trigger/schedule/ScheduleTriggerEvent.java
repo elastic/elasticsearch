@@ -52,6 +52,13 @@ public class ScheduleTriggerEvent extends TriggerEvent {
         return builder.endObject();
     }
 
+    @Override
+    public void recordDataXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject(ScheduleTrigger.TYPE);
+        WatcherDateTimeUtils.writeDate(Field.SCHEDULED_TIME.getPreferredName(), builder, scheduledTime);
+        builder.endObject();
+    }
+
     public static ScheduleTriggerEvent parse(XContentParser parser, String watchId, String context, Clock clock) throws IOException {
         DateTime triggeredTime = null;
         DateTime scheduledTime = null;

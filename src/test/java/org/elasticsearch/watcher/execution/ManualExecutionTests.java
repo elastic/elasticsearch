@@ -209,7 +209,7 @@ public class ManualExecutionTests extends AbstractWatcherIntegrationTests {
 
 
         assertThat(MapPath.<String>eval("state", executeWatchResult), equalTo(ExecutionState.EXECUTION_NOT_NEEDED.toString()));
-        assertThat(MapPath.<String>eval("execution_result.input.simple.payload.foo", executeWatchResult), equalTo("bar"));
+        assertThat(MapPath.<String>eval("result.input.payload.foo", executeWatchResult), equalTo("bar"));
 
         watchBuilder = watchBuilder()
                 .trigger(schedule(cron("0 0 0 1 * ? 2099")))
@@ -225,8 +225,8 @@ public class ManualExecutionTests extends AbstractWatcherIntegrationTests {
                 .get().getRecordSource().getAsMap();
 
         assertThat(MapPath.<String>eval("state", executeWatchResult), equalTo(ExecutionState.EXECUTED.toString()));
-        assertThat(MapPath.<String>eval("execution_result.input.simple.payload.foo", executeWatchResult), equalTo("bar"));
-        assertThat(MapPath.<String>eval("execution_result.actions.0.id", executeWatchResult), equalTo("log"));
+        assertThat(MapPath.<String>eval("result.input.payload.foo", executeWatchResult), equalTo("bar"));
+        assertThat(MapPath.<String>eval("result.actions.0.id", executeWatchResult), equalTo("log"));
 
 
         executeWatchResult = watcherClient().prepareExecuteWatch()

@@ -75,7 +75,7 @@ public class ScriptTransform implements Transform {
         }
 
         @Override
-        protected XContentBuilder xContentBody(XContentBuilder builder, Params params) throws IOException {
+        protected XContentBuilder typeXContent(XContentBuilder builder, Params params) throws IOException {
             return builder;
         }
     }

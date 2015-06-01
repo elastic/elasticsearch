@@ -7,6 +7,9 @@ package org.elasticsearch.watcher.condition;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+
+import java.io.IOException;
 
 /**
  *
@@ -17,7 +20,7 @@ public interface Condition extends ToXContent {
 
     abstract class Result implements ToXContent {
 
-        private final String type;
+        protected final String type;
         protected final boolean met;
 
         public Result(String type, boolean met) {
@@ -31,6 +34,16 @@ public interface Condition extends ToXContent {
 
         public boolean met() { return met; }
 
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field(Field.TYPE.getPreferredName(), type);
+            builder.field(Field.MET.getPreferredName(), met);
+            typeXContent(builder, params);
+            return builder.endObject();
+        }
+
+        protected abstract XContentBuilder typeXContent(XContentBuilder builder, Params params) throws IOException;
     }
 
     interface Builder<C extends Condition> {
@@ -39,6 +52,7 @@ public interface Condition extends ToXContent {
     }
 
     interface Field {
+        ParseField TYPE = new ParseField("type");
         ParseField MET = new ParseField("met");
     }
 }

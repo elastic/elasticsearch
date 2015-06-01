@@ -364,7 +364,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTests {
                 .get();
         assertHitCount(searchResponse, 1);
         XContentSource source = new XContentSource(searchResponse.getHits().getAt(0).getSourceRef());
-        assertThat(source.getValue("execution_result.input.search.payload.hits.total"), equalTo((Object) 1));
+        assertThat(source.getValue("result.input.payload.hits.total"), equalTo((Object) 1));
     }
 
     @Test

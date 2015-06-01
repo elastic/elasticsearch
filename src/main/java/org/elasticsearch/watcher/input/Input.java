@@ -21,7 +21,7 @@ public interface Input extends ToXContent {
 
     abstract class Result implements ToXContent {
 
-        private final String type;
+        protected final String type;
         private final Payload payload;
 
         public Result(String type, Payload payload) {
@@ -40,13 +40,14 @@ public interface Input extends ToXContent {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject()
-                    .field(Field.PAYLOAD.getPreferredName(), payload, params);
-            toXContentBody(builder, params);
+            builder.startObject();
+            builder.field(Field.TYPE.getPreferredName(), type);
+            builder.field(Field.PAYLOAD.getPreferredName(), payload, params);
+            typeXContent(builder, params);
             return builder.endObject();
         }
 
-        protected abstract XContentBuilder toXContentBody(XContentBuilder builder, Params params) throws IOException;
+        protected abstract XContentBuilder typeXContent(XContentBuilder builder, Params params) throws IOException;
     }
 
     interface Builder<I extends Input> {
@@ -56,6 +57,7 @@ public interface Input extends ToXContent {
     }
 
     interface Field {
+        ParseField TYPE = new ParseField("type");
         ParseField PAYLOAD = new ParseField("payload");
     }
 }

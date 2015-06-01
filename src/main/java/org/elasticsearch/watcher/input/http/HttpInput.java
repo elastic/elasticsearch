@@ -123,9 +123,11 @@ public class HttpInput implements Input {
         }
 
         @Override
-        protected XContentBuilder toXContentBody(XContentBuilder builder, Params params) throws IOException {
-            return builder.field(Field.REQUEST.getPreferredName(), request, params)
-                    .field(Field.STATUS.getPreferredName(), status);
+        protected XContentBuilder typeXContent(XContentBuilder builder, Params params) throws IOException {
+            return builder.startObject(type)
+                    .field(Field.REQUEST.getPreferredName(), request, params)
+                    .field(Field.STATUS.getPreferredName(), status)
+                    .endObject();
         }
     }
 

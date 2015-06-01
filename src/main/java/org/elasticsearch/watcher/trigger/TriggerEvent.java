@@ -8,7 +8,10 @@ package org.elasticsearch.watcher.trigger;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.watcher.support.WatcherDateTimeUtils;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -42,7 +45,18 @@ public abstract class TriggerEvent implements ToXContent {
         return data;
     }
 
+    public void recordXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        builder.field(Field.TYPE.getPreferredName(), type());
+        WatcherDateTimeUtils.writeDate(Field.TRIGGERED_TIME.getPreferredName(), builder, triggeredTime);
+        recordDataXContent(builder, params);
+        builder.endObject();
+    }
+
+    public abstract void recordDataXContent(XContentBuilder builder, Params params) throws IOException;
+
     protected interface Field {
+        ParseField TYPE = new ParseField("type");
         ParseField TRIGGERED_TIME = new ParseField("triggered_time");
     }
 

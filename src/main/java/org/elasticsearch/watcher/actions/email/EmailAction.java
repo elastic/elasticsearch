@@ -189,9 +189,11 @@ public class EmailAction implements Action {
             }
 
             @Override
-            public XContentBuilder xContentBody(XContentBuilder builder, Params params) throws IOException {
-                return builder.field(Field.ACCOUNT.getPreferredName(), account)
-                        .field(Field.EMAIL.getPreferredName(), email, params);
+            public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+                return builder.startObject(type)
+                        .field(Field.ACCOUNT.getPreferredName(), account)
+                        .field(Field.EMAIL.getPreferredName(), email, params)
+                        .endObject();
             }
         }
 
@@ -209,8 +211,10 @@ public class EmailAction implements Action {
             }
 
             @Override
-            protected XContentBuilder xContentBody(XContentBuilder builder, Params params) throws IOException {
-                return builder.field(Field.EMAIL.getPreferredName(), email, params);
+            public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+                return builder.startObject(type)
+                        .field(Field.EMAIL.getPreferredName(), email, params)
+                        .endObject();
             }
         }
     }

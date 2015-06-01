@@ -14,6 +14,7 @@ import org.elasticsearch.watcher.actions.ExecutableActions;
 import org.elasticsearch.watcher.condition.Condition;
 import org.elasticsearch.watcher.condition.ConditionRegistry;
 import org.elasticsearch.watcher.input.Input;
+import org.elasticsearch.watcher.input.InputRegistry;
 import org.elasticsearch.watcher.support.WatcherDateTimeUtils;
 import org.elasticsearch.watcher.transform.Transform;
 
@@ -76,18 +77,13 @@ public class WatchExecutionResult implements ToXContent {
         builder.field(Field.EXECUTION_DURATION.getPreferredName(), executionDurationMs);
 
         if (inputResult != null) {
-            builder.startObject(Field.INPUT.getPreferredName())
-                    .field(inputResult.type(), inputResult, params)
-                    .endObject();
+            builder.field(Field.INPUT.getPreferredName(), inputResult, params);
         }
         if (conditionResult != null) {
-            builder.field(Field.CONDITION.getPreferredName());
-            ConditionRegistry.writeResult(conditionResult, builder, params);
+            builder.field(Field.CONDITION.getPreferredName(), conditionResult, params);
         }
         if (transformResult != null) {
-            builder.startObject(Transform.Field.TRANSFORM.getPreferredName())
-                    .field(transformResult.type(), transformResult, params)
-                    .endObject();
+            builder.field(Transform.Field.TRANSFORM.getPreferredName(), transformResult, params);
         }
         builder.field(Field.ACTIONS.getPreferredName(), actionsResults, params);
         builder.endObject();
@@ -96,9 +92,11 @@ public class WatchExecutionResult implements ToXContent {
 
     interface Field {
         ParseField EXECUTION_TIME = new ParseField("execution_time");
+        ParseField EXECUTION_DURATION = new ParseField("execution_duration");
         ParseField INPUT = new ParseField("input");
         ParseField CONDITION = new ParseField("condition");
         ParseField ACTIONS = new ParseField("actions");
-        ParseField EXECUTION_DURATION = new ParseField("execution_duration");
+
+        ParseField TYPE = new ParseField("type");
     }
 }

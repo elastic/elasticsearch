@@ -49,8 +49,8 @@ public class NeverCondition implements Condition {
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return builder.startObject().endObject();
+        protected XContentBuilder typeXContent(XContentBuilder builder, Params params) throws IOException {
+            return builder;
         }
     }
 

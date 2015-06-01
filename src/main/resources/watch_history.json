@@ -10,7 +10,7 @@
       "dynamic_templates": [
         {
           "disabled_payload_fields": {
-            "path_match": "execution_result\\.((input\\..+)|(actions\\.transform\\..+)|(transform\\..+))\\.payload",
+            "path_match": "result\\.(input|(transform(\\..+)*)|(actions\\.transform(\\..+)*))\\.payload",
             "match_pattern": "regex",
             "mapping": {
               "type": "object",
@@ -20,7 +20,7 @@
         },
         {
           "disabled_search_request_body_fields": {
-            "path_match": "execution_result\\.((input)|(actions\\.transform.*)|(transform.*))\\.search\\.request\\.(body|template)",
+            "path_match": "result\\.(input|(transform(\\..+)*)|(actions\\.transform(\\..+)*))\\.search\\.request\\.(body|template)",
             "match_pattern": "regex",
             "mapping": {
               "type": "object",
@@ -42,13 +42,32 @@
           "type": "object",
           "dynamic": true,
           "properties": {
+            "type" : {
+              "type" : "string",
+              "index" : "not_analyzed"
+            },
+            "triggered_time": {
+              "type": "date"
+            },
+            "manual": {
+              "type": "object",
+              "dynamic": true,
+              "properties": {
+                "schedule": {
+                  "type": "object",
+                  "dynamic": true,
+                  "properties": {
+                    "scheduled_time": {
+                      "type": "date"
+                    }
+                  }
+                }
+              }
+            },
             "schedule": {
               "type": "object",
               "dynamic": true,
               "properties": {
-                "triggered_time": {
-                  "type": "date"
-                },
                 "scheduled_time": {
                   "type": "date"
                 }
@@ -71,7 +90,7 @@
         "message": {
           "type": "string"
         },
-        "execution_result": {
+        "result": {
           "type": "object",
           "dynamic": true,
           "properties": {
@@ -85,6 +104,14 @@
               "type": "object",
               "dynamic": true,
               "properties": {
+                "type" : {
+                  "type" : "string",
+                  "index" : "not_analyzed"
+                },
+                "payload" : {
+                  "type" : "object",
+                  "enabled" : false
+                },
                 "search": {
                   "type": "object",
                   "dynamic": true,
@@ -135,19 +162,18 @@
               "type" : "object",
               "dynamic" : true,
               "properties" : {
+                "type" : {
+                  "type" : "string",
+                  "index" : "not_analyzed"
+                },
+                "met" : {
+                  "type" : "boolean"
+                },
                 "compare" : {
                   "type" : "object",
                   "enabled" : false
                 },
                 "script" : {
-                  "type" : "object",
-                  "enabled" : false
-                },
-                "always" : {
-                  "type" : "object",
-                  "enabled" : false
-                },
-                "never" : {
                   "type" : "object",
                   "enabled" : false
                 }
@@ -157,6 +183,10 @@
               "type" : "object",
               "dynamic" : true,
               "properties" : {
+                "type" : {
+                  "type" : "string",
+                  "index" : "not_analyzed"
+                },
                 "search" : {
                   "type" : "object",
                   "dynamic" : true,
@@ -178,6 +208,22 @@
               "include_in_parent": true,
               "dynamic": true,
               "properties": {
+                "id" : {
+                  "type" : "string",
+                  "index" : "not_analyzed"
+                },
+                "type" : {
+                  "type" : "string",
+                  "index" : "not_analyzed"
+                },
+                "status" : {
+                  "type" : "string",
+                  "index" : "not_analyzed"
+                },
+                "reason" : {
+                  "type" : "string",
+                  "index" : "analyzed"
+                },
                 "email": {
                   "type": "object",
                   "dynamic": true,

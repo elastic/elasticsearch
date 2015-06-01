@@ -19,7 +19,6 @@ public class ManualTriggerEvent extends TriggerEvent {
 
     private final TriggerEvent triggerEvent;
 
-
     public ManualTriggerEvent(String jobName, TriggerEvent triggerEvent) {
         super(jobName, triggerEvent.triggeredTime());
         this.triggerEvent = triggerEvent;
@@ -36,6 +35,13 @@ public class ManualTriggerEvent extends TriggerEvent {
         builder.startObject();
         builder.field(triggerEvent.type(), triggerEvent, params);
         return builder.endObject();
+    }
+
+    @Override
+    public void recordDataXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject(ManualTriggerEngine.TYPE);
+        triggerEvent.recordDataXContent(builder, params);
+        builder.endObject();
     }
 
     public static ManualTriggerEvent parse(TriggerService triggerService, String watchId, String context, XContentParser parser) throws IOException {

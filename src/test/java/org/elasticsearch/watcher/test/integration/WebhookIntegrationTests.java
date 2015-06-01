@@ -97,10 +97,10 @@ public class WebhookIntegrationTests extends AbstractWatcherIntegrationTests {
 
         assertNoFailures(response);
         XContentSource source = new XContentSource(response.getHits().getAt(0).getSourceRef());
-        String body = source.getValue("execution_result.actions.0.webhook.response.body");
+        String body = source.getValue("result.actions.0.webhook.response.body");
         assertThat(body, notNullValue());
         assertThat(body, is("body"));
-        Number status = source.getValue("execution_result.actions.0.webhook.response.status");
+        Number status = source.getValue("result.actions.0.webhook.response.status");
         assertThat(status, notNullValue());
         assertThat(status.intValue(), is(200));
     }

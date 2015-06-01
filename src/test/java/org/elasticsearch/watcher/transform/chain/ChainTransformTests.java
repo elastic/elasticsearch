@@ -140,7 +140,7 @@ public class ChainTransformTests extends ElasticsearchTestCase {
             }
 
             @Override
-            protected XContentBuilder xContentBody(XContentBuilder builder, Params params) throws IOException {
+            protected XContentBuilder typeXContent(XContentBuilder builder, Params params) throws IOException {
                 return builder;
             }
         }

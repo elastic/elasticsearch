@@ -77,10 +77,8 @@ public class ScriptCondition implements Condition {
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return builder.startObject()
-                    .field(Field.MET.getPreferredName(), met)
-                    .endObject();
+        protected XContentBuilder typeXContent(XContentBuilder builder, Params params) throws IOException {
+            return builder;
         }
     }
 

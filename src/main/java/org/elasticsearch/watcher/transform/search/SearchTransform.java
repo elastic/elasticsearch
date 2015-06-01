@@ -86,10 +86,11 @@ public class SearchTransform implements Transform {
         }
 
         @Override
-        protected XContentBuilder xContentBody(XContentBuilder builder, Params params) throws IOException {
+        protected XContentBuilder typeXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject(type);
             builder.field(Field.REQUEST.getPreferredName());
             WatcherUtils.writeSearchRequest(request, builder, params);
-            return builder;
+            return builder.endObject();
         }
     }
 

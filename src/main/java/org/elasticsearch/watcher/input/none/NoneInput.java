@@ -56,12 +56,7 @@ public class NoneInput implements Input {
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return builder.startObject().endObject();
-        }
-
-        @Override
-        protected XContentBuilder toXContentBody(XContentBuilder builder, Params params) throws IOException {
+        protected XContentBuilder typeXContent(XContentBuilder builder, Params params) throws IOException {
             return builder;
         }
     }

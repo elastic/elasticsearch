@@ -108,12 +108,6 @@ public class LoggingAction implements Action {
         return new LoggingAction(text, level, category);
     }
 
-    private static void assertNotNull(Object value, String message, Object... args) {
-        if (value == null) {
-            throw new LoggingActionException(message, args);
-        }
-    }
-
     public static Builder builder(Template template) {
         return new Builder(template);
     }
@@ -134,8 +128,10 @@ public class LoggingAction implements Action {
             }
 
             @Override
-            protected XContentBuilder xContentBody(XContentBuilder builder, Params params) throws IOException {
-                return builder.field(Field.LOGGED_TEXT.getPreferredName(), loggedText);
+            public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+                return builder.startObject(type)
+                        .field(Field.LOGGED_TEXT.getPreferredName(), loggedText)
+                        .endObject();
             }
         }
 
@@ -153,8 +149,10 @@ public class LoggingAction implements Action {
             }
 
             @Override
-            protected XContentBuilder xContentBody(XContentBuilder builder, Params params) throws IOException {
-                return builder.field(Field.LOGGED_TEXT.getPreferredName(), loggedText);
+            public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+                return builder.startObject(type)
+                        .field(Field.LOGGED_TEXT.getPreferredName(), loggedText)
+                        .endObject();
             }
         }
     }

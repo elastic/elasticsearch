@@ -137,9 +137,8 @@ public class CompareCondition implements Condition {
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return builder.startObject()
-                    .field(Field.MET.getPreferredName(), met)
+        protected XContentBuilder typeXContent(XContentBuilder builder, Params params) throws IOException {
+            return builder.startObject(type)
                     .field(Field.RESOLVED_VALUE.getPreferredName(), resolveValue)
                     .endObject();
         }

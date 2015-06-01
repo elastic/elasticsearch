@@ -96,6 +96,15 @@ public class TemplateQueryParser implements QueryParser {
         return parse(parser, parameterMap);
     }
 
+    public static Template parse(String defaultLang, XContentParser parser, String... parameters) throws IOException {
+
+        Map<String, ScriptService.ScriptType> parameterMap = new HashMap<>(parametersToTypes);
+        for (String parameter : parameters) {
+            parameterMap.put(parameter, ScriptService.ScriptType.INLINE);
+        }
+        return Template.parse(parser, parameterMap, defaultLang);
+    }
+
     public static Template parse(XContentParser parser) throws IOException {
         return parse(parser, parametersToTypes);
     }

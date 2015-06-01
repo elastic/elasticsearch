@@ -636,6 +636,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
     public UpdateRequest source(BytesReference source) throws Exception {
         ScriptParameterParser scriptParameterParser = new ScriptParameterParser();
         Map<String, Object> scriptParams = null;
+        Script script = null;
         XContentType xContentType = XContentFactory.xContentType(source);
         try (XContentParser parser = XContentFactory.xContent(xContentType).createParser(source)) {
             XContentParser.Token token = parser.nextToken();
@@ -674,6 +675,9 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
                 if (scriptValue != null) {
                     script = new Script(scriptValue.script(), scriptValue.scriptType(), scriptParameterParser.lang(), scriptParams);
                 }
+            }
+            if (script != null) {
+                this.script = script;
             }
         }
         return this;

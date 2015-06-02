@@ -64,11 +64,60 @@ public class TimeValueTests extends ElasticsearchTestCase {
     }
 
     public void testParseTimeValue() {
-        // Space is allowed before unit
+        // Space is allowed before unit:
+        assertEquals(new TimeValue(10, TimeUnit.MILLISECONDS),
+                     TimeValue.parseTimeValue("10 ms", null, "test"));
+        assertEquals(new TimeValue(10, TimeUnit.MILLISECONDS),
+                     TimeValue.parseTimeValue("10ms", null, "test"));
+        assertEquals(new TimeValue(10, TimeUnit.MILLISECONDS),
+                     TimeValue.parseTimeValue("10 MS", null, "test"));
+        assertEquals(new TimeValue(10, TimeUnit.MILLISECONDS),
+                     TimeValue.parseTimeValue("10MS", null, "test"));
+
         assertEquals(new TimeValue(10, TimeUnit.SECONDS),
-                     TimeValue.parseTimeValue("10 s", null, "ten seconds"));
+                     TimeValue.parseTimeValue("10 s", null, "test"));
         assertEquals(new TimeValue(10, TimeUnit.SECONDS),
-                     TimeValue.parseTimeValue("10s", null, "ten seconds"));
+                     TimeValue.parseTimeValue("10s", null, "test"));
+        assertEquals(new TimeValue(10, TimeUnit.SECONDS),
+                     TimeValue.parseTimeValue("10 S", null, "test"));
+        assertEquals(new TimeValue(10, TimeUnit.SECONDS),
+                     TimeValue.parseTimeValue("10S", null, "test"));
+
+        assertEquals(new TimeValue(10, TimeUnit.MINUTES),
+                     TimeValue.parseTimeValue("10 m", null, "test"));
+        assertEquals(new TimeValue(10, TimeUnit.MINUTES),
+                     TimeValue.parseTimeValue("10m", null, "test"));
+        assertEquals(new TimeValue(10, TimeUnit.MINUTES),
+                     TimeValue.parseTimeValue("10 M", null, "test"));
+        assertEquals(new TimeValue(10, TimeUnit.MINUTES),
+                     TimeValue.parseTimeValue("10M", null, "test"));
+
+        assertEquals(new TimeValue(10, TimeUnit.HOURS),
+                     TimeValue.parseTimeValue("10 h", null, "test"));
+        assertEquals(new TimeValue(10, TimeUnit.HOURS),
+                     TimeValue.parseTimeValue("10h", null, "test"));
+        assertEquals(new TimeValue(10, TimeUnit.HOURS),
+                     TimeValue.parseTimeValue("10 H", null, "test"));
+        assertEquals(new TimeValue(10, TimeUnit.HOURS),
+                     TimeValue.parseTimeValue("10H", null, "test"));
+
+        assertEquals(new TimeValue(10, TimeUnit.DAYS),
+                     TimeValue.parseTimeValue("10 d", null, "test"));
+        assertEquals(new TimeValue(10, TimeUnit.DAYS),
+                     TimeValue.parseTimeValue("10d", null, "test"));
+        assertEquals(new TimeValue(10, TimeUnit.DAYS),
+                     TimeValue.parseTimeValue("10 D", null, "test"));
+        assertEquals(new TimeValue(10, TimeUnit.DAYS),
+                     TimeValue.parseTimeValue("10D", null, "test"));
+
+        assertEquals(new TimeValue(70, TimeUnit.DAYS),
+                     TimeValue.parseTimeValue("10 w", null, "test"));
+        assertEquals(new TimeValue(70, TimeUnit.DAYS),
+                     TimeValue.parseTimeValue("10w", null, "test"));
+        assertEquals(new TimeValue(70, TimeUnit.DAYS),
+                     TimeValue.parseTimeValue("10 W", null, "test"));
+        assertEquals(new TimeValue(70, TimeUnit.DAYS),
+                     TimeValue.parseTimeValue("10W", null, "test"));
     }
 
     private void assertEqualityAfterSerialize(TimeValue value) throws IOException {
@@ -85,7 +134,6 @@ public class TimeValueTests extends ElasticsearchTestCase {
         assertEqualityAfterSerialize(new TimeValue(100, TimeUnit.DAYS));
         assertEqualityAfterSerialize(new TimeValue(-1));
         assertEqualityAfterSerialize(new TimeValue(1, TimeUnit.NANOSECONDS));
-
     }
 
     @Test(expected = ElasticsearchParseException.class)
@@ -98,18 +146,8 @@ public class TimeValueTests extends ElasticsearchTestCase {
         TimeValue.parseTimeValue("42", null, "test");
     }
 
-    public void testSpaceAllowed() {
-        TimeValue result = TimeValue.parseTimeValue("42 ms", null, "test");
-        assertEquals(42, result.millis());
-    }
-
     @Test(expected = ElasticsearchParseException.class)
     public void testNoDotsAllowed() {
         TimeValue.parseTimeValue("42ms.", null, "test");
-    }
-
-    public void testCapsAllowed() {
-        TimeValue result = TimeValue.parseTimeValue("42MS", null, "test");
-        assertEquals(42, result.millis());
     }
 }

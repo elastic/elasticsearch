@@ -1890,6 +1890,7 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
                 PendingClusterTasksResponse tasks = client().admin().cluster().preparePendingClusterTasks().get();
                 int count = 0;
                 for(PendingClusterTask task : tasks) {
+                    logger.debug("--> pending task: " + task.getSource() );
                     if (task.getSource().toString().startsWith(taskPrefix)) {
                         count++;
                     }
@@ -1973,13 +1974,13 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
                             }
                         }
                         try {
-                            logger.info("wating....");
+                            logger.info("waiting....");
                             if (latch.await(Math.min(100, timeout.millis()), TimeUnit.MILLISECONDS)){
                                 // Done waiting - unblock
                                 logger.info("unblocked");
                                 return currentState;
                             }
-                            logger.info("done wating....");
+                            logger.info("done waiting....");
                         } catch (InterruptedException ex) {
                             Thread.currentThread().interrupt();
                         }

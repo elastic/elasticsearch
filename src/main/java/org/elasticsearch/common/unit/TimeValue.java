@@ -240,15 +240,13 @@ public class TimeValue implements Serializable, Streamable {
             // TODO: we should be consistent about whether upper-case is allowed (it is always allowed for ByteSizeValue, but here only for
             // s/S and h/H):
             String lowerSValue = sValue.toLowerCase(Locale.ROOT);
-            if (lowerSValue.endsWith("S")) {
-                millis = (long) Double.parseDouble(lowerSValue.substring(0, lowerSValue.length() - 1)) * 1000;
-            } else if (lowerSValue.endsWith("ms")) {
+            if (lowerSValue.endsWith("ms")) {
                 millis = (long) (Double.parseDouble(lowerSValue.substring(0, lowerSValue.length() - 2)));
             } else if (lowerSValue.endsWith("s")) {
-                millis = (long) (Double.parseDouble(lowerSValue.substring(0, lowerSValue.length() - 1)) * 1000);
+                millis = (long) Double.parseDouble(lowerSValue.substring(0, lowerSValue.length() - 1)) * 1000;
             } else if (lowerSValue.endsWith("m")) {
                 millis = (long) (Double.parseDouble(lowerSValue.substring(0, lowerSValue.length() - 1)) * 60 * 1000);
-            } else if (lowerSValue.endsWith("H") || lowerSValue.endsWith("h")) {
+            } else if (lowerSValue.endsWith("h")) {
                 millis = (long) (Double.parseDouble(lowerSValue.substring(0, lowerSValue.length() - 1)) * 60 * 60 * 1000);
             } else if (lowerSValue.endsWith("d")) {
                 millis = (long) (Double.parseDouble(lowerSValue.substring(0, lowerSValue.length() - 1)) * 24 * 60 * 60 * 1000);

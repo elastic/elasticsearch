@@ -24,11 +24,12 @@ package org.elasticsearch.common;
  */
 public class Booleans {
 
-    // nocommit remove this lenient one and cutover to parseBooleanExact
     /**
      * Returns <code>false</code> if text is in <tt>false</tt>, <tt>0</tt>, <tt>off</tt>, <tt>no</tt>; else, true
      */
     public static boolean parseBoolean(char[] text, int offset, int length, boolean defaultValue) {
+        // TODO: the leniency here is very dangerous: a simple typo will be misinterpreted and the user won't know.
+        // We should remove it and cutover to https://github.com/rmuir/booleanparser
         if (text == null || length == 0) {
             return defaultValue;
         }
@@ -44,7 +45,6 @@ public class Booleans {
         if (length == 5) {
             return !(text[offset] == 'f' && text[offset + 1] == 'a' && text[offset + 2] == 'l' && text[offset + 3] == 's' && text[offset + 4] == 'e');
         }
-        // nocommit check for known "true" values and throw exc if it's not recognized
         return true;
     }
 

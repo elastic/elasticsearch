@@ -15,6 +15,7 @@ import org.elasticsearch.watcher.support.xcontent.WatcherXContentUtils;
 
 import java.io.IOException;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.common.joda.time.DateTimeZone.UTC;
@@ -125,21 +126,21 @@ public class CompareCondition implements Condition {
 
     public static class Result extends Condition.Result {
 
-        private final Object resolveValue;
+        private final Map<String, Object> resolveValues;
 
-        Result(Object resolveValue, boolean met) {
+        Result(Map<String, Object> resolveValues, boolean met) {
             super(TYPE, met);
-            this.resolveValue = resolveValue;
+            this.resolveValues = resolveValues;
         }
 
-        public Object getResolveValue() {
-            return resolveValue;
+        public Map<String, Object> getResolveValues() {
+            return resolveValues;
         }
 
         @Override
         protected XContentBuilder typeXContent(XContentBuilder builder, Params params) throws IOException {
             return builder.startObject(type)
-                    .field(Field.RESOLVED_VALUE.getPreferredName(), resolveValue)
+                    .field(Field.RESOLVED_VALUES.getPreferredName(), resolveValues)
                     .endObject();
         }
     }
@@ -298,18 +299,7 @@ public class CompareCondition implements Condition {
         }
     }
 
-    public static class EvaluationException extends CompareConditionException {
-
-        public EvaluationException(String msg, Object... args) {
-            super(msg, args);
-        }
-
-        public EvaluationException(String msg, Throwable cause, Object... args) {
-            super(msg, cause, args);
-        }
-    }
-
     interface Field extends Condition.Field {
-        ParseField RESOLVED_VALUE = new ParseField("resolved_value");
+        ParseField RESOLVED_VALUES = new ParseField("resolved_values");
     }
 }

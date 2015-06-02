@@ -21,8 +21,10 @@ import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
 import org.elasticsearch.watcher.watch.Payload;
 import org.junit.Test;
 
+import java.util.Map;
+
 import static org.elasticsearch.watcher.test.WatcherTestUtils.mockExecutionContext;
-import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.*;
 import static org.mockito.Mockito.when;
 
 /**
@@ -49,7 +51,12 @@ public class CompareConditionSearchTests extends AbstractWatcherIntegrationTests
         ExecutableCompareCondition condition = new ExecutableCompareCondition(new CompareCondition("ctx.payload.aggregations.rate.buckets.0.doc_count", CompareCondition.Op.GTE, 5), logger, SystemClock.INSTANCE);
 
         WatchExecutionContext ctx = mockExecutionContext("_name", new Payload.XContent(response));
-        assertThat(condition.execute(ctx).met(), is(false));
+        CompareCondition.Result result = condition.execute(ctx);
+        assertThat(result.met(), is(false));
+        Map<String, Object> resolvedValues = result.getResolveValues();
+        assertThat(resolvedValues, notNullValue());
+        assertThat(resolvedValues.size(), is(1));
+        assertThat(resolvedValues, hasEntry("ctx.payload.aggregations.rate.buckets.0.doc_count", (Object) 4));
 
         client().prepareIndex("my-index", "my-type").setTimestamp("2005-01-01T00:40").setSource("{}").get();
         refresh();
@@ -59,7 +66,12 @@ public class CompareConditionSearchTests extends AbstractWatcherIntegrationTests
                 .get();
 
         ctx = mockExecutionContext("_name", new Payload.XContent(response));
-        assertThat(condition.execute(ctx).met(), is(true));
+        result = condition.execute(ctx);
+        assertThat(result.met(), is(true));
+        resolvedValues = result.getResolveValues();
+        assertThat(resolvedValues, notNullValue());
+        assertThat(resolvedValues.size(), is(1));
+        assertThat(resolvedValues, hasEntry("ctx.payload.aggregations.rate.buckets.0.doc_count", (Object) 5));
     }
 
     @Test
@@ -76,7 +88,12 @@ public class CompareConditionSearchTests extends AbstractWatcherIntegrationTests
         assertThat(condition.execute(ctx).met(), is(true));
         hit.score(2f);
         when(ctx.payload()).thenReturn(new Payload.XContent(response));
-        assertThat(condition.execute(ctx).met(), is(false));
+        CompareCondition.Result result = condition.execute(ctx);
+        assertThat(result.met(), is(false));
+        Map<String, Object> resolvedValues = result.getResolveValues();
+        assertThat(resolvedValues, notNullValue());
+        assertThat(resolvedValues.size(), is(1));
+        assertThat(resolvedValues, hasEntry(is("ctx.payload.hits.hits.0._score"), notNullValue()));
     }
 
 }

@@ -283,7 +283,7 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
 
         indexRandom(true, docs);
         assertAllShardsOnNodes("test", backwardsCluster().backwardsNodePattern());
-        client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder().put(EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE, "none")).get();
+        disableAllocation("test");
         backwardsCluster().allowOnAllNodes("test");
         CountResponse countResponse = client().prepareCount().get();
         assertHitCount(countResponse, numDocs);
@@ -295,7 +295,7 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
             }
             indexRandom(true, docs);
         }
-        client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder().put(EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE, "all")).get();
+        enableAllocation("test");
         ensureYellow();
         final int numIters = randomIntBetween(1, 20);
         for (int i = 0; i < numIters; i++) {
@@ -328,7 +328,7 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
         for (String index : indices) {
             assertAllShardsOnNodes(index, backwardsCluster().backwardsNodePattern());
         }
-        client().admin().indices().prepareUpdateSettings(indices).setSettings(Settings.builder().put(EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE, "none")).get();
+        disableAllocation(indices);
         backwardsCluster().allowOnAllNodes(indices);
         logClusterState();
         boolean upgraded;
@@ -346,7 +346,7 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
             }
             indexRandom(true, docs);
         } while (upgraded);
-        client().admin().indices().prepareUpdateSettings(indices).setSettings(Settings.builder().put(EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE, "all")).get();
+        enableAllocation(indices);
         ensureYellow();
         CountResponse countResponse = client().prepareCount().get();
         assertHitCount(countResponse, numDocs);

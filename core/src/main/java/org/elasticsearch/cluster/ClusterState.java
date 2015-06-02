@@ -398,18 +398,8 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
         // nodes
         if (metrics.contains(Metric.NODES)) {
             builder.startObject("nodes");
-            for (DiscoveryNode node : nodes()) {
-                builder.startObject(node.id(), XContentBuilder.FieldCaseConversion.NONE);
-                builder.field("name", node.name());
-                builder.field("transport_address", node.address().toString());
-
-                builder.startObject("attributes");
-                for (Map.Entry<String, String> attr : node.attributes().entrySet()) {
-                    builder.field(attr.getKey(), attr.getValue());
-                }
-                builder.endObject();
-
-                builder.endObject();
+            for (DiscoveryNode node : nodes) {
+                node.toXContent(builder, params);
             }
             builder.endObject();
         }

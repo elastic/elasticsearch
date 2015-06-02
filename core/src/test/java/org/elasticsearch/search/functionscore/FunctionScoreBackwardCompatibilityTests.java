@@ -87,7 +87,7 @@ public class FunctionScoreBackwardCompatibilityTests extends ElasticsearchBackwa
         checkFunctionScoreStillWorks(ids);
         logClusterState();
         // prevent any kind of allocation during the upgrade we recover from gateway
-        client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder().put(EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE, "none")).get();
+        disableAllocation("test");
         boolean upgraded;
         int upgradedNodesCounter = 1;
         do {
@@ -97,7 +97,7 @@ public class FunctionScoreBackwardCompatibilityTests extends ElasticsearchBackwa
             logClusterState();
             checkFunctionScoreStillWorks(ids);
         } while (upgraded);
-        client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder().put(EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE, "all")).get();
+        enableAllocation("test");
         logger.debug("done function_score while upgrading");
     }
 

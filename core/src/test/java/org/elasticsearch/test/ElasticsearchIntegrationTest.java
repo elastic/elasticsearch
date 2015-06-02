@@ -31,6 +31,7 @@ import com.google.common.collect.Lists;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.http.impl.client.HttpClients;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.index.shard.MergeSchedulerConfig;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.LuceneTestCase;
@@ -1226,6 +1227,24 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
     protected boolean indexExists(String index) {
         IndicesExistsResponse actionGet = client().admin().indices().prepareExists(index).execute().actionGet();
         return actionGet.isExists();
+    }
+
+    /**
+     * Syntactic sugar for enabling allocation for <code>indices</code>
+     */
+    protected final void enableAllocation(String... indices) {
+        client().admin().indices().prepareUpdateSettings(indices).setSettings(Settings.builder().put(
+                EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE, "all"
+        )).get();
+    }
+
+    /**
+     * Syntactic sugar for disabling allocation for <code>indices</code>
+     */
+    protected final void disableAllocation(String... indices) {
+        client().admin().indices().prepareUpdateSettings(indices).setSettings(Settings.builder().put(
+                EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE, "none"
+        )).get();
     }
 
     /**

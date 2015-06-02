@@ -44,7 +44,7 @@ public class DefaultShardOperationFailedException implements ShardOperationFaile
 
     private RestStatus status;
 
-    private DefaultShardOperationFailedException() {
+    protected DefaultShardOperationFailedException() {
     }
 
     public DefaultShardOperationFailedException(ElasticsearchException e) {

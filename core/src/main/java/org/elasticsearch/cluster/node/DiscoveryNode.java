@@ -29,6 +29,8 @@ import org.elasticsearch.common.network.NetworkUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.transport.TransportAddressSerializers;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Map;
@@ -38,7 +40,7 @@ import static org.elasticsearch.common.transport.TransportAddressSerializers.add
 /**
  * A discovery node represents a node that is part of the cluster.
  */
-public class DiscoveryNode implements Streamable {
+public class DiscoveryNode implements Streamable, ToXContent {
 
     /**
      * Minimum version of a node to communicate with. This version corresponds to the minimum compatibility version
@@ -371,5 +373,21 @@ public class DiscoveryNode implements Streamable {
             sb.append(attributes);
         }
         return sb.toString();
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject(id(), XContentBuilder.FieldCaseConversion.NONE);
+        builder.field("name", name());
+        builder.field("transport_address", address().toString());
+
+        builder.startObject("attributes");
+        for (Map.Entry<String, String> attr : attributes().entrySet()) {
+            builder.field(attr.getKey(), attr.getValue());
+        }
+        builder.endObject();
+
+        builder.endObject();
+        return builder;
     }
 }

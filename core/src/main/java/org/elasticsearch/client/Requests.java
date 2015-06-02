@@ -49,6 +49,7 @@ import org.elasticsearch.action.admin.indices.optimize.OptimizeRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsRequest;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
+import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresRequest;
 import org.elasticsearch.action.admin.indices.upgrade.post.UpgradeRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.count.CountRequest;
@@ -184,6 +185,15 @@ public class Requests {
         return new IndicesSegmentsRequest(indices);
     }
 
+    /**
+     * Creates an indices shard stores info request.
+     * @param indices The indices to get shard store information on
+     * @return The indices shard stores request
+     * @see org.elasticsearch.client.IndicesAdminClient#shardStores(IndicesShardStoresRequest)
+     */
+    public static IndicesShardStoresRequest indicesShardStoresRequest(String... indices) {
+        return new IndicesShardStoresRequest(indices);
+    }
     /**
      * Creates an indices exists request.
      *

@@ -50,4 +50,16 @@ public enum ClusterHealthStatus {
                 throw new IllegalArgumentException("No cluster health status for value [" + value + "]");
         }
     }
+
+    public static ClusterHealthStatus fromString(String status) {
+        if (status.equalsIgnoreCase("green")) {
+            return GREEN;
+        } else if (status.equalsIgnoreCase("yellow")) {
+            return YELLOW;
+        } else if (status.equalsIgnoreCase("red")) {
+            return RED;
+        } else {
+            throw new IllegalArgumentException("unknown cluster health status [" + status + "]");
+        }
+    }
 }

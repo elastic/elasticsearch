@@ -729,16 +729,4 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
         }
         return files;
     }
-
-    private void disableAllocation(String index) {
-        client().admin().indices().prepareUpdateSettings(index).setSettings(Settings.builder().put(
-                "index.routing.allocation.enable", "none"
-        )).get();
-    }
-
-    private void enableAllocation(String index) {
-        client().admin().indices().prepareUpdateSettings(index).setSettings(Settings.builder().put(
-                "index.routing.allocation.enable", "all"
-        )).get();
-    }
 }

@@ -198,8 +198,14 @@ public class GatewayAllocator extends AbstractComponent {
             for (TransportNodesListGatewayStartedShards.NodeGatewayStartedShards nodeShardState : shardState.getData().values()) {
                 long version = nodeShardState.version();
                 // -1 version means it does not exists, which is what the API returns, and what we expect to
-                logger.trace("[{}] on node [{}] has version [{}] of shard", shard, nodeShardState.getNode(), version);
-                nodesState.put(nodeShardState.getNode(), version);
+                if (nodeShardState.storeException() == null) {
+                    logger.trace("[{}] on node [{}] has version [{}] of shard", shard, nodeShardState.getNode(), version);
+                    nodesState.put(nodeShardState.getNode(), version);
+                } else {
+                    // when there is an store exception, we disregard the reported version and assign it as -1 (same as shard does not exist)
+                    logger.trace("[{}] on node [{}] has version [{}] but the store can not be opened, treating as version -1", nodeShardState.storeException(), shard, nodeShardState.getNode(), version);
+                    nodesState.put(nodeShardState.getNode(), -1);
+                }
             }
 
             int numberOfAllocationsFound = 0;

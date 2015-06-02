@@ -21,6 +21,7 @@ package org.elasticsearch.gateway;
 
 import com.google.common.collect.Lists;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
@@ -118,9 +119,18 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
             ShardStateMetaData shardStateMetaData = ShardStateMetaData.FORMAT.loadLatestState(logger, nodeEnv.availableShardPaths(request.shardId));
             if (shardStateMetaData != null) {
                 final IndexMetaData metaData = clusterService.state().metaData().index(shardId.index().name()); // it's a mystery why this is sometimes null
-                if (metaData != null && canOpenIndex(request.getShardId(), metaData) == false) {
-                    logger.trace("{} can't open index for shard [{}]", shardId, shardStateMetaData);
-                    return new NodeGatewayStartedShards(clusterService.localNode(), -1);
+                if (metaData != null) {
+                    final boolean canOpenIndex;
+                    try {
+                        canOpenIndex = tryOpenIndex(request.getShardId(), metaData);
+                    } catch (Exception ex) {
+                        logger.trace("{} can't open index for shard [{}]", shardId, shardStateMetaData);
+                        return new NodeGatewayStartedShards(clusterService.localNode(), -1, ExceptionsHelper.detailedMessage(ex));
+                    }
+                    if (canOpenIndex == false) {
+                        logger.trace("{} can't open index for shard [{}]", shardId, shardStateMetaData);
+                        return new NodeGatewayStartedShards(clusterService.localNode(), -1);
+                    }
                 }
                 // old shard metadata doesn't have the actual index UUID so we need to check if the actual uuid in the metadata
                 // is equal to IndexMetaData.INDEX_UUID_NA_VALUE otherwise this shard doesn't belong to the requested index.
@@ -139,16 +149,17 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
         }
     }
 
-    private boolean canOpenIndex(ShardId shardId, IndexMetaData metaData) throws IOException {
-        // try and see if we an list unallocated
-        if (metaData == null) {
-            return false;
-        }
+    private boolean tryOpenIndex(ShardId shardId, IndexMetaData metaData) throws IOException {
         final ShardPath shardPath = ShardPath.loadShardPath(logger, nodeEnv, shardId, metaData.settings());
         if (shardPath == null) {
             return false;
         }
-        return Store.canOpenIndex(logger, shardPath.resolveIndex());
+        try {
+            return Store.tryOpenIndex(shardPath.resolveIndex());
+        } catch (Exception ex) {
+            logger.trace("Can't open index for path [{}]", ex, shardPath.resolveIndex());
+            throw ex;
+        }
     }
 
     @Override
@@ -269,29 +280,40 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
     public static class NodeGatewayStartedShards extends BaseNodeResponse {
 
         private long version = -1;
+        private String exception = null;
 
         NodeGatewayStartedShards() {
         }
-
         public NodeGatewayStartedShards(DiscoveryNode node, long version) {
+            this(node, version, null);
+        }
+
+        public NodeGatewayStartedShards(DiscoveryNode node, long version, String exception) {
             super(node);
             this.version = version;
+            this.exception = exception;
         }
 
         public long version() {
             return this.version;
         }
 
+        public String exception() {
+            return this.exception;
+        }
+
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             version = in.readLong();
+            exception = in.readOptionalString();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeLong(version);
+            out.writeOptionalString(exception);
         }
     }
 }

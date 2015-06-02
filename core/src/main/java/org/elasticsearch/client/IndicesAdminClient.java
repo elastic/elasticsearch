@@ -81,6 +81,9 @@ import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequestBuilder;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsResponse;
+import org.elasticsearch.action.admin.indices.shards.IndicesUnassigedShardsRequestBuilder;
+import org.elasticsearch.action.admin.indices.shards.IndicesUnassigedShardsResponse;
+import org.elasticsearch.action.admin.indices.shards.IndicesUnassignedShardsRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequestBuilder;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
@@ -217,6 +220,29 @@ public interface IndicesAdminClient extends ElasticsearchClient {
      * The segments of one or more indices.
      */
     IndicesSegmentsRequestBuilder prepareSegments(String... indices);
+
+    /**
+     * The un-assigned shards info of one or more indices.
+     *
+     * @param request The indices un-assigned shards request
+     * @return The result future
+     * @see Requests#indicesUnassignedShardsRequest(String...)
+     */
+    ActionFuture<IndicesUnassigedShardsResponse> unassignedShards(IndicesUnassignedShardsRequest request);
+
+    /**
+     * The un-assigned shards info of one or more indices.
+     *
+     * @param request The indices un-assigned shards request
+     * @param listener A listener to be notified with a result
+     * @see Requests#indicesUnassignedShardsRequest(String...)
+     */
+    void unassignedShards(IndicesUnassignedShardsRequest request, ActionListener<IndicesUnassigedShardsResponse> listener);
+
+    /**
+     * The un-assigned shards of one or more indices.
+     */
+    IndicesUnassigedShardsRequestBuilder prepareUnassignedShards(String... indices);
 
     /**
      * Creates an index using an explicit request allowing to specify the settings of the index.

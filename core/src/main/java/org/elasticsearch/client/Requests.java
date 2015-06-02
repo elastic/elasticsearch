@@ -49,6 +49,7 @@ import org.elasticsearch.action.admin.indices.optimize.OptimizeRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsRequest;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
+import org.elasticsearch.action.admin.indices.shards.IndicesUnassignedShardsRequest;
 import org.elasticsearch.action.admin.indices.upgrade.post.UpgradeRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.count.CountRequest;
@@ -184,6 +185,15 @@ public class Requests {
         return new IndicesSegmentsRequest(indices);
     }
 
+    /**
+     * Creates an indices un-assigned shards info request.
+     * @param indices The indices to query un-assigned shards of
+     * @return The indices un-assigned shards request
+     * @see org.elasticsearch.client.IndicesAdminClient#unassignedShards(IndicesUnassignedShardsRequest)
+     */
+    public static IndicesUnassignedShardsRequest indicesUnassignedShardsRequest(String... indices) {
+        return new IndicesUnassignedShardsRequest(indices);
+    }
     /**
      * Creates an indices exists request.
      *

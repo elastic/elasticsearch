@@ -177,4 +177,12 @@ public class BulkRequestTests extends ElasticsearchTestCase {
                     e.getMessage().contains("Malformed action/metadata line [3], expected START_OBJECT or END_OBJECT but found [START_ARRAY]"), equalTo(true));
         }
     }
+
+    @Test
+    public void testSimpleBulk10() throws Exception {
+        String bulkAction = copyToStringFromClasspath("/org/elasticsearch/action/bulk/simple-bulk10.json");
+        BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.add(bulkAction.getBytes(Charsets.UTF_8), 0, bulkAction.length(), null, null);
+        assertThat(bulkRequest.numberOfActions(), equalTo(9));
+    }
 }

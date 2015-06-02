@@ -1,8 +1,8 @@
 [[cat-allocation]]
 == cat allocation
 
-`allocation` provides a snapshot of how shards have located around the
-cluster and the state of disk usage. This call lists only data nodes in cluster by default.
+`allocation` provides a snapshot of how many shards are allocated to each data node
+and how much disk space they are using.
 
 [source,shell]
 --------------------------------------------------

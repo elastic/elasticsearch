@@ -174,9 +174,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
      */
     @Override
     protected void doStart() {
-
         this.snapshotsBlobContainer = blobStore().blobContainer(basePath());
-        indexShardRepository.initialize(blobStore(), basePath(), chunkSize(), snapshotRateLimiter, restoreRateLimiter, this);
+        indexShardRepository.initialize(blobStore(), basePath(), chunkSize(), snapshotRateLimiter, restoreRateLimiter, this, isCompress());
     }
 
     /**
@@ -329,11 +328,15 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
     }
 
     private StreamOutput compressIfNeeded(OutputStream output) throws IOException {
+        return toStreamOutput(output, isCompress());
+    }
+
+    public static StreamOutput toStreamOutput(OutputStream output, boolean compress) throws IOException {
         StreamOutput out = null;
         boolean success = false;
         try {
             out = new OutputStreamStreamOutput(output);
-            if (isCompress()) {
+            if (compress) {
                 out = CompressorFactory.defaultCompressor().streamOutput(out);
             }
             success = true;
@@ -596,10 +599,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
      */
     protected void writeSnapshotList(ImmutableList<SnapshotId> snapshots) throws IOException {
         BytesStreamOutput bStream = new BytesStreamOutput();
-        StreamOutput stream = bStream;
-        if (isCompress()) {
-            stream = CompressorFactory.defaultCompressor().streamOutput(stream);
-        }
+        StreamOutput stream = compressIfNeeded(bStream);
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON, stream);
         builder.startObject();
         builder.startArray("snapshots");

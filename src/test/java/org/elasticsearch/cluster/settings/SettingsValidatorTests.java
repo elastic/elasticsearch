@@ -24,9 +24,6 @@ import org.junit.Test;
 
 import static org.hamcrest.Matchers.*;
 
-/**
- *
- */
 public class SettingsValidatorTests extends ElasticsearchTestCase {
 
     @Test
@@ -84,7 +81,6 @@ public class SettingsValidatorTests extends ElasticsearchTestCase {
 
         assertThat(Validator.PERCENTAGE.validate("", "asdasd"), notNullValue());
         assertThat(Validator.PERCENTAGE.validate("", "-1"), notNullValue());
-        // nocommit require % too:
         assertThat(Validator.PERCENTAGE.validate("", "20"), notNullValue());
         assertThat(Validator.PERCENTAGE.validate("", "-1%"), notNullValue());
         assertThat(Validator.PERCENTAGE.validate("", "101%"), notNullValue());

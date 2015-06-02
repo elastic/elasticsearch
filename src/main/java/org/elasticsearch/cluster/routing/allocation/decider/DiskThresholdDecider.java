@@ -555,7 +555,7 @@ public class DiskThresholdDecider extends AllocationDecider {
         try {
             return RatioValue.parseRatioValue(watermark).getAsPercent();
         } catch (ElasticsearchParseException ex) {
-            // nocommit: why be lenient here?
+            // NOTE: this is not end-user leniency, since up above we check that it's a valid byte or percentage, and then store the two cases separately
             return 100.0;
         }
     }
@@ -568,7 +568,7 @@ public class DiskThresholdDecider extends AllocationDecider {
         try {
             return ByteSizeValue.parseBytesSizeValue(watermark, settingName);
         } catch (ElasticsearchParseException ex) {
-            // nocommit: why be lenient here?
+            // NOTE: this is not end-user leniency, since up above we check that it's a valid byte or percentage, and then store the two cases separately
             return ByteSizeValue.parseBytesSizeValue("0b", settingName);
         }
     }

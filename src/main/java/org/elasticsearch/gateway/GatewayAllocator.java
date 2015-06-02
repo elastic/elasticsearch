@@ -172,7 +172,7 @@ public class GatewayAllocator extends AbstractComponent {
             }
             AsyncShardFetch.FetchResult<TransportNodesListGatewayStartedShards.NodeGatewayStartedShards> shardState = fetch.fetchData(nodes, metaData, allocation.getIgnoreNodes(shard.shardId()));
             if (shardState.hasData() == false) {
-                logger.trace("{}: ignoring allocation, still fetching shard started state");
+                logger.trace("{}: ignoring allocation, still fetching shard started state", shard);
                 unassignedIterator.remove();
                 routingNodes.ignoredUnassigned().add(shard);
                 continue;
@@ -396,7 +396,7 @@ public class GatewayAllocator extends AbstractComponent {
             }
 
             if (!canBeAllocatedToAtLeastOneNode) {
-                logger.trace("{}: ignoring allocation, can't be allocated on any node");
+                logger.trace("{}: ignoring allocation, can't be allocated on any node", shard);
                 unassignedIterator.remove();
                 routingNodes.ignoredUnassigned().add(shard);
                 continue;
@@ -409,7 +409,7 @@ public class GatewayAllocator extends AbstractComponent {
             }
             AsyncShardFetch.FetchResult<TransportNodesListShardStoreMetaData.NodeStoreFilesMetaData> shardStores = fetch.fetchData(nodes, metaData, allocation.getIgnoreNodes(shard.shardId()));
             if (shardStores.hasData() == false) {
-                logger.trace("{}: ignoring allocation, still fetching shard stores");
+                logger.trace("{}: ignoring allocation, still fetching shard stores", shard);
                 unassignedIterator.remove();
                 routingNodes.ignoredUnassigned().add(shard);
                 continue; // still fetching

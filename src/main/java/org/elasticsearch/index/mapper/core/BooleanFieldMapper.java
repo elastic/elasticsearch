@@ -20,7 +20,6 @@
 package org.elasticsearch.index.mapper.core;
 
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.ConstantScoreQuery;
@@ -34,6 +33,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.FieldDataType;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MergeMappingException;
@@ -58,12 +58,14 @@ public class BooleanFieldMapper extends AbstractFieldMapper {
     public static final String CONTENT_TYPE = "boolean";
 
     public static class Defaults extends AbstractFieldMapper.Defaults {
-        public static final FieldType FIELD_TYPE = new FieldType(AbstractFieldMapper.Defaults.FIELD_TYPE);
+        public static final MappedFieldType FIELD_TYPE = new BooleanFieldType();
 
         static {
             FIELD_TYPE.setOmitNorms(true);
             FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
             FIELD_TYPE.setTokenized(false);
+            FIELD_TYPE.setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
+            FIELD_TYPE.setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
             FIELD_TYPE.freeze();
         }
 
@@ -80,7 +82,7 @@ public class BooleanFieldMapper extends AbstractFieldMapper {
         private Boolean nullValue = Defaults.NULL_VALUE;
 
         public Builder(String name) {
-            super(name, new FieldType(Defaults.FIELD_TYPE));
+            super(name, Defaults.FIELD_TYPE);
             this.builder = this;
         }
 
@@ -99,8 +101,9 @@ public class BooleanFieldMapper extends AbstractFieldMapper {
 
         @Override
         public BooleanFieldMapper build(BuilderContext context) {
-            return new BooleanFieldMapper(buildNames(context), boost, fieldType, docValues, nullValue,
-                    similarity, normsLoading, fieldDataSettings, context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
+            setupFieldType(context);
+            return new BooleanFieldMapper(fieldType, docValues, nullValue,
+                    fieldDataSettings, context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
         }
     }
 
@@ -125,17 +128,86 @@ public class BooleanFieldMapper extends AbstractFieldMapper {
         }
     }
 
+    static final class BooleanFieldType extends MappedFieldType {
+
+        public BooleanFieldType() {
+            super(AbstractFieldMapper.Defaults.FIELD_TYPE);
+        }
+
+        protected BooleanFieldType(BooleanFieldType ref) {
+            super(ref);
+        }
+
+        @Override
+        public MappedFieldType clone() {
+            return new BooleanFieldType(this);
+        }
+
+        @Override
+        public BytesRef indexedValueForSearch(Object value) {
+            if (value == null) {
+                return Values.FALSE;
+            }
+            if (value instanceof Boolean) {
+                return ((Boolean) value) ? Values.TRUE : Values.FALSE;
+            }
+            String sValue;
+            if (value instanceof BytesRef) {
+                sValue = ((BytesRef) value).utf8ToString();
+            } else {
+                sValue = value.toString();
+            }
+            if (sValue.length() == 0) {
+                return Values.FALSE;
+            }
+            if (sValue.length() == 1 && sValue.charAt(0) == 'F') {
+                return Values.FALSE;
+            }
+            if (Booleans.parseBoolean(sValue, false)) {
+                return Values.TRUE;
+            }
+            return Values.FALSE;
+        }
+
+        @Override
+        public Boolean value(Object value) {
+            if (value == null) {
+                return Boolean.FALSE;
+            }
+            String sValue = value.toString();
+            if (sValue.length() == 0) {
+                return Boolean.FALSE;
+            }
+            if (sValue.length() == 1 && sValue.charAt(0) == 'F') {
+                return Boolean.FALSE;
+            }
+            if (Booleans.parseBoolean(sValue, false)) {
+                return Boolean.TRUE;
+            }
+            return Boolean.FALSE;
+        }
+
+        @Override
+        public Object valueForSearch(Object value) {
+            return value(value);
+        }
+        
+        @Override
+        public boolean useTermQueryWithQueryString() {
+            return true;
+        }
+    }
+
     private Boolean nullValue;
 
-    protected BooleanFieldMapper(Names names, float boost, FieldType fieldType, Boolean docValues, Boolean nullValue,
-                                 SimilarityProvider similarity, Loading normsLoading,
+    protected BooleanFieldMapper(MappedFieldType fieldType, Boolean docValues, Boolean nullValue,
                                  @Nullable Settings fieldDataSettings, Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
-        super(names, boost, fieldType, docValues, Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER, similarity, normsLoading, fieldDataSettings, indexSettings, multiFields, copyTo);
+        super(fieldType, docValues, fieldDataSettings, indexSettings, multiFields, copyTo);
         this.nullValue = nullValue;
     }
 
     @Override
-    public FieldType defaultFieldType() {
+    public MappedFieldType defaultFieldType() {
         return Defaults.FIELD_TYPE;
     }
 
@@ -143,60 +215,6 @@ public class BooleanFieldMapper extends AbstractFieldMapper {
     public FieldDataType defaultFieldDataType() {
         // TODO have a special boolean type?
         return new FieldDataType(CONTENT_TYPE);
-    }
-
-    @Override
-    public boolean useTermQueryWithQueryString() {
-        return true;
-    }
-
-    @Override
-    public Boolean value(Object value) {
-        if (value == null) {
-            return Boolean.FALSE;
-        }
-        String sValue = value.toString();
-        if (sValue.length() == 0) {
-            return Boolean.FALSE;
-        }
-        if (sValue.length() == 1 && sValue.charAt(0) == 'F') {
-            return Boolean.FALSE;
-        }
-        if (Booleans.parseBoolean(sValue, false)) {
-            return Boolean.TRUE;
-        }
-        return Boolean.FALSE;
-    }
-
-    @Override
-    public Object valueForSearch(Object value) {
-        return value(value);
-    }
-
-    @Override
-    public BytesRef indexedValueForSearch(Object value) {
-        if (value == null) {
-            return Values.FALSE;
-        }
-        if (value instanceof Boolean) {
-            return ((Boolean) value) ? Values.TRUE : Values.FALSE;
-        }
-        String sValue;
-        if (value instanceof BytesRef) {
-            sValue = ((BytesRef) value).utf8ToString();
-        } else {
-            sValue = value.toString();
-        }
-        if (sValue.length() == 0) {
-            return Values.FALSE;
-        }
-        if (sValue.length() == 1 && sValue.charAt(0) == 'F') {
-            return Values.FALSE;
-        }
-        if (Booleans.parseBoolean(sValue, false)) {
-            return Values.TRUE;
-        }
-        return Values.FALSE;
     }
 
     @Override
@@ -209,7 +227,7 @@ public class BooleanFieldMapper extends AbstractFieldMapper {
 
     @Override
     protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException {
-        if (fieldType().indexOptions() == IndexOptions.NONE && !fieldType().stored() && !hasDocValues()) {
+        if (fieldType().indexOptions() == IndexOptions.NONE && !fieldType().stored() && !fieldType().hasDocValues()) {
             return;
         }
 
@@ -228,9 +246,9 @@ public class BooleanFieldMapper extends AbstractFieldMapper {
         if (value == null) {
             return;
         }
-        fields.add(new Field(names.indexName(), value ? "T" : "F", fieldType));
-        if (hasDocValues()) {
-            fields.add(new SortedNumericDocValuesField(names.indexName(), value ? 1 : 0));
+        fields.add(new Field(fieldType.names().indexName(), value ? "T" : "F", fieldType));
+        if (fieldType().hasDocValues()) {
+            fields.add(new SortedNumericDocValuesField(fieldType.names().indexName(), value ? 1 : 0));
         }
     }
 

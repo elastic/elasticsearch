@@ -728,7 +728,7 @@ public abstract class ShapeBuilder implements ToXContent {
             Distance radius = null;
             CoordinateNode node = null;
             GeometryCollectionBuilder geometryCollections = null;
-            Orientation requestedOrientation = (shapeMapper == null) ? Orientation.RIGHT : shapeMapper.orientation();
+            Orientation requestedOrientation = (shapeMapper == null) ? Orientation.RIGHT : shapeMapper.fieldType().orientation();
 
             XContentParser.Token token;
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {

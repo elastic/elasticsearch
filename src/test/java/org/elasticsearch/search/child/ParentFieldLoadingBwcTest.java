@@ -36,6 +36,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.merge.policy.MergePolicyModule;
 import org.elasticsearch.index.shard.IndexShard;
@@ -50,7 +51,9 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.search.child.ChildQuerySearchTests.hasChildQuery;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
@@ -72,16 +75,16 @@ public class ParentFieldLoadingBwcTest extends ElasticsearchIntegrationTest {
     public void testParentFieldDataCacheBug() throws Exception {
         assertAcked(prepareCreate("test")
                 .setSettings(Settings.builder().put(indexSettings())
-                        .put("index.refresh_interval", -1)) // Disable automatic refresh, so that the _parent doesn't get warmed
+                    .put("index.refresh_interval", -1)) // Disable automatic refresh, so that the _parent doesn't get warmed
                 .addMapping("parent", XContentFactory.jsonBuilder().startObject().startObject("parent")
-                        .startObject("properties")
-                        .startObject("p_field")
-                        .field("type", "string")
-                        .startObject("fielddata")
-                        .field(FieldDataType.FORMAT_KEY, FieldMapper.Loading.LAZY)
-                        .endObject()
-                        .endObject()
-                        .endObject().endObject().endObject()));
+                    .startObject("properties")
+                    .startObject("p_field")
+                    .field("type", "string")
+                    .startObject("fielddata")
+                    .field(FieldDataType.FORMAT_KEY, MappedFieldType.Loading.LAZY)
+                    .endObject()
+                    .endObject()
+                    .endObject().endObject().endObject()));
 
         ensureGreen();
 
@@ -104,7 +107,7 @@ public class ParentFieldLoadingBwcTest extends ElasticsearchIntegrationTest {
                         .startObject("c_field")
                         .field("type", "string")
                         .startObject("fielddata")
-                        .field(FieldDataType.FORMAT_KEY, FieldMapper.Loading.LAZY)
+                        .field(FieldDataType.FORMAT_KEY, MappedFieldType.Loading.LAZY)
                         .endObject()
                         .endObject()
                         .endObject().endObject().endObject())
@@ -150,7 +153,7 @@ public class ParentFieldLoadingBwcTest extends ElasticsearchIntegrationTest {
         assertAcked(prepareCreate("test")
                 .setSettings(indexSettings)
                 .addMapping("parent")
-                .addMapping("child", childMapping(FieldMapper.Loading.LAZY)));
+                .addMapping("child", childMapping(MappedFieldType.Loading.LAZY)));
         ensureGreen();
 
         client().prepareIndex("test", "parent", "1").setSource("{}").get();
@@ -181,7 +184,7 @@ public class ParentFieldLoadingBwcTest extends ElasticsearchIntegrationTest {
         assertAcked(prepareCreate("test")
                 .setSettings(indexSettings)
                 .addMapping("parent")
-                .addMapping("child", childMapping(FieldMapper.Loading.EAGER)));
+                .addMapping("child", childMapping(MappedFieldType.Loading.EAGER)));
         ensureGreen();
 
         client().prepareIndex("test", "parent", "1").setSource("{}").get();
@@ -196,7 +199,7 @@ public class ParentFieldLoadingBwcTest extends ElasticsearchIntegrationTest {
         assertAcked(prepareCreate("test")
                 .setSettings(indexSettings)
                 .addMapping("parent")
-                .addMapping("child", childMapping(FieldMapper.Loading.EAGER_GLOBAL_ORDINALS)));
+                .addMapping("child", childMapping(MappedFieldType.Loading.EAGER_GLOBAL_ORDINALS)));
         ensureGreen();
 
         // Need to do 2 separate refreshes, otherwise we have 1 segment and then we can't measure if global ordinals
@@ -227,7 +230,7 @@ public class ParentFieldLoadingBwcTest extends ElasticsearchIntegrationTest {
         assertThat(fielddataSizeDefault, greaterThan(0l));
 
         PutMappingResponse putMappingResponse = client().admin().indices().preparePutMapping("test").setType("child")
-                .setSource(childMapping(FieldMapper.Loading.EAGER_GLOBAL_ORDINALS))
+                .setSource(childMapping(MappedFieldType.Loading.EAGER_GLOBAL_ORDINALS))
                 .get();
         assertAcked(putMappingResponse);
         assertBusy(new Runnable() {
@@ -244,7 +247,7 @@ public class ParentFieldLoadingBwcTest extends ElasticsearchIntegrationTest {
                     MapperService mapperService = indexService.mapperService();
                     DocumentMapper documentMapper = mapperService.documentMapper("child");
                     if (documentMapper != null) {
-                        verified = documentMapper.parentFieldMapper().fieldDataType().getLoading() == FieldMapper.Loading.EAGER_GLOBAL_ORDINALS;
+                        verified = documentMapper.parentFieldMapper().fieldType().fieldDataType().getLoading() == MappedFieldType.Loading.EAGER_GLOBAL_ORDINALS;
                     }
                 }
                 assertTrue(verified);
@@ -259,10 +262,10 @@ public class ParentFieldLoadingBwcTest extends ElasticsearchIntegrationTest {
         assertThat(response.getIndicesStats().getFieldData().getMemorySizeInBytes(), greaterThan(fielddataSizeDefault));
     }
 
-    private XContentBuilder childMapping(FieldMapper.Loading loading) throws IOException {
+    private XContentBuilder childMapping(MappedFieldType.Loading loading) throws IOException {
         return jsonBuilder().startObject().startObject("child").startObject("_parent")
                 .field("type", "parent")
-                .startObject("fielddata").field(FieldMapper.Loading.KEY, loading).endObject()
+                .startObject("fielddata").field(MappedFieldType.Loading.KEY, loading).endObject()
                 .endObject().endObject().endObject();
     }
 

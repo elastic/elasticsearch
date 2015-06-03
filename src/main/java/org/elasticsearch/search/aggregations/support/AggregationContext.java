@@ -105,7 +105,7 @@ public class AggregationContext {
                 if (config.fieldContext != null && config.fieldContext.mapper() instanceof DateFieldMapper) {
                     final DateFieldMapper mapper = (DateFieldMapper) config.fieldContext.mapper();
                     try {
-                        missing = mapper.dateTimeFormatter().parser().parseDateTime(config.missing.toString()).getMillis();
+                        missing = mapper.fieldType().dateTimeFormatter().parser().parseDateTime(config.missing.toString()).getMillis();
                     } catch (IllegalArgumentException e) {
                         throw new SearchParseException(context, "Expected a date value in [missing] but got [" + config.missing + "]", null, e);
                     }

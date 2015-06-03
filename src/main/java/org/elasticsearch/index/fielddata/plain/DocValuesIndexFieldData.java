@@ -31,7 +31,8 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.FieldMapper.Names;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedFieldType.Names;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.internal.IdFieldMapper;
 import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
@@ -93,8 +94,8 @@ public abstract class DocValuesIndexFieldData {
         public IndexFieldData<?> build(Index index, Settings indexSettings, FieldMapper mapper, IndexFieldDataCache cache,
                                        CircuitBreakerService breakerService, MapperService mapperService) {
             // Ignore Circuit Breaker
-            final FieldMapper.Names fieldNames = mapper.names();
-            final Settings fdSettings = mapper.fieldDataType().getSettings();
+            final Names fieldNames = mapper.fieldType().names();
+            final Settings fdSettings = mapper.fieldType().fieldDataType().getSettings();
             final Map<String, Settings> filter = fdSettings.getGroups("filter");
             if (filter != null && !filter.isEmpty()) {
                 throw new IllegalArgumentException("Doc values field data doesn't support filters [" + fieldNames.fullName() + "]");
@@ -102,19 +103,19 @@ public abstract class DocValuesIndexFieldData {
 
             if (BINARY_INDEX_FIELD_NAMES.contains(fieldNames.indexName())) {
                 assert numericType == null;
-                return new BinaryDVIndexFieldData(index, fieldNames, mapper.fieldDataType());
+                return new BinaryDVIndexFieldData(index, fieldNames, mapper.fieldType().fieldDataType());
             } else if (NUMERIC_INDEX_FIELD_NAMES.contains(fieldNames.indexName())) {
                 assert !numericType.isFloatingPoint();
-                return new NumericDVIndexFieldData(index, fieldNames, mapper.fieldDataType());
+                return new NumericDVIndexFieldData(index, fieldNames, mapper.fieldType().fieldDataType());
             } else if (numericType != null) {
                 if (Version.indexCreated(indexSettings).onOrAfter(Version.V_1_4_0_Beta1)) {
-                    return new SortedNumericDVIndexFieldData(index, fieldNames, numericType, mapper.fieldDataType());
+                    return new SortedNumericDVIndexFieldData(index, fieldNames, numericType, mapper.fieldType().fieldDataType());
                 } else {
                     // prior to ES 1.4: multi-valued numerics were boxed inside a byte[] as BINARY
-                    return new BinaryDVNumericIndexFieldData(index, fieldNames, numericType, mapper.fieldDataType());
+                    return new BinaryDVNumericIndexFieldData(index, fieldNames, numericType, mapper.fieldType().fieldDataType());
                 }
             } else {
-                return new SortedSetDVOrdinalsIndexFieldData(index, cache, indexSettings, fieldNames, breakerService, mapper.fieldDataType());
+                return new SortedSetDVOrdinalsIndexFieldData(index, cache, indexSettings, fieldNames, breakerService, mapper.fieldType().fieldDataType());
             }
         }
 

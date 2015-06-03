@@ -91,7 +91,7 @@ public class PostingsHighlighter implements Highlighter {
             }
 
             IndexSearcher searcher = new IndexSearcher(hitContext.reader());
-            Snippet[] fieldSnippets = highlighter.highlightField(fieldMapper.names().indexName(), highlighterContext.query, searcher, hitContext.docId(), numberOfFragments);
+            Snippet[] fieldSnippets = highlighter.highlightField(fieldMapper.fieldType().names().indexName(), highlighterContext.query, searcher, hitContext.docId(), numberOfFragments);
             for (Snippet fieldSnippet : fieldSnippets) {
                 if (Strings.hasText(fieldSnippet.getText())) {
                     snippets.add(fieldSnippet);

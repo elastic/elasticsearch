@@ -100,7 +100,7 @@ public class SimilarityService extends AbstractIndexComponent {
         @Override
         public Similarity get(String name) {
             FieldMapper mapper = mapperService.smartNameFieldMapper(name);
-            return (mapper != null && mapper.similarity() != null) ? mapper.similarity().get() : defaultSimilarity;
+            return (mapper != null && mapper.fieldType().similarity() != null) ? mapper.fieldType().similarity().get() : defaultSimilarity;
         }
     }
 }

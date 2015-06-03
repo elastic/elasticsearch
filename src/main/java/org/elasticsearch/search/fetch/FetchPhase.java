@@ -152,7 +152,7 @@ public class FetchPhase implements SearchPhase {
                     if (fieldNames == null) {
                         fieldNames = new HashSet<>();
                     }
-                    fieldNames.add(mapper.names().indexName());
+                    fieldNames.add(mapper.fieldType().names().indexName());
                 } else {
                     if (extractFieldNames == null) {
                         extractFieldNames = newArrayList();

@@ -176,17 +176,20 @@ public class FieldMappersLookupTests extends ElasticsearchTestCase {
     static class FakeFieldMapper extends AbstractFieldMapper {
         static Settings dummySettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
         public FakeFieldMapper(String fullName, String indexName) {
-            super(new Names(fullName, indexName, indexName, fullName), 1.0f, AbstractFieldMapper.Defaults.FIELD_TYPE, null, null, null, null, null, null, dummySettings, null, null);
+            super(makeFieldType(fullName, indexName), null, null, dummySettings, null, null);
+        }
+        static MappedFieldType makeFieldType(String fullName, String indexName) {
+            MappedFieldType fieldType = Defaults.FIELD_TYPE.clone();
+            fieldType.setNames(new MappedFieldType.Names(fullName, indexName, indexName, fullName));
+            return fieldType;
         }
         @Override
-        public FieldType defaultFieldType() { return null; }
+        public MappedFieldType defaultFieldType() { return null; }
         @Override
         public FieldDataType defaultFieldDataType() { return null; }
         @Override
         protected String contentType() { return null; }
         @Override
         protected void parseCreateField(ParseContext context, List list) throws IOException {}
-        @Override
-        public String value(Object value) { return null; }
     }
 }

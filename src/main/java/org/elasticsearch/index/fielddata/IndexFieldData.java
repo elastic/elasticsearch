@@ -32,6 +32,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexComponent;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -77,7 +78,7 @@ public interface IndexFieldData<FD extends AtomicFieldData> extends IndexCompone
     /**
      * The field name.
      */
-    FieldMapper.Names getFieldNames();
+    MappedFieldType.Names getFieldNames();
 
     /**
      * The field data type.

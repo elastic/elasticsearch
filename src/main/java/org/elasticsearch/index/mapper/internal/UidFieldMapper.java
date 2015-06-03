@@ -21,7 +21,6 @@ package org.elasticsearch.index.mapper.internal;
 
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
@@ -32,6 +31,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.fielddata.FieldDataType;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MergeMappingException;
@@ -61,17 +61,20 @@ public class UidFieldMapper extends AbstractFieldMapper implements RootMapper {
     public static class Defaults extends AbstractFieldMapper.Defaults {
         public static final String NAME = UidFieldMapper.NAME;
 
-        public static final FieldType FIELD_TYPE = new FieldType(AbstractFieldMapper.Defaults.FIELD_TYPE);
-        public static final FieldType NESTED_FIELD_TYPE;
+        public static final MappedFieldType FIELD_TYPE = new UidFieldType();
+        public static final MappedFieldType NESTED_FIELD_TYPE;
 
         static {
             FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
             FIELD_TYPE.setTokenized(false);
             FIELD_TYPE.setStored(true);
             FIELD_TYPE.setOmitNorms(true);
+            FIELD_TYPE.setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
+            FIELD_TYPE.setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
+            FIELD_TYPE.setNames(new MappedFieldType.Names(NAME));
             FIELD_TYPE.freeze();
 
-            NESTED_FIELD_TYPE = new FieldType(FIELD_TYPE);
+            NESTED_FIELD_TYPE = FIELD_TYPE.clone();
             NESTED_FIELD_TYPE.setStored(false);
             NESTED_FIELD_TYPE.freeze();
         }
@@ -86,7 +89,8 @@ public class UidFieldMapper extends AbstractFieldMapper implements RootMapper {
 
         @Override
         public UidFieldMapper build(BuilderContext context) {
-            return new UidFieldMapper(name, indexName, docValues, fieldDataSettings, context.indexSettings());
+            fieldType.setNames(new MappedFieldType.Names(name, indexName, indexName, name));
+            return new UidFieldMapper(fieldType, docValues, fieldDataSettings, context.indexSettings());
         }
     }
 
@@ -102,13 +106,36 @@ public class UidFieldMapper extends AbstractFieldMapper implements RootMapper {
         }
     }
 
-    public UidFieldMapper(Settings indexSettings) {
-        this(Defaults.NAME, Defaults.NAME, null, null, indexSettings);
+    static final class UidFieldType extends MappedFieldType {
+
+        public UidFieldType() {
+            super(AbstractFieldMapper.Defaults.FIELD_TYPE);
+        }
+
+        protected UidFieldType(UidFieldType ref) {
+            super(ref);
+        }
+
+        @Override
+        public MappedFieldType clone() {
+            return new UidFieldType(this);
+        }
+
+        @Override
+        public Uid value(Object value) {
+            if (value == null) {
+                return null;
+            }
+            return Uid.createUid(value.toString());
+        }
     }
 
-    protected UidFieldMapper(String name, String indexName, Boolean docValues, @Nullable Settings fieldDataSettings, Settings indexSettings) {
-        super(new Names(name, indexName, indexName, name), Defaults.BOOST, new FieldType(Defaults.FIELD_TYPE), docValuesEnabled(docValues, indexSettings),
-                Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER, null, null, fieldDataSettings, indexSettings);
+    public UidFieldMapper(Settings indexSettings) {
+        this(Defaults.FIELD_TYPE.clone(), null, null, indexSettings);
+    }
+
+    protected UidFieldMapper(MappedFieldType fieldType, Boolean docValues, @Nullable Settings fieldDataSettings, Settings indexSettings) {
+        super(fieldType, docValuesEnabled(docValues, indexSettings), fieldDataSettings, indexSettings);
     }
     
     static Boolean docValuesEnabled(Boolean docValues, Settings indexSettings) {
@@ -119,7 +146,7 @@ public class UidFieldMapper extends AbstractFieldMapper implements RootMapper {
     }
 
     @Override
-    public FieldType defaultFieldType() {
+    public MappedFieldType defaultFieldType() {
         return Defaults.FIELD_TYPE;
     }
 
@@ -171,21 +198,13 @@ public class UidFieldMapper extends AbstractFieldMapper implements RootMapper {
         Field uid = new Field(NAME, Uid.createUid(context.stringBuilder(), context.type(), context.id()), Defaults.FIELD_TYPE);
         context.uid(uid);
         fields.add(uid);
-        if (hasDocValues()) {
+        if (fieldType().hasDocValues()) {
             fields.add(new BinaryDocValuesField(NAME, new BytesRef(uid.stringValue())));
         }
     }
 
-    @Override
-    public Uid value(Object value) {
-        if (value == null) {
-            return null;
-        }
-        return Uid.createUid(value.toString());
-    }
-
     public Term term(String uid) {
-        return createTerm(uid);
+        return new Term(fieldType().names().indexName(), fieldType().indexedValueForSearch(uid));
     }
 
     @Override
@@ -210,7 +229,7 @@ public class UidFieldMapper extends AbstractFieldMapper implements RootMapper {
         if (customFieldDataSettings != null) {
             builder.field("fielddata", (Map) customFieldDataSettings.getAsMap());
         } else if (includeDefaults) {
-            builder.field("fielddata", (Map) fieldDataType.getSettings().getAsMap());
+            builder.field("fielddata", (Map) fieldType.fieldDataType().getSettings().getAsMap());
         }
 
         builder.endObject();

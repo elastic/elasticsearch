@@ -89,7 +89,7 @@ public class ChildrenParser implements Aggregator.Parser {
                 parentFilter = new QueryWrapperFilter(parentDocMapper.typeFilter());
                 childFilter = new QueryWrapperFilter(childDocMapper.typeFilter());
                 ParentChildIndexFieldData parentChildIndexFieldData = context.fieldData().getForField(parentFieldMapper);
-                config.fieldContext(new FieldContext(parentFieldMapper.names().indexName(), parentChildIndexFieldData, parentFieldMapper));
+                config.fieldContext(new FieldContext(parentFieldMapper.fieldType().names().indexName(), parentChildIndexFieldData, parentFieldMapper));
             } else {
                 config.unmapped(true);
             }

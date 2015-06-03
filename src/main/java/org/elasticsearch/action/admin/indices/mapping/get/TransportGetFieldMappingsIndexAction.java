@@ -179,7 +179,7 @@ public class TransportGetFieldMappingsIndexAction extends TransportSingleCustomO
         for (String field : request.fields()) {
             if (Regex.isMatchAllPattern(field)) {
                 for (FieldMapper fieldMapper : allFieldMappers) {
-                    addFieldMapper(fieldMapper.names().fullName(), fieldMapper, fieldMappings, request.includeDefaults());
+                    addFieldMapper(fieldMapper.fieldType().names().fullName(), fieldMapper, fieldMappings, request.includeDefaults());
                 }
             } else if (Regex.isSimpleMatchPattern(field)) {
                 // go through the field mappers 3 times, to make sure we give preference to the resolve order: full name, index name, name.
@@ -187,22 +187,22 @@ public class TransportGetFieldMappingsIndexAction extends TransportSingleCustomO
                 Collection<FieldMapper> remainingFieldMappers = Lists.newLinkedList(allFieldMappers);
                 for (Iterator<FieldMapper> it = remainingFieldMappers.iterator(); it.hasNext(); ) {
                     final FieldMapper fieldMapper = it.next();
-                    if (Regex.simpleMatch(field, fieldMapper.names().fullName())) {
-                        addFieldMapper(fieldMapper.names().fullName(), fieldMapper, fieldMappings, request.includeDefaults());
+                    if (Regex.simpleMatch(field, fieldMapper.fieldType().names().fullName())) {
+                        addFieldMapper(fieldMapper.fieldType().names().fullName(), fieldMapper, fieldMappings, request.includeDefaults());
                         it.remove();
                     }
                 }
                 for (Iterator<FieldMapper> it = remainingFieldMappers.iterator(); it.hasNext(); ) {
                     final FieldMapper fieldMapper = it.next();
-                    if (Regex.simpleMatch(field, fieldMapper.names().indexName())) {
-                        addFieldMapper(fieldMapper.names().indexName(), fieldMapper, fieldMappings, request.includeDefaults());
+                    if (Regex.simpleMatch(field, fieldMapper.fieldType().names().indexName())) {
+                        addFieldMapper(fieldMapper.fieldType().names().indexName(), fieldMapper, fieldMappings, request.includeDefaults());
                         it.remove();
                     }
                 }
                 for (Iterator<FieldMapper> it = remainingFieldMappers.iterator(); it.hasNext(); ) {
                     final FieldMapper fieldMapper = it.next();
-                    if (Regex.simpleMatch(field, fieldMapper.names().shortName())) {
-                        addFieldMapper(fieldMapper.names().shortName(), fieldMapper, fieldMappings, request.includeDefaults());
+                    if (Regex.simpleMatch(field, fieldMapper.fieldType().names().shortName())) {
+                        addFieldMapper(fieldMapper.fieldType().names().shortName(), fieldMapper, fieldMappings, request.includeDefaults());
                         it.remove();
                     }
                 }
@@ -229,7 +229,7 @@ public class TransportGetFieldMappingsIndexAction extends TransportSingleCustomO
             builder.startObject();
             fieldMapper.toXContent(builder, includeDefaults ? includeDefaultsParams : ToXContent.EMPTY_PARAMS);
             builder.endObject();
-            fieldMappings.put(field, new FieldMappingMetaData(fieldMapper.names().fullName(), builder.bytes()));
+            fieldMappings.put(field, new FieldMappingMetaData(fieldMapper.fieldType().names().fullName(), builder.bytes()));
         } catch (IOException e) {
             throw new ElasticsearchException("failed to serialize XContent of field [" + field + "]", e);
         }

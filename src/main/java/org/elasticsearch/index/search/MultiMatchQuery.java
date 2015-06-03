@@ -165,7 +165,7 @@ public class MultiMatchQuery extends MatchQuery {
                 FieldMapper mapper = parseContext.fieldMapper(name);
                 if (mapper != null) {
                     Analyzer actualAnalyzer = getAnalyzer(mapper);
-                    name = mapper.names().indexName();
+                    name = mapper.fieldType().names().indexName();
                     if (!groups.containsKey(actualAnalyzer)) {
                        groups.put(actualAnalyzer, new ArrayList<FieldAndMapper>());
                     }

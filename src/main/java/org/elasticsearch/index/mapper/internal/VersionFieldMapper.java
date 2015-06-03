@@ -20,13 +20,14 @@
 package org.elasticsearch.index.mapper.internal;
 
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.NumericDocValuesField;
+import org.apache.lucene.index.DocValuesType;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.fielddata.FieldDataType;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MergeMappingException;
@@ -52,9 +53,13 @@ public class VersionFieldMapper extends AbstractFieldMapper implements RootMappe
     public static class Defaults {
 
         public static final String NAME = VersionFieldMapper.NAME;
-        public static final float BOOST = 1.0f;
-        public static final FieldType FIELD_TYPE = NumericDocValuesField.TYPE;
+        public static final MappedFieldType FIELD_TYPE = new VersionFieldType();
 
+        static {
+            FIELD_TYPE.setNames(new MappedFieldType.Names(NAME));
+            FIELD_TYPE.setDocValuesType(DocValuesType.NUMERIC);
+            FIELD_TYPE.freeze();
+        }
     }
 
     public static class Builder extends Mapper.Builder<Builder, VersionFieldMapper> {
@@ -86,6 +91,31 @@ public class VersionFieldMapper extends AbstractFieldMapper implements RootMappe
         }
     }
 
+    static final class VersionFieldType extends MappedFieldType {
+
+        public VersionFieldType() {
+            super(AbstractFieldMapper.Defaults.FIELD_TYPE);
+        }
+
+        protected VersionFieldType(VersionFieldType ref) {
+            super(ref);
+        }
+
+        @Override
+        public MappedFieldType clone() {
+            return new VersionFieldType(this);
+        }
+
+        @Override
+        public Long value(Object value) {
+            if (value == null || (value instanceof Long)) {
+                return (Long) value;
+            } else {
+                return Long.parseLong(value.toString());
+            }
+        }
+    }
+
     private final ThreadLocal<Field> fieldCache = new ThreadLocal<Field>() {
         @Override
         protected Field initialValue() {
@@ -94,7 +124,7 @@ public class VersionFieldMapper extends AbstractFieldMapper implements RootMappe
     };
 
     public VersionFieldMapper(Settings indexSettings) {
-        super(new Names(NAME, NAME, NAME, NAME), Defaults.BOOST, Defaults.FIELD_TYPE, true, null, null, null, null, null, indexSettings);
+        super(Defaults.FIELD_TYPE, true, null, indexSettings);
     }
 
     @Override
@@ -117,15 +147,6 @@ public class VersionFieldMapper extends AbstractFieldMapper implements RootMappe
     }
 
     @Override
-    public Long value(Object value) {
-        if (value == null || (value instanceof Long)) {
-            return (Long) value;
-        } else {
-            return Long.parseLong(value.toString());
-        }
-    }
-
-    @Override
     public void postParse(ParseContext context) throws IOException {
         // In the case of nested docs, let's fill nested docs with version=1 so that Lucene doesn't write a Bitset for documents
         // that don't have the field. This is consistent with the default value for efficiency.
@@ -136,7 +157,7 @@ public class VersionFieldMapper extends AbstractFieldMapper implements RootMappe
     }
 
     @Override
-    public FieldType defaultFieldType() {
+    public MappedFieldType defaultFieldType() {
         return Defaults.FIELD_TYPE;
     }
 

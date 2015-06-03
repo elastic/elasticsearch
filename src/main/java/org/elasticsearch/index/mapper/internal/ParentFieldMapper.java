@@ -34,9 +34,9 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.loader.SettingsLoader;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilders;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -72,18 +72,21 @@ public class ParentFieldMapper extends AbstractFieldMapper implements RootMapper
     public static class Defaults extends AbstractFieldMapper.Defaults {
         public static final String NAME = ParentFieldMapper.NAME;
 
-        public static final FieldType FIELD_TYPE = new FieldType(AbstractFieldMapper.Defaults.FIELD_TYPE);
+        public static final MappedFieldType FIELD_TYPE = new ParentFieldType();
 
         static {
             FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
             FIELD_TYPE.setTokenized(false);
             FIELD_TYPE.setStored(true);
             FIELD_TYPE.setOmitNorms(true);
+            FIELD_TYPE.setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
+            FIELD_TYPE.setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
+            FIELD_TYPE.setNames(new MappedFieldType.Names(NAME));
             FIELD_TYPE.freeze();
         }
     }
 
-    public static class Builder extends Mapper.Builder<Builder, ParentFieldMapper> {
+    public static class Builder extends AbstractFieldMapper.Builder<Builder, ParentFieldMapper> {
 
         protected String indexName;
 
@@ -91,7 +94,7 @@ public class ParentFieldMapper extends AbstractFieldMapper implements RootMapper
         protected Settings fieldDataSettings;
 
         public Builder() {
-            super(Defaults.NAME);
+            super(Defaults.NAME, Defaults.FIELD_TYPE);
             this.indexName = name;
             builder = this;
         }
@@ -111,7 +114,8 @@ public class ParentFieldMapper extends AbstractFieldMapper implements RootMapper
             if (type == null) {
                 throw new MapperParsingException("[_parent] field mapping must contain the [type] option");
             }
-            return new ParentFieldMapper(name, indexName, type, fieldDataSettings, context.indexSettings());
+            setupFieldType(context);
+            return new ParentFieldMapper(fieldType, type, fieldDataSettings, context.indexSettings());
         }
     }
 
@@ -132,8 +136,8 @@ public class ParentFieldMapper extends AbstractFieldMapper implements RootMapper
                 } else if (fieldName.equals("fielddata")) {
                     // Only take over `loading`, since that is the only option now that is configurable:
                     Map<String, String> fieldDataSettings = SettingsLoader.Helper.loadNestedFromMap(nodeMapValue(fieldNode, "fielddata"));
-                    if (fieldDataSettings.containsKey(Loading.KEY)) {
-                        Settings settings = settingsBuilder().put(Loading.KEY, fieldDataSettings.get(Loading.KEY)).build();
+                    if (fieldDataSettings.containsKey(MappedFieldType.Loading.KEY)) {
+                        Settings settings = settingsBuilder().put(MappedFieldType.Loading.KEY, fieldDataSettings.get(MappedFieldType.Loading.KEY)).build();
                         builder.fieldDataSettings(settings);
                     }
                     iterator.remove();
@@ -143,20 +147,101 @@ public class ParentFieldMapper extends AbstractFieldMapper implements RootMapper
         }
     }
 
+    static final class ParentFieldType extends MappedFieldType {
+
+        public ParentFieldType() {
+            super(AbstractFieldMapper.Defaults.FIELD_TYPE);
+        }
+
+        protected ParentFieldType(ParentFieldType ref) {
+            super(ref);
+        }
+
+        @Override
+        public MappedFieldType clone() {
+            return new ParentFieldType(this);
+        }
+
+        @Override
+        public Uid value(Object value) {
+            if (value == null) {
+                return null;
+            }
+            return Uid.createUid(value.toString());
+        }
+
+        @Override
+        public Object valueForSearch(Object value) {
+            if (value == null) {
+                return null;
+            }
+            String sValue = value.toString();
+            if (sValue == null) {
+                return null;
+            }
+            int index = sValue.indexOf(Uid.DELIMITER);
+            if (index == -1) {
+                return sValue;
+            }
+            return sValue.substring(index + 1);
+        }
+
+        /**
+         * We don't need to analyzer the text, and we need to convert it to UID...
+         */
+        @Override
+        public boolean useTermQueryWithQueryString() {
+            return true;
+        }
+
+        @Override
+        public Query termQuery(Object value, @Nullable QueryParseContext context) {
+            return termsQuery(Collections.singletonList(value), context);
+        }
+
+        @Override
+        public Query termsQuery(List values, @Nullable QueryParseContext context) {
+            if (context == null) {
+                return super.termsQuery(values, context);
+            }
+
+            List<String> types = new ArrayList<>(context.mapperService().types().size());
+            for (DocumentMapper documentMapper : context.mapperService().docMappers(false)) {
+                if (!documentMapper.parentFieldMapper().active()) {
+                    types.add(documentMapper.type());
+                }
+            }
+
+            List<BytesRef> bValues = new ArrayList<>(values.size());
+            for (Object value : values) {
+                BytesRef bValue = BytesRefs.toBytesRef(value);
+                if (Uid.hasDelimiter(bValue)) {
+                    bValues.add(bValue);
+                } else {
+                    // we use all non child types, cause we don't know if its exact or not...
+                    for (String type : types) {
+                        bValues.add(Uid.createUidAsBytes(type, bValue));
+                    }
+                }
+            }
+            return new TermsQuery(names().indexName(), bValues);
+        }
+    }
+
     private final String type;
     private final BytesRef typeAsBytes;
 
-    protected ParentFieldMapper(String name, String indexName, String type, @Nullable Settings fieldDataSettings, Settings indexSettings) {
-        super(new Names(name, indexName, indexName, name), Defaults.BOOST, new FieldType(Defaults.FIELD_TYPE),
-                Version.indexCreated(indexSettings).onOrAfter(Version.V_2_0_0), Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER,
-                null, null, fieldDataSettings, indexSettings);
+    protected ParentFieldMapper(MappedFieldType fieldType, String type, @Nullable Settings fieldDataSettings, Settings indexSettings) {
+        super(fieldType, Version.indexCreated(indexSettings).onOrAfter(Version.V_2_0_0), fieldDataSettings, indexSettings);
         this.type = type;
         this.typeAsBytes = type == null ? null : new BytesRef(type);
     }
 
     public ParentFieldMapper(Settings indexSettings) {
-        this(Defaults.NAME, Defaults.NAME, null, null, indexSettings);
-        this.fieldDataType = new FieldDataType("_parent", settingsBuilder().put(Loading.KEY, Loading.LAZY_VALUE));
+        this(Defaults.FIELD_TYPE.clone(), null, null, indexSettings);
+        this.fieldType = this.fieldType.clone();
+        this.fieldType.setFieldDataType(new FieldDataType("_parent", settingsBuilder().put(MappedFieldType.Loading.KEY, MappedFieldType.Loading.LAZY_VALUE)));
+        this.fieldType.freeze();
     }
 
     public String type() {
@@ -164,13 +249,13 @@ public class ParentFieldMapper extends AbstractFieldMapper implements RootMapper
     }
 
     @Override
-    public FieldType defaultFieldType() {
+    public MappedFieldType defaultFieldType() {
         return Defaults.FIELD_TYPE;
     }
 
     @Override
     public FieldDataType defaultFieldDataType() {
-        return new FieldDataType("_parent", settingsBuilder().put(Loading.KEY, Loading.EAGER_VALUE));
+        return new FieldDataType("_parent", settingsBuilder().put(MappedFieldType.Loading.KEY, MappedFieldType.Loading.EAGER_VALUE));
     }
 
     @Override
@@ -185,7 +270,7 @@ public class ParentFieldMapper extends AbstractFieldMapper implements RootMapper
     @Override
     protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException {
         boolean parent = context.docMapper().isParent(context.type());
-        if (parent && hasDocValues()) {
+        if (parent && fieldType.hasDocValues()) {
             fields.add(createJoinField(context.type(), context.id()));
         }
 
@@ -197,8 +282,8 @@ public class ParentFieldMapper extends AbstractFieldMapper implements RootMapper
             // we are in the parsing of _parent phase
             String parentId = context.parser().text();
             context.sourceToParse().parent(parentId);
-            fields.add(new Field(names.indexName(), Uid.createUid(context.stringBuilder(), type, parentId), fieldType));
-            if (hasDocValues()) {
+            fields.add(new Field(fieldType.names().indexName(), Uid.createUid(context.stringBuilder(), type, parentId), fieldType));
+            if (fieldType.hasDocValues()) {
                 fields.add(createJoinField(type, parentId));
             }
         } else {
@@ -211,8 +296,8 @@ public class ParentFieldMapper extends AbstractFieldMapper implements RootMapper
                         throw new MapperParsingException("No parent id provided, not within the document, and not externally");
                     }
                     // we did not add it in the parsing phase, add it now
-                    fields.add(new Field(names.indexName(), Uid.createUid(context.stringBuilder(), type, parentId), fieldType));
-                    if (hasDocValues()) {
+                    fields.add(new Field(fieldType.names().indexName(), Uid.createUid(context.stringBuilder(), type, parentId), fieldType));
+                    if (fieldType.hasDocValues()) {
                         fields.add(createJoinField(type, parentId));
                     }
                 } else if (parentId != null && !parsedParentId.equals(Uid.createUid(context.stringBuilder(), type, parentId))) {
@@ -233,87 +318,6 @@ public class ParentFieldMapper extends AbstractFieldMapper implements RootMapper
     }
 
     @Override
-    public Uid value(Object value) {
-        if (value == null) {
-            return null;
-        }
-        return Uid.createUid(value.toString());
-    }
-
-    @Override
-    public Object valueForSearch(Object value) {
-        if (value == null) {
-            return null;
-        }
-        String sValue = value.toString();
-        if (sValue == null) {
-            return null;
-        }
-        int index = sValue.indexOf(Uid.DELIMITER);
-        if (index == -1) {
-            return sValue;
-        }
-        return sValue.substring(index + 1);
-    }
-
-    @Override
-    public BytesRef indexedValueForSearch(Object value) {
-        if (value instanceof BytesRef) {
-            BytesRef bytesRef = (BytesRef) value;
-            if (Uid.hasDelimiter(bytesRef)) {
-                return bytesRef;
-            }
-            return Uid.createUidAsBytes(typeAsBytes, bytesRef);
-        }
-        String sValue = value.toString();
-        if (sValue.indexOf(Uid.DELIMITER) == -1) {
-            return Uid.createUidAsBytes(type, sValue);
-        }
-        return super.indexedValueForSearch(value);
-    }
-
-    @Override
-    public Query termQuery(Object value, @Nullable QueryParseContext context) {
-        return termsQuery(Collections.singletonList(value), context);
-    }
-
-    @Override
-    public Query termsQuery(List values, @Nullable QueryParseContext context) {
-        if (context == null) {
-            return super.termsQuery(values, context);
-        }
-
-        List<String> types = new ArrayList<>(context.mapperService().types().size());
-        for (DocumentMapper documentMapper : context.mapperService().docMappers(false)) {
-            if (!documentMapper.parentFieldMapper().active()) {
-                types.add(documentMapper.type());
-            }
-        }
-
-        List<BytesRef> bValues = new ArrayList<>(values.size());
-        for (Object value : values) {
-            BytesRef bValue = BytesRefs.toBytesRef(value);
-            if (Uid.hasDelimiter(bValue)) {
-                bValues.add(bValue);
-            } else {
-                // we use all non child types, cause we don't know if its exact or not...
-                for (String type : types) {
-                    bValues.add(Uid.createUidAsBytes(type, bValue));
-                }
-            }
-        }
-        return new TermsQuery(names.indexName(), bValues);
-    }
-
-    /**
-     * We don't need to analyzer the text, and we need to convert it to UID...
-     */
-    @Override
-    public boolean useTermQueryWithQueryString() {
-        return true;
-    }
-
-    @Override
     protected String contentType() {
         return CONTENT_TYPE;
     }
@@ -326,13 +330,11 @@ public class ParentFieldMapper extends AbstractFieldMapper implements RootMapper
         boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
 
         builder.startObject(CONTENT_TYPE);
-        if (type != null) {
-            builder.field("type", type);
-        }
+        builder.field("type", type);
         if (customFieldDataSettings != null) {
             builder.field("fielddata", (Map) customFieldDataSettings.getAsMap());
         } else if (includeDefaults) {
-            builder.field("fielddata", (Map) fieldDataType.getSettings().getAsMap());
+            builder.field("fielddata", (Map) fieldType.fieldDataType().getSettings().getAsMap());
         }
         builder.endObject();
         return builder;
@@ -347,14 +349,16 @@ public class ParentFieldMapper extends AbstractFieldMapper implements RootMapper
 
         if (!mergeResult.simulate()) {
             ParentFieldMapper fieldMergeWith = (ParentFieldMapper) mergeWith;
+            this.fieldType = this.fieldType.clone();
             if (fieldMergeWith.customFieldDataSettings != null) {
                 if (!Objects.equal(fieldMergeWith.customFieldDataSettings, this.customFieldDataSettings)) {
                     this.customFieldDataSettings = fieldMergeWith.customFieldDataSettings;
-                    this.fieldDataType = new FieldDataType(defaultFieldDataType().getType(),
+                    this.fieldType.setFieldDataType(new FieldDataType(defaultFieldDataType().getType(),
                             builder().put(defaultFieldDataType().getSettings()).put(this.customFieldDataSettings)
-                    );
+                    ));
                 }
             }
+            this.fieldType.freeze();
         }
     }
 

@@ -22,6 +22,7 @@ package org.elasticsearch.count.simple;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
@@ -39,6 +40,7 @@ import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.hamcrest.Matchers.is;
 
 public class SimpleCountTests extends ElasticsearchIntegrationTest {
 
@@ -176,5 +178,47 @@ public class SimpleCountTests extends ElasticsearchIntegrationTest {
                     .execute().actionGet();
             assertHitCount(countResponse, 20l);
         }
+    }
+
+    @Test
+    public void testThatNonEpochDatesCanBeSearch() throws Exception {
+        assertAcked(prepareCreate("test")
+                .addMapping("type1",
+                    jsonBuilder().startObject().startObject("type1")
+                .startObject("properties").startObject("date_field").field("type", "date").field("format", "yyyyMMddHH").endObject().endObject()
+                .endObject().endObject()));
+        ensureGreen("test");
+
+        XContentBuilder document = jsonBuilder()
+                .startObject()
+                .field("date_field", "2015060210")
+                .endObject();
+        assertThat(client().prepareIndex("test", "type1").setSource(document).get().isCreated(), is(true));
+
+        document = jsonBuilder()
+                .startObject()
+                .field("date_field", "2014060210")
+                .endObject();
+        assertThat(client().prepareIndex("test", "type1").setSource(document).get().isCreated(), is(true));
+
+        // this is a timestamp in 2015 and should not be returned in counting when filtering by year
+        document = jsonBuilder()
+                .startObject()
+                .field("date_field", "1433236702")
+                .endObject();
+        assertThat(client().prepareIndex("test", "type1").setSource(document).get().isCreated(), is(true));
+
+        refresh();
+
+        assertHitCount(client().prepareCount("test").get(), 3);
+
+        CountResponse countResponse = client().prepareCount("test").setQuery(QueryBuilders.rangeQuery("date_field").from("2015010100").to("2015123123")).get();
+        assertHitCount(countResponse, 1);
+
+        countResponse = client().prepareCount("test").setQuery(QueryBuilders.rangeQuery("date_field").from(2015010100).to(2015123123)).get();
+        assertHitCount(countResponse, 1);
+
+        countResponse = client().prepareCount("test").setQuery(QueryBuilders.rangeQuery("date_field").from(2015010100).to(2015123123).timeZone("UTC")).get();
+        assertHitCount(countResponse, 1);
     }
 }

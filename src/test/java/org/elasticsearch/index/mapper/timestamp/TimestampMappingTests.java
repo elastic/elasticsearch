@@ -775,4 +775,18 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
         assertEquals(MappingMetaData.Timestamp.parseStringTimestamp("1970", Joda.forPattern("YYYY")), request.timestamp());
         assertNull(docMapper.parse("type", "1", doc.bytes()).rootDoc().get("_timestamp"));
     }
+
+    public void testThatEpochCanBeIgnoredWithCustomFormat() throws Exception {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+            .startObject("_timestamp").field("enabled", true).field("format", "yyyyMMddHH").field("path", "custom_timestamp").endObject()
+            .endObject().endObject().string();
+        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+
+        XContentBuilder doc = XContentFactory.jsonBuilder().startObject().field("custom_timestamp", 2015060210).endObject();
+        IndexRequest request = new IndexRequest("test", "type", "1").source(doc);
+        MappingMetaData mappingMetaData = new MappingMetaData(docMapper);
+        request.process(MetaData.builder().build(), mappingMetaData, true, "test");
+
+        assertThat(request.timestamp(), is("1433239200000"));
+    }
 }

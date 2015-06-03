@@ -161,19 +161,11 @@ public class MappingMetaData extends AbstractDiffable<MappingMetaData> {
     public static class Timestamp {
 
         public static String parseStringTimestamp(String timestampAsString, FormatDateTimeFormatter dateTimeFormatter) throws TimestampParsingException {
-            long ts;
             try {
-                // if we manage to parse it, its a millisecond timestamp, just return the string as is
-                ts = Long.parseLong(timestampAsString);
-                return timestampAsString;
-            } catch (NumberFormatException e) {
-                try {
-                    ts = dateTimeFormatter.parser().parseMillis(timestampAsString);
-                } catch (RuntimeException e1) {
-                    throw new TimestampParsingException(timestampAsString);
-                }
+                return Long.toString(dateTimeFormatter.parser().parseMillis(timestampAsString));
+            } catch (RuntimeException e) {
+                throw new TimestampParsingException(timestampAsString, e);
             }
-            return Long.toString(ts);
         }
 
 

@@ -46,12 +46,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.NumericDateAnalyzer;
 import org.elasticsearch.index.fielddata.FieldDataType;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MergeMappingException;
-import org.elasticsearch.index.mapper.MergeResult;
-import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.core.LongFieldMapper.CustomLongNumericField;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.internal.SearchContext;
@@ -223,7 +218,7 @@ public class DateFieldMapper extends NumberFieldMapper {
 
         protected FormatDateTimeFormatter dateTimeFormatter = Defaults.DATE_TIME_FORMATTER;
         protected TimeUnit timeUnit = Defaults.TIME_UNIT;
-        protected DateMathParser dateMathParser = new DateMathParser(dateTimeFormatter, timeUnit);
+        protected DateMathParser dateMathParser = new DateMathParser(dateTimeFormatter);
 
         public DateFieldType() {}
 
@@ -245,7 +240,7 @@ public class DateFieldMapper extends NumberFieldMapper {
         public void setDateTimeFormatter(FormatDateTimeFormatter dateTimeFormatter) {
             checkIfFrozen();
             this.dateTimeFormatter = dateTimeFormatter;
-            this.dateMathParser = new DateMathParser(dateTimeFormatter, timeUnit);
+            this.dateMathParser = new DateMathParser(dateTimeFormatter);
         }
 
         public TimeUnit timeUnit() {
@@ -255,7 +250,7 @@ public class DateFieldMapper extends NumberFieldMapper {
         public void setTimeUnit(TimeUnit timeUnit) {
             checkIfFrozen();
             this.timeUnit = timeUnit;
-            this.dateMathParser = new DateMathParser(dateTimeFormatter, timeUnit);
+            this.dateMathParser = new DateMathParser(dateTimeFormatter);
         }
 
         protected DateMathParser dateMathParser() {
@@ -365,9 +360,6 @@ public class DateFieldMapper extends NumberFieldMapper {
         }
 
         public long parseToMilliseconds(Object value, boolean inclusive, @Nullable DateTimeZone zone, @Nullable DateMathParser forcedDateParser) {
-            if (value instanceof Number) {
-                return ((Number) value).longValue();
-            }
             DateMathParser dateParser = dateMathParser();
             if (forcedDateParser != null) {
                 dateParser = forcedDateParser;
@@ -434,17 +426,12 @@ public class DateFieldMapper extends NumberFieldMapper {
     @Override
     protected void innerParseCreateField(ParseContext context, List<Field> fields) throws IOException {
         String dateAsString = null;
-        Long value = null;
         float boost = this.fieldType.boost();
         if (context.externalValueSet()) {
             Object externalValue = context.externalValue();
-            if (externalValue instanceof Number) {
-                value = ((Number) externalValue).longValue();
-            } else {
-                dateAsString = (String) externalValue;
-                if (dateAsString == null) {
-                    dateAsString = nullValue;
-                }
+            dateAsString = (String) externalValue;
+            if (dateAsString == null) {
+                dateAsString = nullValue;
             }
         } else {
             XContentParser parser = context.parser();
@@ -452,7 +439,7 @@ public class DateFieldMapper extends NumberFieldMapper {
             if (token == XContentParser.Token.VALUE_NULL) {
                 dateAsString = nullValue;
             } else if (token == XContentParser.Token.VALUE_NUMBER) {
-                value = parser.longValue(coerce.value());
+                dateAsString = parser.text();
             } else if (token == XContentParser.Token.START_OBJECT) {
                 String currentFieldName = null;
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -462,8 +449,6 @@ public class DateFieldMapper extends NumberFieldMapper {
                         if ("value".equals(currentFieldName) || "_value".equals(currentFieldName)) {
                             if (token == XContentParser.Token.VALUE_NULL) {
                                 dateAsString = nullValue;
-                            } else if (token == XContentParser.Token.VALUE_NUMBER) {
-                                value = parser.longValue(coerce.value());
                             } else {
                                 dateAsString = parser.text();
                             }
@@ -479,14 +464,12 @@ public class DateFieldMapper extends NumberFieldMapper {
             }
         }
 
+        Long value = null;
         if (dateAsString != null) {
-            assert value == null;
             if (context.includeInAll(includeInAll, this)) {
                 context.allEntries().addText(fieldType.names().fullName(), dateAsString, boost);
             }
             value = fieldType().parseStringValue(dateAsString);
-        } else if (value != null) {
-            value = ((DateFieldType)fieldType).timeUnit().toMillis(value);
         }
 
         if (value != null) {

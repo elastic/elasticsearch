@@ -58,7 +58,7 @@ public class TimestampFieldMapper extends DateFieldMapper implements RootMapper 
 
     public static final String NAME = "_timestamp";
     public static final String CONTENT_TYPE = "_timestamp";
-    public static final String DEFAULT_DATE_TIME_FORMAT = "dateOptionalTime";
+    public static final String DEFAULT_DATE_TIME_FORMAT = "epoch_millis||dateOptionalTime";
 
     public static class Defaults extends DateFieldMapper.Defaults {
         public static final String NAME = "_timestamp";

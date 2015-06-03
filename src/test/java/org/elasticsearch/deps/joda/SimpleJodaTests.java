@@ -23,6 +23,7 @@ import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ElasticsearchTestCase;
+import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.MutableDateTime;
 import org.joda.time.format.*;
@@ -246,6 +247,40 @@ public class SimpleJodaTests extends ElasticsearchTestCase {
         assertThat(time.toString(), equalTo("2009-02-03T00:00:00.000-02:00"));
         assertThat(utcTime.toString(), equalTo("2009-02-04T00:00:00.000Z"));
         assertThat(time.getMillis(), equalTo(utcTime.getMillis() - TimeValue.timeValueHours(22).millis()));
+    }
+
+    @Test
+    public void testThatEpochsInSecondsCanBeParsed() {
+        boolean parseMilliSeconds = randomBoolean();
+
+        // epoch: 1433144433655 => date: Mon Jun  1 09:40:33.655 CEST 2015
+        FormatDateTimeFormatter formatter = Joda.forPattern(parseMilliSeconds ? "epoch_millis" : "epoch_second");
+        DateTime dateTime = formatter.parser().parseDateTime(parseMilliSeconds ? "1433144433655" : "1433144433");
+
+        assertThat(dateTime.getYear(), is(2015));
+        assertThat(dateTime.getDayOfMonth(), is(1));
+        assertThat(dateTime.getMonthOfYear(), is(6));
+        assertThat(dateTime.getHourOfDay(), is(7)); // utc timezone, +2 offset due to CEST
+        assertThat(dateTime.getMinuteOfHour(), is(40));
+        assertThat(dateTime.getSecondOfMinute(), is(33));
+
+        if (parseMilliSeconds) {
+            assertThat(dateTime.getMillisOfSecond(), is(655));
+        } else {
+            assertThat(dateTime.getMillisOfSecond(), is(0));
+        }
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void testForInvalidDatesInEpochSecond() {
+        FormatDateTimeFormatter formatter = Joda.forPattern("epoch_second");
+        formatter.parser().parseDateTime(randomFrom("invalid date", "12345678901", "12345678901234"));
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void testForInvalidDatesInEpochMillis() {
+        FormatDateTimeFormatter formatter = Joda.forPattern("epoch_millis");
+        formatter.parser().parseDateTime(randomFrom("invalid date", "12345678901234"));
     }
 
     private long utcTimeInMillis(String time) {

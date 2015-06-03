@@ -98,7 +98,7 @@ public class ExistsQueryParser implements QueryParser {
             if (fieldNamesMapper!= null && fieldNamesMapper.enabled()) {
                 final String f;
                 if (mapper != null) {
-                    f = mapper.names().indexName();
+                    f = mapper.fieldType().names().indexName();
                 } else {
                     f = field;
                 }

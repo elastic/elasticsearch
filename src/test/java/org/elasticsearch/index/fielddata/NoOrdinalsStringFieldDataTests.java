@@ -24,7 +24,7 @@ import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
-import org.elasticsearch.index.mapper.FieldMapper.Names;
+import org.elasticsearch.index.mapper.MappedFieldType.Names;
 import org.elasticsearch.search.MultiValueMode;
 import org.junit.Test;
 

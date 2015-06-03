@@ -306,9 +306,9 @@ public class SimpleAllMapperTests extends ElasticsearchSingleNodeTest {
             assertThat(field, nullValue());
         }
         if (similarity == null || similarity.equals("TF/IDF")) {
-            assertThat(builtDocMapper.allFieldMapper().similarity(), nullValue());
+            assertThat(builtDocMapper.allFieldMapper().fieldType().similarity(), nullValue());
         }   else {
-            assertThat(similarity, equalTo(builtDocMapper.allFieldMapper().similarity().name()));
+            assertThat(similarity, equalTo(builtDocMapper.allFieldMapper().fieldType().similarity().name()));
         }
         assertThat(builtMapping.contains("fielddata"), is(fieldData));
         if (allDefault) {

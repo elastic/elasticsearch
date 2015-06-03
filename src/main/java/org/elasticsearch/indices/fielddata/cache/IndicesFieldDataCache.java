@@ -37,6 +37,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardUtils;
 import org.elasticsearch.index.shard.IndexShard;
@@ -99,7 +100,7 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
         this.closed = true;
     }
 
-    public IndexFieldDataCache buildIndexFieldDataCache(IndexService indexService, Index index, FieldMapper.Names fieldNames, FieldDataType fieldDataType) {
+    public IndexFieldDataCache buildIndexFieldDataCache(IndexService indexService, Index index, MappedFieldType.Names fieldNames, FieldDataType fieldDataType) {
         return new IndexFieldCache(logger, cache, indicesFieldDataCacheListener, indexService, index, fieldNames, fieldDataType);
     }
 
@@ -139,12 +140,12 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
         private final ESLogger logger;
         private final IndexService indexService;
         final Index index;
-        final FieldMapper.Names fieldNames;
+        final MappedFieldType.Names fieldNames;
         final FieldDataType fieldDataType;
         private final Cache<Key, Accountable> cache;
         private final IndicesFieldDataCacheListener indicesFieldDataCacheListener;
 
-        IndexFieldCache(ESLogger logger,final Cache<Key, Accountable> cache, IndicesFieldDataCacheListener indicesFieldDataCacheListener, IndexService indexService, Index index, FieldMapper.Names fieldNames, FieldDataType fieldDataType) {
+        IndexFieldCache(ESLogger logger,final Cache<Key, Accountable> cache, IndicesFieldDataCacheListener indicesFieldDataCacheListener, IndexService indexService, Index index, MappedFieldType.Names fieldNames, FieldDataType fieldDataType) {
             this.logger = logger;
             this.indexService = indexService;
             this.index = index;

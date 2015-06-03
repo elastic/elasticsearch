@@ -20,7 +20,6 @@
 package org.elasticsearch.index.mapper.internal;
 
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
@@ -36,6 +35,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.fielddata.FieldDataType;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MergeMappingException;
@@ -65,13 +65,16 @@ public class TypeFieldMapper extends AbstractFieldMapper implements RootMapper {
     public static class Defaults extends AbstractFieldMapper.Defaults {
         public static final String NAME = TypeFieldMapper.NAME;
 
-        public static final FieldType FIELD_TYPE = new FieldType(AbstractFieldMapper.Defaults.FIELD_TYPE);
+        public static final MappedFieldType FIELD_TYPE = new TypeFieldType();
 
         static {
             FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
             FIELD_TYPE.setTokenized(false);
             FIELD_TYPE.setStored(false);
             FIELD_TYPE.setOmitNorms(true);
+            FIELD_TYPE.setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
+            FIELD_TYPE.setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
+            FIELD_TYPE.setNames(new MappedFieldType.Names(NAME));
             FIELD_TYPE.freeze();
         }
     }
@@ -79,13 +82,14 @@ public class TypeFieldMapper extends AbstractFieldMapper implements RootMapper {
     public static class Builder extends AbstractFieldMapper.Builder<Builder, TypeFieldMapper> {
 
         public Builder() {
-            super(Defaults.NAME, new FieldType(Defaults.FIELD_TYPE));
+            super(Defaults.NAME, Defaults.FIELD_TYPE);
             indexName = Defaults.NAME;
         }
 
         @Override
         public TypeFieldMapper build(BuilderContext context) {
-            return new TypeFieldMapper(name, indexName, boost, fieldType, fieldDataSettings, context.indexSettings());
+            fieldType.setNames(new MappedFieldType.Names(name, indexName, indexName, name));
+            return new TypeFieldMapper(fieldType, fieldDataSettings, context.indexSettings());
         }
     }
 
@@ -101,17 +105,53 @@ public class TypeFieldMapper extends AbstractFieldMapper implements RootMapper {
         }
     }
 
-    public TypeFieldMapper(Settings indexSettings) {
-        this(Defaults.NAME, Defaults.NAME, Defaults.BOOST, new FieldType(Defaults.FIELD_TYPE), null, indexSettings);
+    static final class TypeFieldType extends MappedFieldType {
+
+        public TypeFieldType() {
+            super(AbstractFieldMapper.Defaults.FIELD_TYPE);
+        }
+
+        protected TypeFieldType(TypeFieldType ref) {
+            super(ref);
+        }
+
+        @Override
+        public MappedFieldType clone() {
+            return new TypeFieldType(this);
+        }
+
+        @Override
+        public String value(Object value) {
+            if (value == null) {
+                return null;
+            }
+            return value.toString();
+        }
+
+        @Override
+        public boolean useTermQueryWithQueryString() {
+            return true;
+        }
+
+        @Override
+        public Query termQuery(Object value, @Nullable QueryParseContext context) {
+            if (indexOptions() == IndexOptions.NONE) {
+                return new ConstantScoreQuery(new PrefixQuery(new Term(UidFieldMapper.NAME, Uid.typePrefixAsBytes(BytesRefs.toBytesRef(value)))));
+            }
+            return new ConstantScoreQuery(new TermQuery(createTerm(value)));
+        }
     }
 
-    public TypeFieldMapper(String name, String indexName, float boost, FieldType fieldType, @Nullable Settings fieldDataSettings, Settings indexSettings) {
-        super(new Names(name, indexName, indexName, name), boost, fieldType, false, Lucene.KEYWORD_ANALYZER,
-                Lucene.KEYWORD_ANALYZER, null, null, fieldDataSettings, indexSettings);
+    public TypeFieldMapper(Settings indexSettings) {
+        this(Defaults.FIELD_TYPE.clone(), null, indexSettings);
+    }
+
+    public TypeFieldMapper(MappedFieldType fieldType, @Nullable Settings fieldDataSettings, Settings indexSettings) {
+        super(fieldType, false, fieldDataSettings, indexSettings);
     }
 
     @Override
-    public FieldType defaultFieldType() {
+    public MappedFieldType defaultFieldType() {
         return Defaults.FIELD_TYPE;
     }
 
@@ -120,26 +160,6 @@ public class TypeFieldMapper extends AbstractFieldMapper implements RootMapper {
         return new FieldDataType("string");
     }
 
-    @Override
-    public String value(Object value) {
-        if (value == null) {
-            return null;
-        }
-        return value.toString();
-    }
-
-    @Override
-    public Query termQuery(Object value, @Nullable QueryParseContext context) {
-        if (fieldType.indexOptions() == IndexOptions.NONE) {
-            return new ConstantScoreQuery(new PrefixQuery(new Term(UidFieldMapper.NAME, Uid.typePrefixAsBytes(BytesRefs.toBytesRef(value)))));
-        }
-        return new ConstantScoreQuery(new TermQuery(createTerm(value)));
-    }
-
-    @Override
-    public boolean useTermQueryWithQueryString() {
-        return true;
-    }
 
     @Override
     public void preParse(ParseContext context) throws IOException {
@@ -161,9 +181,9 @@ public class TypeFieldMapper extends AbstractFieldMapper implements RootMapper {
         if (fieldType.indexOptions() == IndexOptions.NONE && !fieldType.stored()) {
             return;
         }
-        fields.add(new Field(names.indexName(), context.type(), fieldType));
-        if (hasDocValues()) {
-            fields.add(new SortedSetDocValuesField(names.indexName(), new BytesRef(context.type())));
+        fields.add(new Field(fieldType.names().indexName(), context.type(), fieldType));
+        if (fieldType().hasDocValues()) {
+            fields.add(new SortedSetDocValuesField(fieldType.names().indexName(), new BytesRef(context.type())));
         }
     }
 

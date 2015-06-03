@@ -110,7 +110,7 @@ public interface ValueParser {
         }
 
         public static DateMath mapper(DateFieldMapper mapper) {
-            return new DateMath(new DateMathParser(mapper.dateTimeFormatter(), DateFieldMapper.Defaults.TIME_UNIT));
+            return new DateMath(new DateMathParser(mapper.fieldType().dateTimeFormatter(), DateFieldMapper.Defaults.TIME_UNIT));
         }
     }
 

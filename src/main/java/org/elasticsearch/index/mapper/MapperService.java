@@ -703,8 +703,8 @@ public class MapperService extends AbstractIndexComponent  {
         @Override
         protected Analyzer getWrappedAnalyzer(String fieldName) {
             FieldMapper mapper = smartNameFieldMapper(fieldName);
-            if (mapper != null && mapper.searchAnalyzer() != null) {
-                return mapper.searchAnalyzer();
+            if (mapper != null && mapper.fieldType().searchAnalyzer() != null) {
+                return mapper.fieldType().searchAnalyzer();
             }
             return defaultAnalyzer;
         }
@@ -722,8 +722,8 @@ public class MapperService extends AbstractIndexComponent  {
         @Override
         protected Analyzer getWrappedAnalyzer(String fieldName) {
             FieldMapper mapper = smartNameFieldMapper(fieldName);
-            if (mapper != null && mapper.searchQuoteAnalyzer() != null) {
-                return mapper.searchQuoteAnalyzer();
+            if (mapper != null && mapper.fieldType().searchQuoteAnalyzer() != null) {
+                return mapper.fieldType().searchQuoteAnalyzer();
             }
             return defaultAnalyzer;
         }

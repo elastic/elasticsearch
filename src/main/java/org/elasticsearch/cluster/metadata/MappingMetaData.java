@@ -289,7 +289,7 @@ public class MappingMetaData extends AbstractDiffable<MappingMetaData> {
         this.id = new Id(docMapper.idFieldMapper().path());
         this.routing = new Routing(docMapper.routingFieldMapper().required(), docMapper.routingFieldMapper().path());
         this.timestamp = new Timestamp(docMapper.timestampFieldMapper().enabled(), docMapper.timestampFieldMapper().path(),
-                docMapper.timestampFieldMapper().dateTimeFormatter().format(), docMapper.timestampFieldMapper().defaultTimestamp(),
+                docMapper.timestampFieldMapper().fieldType().dateTimeFormatter().format(), docMapper.timestampFieldMapper().defaultTimestamp(),
                 docMapper.timestampFieldMapper().ignoreMissing());
         this.hasParentField = docMapper.parentFieldMapper().active();
     }

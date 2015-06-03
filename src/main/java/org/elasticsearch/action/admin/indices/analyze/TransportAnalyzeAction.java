@@ -113,8 +113,8 @@ public class TransportAnalyzeAction extends TransportSingleCustomOperationAction
                 if (fieldMapper.isNumeric()) {
                     throw new IllegalArgumentException("Can't process field [" + request.field() + "], Analysis requests are not supported on numeric fields");
                 }
-                analyzer = fieldMapper.indexAnalyzer();
-                field = fieldMapper.names().indexName();
+                analyzer = fieldMapper.fieldType().indexAnalyzer();
+                field = fieldMapper.fieldType().names().indexName();
                 
             }
         }

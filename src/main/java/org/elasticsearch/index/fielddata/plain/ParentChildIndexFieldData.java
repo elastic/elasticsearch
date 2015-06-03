@@ -50,7 +50,8 @@ import org.elasticsearch.index.fielddata.ordinals.OrdinalsBuilder;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentTypeListener;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.FieldMapper.Names;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedFieldType.Names;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
@@ -75,7 +76,7 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<AtomicPare
     // while loading.
     private final Object lock = new Object();
 
-    public ParentChildIndexFieldData(Index index, @IndexSettings Settings indexSettings, FieldMapper.Names fieldNames,
+    public ParentChildIndexFieldData(Index index, @IndexSettings Settings indexSettings, MappedFieldType.Names fieldNames,
                                      FieldDataType fieldDataType, IndexFieldDataCache cache, MapperService mapperService,
                                      CircuitBreakerService breakerService) {
         super(index, indexSettings, fieldNames, fieldDataType, cache);
@@ -252,8 +253,8 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<AtomicPare
         public IndexFieldData<?> build(Index index, @IndexSettings Settings indexSettings, FieldMapper mapper,
                                        IndexFieldDataCache cache, CircuitBreakerService breakerService,
                                        MapperService mapperService) {
-            return new ParentChildIndexFieldData(index, indexSettings, mapper.names(), mapper.fieldDataType(), cache,
-                    mapperService, breakerService);
+            return new ParentChildIndexFieldData(index, indexSettings, mapper.fieldType().names(), mapper.fieldType().fieldDataType(), cache,
+                mapperService, breakerService);
         }
     }
 

@@ -149,10 +149,10 @@ public class UpdateMappingTests extends ElasticsearchSingleNodeTest {
         DocumentMapper documentMapper = indexService.mapperService().parse("type", new CompressedXContent(indexMapping.string()), true);
         assertThat(documentMapper.timestampFieldMapper().enabled(), equalTo(enabled));
         assertTrue(documentMapper.timestampFieldMapper().fieldType().stored());
-        assertTrue(documentMapper.timestampFieldMapper().hasDocValues());
+        assertTrue(documentMapper.timestampFieldMapper().fieldType().hasDocValues());
         documentMapper = indexService.mapperService().parse("type", new CompressedXContent(documentMapper.mappingSource().string()), true);
         assertThat(documentMapper.timestampFieldMapper().enabled(), equalTo(enabled));
-        assertTrue(documentMapper.timestampFieldMapper().hasDocValues());
+        assertTrue(documentMapper.timestampFieldMapper().fieldType().hasDocValues());
         assertTrue(documentMapper.timestampFieldMapper().fieldType().stored());
     }
 

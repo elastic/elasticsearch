@@ -236,7 +236,7 @@ public class ShardTermVectorsService extends AbstractIndexShardComponent {
         if (perFieldAnalyzer != null && perFieldAnalyzer.containsKey(field)) {
             analyzer = mapperService.analysisService().analyzer(perFieldAnalyzer.get(field).toString());
         } else {
-            analyzer = mapperService.smartNameFieldMapper(field).indexAnalyzer();
+            analyzer = mapperService.smartNameFieldMapper(field).fieldType().indexAnalyzer();
         }
         if (analyzer == null) {
             analyzer = mapperService.analysisService().defaultIndexAnalyzer();

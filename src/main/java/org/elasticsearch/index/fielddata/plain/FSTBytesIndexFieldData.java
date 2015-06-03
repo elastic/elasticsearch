@@ -33,6 +33,7 @@ import org.elasticsearch.index.fielddata.*;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.index.fielddata.ordinals.OrdinalsBuilder;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -48,11 +49,11 @@ public class FSTBytesIndexFieldData extends AbstractIndexOrdinalsFieldData {
         @Override
         public IndexOrdinalsFieldData build(Index index, @IndexSettings Settings indexSettings, FieldMapper mapper,
                                                              IndexFieldDataCache cache, CircuitBreakerService breakerService, MapperService mapperService) {
-            return new FSTBytesIndexFieldData(index, indexSettings, mapper.names(), mapper.fieldDataType(), cache, breakerService);
+            return new FSTBytesIndexFieldData(index, indexSettings, mapper.fieldType().names(), mapper.fieldType().fieldDataType(), cache, breakerService);
         }
     }
 
-    FSTBytesIndexFieldData(Index index, @IndexSettings Settings indexSettings, FieldMapper.Names fieldNames, FieldDataType fieldDataType,
+    FSTBytesIndexFieldData(Index index, @IndexSettings Settings indexSettings, MappedFieldType.Names fieldNames, FieldDataType fieldDataType,
                            IndexFieldDataCache cache, CircuitBreakerService breakerService) {
         super(index, indexSettings, fieldNames, fieldDataType, cache, breakerService);
         this.breakerService = breakerService;

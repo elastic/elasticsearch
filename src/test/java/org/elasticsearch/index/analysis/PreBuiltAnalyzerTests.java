@@ -163,8 +163,8 @@ public class PreBuiltAnalyzerTests extends ElasticsearchSingleNodeTest {
         DocumentMapper docMapper = createIndex("test", indexSettings).mapperService().documentMapperParser().parse(mapping);
 
         FieldMapper fieldMapper = docMapper.mappers().getMapper("field");
-        assertThat(fieldMapper.searchAnalyzer(), instanceOf(NamedAnalyzer.class));
-        NamedAnalyzer fieldMapperNamedAnalyzer = (NamedAnalyzer) fieldMapper.searchAnalyzer();
+        assertThat(fieldMapper.fieldType().searchAnalyzer(), instanceOf(NamedAnalyzer.class));
+        NamedAnalyzer fieldMapperNamedAnalyzer = (NamedAnalyzer) fieldMapper.fieldType().searchAnalyzer();
 
         assertThat(fieldMapperNamedAnalyzer.analyzer(), is(namedAnalyzer.analyzer()));
     }

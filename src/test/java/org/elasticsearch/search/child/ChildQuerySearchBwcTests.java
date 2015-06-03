@@ -27,15 +27,23 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.fielddata.FieldDataType;
-import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import org.junit.Test;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.QueryBuilders.*;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
-import static org.hamcrest.Matchers.*;
+import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
+import static org.elasticsearch.index.query.QueryBuilders.hasParentQuery;
+import static org.elasticsearch.index.query.QueryBuilders.termQuery;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.startsWith;
 
 /**
  *
@@ -149,7 +157,7 @@ public class ChildQuerySearchBwcTests extends ChildQuerySearchTests {
                         .startObject("p_field")
                         .field("type", "string")
                         .startObject("fielddata")
-                        .field(FieldDataType.FORMAT_KEY, FieldMapper.Loading.LAZY)
+                        .field(FieldDataType.FORMAT_KEY, MappedFieldType.Loading.LAZY)
                         .endObject()
                         .endObject()
                         .endObject().endObject().endObject()));
@@ -175,7 +183,7 @@ public class ChildQuerySearchBwcTests extends ChildQuerySearchTests {
                         .startObject("c_field")
                         .field("type", "string")
                         .startObject("fielddata")
-                        .field(FieldDataType.FORMAT_KEY, FieldMapper.Loading.LAZY)
+                        .field(FieldDataType.FORMAT_KEY, MappedFieldType.Loading.LAZY)
                         .endObject()
                         .endObject()
                         .endObject().endObject().endObject())

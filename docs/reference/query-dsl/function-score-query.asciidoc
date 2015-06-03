@@ -120,12 +120,14 @@ script, and provide parameters to it:
 [source,js]
 --------------------------------------------------
 "script_score": {
-    "lang": "lang",
-    "params": {
-        "param1": value1,
-        "param2": value2
-     },
-    "script": "_score * doc['my_numeric_field'].value / pow(param1, param2)"
+    "script": {
+        "lang": "lang",
+        "params": {
+            "param1": value1,
+            "param2": value2
+        },
+        "inline": "_score * doc['my_numeric_field'].value / pow(param1, param2)"
+    }
 }
 --------------------------------------------------
 

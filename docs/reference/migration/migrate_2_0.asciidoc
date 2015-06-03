@@ -626,3 +626,19 @@ anymore, it will only highlight fields that were queried.
 The `match` query with type set to `match_phrase_prefix` is not supported by the
 postings highlighter. No highlighted snippets will be returned.
 
+[float]
+=== Parent/child
+
+Parent/child has been rewritten completely to reduce memory usage and to execute
+`has_child` and `has_parent` queries faster and more efficient. The `_parent` field
+uses doc values by default. The refactored and improved implementation is only active
+for indices created on or after version 2.0.
+
+In order to benefit for all performance and memory improvements we recommend to reindex all
+indices that have the `_parent` field created before was upgraded to 2.0.
+
+The following breaks in backwards compatability have been made on indices with the `_parent` field
+created on or after clusters with version 2.0:
+* The `type` option on the `_parent` field can only point to a parent type that doesn't exist yet,
+  so this means that an existing type/mapping can no longer become a parent type.
+* The `has_child` and `has_parent` queries can no longer be use in alias filters.

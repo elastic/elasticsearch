@@ -23,6 +23,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.compress.Compressor;
 import org.elasticsearch.common.compress.CompressorFactory;
+import org.elasticsearch.common.compress.NotCompressedException;
 import org.elasticsearch.common.io.ThrowableObjectInputStream;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.ESLogger;
@@ -91,8 +92,10 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
 
         StreamInput wrappedStream;
         if (TransportStatus.isCompress(status) && hasMessageBytesToRead && buffer.readable()) {
-            Compressor compressor = CompressorFactory.compressor(buffer);
-            if (compressor == null) {
+            Compressor compressor;
+            try {
+                compressor = CompressorFactory.compressor(buffer);
+            } catch (NotCompressedException ex) {
                 int maxToRead = Math.min(buffer.readableBytes(), 10);
                 int offset = buffer.readerIndex();
                 StringBuilder sb = new StringBuilder("stream marked as compressed, but no compressor found, first [").append(maxToRead).append("] content bytes out of [").append(buffer.readableBytes()).append("] readable bytes with message size [").append(size).append("] ").append("] are [");

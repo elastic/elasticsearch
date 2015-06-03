@@ -26,8 +26,6 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 
-import java.util.Locale;
-
 import static org.elasticsearch.bootstrap.JNAKernel32Library.SizeT;
 
 /**
@@ -43,30 +41,66 @@ class JNANatives {
 
     static void tryMlockall() {
         int errno = Integer.MIN_VALUE;
+        String errMsg = null;
+        boolean rlimitSuccess = false;
+        long softLimit = 0;
+        long hardLimit = 0;
+        
         try {
             int result = JNACLibrary.mlockall(JNACLibrary.MCL_CURRENT);
-            if (result != 0) {
-                errno = Native.getLastError();
-            } else {
+            if (result == 0) {
                 LOCAL_MLOCKALL = true;
+                return;
+            }
+            
+            errno = Native.getLastError();
+            errMsg = JNACLibrary.strerror(errno);
+            if (Constants.LINUX || Constants.MAC_OS_X) {
+                // we only know RLIMIT_MEMLOCK for these two at the moment. 
+                JNACLibrary.Rlimit rlimit = new JNACLibrary.Rlimit();
+                if (JNACLibrary.getrlimit(JNACLibrary.RLIMIT_MEMLOCK, rlimit) == 0) {
+                    rlimitSuccess = true;
+                    softLimit = rlimit.rlim_cur;
+                    hardLimit = rlimit.rlim_max;
+                } else {
+                    logger.warn("Unable to retrieve resource limits: " + JNACLibrary.strerror(Native.getLastError()));
+                }
             }
         } catch (UnsatisfiedLinkError e) {
             // this will have already been logged by CLibrary, no need to repeat it
             return;
         }
 
-        if (errno != Integer.MIN_VALUE) {
-            if (errno == JNACLibrary.ENOMEM && System.getProperty("os.name").toLowerCase(Locale.ROOT).contains("linux")) {
-                logger.warn("Unable to lock JVM memory (ENOMEM)."
-                        + " This can result in part of the JVM being swapped out."
-                        + " Increase RLIMIT_MEMLOCK (ulimit).");
-            } else if (!System.getProperty("os.name").toLowerCase(Locale.ROOT).contains("mac")) {
-                // OS X allows mlockall to be called, but always returns an error
-                logger.warn("Unknown mlockall error " + errno);
+        // mlockall failed for some reason
+        logger.warn("Unable to lock JVM Memory: error=" + errno + ",reason=" + errMsg + ". This can result in part of the JVM being swapped out.");
+        if (errno == JNACLibrary.ENOMEM) {
+            if (rlimitSuccess) {
+                logger.warn("Increase RLIMIT_MEMLOCK, soft limit: " + rlimitToString(softLimit) + ", hard limit: " + rlimitToString(hardLimit));
+                if (Constants.LINUX) {
+                    // give specific instructions for the linux case to make it easy
+                    logger.warn("These can be adjusted by modifying /etc/security/limits.conf, for example: \n" +
+                                "\t# allow user 'esuser' mlockall\n" +
+                                "\tesuser soft memlock unlimited\n" +
+                                "\tesuser hard memlock unlimited"
+                               );
+                    logger.warn("If you are logged in interactively, you will have to re-login for the new limits to take effect.");
+                }
+            } else {
+                logger.warn("Increase RLIMIT_MEMLOCK (ulimit).");
             }
         }
     }
     
+    static String rlimitToString(long value) {
+        assert Constants.LINUX || Constants.MAC_OS_X;
+        if (value == JNACLibrary.RLIM_INFINITY) {
+            return "unlimited";
+        } else {
+            // TODO, on java 8 use Long.toUnsignedString, since thats what it is.
+            return Long.toString(value);
+        }
+    }
+
     /** Returns true if user is root, false if not, or if we don't know */
     static boolean definitelyRunningAsRoot() {
         if (Constants.WINDOWS) {

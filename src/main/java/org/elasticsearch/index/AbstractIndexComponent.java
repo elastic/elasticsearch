@@ -53,6 +53,10 @@ public abstract class AbstractIndexComponent implements IndexComponent {
         return this.index;
     }
 
+    public Settings indexSettings() {
+        return indexSettings;
+    }
+
     public String nodeName() {
         return indexSettings.get("name", "");
     }

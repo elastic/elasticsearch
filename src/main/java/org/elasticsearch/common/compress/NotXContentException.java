@@ -16,17 +16,17 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.index.termvectors;
 
-import org.elasticsearch.common.inject.AbstractModule;
+package org.elasticsearch.common.compress;
 
-/**
- *
- */
-public class ShardTermVectorsModule extends AbstractModule {
+import org.elasticsearch.common.xcontent.XContent;
 
-    @Override
-    protected void configure() {
-        bind(ShardTermVectorsService.class).asEagerSingleton();
+/** Exception indicating that we were expecting some {@link XContent} but could
+ *  not detect its type. */
+public class NotXContentException extends RuntimeException {
+
+    public NotXContentException(String message) {
+        super(message);
     }
+
 }

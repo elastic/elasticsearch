@@ -45,6 +45,42 @@ The response for the above aggregation:
 }
 --------------------------------------------------
 
+The above example can also be specified using file scripts as follows:
+
+[source,js]
+--------------------------------------------------
+{
+    "query" : {
+        "match_all" : {}
+    },
+    "aggs": {
+        "profit": {
+            "scripted_metric": {
+                "init_script" : {
+                    "file": "my_init_script"
+                },
+                "map_script" : {
+                    "file": "my_map_script"
+                },
+                "combine_script" : {
+                    "file": "my_combine_script"
+                },
+                "params": {
+                    "field": "amount" <1>
+                },
+                "reduce_script" : {
+                    "file": "my_reduce_script"
+                },
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+<1> script parameters for init, map and combine scripts must be specified in a global `params` object so that it can be share between the scripts
+
+For more details on specifying scripts see <<modules-scripting, script documentation>>. 
+
 ==== Scope of scripts
 
 The scripted metric aggregation uses scripts at 4 stages of its execution:
@@ -225,13 +261,4 @@ params::           Optional. An object whose contents will be passed as variable
 --------------------------------------------------
 reduce_params::    Optional. An object whose contents will be passed as variables to the `reduce_script`. This can be useful to allow the user to control 
                    the behavior of the reduce phase. If this is not specified the variable will be undefined in the reduce_script execution.
-lang::             Optional. The script language used for the scripts. If this is not specified the default scripting language is used.
-init_script_file:: Optional. Can be used in place of the `init_script` parameter to provide the script using in a file.
-init_script_id:: Optional. Can be used in place of the `init_script` parameter to provide the script using an indexed script.
-map_script_file:: Optional. Can be used in place of the `map_script` parameter to provide the script using in a file.
-map_script_id:: Optional. Can be used in place of the `map_script` parameter to provide the script using an indexed script.
-combine_script_file:: Optional. Can be used in place of the `combine_script` parameter to provide the script using in a file.
-combine_script_id:: Optional. Can be used in place of the `combine_script` parameter to provide the script using an indexed script.
-reduce_script_file:: Optional. Can be used in place of the `reduce_script` parameter to provide the script using in a file.
-reduce_script_id:: Optional. Can be used in place of the `reduce_script` parameter to provide the script using an indexed script.
 

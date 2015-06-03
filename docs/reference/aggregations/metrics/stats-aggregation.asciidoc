@@ -53,7 +53,29 @@ Computing the grades stats based on a script:
 }
 --------------------------------------------------
 
-TIP: The `script` parameter expects an inline script. Use `script_id` for indexed scripts and `script_file` for scripts in the `config/scripts/` directory.
+This will interpret the `script` parameter as an `inline` script with the default script language and no script parameters. To use a file script use the following syntax:
+
+[source,js]
+--------------------------------------------------
+{
+    ...,
+
+    "aggs" : {
+        "grades_stats" : {
+            "stats" : { 
+                "script" : {
+                    "file": "my_script",
+                    "params" : {
+                        "field" : "grade"
+                    }
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+TIP: for indexed scripts replace the `file` parameter with an `id` parameter.
 
 ===== Value Script
 
@@ -69,9 +91,11 @@ It turned out that the exam was way above the level of the students and a grade 
             "grades_stats" : {
                 "stats" : {
                     "field" : "grade",
-                    "script" : "_value * correction",
-                    "params" : {
-                        "correction" : 1.2
+                    "script" : 
+                        "inline": "_value * correction",
+                        "params" : {
+                            "correction" : 1.2
+                        }
                     }
                 }
             }

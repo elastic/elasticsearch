@@ -24,11 +24,11 @@ import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.script.ExplainableSearchScript;
 import org.elasticsearch.script.LeafSearchScript;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.script.SearchScript;
 
 import java.io.IOException;
-import java.util.Map;
 
 public class ScriptScoreFunction extends ScoreFunction {
 
@@ -71,17 +71,14 @@ public class ScriptScoreFunction extends ScoreFunction {
         }
     }
 
-    private final String sScript;
-
-    private final Map<String, Object> params;
+    private final Script sScript;
 
     private final SearchScript script;
 
 
-    public ScriptScoreFunction(String sScript, Map<String, Object> params, SearchScript script) {
+    public ScriptScoreFunction(Script sScript, SearchScript script) {
         super(CombineFunction.REPLACE);
         this.sScript = sScript;
-        this.params = params;
         this.script = script;
     }
 
@@ -114,8 +111,8 @@ public class ScriptScoreFunction extends ScoreFunction {
                 } else {
                     double score = score(docId, subQueryScore.getValue());
                     String explanation = "script score function, computed with script:\"" + sScript;
-                    if (params != null) {
-                        explanation += "\" and parameters: \n" + params.toString();
+                    if (sScript.getParams() != null) {
+                        explanation += "\" and parameters: \n" + sScript.getParams().toString();
                     }
                     Explanation scoreExp = Explanation.match(
                             subQueryScore.getValue(), "_score: ",
@@ -131,7 +128,7 @@ public class ScriptScoreFunction extends ScoreFunction {
 
     @Override
     public String toString() {
-        return "script[" + sScript + "], params [" + params + "]";
+        return "script" + sScript.toString();
     }
 
 }

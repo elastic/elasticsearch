@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.transport.TransportService;
@@ -59,7 +60,7 @@ public class TransportClientTests extends ElasticsearchIntegrationTest {
                 .put("path.home", createTempDir())
                 .put("node.name", "testNodeVersionIsUpdated")
                 .put("http.enabled", false)
-                .put("config.ignore_system_properties", true) // make sure we get what we set :)
+                .put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING, true) // make sure we get what we set :)
                 .build()).clusterName("foobar").build();
         node.start();
         try {

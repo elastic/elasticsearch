@@ -17,22 +17,14 @@
  * under the License.
  */
 
-package org.elasticsearch.index.cache.filter;
+package org.elasticsearch.common.compress.deflate;
 
-import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.common.compress.AbstractCompressedStreamTests;
 
-/**
- */
-public class ShardFilterCacheModule extends AbstractModule {
+public class DeflateCompressedStreamTests extends AbstractCompressedStreamTests {
 
-    private final ShardFilterCache shardFilterCache;
-
-    public ShardFilterCacheModule(ShardFilterCache shardFilterCache) {
-        this.shardFilterCache = shardFilterCache;
+    public DeflateCompressedStreamTests() {
+        super(new DeflateCompressor());
     }
 
-    @Override
-    protected void configure() {
-        bind(ShardFilterCache.class).toInstance(shardFilterCache);
-    }
 }

@@ -17,19 +17,14 @@
  * under the License.
  */
 
-package org.elasticsearch.index.gateway;
+package org.elasticsearch.common.compress.lzf;
 
-import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.common.compress.AbstractCompressedStreamTests;
 
-/**
- *
- */
-public class IndexShardGatewayModule extends AbstractModule {
+public class LZFCompressedStreamTests extends AbstractCompressedStreamTests {
 
-
-    @Override
-    protected void configure() {
-        bind(IndexShardGateway.class).asEagerSingleton();
-        bind(IndexShardGatewayService.class).asEagerSingleton();
+    public LZFCompressedStreamTests() {
+        super(new LZFTestCompressor());
     }
+
 }

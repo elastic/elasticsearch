@@ -17,18 +17,14 @@
  * under the License.
  */
 
-package org.elasticsearch.index.indexing;
+package org.elasticsearch.common.compress.lzf;
 
-import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.index.indexing.slowlog.ShardSlowLogIndexingService;
+import org.elasticsearch.common.compress.AbstractCompressedXContentTests;
 
-/**
- */
-public class ShardIndexingModule extends AbstractModule {
+public class LZFXContentTests extends AbstractCompressedXContentTests {
 
-    @Override
-    protected void configure() {
-        bind(ShardIndexingService.class).asEagerSingleton();
-        bind(ShardSlowLogIndexingService.class).asEagerSingleton();
+    public LZFXContentTests() {
+        super(new LZFTestCompressor());
     }
+
 }

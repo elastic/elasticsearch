@@ -17,13 +17,14 @@
  * under the License.
  */
 
-package org.elasticsearch.common.compress.lzf;
+package org.elasticsearch.common.compress.deflate;
 
-import org.elasticsearch.common.compress.CompressorContext;
+import org.elasticsearch.common.compress.AbstractCompressedXContentTests;
 
-/**
- */
-public class LZFCompressorContext implements CompressorContext {
+public class DeflateXContentTests extends AbstractCompressedXContentTests {
 
-    public static final LZFCompressorContext INSTANCE = new LZFCompressorContext();
+    public DeflateXContentTests() {
+        super(new DeflateCompressor());
+    }
+
 }

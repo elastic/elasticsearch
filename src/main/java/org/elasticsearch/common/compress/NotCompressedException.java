@@ -17,18 +17,15 @@
  * under the License.
  */
 
-package org.elasticsearch.index.search.stats;
+package org.elasticsearch.common.compress;
 
-import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.index.search.slowlog.ShardSlowLogSearchService;
+/** Exception indicating that we were expecting something compressed, which
+ *  was not compressed or corrupted so that the compression format could not
+ *  be detected. */
+public class NotCompressedException extends RuntimeException {
 
-/**
- */
-public class ShardSearchModule extends AbstractModule {
-
-    @Override
-    protected void configure() {
-        bind(ShardSearchService.class).asEagerSingleton();
-        bind(ShardSlowLogSearchService.class).asEagerSingleton();
+    public NotCompressedException() {
+        super();
     }
+
 }

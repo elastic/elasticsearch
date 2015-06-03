@@ -20,6 +20,7 @@ package org.elasticsearch.index.query;
 
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.Template;
 
 import java.io.IOException;
 import java.util.Map;
@@ -32,54 +33,61 @@ public class TemplateQueryBuilder extends QueryBuilder {
     /** Name to reference this type of query. */
     public static final String NAME = "template";
 
+    /** Template to fill. */
+    private Template template;
     /** Parameters to fill the template with. */
     private Map<String, Object> vars;
     /** Template to fill.*/
-    private String template;
+    private String templateString;
 
     private ScriptService.ScriptType templateType;
 
     static final TemplateQueryBuilder PROTOTYPE = new TemplateQueryBuilder(null, null);
 
     /**
-     * @param template the template to use for that query.
-     * @param vars the parameters to fill the template with.
+     * @param template
+     *            the template to use for that query.
      * */
+    public TemplateQueryBuilder(Template template) {
+        this.template = template;
+    }
+
+    /**
+     * @param template
+     *            the template to use for that query.
+     * @param vars
+     *            the parameters to fill the template with.
+     * @deprecated Use {@link #TemplateQueryBuilder(Template)} instead.
+     * */
+    @Deprecated
     public TemplateQueryBuilder(String template, Map<String, Object> vars) {
         this(template, ScriptService.ScriptType.INLINE, vars);
     }
 
     /**
-     * @param template the template to use for that query.
-     * @param vars the parameters to fill the template with.
-     * @param templateType what kind of template (INLINE,FILE,ID)
+     * @param template
+     *            the template to use for that query.
+     * @param vars
+     *            the parameters to fill the template with.
+     * @param templateType
+     *            what kind of template (INLINE,FILE,ID)
+     * @deprecated Use {@link #TemplateQueryBuilder(Template)} instead.
      * */
+    @Deprecated
     public TemplateQueryBuilder(String template, ScriptService.ScriptType templateType, Map<String, Object> vars) {
-        this.template = template;
-        this.vars =vars;
+        this.templateString = template;
+        this.vars = vars;
         this.templateType = templateType;
     }
 
     @Override
-    protected void doXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(NAME);
-        String fieldname;
-        switch(templateType){
-            case FILE:
-                fieldname = "file";
-                break;
-            case INDEXED:
-                fieldname = "id";
-                break;
-            case INLINE:
-                fieldname = TemplateQueryParser.QUERY;
-                break;
-            default:
-                throw new IllegalArgumentException("Unknown template type " + templateType);
+    protected void doXContent(XContentBuilder builder, Params builderParams) throws IOException {
+        builder.field(TemplateQueryBuilder.NAME);
+        if (template == null) {
+            new Template(templateString, templateType, null, null, this.vars).toXContent(builder, builderParams);
+        } else {
+            template.toXContent(builder, builderParams);
         }
-        builder.field(fieldname, template);
-        builder.field(TemplateQueryParser.PARAMS, vars);
-        builder.endObject();
     }
 
     @Override

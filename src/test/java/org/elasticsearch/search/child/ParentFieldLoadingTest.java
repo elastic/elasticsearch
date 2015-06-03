@@ -85,8 +85,7 @@ public class ParentFieldLoadingTest extends ElasticsearchIntegrationTest {
         refresh();
 
         response = client().admin().cluster().prepareClusterStats().get();
-        long fielddataSizeDefault = response.getIndicesStats().getFieldData().getMemorySizeInBytes();
-        assertThat(fielddataSizeDefault, greaterThan(0l));
+        assertThat(response.getIndicesStats().getFieldData().getMemorySizeInBytes(), equalTo(0l));
 
         logger.info("testing eager loading...");
         assertAcked(client().admin().indices().prepareDelete("test").get());
@@ -101,7 +100,7 @@ public class ParentFieldLoadingTest extends ElasticsearchIntegrationTest {
         refresh();
 
         response = client().admin().cluster().prepareClusterStats().get();
-        assertThat(response.getIndicesStats().getFieldData().getMemorySizeInBytes(), equalTo(fielddataSizeDefault));
+        assertThat(response.getIndicesStats().getFieldData().getMemorySizeInBytes(), equalTo(0l));
 
         logger.info("testing eager global ordinals loading...");
         assertAcked(client().admin().indices().prepareDelete("test").get());
@@ -119,7 +118,7 @@ public class ParentFieldLoadingTest extends ElasticsearchIntegrationTest {
         refresh();
 
         response = client().admin().cluster().prepareClusterStats().get();
-        assertThat(response.getIndicesStats().getFieldData().getMemorySizeInBytes(), greaterThan(fielddataSizeDefault));
+        assertThat(response.getIndicesStats().getFieldData().getMemorySizeInBytes(), greaterThan(0l));
     }
 
     @Test
@@ -135,8 +134,7 @@ public class ParentFieldLoadingTest extends ElasticsearchIntegrationTest {
         refresh();
 
         ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().get();
-        long fielddataSizeDefault = response.getIndicesStats().getFieldData().getMemorySizeInBytes();
-        assertThat(fielddataSizeDefault, greaterThan(0l));
+        assertThat(response.getIndicesStats().getFieldData().getMemorySizeInBytes(), equalTo(0l));
 
         PutMappingResponse putMappingResponse = client().admin().indices().preparePutMapping("test").setType("child")
                 .setSource(childMapping(FieldMapper.Loading.EAGER_GLOBAL_ORDINALS))
@@ -168,7 +166,7 @@ public class ParentFieldLoadingTest extends ElasticsearchIntegrationTest {
         client().prepareIndex("test", "dummy", "dummy").setSource("{}").get();
         refresh();
         response = client().admin().cluster().prepareClusterStats().get();
-        assertThat(response.getIndicesStats().getFieldData().getMemorySizeInBytes(), greaterThan(fielddataSizeDefault));
+        assertThat(response.getIndicesStats().getFieldData().getMemorySizeInBytes(), greaterThan(0l));
     }
 
     private XContentBuilder childMapping(FieldMapper.Loading loading) throws IOException {

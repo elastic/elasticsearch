@@ -786,7 +786,7 @@ public class DiskThresholdDeciderTests extends ElasticsearchAllocationTestCase {
             fail("should not have been able to reroute the shard");
         } catch (IllegalArgumentException e) {
             assertThat("can't allocated because there isn't enough room: " + e.getMessage(),
-                    e.getMessage().contains("less than required [30.0%] free disk on node, free: [26.0%]"), equalTo(true));
+                    e.getMessage().contains("more than allowed [70.0%] used disk on node, free: [26.0%]"), equalTo(true));
         }
 
     }

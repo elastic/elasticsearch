@@ -27,8 +27,6 @@ import org.elasticsearch.index.shard.ShardPath;
  *
  */
 public class StoreModule extends AbstractModule {
-
-
     private final ShardLock lock;
     private final Store.OnClose closeCallback;
     private final ShardPath path;

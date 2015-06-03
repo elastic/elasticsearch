@@ -31,12 +31,20 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.BytesRestResponse;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptParameterParser;
 import org.elasticsearch.script.ScriptParameterParser.ScriptParameterValue;
 
+import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -68,16 +76,13 @@ public class RestUpdateAction extends BaseRestHandler {
         scriptParameterParser.parseParams(request);
         ScriptParameterValue scriptValue = scriptParameterParser.getDefaultScriptParameterValue();
         if (scriptValue != null) {
-            updateRequest.script(scriptValue.script(), scriptValue.scriptType());
-        }
-        String scriptLang = scriptParameterParser.lang();
-        if (scriptLang != null) {
-            updateRequest.scriptLang(scriptLang);
-        }
-        for (Map.Entry<String, String> entry : request.params().entrySet()) {
-            if (entry.getKey().startsWith("sp_")) {
-                updateRequest.addScriptParam(entry.getKey().substring(3), entry.getValue());
+            Map<String, Object> scriptParams = new HashMap<>();
+            for (Map.Entry<String, String> entry : request.params().entrySet()) {
+                if (entry.getKey().startsWith("sp_")) {
+                    scriptParams.put(entry.getKey().substring(3), entry.getValue());
+                }
             }
+            updateRequest.script(new Script(scriptValue.script(), scriptValue.scriptType(), scriptParameterParser.lang(), scriptParams));
         }
         String sField = request.param("fields");
         if (sField != null) {

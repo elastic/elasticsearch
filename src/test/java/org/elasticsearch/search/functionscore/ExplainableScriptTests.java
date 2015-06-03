@@ -30,9 +30,13 @@ import org.elasticsearch.script.AbstractDoubleSearchScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ExplainableSearchScript;
 import org.elasticsearch.script.NativeScriptFactory;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
+import org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.junit.Test;
 
@@ -49,8 +53,6 @@ import static org.elasticsearch.index.query.QueryBuilders.functionScoreQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.scriptFunction;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -77,7 +79,10 @@ public class ExplainableScriptTests extends ElasticsearchIntegrationTest {
         client().admin().indices().prepareRefresh().execute().actionGet();
         ensureYellow();
         SearchResponse response = client().search(searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
-                searchSource().explain(true).query(functionScoreQuery(termQuery("text", "text")).add(scriptFunction("native_explainable_script", "native")).boostMode("replace")))).actionGet();
+                        searchSource().explain(true).query(
+                                functionScoreQuery(termQuery("text", "text")).add(
+                                        scriptFunction(new Script("native_explainable_script", ScriptType.INLINE, "native", null)))
+                                        .boostMode("replace")))).actionGet();
 
         ElasticsearchAssertions.assertNoFailures(response);
         SearchHits hits = response.getHits();

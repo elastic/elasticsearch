@@ -29,8 +29,12 @@ import org.elasticsearch.index.mapper.core.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
 import org.elasticsearch.index.mapper.ip.IpFieldMapper;
-import org.elasticsearch.script.*;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.Script.ScriptField;
+import org.elasticsearch.script.ScriptContext;
+import org.elasticsearch.script.ScriptParameterParser;
 import org.elasticsearch.script.ScriptParameterParser.ScriptParameterValue;
+import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.support.format.ValueFormat;
@@ -38,6 +42,8 @@ import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Map;
+
+import static com.google.common.collect.Maps.newHashMap;
 
 /**
  *
@@ -62,10 +68,9 @@ public class ValuesSourceParser<VS extends ValuesSource> {
 
     private static class Input {
         String field = null;
-        String script = null;
-        ScriptService.ScriptType scriptType = null;
-        String lang = null;
-        Map<String, Object> params = null;
+        Script script = null;
+        @Deprecated
+        Map<String, Object> params = null; // TODO Remove in 2.0
         ValueType valueType = null;
         String format = null;
         Object missing = null;
@@ -119,7 +124,10 @@ public class ValuesSourceParser<VS extends ValuesSource> {
             return true;
         }
         if (scriptable && token == XContentParser.Token.START_OBJECT) {
-            if ("params".equals(currentFieldName)) {
+            if (ScriptField.SCRIPT.match(currentFieldName)) {
+                input.script = Script.parse(parser);
+                return true;
+            } else if ("params".equals(currentFieldName)) {
                 input.params = parser.map();
                 return true;
             }
@@ -130,13 +138,16 @@ public class ValuesSourceParser<VS extends ValuesSource> {
     }
 
     public ValuesSourceConfig<VS> config() {
-        
-        ScriptParameterValue scriptValue = scriptParameterParser.getDefaultScriptParameterValue();
-        if (scriptValue != null) {
-            input.script = scriptValue.script();
-            input.scriptType = scriptValue.scriptType();
+
+        if (input.script == null) { // Didn't find anything using the new API so try using the old one instead
+            ScriptParameterValue scriptValue = scriptParameterParser.getDefaultScriptParameterValue();
+            if (scriptValue != null) {
+                if (input.params == null) {
+                    input.params = newHashMap();
+                }
+                input.script = new Script(scriptValue.script(), scriptValue.scriptType(), scriptParameterParser.lang(), input.params);
+            }
         }
-        input.lang = scriptParameterParser.lang();
         
         ValueType valueType = input.valueType != null ? input.valueType : targetValueType;
 
@@ -195,7 +206,7 @@ public class ValuesSourceParser<VS extends ValuesSource> {
     }
 
     private SearchScript createScript() {
-        return input.script == null ? null : context.scriptService().search(context.lookup(), new Script(input.lang, input.script, input.scriptType, input.params), ScriptContext.Standard.AGGS);
+        return input.script == null ? null : context.scriptService().search(context.lookup(), input.script, ScriptContext.Standard.AGGS);
     }
 
     private static ValueFormat resolveFormat(@Nullable String format, @Nullable ValueType valueType) {

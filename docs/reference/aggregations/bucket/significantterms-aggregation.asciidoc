@@ -358,13 +358,6 @@ Customized scores can be implemented via a script:
 --------------------------------------------------
 
 Scripts can be inline (as in above example), indexed or stored on disk. For details on the options, see <<modules-scripting, script documentation>>. 
-Parameters need to be set as follows:
-
-[horizontal]
-`script`:: Inline script, name of script file or name of indexed script. Mandatory.
-`script_type`:: One of "inline" (default), "indexed" or "file".
-`lang`:: Script language (default "groovy")
-`params`:: Script parameters (default empty).
 
 Available parameters in the script are
 

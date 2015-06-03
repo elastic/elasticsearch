@@ -21,6 +21,7 @@ package org.elasticsearch.index.mapper.internal;
 import com.google.common.base.Objects;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
+import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.queries.TermsQuery;
 import org.apache.lucene.search.Query;
@@ -33,9 +34,11 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.loader.SettingsLoader;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperBuilders;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.index.mapper.MergeResult;
@@ -55,7 +58,6 @@ import java.util.Map;
 import static org.elasticsearch.common.settings.Settings.builder;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeMapValue;
-import static org.elasticsearch.index.mapper.MapperBuilders.parent;
 
 /**
  *
@@ -107,7 +109,7 @@ public class ParentFieldMapper extends AbstractFieldMapper implements RootMapper
         @Override
         public ParentFieldMapper build(BuilderContext context) {
             if (type == null) {
-                throw new MapperParsingException("Parent mapping must contain the parent type");
+                throw new MapperParsingException("[_parent] field mapping must contain the [type] option");
             }
             return new ParentFieldMapper(name, indexName, type, fieldDataSettings, context.indexSettings());
         }
@@ -116,7 +118,7 @@ public class ParentFieldMapper extends AbstractFieldMapper implements RootMapper
     public static class TypeParser implements Mapper.TypeParser {
         @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            ParentFieldMapper.Builder builder = parent();
+            ParentFieldMapper.Builder builder = MapperBuilders.parent();
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
                 String fieldName = Strings.toUnderscoreCase(entry.getKey());
@@ -145,8 +147,9 @@ public class ParentFieldMapper extends AbstractFieldMapper implements RootMapper
     private final BytesRef typeAsBytes;
 
     protected ParentFieldMapper(String name, String indexName, String type, @Nullable Settings fieldDataSettings, Settings indexSettings) {
-        super(new Names(name, indexName, indexName, name), Defaults.BOOST, new FieldType(Defaults.FIELD_TYPE), false,
-                Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER, null, null, fieldDataSettings, indexSettings);
+        super(new Names(name, indexName, indexName, name), Defaults.BOOST, new FieldType(Defaults.FIELD_TYPE),
+                Version.indexCreated(indexSettings).onOrAfter(Version.V_2_0_0), Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER,
+                null, null, fieldDataSettings, indexSettings);
         this.type = type;
         this.typeAsBytes = type == null ? null : new BytesRef(type);
     }
@@ -181,6 +184,11 @@ public class ParentFieldMapper extends AbstractFieldMapper implements RootMapper
 
     @Override
     protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException {
+        boolean parent = context.docMapper().isParent(context.type());
+        if (parent && hasDocValues()) {
+            fields.add(createJoinField(context.type(), context.id()));
+        }
+
         if (!active()) {
             return;
         }
@@ -190,6 +198,9 @@ public class ParentFieldMapper extends AbstractFieldMapper implements RootMapper
             String parentId = context.parser().text();
             context.sourceToParse().parent(parentId);
             fields.add(new Field(names.indexName(), Uid.createUid(context.stringBuilder(), type, parentId), fieldType));
+            if (hasDocValues()) {
+                fields.add(createJoinField(type, parentId));
+            }
         } else {
             // otherwise, we are running it post processing of the xcontent
             String parsedParentId = context.doc().get(Defaults.NAME);
@@ -201,12 +212,24 @@ public class ParentFieldMapper extends AbstractFieldMapper implements RootMapper
                     }
                     // we did not add it in the parsing phase, add it now
                     fields.add(new Field(names.indexName(), Uid.createUid(context.stringBuilder(), type, parentId), fieldType));
+                    if (hasDocValues()) {
+                        fields.add(createJoinField(type, parentId));
+                    }
                 } else if (parentId != null && !parsedParentId.equals(Uid.createUid(context.stringBuilder(), type, parentId))) {
                     throw new MapperParsingException("Parent id mismatch, document value is [" + Uid.createUid(parsedParentId).id() + "], while external value is [" + parentId + "]");
                 }
             }
         }
         // we have parent mapping, yet no value was set, ignore it...
+    }
+
+    private SortedDocValuesField createJoinField(String parentType, String id) {
+        String joinField = joinField(parentType);
+        return new SortedDocValuesField(joinField, new BytesRef(id));
+    }
+
+    public static String joinField(String parentType) {
+        return ParentFieldMapper.NAME + "#" + parentType;
     }
 
     @Override
@@ -303,7 +326,9 @@ public class ParentFieldMapper extends AbstractFieldMapper implements RootMapper
         boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
 
         builder.startObject(CONTENT_TYPE);
-        builder.field("type", type);
+        if (type != null) {
+            builder.field("type", type);
+        }
         if (customFieldDataSettings != null) {
             builder.field("fielddata", (Map) customFieldDataSettings.getAsMap());
         } else if (includeDefaults) {
@@ -316,7 +341,7 @@ public class ParentFieldMapper extends AbstractFieldMapper implements RootMapper
     @Override
     public void merge(Mapper mergeWith, MergeResult mergeResult) throws MergeMappingException {
         ParentFieldMapper other = (ParentFieldMapper) mergeWith;
-        if (!Objects.equal(type, other.type)) {
+        if (Objects.equal(type, other.type) == false) {
             mergeResult.addConflict("The _parent field's type option can't be changed: [" + type + "]->[" + other.type + "]");
         }
 
@@ -334,7 +359,7 @@ public class ParentFieldMapper extends AbstractFieldMapper implements RootMapper
     }
 
     /**
-     * @return Whether the _parent field is actually used.
+     * @return Whether the _parent field is actually configured.
      */
     public boolean active() {
         return type != null;

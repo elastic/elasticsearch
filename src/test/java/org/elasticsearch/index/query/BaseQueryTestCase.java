@@ -27,7 +27,7 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.common.compress.CompressedString;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
@@ -129,7 +129,7 @@ public abstract class BaseQueryTestCase<QB extends QueryBuilder<QB>> extends Ela
         currentTypes = new String[randomIntBetween(0, 5)];
         for (int i = 0; i < currentTypes.length; i++) {
             String type = randomAsciiOfLengthBetween(1, 10);
-            mapperService.merge(type, new CompressedString(PutMappingRequest.buildFromSimplifiedDef(type,
+            mapperService.merge(type, new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef(type,
                     DATE_FIELD_NAME, "type=date",
                     INT_FIELD_NAME, "type=integer",
                     DOUBLE_FIELD_NAME, "type=double",

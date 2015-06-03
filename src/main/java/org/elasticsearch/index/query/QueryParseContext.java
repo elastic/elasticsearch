@@ -21,6 +21,8 @@ package org.elasticsearch.index.query;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
+import org.apache.lucene.index.LeafReaderContext;
+
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.queryparser.classic.MapperQueryParser;
 import org.apache.lucene.queryparser.classic.QueryParserSettings;
@@ -79,6 +81,8 @@ public class QueryParseContext {
 
     private final Index index;
 
+    private final Version indexVersionCreated;
+
     private final IndexQueryParserService indexQueryParser;
 
     private final Map<String, Query> namedQueries = Maps.newHashMap();
@@ -99,6 +103,7 @@ public class QueryParseContext {
 
     public QueryParseContext(Index index, IndexQueryParserService indexQueryParser) {
         this.index = index;
+        this.indexVersionCreated = Version.indexCreated(indexQueryParser.indexSettings());
         this.indexQueryParser = indexQueryParser;
     }
 
@@ -392,5 +397,9 @@ public class QueryParseContext {
      */
     public boolean isDeprecatedSetting(String setting) {
         return CACHE.match(setting) || CACHE_KEY.match(setting);
+    }
+
+    public Version indexVersionCreated() {
+        return indexVersionCreated;
     }
 }

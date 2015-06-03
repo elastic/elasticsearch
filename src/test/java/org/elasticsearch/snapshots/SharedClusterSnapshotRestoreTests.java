@@ -1929,7 +1929,7 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
         private long stopWaitingAt = -1;
 
         public BlockingClusterStateListener(ClusterService clusterService, String blockOn, String countOn, Priority passThroughPriority) {
-            this(clusterService, blockOn, countOn, passThroughPriority, TimeValue.timeValueSeconds(10));
+            this(clusterService, blockOn, countOn, passThroughPriority, TimeValue.timeValueMinutes(1));
         }
 
         public BlockingClusterStateListener(ClusterService clusterService, final String blockOn, final String countOn, Priority passThroughPriority, TimeValue timeout) {

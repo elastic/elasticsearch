@@ -17,16 +17,18 @@
  * under the License.
  */
 
-package org.elasticsearch.index.cache.query;
+package org.elasticsearch.common.compress.lzf;
 
-import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.common.io.stream.StreamOutput;
 
-/**
- */
-public class ShardQueryCacheModule extends AbstractModule {
+import java.io.IOException;
+
+// LZF compressor with write support, for testing only
+public class LZFTestCompressor extends LZFCompressor {
 
     @Override
-    protected void configure() {
-        bind(ShardQueryCache.class).asEagerSingleton();
+    public StreamOutput streamOutput(StreamOutput out) throws IOException {
+        return new LZFCompressedStreamOutput(out);
     }
+
 }

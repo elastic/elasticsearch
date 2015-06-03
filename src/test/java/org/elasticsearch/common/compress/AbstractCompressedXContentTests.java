@@ -23,10 +23,8 @@ import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Assert;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.Random;
@@ -37,49 +35,58 @@ import static org.hamcrest.Matchers.not;
 /**
  *
  */
-public class CompressedStringTests extends ElasticsearchTestCase {
+public abstract class AbstractCompressedXContentTests extends ElasticsearchTestCase {
 
-    @Test
-    public void simpleTestsLZF() throws IOException {
-        simpleTests("lzf");
+    private final Compressor compressor;
+
+    protected AbstractCompressedXContentTests(Compressor compressor) {
+        this.compressor = compressor;
     }
 
-    private void assertEquals(CompressedString s1, CompressedString s2) {
+    private void assertEquals(CompressedXContent s1, CompressedXContent s2) {
         Assert.assertEquals(s1, s2);
         assertArrayEquals(s1.uncompressed(), s2.uncompressed());
         assertEquals(s1.hashCode(), s2.hashCode());
     }
 
-    public void simpleTests(String compressor) throws IOException {
-        CompressorFactory.configure(Settings.settingsBuilder().put("compress.default.type", compressor).build());
-        String str = "this is a simple string";
-        CompressedString cstr = new CompressedString(str);
-        assertThat(cstr.string(), equalTo(str));
-        assertThat(new CompressedString(str), equalTo(cstr));
+    public void simpleTests() throws IOException {
+        Compressor defaultCompressor = CompressorFactory.defaultCompressor();
+        try {
+            CompressorFactory.setDefaultCompressor(compressor);
+            String str = "---\nf:this is a simple string";
+            CompressedXContent cstr = new CompressedXContent(str);
+            assertThat(cstr.string(), equalTo(str));
+            assertThat(new CompressedXContent(str), equalTo(cstr));
 
-        String str2 = "this is a simple string 2";
-        CompressedString cstr2 = new CompressedString(str2);
-        assertThat(cstr2.string(), not(equalTo(str)));
-        assertThat(new CompressedString(str2), not(equalTo(cstr)));
-        assertEquals(new CompressedString(str2), cstr2);
+            String str2 = "---\nf:this is a simple string 2";
+            CompressedXContent cstr2 = new CompressedXContent(str2);
+            assertThat(cstr2.string(), not(equalTo(str)));
+            assertThat(new CompressedXContent(str2), not(equalTo(cstr)));
+            assertEquals(new CompressedXContent(str2), cstr2);
+        } finally {
+            CompressorFactory.setDefaultCompressor(defaultCompressor);
+        }
     }
 
     public void testRandom() throws IOException {
-        String compressor = "lzf";
-        CompressorFactory.configure(Settings.settingsBuilder().put("compress.default.type", compressor).build());
-        Random r = getRandom();
-        for (int i = 0; i < 1000; i++) {
-            String string = TestUtil.randomUnicodeString(r, 10000);
-            CompressedString compressedString = new CompressedString(string);
-            assertThat(compressedString.string(), equalTo(string));
+        Compressor defaultCompressor = CompressorFactory.defaultCompressor();
+        try {
+            CompressorFactory.setDefaultCompressor(compressor);
+            Random r = getRandom();
+            for (int i = 0; i < 1000; i++) {
+                String string = TestUtil.randomUnicodeString(r, 10000);
+                // hack to make it detected as YAML
+                string = "---\n" + string;
+                CompressedXContent compressedXContent = new CompressedXContent(string);
+                assertThat(compressedXContent.string(), equalTo(string));
+            }
+        } finally {
+            CompressorFactory.setDefaultCompressor(defaultCompressor);
         }
     }
 
     public void testDifferentCompressedRepresentation() throws Exception {
-        byte[] b = "abcdefghijabcdefghij".getBytes("UTF-8");
-        CompressorFactory.defaultCompressor();
-
-        Compressor compressor = CompressorFactory.defaultCompressor();
+        byte[] b = "---\nf:abcdefghijabcdefghij".getBytes("UTF-8");
         BytesStreamOutput bout = new BytesStreamOutput();
         StreamOutput out = compressor.streamOutput(bout);
         out.writeBytes(b);
@@ -100,14 +107,14 @@ public class CompressedStringTests extends ElasticsearchTestCase {
         // of different size are being used
         assertFalse(b1.equals(b2));
         // we used the compressed representation directly and did not recompress
-        assertArrayEquals(b1.toBytes(), new CompressedString(b1).compressed());
-        assertArrayEquals(b2.toBytes(), new CompressedString(b2).compressed());
+        assertArrayEquals(b1.toBytes(), new CompressedXContent(b1).compressed());
+        assertArrayEquals(b2.toBytes(), new CompressedXContent(b2).compressed());
         // but compressedstring instances are still equal
-        assertEquals(new CompressedString(b1), new CompressedString(b2));
+        assertEquals(new CompressedXContent(b1), new CompressedXContent(b2));
     }
 
     public void testHashCode() throws IOException {
-        assertFalse(new CompressedString("a").hashCode() == new CompressedString("b").hashCode());
+        assertFalse(new CompressedXContent("{\"a\":\"b\"}").hashCode() == new CompressedXContent("{\"a\":\"c\"}").hashCode());
     }
 
 }

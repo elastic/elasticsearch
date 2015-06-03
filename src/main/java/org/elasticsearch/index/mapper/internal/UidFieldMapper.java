@@ -106,7 +106,7 @@ public class UidFieldMapper extends AbstractFieldMapper implements RootMapper {
         }
     }
 
-    public static class UidFieldType extends MappedFieldType {
+    static final class UidFieldType extends MappedFieldType {
 
         public UidFieldType() {
             super(AbstractFieldMapper.Defaults.FIELD_TYPE);

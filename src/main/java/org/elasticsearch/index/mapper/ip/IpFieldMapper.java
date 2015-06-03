@@ -162,7 +162,7 @@ public class IpFieldMapper extends NumberFieldMapper {
         }
     }
 
-    public static class IpFieldType extends NumberFieldType {
+    static final class IpFieldType extends NumberFieldType {
 
         public IpFieldType() {}
 
@@ -174,7 +174,6 @@ public class IpFieldMapper extends NumberFieldMapper {
         public NumberFieldType clone() {
             return new IpFieldType(this);
         }
-
 
         @Override
         public Long value(Object value) {

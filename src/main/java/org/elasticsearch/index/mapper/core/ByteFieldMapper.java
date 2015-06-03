@@ -130,7 +130,7 @@ public class ByteFieldMapper extends NumberFieldMapper {
         }
     }
 
-    public static class ByteFieldType extends NumberFieldType {
+    static final class ByteFieldType extends NumberFieldType {
         public ByteFieldType() {}
 
         protected ByteFieldType(ByteFieldType ref) {

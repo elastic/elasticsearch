@@ -136,7 +136,7 @@ public class IdFieldMapper extends AbstractFieldMapper implements RootMapper {
         }
     }
 
-    public static class IdFieldType extends MappedFieldType {
+    static final class IdFieldType extends MappedFieldType {
 
         public IdFieldType() {
             super(AbstractFieldMapper.Defaults.FIELD_TYPE);

@@ -136,7 +136,7 @@ public class TTLFieldMapper extends LongFieldMapper implements RootMapper {
         }
     }
 
-    public static class TTLFieldType extends LongFieldType {
+    static final class TTLFieldType extends LongFieldType {
 
         public TTLFieldType() {
         }

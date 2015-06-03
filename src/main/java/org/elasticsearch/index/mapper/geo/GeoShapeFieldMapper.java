@@ -232,7 +232,7 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper {
         }
     }
 
-    public static class GeoShapeFieldType extends MappedFieldType {
+    public static final class GeoShapeFieldType extends MappedFieldType {
 
         private PrefixTreeStrategy defaultStrategy;
         private RecursivePrefixTreeStrategy recursiveStrategy;

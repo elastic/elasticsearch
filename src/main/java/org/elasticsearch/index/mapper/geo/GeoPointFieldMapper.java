@@ -277,7 +277,7 @@ public class GeoPointFieldMapper extends AbstractFieldMapper implements ArrayVal
         }
     }
 
-    public static class GeoPointFieldType extends MappedFieldType {
+    public static final class GeoPointFieldType extends MappedFieldType {
 
         private MappedFieldType geohashFieldType;
         private int geohashPrecision;

@@ -124,7 +124,7 @@ public class RoutingFieldMapper extends AbstractFieldMapper implements RootMappe
         }
     }
 
-    public static class RoutingFieldType extends MappedFieldType {
+    static final class RoutingFieldType extends MappedFieldType {
 
         public RoutingFieldType() {
             super(AbstractFieldMapper.Defaults.FIELD_TYPE);

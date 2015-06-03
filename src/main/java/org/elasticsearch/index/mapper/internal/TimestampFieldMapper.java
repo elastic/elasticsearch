@@ -210,7 +210,7 @@ public class TimestampFieldMapper extends DateFieldMapper implements RootMapper 
         }
     }
 
-    public static class TimestampFieldType extends DateFieldType {
+    static final class TimestampFieldType extends DateFieldType {
 
         public TimestampFieldType() {}
 

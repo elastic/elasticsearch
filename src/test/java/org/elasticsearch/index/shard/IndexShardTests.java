@@ -19,10 +19,15 @@
 package org.elasticsearch.index.shard;
 
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.query.QueryParsingException;
+import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.junit.Test;
@@ -114,6 +119,34 @@ public class IndexShardTests extends ElasticsearchSingleNodeTest {
         });
         IndexStats indexStats = client().admin().indices().prepareStats("test").get().getIndex("test");
         assertNotNull(indexStats.getShards()[0].getCommitStats().getUserData().get(Engine.SYNC_COMMIT_ID));
+    }
+
+    public void testDeleteByQueryBWC() {
+        Version version = randomVersion();
+        assertAcked(client().admin().indices().prepareCreate("test")
+                .setSettings(SETTING_NUMBER_OF_SHARDS, 1, SETTING_NUMBER_OF_REPLICAS, 0, IndexMetaData.SETTING_VERSION_CREATED, version.id));
+        ensureGreen("test");
+        client().prepareIndex("test", "person").setSource("{ \"user\" : \"kimchy\" }").get();
+
+        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        IndexService test = indicesService.indexService("test");
+        IndexShard shard = test.shard(0);
+        int numDocs = 1;
+        shard.state = IndexShardState.RECOVERING;
+        try {
+            shard.performRecoveryOperation(new Translog.DeleteByQuery(new Engine.DeleteByQuery(null, new BytesArray("{\"term\" : { \"user\" : \"kimchy\" }}"), null, null, null, Engine.Operation.Origin.RECOVERY, 0, "person")));
+            assertTrue(version.onOrBefore(Version.V_1_0_0_Beta2));
+            numDocs = 0;
+        } catch (QueryParsingException ex) {
+            assertTrue(version.after(Version.V_1_0_0_Beta2));
+        } finally {
+            shard.state = IndexShardState.STARTED;
+        }
+        shard.engine().refresh("foo");
+
+        try (Engine.Searcher searcher = shard.engine().acquireSearcher("foo")) {
+            assertEquals(numDocs, searcher.reader().numDocs());
+        }
     }
 
 }

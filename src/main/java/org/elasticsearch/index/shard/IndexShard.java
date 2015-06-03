@@ -756,13 +756,13 @@ public class IndexShard extends AbstractIndexShardComponent {
     }
 
     public org.apache.lucene.util.Version minimumCompatibleVersion() {
-        org.apache.lucene.util.Version luceneVersion = org.apache.lucene.util.Version.LUCENE_3_6;
+        org.apache.lucene.util.Version luceneVersion = null;
         for(Segment segment : engine().segments()) {
-            if (luceneVersion.onOrAfter(segment.getVersion())) {
+            if (luceneVersion == null || luceneVersion.onOrAfter(segment.getVersion())) {
                 luceneVersion = segment.getVersion();
             }
         }
-        return luceneVersion;
+        return luceneVersion == null ?  Version.indexCreated(indexSettings).luceneVersion : luceneVersion;
     }
 
     public SnapshotIndexCommit snapshotIndex() throws EngineException {

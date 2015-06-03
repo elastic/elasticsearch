@@ -36,7 +36,7 @@ public class TestUtils {
     public static final String PRIVATE_KEY_RESOURCE = "/private.key";
 
     private final static FormatDateTimeFormatter formatDateTimeFormatter = Joda.forPattern("yyyy-MM-dd");
-    private final static DateMathParser dateMathParser = new DateMathParser(formatDateTimeFormatter, TimeUnit.MILLISECONDS);
+    private final static DateMathParser dateMathParser = new DateMathParser(formatDateTimeFormatter);
     private final static org.elasticsearch.common.joda.time.format.DateTimeFormatter dateTimeFormatter = formatDateTimeFormatter.printer();
 
     public static void isSame(Set<License> firstLicenses, Set<License> secondLicenses) {

@@ -44,7 +44,7 @@ public abstract class AbstractLicensesIntegrationTests extends ElasticsearchInte
 
     private final static FormatDateTimeFormatter formatDateTimeFormatter = Joda.forPattern("yyyy-MM-dd");
     private final static org.elasticsearch.common.joda.time.format.DateTimeFormatter dateTimeFormatter = formatDateTimeFormatter.printer();
-    private final static DateMathParser dateMathParser = new DateMathParser(formatDateTimeFormatter, TimeUnit.MILLISECONDS);
+    private final static DateMathParser dateMathParser = new DateMathParser(formatDateTimeFormatter);
 
     public static String dateMathString(String time, final long now) {
         return dateTimeFormatter.print(dateMathParser.parse(time, new Callable<Long>() {

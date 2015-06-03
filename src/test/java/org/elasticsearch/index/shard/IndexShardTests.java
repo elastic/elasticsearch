@@ -50,6 +50,7 @@ import java.util.concurrent.ExecutionException;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_VERSION_CREATED;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
@@ -361,5 +362,20 @@ public class IndexShardTests extends ElasticsearchSingleNodeTest {
         try (Engine.Searcher searcher = shard.engine().acquireSearcher("foo")) {
             assertEquals(numDocs, searcher.reader().numDocs());
         }
+    }
+
+    public void testMinimumCompatVersion() {
+        Version versionCreated = VersionUtils.randomVersion(random());
+        assertAcked(client().admin().indices().prepareCreate("test")
+                .setSettings(SETTING_NUMBER_OF_SHARDS, 1, SETTING_NUMBER_OF_REPLICAS, 0, SETTING_VERSION_CREATED, versionCreated.id));
+        client().prepareIndex("test", "test").setSource("{}").get();
+        ensureGreen("test");
+        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        IndexShard test = indicesService.indexService("test").shard(0);
+        assertEquals(versionCreated.luceneVersion, test.minimumCompatibleVersion());
+        client().prepareIndex("test", "test").setSource("{}").get();
+        assertEquals(versionCreated.luceneVersion, test.minimumCompatibleVersion());
+        test.engine().flush();
+        assertEquals(Version.CURRENT.luceneVersion, test.minimumCompatibleVersion());
     }
 }

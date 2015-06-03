@@ -8,15 +8,12 @@ package org.elasticsearch.watcher.transport.actions.execute;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
-import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.watcher.execution.ActionExecutionMode;
 import org.elasticsearch.watcher.support.validation.Validation;
 import org.elasticsearch.watcher.trigger.TriggerEvent;
-import org.elasticsearch.watcher.execution.ActionExecutionMode;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -29,11 +26,9 @@ public class ExecuteWatchRequest extends MasterNodeOperationRequest<ExecuteWatch
 
     private String id;
     private boolean ignoreCondition = false;
-    private boolean ignoreThrottle = false;
     private boolean recordExecution = false;
-    private Map<String, Object> alternativeInput = null;
-    private BytesReference triggerSource = null;
-    private String triggerType = null;
+    private @Nullable Map<String, Object> triggerData = null;
+    private @Nullable Map<String, Object> alternativeInput = null;
     private Map<String, ActionExecutionMode> actionModes = new HashMap<>();
 
     ExecuteWatchRequest() {
@@ -75,20 +70,6 @@ public class ExecuteWatchRequest extends MasterNodeOperationRequest<ExecuteWatch
     }
 
     /**
-     * @return Should the throttle be ignored for this execution
-     */
-    public boolean isIgnoreThrottle() {
-        return ignoreThrottle;
-    }
-
-    /**
-     * @param ignoreThrottle Sets if the throttle should be ignored for this execution
-     */
-    public void setIgnoreThrottle(boolean ignoreThrottle) {
-        this.ignoreThrottle = ignoreThrottle;
-    }
-
-    /**
      * @return Should this execution be recorded in the history index
      */
     public boolean isRecordExecution() {
@@ -117,34 +98,26 @@ public class ExecuteWatchRequest extends MasterNodeOperationRequest<ExecuteWatch
     }
 
     /**
-     * @param triggerType the type of trigger to use
-     * @param triggerSource the trigger source to use
-     */
-    public void setTriggerEvent(String triggerType, BytesReference triggerSource) {
-        this.triggerType = triggerType;
-        this.triggerSource = triggerSource;
-    }
-
-    /**
-     * @param triggerEvent the trigger event to use
+     * @param data The data that should be associated with the trigger event.
      * @throws IOException
      */
-    public void setTriggerEvent(TriggerEvent triggerEvent) throws IOException {
-        XContentBuilder jsonBuilder = XContentFactory.jsonBuilder();
-        triggerEvent.toXContent(jsonBuilder, ToXContent.EMPTY_PARAMS);
-        setTriggerEvent(triggerEvent.type(), jsonBuilder.bytes());
+    public void setTriggerData(Map<String, Object> data) throws IOException {
+        this.triggerData = data;
     }
 
     /**
-     * @return the type of trigger to use
+     * @param event the trigger event to use
+     * @throws IOException
      */
-    public String getTriggerType() { return triggerType; }
+    public void setTriggerEvent(TriggerEvent event) throws IOException {
+        setTriggerData(event.data());
+    }
 
     /**
      * @return the trigger to use
      */
-    public BytesReference getTriggerSource() {
-        return triggerSource;
+    public Map<String, Object> getTriggerData() {
+        return triggerData;
     }
 
 
@@ -183,9 +156,6 @@ public class ExecuteWatchRequest extends MasterNodeOperationRequest<ExecuteWatch
                 validationException = ValidateActions.addValidationError(error.message(), validationException);
             }
         }
-        if (triggerSource == null || triggerType == null) {
-            validationException = ValidateActions.addValidationError("trigger event is missing", validationException);
-        }
         return validationException;
     }
 
@@ -194,13 +164,13 @@ public class ExecuteWatchRequest extends MasterNodeOperationRequest<ExecuteWatch
         super.readFrom(in);
         id = in.readString();
         ignoreCondition = in.readBoolean();
-        ignoreThrottle = in.readBoolean();
         recordExecution = in.readBoolean();
         if (in.readBoolean()){
             alternativeInput = in.readMap();
         }
-        triggerSource = in.readBytesReference();
-        triggerType = in.readString();
+        if (in.readBoolean()) {
+            triggerData = in.readMap();
+        }
         long actionModesCount = in.readLong();
         actionModes = new HashMap<>();
         for (int i = 0; i < actionModesCount; i++) {
@@ -214,14 +184,15 @@ public class ExecuteWatchRequest extends MasterNodeOperationRequest<ExecuteWatch
         super.writeTo(out);
         out.writeString(id);
         out.writeBoolean(ignoreCondition);
-        out.writeBoolean(ignoreThrottle);
         out.writeBoolean(recordExecution);
         out.writeBoolean(alternativeInput != null);
         if (alternativeInput != null) {
             out.writeMap(alternativeInput);
         }
-        out.writeBytesReference(triggerSource);
-        out.writeString(triggerType);
+        out.writeBoolean(triggerData != null);
+        if (triggerData != null) {
+            out.writeMap(triggerData);
+        }
         out.writeLong(actionModes.size());
         for (Map.Entry<String, ActionExecutionMode> entry : actionModes.entrySet()) {
             out.writeString(entry.getKey());

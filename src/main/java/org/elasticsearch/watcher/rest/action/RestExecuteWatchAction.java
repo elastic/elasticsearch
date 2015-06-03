@@ -22,7 +22,6 @@ import org.elasticsearch.watcher.rest.WatcherRestHandler;
 import org.elasticsearch.watcher.transport.actions.execute.ExecuteWatchRequest;
 import org.elasticsearch.watcher.transport.actions.execute.ExecuteWatchRequestBuilder;
 import org.elasticsearch.watcher.transport.actions.execute.ExecuteWatchResponse;
-import org.elasticsearch.watcher.trigger.TriggerEvent;
 import org.elasticsearch.watcher.trigger.TriggerService;
 
 import java.io.IOException;
@@ -61,10 +60,9 @@ public class RestExecuteWatchAction extends WatcherRestHandler {
     private ExecuteWatchRequest parseRequest(RestRequest request, WatcherClient client) throws IOException {
         String watchId = request.param("id");
         ExecuteWatchRequestBuilder builder = client.prepareExecuteWatch(watchId);
-        TriggerEvent triggerEvent = null;
 
         if (request.content() == null || request.content().length() == 0) {
-            throw new WatcherException("could not parse watch execution request for [{}]. missing required [{}] field.", watchId, Field.TRIGGER_EVENT.getPreferredName());
+            return builder.request();
         }
 
         XContentParser parser = XContentHelper.createParser(request.content());
@@ -86,9 +84,8 @@ public class RestExecuteWatchAction extends WatcherRestHandler {
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (Field.ALTERNATIVE_INPUT.match(currentFieldName)) {
                     builder.setAlternativeInput(parser.map());
-                } else if (Field.TRIGGER_EVENT.match(currentFieldName)) {
-                    triggerEvent = triggerService.parseTriggerEvent(watchId, watchId, parser);
-                    builder.setTriggerEvent(triggerEvent);
+                } else if (Field.TRIGGER_DATA.match(currentFieldName)) {
+                    builder.setTriggerData(parser.map());
                 } else if (Field.ACTION_MODES.match(currentFieldName)) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                         if (token == XContentParser.Token.FIELD_NAME) {
@@ -110,10 +107,6 @@ public class RestExecuteWatchAction extends WatcherRestHandler {
             } else {
                 throw new ParseException("could not parse watch execution request for [{}]. unexpected token [{}]", watchId, token);
             }
-        }
-
-        if (triggerEvent == null) {
-            throw new WatcherException("could not parse watch execution request for [{}]. missing required [{}] field.", watchId, Field.TRIGGER_EVENT.getPreferredName());
         }
 
         return builder.request();
@@ -138,6 +131,6 @@ public class RestExecuteWatchAction extends WatcherRestHandler {
         ParseField ACTION_MODES = new ParseField("action_modes");
         ParseField ALTERNATIVE_INPUT = new ParseField("alternative_input");
         ParseField IGNORE_CONDITION = new ParseField("ignore_condition");
-        ParseField TRIGGER_EVENT = new ParseField("trigger_event");
+        ParseField TRIGGER_DATA = new ParseField("trigger_data");
     }
 }

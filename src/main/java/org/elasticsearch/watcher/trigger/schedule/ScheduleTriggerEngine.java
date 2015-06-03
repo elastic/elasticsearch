@@ -5,13 +5,17 @@
  */
 package org.elasticsearch.watcher.trigger.schedule;
 
+import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.watcher.support.WatcherDateTimeUtils;
 import org.elasticsearch.watcher.support.clock.Clock;
 import org.elasticsearch.watcher.trigger.AbstractTriggerEngine;
 import org.elasticsearch.watcher.trigger.TriggerService;
 
+import javax.annotation.Nullable;
 import java.io.IOException;
+import java.util.Map;
 
 /**
  *
@@ -32,6 +36,28 @@ public abstract class ScheduleTriggerEngine extends AbstractTriggerEngine<Schedu
     @Override
     public String type() {
         return TYPE;
+    }
+
+    @Override
+    public ScheduleTriggerEvent simulateEvent(String jobId, @Nullable Map<String, Object> data, TriggerService service) {
+        DateTime now = clock.nowUTC();
+        if (data == null) {
+            return new ScheduleTriggerEvent(jobId, now, now);
+        }
+
+        Object value = data.get(ScheduleTriggerEvent.Field.TRIGGERED_TIME.getPreferredName());
+        DateTime triggeredTime = value != null ? WatcherDateTimeUtils.convertToDate(value, clock) : now;
+        if (triggeredTime == null) {
+            throw new ScheduleTriggerException("could not simulate schedule event. could not convert provided triggered time [{}] to date/time", value);
+        }
+
+        value = data.get(ScheduleTriggerEvent.Field.SCHEDULED_TIME.getPreferredName());
+        DateTime scheduledTime = value != null ? WatcherDateTimeUtils.convertToDate(value, clock) : triggeredTime;
+        if (scheduledTime == null) {
+            throw new ScheduleTriggerException("could not simulate schedule event. could not convert provided scheduled time [{}] to date/time", value);
+        }
+
+        return new ScheduleTriggerEvent(jobId, triggeredTime, scheduledTime);
     }
 
     @Override

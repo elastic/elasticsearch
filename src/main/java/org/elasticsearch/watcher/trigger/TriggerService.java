@@ -16,6 +16,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 
@@ -72,6 +73,14 @@ public class TriggerService extends AbstractComponent {
 
     public void register(TriggerEngine.Listener listener) {
         listeners.add(listener);
+    }
+
+    public TriggerEvent simulateEvent(String type, String jobId, Map<String, Object> data) {
+        TriggerEngine engine = engines.get(type);
+        if (engine == null) {
+            throw new TriggerException("could not simulate trigger event. unknown trigger type [{}]", type);
+        }
+        return engine.simulateEvent(jobId, data, this);
     }
 
     public Trigger parseTrigger(String jobName, XContentParser parser) throws IOException {

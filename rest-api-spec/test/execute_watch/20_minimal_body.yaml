@@ -33,15 +33,6 @@
   - do:
       watcher.execute_watch:
         id: "my_logging_watch"
-        body: > 
-          {
-            "trigger_event" : {
-              "schedule" : {
-                "scheduled_time" : "2015-05-05T20:58:02.443Z",
-                "triggered_time" : "2015-05-05T20:58:02.443Z"
-              }
-            }
-          }
 
   - match: { "watch_record.watch_id": "my_logging_watch" }
   - match: { "watch_record.state": "executed" }

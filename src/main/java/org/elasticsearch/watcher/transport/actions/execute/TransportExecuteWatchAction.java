@@ -84,7 +84,9 @@ public class TransportExecuteWatchAction extends WatcherTransportAction<ExecuteW
                 throw new WatcherException("watch [{}] does not exist", request.getId());
             }
 
-            TriggerEvent triggerEvent = triggerService.parseTriggerEvent(watch.id(), watch.id() + "_manual_execution", request.getTriggerType(), request.getTriggerSource());
+            String triggerType = watch.trigger().type();
+            TriggerEvent triggerEvent = triggerService.simulateEvent(triggerType, watch.id(), request.getTriggerData());
+
             ManualExecutionContext.Builder ctxBuilder = ManualExecutionContext.builder(watch, new ManualTriggerEvent(triggerEvent.jobName(), triggerEvent), executionService.defaultThrottlePeriod());
 
             DateTime executionTime = clock.now(UTC);

@@ -13,6 +13,7 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.watcher.actions.email.service.EmailTemplate;
 import org.elasticsearch.watcher.actions.email.service.support.EmailServer;
 import org.elasticsearch.watcher.client.WatcherClient;
+import org.elasticsearch.watcher.execution.ActionExecutionMode;
 import org.elasticsearch.watcher.shield.ShieldSecretService;
 import org.elasticsearch.watcher.support.secret.SecretService;
 import org.elasticsearch.watcher.support.xcontent.XContentSource;
@@ -138,8 +139,8 @@ public class EmailSecretsIntegrationTests extends AbstractWatcherIntegrationTest
         TriggerEvent triggerEvent = new ScheduleTriggerEvent(new DateTime(UTC), new DateTime(UTC));
         ExecuteWatchResponse executeResponse = watcherClient.prepareExecuteWatch("_id")
                 .setRecordExecution(false)
-                .setIgnoreThrottle(true)
                 .setTriggerEvent(triggerEvent)
+                .setActionMode("_all", ActionExecutionMode.FORCE_EXECUTE)
                 .get();
         assertThat(executeResponse, notNullValue());
         contentSource = executeResponse.getRecordSource();

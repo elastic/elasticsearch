@@ -35,6 +35,11 @@ public class ClockMock implements Clock {
     }
 
     @Override
+    public DateTime nowUTC() {
+        return now(DateTimeZone.UTC);
+    }
+
+    @Override
     public DateTime now(DateTimeZone timeZone) {
         return now.toDateTime(timeZone);
     }

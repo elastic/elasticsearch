@@ -8,10 +8,9 @@ package org.elasticsearch.watcher.transport.actions.execute;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.watcher.client.WatcherClient;
-import org.elasticsearch.watcher.trigger.TriggerEvent;
 import org.elasticsearch.watcher.execution.ActionExecutionMode;
+import org.elasticsearch.watcher.trigger.TriggerEvent;
 
 import java.io.IOException;
 import java.util.Map;
@@ -45,14 +44,6 @@ public class ExecuteWatchRequestBuilder extends MasterNodeOperationRequestBuilde
     }
 
     /**
-     * @param ignoreThrottle Sets if the throttle should be ignored for this execution
-     */
-    public ExecuteWatchRequestBuilder setIgnoreThrottle(boolean ignoreThrottle) {
-        request.setIgnoreThrottle(ignoreThrottle);
-        return this;
-    }
-
-    /**
      * @param recordExecution Sets if this execution be recorded in the history index and reflected in the watch
      */
     public ExecuteWatchRequestBuilder setRecordExecution(boolean recordExecution) {
@@ -69,11 +60,10 @@ public class ExecuteWatchRequestBuilder extends MasterNodeOperationRequestBuilde
     }
 
     /**
-     * @param triggerType the trigger type to use
-     * @param triggerSource the trigger source to use
+     * @param data The data that should be associated with the trigger event
      */
-    public ExecuteWatchRequestBuilder setTriggerEvent(String triggerType, BytesReference triggerSource) {
-        request.setTriggerEvent(triggerType, triggerSource);
+    public ExecuteWatchRequestBuilder setTriggerData(Map<String, Object> data) throws IOException {
+        request.setTriggerData(data);
         return this;
     }
 

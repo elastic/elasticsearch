@@ -20,6 +20,8 @@ public interface Clock {
 
     DateTime now();
 
+    DateTime nowUTC();
+
     DateTime now(DateTimeZone timeZone);
 
     TimeValue timeElapsedSince(DateTime time);

@@ -59,11 +59,9 @@
         id: "my_exe_watch"
         body: >
           {
-            "trigger_event" : {
-              "schedule" : {
-                "scheduled_time" : "2015-05-05T20:58:02.443Z",
-                "triggered_time" : "2015-05-05T20:58:02.443Z"
-              }
+            "trigger_data" : {
+              "scheduled_time" : "2015-05-05T20:58:02.443Z",
+              "triggered_time" : "2015-05-05T20:58:02.443Z"
             },
             "alternative_input" : {
               "foo" : "bar"

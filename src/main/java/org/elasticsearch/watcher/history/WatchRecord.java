@@ -100,11 +100,11 @@ public class WatchRecord implements ToXContent {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(Field.WATCH_ID.getPreferredName(), id.watchId());
+        builder.field(Field.STATE.getPreferredName(), state.id());
 
         builder.field(Field.TRIGGER_EVENT.getPreferredName());
         triggerEvent.recordXContent(builder, params);
 
-        builder.field(Field.STATE.getPreferredName(), state.id());
         if (input != null) {
             builder.startObject(Watch.Field.INPUT.getPreferredName())
                     .field(input.type(), input, params)

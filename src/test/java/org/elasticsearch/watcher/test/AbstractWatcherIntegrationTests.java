@@ -50,11 +50,13 @@ import org.elasticsearch.watcher.license.LicenseService;
 import org.elasticsearch.watcher.support.clock.ClockMock;
 import org.elasticsearch.watcher.support.http.HttpClient;
 import org.elasticsearch.watcher.support.init.proxy.ScriptServiceProxy;
+import org.elasticsearch.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.watcher.trigger.ScheduleTriggerEngineMock;
 import org.elasticsearch.watcher.trigger.TriggerService;
 import org.elasticsearch.watcher.trigger.schedule.ScheduleModule;
 import org.elasticsearch.watcher.watch.Watch;
 import org.elasticsearch.watcher.watch.WatchStore;
+import org.hamcrest.Matcher;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -279,6 +281,10 @@ public abstract class AbstractWatcherIntegrationTests extends ElasticsearchInteg
 
     protected LicenseService licenseService() {
         return getInstanceFromMaster(LicenseService.class);
+    }
+
+    protected void assertValue(XContentSource source, String path, Matcher<?> matcher) {
+        assertThat(source.getValue(path), (Matcher<Object>) matcher);
     }
 
     protected void assertWatchWithMinimumPerformedActionsCount(final String watchName, final long minimumExpectedWatchActionsWithActionPerformed) throws Exception {

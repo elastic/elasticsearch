@@ -5,10 +5,12 @@
  */
 package org.elasticsearch.watcher.trigger;
 
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.Map;
 
 /**
  *
@@ -36,6 +38,8 @@ public interface TriggerEngine<T extends Trigger, E extends TriggerEvent> {
      * @return          {@code true} if the job existed and removed, {@code false} otherwise.
      */
     boolean remove(String jobId);
+
+    E simulateEvent(String jobId, @Nullable Map<String, Object> data, TriggerService service);
 
     T parseTrigger(String context, XContentParser parser) throws IOException;
 

@@ -10,8 +10,10 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.watcher.trigger.TriggerEngine;
 import org.elasticsearch.watcher.trigger.TriggerService;
 
+import javax.annotation.Nullable;
 import java.io.IOException;
 import java.util.Collection;
+import java.util.Map;
 
 /**
  */
@@ -53,6 +55,22 @@ public class ManualTriggerEngine implements TriggerEngine<ManualTrigger,ManualTr
     @Override
     public boolean remove(String jobId) {
         return false;
+    }
+
+    @Override
+    public ManualTriggerEvent simulateEvent(String jobId, @Nullable Map<String, Object> data, TriggerService service) {
+        if (data == null) {
+            throw new ManualTriggerException("could not simulate manual trigger event. missing required simulated trigger type");
+        }
+        if (data.size() == 1) {
+            String type = data.keySet().iterator().next();
+            return new ManualTriggerEvent(jobId, service.simulateEvent(type, jobId, data));
+        }
+        Object type = data.get("type");
+        if (type instanceof String) {
+            return new ManualTriggerEvent(jobId, service.simulateEvent((String) type, jobId, data));
+        }
+        throw new ManualTriggerException("could not simulate manual trigger event. could not resolve simulated trigger type");
     }
 
     @Override

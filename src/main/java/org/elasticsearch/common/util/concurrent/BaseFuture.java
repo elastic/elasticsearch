@@ -91,7 +91,7 @@ public abstract class BaseFuture<V> implements Future<V> {
     @Override
     public V get(long timeout, TimeUnit unit) throws InterruptedException,
             TimeoutException, ExecutionException {
-        Transports.assertNotTransportThread("Blocking operation");
+        assert timeout <= 0 || Transports.assertNotTransportThread("Blocking operation");
         return sync.get(unit.toNanos(timeout));
     }
 
@@ -113,24 +113,8 @@ public abstract class BaseFuture<V> implements Future<V> {
      */
     @Override
     public V get() throws InterruptedException, ExecutionException {
-        Transports.assertNotTransportThread("Blocking operation");
+        assert Transports.assertNotTransportThread("Blocking operation");
         return sync.get();
-    }
-
-    /**
-     * Similar to {@link #get()} with the exception that it never blocks. If the operation wasn't completed yet
-     * it will return {@code null}. Otherwise it will behave in a similar fashion to {@link #get()} and will return
-     * the computed result, including throwing a {@link CancellationException} or {@link ExecutionException} if
-     * the computation was cancelled or threw an error (respectively).
-     *
-     * @throws CancellationException if the computation was cancelled
-     * @throws ExecutionException    if the computation threw an exception
-     */
-    public V tryGet() throws CancellationException, ExecutionException {
-        if (sync.isDone() == false) {
-            return null;
-        }
-        return sync.getValue();
     }
 
     @Override

@@ -51,13 +51,15 @@ public enum Transports {
         return false;
     }
 
-    public static void assertTransportThread() {
+    public static boolean assertTransportThread() {
         final Thread t = Thread.currentThread();
         assert isTransportThread(t) : "Expected transport thread but got [" + t + "]";
+        return true;
     }
 
-    public static void assertNotTransportThread(String reason) {
+    public static boolean assertNotTransportThread(String reason) {
         final Thread t = Thread.currentThread();
-        assert isTransportThread(t) ==false : "Expected current thread [" + t + "] to not be a transport thread. Reason: ";
+        assert isTransportThread(t) == false : "Expected current thread [" + t + "] to not be a transport thread. Reason: [" + reason + "]";
+        return true;
     }
 }

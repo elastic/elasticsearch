@@ -57,7 +57,6 @@ import org.elasticsearch.index.indexing.IndexingStats;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceModule;
 import org.elasticsearch.index.merge.MergeStats;
-import org.elasticsearch.index.query.IndexQueryParserModule;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.refresh.RefreshStats;
@@ -315,7 +314,6 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
         modules.add(new IndexCacheModule(indexSettings));
         modules.add(new IndexFieldDataModule(indexSettings));
         modules.add(new MapperServiceModule());
-        modules.add(new IndexQueryParserModule(indexSettings));
         modules.add(new IndexAliasesServiceModule());
         modules.add(new IndexModule(indexSettings));
 

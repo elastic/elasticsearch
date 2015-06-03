@@ -550,26 +550,6 @@ public class IndexShard extends AbstractIndexShardComponent {
         indexingService.postDelete(delete);
     }
 
-    public Engine.DeleteByQuery prepareDeleteByQuery(BytesReference source, @Nullable String[] filteringAliases, Engine.Operation.Origin origin, String... types) {
-        return prepareDeleteByQuery(queryParserService, mapperService, indexAliasesService, indexCache, source, filteringAliases, origin, types);
-    }
-
-    static Engine.DeleteByQuery prepareDeleteByQuery(IndexQueryParserService queryParserService, MapperService mapperService, IndexAliasesService indexAliasesService, IndexCache indexCache, BytesReference source, @Nullable String[] filteringAliases, Engine.Operation.Origin origin, String... types) {
-        long startTime = System.nanoTime();
-        if (types == null) {
-            types = Strings.EMPTY_ARRAY;
-        }
-        Query query = queryParserService.parseQuery(source).query();
-        Query searchFilter = mapperService.searchFilter(types);
-        if (searchFilter != null) {
-            query = Queries.filtered(query, searchFilter);
-        }
-
-        Query aliasFilter = indexAliasesService.aliasFilter(filteringAliases);
-        BitDocIdSetFilter parentFilter = mapperService.hasNested() ? indexCache.bitsetFilterCache().getBitDocIdSetFilter(Queries.newNonNestedFilter()) : null;
-        return new Engine.DeleteByQuery(query, source, filteringAliases, aliasFilter, parentFilter, origin, startTime, types);
-    }
-
     public Engine.GetResult get(Engine.Get get) {
         readAllowed();
         return engine().get(get);

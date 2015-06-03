@@ -46,7 +46,7 @@ public class ShieldSettingsSource extends ClusterDiscoveryConfiguration.UnicastZ
 
     public static final String DEFAULT_USER_NAME = "test_user";
     public static final String DEFAULT_PASSWORD = "changeme";
-    private static final String DEFAULT_PASSWORD_HASHED = new String(Hasher.BCRYPT.hash(new SecuredString(DEFAULT_PASSWORD.toCharArray())));
+    public static final String DEFAULT_PASSWORD_HASHED = new String(Hasher.BCRYPT.hash(new SecuredString(DEFAULT_PASSWORD.toCharArray())));
     public static final String DEFAULT_ROLE = "user";
 
     public static final String DEFAULT_TRANSPORT_CLIENT_ROLE = "trans_client_user";

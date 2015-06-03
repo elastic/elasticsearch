@@ -18,8 +18,14 @@
  */
 package org.elasticsearch.index.shard;
 
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.join.BitDocIdSetFilter;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.aliases.IndexAliasesService;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.engine.Engine;
@@ -122,7 +128,7 @@ public class TranslogRecoveryPerformer {
                     break;
                 case DELETE_BY_QUERY:
                     Translog.DeleteByQuery deleteByQuery = (Translog.DeleteByQuery) operation;
-                    engine.delete(IndexShard.prepareDeleteByQuery(queryParserService, mapperService, indexAliasesService, indexCache,
+                    engine.delete(prepareDeleteByQuery(queryParserService, mapperService, indexAliasesService, indexCache,
                             deleteByQuery.source(), deleteByQuery.filteringAliases(), Engine.Operation.Origin.RECOVERY, deleteByQuery.types()));
                     break;
                 default:
@@ -147,6 +153,22 @@ public class TranslogRecoveryPerformer {
             }
         }
         operationProcessed();
+    }
+
+    private static Engine.DeleteByQuery prepareDeleteByQuery(IndexQueryParserService queryParserService, MapperService mapperService, IndexAliasesService indexAliasesService, IndexCache indexCache, BytesReference source, @Nullable String[] filteringAliases, Engine.Operation.Origin origin, String... types) {
+        long startTime = System.nanoTime();
+        if (types == null) {
+            types = Strings.EMPTY_ARRAY;
+        }
+        Query query = queryParserService.parseQuery(source).query();
+        Query searchFilter = mapperService.searchFilter(types);
+        if (searchFilter != null) {
+            query = Queries.filtered(query, searchFilter);
+        }
+
+        Query aliasFilter = indexAliasesService.aliasFilter(filteringAliases);
+        BitDocIdSetFilter parentFilter = mapperService.hasNested() ? indexCache.bitsetFilterCache().getBitDocIdSetFilter(Queries.newNonNestedFilter()) : null;
+        return new Engine.DeleteByQuery(query, source, filteringAliases, aliasFilter, parentFilter, origin, startTime, types);
     }
 
     /**

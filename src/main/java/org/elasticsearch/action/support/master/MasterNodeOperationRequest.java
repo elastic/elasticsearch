@@ -56,7 +56,7 @@ public abstract class MasterNodeOperationRequest<T extends MasterNodeOperationRe
      * A timeout value in case the master has not been discovered yet or disconnected.
      */
     public final T masterNodeTimeout(String timeout) {
-        return masterNodeTimeout(TimeValue.parseTimeValue(timeout, null, "MasterNodeOperationRequest.masterNodeTimeout"));
+        return masterNodeTimeout(TimeValue.parseTimeValue(timeout, null, getClass().getSimpleName() + ".masterNodeTimeout"));
     }
 
     public final TimeValue masterNodeTimeout() {

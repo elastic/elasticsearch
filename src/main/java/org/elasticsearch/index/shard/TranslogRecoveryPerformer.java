@@ -21,11 +21,14 @@ package org.elasticsearch.index.shard;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitDocIdSetFilter;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.aliases.IndexAliasesService;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.engine.Engine;
@@ -37,6 +40,8 @@ import org.elasticsearch.index.mapper.MapperUtils;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.query.IndexQueryParserService;
+import org.elasticsearch.index.query.ParsedQuery;
+import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.index.translog.Translog;
 
 import java.util.HashMap;
@@ -160,7 +165,24 @@ public class TranslogRecoveryPerformer {
         if (types == null) {
             types = Strings.EMPTY_ARRAY;
         }
-        Query query = queryParserService.parseQuery(source).query();
+        Query query;
+        try {
+            query = queryParserService.parseQuery(source).query();
+        } catch (QueryParsingException ex) {
+            // for BWC we try to parse directly the query since pre 1.0.0.Beta2 we didn't require a top level query field
+            if ( queryParserService.getIndexCreatedVersion().onOrBefore(Version.V_1_0_0_Beta2)) {
+                try {
+                    XContentParser parser = XContentHelper.createParser(source);
+                    ParsedQuery parse = queryParserService.parse(parser);
+                    query = parse.query();
+                } catch (Throwable t) {
+                    ex.addSuppressed(t);
+                    throw ex;
+                }
+            } else {
+                throw ex;
+            }
+        }
         Query searchFilter = mapperService.searchFilter(types);
         if (searchFilter != null) {
             query = Queries.filtered(query, searchFilter);

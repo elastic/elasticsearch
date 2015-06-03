@@ -847,21 +847,22 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
             logger.info("--> unblocking snapshot execution");
             snapshotListener.unblock();
 
-            logger.info("--> wait until the snapshot is done");
-
         } finally {
             clusterService.remove(snapshotListener);
         }
 
+        logger.info("--> wait until the snapshot is done");
+
         assertBusy(new Runnable() {
             @Override
             public void run() {
-                SnapshotsStatusResponse snapshotsStatusResponse = client().admin().cluster().prepareSnapshotStatus("test-repo").setSnapshots("test-snap").get();
-                ImmutableList<SnapshotStatus> snapshotStatuses = snapshotsStatusResponse.getSnapshots();
-                assertEquals(1, snapshotStatuses.size());
-                assertTrue(snapshotStatuses.get(0).getState().completed());
+                GetSnapshotsResponse snapshotsStatusResponse = client().admin().cluster().prepareGetSnapshots("test-repo").setSnapshots("test-snap").get();
+                SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots().get(0);
+                assertTrue(snapshotInfo.state().completed());
             }
-        });
+        }, 1, TimeUnit.MINUTES);
+
+        logger.info("--> verify that snapshot was succesful");
 
         GetSnapshotsResponse snapshotsStatusResponse = client().admin().cluster().prepareGetSnapshots("test-repo").setSnapshots("test-snap").get();
         SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots().get(0);

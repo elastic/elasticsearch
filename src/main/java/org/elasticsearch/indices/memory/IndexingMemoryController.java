@@ -116,7 +116,7 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
         this.minShardTranslogBufferSize = componentSettings.getAsBytesSize("min_shard_translog_buffer_size", new ByteSizeValue(2, ByteSizeUnit.KB));
         this.maxShardTranslogBufferSize = componentSettings.getAsBytesSize("max_shard_translog_buffer_size", new ByteSizeValue(64, ByteSizeUnit.KB));
 
-        this.inactiveTime = componentSettings.getAsTime("shard_inactive_time", TimeValue.timeValueMinutes(30));
+        this.inactiveTime = componentSettings.getAsTime("shard_inactive_time", TimeValue.timeValueMinutes(5));
         // we need to have this relatively small to move a shard from inactive to active fast (enough)
         this.interval = componentSettings.getAsTime("interval", TimeValue.timeValueSeconds(30));
 

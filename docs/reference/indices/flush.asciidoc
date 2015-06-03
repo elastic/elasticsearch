@@ -50,7 +50,7 @@ POST /_flush
 === Synced Flush
 
 Elasticsearch tracks the indexing activity of each shard. Shards that have not
-received any indexing operations for 30 minutes are automatically marked as inactive. This presents
+received any indexing operations for 5 minutes are automatically marked as inactive. This presents
 an opportunity for Elasticsearch to reduce shard resources and also perform
 a special kind of flush, called `synced flush`. A synced flush performs a normal flush, then adds
 a generated unique marker (sync_id) to all shards.
@@ -117,7 +117,7 @@ which returns something similar to:
 === Synced Flush API
 
 The Synced Flush API allows an administrator to initiate a synced flush manually. This can be particularly useful for
-a planned (rolling) cluster restart where you can stop indexing and don't want to wait the default 30 minutes for
+a planned (rolling) cluster restart where you can stop indexing and don't want to wait the default 5 minutes for
 idle indices to be sync-flushed automatically.
 
 While handy, there are a couple of caveats for this API:

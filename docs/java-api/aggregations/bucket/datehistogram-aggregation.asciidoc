@@ -47,11 +47,11 @@ Histogram agg = sr.getAggregations().get("agg");
 
 // For each entry
 for (Histogram.Bucket entry : agg.getBuckets()) {
-    DateTime keyAsDate = (DateTime) entry.getKey();  // Key
-    String key = entry.getKeyAsString();            // Key as String
-    long docCount = entry.getDocCount();             // Doc count
+    DateTime key = (DateTime) entry.getKey();    // Key
+    String keyAsString = entry.getKeyAsString(); // Key as String
+    long docCount = entry.getDocCount();         // Doc count
 
-    logger.info("key [{}], date [{}], doc_count [{}]", key, keyAsDate.getYear(), docCount);
+    logger.info("key [{}], date [{}], doc_count [{}]", keyAsString, key.getYear(), docCount);
 }
 --------------------------------------------------
 

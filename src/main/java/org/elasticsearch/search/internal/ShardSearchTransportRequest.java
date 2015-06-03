@@ -28,12 +28,11 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.Template;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
-import java.util.Map;
 
 /**
  * Shard level search request that represents an actual search sent from the coordinating node to the nodes holding
@@ -123,18 +122,8 @@ public class ShardSearchTransportRequest extends TransportRequest implements Sha
     }
 
     @Override
-    public String templateName() {
-        return shardSearchLocalRequest.templateName();
-    }
-
-    @Override
-    public ScriptService.ScriptType templateType() {
-        return shardSearchLocalRequest.templateType();
-    }
-
-    @Override
-    public Map<String, Object> templateParams() {
-        return shardSearchLocalRequest.templateParams();
+    public Template template() {
+        return shardSearchLocalRequest.template();
     }
 
     @Override

@@ -43,7 +43,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.*;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.compress.CompressedString;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.settings.Settings;
@@ -1080,7 +1080,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                 // to find a _meta document
                 // So we have no choice but to index first and send mappings afterwards
                 MapperService mapperService = indexShard.indexService().mapperService();
-                mapperService.merge(request.type(), new CompressedString(update.toBytes()), true);
+                mapperService.merge(request.type(), new CompressedXContent(update.toBytes()), true);
                 created = operation.execute(indexShard);
                 mappingUpdatedAction.updateMappingOnMasterAsynchronously(indexName, request.type(), update);
             } else {

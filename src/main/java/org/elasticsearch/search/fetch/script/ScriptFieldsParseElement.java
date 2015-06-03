@@ -20,12 +20,19 @@
 package org.elasticsearch.search.fetch.script;
 
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.script.*;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.Script.ScriptField;
+import org.elasticsearch.script.ScriptContext;
+import org.elasticsearch.script.ScriptParameterParser;
 import org.elasticsearch.script.ScriptParameterParser.ScriptParameterValue;
+import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.SearchParseElement;
+import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.util.Map;
+
+import static com.google.common.collect.Maps.newHashMap;
 
 /**
  * <pre>
@@ -53,15 +60,18 @@ public class ScriptFieldsParseElement implements SearchParseElement {
             } else if (token == XContentParser.Token.START_OBJECT) {
                 String fieldName = currentFieldName;
                 ScriptParameterParser scriptParameterParser = new ScriptParameterParser();
-                String script = null;
-                ScriptService.ScriptType scriptType = null;
+                Script script = null;
                 Map<String, Object> params = null;
                 boolean ignoreException = false;
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                     if (token == XContentParser.Token.FIELD_NAME) {
                         currentFieldName = parser.currentName();
                     } else if (token == XContentParser.Token.START_OBJECT) {
-                        params = parser.map();
+                        if (ScriptField.SCRIPT.match(currentFieldName)) {
+                            script = Script.parse(parser);
+                        } else if ("params".equals(currentFieldName)) {
+                            params = parser.map();
+                        }
                     } else if (token.isValue()) {
                         if ("ignore_failure".equals(currentFieldName)) {
                             ignoreException = parser.booleanValue();
@@ -71,12 +81,24 @@ public class ScriptFieldsParseElement implements SearchParseElement {
                     }
                 }
 
-                ScriptParameterValue scriptValue = scriptParameterParser.getDefaultScriptParameterValue();
-                if (scriptValue != null) {
-                    script = scriptValue.script();
-                    scriptType = scriptValue.scriptType();
+                if (script == null) { // Didn't find anything using the new API so try using the old one instead
+                    ScriptParameterValue scriptValue = scriptParameterParser.getDefaultScriptParameterValue();
+                    if (scriptValue != null) {
+                        if (params == null) {
+                            params = newHashMap();
+                        }
+                        script = new Script(scriptValue.script(), scriptValue.scriptType(), scriptParameterParser.lang(), params);
+                    }
+                } else if (params != null) {
+                    throw new SearchParseException(context, "script params must be specified inside script object",
+                            parser.getTokenLocation());
                 }
-                SearchScript searchScript = context.scriptService().search(context.lookup(), new Script(scriptParameterParser.lang(), script, scriptType, params), ScriptContext.Standard.SEARCH);
+
+                if (script == null) {
+                    throw new SearchParseException(context, "must specify a script in script fields", parser.getTokenLocation());
+                }
+
+                SearchScript searchScript = context.scriptService().search(context.lookup(), script, ScriptContext.Standard.SEARCH);
                 context.scriptFields().add(new ScriptFieldsContext.ScriptField(fieldName, searchScript, ignoreException));
             }
         }

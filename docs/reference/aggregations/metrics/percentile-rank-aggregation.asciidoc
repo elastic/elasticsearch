@@ -72,9 +72,11 @@ a script to convert them on-the-fly:
         "load_time_outlier" : {
             "percentile_ranks" : {
                 "values" : [3, 5],
-                "script" : "doc['load_time'].value / timeUnit", <1>
-                "params" : {
-                    "timeUnit" : 1000   <2>
+                "script" : {
+                    "inline": "doc['load_time'].value / timeUnit", <1>
+                    "params" : {
+                        "timeUnit" : 1000   <2>
+                    }
                 }
             }
         }
@@ -85,7 +87,28 @@ a script to convert them on-the-fly:
 script to generate values which percentile ranks are calculated on
 <2> Scripting supports parameterized input just like any other script
 
-TIP: The `script` parameter expects an inline script. Use `script_id` for indexed scripts and `script_file` for scripts in the `config/scripts/` directory.
+This will interpret the `script` parameter as an `inline` script with the default script language and no script parameters. To use a file script use the following syntax:
+
+[source,js]
+--------------------------------------------------
+{
+    "aggs" : {
+        "load_time_outlier" : {
+            "percentile_ranks" : {
+                "values" : [3, 5],
+                "script" : {
+                    "file": "my_script",
+                    "params" : {
+                        "timeUnit" : 1000
+                    }
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+TIP: for indexed scripts replace the `file` parameter with an `id` parameter.
 
 ==== Missing value
 
@@ -108,3 +131,4 @@ had a value.
 --------------------------------------------------
 
 <1> Documents without a value in the `grade` field will fall into the same bucket as documents that have the value `10`.
+

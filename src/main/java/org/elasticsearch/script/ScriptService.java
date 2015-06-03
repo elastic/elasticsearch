@@ -25,6 +25,7 @@ import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.RemovalListener;
 import com.google.common.cache.RemovalNotification;
 import com.google.common.collect.ImmutableMap;
+
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -103,9 +104,25 @@ public class ScriptService extends AbstractComponent implements Closeable {
 
     private Client client = null;
 
+    /**
+     * @deprecated Use {@link ScriptField} instead. This should be removed in
+     *             2.0
+     */
     public static final ParseField SCRIPT_LANG = new ParseField("lang","script_lang");
+    /**
+     * @deprecated Use {@link ScriptType#getParseField()} instead. This should
+     *             be removed in 2.0
+     */
     public static final ParseField SCRIPT_FILE = new ParseField("script_file");
+    /**
+     * @deprecated Use {@link ScriptType#getParseField()} instead. This should
+     *             be removed in 2.0
+     */
     public static final ParseField SCRIPT_ID = new ParseField("script_id");
+    /**
+     * @deprecated Use {@link ScriptType#getParseField()} instead. This should
+     *             be removed in 2.0
+     */
     public static final ParseField SCRIPT_INLINE = new ParseField("script");
 
     @Inject
@@ -300,24 +317,27 @@ public class ScriptService extends AbstractComponent implements Closeable {
     private void validate(BytesReference scriptBytes, String scriptLang) {
         try {
             XContentParser parser = XContentFactory.xContent(scriptBytes).createParser(scriptBytes);
-            TemplateQueryParser.TemplateContext context = TemplateQueryParser.parse(parser, "params", "script", "template");
-            if (Strings.hasLength(context.template())){
+            parser.nextToken();
+            Template template = TemplateQueryParser.parse(scriptLang, parser, "params", "script", "template");
+            if (Strings.hasLength(template.getScript())) {
                 //Just try and compile it
                 //This will have the benefit of also adding the script to the cache if it compiles
                 try {
                     //we don't know yet what the script will be used for, but if all of the operations for this lang with
                     //indexed scripts are disabled, it makes no sense to even compile it and cache it.
                     if (isAnyScriptContextEnabled(scriptLang, getScriptEngineServiceForLang(scriptLang), ScriptType.INDEXED)) {
-                        CompiledScript compiledScript = compileInternal(new Script(scriptLang, context.template(), ScriptType.INLINE, null));
+                        CompiledScript compiledScript = compileInternal(template);
                         if (compiledScript == null) {
-                            throw new IllegalArgumentException("Unable to parse [" + context.template() +
+                            throw new IllegalArgumentException("Unable to parse [" + template.getScript() +
                                     "] lang [" + scriptLang + "] (ScriptService.compile returned null)");
                         }
                     } else {
-                        logger.warn("skipping compile of script [{}], lang [{}] as all scripted operations are disabled for indexed scripts", context.template(), scriptLang);
+                        logger.warn(
+                                "skipping compile of script [{}], lang [{}] as all scripted operations are disabled for indexed scripts",
+                                template.getScript(), scriptLang);
                     }
                 } catch (Exception e) {
-                    throw new IllegalArgumentException("Unable to parse [" + context.template() +
+                    throw new IllegalArgumentException("Unable to parse [" + template.getScript() +
                             "] lang [" + scriptLang + "]", e);
                 }
             } else {
@@ -524,47 +544,39 @@ public class ScriptService extends AbstractComponent implements Closeable {
      */
     public static enum ScriptType {
 
-        INLINE,
-        INDEXED,
-        FILE;
+        INLINE(0, "inline"),
+        INDEXED(1, "id"),
+        FILE(2, "file");
 
-        private static final int INLINE_VAL = 0;
-        private static final int INDEXED_VAL = 1;
-        private static final int FILE_VAL = 2;
+        private final int val;
+        private final ParseField parseField;
 
         public static ScriptType readFrom(StreamInput in) throws IOException {
             int scriptTypeVal = in.readVInt();
-            switch (scriptTypeVal) {
-                case INDEXED_VAL:
-                    return INDEXED;
-                case INLINE_VAL:
-                    return INLINE;
-                case FILE_VAL:
-                    return FILE;
-                default:
-                    throw new IllegalArgumentException("Unexpected value read for ScriptType got [" + scriptTypeVal +
-                            "] expected one of [" + INLINE_VAL + "," + INDEXED_VAL + "," + FILE_VAL + "]");
+            for (ScriptType type : values()) {
+                if (type.val == scriptTypeVal) {
+                    return type;
+                }
             }
+            throw new IllegalArgumentException("Unexpected value read for ScriptType got [" + scriptTypeVal + "] expected one of ["
+                    + INLINE.val + "," + FILE.val + "," + INDEXED.val + "]");
         }
 
         public static void writeTo(ScriptType scriptType, StreamOutput out) throws IOException{
             if (scriptType != null) {
-                switch (scriptType){
-                    case INDEXED:
-                        out.writeVInt(INDEXED_VAL);
-                        return;
-                    case INLINE:
-                        out.writeVInt(INLINE_VAL);
-                        return;
-                    case FILE:
-                        out.writeVInt(FILE_VAL);
-                        return;
-                    default:
-                        throw new IllegalStateException("Unknown ScriptType " + scriptType);
-                }
+                out.writeVInt(scriptType.val);
             } else {
-                out.writeVInt(INLINE_VAL); //Default to inline
+                out.writeVInt(INLINE.val); //Default to inline
             }
+        }
+
+        private ScriptType(int val, String name) {
+            this.val = val;
+            this.parseField = new ParseField(name);
+        }
+
+        public ParseField getParseField() {
+            return parseField;
         }
 
         @Override

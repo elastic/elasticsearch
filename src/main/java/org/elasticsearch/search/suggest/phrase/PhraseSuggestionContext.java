@@ -204,14 +204,6 @@ class PhraseSuggestionContext extends SuggestionContext {
         this.collateQueryScript = collateQueryScript;
     }
 
-    CompiledScript getCollateFilterScript() {
-        return collateFilterScript;
-    }
-
-    void setCollateFilterScript(CompiledScript collateFilterScript) {
-        this.collateFilterScript = collateFilterScript;
-    }
-
     Map<String, Object> getCollateScriptParams() {
         return collateScriptParams;
     }

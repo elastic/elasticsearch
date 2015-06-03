@@ -42,8 +42,6 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
     private String preTag;
     private String postTag;
     private String collateQuery;
-    private String collateFilter;
-    private String collatePreference;
     private Map<String, Object> collateParams;
     private Boolean collatePrune;
 
@@ -179,22 +177,6 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
     }
 
     /**
-     * Sets a filter used for filtering out suggested phrases (collation).
-     */
-    public PhraseSuggestionBuilder collateFilter(String collateFilter) {
-        this.collateFilter = collateFilter;
-        return this;
-    }
-
-    /**
-     * Sets routing preferences for executing filter query (collation).
-     */
-    public PhraseSuggestionBuilder collatePreference(String collatePreference) {
-        this.collatePreference = collatePreference;
-        return this;
-    }
-
-    /**
      * Sets additional params for collate script
      */
     public PhraseSuggestionBuilder collateParams(Map<String, Object> collateParams) {
@@ -254,17 +236,9 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
             builder.field("post_tag", postTag);
             builder.endObject();
         }
-        if (collateQuery != null || collateFilter != null) {
+        if (collateQuery != null) {
             builder.startObject("collate");
-            if (collateQuery != null) {
-                builder.field("query", collateQuery);
-            }
-            if (collateFilter != null) {
-                builder.field("filter", collateFilter);
-            }
-            if (collatePreference != null) {
-                builder.field("preference", collatePreference);
-            }
+            builder.field("query", collateQuery);
             if (collateParams != null) {
                 builder.field("params", collateParams);
             }

@@ -20,6 +20,7 @@ package org.elasticsearch.search.aggregations.bucket;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.range.Range;
 import org.elasticsearch.search.aggregations.bucket.range.Range.Bucket;
@@ -108,14 +109,13 @@ public class DateRangeTests extends ElasticsearchIntegrationTest {
         if (randomBoolean()) {
             rangeBuilder.field("date");
         } else {
-            rangeBuilder.script("doc['date'].value");
+            rangeBuilder.script(new Script("doc['date'].value"));
         }
-        SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(rangeBuilder
-                        .addUnboundedTo("a long time ago", "now-50y")
-                        .addRange("recently", "now-50y", "now-1y")
-                        .addUnboundedFrom("last year", "now-1y"))
-                .execute().actionGet();
+        SearchResponse response = client()
+                .prepareSearch("idx")
+                .addAggregation(
+                        rangeBuilder.addUnboundedTo("a long time ago", "now-50y").addRange("recently", "now-50y", "now-1y")
+                                .addUnboundedFrom("last year", "now-1y")).execute().actionGet();
 
         assertSearchResponse(response);
 
@@ -583,14 +583,11 @@ public class DateRangeTests extends ElasticsearchIntegrationTest {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(dateRange("range")
                         .field("dates")
-                        .script("new DateTime(_value.longValue(), DateTimeZone.UTC).plusMonths(1).getMillis()")
-                        .addUnboundedTo(date(2, 15))
-                        .addRange(date(2, 15), date(3, 15))
-                        .addUnboundedFrom(date(3, 15)))
-                .execute().actionGet();
+                                .script(new Script("new DateTime(_value.longValue(), DateTimeZone.UTC).plusMonths(1).getMillis()"))
+                                .addUnboundedTo(date(2, 15)).addRange(date(2, 15), date(3, 15)).addUnboundedFrom(date(3, 15))).execute()
+                .actionGet();
 
         assertSearchResponse(response);
-
 
         Range range = response.getAggregations().get("range");
         assertThat(range, notNullValue());
@@ -626,6 +623,8 @@ public class DateRangeTests extends ElasticsearchIntegrationTest {
         assertThat(bucket.getDocCount(), equalTo(numDocs - 1l));
     }
 
+    
+
     /*
         Feb 2,  Mar 3,      1
         Mar 2,  Apr 3,      2
@@ -640,15 +639,11 @@ public class DateRangeTests extends ElasticsearchIntegrationTest {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(dateRange("range")
                         .field("dates")
-                        .script("new DateTime(_value.longValue(), DateTimeZone.UTC).plusMonths(1).getMillis()")
-                        .addUnboundedTo(date(2, 15))
-                        .addRange(date(2, 15), date(3, 15))
-                        .addUnboundedFrom(date(3, 15))
-                        .subAggregation(max("max")))
-                .execute().actionGet();
+                                .script(new Script("new DateTime(_value.longValue(), DateTimeZone.UTC).plusMonths(1).getMillis()"))
+                                .addUnboundedTo(date(2, 15)).addRange(date(2, 15), date(3, 15)).addUnboundedFrom(date(3, 15))
+                                .subAggregation(max("max"))).execute().actionGet();
 
         assertSearchResponse(response);
-
 
         Range range = response.getAggregations().get("range");
         assertThat(range, notNullValue());
@@ -696,7 +691,7 @@ public class DateRangeTests extends ElasticsearchIntegrationTest {
     public void script_SingleValue() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(dateRange("range")
-                        .script("doc['date'].value")
+.script(new Script("doc['date'].value"))
                         .addUnboundedTo(date(2, 15))
                         .addRange(date(2, 15), date(3, 15))
                         .addUnboundedFrom(date(3, 15)))
@@ -741,17 +736,14 @@ public class DateRangeTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void script_SingleValue_WithSubAggregator_Inherited() throws Exception {
-        SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(dateRange("range")
-                        .script("doc['date'].value")
-                        .addUnboundedTo(date(2, 15))
-                        .addRange(date(2, 15), date(3, 15))
-                        .addUnboundedFrom(date(3, 15))
-                        .subAggregation(max("max")))
-                .execute().actionGet();
+        SearchResponse response = client()
+                .prepareSearch("idx")
+                .addAggregation(
+                        dateRange("range").script(new Script("doc['date'].value")).addUnboundedTo(date(2, 15))
+                                .addRange(date(2, 15), date(3, 15)).addUnboundedFrom(date(3, 15)).subAggregation(max("max"))).execute()
+                .actionGet();
 
         assertSearchResponse(response);
-
 
         Range range = response.getAggregations().get("range");
         assertThat(range, notNullValue());
@@ -795,6 +787,8 @@ public class DateRangeTests extends ElasticsearchIntegrationTest {
         assertThat(max, notNullValue());
     }
 
+    
+
     /*
         Jan 2,  Feb 3,      1
         Feb 2,  Mar 3,      2
@@ -806,16 +800,13 @@ public class DateRangeTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void script_MultiValued() throws Exception {
-        SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(dateRange("range")
-                        .script("doc['dates'].values")
-                        .addUnboundedTo(date(2, 15))
-                        .addRange(date(2, 15), date(3, 15))
-                        .addUnboundedFrom(date(3, 15)))
-                .execute().actionGet();
+        SearchResponse response = client()
+                .prepareSearch("idx")
+                .addAggregation(
+                        dateRange("range").script(new Script("doc['dates'].values")).addUnboundedTo(date(2, 15))
+                                .addRange(date(2, 15), date(3, 15)).addUnboundedFrom(date(3, 15))).execute().actionGet();
 
         assertSearchResponse(response);
-
 
         Range range = response.getAggregations().get("range");
         assertThat(range, notNullValue());
@@ -855,15 +846,11 @@ public class DateRangeTests extends ElasticsearchIntegrationTest {
     public void script_MultiValued_WithAggregatorInherited() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(dateRange("range")
-                        .script("doc['dates'].values")
-                        .addUnboundedTo(date(2, 15))
-                        .addRange(date(2, 15), date(3, 15))
-                        .addUnboundedFrom(date(3, 15))
-                        .subAggregation(min("min")))
-                .execute().actionGet();
+.script(new Script("doc['dates'].values")).addUnboundedTo(date(2, 15))
+                                .addRange(date(2, 15), date(3, 15)).addUnboundedFrom(date(3, 15)).subAggregation(min("min"))).execute()
+                .actionGet();
 
         assertSearchResponse(response);
-
 
         Range range = response.getAggregations().get("range");
         assertThat(range, notNullValue());
@@ -1076,6 +1063,382 @@ public class DateRangeTests extends ElasticsearchIntegrationTest {
         assertThat(buckets.get(0).getDocCount(), equalTo(0l));
         assertThat(buckets.get(0).getAggregations().asList().isEmpty(), is(true));
 
+    }
+
+    /*
+     * TODO Remove in 2.0
+     */
+    @Test
+    public void dateMathOldScriptAPI() throws Exception {
+        DateRangeBuilder rangeBuilder = dateRange("range");
+        if (randomBoolean()) {
+            rangeBuilder.field("date");
+        } else {
+            rangeBuilder.script("doc['date'].value");
+        }
+        SearchResponse response = client().prepareSearch("idx")
+                .addAggregation(rangeBuilder
+                        .addUnboundedTo("a long time ago", "now-50y")
+                        .addRange("recently", "now-50y", "now-1y")
+                        .addUnboundedFrom("last year", "now-1y"))
+                .execute().actionGet();
+    
+        assertSearchResponse(response);
+    
+        Range range = response.getAggregations().get("range");
+        assertThat(range, notNullValue());
+        assertThat(range.getName(), equalTo("range"));
+        assertThat(range.getBuckets().size(), equalTo(3));
+    
+        // TODO: use diamond once JI-9019884 is fixed
+        List<Range.Bucket> buckets = new ArrayList<Range.Bucket>(range.getBuckets());
+    
+        Range.Bucket bucket = buckets.get(0);
+        assertThat((String) bucket.getKey(), equalTo("a long time ago"));
+        assertThat(bucket.getKeyAsString(), equalTo("a long time ago"));
+        assertThat(bucket.getDocCount(), equalTo(0L));
+    
+        bucket = buckets.get(1);
+        assertThat((String) bucket.getKey(), equalTo("recently"));
+        assertThat(bucket.getKeyAsString(), equalTo("recently"));
+        assertThat(bucket.getDocCount(), equalTo((long) numDocs));
+    
+        bucket = buckets.get(2);
+        assertThat((String) bucket.getKey(), equalTo("last year"));
+        assertThat(bucket.getKeyAsString(), equalTo("last year"));
+        assertThat(bucket.getDocCount(), equalTo(0L));
+    }
+
+    /*
+     * TODO Remove in 2.0
+     */
+    @Test
+    public void multiValuedField_WithValueScriptOldScriptAPI() throws Exception {
+        SearchResponse response = client()
+                .prepareSearch("idx")
+                .addAggregation(
+                        dateRange("range").field("dates")
+                        .script("new DateTime(_value.longValue(), DateTimeZone.UTC).plusMonths(1).getMillis()")
+                        .addUnboundedTo(date(2, 15))
+                        .addRange(date(2, 15), date(3, 15))
+                        .addUnboundedFrom(date(3, 15)))
+                .execute().actionGet();
+    
+        assertSearchResponse(response);
+    
+    
+        Range range = response.getAggregations().get("range");
+        assertThat(range, notNullValue());
+        assertThat(range.getName(), equalTo("range"));
+        List<? extends Bucket> buckets = range.getBuckets();
+        assertThat(buckets.size(), equalTo(3));
+    
+        Range.Bucket bucket = buckets.get(0);
+        assertThat(bucket, notNullValue());
+        assertThat((String) bucket.getKey(), equalTo("*-2012-02-15T00:00:00.000Z"));
+        assertThat(((DateTime) bucket.getFrom()), nullValue());
+        assertThat(((DateTime) bucket.getTo()), equalTo(date(2, 15)));
+        assertThat(bucket.getFromAsString(), nullValue());
+        assertThat(bucket.getToAsString(), equalTo("2012-02-15T00:00:00.000Z"));
+        assertThat(bucket.getDocCount(), equalTo(1l));
+    
+        bucket = buckets.get(1);
+        assertThat(bucket, notNullValue());
+        assertThat((String) bucket.getKey(), equalTo("2012-02-15T00:00:00.000Z-2012-03-15T00:00:00.000Z"));
+        assertThat(((DateTime) bucket.getFrom()), equalTo(date(2, 15)));
+        assertThat(((DateTime) bucket.getTo()), equalTo(date(3, 15)));
+        assertThat(bucket.getFromAsString(), equalTo("2012-02-15T00:00:00.000Z"));
+        assertThat(bucket.getToAsString(), equalTo("2012-03-15T00:00:00.000Z"));
+        assertThat(bucket.getDocCount(), equalTo(2l));
+    
+        bucket = buckets.get(2);
+        assertThat(bucket, notNullValue());
+        assertThat((String) bucket.getKey(), equalTo("2012-03-15T00:00:00.000Z-*"));
+        assertThat(((DateTime) bucket.getFrom()), equalTo(date(3, 15)));
+        assertThat(((DateTime) bucket.getTo()), nullValue());
+        assertThat(bucket.getFromAsString(), equalTo("2012-03-15T00:00:00.000Z"));
+        assertThat(bucket.getToAsString(), nullValue());
+        assertThat(bucket.getDocCount(), equalTo(numDocs - 1l));
+    }
+
+    /*
+     * TODO Remove in 2.0
+     */
+    @Test
+    public void multiValuedField_WithValueScript_WithInheritedSubAggregatorOldScriptAPI() throws Exception {
+        SearchResponse response = client()
+                .prepareSearch("idx")
+                .addAggregation(
+                        dateRange("range").field("dates")
+                        .script("new DateTime(_value.longValue(), DateTimeZone.UTC).plusMonths(1).getMillis()")
+                        .addUnboundedTo(date(2, 15))
+                        .addRange(date(2, 15), date(3, 15))
+                        .addUnboundedFrom(date(3, 15))
+                        .subAggregation(max("max")))
+                .execute().actionGet();
+    
+        assertSearchResponse(response);
+    
+    
+        Range range = response.getAggregations().get("range");
+        assertThat(range, notNullValue());
+        assertThat(range.getName(), equalTo("range"));
+        List<? extends Bucket> buckets = range.getBuckets();
+        assertThat(buckets.size(), equalTo(3));
+    
+        Range.Bucket bucket = buckets.get(0);
+        assertThat(bucket, notNullValue());
+        assertThat((String) bucket.getKey(), equalTo("*-2012-02-15T00:00:00.000Z"));
+        assertThat(((DateTime) bucket.getFrom()), nullValue());
+        assertThat(((DateTime) bucket.getTo()), equalTo(date(2, 15)));
+        assertThat(bucket.getFromAsString(), nullValue());
+        assertThat(bucket.getToAsString(), equalTo("2012-02-15T00:00:00.000Z"));
+        assertThat(bucket.getDocCount(), equalTo(1l));
+        Max max = bucket.getAggregations().get("max");
+        assertThat(max, notNullValue());
+        assertThat(max.getValue(), equalTo((double) date(3, 3).getMillis()));
+    
+        bucket = buckets.get(1);
+        assertThat(bucket, notNullValue());
+        assertThat((String) bucket.getKey(), equalTo("2012-02-15T00:00:00.000Z-2012-03-15T00:00:00.000Z"));
+        assertThat(((DateTime) bucket.getFrom()), equalTo(date(2, 15)));
+        assertThat(((DateTime) bucket.getTo()), equalTo(date(3, 15)));
+        assertThat(bucket.getFromAsString(), equalTo("2012-02-15T00:00:00.000Z"));
+        assertThat(bucket.getToAsString(), equalTo("2012-03-15T00:00:00.000Z"));
+        assertThat(bucket.getDocCount(), equalTo(2l));
+        max = bucket.getAggregations().get("max");
+        assertThat(max, notNullValue());
+        assertThat(max.getValue(), equalTo((double) date(4, 3).getMillis()));
+    
+        bucket = buckets.get(2);
+        assertThat(bucket, notNullValue());
+        assertThat((String) bucket.getKey(), equalTo("2012-03-15T00:00:00.000Z-*"));
+        assertThat(((DateTime) bucket.getFrom()), equalTo(date(3, 15)));
+        assertThat(((DateTime) bucket.getTo()), nullValue());
+        assertThat(bucket.getFromAsString(), equalTo("2012-03-15T00:00:00.000Z"));
+        assertThat(bucket.getToAsString(), nullValue());
+        assertThat(bucket.getDocCount(), equalTo(numDocs - 1l));
+        max = bucket.getAggregations().get("max");
+        assertThat(max, notNullValue());
+    }
+
+    /*
+     * TODO Remove in 2.0
+     */
+    @Test
+    public void script_SingleValueOldScriptAPI() throws Exception {
+        SearchResponse response = client()
+                .prepareSearch("idx")
+                .addAggregation(
+                        dateRange("range").script("doc['date'].value").addUnboundedTo(date(2, 15)).addRange(date(2, 15), date(3, 15))
+                                .addUnboundedFrom(date(3, 15))).execute().actionGet();
+    
+        assertSearchResponse(response);
+    
+        Range range = response.getAggregations().get("range");
+        assertThat(range, notNullValue());
+        assertThat(range.getName(), equalTo("range"));
+        List<? extends Bucket> buckets = range.getBuckets();
+        assertThat(buckets.size(), equalTo(3));
+    
+        Range.Bucket bucket = buckets.get(0);
+        assertThat(bucket, notNullValue());
+        assertThat((String) bucket.getKey(), equalTo("*-2012-02-15T00:00:00.000Z"));
+        assertThat(((DateTime) bucket.getFrom()), nullValue());
+        assertThat(((DateTime) bucket.getTo()), equalTo(date(2, 15)));
+        assertThat(bucket.getFromAsString(), nullValue());
+        assertThat(bucket.getToAsString(), equalTo("2012-02-15T00:00:00.000Z"));
+        assertThat(bucket.getDocCount(), equalTo(2l));
+    
+        bucket = buckets.get(1);
+        assertThat(bucket, notNullValue());
+        assertThat((String) bucket.getKey(), equalTo("2012-02-15T00:00:00.000Z-2012-03-15T00:00:00.000Z"));
+        assertThat(((DateTime) bucket.getFrom()), equalTo(date(2, 15)));
+        assertThat(((DateTime) bucket.getTo()), equalTo(date(3, 15)));
+        assertThat(bucket.getFromAsString(), equalTo("2012-02-15T00:00:00.000Z"));
+        assertThat(bucket.getToAsString(), equalTo("2012-03-15T00:00:00.000Z"));
+        assertThat(bucket.getDocCount(), equalTo(2l));
+    
+        bucket = buckets.get(2);
+        assertThat(bucket, notNullValue());
+        assertThat((String) bucket.getKey(), equalTo("2012-03-15T00:00:00.000Z-*"));
+        assertThat(((DateTime) bucket.getFrom()), equalTo(date(3, 15)));
+        assertThat(((DateTime) bucket.getTo()), nullValue());
+        assertThat(bucket.getFromAsString(), equalTo("2012-03-15T00:00:00.000Z"));
+        assertThat(bucket.getToAsString(), nullValue());
+        assertThat(bucket.getDocCount(), equalTo(numDocs - 4l));
+    }
+
+    /*
+     * TODO Remove in 2.0
+     */
+    @Test
+    public void script_SingleValue_WithSubAggregator_InheritedOldScriptAPI() throws Exception {
+        SearchResponse response = client()
+                .prepareSearch("idx")
+                .addAggregation(
+                        dateRange("range")
+                        .script("doc['date'].value")
+                        .addUnboundedTo(date(2, 15))
+                        .addRange(date(2, 15), date(3, 15))
+                        .addUnboundedFrom(date(3, 15))
+                        .subAggregation(max("max")))
+                .execute().actionGet();
+    
+        assertSearchResponse(response);
+    
+    
+        Range range = response.getAggregations().get("range");
+        assertThat(range, notNullValue());
+        assertThat(range.getName(), equalTo("range"));
+        List<? extends Bucket> buckets = range.getBuckets();
+        assertThat(buckets.size(), equalTo(3));
+    
+        Range.Bucket bucket = buckets.get(0);
+        assertThat(bucket, notNullValue());
+        assertThat((String) bucket.getKey(), equalTo("*-2012-02-15T00:00:00.000Z"));
+        assertThat(((DateTime) bucket.getFrom()), nullValue());
+        assertThat(((DateTime) bucket.getTo()), equalTo(date(2, 15)));
+        assertThat(bucket.getFromAsString(), nullValue());
+        assertThat(bucket.getToAsString(), equalTo("2012-02-15T00:00:00.000Z"));
+        assertThat(bucket.getDocCount(), equalTo(2l));
+        Max max = bucket.getAggregations().get("max");
+        assertThat(max, notNullValue());
+        assertThat(max.getValue(), equalTo((double) date(2, 2).getMillis()));
+    
+        bucket = buckets.get(1);
+        assertThat(bucket, notNullValue());
+        assertThat((String) bucket.getKey(), equalTo("2012-02-15T00:00:00.000Z-2012-03-15T00:00:00.000Z"));
+        assertThat(((DateTime) bucket.getFrom()), equalTo(date(2, 15)));
+        assertThat(((DateTime) bucket.getTo()), equalTo(date(3, 15)));
+        assertThat(bucket.getFromAsString(), equalTo("2012-02-15T00:00:00.000Z"));
+        assertThat(bucket.getToAsString(), equalTo("2012-03-15T00:00:00.000Z"));
+        assertThat(bucket.getDocCount(), equalTo(2l));
+        max = bucket.getAggregations().get("max");
+        assertThat(max, notNullValue());
+        assertThat(max.getValue(), equalTo((double) date(3, 2).getMillis()));
+    
+        bucket = buckets.get(2);
+        assertThat(bucket, notNullValue());
+        assertThat((String) bucket.getKey(), equalTo("2012-03-15T00:00:00.000Z-*"));
+        assertThat(((DateTime) bucket.getFrom()), equalTo(date(3, 15)));
+        assertThat(((DateTime) bucket.getTo()), nullValue());
+        assertThat(bucket.getFromAsString(), equalTo("2012-03-15T00:00:00.000Z"));
+        assertThat(bucket.getToAsString(), nullValue());
+        assertThat(bucket.getDocCount(), equalTo(numDocs - 4l));
+        max = bucket.getAggregations().get("max");
+        assertThat(max, notNullValue());
+    }
+
+    /*
+     * TODO Remove in 2.0
+     */
+    @Test
+    public void script_MultiValuedOldScriptAPI() throws Exception {
+        SearchResponse response = client()
+                .prepareSearch("idx")
+                .addAggregation(
+                        dateRange("range")
+                        .script("doc['dates'].values")
+                        .addUnboundedTo(date(2, 15))
+                        .addRange(date(2, 15), date(3, 15))
+                        .addUnboundedFrom(date(3, 15)))
+                .execute().actionGet();
+    
+        assertSearchResponse(response);
+    
+    
+        Range range = response.getAggregations().get("range");
+        assertThat(range, notNullValue());
+        assertThat(range.getName(), equalTo("range"));
+        List<? extends Bucket> buckets = range.getBuckets();
+        assertThat(buckets.size(), equalTo(3));
+    
+        Range.Bucket bucket = buckets.get(0);
+        assertThat(bucket, notNullValue());
+        assertThat((String) bucket.getKey(), equalTo("*-2012-02-15T00:00:00.000Z"));
+        assertThat(((DateTime) bucket.getFrom()), nullValue());
+        assertThat(((DateTime) bucket.getTo()), equalTo(date(2, 15)));
+        assertThat(bucket.getFromAsString(), nullValue());
+        assertThat(bucket.getToAsString(), equalTo("2012-02-15T00:00:00.000Z"));
+        assertThat(bucket.getDocCount(), equalTo(2l));
+    
+        bucket = buckets.get(1);
+        assertThat(bucket, notNullValue());
+        assertThat((String) bucket.getKey(), equalTo("2012-02-15T00:00:00.000Z-2012-03-15T00:00:00.000Z"));
+        assertThat(((DateTime) bucket.getFrom()), equalTo(date(2, 15)));
+        assertThat(((DateTime) bucket.getTo()), equalTo(date(3, 15)));
+        assertThat(bucket.getFromAsString(), equalTo("2012-02-15T00:00:00.000Z"));
+        assertThat(bucket.getToAsString(), equalTo("2012-03-15T00:00:00.000Z"));
+        assertThat(bucket.getDocCount(), equalTo(3l));
+    
+        bucket = buckets.get(2);
+        assertThat(bucket, notNullValue());
+        assertThat((String) bucket.getKey(), equalTo("2012-03-15T00:00:00.000Z-*"));
+        assertThat(((DateTime) bucket.getFrom()), equalTo(date(3, 15)));
+        assertThat(((DateTime) bucket.getTo()), nullValue());
+        assertThat(bucket.getFromAsString(), equalTo("2012-03-15T00:00:00.000Z"));
+        assertThat(bucket.getToAsString(), nullValue());
+        assertThat(bucket.getDocCount(), equalTo(numDocs - 2l));
+    }
+
+    @Test
+    public void script_MultiValued_WithAggregatorInheritedOldScriptAPI() throws Exception {
+        SearchResponse response = client()
+                .prepareSearch("idx")
+                .addAggregation(
+                        dateRange("range")
+                        .script("doc['dates'].values")
+                        .addUnboundedTo(date(2, 15))
+                        .addRange(date(2, 15), date(3, 15))
+                        .addUnboundedFrom(date(3, 15))
+                        .subAggregation(min("min")))
+                .execute().actionGet();
+    
+        assertSearchResponse(response);
+    
+    
+        Range range = response.getAggregations().get("range");
+        assertThat(range, notNullValue());
+        assertThat(range.getName(), equalTo("range"));
+        List<? extends Bucket> buckets = range.getBuckets();
+        assertThat(buckets.size(), equalTo(3));
+    
+        Range.Bucket bucket = buckets.get(0);
+        assertThat(bucket, notNullValue());
+        assertThat((String) bucket.getKey(), equalTo("*-2012-02-15T00:00:00.000Z"));
+        assertThat(((DateTime) bucket.getFrom()), nullValue());
+        assertThat(((DateTime) bucket.getTo()), equalTo(date(2, 15)));
+        assertThat(bucket.getFromAsString(), nullValue());
+        assertThat(bucket.getToAsString(), equalTo("2012-02-15T00:00:00.000Z"));
+        assertThat(bucket.getDocCount(), equalTo(2l));
+        Min min = bucket.getAggregations().get("min");
+        assertThat(min, notNullValue());
+        assertThat(min.getValue(), equalTo((double) date(1, 2).getMillis()));
+    
+        bucket = buckets.get(1);
+        assertThat(bucket, notNullValue());
+        assertThat((String) bucket.getKey(), equalTo("2012-02-15T00:00:00.000Z-2012-03-15T00:00:00.000Z"));
+        assertThat(((DateTime) bucket.getFrom()), equalTo(date(2, 15)));
+        assertThat(((DateTime) bucket.getTo()), equalTo(date(3, 15)));
+        assertThat(bucket.getFromAsString(), equalTo("2012-02-15T00:00:00.000Z"));
+        assertThat(bucket.getToAsString(), equalTo("2012-03-15T00:00:00.000Z"));
+        assertThat(bucket.getDocCount(), equalTo(3l));
+        min = bucket.getAggregations().get("min");
+        assertThat(min, notNullValue());
+        assertThat(min.getValue(), equalTo((double) date(2, 2).getMillis()));
+    
+        bucket = buckets.get(2);
+        assertThat(bucket, notNullValue());
+        assertThat((String) bucket.getKey(), equalTo("2012-03-15T00:00:00.000Z-*"));
+        assertThat(((DateTime) bucket.getFrom()), equalTo(date(3, 15)));
+        assertThat(((DateTime) bucket.getTo()), nullValue());
+        assertThat(bucket.getFromAsString(), equalTo("2012-03-15T00:00:00.000Z"));
+        assertThat(bucket.getToAsString(), nullValue());
+        assertThat(bucket.getDocCount(), equalTo(numDocs - 2l));
+        min = bucket.getAggregations().get("min");
+        assertThat(min, notNullValue());
+        assertThat(min.getValue(), equalTo((double) date(2, 15).getMillis()));
     }
 
 

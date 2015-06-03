@@ -19,11 +19,11 @@
 
 package org.elasticsearch.script;
 
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.lucene.search.function.CombineFunction;
+import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.script.groovy.GroovyScriptEngineService;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
@@ -31,11 +31,11 @@ import org.junit.Test;
 import java.util.List;
 
 import static com.google.common.collect.Lists.newArrayList;
-import static org.elasticsearch.index.query.QueryBuilders.scriptQuery;
 import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
 import static org.elasticsearch.index.query.QueryBuilders.functionScoreQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
+import static org.elasticsearch.index.query.QueryBuilders.scriptQuery;
 import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.scriptFunction;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertOrderedSearchHits;
@@ -73,7 +73,10 @@ public class GroovyScriptTests extends ElasticsearchIntegrationTest {
         }
         indexRandom(true, false, reqs);
         try {
-            client().prepareSearch("test").setQuery(constantScoreQuery(scriptQuery("1 == not_found").lang(GroovyScriptEngineService.NAME))).get();
+            client().prepareSearch("test")
+                    .setQuery(
+                            constantScoreQuery(scriptQuery(new Script("1 == not_found", ScriptType.INLINE, GroovyScriptEngineService.NAME,
+                                    null)))).get();
             fail("should have thrown an exception");
         } catch (SearchPhaseExecutionException e) {
             assertThat(e.toString()+ "should not contained NotSerializableTransportException",
@@ -85,13 +88,13 @@ public class GroovyScriptTests extends ElasticsearchIntegrationTest {
         }
 
         try {
-            client().prepareSearch("test").setQuery(constantScoreQuery(
-                    scriptQuery("assert false").lang("groovy"))).get();
+            client().prepareSearch("test")
+                    .setQuery(constantScoreQuery(scriptQuery(new Script("assert false", ScriptType.INLINE, "groovy", null)))).get();
             fail("should have thrown an exception");
         } catch (SearchPhaseExecutionException e) {
-            assertThat(e.toString()+ "should not contained NotSerializableTransportException",
+            assertThat(e.toString() + "should not contained NotSerializableTransportException",
                     e.toString().contains("NotSerializableTransportException"), equalTo(false));
-            assertThat(e.toString()+ "should have contained GroovyScriptExecutionException",
+            assertThat(e.toString() + "should have contained GroovyScriptExecutionException",
                     e.toString().contains("GroovyScriptExecutionException"), equalTo(true));
             assertThat(e.toString()+ "should have contained an assert error",
                     e.toString().contains("PowerAssertionError[assert false"), equalTo(true));
@@ -107,7 +110,8 @@ public class GroovyScriptTests extends ElasticsearchIntegrationTest {
 
         // doc[] access
         SearchResponse resp = client().prepareSearch("test").setQuery(functionScoreQuery(matchAllQuery())
-            .add(scriptFunction("doc['bar'].value", "groovy"))
+.add(
+                                scriptFunction(new Script("doc['bar'].value", ScriptType.INLINE, "groovy", null)))
             .boostMode(CombineFunction.REPLACE)).get();
 
         assertNoFailures(resp);
@@ -122,7 +126,7 @@ public class GroovyScriptTests extends ElasticsearchIntegrationTest {
 
         // _score can be accessed
         SearchResponse resp = client().prepareSearch("test").setQuery(functionScoreQuery(matchQuery("foo", "dog"))
-            .add(scriptFunction("_score", "groovy"))
+            .add(scriptFunction(new Script("_score", ScriptType.INLINE, "groovy", null)))
             .boostMode(CombineFunction.REPLACE)).get();
         assertNoFailures(resp);
         assertSearchHits(resp, "3", "1");
@@ -130,9 +134,12 @@ public class GroovyScriptTests extends ElasticsearchIntegrationTest {
         // _score is comparable
         // NOTE: it is important to use 0.0 instead of 0 instead Groovy will do an integer comparison
         // and if the score if between 0 and 1 it will be considered equal to 0 due to the cast
-        resp = client().prepareSearch("test").setQuery(functionScoreQuery(matchQuery("foo", "dog"))
-            .add(scriptFunction("_score > 0.0 ? _score : 0", "groovy"))
-            .boostMode(CombineFunction.REPLACE)).get();
+        resp = client()
+                .prepareSearch("test")
+                .setQuery(
+                        functionScoreQuery(matchQuery("foo", "dog")).add(
+                                scriptFunction(new Script("_score > 0.0 ? _score : 0", ScriptType.INLINE, "groovy", null))).boostMode(
+                                CombineFunction.REPLACE)).get();
         assertNoFailures(resp);
         assertSearchHits(resp, "3", "1");
     }

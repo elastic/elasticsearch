@@ -195,6 +195,8 @@ public class MappedFieldType extends FieldType {
         return new MappedFieldType(this);
     }
 
+    // norelease: we need to override freeze() and add safety checks that all settings are actually set
+
     public boolean isNumeric() {
         return false;
     }

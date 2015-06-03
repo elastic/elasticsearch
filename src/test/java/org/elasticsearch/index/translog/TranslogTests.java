@@ -124,7 +124,6 @@ public class TranslogTests extends ElasticsearchTestCase {
         translog.add(op);
     }
 
-
     public void testIdParsingFromFile() {
         long id = randomIntBetween(0, Integer.MAX_VALUE);
         Path file = translogDir.resolve(Translog.TRANSLOG_FILE_PREFIX + id);
@@ -141,8 +140,8 @@ public class TranslogTests extends ElasticsearchTestCase {
     }
 
     private String randomNonTranslogPatternString(int min, int max) {
-       String string;
-        boolean validPathString = false;
+        String string;
+        boolean validPathString;
         do {
             validPathString = false;
             string = randomRealisticUnicodeOfCodepointLength(randomIntBetween(min, max));
@@ -152,7 +151,7 @@ public class TranslogTests extends ElasticsearchTestCase {
             } catch (InvalidPathException ex) {
                 // some FS don't like our random file names -- let's just skip these random choices
             }
-        } while (Translog.PARSE_ID_PATTERN.matcher(string).matches() && validPathString);
+        } while (Translog.PARSE_ID_PATTERN.matcher(string).matches() || validPathString == false);
         return string;
     }
 

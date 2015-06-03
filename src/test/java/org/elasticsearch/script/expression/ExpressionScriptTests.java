@@ -26,6 +26,8 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.metrics.stats.Stats;
@@ -55,7 +57,8 @@ public class ExpressionScriptTests extends ElasticsearchIntegrationTest {
         SearchRequestBuilder req = client().prepareSearch().setIndices("test");
         req.setQuery(QueryBuilders.matchAllQuery())
            .addSort(SortBuilders.fieldSort("_uid")
-                                .order(SortOrder.ASC)).addScriptField("foo", "expression", script, paramsMap);
+.order(SortOrder.ASC))
+                .addScriptField("foo", new Script(script, ScriptType.INLINE, "expression", paramsMap));
         return req;
     }
 
@@ -84,7 +87,7 @@ public class ExpressionScriptTests extends ElasticsearchIntegrationTest {
             client().prepareIndex("test", "doc", "1").setSource("text", "hello goodbye"),
             client().prepareIndex("test", "doc", "2").setSource("text", "hello hello hello goodbye"),
             client().prepareIndex("test", "doc", "3").setSource("text", "hello hello goodebye"));
-        ScoreFunctionBuilder score = ScoreFunctionBuilders.scriptFunction("1 / _score", "expression");
+        ScoreFunctionBuilder score = ScoreFunctionBuilders.scriptFunction(new Script("1 / _score", ScriptType.INLINE, "expression", null));
         SearchRequestBuilder req = client().prepareSearch().setIndices("test");
         req.setQuery(QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("text", "hello"), score).boostMode("replace"));
         req.setSearchType(SearchType.DFS_QUERY_THEN_FETCH); // make sure DF is consistent
@@ -367,7 +370,9 @@ public class ExpressionScriptTests extends ElasticsearchIntegrationTest {
 
         SearchRequestBuilder req = client().prepareSearch().setIndices("test");
         req.setQuery(QueryBuilders.matchAllQuery())
-           .addAggregation(AggregationBuilders.terms("term_agg").field("text").script("_value").lang(ExpressionScriptEngineService.NAME));
+.addAggregation(
+                AggregationBuilders.terms("term_agg").field("text")
+                        .script(new Script("_value", ScriptType.INLINE, ExpressionScriptEngineService.NAME, null)));
 
         String message;
         try {

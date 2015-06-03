@@ -80,7 +80,7 @@ public class ChildrenParser implements Aggregator.Parser {
         if (childDocMapper != null) {
             ParentFieldMapper parentFieldMapper = childDocMapper.parentFieldMapper();
             if (!parentFieldMapper.active()) {
-                throw new SearchParseException(context, "[children] _parent field not configured", parser.getTokenLocation());
+                throw new SearchParseException(context, "[children] no [_parent] field not configured that points to a parent type", parser.getTokenLocation());
             }
             parentType = parentFieldMapper.type();
             DocumentMapper parentDocMapper = context.mapperService().documentMapper(parentType);

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.common.compress.CompressedString;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
@@ -34,7 +34,7 @@ public class MappingMetaDataParserTests extends ElasticsearchTestCase {
 
     @Test
     public void testParseIdAlone() throws Exception {
-        MappingMetaData md = new MappingMetaData("type1", new CompressedString(""),
+        MappingMetaData md = new MappingMetaData("type1", new CompressedXContent("{}"),
                 new MappingMetaData.Id("id"),
                 new MappingMetaData.Routing(true, "routing"),
                 new MappingMetaData.Timestamp(true, "timestamp", "dateOptionalTime", TimestampFieldMapper.Defaults.DEFAULT_TIMESTAMP, null), false);
@@ -52,7 +52,7 @@ public class MappingMetaDataParserTests extends ElasticsearchTestCase {
     
     @Test
     public void testFailIfIdIsNoValue() throws Exception {
-        MappingMetaData md = new MappingMetaData("type1", new CompressedString(""),
+        MappingMetaData md = new MappingMetaData("type1", new CompressedXContent("{}"),
                 new MappingMetaData.Id("id"),
                 new MappingMetaData.Routing(true, "routing"),
                 new MappingMetaData.Timestamp(true, "timestamp", "dateOptionalTime", TimestampFieldMapper.Defaults.DEFAULT_TIMESTAMP, null), false);
@@ -79,7 +79,7 @@ public class MappingMetaDataParserTests extends ElasticsearchTestCase {
 
     @Test
     public void testParseRoutingAlone() throws Exception {
-        MappingMetaData md = new MappingMetaData("type1", new CompressedString(""),
+        MappingMetaData md = new MappingMetaData("type1", new CompressedXContent("{}"),
                 new MappingMetaData.Id("id"),
                 new MappingMetaData.Routing(true, "routing"),
                 new MappingMetaData.Timestamp(true, "timestamp", "dateOptionalTime", TimestampFieldMapper.Defaults.DEFAULT_TIMESTAMP, null), false);
@@ -97,7 +97,7 @@ public class MappingMetaDataParserTests extends ElasticsearchTestCase {
 
     @Test
     public void testParseTimestampAlone() throws Exception {
-        MappingMetaData md = new MappingMetaData("type1", new CompressedString(""),
+        MappingMetaData md = new MappingMetaData("type1", new CompressedXContent("{}"),
                 new MappingMetaData.Id("id"),
                 new MappingMetaData.Routing(true, "routing"),
                 new MappingMetaData.Timestamp(true, "timestamp", "dateOptionalTime", TimestampFieldMapper.Defaults.DEFAULT_TIMESTAMP, null), false);
@@ -115,11 +115,11 @@ public class MappingMetaDataParserTests extends ElasticsearchTestCase {
 
     @Test
     public void testParseTimestampEquals() throws Exception {
-        MappingMetaData md1 = new MappingMetaData("type1", new CompressedString(""),
+        MappingMetaData md1 = new MappingMetaData("type1", new CompressedXContent("{}"),
                 new MappingMetaData.Id("id"),
                 new MappingMetaData.Routing(true, "routing"),
                 new MappingMetaData.Timestamp(true, "timestamp", "dateOptionalTime", TimestampFieldMapper.Defaults.DEFAULT_TIMESTAMP, null), false);
-        MappingMetaData md2 = new MappingMetaData("type1", new CompressedString(""),
+        MappingMetaData md2 = new MappingMetaData("type1", new CompressedXContent("{}"),
                 new MappingMetaData.Id("id"),
                 new MappingMetaData.Routing(true, "routing"),
                 new MappingMetaData.Timestamp(true, "timestamp", "dateOptionalTime", TimestampFieldMapper.Defaults.DEFAULT_TIMESTAMP, null), false);
@@ -128,7 +128,7 @@ public class MappingMetaDataParserTests extends ElasticsearchTestCase {
 
     @Test
     public void testParseIdAndRoutingAndTimestamp() throws Exception {
-        MappingMetaData md = new MappingMetaData("type1", new CompressedString(""),
+        MappingMetaData md = new MappingMetaData("type1", new CompressedXContent("{}"),
                 new MappingMetaData.Id("id"),
                 new MappingMetaData.Routing(true, "routing"),
                 new MappingMetaData.Timestamp(true, "timestamp", "dateOptionalTime", TimestampFieldMapper.Defaults.DEFAULT_TIMESTAMP, null), false);
@@ -143,7 +143,7 @@ public class MappingMetaDataParserTests extends ElasticsearchTestCase {
 
     @Test
     public void testParseIdAndRoutingAndTimestampWithPath() throws Exception {
-        MappingMetaData md = new MappingMetaData("type1", new CompressedString(""),
+        MappingMetaData md = new MappingMetaData("type1", new CompressedXContent("{}"),
                 new MappingMetaData.Id("obj1.id"),
                 new MappingMetaData.Routing(true, "obj1.routing"),
                 new MappingMetaData.Timestamp(true, "obj2.timestamp", "dateOptionalTime", TimestampFieldMapper.Defaults.DEFAULT_TIMESTAMP, null), false);
@@ -161,7 +161,7 @@ public class MappingMetaDataParserTests extends ElasticsearchTestCase {
 
     @Test
     public void testParseIdWithPath() throws Exception {
-        MappingMetaData md = new MappingMetaData("type1", new CompressedString(""),
+        MappingMetaData md = new MappingMetaData("type1", new CompressedXContent("{}"),
                 new MappingMetaData.Id("obj1.id"),
                 new MappingMetaData.Routing(true, "obj1.routing"),
                 new MappingMetaData.Timestamp(true, "obj2.timestamp", "dateOptionalTime", TimestampFieldMapper.Defaults.DEFAULT_TIMESTAMP, null), false);
@@ -182,7 +182,7 @@ public class MappingMetaDataParserTests extends ElasticsearchTestCase {
 
     @Test
     public void testParseRoutingWithPath() throws Exception {
-        MappingMetaData md = new MappingMetaData("type1", new CompressedString(""),
+        MappingMetaData md = new MappingMetaData("type1", new CompressedXContent("{}"),
                 new MappingMetaData.Id("obj1.id"),
                 new MappingMetaData.Routing(true, "obj1.routing"),
                 new MappingMetaData.Timestamp(true, "obj2.timestamp", "dateOptionalTime", TimestampFieldMapper.Defaults.DEFAULT_TIMESTAMP, null), false);
@@ -203,7 +203,7 @@ public class MappingMetaDataParserTests extends ElasticsearchTestCase {
 
     @Test
     public void testParseTimestampWithPath() throws Exception {
-        MappingMetaData md = new MappingMetaData("type1", new CompressedString(""),
+        MappingMetaData md = new MappingMetaData("type1", new CompressedXContent("{}"),
                 new MappingMetaData.Id("obj1.id"),
                 new MappingMetaData.Routing(true, "obj1.routing"),
                 new MappingMetaData.Timestamp(true, "obj2.timestamp", "dateOptionalTime", TimestampFieldMapper.Defaults.DEFAULT_TIMESTAMP, null), false);
@@ -224,7 +224,7 @@ public class MappingMetaDataParserTests extends ElasticsearchTestCase {
 
     @Test
     public void testParseIdAndRoutingAndTimestampWithinSamePath() throws Exception {
-        MappingMetaData md = new MappingMetaData("type1", new CompressedString(""),
+        MappingMetaData md = new MappingMetaData("type1", new CompressedXContent("{}"),
                 new MappingMetaData.Id("obj1.id"),
                 new MappingMetaData.Routing(true, "obj1.routing"),
                 new MappingMetaData.Timestamp(true, "obj1.timestamp", "dateOptionalTime", TimestampFieldMapper.Defaults.DEFAULT_TIMESTAMP, null), false);
@@ -242,7 +242,7 @@ public class MappingMetaDataParserTests extends ElasticsearchTestCase {
 
     @Test
     public void testParseIdAndRoutingAndTimestampWithinSamePathAndMoreLevels() throws Exception {
-        MappingMetaData md = new MappingMetaData("type1", new CompressedString(""),
+        MappingMetaData md = new MappingMetaData("type1", new CompressedXContent("{}"),
                 new MappingMetaData.Id("obj1.obj0.id"),
                 new MappingMetaData.Routing(true, "obj1.obj2.routing"),
                 new MappingMetaData.Timestamp(true, "obj1.obj3.timestamp", "dateOptionalTime", TimestampFieldMapper.Defaults.DEFAULT_TIMESTAMP, null), false);
@@ -271,7 +271,7 @@ public class MappingMetaDataParserTests extends ElasticsearchTestCase {
 
     @Test
     public void testParseIdAndRoutingAndTimestampWithSameRepeatedObject() throws Exception {
-        MappingMetaData md = new MappingMetaData("type1", new CompressedString(""),
+        MappingMetaData md = new MappingMetaData("type1", new CompressedXContent("{}"),
                 new MappingMetaData.Id("obj1.id"),
                 new MappingMetaData.Routing(true, "obj1.routing"),
                 new MappingMetaData.Timestamp(true, "obj1.timestamp", "dateOptionalTime", TimestampFieldMapper.Defaults.DEFAULT_TIMESTAMP, null), false);
@@ -291,7 +291,7 @@ public class MappingMetaDataParserTests extends ElasticsearchTestCase {
     //
     @Test
     public void testParseIdRoutingTimestampWithRepeatedField() throws Exception {
-        MappingMetaData md = new MappingMetaData("type1", new CompressedString(""),
+        MappingMetaData md = new MappingMetaData("type1", new CompressedXContent("{}"),
                 new MappingMetaData.Id("field1"),
                 new MappingMetaData.Routing(true, "field1.field1"),
                 new MappingMetaData.Timestamp(true, "field1", "dateOptionalTime", TimestampFieldMapper.Defaults.DEFAULT_TIMESTAMP, null), false);
@@ -314,7 +314,7 @@ public class MappingMetaDataParserTests extends ElasticsearchTestCase {
 
     @Test
     public void testParseNoIdRoutingWithRepeatedFieldAndObject() throws Exception {
-        MappingMetaData md = new MappingMetaData("type1", new CompressedString(""),
+        MappingMetaData md = new MappingMetaData("type1", new CompressedXContent("{}"),
                 new MappingMetaData.Id("id"),
                 new MappingMetaData.Routing(true, "field1.field1.field2"),
                 new MappingMetaData.Timestamp(true, "field1", "dateOptionalTime", TimestampFieldMapper.Defaults.DEFAULT_TIMESTAMP, null), false);
@@ -337,7 +337,7 @@ public class MappingMetaDataParserTests extends ElasticsearchTestCase {
 
     @Test
     public void testParseRoutingWithRepeatedFieldAndValidRouting() throws Exception {
-        MappingMetaData md = new MappingMetaData("type1", new CompressedString(""),
+        MappingMetaData md = new MappingMetaData("type1", new CompressedXContent("{}"),
                 new MappingMetaData.Id(null),
                 new MappingMetaData.Routing(true, "field1.field2"),
                 new MappingMetaData.Timestamp(true, "field1", "dateOptionalTime", TimestampFieldMapper.Defaults.DEFAULT_TIMESTAMP, null), false);

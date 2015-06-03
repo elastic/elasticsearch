@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.InternalTestCluster;
@@ -61,7 +62,7 @@ public class TransportClientRetryTests extends ElasticsearchIntegrationTest {
                 .put("node.mode", InternalTestCluster.nodeMode())
                 .put("plugins." + PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, false)
                 .put(ClusterName.SETTING, internalCluster().getClusterName())
-                .put("config.ignore_system_properties", true)
+                .put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING, true)
                 .put("path.home", createTempDir());
 
         try (TransportClient transportClient = TransportClient.builder().settings(builder.build()).build()) {

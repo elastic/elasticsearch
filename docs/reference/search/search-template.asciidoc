@@ -8,7 +8,7 @@ before they are executed and fill existing templates with template parameters.
 ------------------------------------------
 GET /_search/template
 {
-    "template" : {
+    "inline" : {
       "query": { "match" : { "{{my_field}}" : "{{my_value}}" } },
       "size" : "{{my_size}}"
     },
@@ -40,7 +40,7 @@ disable scripts per language, source and operation as described in
 ------------------------------------------
 GET /_search/template
 {
-    "template": {
+    "inline": {
         "query": {
             "match": {
                 "title": "{{query_string}}"
@@ -60,7 +60,7 @@ GET /_search/template
 ------------------------------------------
 GET /_search/template
 {
-  "template": {
+  "inline": {
     "query": {
       "terms": {
         "status": [
@@ -97,7 +97,7 @@ A default value is written as `{{var}}{{^var}}default{{/var}}` for instance:
 [source,js]
 ------------------------------------------
 {
-  "template": {
+  "inline": {
     "query": {
       "range": {
         "line_no": {
@@ -212,7 +212,7 @@ via the REST API, should be written as a string:
 
 [source,json]
 --------------------
-"template": "{\"query\":{\"filtered\":{\"query\":{\"match\":{\"line\":\"{{text}}\"}},\"filter\":{{{#line_no}}\"range\":{\"line_no\":{{{#start}}\"gte\":\"{{start}}\"{{#end}},{{/end}}{{/start}}{{#end}}\"lte\":\"{{end}}\"{{/end}}}}{{/line_no}}}}}}"
+"inline": "{\"query\":{\"filtered\":{\"query\":{\"match\":{\"line\":\"{{text}}\"}},\"filter\":{{{#line_no}}\"range\":{\"line_no\":{{{#start}}\"gte\":\"{{start}}\"{{#end}},{{/end}}{{/start}}{{#end}}\"lte\":\"{{end}}\"{{/end}}}}{{/line_no}}}}}}"
 --------------------
 
 ==================================
@@ -229,9 +229,7 @@ In order to execute the stored template, reference it by it's name under the `te
 ------------------------------------------
 GET /_search/template
 {
-    "template": {
-        "file": "storedTemplate" <1>
-    },
+    "file": "storedTemplate", <1>
     "params": {
         "query_string": "search for these words"
     }
@@ -293,9 +291,7 @@ To use an indexed template at search time use:
 ------------------------------------------
 GET /_search/template
 {
-    "template": {
-        "id": "templateName" <1>
-    },
+    "id": "templateName", <1>
     "params": {
         "query_string": "search for these words"
     }

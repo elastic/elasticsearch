@@ -20,6 +20,7 @@
 package org.elasticsearch.index.mapper.internal;
 
 import com.google.common.base.Objects;
+
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexOptions;
@@ -30,7 +31,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.compress.CompressedStreamInput;
 import org.elasticsearch.common.compress.Compressor;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -53,7 +53,9 @@ import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.RootMapper;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 
+import java.io.BufferedInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
@@ -359,9 +361,11 @@ public class SourceFieldMapper extends AbstractFieldMapper implements RootMapper
             // see if we need to convert the content type
             Compressor compressor = CompressorFactory.compressor(source);
             if (compressor != null) {
-                CompressedStreamInput compressedStreamInput = compressor.streamInput(source.streamInput());
+                InputStream compressedStreamInput = compressor.streamInput(source.streamInput());
+                if (compressedStreamInput.markSupported() == false) {
+                    compressedStreamInput = new BufferedInputStream(compressedStreamInput);
+                }
                 XContentType contentType = XContentFactory.xContentType(compressedStreamInput);
-                compressedStreamInput.resetToBufferStart();
                 if (contentType != formatContentType) {
                     // we need to reread and store back, compressed....
                     BytesStreamOutput bStream = new BytesStreamOutput();

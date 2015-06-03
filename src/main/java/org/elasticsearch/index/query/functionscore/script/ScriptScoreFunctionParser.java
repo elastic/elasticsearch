@@ -29,14 +29,16 @@ import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionParser;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.Script.ScriptField;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptParameterParser;
 import org.elasticsearch.script.ScriptParameterParser.ScriptParameterValue;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.SearchScript;
 
 import java.io.IOException;
 import java.util.Map;
+
+import static com.google.common.collect.Maps.newHashMap;
 
 /**
  *
@@ -57,16 +59,17 @@ public class ScriptScoreFunctionParser implements ScoreFunctionParser {
     @Override
     public ScoreFunction parse(QueryParseContext parseContext, XContentParser parser) throws IOException, QueryParsingException {
         ScriptParameterParser scriptParameterParser = new ScriptParameterParser();
-        String script = null;
+        Script script = null;
         Map<String, Object> vars = null;
-        ScriptService.ScriptType scriptType = null;
         String currentFieldName = null;
         XContentParser.Token token;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_OBJECT) {
-                if ("params".equals(currentFieldName)) {
+                if (ScriptField.SCRIPT.match(currentFieldName)) {
+                    script = Script.parse(parser);
+                } else if ("params".equals(currentFieldName)) { // TODO remove in 2.0 (here to support old script APIs)
                     vars = parser.map();
                 } else {
                     throw new QueryParsingException(parseContext, NAMES[0] + " query does not support [" + currentFieldName + "]");
@@ -78,19 +81,26 @@ public class ScriptScoreFunctionParser implements ScoreFunctionParser {
             }
         }
 
-        ScriptParameterValue scriptValue = scriptParameterParser.getDefaultScriptParameterValue();
-        if (scriptValue != null) {
-            script = scriptValue.script();
-            scriptType = scriptValue.scriptType();
+        if (script == null) { // Didn't find anything using the new API so try using the old one instead
+            ScriptParameterValue scriptValue = scriptParameterParser.getDefaultScriptParameterValue();
+            if (scriptValue != null) {
+                if (vars == null) {
+                    vars = newHashMap();
+                }
+                script = new Script(scriptValue.script(), scriptValue.scriptType(), scriptParameterParser.lang(), vars);
+            }
+        } else if (vars != null) {
+            throw new QueryParsingException(parseContext, "script params must be specified inside script object");
         }
+
         if (script == null) {
             throw new QueryParsingException(parseContext, NAMES[0] + " requires 'script' field");
         }
 
         SearchScript searchScript;
         try {
-            searchScript = parseContext.scriptService().search(parseContext.lookup(), new Script(scriptParameterParser.lang(), script, scriptType, vars), ScriptContext.Standard.SEARCH);
-            return new ScriptScoreFunction(script, vars, searchScript);
+            searchScript = parseContext.scriptService().search(parseContext.lookup(), script, ScriptContext.Standard.SEARCH);
+            return new ScriptScoreFunction(script, searchScript);
         } catch (Exception e) {
             throw new QueryParsingException(parseContext, NAMES[0] + " the script could not be loaded", e);
         }

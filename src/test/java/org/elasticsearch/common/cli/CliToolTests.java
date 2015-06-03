@@ -25,10 +25,12 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.junit.Test;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.common.cli.CliToolConfig.Builder.cmd;
@@ -269,6 +271,49 @@ public class CliToolTests extends CliToolTestCase {
         tool.parse("cmd", Strings.splitStringByCommaToArray("--verbose"));
         tool.parse("cmd", Strings.splitStringByCommaToArray("--silent"));
         tool.parse("cmd", Strings.splitStringByCommaToArray("--help"));
+    }
+
+    @Test
+    public void testPromptForSetting() throws Exception {
+        final AtomicInteger counter = new AtomicInteger();
+        final AtomicReference<String> promptedSecretValue = new AtomicReference<>(null);
+        final AtomicReference<String> promptedTextValue = new AtomicReference<>(null);
+        final Terminal terminal = new MockTerminal() {
+            @Override
+            public char[] readSecret(String text, Object... args) {
+                counter.incrementAndGet();
+                assertThat(args, arrayContaining((Object) "foo.password"));
+                return "changeit".toCharArray();
+            }
+
+            @Override
+            public String readText(String text, Object... args) {
+                counter.incrementAndGet();
+                assertThat(args, arrayContaining((Object) "replace"));
+                return "replaced";
+            }
+        };
+        final NamedCommand cmd = new NamedCommand("noop", terminal) {
+            @Override
+            public CliTool.ExitStatus execute(Settings settings, Environment env) {
+                promptedSecretValue.set(settings.get("foo.password"));
+                promptedTextValue.set(settings.get("replace"));
+                return CliTool.ExitStatus.OK;
+            }
+        };
+
+        System.setProperty("es.foo.password", InternalSettingsPreparer.SECRET_PROMPT_VALUE);
+        System.setProperty("es.replace", InternalSettingsPreparer.TEXT_PROMPT_VALUE);
+        try {
+            new SingleCmdTool("tool", terminal, cmd).execute();
+        } finally {
+            System.clearProperty("es.foo.password");
+            System.clearProperty("es.replace");
+        }
+
+        assertThat(counter.intValue(), is(2));
+        assertThat(promptedSecretValue.get(), is("changeit"));
+        assertThat(promptedTextValue.get(), is("replaced"));
     }
 
     private void assertStatus(int status, CliTool.ExitStatus expectedStatus) {

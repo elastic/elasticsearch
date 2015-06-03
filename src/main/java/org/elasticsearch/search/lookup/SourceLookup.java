@@ -91,14 +91,6 @@ public class SourceLookup implements Map {
         return sourceAsMapAndType(source).v2();
     }
 
-    public static Tuple<XContentType, Map<String, Object>> sourceAsMapAndType(byte[] bytes, int offset, int length) throws ElasticsearchParseException {
-        return XContentHelper.convertToMap(bytes, offset, length, false);
-    }
-
-    public static Map<String, Object> sourceAsMap(byte[] bytes, int offset, int length) throws ElasticsearchParseException {
-        return sourceAsMapAndType(bytes, offset, length).v2();
-    }
-
     public void setSegmentAndDocument(LeafReaderContext context, int docId) {
         if (this.reader == context.reader() && this.docId == docId) {
             // if we are called with the same document, don't invalidate source

@@ -114,7 +114,7 @@ public class ParentFieldMapper extends AbstractFieldMapper implements RootMapper
             if (type == null) {
                 throw new MapperParsingException("[_parent] field mapping must contain the [type] option");
             }
-            fieldType.setNames(new MappedFieldType.Names(name, indexName, indexName, name));
+            setupFieldType(context);
             return new ParentFieldMapper(fieldType, type, fieldDataSettings, context.indexSettings());
         }
     }
@@ -147,7 +147,7 @@ public class ParentFieldMapper extends AbstractFieldMapper implements RootMapper
         }
     }
 
-    public static class ParentFieldType extends MappedFieldType {
+    static final class ParentFieldType extends MappedFieldType {
 
         public ParentFieldType() {
             super(AbstractFieldMapper.Defaults.FIELD_TYPE);
@@ -232,7 +232,7 @@ public class ParentFieldMapper extends AbstractFieldMapper implements RootMapper
     private final BytesRef typeAsBytes;
 
     protected ParentFieldMapper(MappedFieldType fieldType, String type, @Nullable Settings fieldDataSettings, Settings indexSettings) {
-        super(fieldType, false, fieldDataSettings, indexSettings);
+        super(fieldType, Version.indexCreated(indexSettings).onOrAfter(Version.V_2_0_0), fieldDataSettings, indexSettings);
         this.type = type;
         this.typeAsBytes = type == null ? null : new BytesRef(type);
     }

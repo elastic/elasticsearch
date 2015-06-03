@@ -134,7 +134,7 @@ public class ShortFieldMapper extends NumberFieldMapper {
         }
     }
 
-    public static class ShortFieldType extends NumberFieldType {
+    static final class ShortFieldType extends NumberFieldType {
 
         public ShortFieldType() {}
 

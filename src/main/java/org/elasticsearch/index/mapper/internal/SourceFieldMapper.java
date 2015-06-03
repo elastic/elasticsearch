@@ -200,7 +200,7 @@ public class SourceFieldMapper extends AbstractFieldMapper implements RootMapper
         }
     }
 
-    public static class SourceFieldType extends MappedFieldType {
+    static final class SourceFieldType extends MappedFieldType {
 
         public SourceFieldType() {
             super(AbstractFieldMapper.Defaults.FIELD_TYPE);

@@ -105,7 +105,7 @@ public class TypeFieldMapper extends AbstractFieldMapper implements RootMapper {
         }
     }
 
-    public static class TypeFieldType extends MappedFieldType {
+    static final class TypeFieldType extends MappedFieldType {
 
         public TypeFieldType() {
             super(AbstractFieldMapper.Defaults.FIELD_TYPE);

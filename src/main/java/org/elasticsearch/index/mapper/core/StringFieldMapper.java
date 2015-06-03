@@ -189,7 +189,7 @@ public class StringFieldMapper extends AbstractFieldMapper implements AllFieldMa
         }
     }
 
-    public static class StringFieldType extends MappedFieldType {
+    static final class StringFieldType extends MappedFieldType {
 
         public StringFieldType() {
             super(AbstractFieldMapper.Defaults.FIELD_TYPE);

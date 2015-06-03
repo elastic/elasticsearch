@@ -136,7 +136,7 @@ public class FloatFieldMapper extends NumberFieldMapper {
         }
     }
 
-    public static class FloatFieldType extends NumberFieldType {
+    static final class FloatFieldType extends NumberFieldType {
 
         public FloatFieldType() {}
 

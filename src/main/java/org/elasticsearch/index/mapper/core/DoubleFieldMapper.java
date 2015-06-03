@@ -135,7 +135,7 @@ public class DoubleFieldMapper extends NumberFieldMapper {
         }
     }
 
-    public static class DoubleFieldType extends NumberFieldType {
+    static final class DoubleFieldType extends NumberFieldType {
 
         public DoubleFieldType() {}
 

@@ -155,7 +155,7 @@ public class AllFieldMapper extends AbstractFieldMapper implements RootMapper {
         }
     }
 
-    public static class AllFieldType extends MappedFieldType {
+    static final class AllFieldType extends MappedFieldType {
 
         public AllFieldType() {
             super(AbstractFieldMapper.Defaults.FIELD_TYPE);

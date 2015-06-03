@@ -105,7 +105,7 @@ public class BinaryFieldMapper extends AbstractFieldMapper {
         }
     }
 
-    public static class BinaryFieldType extends MappedFieldType {
+    static final class BinaryFieldType extends MappedFieldType {
         protected boolean tryUncompressing = false;
 
         public BinaryFieldType() {

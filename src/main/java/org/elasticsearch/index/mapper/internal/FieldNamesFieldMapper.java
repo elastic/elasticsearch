@@ -133,7 +133,7 @@ public class FieldNamesFieldMapper extends AbstractFieldMapper implements RootMa
         }
     }
 
-    public static class FieldNamesFieldType extends MappedFieldType {
+    static final class FieldNamesFieldType extends MappedFieldType {
 
         public FieldNamesFieldType() {
             super(AbstractFieldMapper.Defaults.FIELD_TYPE);

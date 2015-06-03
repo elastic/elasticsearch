@@ -119,7 +119,7 @@ public class IndexFieldMapper extends AbstractFieldMapper implements RootMapper 
         }
     }
 
-    public static class IndexFieldType extends MappedFieldType {
+    static final class IndexFieldType extends MappedFieldType {
 
         public IndexFieldType() {
             super(AbstractFieldMapper.Defaults.FIELD_TYPE);

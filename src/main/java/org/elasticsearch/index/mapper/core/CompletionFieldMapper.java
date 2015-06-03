@@ -220,7 +220,7 @@ public class CompletionFieldMapper extends AbstractFieldMapper {
         }
     }
 
-    public static class CompletionFieldType extends MappedFieldType {
+    static final class CompletionFieldType extends MappedFieldType {
 
         public CompletionFieldType() {
             super(AbstractFieldMapper.Defaults.FIELD_TYPE);

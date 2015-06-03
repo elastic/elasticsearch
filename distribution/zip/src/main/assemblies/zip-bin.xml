@@ -1,0 +1,13 @@
+<?xml version="1.0"?>
+<assembly>
+    <id>zip</id>
+    <formats>
+        <format>zip</format>
+    </formats>
+
+    <includeBaseDirectory>true</includeBaseDirectory>
+
+    <componentDescriptors>
+        <componentDescriptor>../src/main/assemblies/common-bin.xml</componentDescriptor>
+    </componentDescriptors>
+</assembly>

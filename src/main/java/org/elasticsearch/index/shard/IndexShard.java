@@ -30,6 +30,7 @@ import org.apache.lucene.util.ThreadInterruptedException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.WriteFailureException;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.optimize.OptimizeRequest;
@@ -53,6 +54,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.aliases.IndexAliasesService;
@@ -84,6 +87,8 @@ import org.elasticsearch.index.merge.scheduler.MergeSchedulerProvider;
 import org.elasticsearch.index.percolator.PercolatorQueriesRegistry;
 import org.elasticsearch.index.percolator.stats.ShardPercolateService;
 import org.elasticsearch.index.query.IndexQueryParserService;
+import org.elasticsearch.index.query.ParsedQuery;
+import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
@@ -532,7 +537,24 @@ public class IndexShard extends AbstractIndexShardComponent {
         if (types == null) {
             types = Strings.EMPTY_ARRAY;
         }
-        Query query = queryParserService.parseQuery(source).query();
+        Query query;
+        try {
+            query = queryParserService.parseQuery(source).query();
+        } catch (QueryParsingException ex) {
+            // for BWC we try to parse directly the query since pre 1.0.0.Beta2 we didn't require a top level query field
+            if (Version.indexCreated(config.getIndexSettings()).onOrBefore(Version.V_1_0_0_Beta2)) {
+                try {
+                    XContentParser parser = XContentHelper.createParser(source);
+                    ParsedQuery parse = queryParserService.parse(parser);
+                    query = parse.query();
+                } catch (Throwable t) {
+                    ex.addSuppressed(t);
+                    throw ex;
+                }
+            } else {
+                throw ex;
+            }
+        }
         query = filterQueryIfNeeded(query, types);
 
         Filter aliasFilter = indexAliasesService.aliasFilter(filteringAliases);

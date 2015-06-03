@@ -1,5 +1,5 @@
 [[query-dsl-missing-query]]
-== Missing Query
+=== Missing Query
 
 Returns documents that have only `null` values or no value in the original field:
 
@@ -42,7 +42,7 @@ These documents would *not* match the above filter:
 <3> This field has one non-`null` value.
 
 [float]
-=== `null_value` mapping
+==== `null_value` mapping
 
 If the field mapping includes a `null_value` (see <<mapping-core-types>>) then explicit `null` values
 are replaced with the specified `null_value`.  For instance, if the `user` field were mapped
@@ -75,7 +75,7 @@ no values in the `user` field and thus would match the `missing` filter:
 --------------------------------------------------
 
 [float]
-==== `existence` and `null_value` parameters
+===== `existence` and `null_value` parameters
 
 When the field being queried has a `null_value` mapping, then the behaviour of
 the `missing` filter can be altered with the `existence` and `null_value`

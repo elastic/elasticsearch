@@ -1,5 +1,5 @@
 [[query-dsl-not-query]]
-== Not Query
+=== Not Query
 
 A query that filters out matched documents using a query. For example:
 

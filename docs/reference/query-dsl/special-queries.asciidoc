@@ -1,0 +1,29 @@
+[[specialized-queries]]
+
+== Specialized queries
+
+This group contains queries which do not fit into the other groups:
+
+<<query-dsl-mlt-query,`more_like_this` query>>::
+
+This query finds documents which are similar to the specified text, document,
+or collection of documents.
+
+<<query-dsl-template-query,`template` query>>::
+
+The `template` query accepts a Mustache template (either inline, indexed, or
+from a file), and a map of parameters,  and combines the two to generate the
+final query to execute.
+
+<<query-dsl-script-query,`script` query>>::
+
+This query allows a script to act as a filter.  Also see the
+<<query-dsl-function-score-query,`function_score` query>>.
+
+
+include::mlt-query.asciidoc[]
+
+include::template-query.asciidoc[]
+
+include::script-query.asciidoc[]
+

@@ -1,10 +1,10 @@
 [[query-dsl-fuzzy-query]]
-== Fuzzy Query
+=== Fuzzy Query
 
 The fuzzy query uses similarity based on Levenshtein edit distance for
 `string` fields, and a `+/-` margin on numeric and date fields.
 
-=== String fields
+==== String fields
 
 The `fuzzy` query generates all possible matching terms that are within  the
 maximum edit distance specified in `fuzziness` and then checks the term
@@ -38,7 +38,7 @@ Or with more advanced settings:
 --------------------------------------------------
 
 [float]
-==== Parameters
+===== Parameters
 
 [horizontal]
 `fuzziness`::
@@ -62,7 +62,7 @@ are both set to `0`. This could cause every term in the index to be examined!
 
 
 [float]
-=== Numeric and date fields
+==== Numeric and date fields
 
 Performs a <<query-dsl-range-query>> ``around'' the value using the
 `fuzziness` value as a `+/-` range, where:

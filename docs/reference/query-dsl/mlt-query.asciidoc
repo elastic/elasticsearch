@@ -1,5 +1,5 @@
 [[query-dsl-mlt-query]]
-== More Like This Query
+=== More Like This Query
 
 The More Like This Query (MLT Query) finds documents that are "like" a given
 set of documents. In order to do so, MLT selects a set of representative terms
@@ -87,7 +87,7 @@ present in the index, the syntax is similar to <<docs-termvectors-artificial-doc
 }
 --------------------------------------------------
 
-=== How it Works
+==== How it Works
 
 Suppose we wanted to find all documents similar to a given input document.
 Obviously, the input document itself should be its best match for that type of
@@ -139,14 +139,14 @@ curl -s -XPUT 'http://localhost:9200/imdb/' -d '{
 }
 --------------------------------------------------
 
-=== Parameters
+==== Parameters
 
 The only required parameter is `like`, all other parameters have sensible
 defaults. There are three types of parameters: one to specify the document
 input, the other one for term selection and for query formation.
 
 [float]
-=== Document Input Parameters
+==== Document Input Parameters
 
 [horizontal]
 `like`:: coming[2.0]
@@ -179,7 +179,7 @@ A list of documents following the same syntax as the <<docs-multi-get,Multi GET 
 
 [float]
 [[mlt-query-term-selection]]
-=== Term Selection Parameters
+==== Term Selection Parameters
 
 [horizontal]
 `max_query_terms`::
@@ -219,7 +219,7 @@ The analyzer that is used to analyze the free form text. Defaults to the
 analyzer associated with the first field in `fields`.
 
 [float]
-=== Query Formation Parameters
+==== Query Formation Parameters
 
 [horizontal]
 `minimum_should_match`::

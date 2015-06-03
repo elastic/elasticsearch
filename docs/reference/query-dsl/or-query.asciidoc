@@ -1,5 +1,5 @@
 [[query-dsl-or-query]]
-== Or Query
+=== Or Query
 
 deprecated[2.0.0, Use the `bool` query instead]
 

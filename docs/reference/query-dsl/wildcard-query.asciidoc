@@ -1,5 +1,5 @@
 [[query-dsl-wildcard-query]]
-== Wildcard Query
+=== Wildcard Query
 
 Matches documents that have fields matching a wildcard expression (*not
 analyzed*). Supported wildcards are `*`, which matches any character

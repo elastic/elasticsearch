@@ -1,5 +1,5 @@
 [[query-dsl-geohash-cell-query]]
-== Geohash Cell Query
+=== Geohash Cell Query
 
 The `geohash_cell` query provides access to a hierarchy of geohashes.
 By defining a geohash cell, only <<mapping-geo-point-type,geopoints>>

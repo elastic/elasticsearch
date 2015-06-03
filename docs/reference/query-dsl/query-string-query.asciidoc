@@ -1,5 +1,5 @@
 [[query-dsl-query-string-query]]
-== Query String Query
+=== Query String Query
 
 A query that uses a query parser in order to parse its content. Here is
 an example:
@@ -89,7 +89,7 @@ rewritten using the
 parameter.
 
 [float]
-=== Default Field
+==== Default Field
 
 When not explicitly specifying the field to search on in the query
 string syntax, the `index.query.default_field` will be used to derive
@@ -99,7 +99,7 @@ So, if `_all` field is disabled, it might make sense to change it to set
 a different default field.
 
 [float]
-=== Multi Field
+==== Multi Field
 
 The `query_string` query can also run against multiple fields. Fields can be
 provided via the `"fields"` parameter (example below).

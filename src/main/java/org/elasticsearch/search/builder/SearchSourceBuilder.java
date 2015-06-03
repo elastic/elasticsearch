@@ -315,7 +315,7 @@ public class SearchSourceBuilder extends ToXContentToBytes {
      * An optional timeout to control how long search is allowed to take.
      */
     public SearchSourceBuilder timeout(String timeout) {
-        this.timeoutInMillis = TimeValue.parseTimeValue(timeout, null, "SearchSourceBuilder.timeout").millis();
+        this.timeoutInMillis = TimeValue.parseTimeValue(timeout, null, getClass().getSimpleName() + ".timeout").millis();
         return this;
     }
 

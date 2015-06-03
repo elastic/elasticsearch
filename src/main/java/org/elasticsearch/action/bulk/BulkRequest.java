@@ -417,7 +417,7 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
      * A timeout to wait if the index operation can't be performed immediately. Defaults to <tt>1m</tt>.
      */
     public final BulkRequest timeout(String timeout) {
-        return timeout(TimeValue.parseTimeValue(timeout, null, "BulkRequest.timeout"));
+        return timeout(TimeValue.parseTimeValue(timeout, null, getClass().getSimpleName() + ".timeout"));
     }
 
     public TimeValue timeout() {

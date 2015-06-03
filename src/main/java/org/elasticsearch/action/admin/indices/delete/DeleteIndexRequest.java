@@ -120,7 +120,7 @@ public class DeleteIndexRequest extends MasterNodeOperationRequest<DeleteIndexRe
      * to <tt>10s</tt>.
      */
     public DeleteIndexRequest timeout(String timeout) {
-        return timeout(TimeValue.parseTimeValue(timeout, null, "DeleteIndexRequest.timeout"));
+        return timeout(TimeValue.parseTimeValue(timeout, null, getClass().getSimpleName() + ".timeout"));
     }
 
     @Override

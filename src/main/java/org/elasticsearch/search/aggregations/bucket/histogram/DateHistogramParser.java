@@ -189,7 +189,7 @@ public class DateHistogramParser implements Aggregator.Parser {
             tzRoundingBuilder = TimeZoneRounding.builder(dateTimeUnit);
         } else {
             // the interval is a time value?
-            tzRoundingBuilder = TimeZoneRounding.builder(TimeValue.parseTimeValue(interval, null, "DateHistogramParser.interval"));
+            tzRoundingBuilder = TimeZoneRounding.builder(TimeValue.parseTimeValue(interval, null, getClass().getSimpleName() + ".interval"));
         }
 
         Rounding rounding = tzRoundingBuilder
@@ -217,9 +217,9 @@ public class DateHistogramParser implements Aggregator.Parser {
 
     private long parseOffset(String offset) throws IOException {
         if (offset.charAt(0) == '-') {
-            return -TimeValue.parseTimeValue(offset.substring(1), null, "DateHistogramParser.parseOffset").millis();
+            return -TimeValue.parseTimeValue(offset.substring(1), null, getClass().getSimpleName() + ".parseOffset").millis();
         }
         int beginIndex = offset.charAt(0) == '+' ? 1 : 0;
-        return TimeValue.parseTimeValue(offset.substring(beginIndex), null, "DateHistogramParser.parseOffset").millis();
+        return TimeValue.parseTimeValue(offset.substring(beginIndex), null, getClass().getSimpleName() + ".parseOffset").millis();
     }
 }

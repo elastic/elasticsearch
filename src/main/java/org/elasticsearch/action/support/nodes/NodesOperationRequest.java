@@ -74,7 +74,7 @@ public abstract class NodesOperationRequest<T extends NodesOperationRequest> ext
 
     @SuppressWarnings("unchecked")
     public final T timeout(String timeout) {
-        this.timeout = TimeValue.parseTimeValue(timeout, null, "NodesOperationRequest.timeout");
+        this.timeout = TimeValue.parseTimeValue(timeout, null, getClass().getSimpleName() + ".timeout");
         return (T) this;
     }
 

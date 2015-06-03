@@ -1674,7 +1674,7 @@ public class SearchQueryTests extends ElasticsearchIntegrationTest {
                 .startObject("ts")
                 .field("type", "date")
                 .field("ignore_malformed", false)
-                .field("format", "dateOptionalTime")
+                .field("format", "epoch_millis")
                 .endObject()
                 .startObject("bs")
                 .field("type", "string")
@@ -1683,7 +1683,7 @@ public class SearchQueryTests extends ElasticsearchIntegrationTest {
                 .endObject()
                 .endObject()
                 .endObject())
-            .addMapping("bs", "online", "type=boolean", "ts", "type=date,ignore_malformed=false,format=dateOptionalTime"));
+            .addMapping("bs", "online", "type=boolean", "ts", "type=date,ignore_malformed=false,format=epoch_millis"));
         ensureGreen();
 
         client().prepareIndex("test", "s", "1").setRouting("Y").setSource("online", false, "bs", "Y", "ts", System.currentTimeMillis() - 100).get();
@@ -2195,6 +2195,7 @@ functionScoreQuery(scriptFunction(new Script("_doc['score'].value")))).setMinSco
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/11478")
     @Test
     public void testDateProvidedAsNumber() throws ExecutionException, InterruptedException {
         createIndex("test");

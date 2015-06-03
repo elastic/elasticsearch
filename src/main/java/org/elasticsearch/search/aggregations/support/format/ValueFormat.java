@@ -68,7 +68,7 @@ public class ValueFormat {
         public static final DateTime DEFAULT = new DateTime(DateFieldMapper.Defaults.DATE_TIME_FORMATTER.format(), ValueFormatter.DateTime.DEFAULT, ValueParser.DateMath.DEFAULT);
 
         public static DateTime format(String format) {
-            return new DateTime(format, new ValueFormatter.DateTime(format), new ValueParser.DateMath(format, DateFieldMapper.Defaults.TIME_UNIT));
+            return new DateTime(format, new ValueFormatter.DateTime(format), new ValueParser.DateMath(format));
         }
 
         public static DateTime mapper(DateFieldMapper mapper) {

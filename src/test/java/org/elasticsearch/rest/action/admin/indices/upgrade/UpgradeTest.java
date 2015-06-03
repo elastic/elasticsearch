@@ -59,6 +59,10 @@ public class UpgradeTest extends ElasticsearchBackwardsCompatIntegrationTest {
         assumeFalse("lucene versions must be different to run upgrade test", luceneVersionMatches);
     }
 
+    protected int maximumNumberOfShards() {
+        return 3; // no need to go crazy here we also have multiple indices
+    }
+
     @Override
     protected int minExternalNodes() {
         return 2;
@@ -265,7 +269,6 @@ public class UpgradeTest extends ElasticsearchBackwardsCompatIntegrationTest {
     }
 
     @SuppressWarnings("unchecked")
-
     static Collection<IndexUpgradeStatus> getUpgradeStatus(Client client, String... indices) throws Exception {
         UpgradeStatusResponse upgradeStatusResponse = client.admin().indices().prepareUpgradeStatus(indices).get();
         assertNoFailures(upgradeStatusResponse);

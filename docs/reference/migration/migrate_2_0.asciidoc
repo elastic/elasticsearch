@@ -490,6 +490,10 @@ ignored. Instead filters are always used as their own cache key and elasticsearc
 makes decisions by itself about whether it should cache filters based on how
 often they are used.
 
+Java plugins that register custom queries can do so by using the
+`IndicesQueriesModule#addQuery(Class<? extends QueryParser>)` method. Other
+ways to register custom queries are not supported anymore.
+
 ==== Query/filter merge
 
 Elasticsearch no longer makes a difference between queries and filters in the

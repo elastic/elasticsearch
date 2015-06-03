@@ -83,7 +83,6 @@ public class TemplateQueryParserTest extends ElasticsearchTestCase {
                 new AnalysisModule(settings),
                 new SimilarityModule(settings),
                 new IndexNameModule(index),
-                new IndexQueryParserModule(settings),
                 new FunctionScoreModule(),
                 new AbstractModule() {
                     @Override

@@ -1,5 +1,5 @@
 [[query-dsl-geo-distance-range-query]]
-== Geo Distance Range Query
+=== Geo Distance Range Query
 
 Filters documents that exists within a range from a specific point:
 

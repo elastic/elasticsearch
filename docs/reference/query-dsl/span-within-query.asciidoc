@@ -1,5 +1,5 @@
 [[query-dsl-span-within-query]]
-== Span Within Query
+=== Span Within Query
 
 Returns matches which are enclosed inside another span query. The span within
 query maps to Lucene `SpanWithinQuery`. Here is an example:

@@ -1,3 +1,5 @@
+include::query_filter_context.asciidoc[]
+
 include::match-query.asciidoc[]
 
 include::multi-match-query.asciidoc[]

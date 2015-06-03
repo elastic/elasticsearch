@@ -1,5 +1,5 @@
 [[query-dsl-has-child-query]]
-== Has Child Query
+=== Has Child Query
 
 The `has_child` filter accepts a query and the child type to run against, and
 results in parent documents that have child docs matching the query. Here is
@@ -20,7 +20,7 @@ an example:
 --------------------------------------------------
 
 [float]
-=== Scoring capabilities
+==== Scoring capabilities
 
 The `has_child` also has scoring support. The
 supported score types are `min`, `max`, `sum`, `avg` or `none`. The default is
@@ -46,7 +46,7 @@ inside the `has_child` query:
 --------------------------------------------------
 
 [float]
-=== Min/Max Children
+==== Min/Max Children
 
 The `has_child` query allows you to specify that a minimum and/or maximum
 number of children are required to match for the parent doc to be considered

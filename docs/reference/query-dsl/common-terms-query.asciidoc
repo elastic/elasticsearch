@@ -1,12 +1,12 @@
 [[query-dsl-common-terms-query]]
-== Common Terms Query
+=== Common Terms Query
 
 The `common` terms query is a modern alternative to stopwords which
 improves the precision and recall of search results (by taking stopwords
 into account), without sacrificing performance.
 
 [float]
-=== The problem
+==== The problem
 
 Every term in a query has a cost. A search for `"The brown fox"`
 requires three term queries, one for each of `"the"`, `"brown"` and
@@ -25,7 +25,7 @@ and `"not happy"`) and we lose recall (eg text like `"The The"` or
 `"To be or not to be"` would simply not exist in the index).
 
 [float]
-=== The solution
+==== The solution
 
 The `common` terms query divides the query terms into two groups: more
 important (ie _low frequency_ terms) and less important (ie _high
@@ -63,7 +63,7 @@ site, common terms like `"clip"` or `"video"` will automatically behave
 as stopwords without the need to maintain a manual list.
 
 [float]
-=== Examples
+==== Examples
 
 In this example, words that have a document frequency greater than 0.1%
 (eg `"this"` and `"is"`) will be treated as _common terms_.

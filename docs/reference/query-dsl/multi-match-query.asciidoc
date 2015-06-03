@@ -1,5 +1,5 @@
 [[query-dsl-multi-match-query]]
-== Multi Match Query
+=== Multi Match Query
 
 The `multi_match` query builds on the <<query-dsl-match-query,`match` query>>
 to allow multi-field queries:
@@ -17,7 +17,7 @@ to allow multi-field queries:
 <2> The fields to be queried.
 
 [float]
-=== `fields` and per-field boosting
+==== `fields` and per-field boosting
 
 Fields can be specified with wildcards, eg:
 
@@ -47,7 +47,7 @@ Individual fields can be boosted with the caret (`^`) notation:
 
 [[multi-match-types]]
 [float]
-=== Types of `multi_match` query:
+==== Types of `multi_match` query:
 
 The way the `multi_match` query is executed internally depends on the `type`
 parameter, which can be set to:
@@ -70,7 +70,7 @@ parameter, which can be set to:
                     combines the `_score` from each field.  See <<type-phrase>>.
 
 [[type-best-fields]]
-=== `best_fields`
+==== `best_fields`
 
 The `best_fields` type is most useful when you are searching for multiple
 words best found in the same field. For instance ``brown fox'' in a single
@@ -121,7 +121,7 @@ and `cutoff_frequency`, as explained in <<query-dsl-match-query, match query>>.
 [IMPORTANT]
 [[operator-min]]
 .`operator` and `minimum_should_match`
-==================================================
+===================================================
 
 The `best_fields` and `most_fields` types are _field-centric_ -- they generate
 a `match` query *per field*.  This means that the `operator` and
@@ -153,10 +153,10 @@ to match.
 
 See <<type-cross-fields>> for a better solution.
 
-==================================================
+===================================================
 
 [[type-most-fields]]
-=== `most_fields`
+==== `most_fields`
 
 The `most_fields` type is most useful when querying multiple fields that
 contain the same text analyzed in different ways.  For instance, the main
@@ -203,7 +203,7 @@ and `cutoff_frequency`, as explained in <<query-dsl-match-query,match query>>, b
 *see <<operator-min>>*.
 
 [[type-phrase]]
-=== `phrase` and `phrase_prefix`
+==== `phrase` and `phrase_prefix`
 
 The `phrase` and `phrase_prefix` types behave just like <<type-best-fields>>,
 but they use a `match_phrase` or `match_phrase_prefix` query instead of a
@@ -240,7 +240,7 @@ in <<query-dsl-match-query>>.  Type `phrase_prefix` additionally accepts
 `max_expansions`.
 
 [[type-cross-fields]]
-=== `cross_fields`
+==== `cross_fields`
 
 The `cross_fields` type is particularly useful with structured documents where
 multiple fields *should* match.  For instance, when querying the `first_name`
@@ -317,7 +317,7 @@ Also, accepts `analyzer`, `boost`, `operator`, `minimum_should_match`,
 `zero_terms_query` and `cutoff_frequency`, as explained in
 <<query-dsl-match-query, match query>>.
 
-==== `cross_field` and analysis
+===== `cross_field` and analysis
 
 The `cross_field` type can only work in term-centric mode on fields that have
 the same analyzer. Fields with the same analyzer are grouped together as in
@@ -411,7 +411,7 @@ which will be executed as:
     blended("will",  fields: [first, first.edge, last.edge, last])
     blended("smith", fields: [first, first.edge, last.edge, last])
 
-==== `tie_breaker`
+===== `tie_breaker`
 
 By default, each per-term `blended` query will use the best score returned by
 any field in a group, then these scores are added together to give the final

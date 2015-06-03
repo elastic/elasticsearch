@@ -1,5 +1,5 @@
 [[query-dsl-ids-query]]
-== Ids Query
+=== Ids Query
 
 Filters documents that only have the provided ids. Note, this query
 uses the <<mapping-uid-field,_uid>> field.

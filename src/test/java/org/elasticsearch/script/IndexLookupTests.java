@@ -150,9 +150,9 @@ public class IndexLookupTests extends ElasticsearchIntegrationTest {
         initTestData();
 
         // check term frequencies for 'a'
-        String scriptFieldScript = "term = _index['int_payload_field']['c']; term.tf()";
-        scriptFieldScript = "1";
-        String scoreScript = "term = _index['int_payload_field']['b']; term.tf()";
+        Script scriptFieldScript = new Script("term = _index['int_payload_field']['c']; term.tf()");
+        scriptFieldScript = new Script("1");
+        Script scoreScript = new Script("term = _index['int_payload_field']['b']; term.tf()");
         Map<String, Object> expectedResultsField = new HashMap<>();
         expectedResultsField.put("1", 1);
         expectedResultsField.put("2", 1);
@@ -173,7 +173,7 @@ public class IndexLookupTests extends ElasticsearchIntegrationTest {
 
         // should throw an exception, we cannot call with different flags twice
         // if the flags of the second call were not included in the first call.
-        String script = "term = _index['int_payload_field']['b']; return _index['int_payload_field'].get('b', _POSITIONS).tf();";
+        Script script = new Script("term = _index['int_payload_field']['b']; return _index['int_payload_field'].get('b', _POSITIONS).tf();");
         try {
             client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery()).addScriptField("tvtest", script).execute().actionGet();
         } catch (SearchPhaseExecutionException e) {
@@ -186,13 +186,15 @@ public class IndexLookupTests extends ElasticsearchIntegrationTest {
         }
 
         // Should not throw an exception this way round
-        script = "term = _index['int_payload_field'].get('b', _POSITIONS | _FREQUENCIES);return _index['int_payload_field']['b'].tf();";
+        script = new Script(
+                "term = _index['int_payload_field'].get('b', _POSITIONS | _FREQUENCIES);return _index['int_payload_field']['b'].tf();");
         client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery()).addScriptField("tvtest", script).execute().actionGet();
     }
 
-    private void checkOnlyFunctionScore(String scoreScript, Map<String, Object> expectedScore, int numExpectedDocs) {
+    private void checkOnlyFunctionScore(Script scoreScript, Map<String, Object> expectedScore, int numExpectedDocs) {
         SearchResponse sr = client().prepareSearch("test")
-                .setQuery(QueryBuilders.functionScoreQuery(ScoreFunctionBuilders.scriptFunction(scoreScript))).execute().actionGet();
+                .setQuery(QueryBuilders.functionScoreQuery(ScoreFunctionBuilders.scriptFunction(scoreScript))).execute()
+                .actionGet();
         assertHitCount(sr, numExpectedDocs);
         for (SearchHit hit : sr.getHits().getHits()) {
             assertThat("for doc " + hit.getId(), ((Float) expectedScore.get(hit.getId())).doubleValue(),
@@ -205,8 +207,8 @@ public class IndexLookupTests extends ElasticsearchIntegrationTest {
 
         initTestData();
 
-        String script = "term = _index['float_payload_field'].get('b'," + includeAllFlag
-                + "); payloadSum=0; for (pos in term) {payloadSum = pos.payloadAsInt(0)}; payloadSum";
+        Script script = new Script("term = _index['float_payload_field'].get('b'," + includeAllFlag
+                + "); payloadSum=0; for (pos in term) {payloadSum = pos.payloadAsInt(0)}; payloadSum");
 
         // non existing field: sum should be 0
         HashMap<String, Object> zeroArray = new HashMap<>();
@@ -215,8 +217,8 @@ public class IndexLookupTests extends ElasticsearchIntegrationTest {
         zeroArray.put("3", 0);
         checkValueInEachDoc(script, zeroArray, 3);
 
-        script = "term = _index['int_payload_field'].get('b'," + includeAllFlag
-                + "); payloadSum=0; for (pos in term) {payloadSum = payloadSum + pos.payloadAsInt(0)}; payloadSum";
+        script = new Script("term = _index['int_payload_field'].get('b'," + includeAllFlag
+                + "); payloadSum=0; for (pos in term) {payloadSum = payloadSum + pos.payloadAsInt(0)}; payloadSum");
 
         // existing field: sums should be as here:
         zeroArray.put("1", 5);
@@ -231,7 +233,7 @@ public class IndexLookupTests extends ElasticsearchIntegrationTest {
         initTestData();
 
         // call twice with record: should work as expected
-        String script = createPositionsArrayScriptIterateTwice("b", includeAllFlag, "position");
+        Script script = createPositionsArrayScriptIterateTwice("b", includeAllFlag, "position");
         checkArrayValsInEachDoc(script, expectedPositionsArray, 3);
         script = createPositionsArrayScriptIterateTwice("b", includeAllFlag, "startOffset");
         checkArrayValsInEachDoc(script, expectedStartOffsetsArray, 3);
@@ -262,30 +264,30 @@ public class IndexLookupTests extends ElasticsearchIntegrationTest {
 
     }
 
-    private String createPositionsArrayScriptGetInfoObjectTwice(String term, String flags, String what) {
+    private Script createPositionsArrayScriptGetInfoObjectTwice(String term, String flags, String what) {
         String script = "term = _index['int_payload_field'].get('" + term + "'," + flags
                 + "); array=[]; for (pos in term) {array.add(pos." + what + ")}; _index['int_payload_field'].get('" + term + "',"
                 + flags + "); array=[]; for (pos in term) {array.add(pos." + what + ")}";
-        return script;
+        return new Script(script);
     }
 
-    private String createPositionsArrayScriptIterateTwice(String term, String flags, String what) {
+    private Script createPositionsArrayScriptIterateTwice(String term, String flags, String what) {
         String script = "term = _index['int_payload_field'].get('" + term + "'," + flags
                 + "); array=[]; for (pos in term) {array.add(pos." + what + ")}; array=[]; for (pos in term) {array.add(pos." + what
                 + ")}; array";
-        return script;
+        return new Script(script);
     }
 
-    private String createPositionsArrayScript(String field, String term, String flags, String what) {
+    private Script createPositionsArrayScript(String field, String term, String flags, String what) {
         String script = "term = _index['" + field + "'].get('" + term + "'," + flags
                 + "); array=[]; for (pos in term) {array.add(pos." + what + ")}; array";
-        return script;
+        return new Script(script);
     }
 
-    private String createPositionsArrayScriptDefaultGet(String field, String term, String what) {
+    private Script createPositionsArrayScriptDefaultGet(String field, String term, String what) {
         String script = "term = _index['" + field + "']['" + term + "']; array=[]; for (pos in term) {array.add(pos." + what
                 + ")}; array";
-        return script;
+        return new Script(script);
     }
 
     @Test
@@ -294,7 +296,7 @@ public class IndexLookupTests extends ElasticsearchIntegrationTest {
         initTestData();
 
         // check default flag
-        String script = createPositionsArrayScriptDefaultGet("int_payload_field", "b", "position");
+        Script script = createPositionsArrayScriptDefaultGet("int_payload_field", "b", "position");
         // there should be no positions
         /* TODO: the following tests fail with the new postings enum apis because of a bogus assert in BlockDocsEnum
         checkArrayValsInEachDoc(script, emptyArray, 3);
@@ -381,7 +383,7 @@ public class IndexLookupTests extends ElasticsearchIntegrationTest {
 
     }
 
-    private void checkArrayValsInEachDoc(String script, HashMap<String, List<Object>> expectedArray, int expectedHitSize) {
+    private void checkArrayValsInEachDoc(Script script, HashMap<String, List<Object>> expectedArray, int expectedHitSize) {
         SearchResponse sr = client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery()).addScriptField("tvtest", script)
                 .execute().actionGet();
         assertHitCount(sr, expectedHitSize);
@@ -433,36 +435,36 @@ public class IndexLookupTests extends ElasticsearchIntegrationTest {
                 client().prepareIndex("test", "type1", "6").setSource("int_payload_field", "c|1"));
 
         // get the number of all docs
-        String script = "_index.numDocs()";
+        Script script = new Script("_index.numDocs()");
         checkValueInEachDoc(6, script, 6);
 
         // get the number of docs with field float_payload_field
-        script = "_index['float_payload_field'].docCount()";
+        script = new Script("_index['float_payload_field'].docCount()");
         checkValueInEachDoc(3, script, 6);
 
         // corner case: what if the field does not exist?
-        script = "_index['non_existent_field'].docCount()";
+        script = new Script("_index['non_existent_field'].docCount()");
         checkValueInEachDoc(0, script, 6);
 
         // get the number of all tokens in all docs
-        script = "_index['float_payload_field'].sumttf()";
+        script = new Script("_index['float_payload_field'].sumttf()");
         checkValueInEachDoc(9, script, 6);
 
         // corner case get the number of all tokens in all docs for non existent
         // field
-        script = "_index['non_existent_field'].sumttf()";
+        script = new Script("_index['non_existent_field'].sumttf()");
         checkValueInEachDoc(0, script, 6);
 
         // get the sum of doc freqs in all docs
-        script = "_index['float_payload_field'].sumdf()";
+        script = new Script("_index['float_payload_field'].sumdf()");
         checkValueInEachDoc(5, script, 6);
 
         // get the sum of doc freqs in all docs for non existent field
-        script = "_index['non_existent_field'].sumdf()";
+        script = new Script("_index['non_existent_field'].sumdf()");
         checkValueInEachDoc(0, script, 6);
 
         // check term frequencies for 'a'
-        script = "term = _index['float_payload_field']['a']; if (term != null) {term.tf()}";
+        script = new Script("term = _index['float_payload_field']['a']; if (term != null) {term.tf()}");
         Map<String, Object> expectedResults = new HashMap<>();
         expectedResults.put("1", 2);
         expectedResults.put("2", 0);
@@ -474,7 +476,7 @@ public class IndexLookupTests extends ElasticsearchIntegrationTest {
         expectedResults.clear();
 
         // check doc frequencies for 'c'
-        script = "term = _index['float_payload_field']['c']; if (term != null) {term.df()}";
+        script = new Script("term = _index['float_payload_field']['c']; if (term != null) {term.df()}");
         expectedResults.put("1", 1l);
         expectedResults.put("2", 1l);
         expectedResults.put("3", 1l);
@@ -485,7 +487,7 @@ public class IndexLookupTests extends ElasticsearchIntegrationTest {
         expectedResults.clear();
 
         // check doc frequencies for term that does not exist
-        script = "term = _index['float_payload_field']['non_existent_term']; if (term != null) {term.df()}";
+        script = new Script("term = _index['float_payload_field']['non_existent_term']; if (term != null) {term.df()}");
         expectedResults.put("1", 0l);
         expectedResults.put("2", 0l);
         expectedResults.put("3", 0l);
@@ -496,7 +498,7 @@ public class IndexLookupTests extends ElasticsearchIntegrationTest {
         expectedResults.clear();
 
         // check doc frequencies for term that does not exist
-        script = "term = _index['non_existent_field']['non_existent_term']; if (term != null) {term.tf()}";
+        script = new Script("term = _index['non_existent_field']['non_existent_term']; if (term != null) {term.tf()}");
         expectedResults.put("1", 0);
         expectedResults.put("2", 0);
         expectedResults.put("3", 0);
@@ -507,7 +509,7 @@ public class IndexLookupTests extends ElasticsearchIntegrationTest {
         expectedResults.clear();
 
         // check total term frequencies for 'a'
-        script = "term = _index['float_payload_field']['a']; if (term != null) {term.ttf()}";
+        script = new Script("term = _index['float_payload_field']['a']; if (term != null) {term.ttf()}");
         expectedResults.put("1", 4l);
         expectedResults.put("2", 4l);
         expectedResults.put("3", 4l);
@@ -569,7 +571,7 @@ public class IndexLookupTests extends ElasticsearchIntegrationTest {
 
     }
 
-    private void checkExceptions(String script) {
+    private void checkExceptions(Script script) {
         try {
             SearchResponse sr = client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery()).addScriptField("tvtest", script)
                     .execute().actionGet();
@@ -587,7 +589,7 @@ public class IndexLookupTests extends ElasticsearchIntegrationTest {
         }
     }
 
-    private void checkValueInEachDocWithFunctionScore(String fieldScript, Map<String, Object> expectedFieldVals, String scoreScript,
+    private void checkValueInEachDocWithFunctionScore(Script fieldScript, Map<String, Object> expectedFieldVals, Script scoreScript,
             Map<String, Object> expectedScore, int numExpectedDocs) {
         SearchResponse sr = client().prepareSearch("test")
                 .setQuery(QueryBuilders.functionScoreQuery(ScoreFunctionBuilders.scriptFunction(scoreScript)))
@@ -602,7 +604,7 @@ public class IndexLookupTests extends ElasticsearchIntegrationTest {
         }
     }
 
-    private void checkValueInEachDoc(String script, Map<String, Object> expectedResults, int numExpectedDocs) {
+    private void checkValueInEachDoc(Script script, Map<String, Object> expectedResults, int numExpectedDocs) {
         SearchResponse sr = client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery()).addScriptField("tvtest", script)
                 .execute().actionGet();
         assertHitCount(sr, numExpectedDocs);
@@ -613,7 +615,7 @@ public class IndexLookupTests extends ElasticsearchIntegrationTest {
         }
     }
 
-    private void checkValueInEachDoc(int value, String script, int numExpectedDocs) {
+    private void checkValueInEachDoc(int value, Script script, int numExpectedDocs) {
         SearchResponse sr = client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery()).addScriptField("tvtest", script)
                 .execute().actionGet();
         assertHitCount(sr, numExpectedDocs);
@@ -627,5 +629,506 @@ public class IndexLookupTests extends ElasticsearchIntegrationTest {
                 fail();
             }
         }
+    }
+
+    /*
+     * TODO Remove in 2.0
+     */
+    @Test
+    public void testCallWithDifferentFlagsFailsOldScriptAPI() throws Exception {
+
+        initTestData();
+
+        // should throw an exception, we cannot call with different flags twice
+        // if the flags of the second call were not included in the first call.
+        String script = "term = _index['int_payload_field']['b']; return _index['int_payload_field'].get('b', _POSITIONS).tf();";
+        try {
+            client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery()).addScriptField("tvtest", script).execute().actionGet();
+        } catch (SearchPhaseExecutionException e) {
+            assertThat(
+                    "got: " + e.toString(),
+                    e.toString()
+                            .indexOf(
+                                    "You must call get with all required flags! Instead of  _index['int_payload_field'].get('b', _FREQUENCIES) and _index['int_payload_field'].get('b', _POSITIONS) call  _index['int_payload_field'].get('b', _FREQUENCIES | _POSITIONS)  once]"),
+                    Matchers.greaterThan(-1));
+        }
+
+        // Should not throw an exception this way round
+        script = "term = _index['int_payload_field'].get('b', _POSITIONS | _FREQUENCIES);return _index['int_payload_field']['b'].tf();";
+        client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery()).addScriptField("tvtest", script).execute().actionGet();
+    }
+
+    /*
+     * TODO Remove in 2.0
+     */
+    @Test
+    public void testIteratorAndRecordingOldScriptAPI() throws Exception {
+
+        initTestData();
+
+        // call twice with record: should work as expected
+        String script = createPositionsArrayScriptIterateTwiceOldScriptAPI("b", includeAllFlag, "position");
+        checkArrayValsInEachDocOldScriptAPI(script, expectedPositionsArray, 3);
+        script = createPositionsArrayScriptIterateTwiceOldScriptAPI("b", includeAllFlag, "startOffset");
+        checkArrayValsInEachDocOldScriptAPI(script, expectedStartOffsetsArray, 3);
+        script = createPositionsArrayScriptIterateTwiceOldScriptAPI("b", includeAllFlag, "endOffset");
+        checkArrayValsInEachDocOldScriptAPI(script, expectedEndOffsetsArray, 3);
+        script = createPositionsArrayScriptIterateTwiceOldScriptAPI("b", includeAllFlag, "payloadAsInt(-1)");
+        checkArrayValsInEachDocOldScriptAPI(script, expectedPayloadsArray, 3);
+
+        // no record and get iterator twice: should fail
+        script = createPositionsArrayScriptIterateTwiceOldScriptAPI("b", includeAllWithoutRecordFlag, "position");
+        checkExceptionsOldScriptAPI(script);
+        script = createPositionsArrayScriptIterateTwiceOldScriptAPI("b", includeAllWithoutRecordFlag, "startOffset");
+        checkExceptionsOldScriptAPI(script);
+        script = createPositionsArrayScriptIterateTwiceOldScriptAPI("b", includeAllWithoutRecordFlag, "endOffset");
+        checkExceptionsOldScriptAPI(script);
+        script = createPositionsArrayScriptIterateTwiceOldScriptAPI("b", includeAllWithoutRecordFlag, "payloadAsInt(-1)");
+        checkExceptionsOldScriptAPI(script);
+
+        // no record and get termObject twice and iterate: should fail
+        script = createPositionsArrayScriptGetInfoObjectTwiceOldScriptAPI("b", includeAllWithoutRecordFlag, "position");
+        checkExceptionsOldScriptAPI(script);
+        script = createPositionsArrayScriptGetInfoObjectTwiceOldScriptAPI("b", includeAllWithoutRecordFlag, "startOffset");
+        checkExceptionsOldScriptAPI(script);
+        script = createPositionsArrayScriptGetInfoObjectTwiceOldScriptAPI("b", includeAllWithoutRecordFlag, "endOffset");
+        checkExceptionsOldScriptAPI(script);
+        script = createPositionsArrayScriptGetInfoObjectTwiceOldScriptAPI("b", includeAllWithoutRecordFlag, "payloadAsInt(-1)");
+        checkExceptionsOldScriptAPI(script);
+
+    }
+
+    /*
+     * TODO Remove in 2.0
+     */
+    private String createPositionsArrayScriptGetInfoObjectTwiceOldScriptAPI(String term, String flags, String what) {
+        String script = "term = _index['int_payload_field'].get('" + term + "'," + flags + "); array=[]; for (pos in term) {array.add(pos."
+                + what + ")}; _index['int_payload_field'].get('" + term + "'," + flags + "); array=[]; for (pos in term) {array.add(pos."
+                + what + ")}";
+        return script;
+    }
+
+    /*
+     * TODO Remove in 2.0
+     */
+    private String createPositionsArrayScriptIterateTwiceOldScriptAPI(String term, String flags, String what) {
+        String script = "term = _index['int_payload_field'].get('" + term + "'," + flags + "); array=[]; for (pos in term) {array.add(pos."
+                + what + ")}; array=[]; for (pos in term) {array.add(pos." + what + ")}; array";
+        return script;
+    }
+
+    /*
+     * TODO Remove in 2.0
+     */
+    private String createPositionsArrayScriptOldScriptAPI(String field, String term, String flags, String what) {
+        String script = "term = _index['" + field + "'].get('" + term + "'," + flags + "); array=[]; for (pos in term) {array.add(pos."
+                + what + ")}; array";
+        return script;
+    }
+
+    /*
+     * TODO Remove in 2.0
+     */
+    private String createPositionsArrayScriptDefaultGetOldScriptAPI(String field, String term, String what) {
+        String script = "term = _index['" + field + "']['" + term + "']; array=[]; for (pos in term) {array.add(pos." + what + ")}; array";
+        return script;
+    }
+
+    /*
+     * TODO Remove in 2.0
+     */
+    @Test
+    public void testFlagsOldScriptAPI() throws Exception {
+
+        initTestData();
+
+        // check default flag
+        String script = createPositionsArrayScriptDefaultGetOldScriptAPI("int_payload_field", "b", "position");
+        // there should be no positions
+        /*
+         * TODO: the following tests fail with the new postings enum apis
+         * because of a bogus assert in BlockDocsEnum
+         * checkArrayValsInEachDoc(script, emptyArray, 3); script =
+         * createPositionsArrayScriptDefaultGet("int_payload_field", "b",
+         * "startOffset"); // there should be no offsets
+         * checkArrayValsInEachDoc(script, emptyArray, 3); script =
+         * createPositionsArrayScriptDefaultGet("int_payload_field", "b",
+         * "endOffset"); // there should be no offsets
+         * checkArrayValsInEachDoc(script, emptyArray, 3); script =
+         * createPositionsArrayScriptDefaultGet("int_payload_field", "b",
+         * "payloadAsInt(-1)"); // there should be no payload
+         * checkArrayValsInEachDoc(script, emptyArray, 3);
+         * 
+         * // check FLAG_FREQUENCIES flag script =
+         * createPositionsArrayScript("int_payload_field", "b", "_FREQUENCIES",
+         * "position"); // there should be no positions
+         * checkArrayValsInEachDoc(script, emptyArray, 3); script =
+         * createPositionsArrayScript("int_payload_field", "b", "_FREQUENCIES",
+         * "startOffset"); // there should be no offsets
+         * checkArrayValsInEachDoc(script, emptyArray, 3); script =
+         * createPositionsArrayScript("int_payload_field", "b", "_FREQUENCIES",
+         * "endOffset"); // there should be no offsets
+         * checkArrayValsInEachDoc(script, emptyArray, 3); script =
+         * createPositionsArrayScript("int_payload_field", "b", "_FREQUENCIES",
+         * "payloadAsInt(-1)"); // there should be no payloads
+         * checkArrayValsInEachDoc(script, emptyArray, 3);
+         */
+
+        // check FLAG_POSITIONS flag
+        script = createPositionsArrayScriptOldScriptAPI("int_payload_field", "b", "_POSITIONS", "position");
+        // there should be positions
+        checkArrayValsInEachDocOldScriptAPI(script, expectedPositionsArray, 3);
+        /*
+         * TODO: these tests make a bogus assumption that asking for positions
+         * will return only positions script =
+         * createPositionsArrayScript("int_payload_field", "b", "_POSITIONS",
+         * "startOffset"); // there should be no offsets
+         * checkArrayValsInEachDoc(script, emptyArray, 3); script =
+         * createPositionsArrayScript("int_payload_field", "b", "_POSITIONS",
+         * "endOffset"); // there should be no offsets
+         * checkArrayValsInEachDoc(script, emptyArray, 3); script =
+         * createPositionsArrayScript("int_payload_field", "b", "_POSITIONS",
+         * "payloadAsInt(-1)"); // there should be no payloads
+         * checkArrayValsInEachDoc(script, emptyArray, 3);
+         */
+
+        // check FLAG_OFFSETS flag
+        script = createPositionsArrayScriptOldScriptAPI("int_payload_field", "b", "_OFFSETS", "position");
+        // there should be positions and s forth ...
+        checkArrayValsInEachDocOldScriptAPI(script, expectedPositionsArray, 3);
+        script = createPositionsArrayScriptOldScriptAPI("int_payload_field", "b", "_OFFSETS", "startOffset");
+        checkArrayValsInEachDocOldScriptAPI(script, expectedStartOffsetsArray, 3);
+        script = createPositionsArrayScriptOldScriptAPI("int_payload_field", "b", "_OFFSETS", "endOffset");
+        checkArrayValsInEachDocOldScriptAPI(script, expectedEndOffsetsArray, 3);
+        script = createPositionsArrayScriptOldScriptAPI("int_payload_field", "b", "_OFFSETS", "payloadAsInt(-1)");
+        checkArrayValsInEachDocOldScriptAPI(script, expectedPayloadsArray, 3);
+
+        // check FLAG_PAYLOADS flag
+        script = createPositionsArrayScriptOldScriptAPI("int_payload_field", "b", "_PAYLOADS", "position");
+        checkArrayValsInEachDocOldScriptAPI(script, expectedPositionsArray, 3);
+        script = createPositionsArrayScriptOldScriptAPI("int_payload_field", "b", "_PAYLOADS", "startOffset");
+        checkArrayValsInEachDocOldScriptAPI(script, expectedStartOffsetsArray, 3);
+        script = createPositionsArrayScriptOldScriptAPI("int_payload_field", "b", "_PAYLOADS", "endOffset");
+        checkArrayValsInEachDocOldScriptAPI(script, expectedEndOffsetsArray, 3);
+        script = createPositionsArrayScriptOldScriptAPI("int_payload_field", "b", "_PAYLOADS", "payloadAsInt(-1)");
+        checkArrayValsInEachDocOldScriptAPI(script, expectedPayloadsArray, 3);
+
+        // check all flags
+        String allFlags = "_POSITIONS | _OFFSETS | _PAYLOADS";
+        script = createPositionsArrayScriptOldScriptAPI("int_payload_field", "b", allFlags, "position");
+        checkArrayValsInEachDocOldScriptAPI(script, expectedPositionsArray, 3);
+        script = createPositionsArrayScriptOldScriptAPI("int_payload_field", "b", allFlags, "startOffset");
+        checkArrayValsInEachDocOldScriptAPI(script, expectedStartOffsetsArray, 3);
+        script = createPositionsArrayScriptOldScriptAPI("int_payload_field", "b", allFlags, "endOffset");
+        checkArrayValsInEachDocOldScriptAPI(script, expectedEndOffsetsArray, 3);
+        script = createPositionsArrayScriptOldScriptAPI("int_payload_field", "b", allFlags, "payloadAsInt(-1)");
+        checkArrayValsInEachDocOldScriptAPI(script, expectedPayloadsArray, 3);
+
+        // check all flags without record
+        script = createPositionsArrayScriptOldScriptAPI("int_payload_field", "b", includeAllWithoutRecordFlag, "position");
+        checkArrayValsInEachDocOldScriptAPI(script, expectedPositionsArray, 3);
+        script = createPositionsArrayScriptOldScriptAPI("int_payload_field", "b", includeAllWithoutRecordFlag, "startOffset");
+        checkArrayValsInEachDocOldScriptAPI(script, expectedStartOffsetsArray, 3);
+        script = createPositionsArrayScriptOldScriptAPI("int_payload_field", "b", includeAllWithoutRecordFlag, "endOffset");
+        checkArrayValsInEachDocOldScriptAPI(script, expectedEndOffsetsArray, 3);
+        script = createPositionsArrayScriptOldScriptAPI("int_payload_field", "b", includeAllWithoutRecordFlag, "payloadAsInt(-1)");
+        checkArrayValsInEachDocOldScriptAPI(script, expectedPayloadsArray, 3);
+
+    }
+
+    /*
+     * TODO Remove in 2.0
+     */
+    @Test
+    public void testAllExceptPosAndOffsetOldSciptAPI() throws Exception {
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
+                .startObject("float_payload_field").field("type", "string").field("index_options", "offsets").field("term_vector", "no")
+                .field("analyzer", "payload_float").endObject().startObject("string_payload_field").field("type", "string")
+                .field("index_options", "offsets").field("term_vector", "no").field("analyzer", "payload_string").endObject()
+                .startObject("int_payload_field").field("type", "string").field("index_options", "offsets")
+                .field("analyzer", "payload_int").endObject().endObject().endObject().endObject();
+        assertAcked(prepareCreate("test").addMapping("type1", mapping).setSettings(
+                Settings.settingsBuilder().put(indexSettings())
+                        .put("index.analysis.analyzer.payload_float.tokenizer", "whitespace")
+                        .putArray("index.analysis.analyzer.payload_float.filter", "delimited_float")
+                        .put("index.analysis.filter.delimited_float.delimiter", "|")
+                        .put("index.analysis.filter.delimited_float.encoding", "float")
+                        .put("index.analysis.filter.delimited_float.type", "delimited_payload_filter")
+                        .put("index.analysis.analyzer.payload_string.tokenizer", "whitespace")
+                        .putArray("index.analysis.analyzer.payload_string.filter", "delimited_string")
+                        .put("index.analysis.filter.delimited_string.delimiter", "|")
+                        .put("index.analysis.filter.delimited_string.encoding", "identity")
+                        .put("index.analysis.filter.delimited_string.type", "delimited_payload_filter")
+                        .put("index.analysis.analyzer.payload_int.tokenizer", "whitespace")
+                        .putArray("index.analysis.analyzer.payload_int.filter", "delimited_int")
+                        .put("index.analysis.filter.delimited_int.delimiter", "|")
+                        .put("index.analysis.filter.delimited_int.encoding", "int")
+                        .put("index.analysis.filter.delimited_int.type", "delimited_payload_filter").put("index.number_of_shards", 1)));
+        ensureYellow();
+        indexRandom(true, client().prepareIndex("test", "type1", "1").setSource("float_payload_field", "a|1 b|2 a|3 b "), client()
+                .prepareIndex("test", "type1", "2").setSource("string_payload_field", "a|a b|b a|a b "),
+                client().prepareIndex("test", "type1", "3").setSource("float_payload_field", "a|4 b|5 a|6 b "),
+                client().prepareIndex("test", "type1", "4").setSource("string_payload_field", "a|b b|a a|b b "),
+                client().prepareIndex("test", "type1", "5").setSource("float_payload_field", "c "),
+                client().prepareIndex("test", "type1", "6").setSource("int_payload_field", "c|1"));
+
+        // get the number of all docs
+        String script = "_index.numDocs()";
+        checkValueInEachDocOldScriptAPI(6, script, 6);
+
+        // get the number of docs with field float_payload_field
+        script = "_index['float_payload_field'].docCount()";
+        checkValueInEachDocOldScriptAPI(3, script, 6);
+
+        // corner case: what if the field does not exist?
+        script = "_index['non_existent_field'].docCount()";
+        checkValueInEachDocOldScriptAPI(0, script, 6);
+
+        // get the number of all tokens in all docs
+        script = "_index['float_payload_field'].sumttf()";
+        checkValueInEachDocOldScriptAPI(9, script, 6);
+
+        // corner case get the number of all tokens in all docs for non existent
+        // field
+        script = "_index['non_existent_field'].sumttf()";
+        checkValueInEachDocOldScriptAPI(0, script, 6);
+
+        // get the sum of doc freqs in all docs
+        script = "_index['float_payload_field'].sumdf()";
+        checkValueInEachDocOldScriptAPI(5, script, 6);
+
+        // get the sum of doc freqs in all docs for non existent field
+        script = "_index['non_existent_field'].sumdf()";
+        checkValueInEachDocOldScriptAPI(0, script, 6);
+
+        // check term frequencies for 'a'
+        script = "term = _index['float_payload_field']['a']; if (term != null) {term.tf()}";
+        Map<String, Object> expectedResults = new HashMap<>();
+        expectedResults.put("1", 2);
+        expectedResults.put("2", 0);
+        expectedResults.put("3", 2);
+        expectedResults.put("4", 0);
+        expectedResults.put("5", 0);
+        expectedResults.put("6", 0);
+        checkValueInEachDocOldScriptAPI(script, expectedResults, 6);
+        expectedResults.clear();
+
+        // check doc frequencies for 'c'
+        script = "term = _index['float_payload_field']['c']; if (term != null) {term.df()}";
+        expectedResults.put("1", 1l);
+        expectedResults.put("2", 1l);
+        expectedResults.put("3", 1l);
+        expectedResults.put("4", 1l);
+        expectedResults.put("5", 1l);
+        expectedResults.put("6", 1l);
+        checkValueInEachDocOldScriptAPI(script, expectedResults, 6);
+        expectedResults.clear();
+
+        // check doc frequencies for term that does not exist
+        script = "term = _index['float_payload_field']['non_existent_term']; if (term != null) {term.df()}";
+        expectedResults.put("1", 0l);
+        expectedResults.put("2", 0l);
+        expectedResults.put("3", 0l);
+        expectedResults.put("4", 0l);
+        expectedResults.put("5", 0l);
+        expectedResults.put("6", 0l);
+        checkValueInEachDocOldScriptAPI(script, expectedResults, 6);
+        expectedResults.clear();
+
+        // check doc frequencies for term that does not exist
+        script = "term = _index['non_existent_field']['non_existent_term']; if (term != null) {term.tf()}";
+        expectedResults.put("1", 0);
+        expectedResults.put("2", 0);
+        expectedResults.put("3", 0);
+        expectedResults.put("4", 0);
+        expectedResults.put("5", 0);
+        expectedResults.put("6", 0);
+        checkValueInEachDocOldScriptAPI(script, expectedResults, 6);
+        expectedResults.clear();
+
+        // check total term frequencies for 'a'
+        script = "term = _index['float_payload_field']['a']; if (term != null) {term.ttf()}";
+        expectedResults.put("1", 4l);
+        expectedResults.put("2", 4l);
+        expectedResults.put("3", 4l);
+        expectedResults.put("4", 4l);
+        expectedResults.put("5", 4l);
+        expectedResults.put("6", 4l);
+        checkValueInEachDocOldScriptAPI(script, expectedResults, 6);
+        expectedResults.clear();
+
+        // check float payload for 'b'
+        HashMap<String, List<Object>> expectedPayloadsArray = new HashMap<>();
+        script = createPositionsArrayScriptOldScriptAPI("float_payload_field", "b", includeAllFlag, "payloadAsFloat(-1)");
+        float missingValue = -1;
+        List<Object> payloadsFor1 = new ArrayList<>();
+        payloadsFor1.add(2f);
+        payloadsFor1.add(missingValue);
+        expectedPayloadsArray.put("1", payloadsFor1);
+        List<Object> payloadsFor2 = new ArrayList<>();
+        payloadsFor2.add(5f);
+        payloadsFor2.add(missingValue);
+        expectedPayloadsArray.put("3", payloadsFor2);
+        expectedPayloadsArray.put("6", new ArrayList<>());
+        expectedPayloadsArray.put("5", new ArrayList<>());
+        expectedPayloadsArray.put("4", new ArrayList<>());
+        expectedPayloadsArray.put("2", new ArrayList<>());
+        checkArrayValsInEachDocOldScriptAPI(script, expectedPayloadsArray, 6);
+
+        // check string payload for 'b'
+        expectedPayloadsArray.clear();
+        payloadsFor1.clear();
+        payloadsFor2.clear();
+        script = createPositionsArrayScriptOldScriptAPI("string_payload_field", "b", includeAllFlag, "payloadAsString()");
+        payloadsFor1.add("b");
+        payloadsFor1.add(null);
+        expectedPayloadsArray.put("2", payloadsFor1);
+        payloadsFor2.add("a");
+        payloadsFor2.add(null);
+        expectedPayloadsArray.put("4", payloadsFor2);
+        expectedPayloadsArray.put("6", new ArrayList<>());
+        expectedPayloadsArray.put("5", new ArrayList<>());
+        expectedPayloadsArray.put("3", new ArrayList<>());
+        expectedPayloadsArray.put("1", new ArrayList<>());
+        checkArrayValsInEachDocOldScriptAPI(script, expectedPayloadsArray, 6);
+
+        // check int payload for 'c'
+        expectedPayloadsArray.clear();
+        payloadsFor1.clear();
+        payloadsFor2.clear();
+        script = createPositionsArrayScriptOldScriptAPI("int_payload_field", "c", includeAllFlag, "payloadAsInt(-1)");
+        payloadsFor1 = new ArrayList<>();
+        payloadsFor1.add(1);
+        expectedPayloadsArray.put("6", payloadsFor1);
+        expectedPayloadsArray.put("5", new ArrayList<>());
+        expectedPayloadsArray.put("4", new ArrayList<>());
+        expectedPayloadsArray.put("3", new ArrayList<>());
+        expectedPayloadsArray.put("2", new ArrayList<>());
+        expectedPayloadsArray.put("1", new ArrayList<>());
+        checkArrayValsInEachDocOldScriptAPI(script, expectedPayloadsArray, 6);
+
+    }
+
+    /*
+     * TODO Remove in 2.0
+     */
+    private void checkArrayValsInEachDocOldScriptAPI(Script script, HashMap<String, List<Object>> expectedArray, int expectedHitSize) {
+        SearchResponse sr = client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery()).addScriptField("tvtest", script)
+                .execute().actionGet();
+        assertHitCount(sr, expectedHitSize);
+        int nullCounter = 0;
+        for (SearchHit hit : sr.getHits().getHits()) {
+            Object result = hit.getFields().get("tvtest").getValues();
+            Object expectedResult = expectedArray.get(hit.getId());
+            assertThat("for doc " + hit.getId(), result, equalTo(expectedResult));
+            if (expectedResult != null) {
+                nullCounter++;
+            }
+        }
+        assertThat(nullCounter, equalTo(expectedArray.size()));
+    }
+
+    /*
+     * TODO Remove in 2.0
+     */
+    private void checkExceptionsOldScriptAPI(String script) {
+        try {
+            SearchResponse sr = client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery()).addScriptField("tvtest", script)
+                    .execute().actionGet();
+            assertThat(sr.getHits().hits().length, equalTo(0));
+            ShardSearchFailure[] shardFails = sr.getShardFailures();
+            for (ShardSearchFailure fail : shardFails) {
+                assertThat(fail.reason().indexOf("Cannot iterate twice! If you want to iterate more that once, add _CACHE explicitly."),
+                        Matchers.greaterThan(-1));
+            }
+        } catch (SearchPhaseExecutionException ex) {
+            assertThat("got " + ex.toString(),
+                    ex.toString().indexOf("Cannot iterate twice! If you want to iterate more that once, add _CACHE explicitly."),
+                    Matchers.greaterThan(-1));
+        }
+    }
+
+    /*
+     * TODO Remove in 2.0
+     */
+    private void checkValueInEachDocWithFunctionScoreOldScriptAPI(String fieldScript, Map<String, Object> expectedFieldVals,
+            String scoreScript, Map<String, Object> expectedScore, int numExpectedDocs) {
+        SearchResponse sr = client().prepareSearch("test")
+                .setQuery(QueryBuilders.functionScoreQuery(ScoreFunctionBuilders.scriptFunction(new Script(scoreScript))))
+                .addScriptField("tvtest", fieldScript).execute().actionGet();
+        assertHitCount(sr, numExpectedDocs);
+        for (SearchHit hit : sr.getHits().getHits()) {
+            Object result = hit.getFields().get("tvtest").getValues().get(0);
+            Object expectedResult = expectedFieldVals.get(hit.getId());
+            assertThat("for doc " + hit.getId(), result, equalTo(expectedResult));
+            assertThat("for doc " + hit.getId(), ((Float) expectedScore.get(hit.getId())).doubleValue(),
+                    Matchers.closeTo(hit.score(), 1.e-4));
+        }
+    }
+
+    /*
+     * TODO Remove in 2.0
+     */
+    private void checkOnlyFunctionScoreOldScriptAPI(String scoreScript, Map<String, Object> expectedScore, int numExpectedDocs) {
+        SearchResponse sr = client().prepareSearch("test")
+                .setQuery(QueryBuilders.functionScoreQuery(ScoreFunctionBuilders.scriptFunction(new Script(scoreScript)))).execute()
+                .actionGet();
+        assertHitCount(sr, numExpectedDocs);
+        for (SearchHit hit : sr.getHits().getHits()) {
+            assertThat("for doc " + hit.getId(), ((Float) expectedScore.get(hit.getId())).doubleValue(),
+                    Matchers.closeTo(hit.score(), 1.e-4));
+        }
+    }
+
+    /*
+     * TODO Remove in 2.0
+     */
+    private void checkValueInEachDocOldScriptAPI(String script, Map<String, Object> expectedResults, int numExpectedDocs) {
+        SearchResponse sr = client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery()).addScriptField("tvtest", script)
+                .execute().actionGet();
+        assertHitCount(sr, numExpectedDocs);
+        for (SearchHit hit : sr.getHits().getHits()) {
+            Object result = hit.getFields().get("tvtest").getValues().get(0);
+            Object expectedResult = expectedResults.get(hit.getId());
+            assertThat("for doc " + hit.getId(), result, equalTo(expectedResult));
+        }
+    }
+
+    /*
+     * TODO Remove in 2.0
+     */
+    private void checkValueInEachDocOldScriptAPI(int value, String script, int numExpectedDocs) {
+        SearchResponse sr = client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery()).addScriptField("tvtest", script)
+                .execute().actionGet();
+        assertHitCount(sr, numExpectedDocs);
+        for (SearchHit hit : sr.getHits().getHits()) {
+            Object result = hit.getFields().get("tvtest").getValues().get(0);
+            if (result instanceof Integer) {
+                assertThat((Integer) result, equalTo(value));
+            } else if (result instanceof Long) {
+                assertThat(((Long) result).intValue(), equalTo(value));
+            } else {
+                fail();
+            }
+        }
+    }
+
+    /*
+     * TODO Remove in 2.0
+     */
+    private void checkArrayValsInEachDocOldScriptAPI(String script, HashMap<String, List<Object>> expectedArray, int expectedHitSize) {
+        SearchResponse sr = client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery()).addScriptField("tvtest", script)
+                .execute().actionGet();
+        assertHitCount(sr, expectedHitSize);
+        int nullCounter = 0;
+        for (SearchHit hit : sr.getHits().getHits()) {
+            Object result = hit.getFields().get("tvtest").getValues();
+            Object expectedResult = expectedArray.get(hit.getId());
+            assertThat("for doc " + hit.getId(), result, equalTo(expectedResult));
+            if (expectedResult != null) {
+                nullCounter++;
+            }
+        }
+        assertThat(nullCounter, equalTo(expectedArray.size()));
     }
 }

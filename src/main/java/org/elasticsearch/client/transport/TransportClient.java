@@ -20,8 +20,14 @@
 package org.elasticsearch.client.transport;
 
 import com.google.common.collect.ImmutableList;
+
 import org.elasticsearch.Version;
-import org.elasticsearch.action.*;
+import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionModule;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionRequestBuilder;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.client.support.AbstractClient;
 import org.elasticsearch.client.support.Headers;
@@ -30,7 +36,6 @@ import org.elasticsearch.cluster.ClusterNameModule;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.LifecycleComponent;
-import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.network.NetworkModule;
@@ -121,8 +126,6 @@ public class TransportClient extends AbstractClient {
             this.settings = pluginsService.updatedSettings();
 
             Version version = Version.CURRENT;
-
-            CompressorFactory.configure(this.settings);
 
             final ThreadPool threadPool = new ThreadPool(settings);
 

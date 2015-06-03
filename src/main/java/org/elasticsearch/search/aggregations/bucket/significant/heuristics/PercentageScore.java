@@ -93,8 +93,9 @@ public class PercentageScore extends SignificanceHeuristic {
     public static class PercentageScoreBuilder implements SignificanceHeuristicBuilder {
 
         @Override
-        public void toXContent(XContentBuilder builder) throws IOException {
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject(STREAM.getName()).endObject();
+            return builder;
         }
     }
 }

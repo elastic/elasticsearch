@@ -22,6 +22,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
@@ -448,7 +449,7 @@ public class LongTermsTests extends AbstractTermsTests {
                 .addAggregation(terms("terms")
                         .field(SINGLE_VALUED_FIELD_NAME)
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
-                        .script("_value + 1"))
+                        .script(new Script("_value + 1")))
                 .execute().actionGet();
 
         assertSearchResponse(response);
@@ -503,7 +504,7 @@ public class LongTermsTests extends AbstractTermsTests {
                 .addAggregation(terms("terms")
                         .field(MULTI_VALUED_FIELD_NAME)
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
-                        .script("_value - 1"))
+                                .script(new Script("_value - 1")))
                 .execute().actionGet();
 
         assertSearchResponse(response);
@@ -533,7 +534,7 @@ public class LongTermsTests extends AbstractTermsTests {
                 .addAggregation(terms("terms")
                         .field(MULTI_VALUED_FIELD_NAME)
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
-                        .script("floor(_value / 1000 + 1)"))
+                                .script(new Script("floor(_value / 1000 + 1)")))
                 .execute().actionGet();
 
         assertSearchResponse(response);
@@ -574,7 +575,7 @@ public class LongTermsTests extends AbstractTermsTests {
                 .addAggregation(terms("terms")
                         .field(MULTI_VALUED_FIELD_NAME)
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
-                        .script("_value + 1")
+                                .script(new Script("_value + 1"))
                         .subAggregation(sum("sum")))
                 .execute().actionGet();
 
@@ -611,7 +612,8 @@ public class LongTermsTests extends AbstractTermsTests {
         SearchResponse response = client().prepareSearch("idx").setTypes("type")
                 .addAggregation(terms("terms")
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
-                        .script("doc['" + SINGLE_VALUED_FIELD_NAME + "'].value"))
+.script(
+                                new Script("doc['" + SINGLE_VALUED_FIELD_NAME + "'].value")))
                 .execute().actionGet();
 
         assertSearchResponse(response);
@@ -665,7 +667,8 @@ public class LongTermsTests extends AbstractTermsTests {
         SearchResponse response = client().prepareSearch("idx").setTypes("type")
                 .addAggregation(terms("terms")
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
-                        .script("doc['" + MULTI_VALUED_FIELD_NAME + "']"))
+.script(
+                                new Script("doc['" + MULTI_VALUED_FIELD_NAME + "']")))
                 .execute().actionGet();
 
         assertSearchResponse(response);
@@ -700,7 +703,7 @@ public class LongTermsTests extends AbstractTermsTests {
             client().prepareSearch("idx").setTypes("type")
                     .addAggregation(terms("terms")
                             .collectMode(randomFrom(SubAggCollectionMode.values()))
-                            .script("doc['" + MULTI_VALUED_FIELD_NAME + "']")
+                                    .script(new Script("doc['" + MULTI_VALUED_FIELD_NAME + "']"))
                             .subAggregation(sum("sum")))
                     .execute().actionGet();
 
@@ -716,7 +719,7 @@ public class LongTermsTests extends AbstractTermsTests {
         SearchResponse response = client().prepareSearch("idx").setTypes("type")
                 .addAggregation(terms("terms")
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
-                        .script("doc['" + MULTI_VALUED_FIELD_NAME + "']")
+                                .script(new Script("doc['" + MULTI_VALUED_FIELD_NAME + "']"))
                         .valueType(Terms.ValueType.LONG)
                         .subAggregation(sum("sum")))
                 .execute().actionGet();
@@ -1263,5 +1266,262 @@ public class LongTermsTests extends AbstractTermsTests {
     @Test
     public void otherDocCount() {
         testOtherDocCount(SINGLE_VALUED_FIELD_NAME, MULTI_VALUED_FIELD_NAME);
+    }
+
+    /*
+     * TODO Remove in 2.0
+     */
+    @Test
+    public void singleValuedField_WithValueScriptOldScriptAPI() throws Exception {
+        SearchResponse response = client()
+                .prepareSearch("idx")
+                .setTypes("type")
+                .addAggregation(
+                        terms("terms").field(SINGLE_VALUED_FIELD_NAME).collectMode(randomFrom(SubAggCollectionMode.values()))
+                                .script("_value + 1")).execute().actionGet();
+
+        assertSearchResponse(response);
+
+        Terms terms = response.getAggregations().get("terms");
+        assertThat(terms, notNullValue());
+        assertThat(terms.getName(), equalTo("terms"));
+        assertThat(terms.getBuckets().size(), equalTo(5));
+
+        for (int i = 0; i < 5; i++) {
+            Terms.Bucket bucket = terms.getBucketByKey("" + (i + 1d));
+            assertThat(bucket, notNullValue());
+            assertThat(key(bucket), equalTo("" + (i + 1d)));
+            assertThat(bucket.getKeyAsNumber().intValue(), equalTo(i + 1));
+            assertThat(bucket.getDocCount(), equalTo(1l));
+        }
+    }
+
+    /*
+     * TODO Remove in 2.0
+     */
+    @Test
+    public void multiValuedField_WithValueScriptOldScriptAPI() throws Exception {
+        SearchResponse response = client()
+                .prepareSearch("idx")
+                .setTypes("type")
+                .addAggregation(
+                        terms("terms").field(MULTI_VALUED_FIELD_NAME).collectMode(randomFrom(SubAggCollectionMode.values()))
+                                .script("_value - 1")).execute().actionGet();
+
+        assertSearchResponse(response);
+
+        Terms terms = response.getAggregations().get("terms");
+        assertThat(terms, notNullValue());
+        assertThat(terms.getName(), equalTo("terms"));
+        assertThat(terms.getBuckets().size(), equalTo(6));
+
+        for (int i = 0; i < 6; i++) {
+            Terms.Bucket bucket = terms.getBucketByKey("" + (i - 1d));
+            assertThat(bucket, notNullValue());
+            assertThat(key(bucket), equalTo("" + (i - 1d)));
+            assertThat(bucket.getKeyAsNumber().intValue(), equalTo(i - 1));
+            if (i == 0 || i == 5) {
+                assertThat(bucket.getDocCount(), equalTo(1l));
+            } else {
+                assertThat(bucket.getDocCount(), equalTo(2l));
+            }
+        }
+    }
+
+    /*
+     * TODO Remove in 2.0
+     */
+    @Test
+    public void multiValuedField_WithValueScript_NotUniqueOldScriptAPI() throws Exception {
+        SearchResponse response = client()
+                .prepareSearch("idx")
+                .setTypes("type")
+                .addAggregation(
+                        terms("terms").field(MULTI_VALUED_FIELD_NAME).collectMode(randomFrom(SubAggCollectionMode.values()))
+                                .script("floor(_value / 1000 + 1)")).execute().actionGet();
+
+        assertSearchResponse(response);
+
+        Terms terms = response.getAggregations().get("terms");
+        assertThat(terms, notNullValue());
+        assertThat(terms.getName(), equalTo("terms"));
+        assertThat(terms.getBuckets().size(), equalTo(1));
+
+        Terms.Bucket bucket = terms.getBucketByKey("1.0");
+        assertThat(bucket, notNullValue());
+        assertThat(key(bucket), equalTo("1.0"));
+        assertThat(bucket.getKeyAsNumber().intValue(), equalTo(1));
+        assertThat(bucket.getDocCount(), equalTo(5l));
+    }
+
+    /*
+     * 
+     * [1, 2] [2, 3] [3, 4] [4, 5] [5, 6]
+     * 
+     * 1 - count: 1 - sum: 1 2 - count: 2 - sum: 4 3 - count: 2 - sum: 6 4 -
+     * count: 2 - sum: 8 5 - count: 2 - sum: 10 6 - count: 1 - sum: 6
+     */
+
+    /*
+     * TODO Remove in 2.0
+     */
+    @Test
+    public void multiValuedField_WithValueScript_WithInheritedSubAggregatorOldScriptAPI() throws Exception {
+        SearchResponse response = client()
+                .prepareSearch("idx")
+                .setTypes("type")
+                .addAggregation(
+                        terms("terms").field(MULTI_VALUED_FIELD_NAME).collectMode(randomFrom(SubAggCollectionMode.values()))
+                                .script("_value + 1").subAggregation(sum("sum"))).execute().actionGet();
+
+        assertSearchResponse(response);
+
+        Terms terms = response.getAggregations().get("terms");
+        assertThat(terms, notNullValue());
+        assertThat(terms.getName(), equalTo("terms"));
+        assertThat(terms.getBuckets().size(), equalTo(6));
+
+        for (int i = 0; i < 6; i++) {
+            Terms.Bucket bucket = terms.getBucketByKey("" + (i + 1d));
+            assertThat(bucket, notNullValue());
+            assertThat(key(bucket), equalTo("" + (i + 1d)));
+            assertThat(bucket.getKeyAsNumber().intValue(), equalTo(i + 1));
+            final long count = i == 0 || i == 5 ? 1 : 2;
+            double s = 0;
+            for (int j = 0; j < NUM_DOCS; ++j) {
+                if (i == j || i == j + 1) {
+                    s += j + 1;
+                    s += j + 1 + 1;
+                }
+            }
+            assertThat(bucket.getDocCount(), equalTo(count));
+            Sum sum = bucket.getAggregations().get("sum");
+            assertThat(sum, notNullValue());
+            assertThat(sum.getValue(), equalTo(s));
+        }
+    }
+
+    /*
+     * TODO Remove in 2.0
+     */
+    @Test
+    public void script_SingleValueOldScriptAPI() throws Exception {
+        SearchResponse response = client()
+                .prepareSearch("idx")
+                .setTypes("type")
+                .addAggregation(
+                        terms("terms").collectMode(randomFrom(SubAggCollectionMode.values())).script(
+                                "doc['" + SINGLE_VALUED_FIELD_NAME + "'].value")).execute().actionGet();
+
+        assertSearchResponse(response);
+
+        Terms terms = response.getAggregations().get("terms");
+        assertThat(terms, notNullValue());
+        assertThat(terms.getName(), equalTo("terms"));
+        assertThat(terms.getBuckets().size(), equalTo(5));
+
+        for (int i = 0; i < 5; i++) {
+            Terms.Bucket bucket = terms.getBucketByKey("" + i);
+            assertThat(bucket, notNullValue());
+            assertThat(key(bucket), equalTo("" + i));
+            assertThat(bucket.getKeyAsNumber().intValue(), equalTo(i));
+            assertThat(bucket.getDocCount(), equalTo(1l));
+        }
+    }
+
+    /*
+     * TODO Remove in 2.0
+     */
+    @Test
+    public void script_MultiValuedOldScriptAPI() throws Exception {
+        SearchResponse response = client()
+                .prepareSearch("idx")
+                .setTypes("type")
+                .addAggregation(
+                        terms("terms").collectMode(randomFrom(SubAggCollectionMode.values())).script(
+                                "doc['" + MULTI_VALUED_FIELD_NAME + "']")).execute().actionGet();
+
+        assertSearchResponse(response);
+
+        Terms terms = response.getAggregations().get("terms");
+        assertThat(terms, notNullValue());
+        assertThat(terms.getName(), equalTo("terms"));
+        assertThat(terms.getBuckets().size(), equalTo(6));
+
+        for (int i = 0; i < 6; i++) {
+            Terms.Bucket bucket = terms.getBucketByKey("" + i);
+            assertThat(bucket, notNullValue());
+            assertThat(key(bucket), equalTo("" + i));
+            assertThat(bucket.getKeyAsNumber().intValue(), equalTo(i));
+            if (i == 0 || i == 5) {
+                assertThat(bucket.getDocCount(), equalTo(1l));
+            } else {
+                assertThat(bucket.getDocCount(), equalTo(2l));
+            }
+        }
+    }
+
+    /*
+     * TODO Remove in 2.0
+     */
+    @Test
+    public void script_MultiValued_WithAggregatorInherited_NoExplicitTypeOldScriptAPI() throws Exception {
+
+        // since no type ie explicitly defined, es will assume all values returned by the script to be strings (bytes),
+        // so the aggregation should fail, since the "sum" aggregation can only operation on numeric values.
+
+        try {
+
+            client().prepareSearch("idx")
+                    .setTypes("type")
+                    .addAggregation(
+                            terms("terms").collectMode(randomFrom(SubAggCollectionMode.values()))
+                                    .script("doc['" + MULTI_VALUED_FIELD_NAME + "']").subAggregation(sum("sum"))).execute().actionGet();
+
+            fail("expected to fail as sub-aggregation sum requires a numeric value source context, but there is none");
+
+        } catch (Exception e) {
+            // expected
+        }
+    }
+
+    /*
+     * TODO Remove in 2.0
+     */
+    @Test
+    public void script_MultiValued_WithAggregatorInherited_WithExplicitTypeOldScriptAPI() throws Exception {
+        SearchResponse response = client()
+                .prepareSearch("idx")
+                .setTypes("type")
+                .addAggregation(
+                        terms("terms").collectMode(randomFrom(SubAggCollectionMode.values()))
+                                .script("doc['" + MULTI_VALUED_FIELD_NAME + "']").valueType(Terms.ValueType.LONG)
+                                .subAggregation(sum("sum"))).execute().actionGet();
+
+        assertSearchResponse(response);
+
+        Terms terms = response.getAggregations().get("terms");
+        assertThat(terms, notNullValue());
+        assertThat(terms.getName(), equalTo("terms"));
+        assertThat(terms.getBuckets().size(), equalTo(6));
+
+        for (int i = 0; i < 6; i++) {
+            Terms.Bucket bucket = terms.getBucketByKey("" + i);
+            assertThat(bucket, notNullValue());
+            assertThat(key(bucket), equalTo("" + i));
+            assertThat(bucket.getKeyAsNumber().intValue(), equalTo(i));
+            final long count = i == 0 || i == 5 ? 1 : 2;
+            double s = 0;
+            for (int j = 0; j < NUM_DOCS; ++j) {
+                if (i == j || i == j + 1) {
+                    s += j;
+                    s += j + 1;
+                }
+            }
+            assertThat(bucket.getDocCount(), equalTo(count));
+            Sum sum = bucket.getAggregations().get("sum");
+            assertThat(sum, notNullValue());
+            assertThat(sum.getValue(), equalTo(s));
+        }
     }
 }

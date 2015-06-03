@@ -73,8 +73,6 @@ Some aggregations work on values extracted from the aggregated documents. Typica
 a specific document field which is set using the `field` key for the aggregations. It is also possible to define a
 <<modules-scripting,`script`>> which will generate the values (per document).
 
-TIP: The `script` parameter expects an inline script. Use `script_id` for indexed scripts and `script_file` for scripts in the `config/scripts/` directory.
-
 When both `field` and `script` settings are configured for the aggregation, the script will be treated as a
 `value script`.  While normal scripts are evaluated on a document level (i.e. the script has access to all the data
 associated with the document), value scripts are evaluated on the *value* level. In this mode, the values are extracted

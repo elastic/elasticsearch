@@ -1,8 +1,8 @@
 {
   "filtered": {
     "filter": {
-      "has_parent": {
-        "type": "foo",
+      "nested": {
+        "path": "nested",
         "query": {
           "bool": {
             "must": [],

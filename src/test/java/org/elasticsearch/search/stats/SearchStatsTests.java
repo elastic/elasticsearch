@@ -32,6 +32,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.search.stats.SearchStats.Stats;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
@@ -41,8 +42,16 @@ import java.util.Set;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
-import static org.hamcrest.Matchers.*;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  */
@@ -93,7 +102,7 @@ public class SearchStatsTests extends ElasticsearchIntegrationTest {
             SearchResponse searchResponse = internalCluster().clientNodeClient().prepareSearch()
                     .setQuery(QueryBuilders.termQuery("field", "value")).setStats("group1", "group2")
                     .addHighlightedField("field")
-                    .addScriptField("scrip1", "_source.field")
+                    .addScriptField("scrip1", new Script("_source.field"))
                     .setSize(100)
                     .execute().actionGet();
             assertHitCount(searchResponse, docsTest1 + docsTest2);

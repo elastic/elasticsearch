@@ -100,7 +100,7 @@ public class TransportSearchDfsQueryThenFetchAction extends TransportSearchTypeA
             }
         }
 
-        void executeQuery(final int shardIndex, final DfsSearchResult dfsResult, final AtomicInteger counter, final QuerySearchRequest querySearchRequest, DiscoveryNode node) {
+        void executeQuery(final int shardIndex, final DfsSearchResult dfsResult, final AtomicInteger counter, final QuerySearchRequest querySearchRequest, final DiscoveryNode node) {
             searchService.sendExecuteQuery(node, querySearchRequest, new ActionListener<QuerySearchResult>() {
                 @Override
                 public void onResponse(QuerySearchResult result) {
@@ -113,7 +113,14 @@ public class TransportSearchDfsQueryThenFetchAction extends TransportSearchTypeA
 
                 @Override
                 public void onFailure(Throwable t) {
-                    onQueryFailure(t, querySearchRequest, shardIndex, dfsResult, counter);
+                    try {
+                        onQueryFailure(t, querySearchRequest, shardIndex, dfsResult, counter);
+                    } finally {
+                        // the query might not have been executed at all (for example because thread pool rejected execution)
+                        // and the search context that was created in dfs phase might not be released.
+                        // release it again to be in the safe side
+                        sendReleaseSearchContext(querySearchRequest.id(), node);
+                    }
                 }
             });
         }
@@ -176,6 +183,11 @@ public class TransportSearchDfsQueryThenFetchAction extends TransportSearchTypeA
 
                 @Override
                 public void onFailure(Throwable t) {
+                    // the search context might not be cleared on the node where the fetch was executed for example
+                    // because the action was rejected by the thread pool. in this case we need to send a dedicated
+                    // request to clear the search context. by setting docIdsToLoad to null, the context will be cleared
+                    // in TransportSearchTypeAction.releaseIrrelevantSearchContexts() after the search request is done.
+                    docIdsToLoad.set(shardIndex, null);
                     onFetchFailure(t, fetchSearchRequest, shardIndex, shardTarget, counter);
                 }
             });

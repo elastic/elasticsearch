@@ -29,7 +29,7 @@ GET /_search
 {
     "script_fields": {
         "my_field": {
-            "script": "1 + my_var",
+            "inline": "1 + my_var",
             "params": {
               "my_var": 2
             }
@@ -38,7 +38,7 @@ GET /_search
 }
 -----------------------------------
 
-Save the contents of the script as a file called `config/scripts/my_script.groovy`
+Save the contents of the `inline` field as a file called `config/scripts/my_script.groovy`
 on every data node in the cluster:
 
 [source,js]
@@ -54,7 +54,7 @@ GET /_search
 {
     "script_fields": {
         "my_field": {
-            "script_file": "my_script",
+            "file": "my_script",
             "params": {
               "my_var": 2
             }
@@ -67,9 +67,9 @@ GET /_search
 
 
 Additional `lang` plugins are provided to allow to execute scripts in
-different languages. All places where a `script` parameter can be used, a `lang` parameter
-(on the same level) can be provided to define the language of the
-script. The following are the supported scripting languages:
+different languages. All places where a script can be used, a `lang` parameter
+can be provided to define the language of the script. The following are the 
+supported scripting languages:
 
 [cols="<,<,<",options="header",]
 |=======================================================================
@@ -120,7 +120,7 @@ curl -XPOST localhost:9200/_search -d '{
         {
           "script_score": {
             "lang": "groovy",
-            "script_file": "calculate-score",
+            "file": "calculate-score",
             "params": {
               "my_modifier": 8
             }
@@ -162,8 +162,8 @@ curl -XPOST localhost:9200/_scripts/groovy/indexedCalculateScore -d '{
 This will create a document with id: `indexedCalculateScore` and type: `groovy` in the
 `.scripts` index. The type of the document is the language used by the script.
 
-This script can be accessed at query time by appending `_id` to
-the script parameter and passing the script id. So `script` becomes `script_id`.:
+This script can be accessed at query time by using the `id` script parameter and passing 
+the script id:
 
 [source,js]
 --------------------------------------------------
@@ -178,7 +178,7 @@ curl -XPOST localhost:9200/_search -d '{
       "functions": [
         {
           "script_score": {
-            "script_id": "indexedCalculateScore",
+            "id": "indexedCalculateScore",
             "lang" : "groovy",
             "params": {
               "my_modifier": 8

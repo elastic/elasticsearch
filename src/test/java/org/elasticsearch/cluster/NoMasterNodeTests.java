@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster;
 
 import com.google.common.base.Predicate;
+
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
@@ -35,18 +36,23 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
+import org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import org.junit.Test;
 
 import java.util.HashMap;
 
 import static org.elasticsearch.action.percolate.PercolateSourceBuilder.docBuilder;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
-import static org.hamcrest.Matchers.*;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertExists;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.lessThan;
 
 /**
  */
@@ -133,12 +139,15 @@ public class NoMasterNodeTests extends ElasticsearchIntegrationTest {
                 ClusterBlockException.class, RestStatus.SERVICE_UNAVAILABLE
         );
 
-        checkWriteAction(false, timeout,
-                client().prepareUpdate("test", "type1", "1").setScript("test script", ScriptService.ScriptType.INLINE).setTimeout(timeout));
+        checkWriteAction(
+                false, timeout,
+                client().prepareUpdate("test", "type1", "1")
+                        .setScript(new Script("test script", ScriptService.ScriptType.INLINE, null, null)).setTimeout(timeout));
 
-
-        checkWriteAction(autoCreateIndex, timeout,
-                client().prepareUpdate("no_index", "type1", "1").setScript("test script", ScriptService.ScriptType.INLINE).setTimeout(timeout));
+        checkWriteAction(
+                autoCreateIndex, timeout,
+                client().prepareUpdate("no_index", "type1", "1")
+                        .setScript(new Script("test script", ScriptService.ScriptType.INLINE, null, null)).setTimeout(timeout));
 
 
         checkWriteAction(false, timeout,

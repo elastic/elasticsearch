@@ -37,7 +37,7 @@ import org.elasticsearch.cluster.service.InternalClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.compress.CompressedString;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -422,7 +422,7 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
                 builder.endObject();
 
                 builder.startObject("mappings");
-                for (ObjectObjectCursor<String, CompressedString> cursor1 : templateMetaData.mappings()) {
+                for (ObjectObjectCursor<String, CompressedXContent> cursor1 : templateMetaData.mappings()) {
                     byte[] mappingSource = cursor1.value.uncompressed();
                     XContentParser parser = XContentFactory.xContent(mappingSource).createParser(mappingSource);
                     Map<String, Object> mapping = parser.map();

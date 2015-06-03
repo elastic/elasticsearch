@@ -46,6 +46,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.index.query.functionscore.factor.FactorBuilder;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.search.highlight.HighlightBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
@@ -1240,7 +1241,7 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
                     .setScore(true)
                     .setSize(size)
                     .setPercolateDoc(docBuilder().setDoc("field", "value"))
-                    .setPercolateQuery(QueryBuilders.functionScoreQuery(matchAllQuery(), scriptFunction("doc['level'].value")))
+                    .setPercolateQuery(QueryBuilders.functionScoreQuery(matchAllQuery(), scriptFunction(new Script("doc['level'].value"))))
                     .execute().actionGet();
             assertMatchCount(response, numQueries);
             assertThat(response.getMatches().length, equalTo(size));
@@ -1257,7 +1258,7 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
                     .setSortByScore(true)
                     .setSize(size)
                     .setPercolateDoc(docBuilder().setDoc("field", "value"))
-                    .setPercolateQuery(QueryBuilders.functionScoreQuery(matchAllQuery(), scriptFunction("doc['level'].value")))
+                    .setPercolateQuery(QueryBuilders.functionScoreQuery(matchAllQuery(), scriptFunction(new Script("doc['level'].value"))))
                     .execute().actionGet();
             assertMatchCount(response, numQueries);
             assertThat(response.getMatches().length, equalTo(size));
@@ -1281,7 +1282,8 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
                     .setSize(size)
                     .setPercolateDoc(docBuilder().setDoc("field", "value"))
                     .setPercolateQuery(
-                            QueryBuilders.functionScoreQuery(matchQuery("field1", value), scriptFunction("doc['level'].value")).boostMode(
+                            QueryBuilders.functionScoreQuery(matchQuery("field1", value), scriptFunction(new Script("doc['level'].value")))
+                                    .boostMode(
                                     CombineFunction.REPLACE))
                     .execute().actionGet();
 
@@ -1314,7 +1316,7 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
                 .setSortByScore(true)
                 .setSize(2)
                 .setPercolateDoc(docBuilder().setDoc("field", "value"))
-                .setPercolateQuery(QueryBuilders.functionScoreQuery(matchAllQuery(), scriptFunction("doc['level'].value")))
+                .setPercolateQuery(QueryBuilders.functionScoreQuery(matchAllQuery(), scriptFunction(new Script("doc['level'].value"))))
                 .execute().actionGet();
         assertMatchCount(response, 2l);
         assertThat(response.getMatches()[0].getId().string(), equalTo("2"));
@@ -1325,7 +1327,7 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
         response = client().preparePercolate().setIndices("my-index").setDocumentType("my-type")
                 .setSortByScore(true)
                 .setPercolateDoc(docBuilder().setDoc("field", "value"))
-                .setPercolateQuery(QueryBuilders.functionScoreQuery(matchAllQuery(), scriptFunction("doc['level'].value")))
+                .setPercolateQuery(QueryBuilders.functionScoreQuery(matchAllQuery(), scriptFunction(new Script("doc['level'].value"))))
                 .execute().actionGet();
         assertThat(response.getCount(), equalTo(0l));
         assertThat(response.getShardFailures().length, greaterThan(0));
@@ -1354,7 +1356,7 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
         PercolateResponse response = client().preparePercolate().setIndices("my-index").setDocumentType("my-type")
                 .setSize(2)
                 .setPercolateDoc(docBuilder().setDoc("field", "value"))
-                .setPercolateQuery(QueryBuilders.functionScoreQuery(matchAllQuery(), scriptFunction("doc['level'].value")))
+                .setPercolateQuery(QueryBuilders.functionScoreQuery(matchAllQuery(), scriptFunction(new Script("doc['level'].value"))))
                 .addSort(SortBuilders.fieldSort("level"))
                 .get();
 
@@ -1372,7 +1374,7 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
                 .setSortByScore(true)
                 .setSize(2)
                 .setPercolateDoc(docBuilder().setDoc("field", "value"))
-                .setPercolateQuery(QueryBuilders.functionScoreQuery(matchAllQuery(), scriptFunction("doc['level'].value")))
+                .setPercolateQuery(QueryBuilders.functionScoreQuery(matchAllQuery(), scriptFunction(new Script("doc['level'].value"))))
                 .execute().actionGet();
         assertMatchCount(response, 0l);
     }
@@ -1392,7 +1394,7 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
                 .setSortByScore(true)
                 .setSize(2)
                 .setPercolateDoc(docBuilder().setDoc("field", "value"))
-                .setPercolateQuery(QueryBuilders.functionScoreQuery(matchAllQuery(), scriptFunction("doc['level'].value")))
+                .setPercolateQuery(QueryBuilders.functionScoreQuery(matchAllQuery(), scriptFunction(new Script("doc['level'].value"))))
                 .execute().actionGet();
         assertMatchCount(response, 0l);
     }

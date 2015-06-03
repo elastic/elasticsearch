@@ -28,6 +28,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.support.QueryInnerHitBuilder;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.fetch.innerhits.InnerHitsBuilder;
@@ -41,11 +42,21 @@ import java.util.List;
 import java.util.Locale;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
+import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
 import static org.elasticsearch.index.query.QueryBuilders.hasChildQuery;
+import static org.elasticsearch.index.query.QueryBuilders.hasParentQuery;
+import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.index.query.QueryBuilders.nestedQuery;
-import static org.elasticsearch.index.query.QueryBuilders.*;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
-import static org.hamcrest.Matchers.*;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHit;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasId;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  */
@@ -146,14 +157,14 @@ public class InnerHitsTests extends ElasticsearchIntegrationTest {
                                 .addHighlightedField("comments.message")
                                 .setExplain(true)
                                 .addFieldDataField("comments.message")
-                                .addScriptField("script", "doc['comments.message'].value")
+                                        .addScriptField("script", new Script("doc['comments.message'].value"))
                                 .setSize(1)).request(),
                 client().prepareSearch("articles")
                         .setQuery(nestedQuery("comments", matchQuery("comments.message", "fox")).innerHit(new QueryInnerHitBuilder()
                                 .addHighlightedField("comments.message")
                                 .setExplain(true)
                                 .addFieldDataField("comments.message")
-                                .addScriptField("script", "doc['comments.message'].value")
+                                                .addScriptField("script", new Script("doc['comments.message'].value"))
                                 .setSize(1))).request()
         };
 
@@ -322,18 +333,15 @@ public class InnerHitsTests extends ElasticsearchIntegrationTest {
                                         .addHighlightedField("message")
                                         .setExplain(true)
                                         .addFieldDataField("message")
-                                        .addScriptField("script", "doc['message'].value")
+                                        .addScriptField("script", new Script("doc['message'].value"))
                                         .setSize(1)
                         ).request(),
                 client().prepareSearch("articles")
-                        .setQuery(hasChildQuery("comment", matchQuery("message", "fox")).innerHit(new QueryInnerHitBuilder()
-                                        .addHighlightedField("message")
-                                        .setExplain(true)
-                                        .addFieldDataField("message")
-                                        .addScriptField("script", "doc['message'].value")
-                                        .setSize(1))
-                        ).request()
-        };
+                        .setQuery(
+                                hasChildQuery("comment", matchQuery("message", "fox")).innerHit(
+                                        new QueryInnerHitBuilder().addHighlightedField("message").setExplain(true)
+                                                .addFieldDataField("message").addScriptField("script", new Script("doc['message'].value"))
+                                                .setSize(1))).request() };
 
         for (SearchRequest searchRequest : searchRequests) {
             SearchResponse response = client().search(searchRequest).actionGet();
@@ -921,6 +929,216 @@ public class InnerHitsTests extends ElasticsearchIntegrationTest {
         assertThat(response.getHits().getAt(0).getInnerHits().get("comments.messages").getAt(0).getNestedIdentity().getField().string(), equalTo("comments.messages"));
         assertThat(response.getHits().getAt(0).getInnerHits().get("comments.messages").getAt(0).getNestedIdentity().getOffset(), equalTo(0));
         assertThat(response.getHits().getAt(0).getInnerHits().get("comments.messages").getAt(0).getNestedIdentity().getChild(), nullValue());
+    }
+
+    /*
+     * TODO Remove in 2.0
+     */
+    @Test
+    public void testSimpleNestedOldScriptAPI() throws Exception {
+        assertAcked(prepareCreate("articles").addMapping(
+                "article",
+                jsonBuilder().startObject().startObject("article").startObject("properties").startObject("comments")
+                        .field("type", "nested").startObject("properties").startObject("message").field("type", "string").endObject()
+                        .endObject().endObject().startObject("title").field("type", "string").endObject().endObject().endObject()
+                        .endObject()));
+
+        List<IndexRequestBuilder> requests = new ArrayList<>();
+        requests.add(client().prepareIndex("articles", "article", "1").setSource(
+                jsonBuilder().startObject().field("title", "quick brown fox").startArray("comments").startObject()
+                        .field("message", "fox eat quick").endObject().startObject().field("message", "fox ate rabbit x y z").endObject()
+                        .startObject().field("message", "rabbit got away").endObject().endArray().endObject()));
+        requests.add(client().prepareIndex("articles", "article", "2").setSource(
+                jsonBuilder().startObject().field("title", "big gray elephant").startArray("comments").startObject()
+                        .field("message", "elephant captured").endObject().startObject().field("message", "mice squashed by elephant x")
+                        .endObject().startObject().field("message", "elephant scared by mice x y").endObject().endArray().endObject()));
+        indexRandom(true, requests);
+
+        // Inner hits can be defined in two ways: 1) with the query 2) as seperate inner_hit definition
+        SearchRequest[] searchRequests = new SearchRequest[] {
+                client().prepareSearch("articles")
+                        .setQuery(
+                                nestedQuery("comments", matchQuery("comments.message", "fox")).innerHit(
+                                        new QueryInnerHitBuilder().setName("comment"))).request(),
+                client().prepareSearch("articles")
+                        .setQuery(nestedQuery("comments", matchQuery("comments.message", "fox")))
+                        .addInnerHit("comment",
+                                new InnerHitsBuilder.InnerHit().setPath("comments").setQuery(matchQuery("comments.message", "fox")))
+                        .request() };
+        for (SearchRequest searchRequest : searchRequests) {
+            SearchResponse response = client().search(searchRequest).actionGet();
+            assertNoFailures(response);
+            assertHitCount(response, 1);
+            assertSearchHit(response, 1, hasId("1"));
+            assertThat(response.getHits().getAt(0).getInnerHits().size(), equalTo(1));
+            SearchHits innerHits = response.getHits().getAt(0).getInnerHits().get("comment");
+            assertThat(innerHits.totalHits(), equalTo(2l));
+            assertThat(innerHits.getHits().length, equalTo(2));
+            assertThat(innerHits.getAt(0).getId(), equalTo("1"));
+            assertThat(innerHits.getAt(0).getNestedIdentity().getField().string(), equalTo("comments"));
+            assertThat(innerHits.getAt(0).getNestedIdentity().getOffset(), equalTo(0));
+            assertThat(innerHits.getAt(1).getId(), equalTo("1"));
+            assertThat(innerHits.getAt(1).getNestedIdentity().getField().string(), equalTo("comments"));
+            assertThat(innerHits.getAt(1).getNestedIdentity().getOffset(), equalTo(1));
+        }
+
+        searchRequests = new SearchRequest[] {
+                client().prepareSearch("articles")
+                        .setQuery(nestedQuery("comments", matchQuery("comments.message", "elephant")))
+                        .addInnerHit("comment",
+                                new InnerHitsBuilder.InnerHit().setPath("comments").setQuery(matchQuery("comments.message", "elephant")))
+                        .request(),
+                client().prepareSearch("articles")
+                        .setQuery(
+                                nestedQuery("comments", matchQuery("comments.message", "elephant")).innerHit(
+                                        new QueryInnerHitBuilder().setName("comment"))).request(),
+                client().prepareSearch("articles")
+                        .setQuery(
+                                nestedQuery("comments", matchQuery("comments.message", "elephant")).innerHit(
+                                        new QueryInnerHitBuilder().setName("comment").addSort("_doc", SortOrder.DESC))).request() };
+        for (SearchRequest searchRequest : searchRequests) {
+            SearchResponse response = client().search(searchRequest).actionGet();
+            assertNoFailures(response);
+            assertHitCount(response, 1);
+            assertSearchHit(response, 1, hasId("2"));
+            assertThat(response.getHits().getAt(0).getInnerHits().size(), equalTo(1));
+            SearchHits innerHits = response.getHits().getAt(0).getInnerHits().get("comment");
+            assertThat(innerHits.totalHits(), equalTo(3l));
+            assertThat(innerHits.getHits().length, equalTo(3));
+            assertThat(innerHits.getAt(0).getId(), equalTo("2"));
+            assertThat(innerHits.getAt(0).getNestedIdentity().getField().string(), equalTo("comments"));
+            assertThat(innerHits.getAt(0).getNestedIdentity().getOffset(), equalTo(0));
+            assertThat(innerHits.getAt(1).getId(), equalTo("2"));
+            assertThat(innerHits.getAt(1).getNestedIdentity().getField().string(), equalTo("comments"));
+            assertThat(innerHits.getAt(1).getNestedIdentity().getOffset(), equalTo(1));
+            assertThat(innerHits.getAt(2).getId(), equalTo("2"));
+            assertThat(innerHits.getAt(2).getNestedIdentity().getField().string(), equalTo("comments"));
+            assertThat(innerHits.getAt(2).getNestedIdentity().getOffset(), equalTo(2));
+        }
+
+        searchRequests = new SearchRequest[] {
+                client().prepareSearch("articles")
+                        .setQuery(nestedQuery("comments", matchQuery("comments.message", "fox")))
+                        .addInnerHit(
+                                "comments",
+                                new InnerHitsBuilder.InnerHit().setPath("comments").setQuery(matchQuery("comments.message", "fox"))
+                                        .addHighlightedField("comments.message").setExplain(true).addFieldDataField("comments.message")
+                                        .addScriptField("script", "doc['comments.message'].value").setSize(1)).request(),
+                client().prepareSearch("articles")
+                        .setQuery(
+                                nestedQuery("comments", matchQuery("comments.message", "fox")).innerHit(
+                                        new QueryInnerHitBuilder().addHighlightedField("comments.message").setExplain(true)
+                                                .addFieldDataField("comments.message")
+                                                .addScriptField("script", "doc['comments.message'].value").setSize(1))).request() };
+
+        for (SearchRequest searchRequest : searchRequests) {
+            SearchResponse response = client().search(searchRequest).actionGet();
+            assertNoFailures(response);
+            SearchHits innerHits = response.getHits().getAt(0).getInnerHits().get("comments");
+            assertThat(innerHits.getTotalHits(), equalTo(2l));
+            assertThat(innerHits.getHits().length, equalTo(1));
+            assertThat(innerHits.getAt(0).getHighlightFields().get("comments.message").getFragments()[0].string(),
+                    equalTo("<em>fox</em> eat quick"));
+            assertThat(innerHits.getAt(0).explanation().toString(), containsString("weight(comments.message:fox in"));
+            assertThat(innerHits.getAt(0).getFields().get("comments.message").getValue().toString(), equalTo("eat"));
+            assertThat(innerHits.getAt(0).getFields().get("script").getValue().toString(), equalTo("eat"));
+        }
+    }
+
+    /*
+     * TODO Remove in 2.0
+     */
+    @Test
+    public void testSimpleParentChildOldScriptAPI() throws Exception {
+        assertAcked(prepareCreate("articles").addMapping("article", "title", "type=string").addMapping("comment", "_parent",
+                "type=article", "message", "type=string"));
+
+        List<IndexRequestBuilder> requests = new ArrayList<>();
+        requests.add(client().prepareIndex("articles", "article", "1").setSource("title", "quick brown fox"));
+        requests.add(client().prepareIndex("articles", "comment", "1").setParent("1").setSource("message", "fox eat quick"));
+        requests.add(client().prepareIndex("articles", "comment", "2").setParent("1").setSource("message", "fox ate rabbit x y z"));
+        requests.add(client().prepareIndex("articles", "comment", "3").setParent("1").setSource("message", "rabbit got away"));
+        requests.add(client().prepareIndex("articles", "article", "2").setSource("title", "big gray elephant"));
+        requests.add(client().prepareIndex("articles", "comment", "4").setParent("2").setSource("message", "elephant captured"));
+        requests.add(client().prepareIndex("articles", "comment", "5").setParent("2").setSource("message", "mice squashed by elephant x"));
+        requests.add(client().prepareIndex("articles", "comment", "6").setParent("2").setSource("message", "elephant scared by mice x y"));
+        indexRandom(true, requests);
+
+        SearchRequest[] searchRequests = new SearchRequest[] {
+                client().prepareSearch("articles").setQuery(hasChildQuery("comment", matchQuery("message", "fox")))
+                        .addInnerHit("comment", new InnerHitsBuilder.InnerHit().setType("comment").setQuery(matchQuery("message", "fox")))
+                        .request(),
+                client().prepareSearch("articles")
+                        .setQuery(
+                                hasChildQuery("comment", matchQuery("message", "fox")).innerHit(
+                                        new QueryInnerHitBuilder().setName("comment"))).request() };
+        for (SearchRequest searchRequest : searchRequests) {
+            SearchResponse response = client().search(searchRequest).actionGet();
+            assertNoFailures(response);
+            assertHitCount(response, 1);
+            assertSearchHit(response, 1, hasId("1"));
+
+            assertThat(response.getHits().getAt(0).getInnerHits().size(), equalTo(1));
+            SearchHits innerHits = response.getHits().getAt(0).getInnerHits().get("comment");
+            assertThat(innerHits.totalHits(), equalTo(2l));
+
+            assertThat(innerHits.getAt(0).getId(), equalTo("1"));
+            assertThat(innerHits.getAt(0).type(), equalTo("comment"));
+            assertThat(innerHits.getAt(1).getId(), equalTo("2"));
+            assertThat(innerHits.getAt(1).type(), equalTo("comment"));
+        }
+
+        searchRequests = new SearchRequest[] {
+                client().prepareSearch("articles")
+                        .setQuery(hasChildQuery("comment", matchQuery("message", "elephant")))
+                        .addInnerHit("comment",
+                                new InnerHitsBuilder.InnerHit().setType("comment").setQuery(matchQuery("message", "elephant"))).request(),
+                client().prepareSearch("articles")
+                        .setQuery(hasChildQuery("comment", matchQuery("message", "elephant")).innerHit(new QueryInnerHitBuilder()))
+                        .request() };
+        for (SearchRequest searchRequest : searchRequests) {
+            SearchResponse response = client().search(searchRequest).actionGet();
+            assertNoFailures(response);
+            assertHitCount(response, 1);
+            assertSearchHit(response, 1, hasId("2"));
+
+            assertThat(response.getHits().getAt(0).getInnerHits().size(), equalTo(1));
+            SearchHits innerHits = response.getHits().getAt(0).getInnerHits().get("comment");
+            assertThat(innerHits.totalHits(), equalTo(3l));
+
+            assertThat(innerHits.getAt(0).getId(), equalTo("4"));
+            assertThat(innerHits.getAt(0).type(), equalTo("comment"));
+            assertThat(innerHits.getAt(1).getId(), equalTo("5"));
+            assertThat(innerHits.getAt(1).type(), equalTo("comment"));
+            assertThat(innerHits.getAt(2).getId(), equalTo("6"));
+            assertThat(innerHits.getAt(2).type(), equalTo("comment"));
+        }
+
+        searchRequests = new SearchRequest[] {
+                client().prepareSearch("articles")
+                        .setQuery(hasChildQuery("comment", matchQuery("message", "fox")))
+                        .addInnerHit(
+                                "comment",
+                                new InnerHitsBuilder.InnerHit().setType("comment").setQuery(matchQuery("message", "fox"))
+                                        .addHighlightedField("message").setExplain(true).addFieldDataField("message")
+                                        .addScriptField("script", "doc['message'].value").setSize(1)).request(),
+                client().prepareSearch("articles")
+                        .setQuery(
+                                hasChildQuery("comment", matchQuery("message", "fox")).innerHit(
+                                        new QueryInnerHitBuilder().addHighlightedField("message").setExplain(true)
+                                                .addFieldDataField("message").addScriptField("script", "doc['message'].value").setSize(1)))
+                        .request() };
+
+        for (SearchRequest searchRequest : searchRequests) {
+            SearchResponse response = client().search(searchRequest).actionGet();
+            assertNoFailures(response);
+            SearchHits innerHits = response.getHits().getAt(0).getInnerHits().get("comment");
+            assertThat(innerHits.getHits().length, equalTo(1));
+            assertThat(innerHits.getAt(0).getHighlightFields().get("message").getFragments()[0].string(), equalTo("<em>fox</em> eat quick"));
+            assertThat(innerHits.getAt(0).explanation().toString(), containsString("weight(message:fox"));
+            assertThat(innerHits.getAt(0).getFields().get("message").getValue().toString(), equalTo("eat"));
+            assertThat(innerHits.getAt(0).getFields().get("script").getValue().toString(), equalTo("eat"));
+        }
     }
 
     @Test

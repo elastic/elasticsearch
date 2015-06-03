@@ -17,17 +17,14 @@
  * under the License.
  */
 
-package org.elasticsearch.index.suggest;
+package org.elasticsearch.common.compress.deflate;
 
-import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.index.suggest.stats.ShardSuggestService;
+import org.elasticsearch.common.compress.AbstractCompressedStreamTests;
 
-/**
- *
- */
-public class SuggestShardModule extends AbstractModule {
-    @Override
-    protected void configure() {
-        bind(ShardSuggestService.class).asEagerSingleton();
+public class DeflateCompressedStreamTests extends AbstractCompressedStreamTests {
+
+    public DeflateCompressedStreamTests() {
+        super(new DeflateCompressor());
     }
+
 }

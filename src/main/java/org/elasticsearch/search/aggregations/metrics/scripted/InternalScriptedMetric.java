@@ -22,10 +22,10 @@ package org.elasticsearch.search.aggregations.metrics.scripted;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
-import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalMetricsAggregation;
@@ -54,10 +54,7 @@ public class InternalScriptedMetric extends InternalMetricsAggregation implement
         AggregationStreams.registerStream(STREAM, TYPE.stream());
     }
 
-    private String scriptLang;
-    private ScriptType scriptType;
-    private String reduceScript;
-    private Map<String, Object> reduceParams;
+    private Script reduceScript;
     private Object aggregation;
 
     private InternalScriptedMetric() {
@@ -67,14 +64,10 @@ public class InternalScriptedMetric extends InternalMetricsAggregation implement
         super(name, pipelineAggregators, metaData);
     }
 
-    public InternalScriptedMetric(String name, Object aggregation, String scriptLang, ScriptType scriptType, String reduceScript,
-            Map<String, Object> reduceParams, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
+    public InternalScriptedMetric(String name, Object aggregation, Script reduceScript, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
         this(name, pipelineAggregators, metaData);
         this.aggregation = aggregation;
-        this.scriptType = scriptType;
         this.reduceScript = reduceScript;
-        this.reduceParams = reduceParams;
-        this.scriptLang = scriptLang;
     }
 
     @Override
@@ -92,21 +85,19 @@ public class InternalScriptedMetric extends InternalMetricsAggregation implement
         InternalScriptedMetric firstAggregation = ((InternalScriptedMetric) aggregations.get(0));
         Object aggregation;
         if (firstAggregation.reduceScript != null) {
-            Map<String, Object> params;
-            if (firstAggregation.reduceParams != null) {
-                params = new HashMap<>(firstAggregation.reduceParams);
-            } else {
-                params = new HashMap<>();
+            Map<String, Object> vars = new HashMap<>();
+            vars.put("_aggs", aggregationObjects);
+            if (firstAggregation.reduceScript.getParams() != null) {
+                vars.putAll(firstAggregation.reduceScript.getParams());
             }
-            params.put("_aggs", aggregationObjects);
-            ExecutableScript script = reduceContext.scriptService().executable(new Script(firstAggregation.scriptLang, firstAggregation.reduceScript,
-                    firstAggregation.scriptType, params), ScriptContext.Standard.AGGS);
+            CompiledScript compiledScript = reduceContext.scriptService().compile(firstAggregation.reduceScript,
+                    ScriptContext.Standard.AGGS);
+            ExecutableScript script = reduceContext.scriptService().executable(compiledScript, vars);
             aggregation = script.run();
         } else {
             aggregation = aggregationObjects;
         }
-        return new InternalScriptedMetric(firstAggregation.getName(), aggregation, firstAggregation.scriptLang, firstAggregation.scriptType,
-                firstAggregation.reduceScript, firstAggregation.reduceParams, pipelineAggregators(), getMetaData());
+        return new InternalScriptedMetric(firstAggregation.getName(), aggregation, firstAggregation.reduceScript, pipelineAggregators(), getMetaData());
 
     }
 
@@ -128,19 +119,19 @@ public class InternalScriptedMetric extends InternalMetricsAggregation implement
 
     @Override
     protected void doReadFrom(StreamInput in) throws IOException {
-        scriptLang = in.readOptionalString();
-        scriptType = ScriptType.readFrom(in);
-        reduceScript = in.readOptionalString();
-        reduceParams = in.readMap();
+        if (in.readBoolean()) {
+            reduceScript = Script.readScript(in);
+        }
         aggregation = in.readGenericValue();
     }
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeOptionalString(scriptLang);
-        ScriptType.writeTo(scriptType, out);
-        out.writeOptionalString(reduceScript);
-        out.writeMap(reduceParams);
+        boolean hasScript = reduceScript != null;
+        out.writeBoolean(hasScript);
+        if (hasScript) {
+            reduceScript.writeTo(out);
+        }
         out.writeGenericValue(aggregation);
     }
 

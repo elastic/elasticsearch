@@ -30,6 +30,7 @@ public class DiskUsageTests extends ElasticsearchTestCase {
     public void diskUsageCalcTest() {
         DiskUsage du = new DiskUsage("node1", "n1", 100, 40);
         assertThat(du.getFreeDiskAsPercentage(), equalTo(40.0));
+        assertThat(du.getUsedDiskAsPercentage(), equalTo(100.0 - 40.0));
         assertThat(du.getFreeBytes(), equalTo(40L));
         assertThat(du.getUsedBytes(), equalTo(60L));
         assertThat(du.getTotalBytes(), equalTo(100L));
@@ -67,11 +68,13 @@ public class DiskUsageTests extends ElasticsearchTestCase {
                 assertThat(du.getTotalBytes(), equalTo(0L));
                 assertThat(du.getUsedBytes(), equalTo(-free));
                 assertThat(du.getFreeDiskAsPercentage(), equalTo(100.0));
+                assertThat(du.getUsedDiskAsPercentage(), equalTo(0.0));
             } else {
                 assertThat(du.getFreeBytes(), equalTo(free));
                 assertThat(du.getTotalBytes(), equalTo(total));
                 assertThat(du.getUsedBytes(), equalTo(total - free));
                 assertThat(du.getFreeDiskAsPercentage(), equalTo(100.0 * ((double) free / total)));
+                assertThat(du.getUsedDiskAsPercentage(), equalTo(100.0 - (100.0 * ((double) free / total))));
             }
         }
     }

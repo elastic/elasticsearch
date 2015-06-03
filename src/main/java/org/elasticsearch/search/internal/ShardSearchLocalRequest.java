@@ -29,11 +29,10 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.Template;
 import org.elasticsearch.search.Scroll;
 
 import java.io.IOException;
-import java.util.Map;
 
 import static org.elasticsearch.search.Scroll.readScroll;
 
@@ -70,9 +69,7 @@ public class ShardSearchLocalRequest extends ContextAndHeaderHolder implements S
     private BytesReference source;
     private BytesReference extraSource;
     private BytesReference templateSource;
-    private String templateName;
-    private ScriptService.ScriptType templateType;
-    private Map<String, Object> templateParams;
+    private Template template;
     private Boolean queryCache;
     private long nowInMillis;
 
@@ -85,9 +82,7 @@ public class ShardSearchLocalRequest extends ContextAndHeaderHolder implements S
                 searchRequest.source(), searchRequest.types(), searchRequest.queryCache());
         this.extraSource = searchRequest.extraSource();
         this.templateSource = searchRequest.templateSource();
-        this.templateName = searchRequest.templateName();
-        this.templateType = searchRequest.templateType();
-        this.templateParams = searchRequest.templateParams();
+        this.template = searchRequest.template();
         this.scroll = searchRequest.scroll();
         this.filteringAliases = filteringAliases;
         this.nowInMillis = nowInMillis;
@@ -166,18 +161,8 @@ public class ShardSearchLocalRequest extends ContextAndHeaderHolder implements S
     }
 
     @Override
-    public String templateName() {
-        return templateName;
-    }
-
-    @Override
-    public ScriptService.ScriptType templateType() {
-        return templateType;
-    }
-
-    @Override
-    public Map<String, Object> templateParams() {
-        return templateParams;
+    public Template template() {
+        return template;
     }
 
     @Override
@@ -213,10 +198,8 @@ public class ShardSearchLocalRequest extends ContextAndHeaderHolder implements S
         nowInMillis = in.readVLong();
 
         templateSource = in.readBytesReference();
-        templateName = in.readOptionalString();
-        templateType = ScriptService.ScriptType.readFrom(in);
         if (in.readBoolean()) {
-            templateParams = (Map<String, Object>) in.readGenericValue();
+            template = Template.readTemplate(in);
         }
         queryCache = in.readOptionalBoolean();
     }
@@ -243,12 +226,10 @@ public class ShardSearchLocalRequest extends ContextAndHeaderHolder implements S
         }
 
         out.writeBytesReference(templateSource);
-        out.writeOptionalString(templateName);
-        ScriptService.ScriptType.writeTo(templateType, out);
-        boolean existTemplateParams = templateParams != null;
-        out.writeBoolean(existTemplateParams);
-        if (existTemplateParams) {
-            out.writeGenericValue(templateParams);
+        boolean hasTemplate = template != null;
+        out.writeBoolean(hasTemplate);
+        if (hasTemplate) {
+            template.writeTo(out);
         }
         out.writeOptionalBoolean(queryCache);
     }

@@ -35,7 +35,7 @@ import org.elasticsearch.cluster.routing.Murmur3HashFunction;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.common.compress.CompressedString;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
@@ -874,7 +874,7 @@ public class IndexMetaData implements Diffable<IndexMetaData> {
                     if ("mappings".equals(currentFieldName)) {
                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                             if (token == XContentParser.Token.VALUE_EMBEDDED_OBJECT) {
-                                builder.putMapping(new MappingMetaData(new CompressedString(parser.binaryValue())));
+                                builder.putMapping(new MappingMetaData(new CompressedXContent(parser.binaryValue())));
                             } else {
                                 Map<String, Object> mapping = parser.mapOrdered();
                                 if (mapping.size() == 1) {

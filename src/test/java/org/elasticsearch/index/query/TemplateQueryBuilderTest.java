@@ -20,6 +20,8 @@ package org.elasticsearch.index.query;
 
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.script.ScriptService.ScriptType;
+import org.elasticsearch.script.Template;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
@@ -36,12 +38,29 @@ public class TemplateQueryBuilderTest extends ElasticsearchTestCase {
     public void testJSONGeneration() throws IOException {
         Map<String, Object> vars = new HashMap<>();
         vars.put("template", "filled");
+        TemplateQueryBuilder builder = new TemplateQueryBuilder(
+                new Template("I am a $template string", ScriptType.INLINE, null, null, vars));
+        XContentBuilder content = XContentFactory.jsonBuilder();
+        content.startObject();
+        builder.doXContent(content, null);
+        content.endObject();
+        content.close();
+        assertEquals("{\"template\":{\"inline\":\"I am a $template string\",\"params\":{\"template\":\"filled\"}}}", content.string());
+    }
+
+    /*
+     * TODO Remove in 2.0
+     */
+    @Test
+    public void testJSONGenerationOldScriptAPI() throws IOException {
+        Map<String, Object> vars = new HashMap<>();
+        vars.put("template", "filled");
         TemplateQueryBuilder builder = new TemplateQueryBuilder("I am a $template string", vars);
         XContentBuilder content = XContentFactory.jsonBuilder();
         content.startObject();
         builder.doXContent(content, null);
         content.endObject();
         content.close();
-        assertEquals(content.string(), "{\"template\":{\"query\":\"I am a $template string\",\"params\":{\"template\":\"filled\"}}}");
+        assertEquals("{\"template\":{\"inline\":\"I am a $template string\",\"params\":{\"template\":\"filled\"}}}", content.string());
     }
 }

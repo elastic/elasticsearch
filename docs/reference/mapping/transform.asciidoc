@@ -10,11 +10,13 @@ field.  Example:
 {
     "example" : {
         "transform" : {
-            "script" : "if (ctx._source['title']?.startsWith('t')) ctx._source['suggest'] = ctx._source['content']",
-            "params" : {
-                "variable" : "not used but an example anyway"
-            },
-            "lang": "groovy"
+            "script" : {
+                "inline": "if (ctx._source['title']?.startsWith('t')) ctx._source['suggest'] = ctx._source['content']",
+                "params" : {
+                    "variable" : "not used but an example anyway"
+                },
+                "lang": "groovy"
+            }
         },
         "properties": {
            "title": { "type": "string" },

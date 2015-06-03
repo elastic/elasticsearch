@@ -56,6 +56,7 @@ import org.elasticsearch.indices.store.TransportNodesListShardStoreMetaData;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  *
@@ -166,12 +167,12 @@ public class GatewayAllocator extends AbstractComponent {
 
             AsyncShardFetch<TransportNodesListGatewayStartedShards.NodeGatewayStartedShards> fetch = asyncFetchStarted.get(shard.shardId());
             if (fetch == null) {
-                fetch = new InternalAsyncFetch<>(logger, "shard_started", shard.shardId(), startedAction, clusterService, allocationService);
+                fetch = new InternalAsyncFetch<>(logger, "shard_started", shard.shardId(), startedAction);
                 asyncFetchStarted.put(shard.shardId(), fetch);
             }
             AsyncShardFetch.FetchResult<TransportNodesListGatewayStartedShards.NodeGatewayStartedShards> shardState = fetch.fetchData(nodes, metaData, allocation.getIgnoreNodes(shard.shardId()));
             if (shardState.hasData() == false) {
-                logger.trace("{}: ignoring allocation, still fetching shard started state");
+                logger.trace("{}: ignoring allocation, still fetching shard started state", shard);
                 unassignedIterator.remove();
                 routingNodes.ignoredUnassigned().add(shard);
                 continue;
@@ -395,7 +396,7 @@ public class GatewayAllocator extends AbstractComponent {
             }
 
             if (!canBeAllocatedToAtLeastOneNode) {
-                logger.trace("{}: ignoring allocation, can't be allocated on any node");
+                logger.trace("{}: ignoring allocation, can't be allocated on any node", shard);
                 unassignedIterator.remove();
                 routingNodes.ignoredUnassigned().add(shard);
                 continue;
@@ -403,12 +404,12 @@ public class GatewayAllocator extends AbstractComponent {
 
             AsyncShardFetch<TransportNodesListShardStoreMetaData.NodeStoreFilesMetaData> fetch = asyncFetchStore.get(shard.shardId());
             if (fetch == null) {
-                fetch = new InternalAsyncFetch<>(logger, "shard_store", shard.shardId(), storeAction, clusterService, allocationService);
+                fetch = new InternalAsyncFetch<>(logger, "shard_store", shard.shardId(), storeAction);
                 asyncFetchStore.put(shard.shardId(), fetch);
             }
             AsyncShardFetch.FetchResult<TransportNodesListShardStoreMetaData.NodeStoreFilesMetaData> shardStores = fetch.fetchData(nodes, metaData, allocation.getIgnoreNodes(shard.shardId()));
             if (shardStores.hasData() == false) {
-                logger.trace("{}: ignoring allocation, still fetching shard stores");
+                logger.trace("{}: ignoring allocation, still fetching shard stores", shard);
                 unassignedIterator.remove();
                 routingNodes.ignoredUnassigned().add(shard);
                 continue; // still fetching
@@ -513,23 +514,24 @@ public class GatewayAllocator extends AbstractComponent {
         return changed;
     }
 
-    static class InternalAsyncFetch<T extends BaseNodeResponse> extends AsyncShardFetch<T> {
+    private final AtomicBoolean rerouting = new AtomicBoolean();
 
-        private final ClusterService clusterService;
-        private final AllocationService allocationService;
+    class InternalAsyncFetch<T extends BaseNodeResponse> extends AsyncShardFetch<T> {
 
-        public InternalAsyncFetch(ESLogger logger, String type, ShardId shardId, List<? extends BaseNodesResponse<T>, T> action,
-                                  ClusterService clusterService, AllocationService allocationService) {
+        public InternalAsyncFetch(ESLogger logger, String type, ShardId shardId, List<? extends BaseNodesResponse<T>, T> action) {
             super(logger, type, shardId, action);
-            this.clusterService = clusterService;
-            this.allocationService = allocationService;
         }
 
         @Override
         protected void reroute(ShardId shardId, String reason) {
-            clusterService.submitStateUpdateTask("async_shard_fetch(" + type + ") " + shardId + ", reasons (" + reason + ")", Priority.HIGH, new ClusterStateUpdateTask() {
+            if (rerouting.compareAndSet(false, true) == false) {
+                logger.trace("{} already has pending reroute, ignoring {}", shardId, reason);
+                return;
+            }
+            clusterService.submitStateUpdateTask("async_shard_fetch", Priority.HIGH, new ClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
+                    rerouting.set(false);
                     if (currentState.nodes().masterNode() == null) {
                         return currentState;
                     }

@@ -28,9 +28,11 @@ Now, we can execute a script that would increment the counter:
 [source,js]
 --------------------------------------------------
 curl -XPOST 'localhost:9200/test/type1/1/_update' -d '{
-    "script" : "ctx._source.counter += count",
-    "params" : {
-        "count" : 4
+    "script" : {
+        "inline": "ctx._source.counter += count",
+        "params" : {
+            "count" : 4
+        }
     }
 }'
 --------------------------------------------------
@@ -41,9 +43,11 @@ will still add it, since its a list):
 [source,js]
 --------------------------------------------------
 curl -XPOST 'localhost:9200/test/type1/1/_update' -d '{
-    "script" : "ctx._source.tags += tag",
-    "params" : {
-        "tag" : "blue"
+    "script" : {
+        "inline": "ctx._source.tags += tag",
+        "params" : {
+            "tag" : "blue"
+        }
     }
 }'
 --------------------------------------------------
@@ -71,9 +75,11 @@ And, we can delete the doc if the tags contain blue, or ignore (noop):
 [source,js]
 --------------------------------------------------
 curl -XPOST 'localhost:9200/test/type1/1/_update' -d '{
-    "script" : "ctx._source.tags.contains(tag) ? ctx.op = \"delete\" : ctx.op = \"none\"",
-    "params" : {
-        "tag" : "blue"
+    "script" : {
+        "inline": "ctx._source.tags.contains(tag) ? ctx.op = \"delete\" : ctx.op = \"none\"",
+        "params" : {
+            "tag" : "blue"
+        }
     }
 }'
 --------------------------------------------------
@@ -136,9 +142,11 @@ index the fresh doc:
 [source,js]
 --------------------------------------------------
 curl -XPOST 'localhost:9200/test/type1/1/_update' -d '{
-    "script" : "ctx._source.counter += count",
-    "params" : {
-        "count" : 4
+    "script" : {
+        "inline": "ctx._source.counter += count",
+        "params" : {
+            "count" : 4
+        }
     },
     "upsert" : {
         "counter" : 1
@@ -153,13 +161,15 @@ new `scripted_upsert` parameter with the value `true`.
 [source,js]
 --------------------------------------------------
 curl -XPOST 'localhost:9200/sessions/session/dh3sgudg8gsrgl/_update' -d '{
-    "script_id" : "my_web_session_summariser",
     "scripted_upsert":true,
-    "params" : {
-        "pageViewEvent" : {
-        	"url":"foo.com/bar",
-        	"response":404,
-        	"time":"2014-01-01 12:32"
+    "script" : {
+        "id": "my_web_session_summariser",
+        "params" : {
+            "pageViewEvent" : {
+                "url":"foo.com/bar",
+                "response":404,
+                "time":"2014-01-01 12:32"
+            }
         }
     },
     "upsert" : {

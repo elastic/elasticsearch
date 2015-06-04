@@ -193,11 +193,6 @@ migratePlugin "analysis-icu"
 # Mapper
 migratePlugin "mapper-attachments"
 
-# Language
-migratePlugin "lang-python"
-migratePlugin "lang-mvel"
-migratePlugin "lang-javascript"
-
 # Cloud
 migratePlugin "cloud-gce"
 migratePlugin "cloud-azure"

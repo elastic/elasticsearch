@@ -30,8 +30,10 @@ import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
+import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
@@ -39,6 +41,7 @@ import java.io.IOException;
 
 import static org.elasticsearch.client.Requests.*;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
@@ -245,6 +248,21 @@ public class DocumentActionsTests extends ElasticsearchIntegrationTest {
             assertThat("cycle #" + i, getResult.getSourceAsString(), equalTo(source("3", "test").string()));
             assertThat(getResult.getIndex(), equalTo(getConcreteIndexName()));
         }
+    }
+
+    @Test
+    public void testBulkUpdateAgainstFilteredAlias() {
+        assertAcked(prepareCreate("test").addMapping("test", "field", "type=string"));
+        assertAcked(client().admin().indices().prepareAliases().addAlias("test", "alias1").addAlias("test", "alias2", QueryBuilders.termQuery("field", "value")));
+        index("test", "test", "1", "field", "value");
+        index("test", "test", "2", "field", "non_matching");
+
+        BulkResponse bulkItemResponses = client().prepareBulk().add(new UpdateRequest("alias1", "test", "1").doc("field2", "value2"))
+                .add(new UpdateRequest("alias2", "test", "2").doc("field2", "value2")).get();
+
+        assertThat(bulkItemResponses.hasFailures(), equalTo(true));
+        assertThat(bulkItemResponses.getItems()[0].isFailed(), equalTo(false));
+        assertThat(bulkItemResponses.getItems()[1].isFailed(), equalTo(true));
     }
 
     private XContentBuilder source(String id, String nameValue) throws IOException {

@@ -280,6 +280,16 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             } else if (request instanceof UpdateRequest) {
                 UpdateRequest updateRequest = (UpdateRequest) request;
                 String concreteIndex = concreteIndices.getConcreteIndex(updateRequest.index());
+                if (concreteIndex.equals(updateRequest.index()) == false) {
+                    String[] filteringAliases = clusterState.metaData().filteringAliases(concreteIndex, updateRequest.index());
+                    if (filteringAliases != null) {
+                        BulkItemResponse.Failure failure = new BulkItemResponse.Failure(updateRequest.index(), updateRequest.type(),
+                                updateRequest.id(), new UnsupportedOperationException("bulk api doesn't support updating documents retrieved from a filtered alias, use the concrete index instead."));
+                        responses.set(i, new BulkItemResponse(i, updateRequest.type(), failure));
+                        continue;
+                    }
+                }
+
                 MappingMetaData mappingMd = clusterState.metaData().index(concreteIndex).mappingOrDefault(updateRequest.type());
                 if (mappingMd != null && mappingMd.routing().required() && updateRequest.routing() == null) {
                     BulkItemResponse.Failure failure = new BulkItemResponse.Failure(updateRequest.index(), updateRequest.type(),

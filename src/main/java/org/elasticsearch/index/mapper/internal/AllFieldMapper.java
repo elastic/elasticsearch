@@ -21,7 +21,6 @@ package org.elasticsearch.index.mapper.internal;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
@@ -34,8 +33,8 @@ import org.elasticsearch.common.lucene.all.AllField;
 import org.elasticsearch.common.lucene.all.AllTermQuery;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.FieldDataType;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MergeMappingException;
@@ -45,7 +44,6 @@ import org.elasticsearch.index.mapper.RootMapper;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.similarity.SimilarityLookupService;
-import org.elasticsearch.index.similarity.SimilarityProvider;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -80,11 +78,12 @@ public class AllFieldMapper extends AbstractFieldMapper implements RootMapper {
         public static final String INDEX_NAME = AllFieldMapper.NAME;
         public static final EnabledAttributeMapper ENABLED = EnabledAttributeMapper.UNSET_ENABLED;
 
-        public static final FieldType FIELD_TYPE = new FieldType();
+        public static final MappedFieldType FIELD_TYPE = new AllFieldType();
 
         static {
             FIELD_TYPE.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS);
             FIELD_TYPE.setTokenized(true);
+            FIELD_TYPE.setNames(new MappedFieldType.Names(NAME));
             FIELD_TYPE.freeze();
         }
     }
@@ -94,7 +93,7 @@ public class AllFieldMapper extends AbstractFieldMapper implements RootMapper {
         private EnabledAttributeMapper enabled = Defaults.ENABLED;
 
         public Builder() {
-            super(Defaults.NAME, new FieldType(Defaults.FIELD_TYPE));
+            super(Defaults.NAME, Defaults.FIELD_TYPE);
             builder = this;
             indexName = Defaults.INDEX_NAME;
         }
@@ -113,7 +112,7 @@ public class AllFieldMapper extends AbstractFieldMapper implements RootMapper {
             }
             fieldType.setTokenized(true);
 
-            return new AllFieldMapper(name, fieldType, indexAnalyzer, searchAnalyzer, enabled, similarity, normsLoading, fieldDataSettings, context.indexSettings());
+            return new AllFieldMapper(fieldType, enabled, fieldDataSettings, context.indexSettings());
         }
     }
 
@@ -156,18 +155,49 @@ public class AllFieldMapper extends AbstractFieldMapper implements RootMapper {
         }
     }
 
+    static final class AllFieldType extends MappedFieldType {
+
+        public AllFieldType() {
+            super(AbstractFieldMapper.Defaults.FIELD_TYPE);
+        }
+
+        protected AllFieldType(AllFieldType ref) {
+            super(ref);
+        }
+
+        @Override
+        public MappedFieldType clone() {
+            return new AllFieldType(this);
+        }
+
+        @Override
+        public String value(Object value) {
+            if (value == null) {
+                return null;
+            }
+            return value.toString();
+        }
+
+        @Override
+        public Query queryStringTermQuery(Term term) {
+            return new AllTermQuery(term);
+        }
+
+        @Override
+        public Query termQuery(Object value, QueryParseContext context) {
+            return queryStringTermQuery(createTerm(value));
+        }
+    }
 
     private EnabledAttributeMapper enabledState;
 
     public AllFieldMapper(Settings indexSettings) {
-        this(Defaults.NAME, new FieldType(Defaults.FIELD_TYPE), null, null, Defaults.ENABLED, null, null, null, indexSettings);
+        this(Defaults.FIELD_TYPE.clone(), Defaults.ENABLED, null, indexSettings);
     }
 
-    protected AllFieldMapper(String name, FieldType fieldType, NamedAnalyzer indexAnalyzer, NamedAnalyzer searchAnalyzer,
-                             EnabledAttributeMapper enabled, SimilarityProvider similarity, Loading normsLoading,
+    protected AllFieldMapper(MappedFieldType fieldType, EnabledAttributeMapper enabled,
                              @Nullable Settings fieldDataSettings, Settings indexSettings) {
-        super(new Names(name, name, name, name), 1.0f, fieldType, false, indexAnalyzer, searchAnalyzer,
-                similarity, normsLoading, fieldDataSettings, indexSettings);
+        super(fieldType, false, fieldDataSettings, indexSettings);
         this.enabledState = enabled;
 
     }
@@ -177,23 +207,13 @@ public class AllFieldMapper extends AbstractFieldMapper implements RootMapper {
     }
 
     @Override
-    public FieldType defaultFieldType() {
+    public MappedFieldType defaultFieldType() {
         return Defaults.FIELD_TYPE;
     }
 
     @Override
     public FieldDataType defaultFieldDataType() {
         return new FieldDataType("string");
-    }
-
-    @Override
-    public Query queryStringTermQuery(Term term) {
-        return new AllTermQuery(term);
-    }
-
-    @Override
-    public Query termQuery(Object value, QueryParseContext context) {
-        return queryStringTermQuery(createTerm(value));
     }
 
     @Override
@@ -219,11 +239,11 @@ public class AllFieldMapper extends AbstractFieldMapper implements RootMapper {
         // reset the entries
         context.allEntries().reset();
         Analyzer analyzer = findAnalyzer(context);
-        fields.add(new AllField(names.indexName(), context.allEntries(), analyzer, fieldType));
+        fields.add(new AllField(fieldType.names().indexName(), context.allEntries(), analyzer, fieldType));
     }
 
     private Analyzer findAnalyzer(ParseContext context) {
-        Analyzer analyzer = indexAnalyzer;
+        Analyzer analyzer = fieldType.indexAnalyzer();
         if (analyzer == null) {
             analyzer = context.docMapper().mappers().indexAnalyzer();
             if (analyzer == null) {
@@ -232,14 +252,6 @@ public class AllFieldMapper extends AbstractFieldMapper implements RootMapper {
             }
         }
         return analyzer;
-    }
-    
-    @Override
-    public String value(Object value) {
-        if (value == null) {
-            return null;
-        }
-        return value.toString();
     }
 
     @Override
@@ -294,8 +306,8 @@ public class AllFieldMapper extends AbstractFieldMapper implements RootMapper {
         
         doXContentAnalyzers(builder, includeDefaults);
 
-        if (similarity() != null) {
-            builder.field("similarity", similarity().name());
+        if (fieldType().similarity() != null) {
+            builder.field("similarity", fieldType().similarity().name());
         } else if (includeDefaults) {
             builder.field("similarity", SimilarityLookupService.DEFAULT_SIMILARITY);
         }
@@ -303,14 +315,14 @@ public class AllFieldMapper extends AbstractFieldMapper implements RootMapper {
         if (customFieldDataSettings != null) {
             builder.field("fielddata", (Map) customFieldDataSettings.getAsMap());
         } else if (includeDefaults) {
-            builder.field("fielddata", (Map) fieldDataType.getSettings().getAsMap());
+            builder.field("fielddata", (Map) fieldType.fieldDataType().getSettings().getAsMap());
         }
     }
 
     @Override
     public void merge(Mapper mergeWith, MergeResult mergeResult) throws MergeMappingException {
         if (((AllFieldMapper)mergeWith).enabled() != this.enabled() && ((AllFieldMapper)mergeWith).enabledState != Defaults.ENABLED) {
-            mergeResult.addConflict("mapper [" + names.fullName() + "] enabled is " + this.enabled() + " now encountering "+ ((AllFieldMapper)mergeWith).enabled());
+            mergeResult.addConflict("mapper [" + fieldType.names().fullName() + "] enabled is " + this.enabled() + " now encountering "+ ((AllFieldMapper)mergeWith).enabled());
         }
         super.merge(mergeWith, mergeResult);
     }

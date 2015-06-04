@@ -108,7 +108,7 @@ public class Murmur3FieldMapperTests extends ElasticsearchSingleNodeTest {
 
         DocumentMapper docMapper = parser.parse(mapping);
         Murmur3FieldMapper mapper = (Murmur3FieldMapper)docMapper.mappers().getMapper("field");
-        assertFalse(mapper.hasDocValues());
+        assertFalse(mapper.fieldType().hasDocValues());
     }
 
     public void testIndexSettingBackcompat() throws Exception {

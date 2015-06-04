@@ -130,7 +130,7 @@ public class SimpleQueryStringParser extends BaseQueryParserTemp {
                         } else {
                             FieldMapper mapper = parseContext.fieldMapper(fField);
                             if (mapper != null) {
-                                fieldsAndWeights.put(mapper.names().indexName(), fBoost);
+                                fieldsAndWeights.put(mapper.fieldType().names().indexName(), fBoost);
                             } else {
                                 fieldsAndWeights.put(fField, fBoost);
                             }

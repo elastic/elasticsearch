@@ -22,18 +22,18 @@ package org.elasticsearch.index.mapper.core;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.FieldType;
-import org.apache.lucene.index.IndexOptions;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.analysis.NumericIntegerAnalyzer;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.MergeMappingException;
+import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.core.StringFieldMapper.ValueAndBoost;
 import org.elasticsearch.index.similarity.SimilarityProvider;
@@ -43,6 +43,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
+import static org.apache.lucene.index.IndexOptions.NONE;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeIntegerValue;
 import static org.elasticsearch.index.mapper.MapperBuilders.tokenCountField;
 import static org.elasticsearch.index.mapper.core.TypeParsers.parseNumberField;
@@ -55,6 +56,7 @@ public class TokenCountFieldMapper extends IntegerFieldMapper {
     public static final String CONTENT_TYPE = "token_count";
 
     public static class Defaults extends IntegerFieldMapper.Defaults {
+
     }
 
     public static class Builder extends NumberFieldMapper.Builder<Builder, TokenCountFieldMapper> {
@@ -62,7 +64,7 @@ public class TokenCountFieldMapper extends IntegerFieldMapper {
         private NamedAnalyzer analyzer;
 
         public Builder(String name) {
-            super(name, new FieldType(Defaults.FIELD_TYPE), Defaults.PRECISION_STEP_32_BIT);
+            super(name, Defaults.FIELD_TYPE, Defaults.PRECISION_STEP_32_BIT);
             builder = this;
         }
 
@@ -82,12 +84,22 @@ public class TokenCountFieldMapper extends IntegerFieldMapper {
 
         @Override
         public TokenCountFieldMapper build(BuilderContext context) {
-            fieldType.setOmitNorms(fieldType.omitNorms() && boost == 1.0f);
-            TokenCountFieldMapper fieldMapper = new TokenCountFieldMapper(buildNames(context), fieldType.numericPrecisionStep(), boost, fieldType, docValues, nullValue,
-                    ignoreMalformed(context), coerce(context), similarity, normsLoading, fieldDataSettings, context.indexSettings(),
+            setupFieldType(context);
+            TokenCountFieldMapper fieldMapper = new TokenCountFieldMapper(fieldType, docValues, nullValue,
+                    ignoreMalformed(context), coerce(context), fieldDataSettings, context.indexSettings(),
                     analyzer, multiFieldsBuilder.build(this, context), copyTo);
             fieldMapper.includeInAll(includeInAll);
             return fieldMapper;
+        }
+
+        @Override
+        protected NamedAnalyzer makeNumberAnalyzer(int precisionStep) {
+            return NumericIntegerAnalyzer.buildNamedAnalyzer(precisionStep);
+        }
+
+        @Override
+        protected int maxPrecisionStep() {
+            return 32;
         }
     }
 
@@ -122,34 +134,33 @@ public class TokenCountFieldMapper extends IntegerFieldMapper {
 
     private NamedAnalyzer analyzer;
 
-    protected TokenCountFieldMapper(Names names, int precisionStep, float boost, FieldType fieldType, Boolean docValues, Integer nullValue,
-            Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce,
-            SimilarityProvider similarity, Loading normsLoading, Settings fieldDataSettings, Settings indexSettings, NamedAnalyzer analyzer,
+    protected TokenCountFieldMapper(MappedFieldType fieldType, Boolean docValues, Integer nullValue,
+            Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce, Settings fieldDataSettings, Settings indexSettings, NamedAnalyzer analyzer,
             MultiFields multiFields, CopyTo copyTo) {
-        super(names, precisionStep, boost, fieldType, docValues, nullValue, ignoreMalformed, coerce,
-                similarity, normsLoading, fieldDataSettings, indexSettings, multiFields, copyTo);
+        super(fieldType, docValues, nullValue, ignoreMalformed, coerce,
+            fieldDataSettings, indexSettings, multiFields, copyTo);
 
         this.analyzer = analyzer;
     }
 
     @Override
     protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException {
-        ValueAndBoost valueAndBoost = StringFieldMapper.parseCreateFieldForString(context, null /* Out null value is an int so we convert*/, boost);
+        ValueAndBoost valueAndBoost = StringFieldMapper.parseCreateFieldForString(context, null /* Out null value is an int so we convert*/, fieldType.boost());
         if (valueAndBoost.value() == null && nullValue() == null) {
             return;
         }
 
-        if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored() || hasDocValues()) {
+        if (fieldType.indexOptions() != NONE || fieldType.stored() || fieldType().hasDocValues()) {
             int count;
             if (valueAndBoost.value() == null) {
                 count = nullValue();
             } else {
-                count = countPositions(analyzer.analyzer().tokenStream(names().shortName(), valueAndBoost.value()));
+                count = countPositions(analyzer.analyzer().tokenStream(fieldType().names().shortName(), valueAndBoost.value()));
             }
             addIntegerFields(context, fields, count, valueAndBoost.boost());
         }
         if (fields.isEmpty()) {
-            context.ignoredValue(names.indexName(), valueAndBoost.value());
+            context.ignoredValue(fieldType.names().indexName(), valueAndBoost.value());
         }
     }
 

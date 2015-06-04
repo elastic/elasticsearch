@@ -163,7 +163,7 @@ public class CommonTermsQueryParser extends BaseQueryParserTemp {
         String field;
         FieldMapper mapper = parseContext.fieldMapper(fieldName);
         if (mapper != null) {
-            field = mapper.names().indexName();
+            field = mapper.fieldType().names().indexName();
         } else {
             field = fieldName;
         }
@@ -171,7 +171,7 @@ public class CommonTermsQueryParser extends BaseQueryParserTemp {
         Analyzer analyzer = null;
         if (queryAnalyzer == null) {
             if (mapper != null) {
-                analyzer = mapper.searchAnalyzer();
+                analyzer = mapper.fieldType().searchAnalyzer();
             }
             if (analyzer == null && mapper != null) {
                 analyzer = parseContext.getSearchAnalyzer(mapper);

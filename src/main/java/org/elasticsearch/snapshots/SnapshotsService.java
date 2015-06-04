@@ -549,13 +549,18 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
 
             if (prev == null) {
                 if (curr != null) {
-                    processIndexShardSnapshots(curr);
+                    processIndexShardSnapshots(event);
                 }
             } else {
                 if (!prev.equals(curr)) {
-                    processIndexShardSnapshots(curr);
+                    processIndexShardSnapshots(event);
                 }
             }
+            if (event.state().nodes().masterNodeId() != null &&
+                    event.state().nodes().masterNodeId().equals(event.previousState().nodes().masterNodeId()) == false) {
+                syncShardStatsOnNewMaster(event);
+            }
+
         } catch (Throwable t) {
             logger.warn("Failed to update snapshot state ", t);
         }
@@ -778,9 +783,10 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
     /**
      * Checks if any new shards should be snapshotted on this node
      *
-     * @param snapshotMetaData snapshot metadata to be processed
+     * @param event cluster state changed event
      */
-    private void processIndexShardSnapshots(SnapshotMetaData snapshotMetaData) {
+    private void processIndexShardSnapshots(ClusterChangedEvent event) {
+        SnapshotMetaData snapshotMetaData = event.state().metaData().custom(SnapshotMetaData.TYPE);
         Map<SnapshotId, SnapshotShards> survivors = newHashMap();
         // First, remove snapshots that are no longer there
         for (Map.Entry<SnapshotId, SnapshotShards> entry : shardSnapshots.entrySet()) {
@@ -830,7 +836,17 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
                         for (Map.Entry<ShardId, SnapshotMetaData.ShardSnapshotStatus> shard : entry.shards().entrySet()) {
                             IndexShardSnapshotStatus snapshotStatus = snapshotShards.shards.get(shard.getKey());
                             if (snapshotStatus != null) {
-                                snapshotStatus.abort();
+                                if (snapshotStatus.stage() == IndexShardSnapshotStatus.Stage.STARTED) {
+                                    snapshotStatus.abort();
+                                } else if (snapshotStatus.stage() == IndexShardSnapshotStatus.Stage.DONE) {
+                                    logger.debug("[{}] trying to cancel snapshot on the shard [{}] that is already done, updating status on the master", entry.snapshotId(), shard.getKey());
+                                    updateIndexShardSnapshotStatus(new UpdateIndexShardSnapshotStatusRequest(entry.snapshotId(), shard.getKey(),
+                                            new ShardSnapshotStatus(event.state().nodes().localNodeId(), SnapshotMetaData.State.SUCCESS)));
+                                } else if (snapshotStatus.stage() == IndexShardSnapshotStatus.Stage.FAILURE) {
+                                    logger.debug("[{}] trying to cancel snapshot on the shard [{}] that has already failed, updating status on the master", entry.snapshotId(), shard.getKey());
+                                    updateIndexShardSnapshotStatus(new UpdateIndexShardSnapshotStatusRequest(entry.snapshotId(), shard.getKey(),
+                                            new ShardSnapshotStatus(event.state().nodes().localNodeId(), State.FAILED, snapshotStatus.failure())));
+                                }
                             }
                         }
                     }
@@ -872,6 +888,45 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
                         });
                     } catch (Throwable t) {
                         updateIndexShardSnapshotStatus(new UpdateIndexShardSnapshotStatusRequest(entry.getKey(), shardEntry.getKey(), new ShardSnapshotStatus(localNodeId, SnapshotMetaData.State.FAILED, ExceptionsHelper.detailedMessage(t))));
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Checks if any shards were processed that the new master doesn't know about
+     * @param event
+     */
+    private void syncShardStatsOnNewMaster(ClusterChangedEvent event) {
+        SnapshotMetaData snapshotMetaData = event.state().getMetaData().custom(SnapshotMetaData.TYPE);
+        if (snapshotMetaData == null) {
+            return;
+        }
+        for (SnapshotMetaData.Entry snapshot : snapshotMetaData.entries()) {
+            if (snapshot.state() == State.STARTED || snapshot.state() == State.ABORTED) {
+                ImmutableMap<ShardId, IndexShardSnapshotStatus> localShards = currentSnapshotShards(snapshot.snapshotId());
+                if (localShards != null) {
+                    ImmutableMap<ShardId, ShardSnapshotStatus> masterShards = snapshot.shards();
+                    for(Map.Entry<ShardId, IndexShardSnapshotStatus> localShard : localShards.entrySet()) {
+                        ShardId shardId = localShard.getKey();
+                        IndexShardSnapshotStatus localShardStatus = localShard.getValue();
+                        ShardSnapshotStatus masterShard = masterShards.get(shardId);
+                        if (masterShard != null && masterShard.state().completed() == false) {
+                            // Master knows about the shard and thinks it has not completed
+                            if (localShardStatus.stage() == IndexShardSnapshotStatus.Stage.DONE) {
+                                // but we think the shard is done - we need to make new master know that the shard is done
+                                logger.debug("[{}] new master thinks the shard [{}] is not completed but the shard is done locally, updating status on the master", snapshot.snapshotId(), shardId);
+                                updateIndexShardSnapshotStatus(new UpdateIndexShardSnapshotStatusRequest(snapshot.snapshotId(), shardId,
+                                        new ShardSnapshotStatus(event.state().nodes().localNodeId(), SnapshotMetaData.State.SUCCESS)));
+                            } else if (localShard.getValue().stage() == IndexShardSnapshotStatus.Stage.FAILURE) {
+                                // but we think the shard failed - we need to make new master know that the shard failed
+                                logger.debug("[{}] new master thinks the shard [{}] is not completed but the shard failed locally, updating status on master", snapshot.snapshotId(), shardId);
+                                updateIndexShardSnapshotStatus(new UpdateIndexShardSnapshotStatusRequest(snapshot.snapshotId(), shardId,
+                                        new ShardSnapshotStatus(event.state().nodes().localNodeId(), State.FAILED, localShardStatus.failure())));
+
+                            }
+                        }
                     }
                 }
             }

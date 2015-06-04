@@ -23,8 +23,6 @@ import com.google.common.base.Charsets;
 import com.google.common.base.Preconditions;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.index.CheckIndex;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.join.BitDocIdSetFilter;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.ThreadInterruptedException;
@@ -41,14 +39,11 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -550,26 +545,6 @@ public class IndexShard extends AbstractIndexShardComponent {
         indexingService.postDelete(delete);
     }
 
-    public Engine.DeleteByQuery prepareDeleteByQuery(BytesReference source, @Nullable String[] filteringAliases, Engine.Operation.Origin origin, String... types) {
-        return prepareDeleteByQuery(queryParserService, mapperService, indexAliasesService, indexCache, source, filteringAliases, origin, types);
-    }
-
-    static Engine.DeleteByQuery prepareDeleteByQuery(IndexQueryParserService queryParserService, MapperService mapperService, IndexAliasesService indexAliasesService, IndexCache indexCache, BytesReference source, @Nullable String[] filteringAliases, Engine.Operation.Origin origin, String... types) {
-        long startTime = System.nanoTime();
-        if (types == null) {
-            types = Strings.EMPTY_ARRAY;
-        }
-        Query query = queryParserService.parseQuery(source).query();
-        Query searchFilter = mapperService.searchFilter(types);
-        if (searchFilter != null) {
-            query = Queries.filtered(query, searchFilter);
-        }
-
-        Query aliasFilter = indexAliasesService.aliasFilter(filteringAliases);
-        BitDocIdSetFilter parentFilter = mapperService.hasNested() ? indexCache.bitsetFilterCache().getBitDocIdSetFilter(Queries.newNonNestedFilter()) : null;
-        return new Engine.DeleteByQuery(query, source, filteringAliases, aliasFilter, parentFilter, origin, startTime, types);
-    }
-
     public Engine.GetResult get(Engine.Get get) {
         readAllowed();
         return engine().get(get);
@@ -740,13 +715,13 @@ public class IndexShard extends AbstractIndexShardComponent {
     }
 
     public org.apache.lucene.util.Version minimumCompatibleVersion() {
-        org.apache.lucene.util.Version luceneVersion = Version.LUCENE_3_EMULATION_VERSION;
+        org.apache.lucene.util.Version luceneVersion = null;
         for(Segment segment : engine().segments(false)) {
-            if (luceneVersion.onOrAfter(segment.getVersion())) {
+            if (luceneVersion == null || luceneVersion.onOrAfter(segment.getVersion())) {
                 luceneVersion = segment.getVersion();
             }
         }
-        return luceneVersion;
+        return luceneVersion == null ?  Version.indexCreated(indexSettings).luceneVersion : luceneVersion;
     }
 
     public SnapshotIndexCommit snapshotIndex(boolean flushFirst) throws EngineException {

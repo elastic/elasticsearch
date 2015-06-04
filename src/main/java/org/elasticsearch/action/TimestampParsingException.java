@@ -32,6 +32,11 @@ public class TimestampParsingException extends ElasticsearchException {
         this.timestamp = timestamp;
     }
 
+    public TimestampParsingException(String timestamp, Throwable cause) {
+        super("failed to parse timestamp [" + timestamp + "]", cause);
+        this.timestamp = timestamp;
+    }
+
     public String timestamp() {
         return timestamp;
     }

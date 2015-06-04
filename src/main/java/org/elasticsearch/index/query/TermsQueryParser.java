@@ -159,7 +159,7 @@ public class TermsQueryParser extends BaseQueryParserTemp {
 
         FieldMapper fieldMapper = parseContext.fieldMapper(fieldName);
         if (fieldMapper != null) {
-            fieldName = fieldMapper.names().indexName();
+            fieldName = fieldMapper.fieldType().names().indexName();
         }
 
         if (lookupId != null) {

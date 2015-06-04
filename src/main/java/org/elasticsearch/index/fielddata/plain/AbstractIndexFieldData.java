@@ -30,6 +30,7 @@ import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.*;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.settings.IndexSettings;
 
 import java.io.IOException;
@@ -38,11 +39,11 @@ import java.io.IOException;
  */
 public abstract class AbstractIndexFieldData<FD extends AtomicFieldData> extends AbstractIndexComponent implements IndexFieldData<FD> {
 
-    private final FieldMapper.Names fieldNames;
+    private final MappedFieldType.Names fieldNames;
     protected final FieldDataType fieldDataType;
     protected final IndexFieldDataCache cache;
 
-    public AbstractIndexFieldData(Index index, @IndexSettings Settings indexSettings, FieldMapper.Names fieldNames, FieldDataType fieldDataType, IndexFieldDataCache cache) {
+    public AbstractIndexFieldData(Index index, @IndexSettings Settings indexSettings, MappedFieldType.Names fieldNames, FieldDataType fieldDataType, IndexFieldDataCache cache) {
         super(index, indexSettings);
         this.fieldNames = fieldNames;
         this.fieldDataType = fieldDataType;
@@ -50,7 +51,7 @@ public abstract class AbstractIndexFieldData<FD extends AtomicFieldData> extends
     }
 
     @Override
-    public FieldMapper.Names getFieldNames() {
+    public MappedFieldType.Names getFieldNames() {
         return this.fieldNames;
     }
 

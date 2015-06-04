@@ -19,14 +19,14 @@
 
 package org.elasticsearch.common.joda;
 
-import org.apache.commons.lang3.StringUtils;
 import org.elasticsearch.ElasticsearchParseException;
 import org.joda.time.DateTimeZone;
 import org.joda.time.MutableDateTime;
 import org.joda.time.format.DateTimeFormatter;
 
 import java.util.concurrent.Callable;
-import java.util.concurrent.TimeUnit;
+
+import static com.google.common.base.Preconditions.checkNotNull;
 
 /**
  * A parser for date/time formatted text with optional date math.
@@ -38,13 +38,10 @@ import java.util.concurrent.TimeUnit;
 public class DateMathParser {
 
     private final FormatDateTimeFormatter dateTimeFormatter;
-    private final TimeUnit timeUnit;
 
-    public DateMathParser(FormatDateTimeFormatter dateTimeFormatter, TimeUnit timeUnit) {
-        if (dateTimeFormatter == null) throw new NullPointerException();
-        if (timeUnit == null) throw new NullPointerException();
+    public DateMathParser(FormatDateTimeFormatter dateTimeFormatter) {
+        checkNotNull(dateTimeFormatter);
         this.dateTimeFormatter = dateTimeFormatter;
-        this.timeUnit = timeUnit;
     }
 
     public long parse(String text, Callable<Long> now) {
@@ -195,17 +192,6 @@ public class DateMathParser {
     }
 
     private long parseDateTime(String value, DateTimeZone timeZone) {
-        
-        // first check for timestamp
-        if (value.length() > 4 && StringUtils.isNumeric(value)) {
-            try {
-                long time = Long.parseLong(value);
-                return timeUnit.toMillis(time);
-            } catch (NumberFormatException e) {
-                throw new ElasticsearchParseException("failed to parse date field [" + value + "] as timestamp", e);
-            }
-        }
-        
         DateTimeFormatter parser = dateTimeFormatter.parser();
         if (timeZone != null) {
             parser = parser.withZone(timeZone);

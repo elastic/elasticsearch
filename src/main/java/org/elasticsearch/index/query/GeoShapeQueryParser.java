@@ -148,9 +148,9 @@ public class GeoShapeQueryParser extends BaseQueryParserTemp {
 
         GeoShapeFieldMapper shapeFieldMapper = (GeoShapeFieldMapper) fieldMapper;
 
-        PrefixTreeStrategy strategy = shapeFieldMapper.defaultStrategy();
+        PrefixTreeStrategy strategy = shapeFieldMapper.fieldType().defaultStrategy();
         if (strategyName != null) {
-            strategy = shapeFieldMapper.resolveStrategy(strategyName);
+            strategy = shapeFieldMapper.fieldType().resolveStrategy(strategyName);
         }
         Query query;
         if (strategy instanceof RecursivePrefixTreeStrategy && shapeRelation == ShapeRelation.DISJOINT) {

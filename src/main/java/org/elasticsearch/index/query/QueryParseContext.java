@@ -309,8 +309,8 @@ public class QueryParseContext {
      * TODO: remove this by moving defaults into mappers themselves
      */
     public Analyzer getSearchAnalyzer(FieldMapper mapper) {
-        if (mapper.searchAnalyzer() != null) {
-            return mapper.searchAnalyzer();
+        if (mapper.fieldType().searchAnalyzer() != null) {
+            return mapper.fieldType().searchAnalyzer();
         }
         return mapperService().searchAnalyzer();
     }
@@ -319,8 +319,8 @@ public class QueryParseContext {
      * TODO: remove this by moving defaults into mappers themselves
      */
     public Analyzer getSearchQuoteAnalyzer(FieldMapper mapper) {
-        if (mapper.searchQuoteAnalyzer() != null) {
-            return mapper.searchQuoteAnalyzer();
+        if (mapper.fieldType().searchQuoteAnalyzer() != null) {
+            return mapper.fieldType().searchQuoteAnalyzer();
         }
         return mapperService().searchQuoteAnalyzer();
     }

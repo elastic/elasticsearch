@@ -166,7 +166,7 @@ public class MoreLikeThisQueryParser extends BaseQueryParserTemp {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         String field = parser.text();
                         FieldMapper mapper = parseContext.fieldMapper(field);
-                        moreLikeFields.add(mapper == null ? field : mapper.names().indexName());
+                        moreLikeFields.add(mapper == null ? field : mapper.fieldType().names().indexName());
                     }
                 } else if (Fields.DOCUMENT_IDS.match(currentFieldName, parseContext.parseFlags())) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {

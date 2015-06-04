@@ -192,7 +192,8 @@ migratePlugin "analysis-phonetic"
 migratePlugin "analysis-icu"
 
 # Mapper
-migratePlugin "mapper-attachments"
+# TODO: look at this one later
+# migratePlugin "mapper-attachments"
 
 # Cloud
 migratePlugin "cloud-gce"

@@ -1,4 +1,7 @@
 #!/bin/bash
+set -e
+set -u
+set -o pipefail
 
 # This script creates a new branch then migrate all the maven stuff in it and commit that branch.
 # then it runs mvn install to check that everything is still running

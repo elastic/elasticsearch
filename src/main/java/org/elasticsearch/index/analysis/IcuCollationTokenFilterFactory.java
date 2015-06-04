@@ -23,7 +23,6 @@ import com.ibm.icu.text.Collator;
 import com.ibm.icu.text.RuleBasedCollator;
 import com.ibm.icu.util.ULocale;
 import org.apache.lucene.analysis.TokenStream;
-import org.elasticsearch.common.base.Charsets;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.io.Streams;
@@ -34,6 +33,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.settings.IndexSettings;
 
 import java.io.IOException;
+import java.nio.charset.Charset;
 import java.nio.file.Files;
 
 /**
@@ -60,7 +60,7 @@ public class IcuCollationTokenFilterFactory extends AbstractTokenFilterFactory {
         if (rules != null) {
             Exception failureToResolve = null;
             try {
-                rules = Streams.copyToString(Files.newBufferedReader(environment.configFile().resolve(rules), Charsets.UTF_8));
+                rules = Streams.copyToString(Files.newBufferedReader(environment.configFile().resolve(rules), Charset.forName("UTF-8")));
             } catch (FailedToResolveConfigException | IOException | SecurityException e) {
                 failureToResolve = e;
             }

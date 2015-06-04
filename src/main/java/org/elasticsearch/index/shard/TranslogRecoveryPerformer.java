@@ -61,14 +61,12 @@ public class TranslogRecoveryPerformer {
      * Applies all operations in the iterable to the current engine and returns the number of operations applied.
      * This operation will stop applying operations once an operation failed to apply.
      *
-     * @param allowMappingUpdates true if mapping update should be accepted (but collected). Setting it to false will
-     *                            cause a {@link MapperException} to be thrown if an update
-     *                            is encountered.
+     * Throws a {@link MapperException} to be thrown if a mapping update is encountered.
      */
-    int performBatchRecovery(Engine engine, Iterable<Translog.Operation> operations, boolean allowMappingUpdates) {
+    int performBatchRecovery(Engine engine, Iterable<Translog.Operation> operations) {
         int numOps = 0;
         for (Translog.Operation operation : operations) {
-            performRecoveryOperation(engine, operation, allowMappingUpdates);
+            performRecoveryOperation(engine, operation, false);
             numOps++;
         }
         return numOps;

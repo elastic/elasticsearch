@@ -106,7 +106,6 @@ import org.elasticsearch.index.warmer.WarmerStats;
 import org.elasticsearch.indices.IndicesLifecycle;
 import org.elasticsearch.indices.IndicesWarmer;
 import org.elasticsearch.indices.InternalIndicesLifecycle;
-import org.elasticsearch.indices.recovery.DelayRecoveryException;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.search.suggest.completion.Completion090PostingsFormat;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
@@ -808,15 +807,7 @@ public class IndexShard extends AbstractIndexShardComponent {
         if (state != IndexShardState.RECOVERING) {
             throw new IndexShardNotRecoveringException(shardId, state);
         }
-        final TranslogRecoveryPerformer performer = engineConfig.getTranslogRecoveryPerformer();
-        try {
-            return performer.performBatchRecovery(engine(), operations, false);
-        } catch (MapperException e) {
-            // in very rare cases a translog replay from primary is processed before a mapping update on this node
-            // which causes local mapping changes. we want to wait until these mappings are processed.
-            logger.trace("delaying recovery due to missing mapping changes", e);
-            throw new DelayRecoveryException("missing mapping changes", e);
-        }
+        return engineConfig.getTranslogRecoveryPerformer().performBatchRecovery(engine(), operations);
     }
 
     /**
@@ -1394,7 +1385,7 @@ public class IndexShard extends AbstractIndexShardComponent {
      * Returns the current translog durability mode
      */
     public Translog.Durabilty getTranslogDurability() {
-       return translogConfig.getDurabilty();
+        return translogConfig.getDurabilty();
     }
 
     private static Translog.Durabilty getFromSettings(ESLogger logger, Settings settings, Translog.Durabilty defaultValue) {

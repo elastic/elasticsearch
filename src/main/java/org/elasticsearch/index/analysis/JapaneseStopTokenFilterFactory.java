@@ -25,7 +25,6 @@ import org.apache.lucene.analysis.core.StopFilter;
 import org.apache.lucene.analysis.ja.JapaneseAnalyzer;
 import org.apache.lucene.analysis.util.CharArraySet;
 import org.apache.lucene.search.suggest.analyzing.SuggestStopFilter;
-import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
@@ -34,6 +33,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.settings.IndexSettings;
 
+import java.util.Map;
 import java.util.Set;
 
 public class JapaneseStopTokenFilterFactory extends AbstractTokenFilterFactory{
@@ -50,7 +50,7 @@ public class JapaneseStopTokenFilterFactory extends AbstractTokenFilterFactory{
         super(index, indexSettings, name, settings);
         this.ignoreCase = settings.getAsBoolean("ignore_case", false);
         this.removeTrailing = settings.getAsBoolean("remove_trailing", true);
-        ImmutableMap<String, Set<?>> namedStopWords = MapBuilder.<String, Set<?>>newMapBuilder()
+        Map<String, Set<?>> namedStopWords = MapBuilder.<String, Set<?>>newMapBuilder()
             .put("_japanese_", JapaneseAnalyzer.getDefaultStopSet())
             .immutableMap();
         this.stopWords = Analysis.parseWords(env, settings, "stopwords", JapaneseAnalyzer.getDefaultStopSet(), namedStopWords, ignoreCase);

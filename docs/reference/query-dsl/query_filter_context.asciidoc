@@ -9,7 +9,7 @@ Query context::
 --
 A query clause used in query context answers the question ``__How well does this
 document match this query clause?__'' Besides deciding whether or not the
-document matches, the query clause also calculated a `_score` representing how
+document matches, the query clause also calculates a `_score` representing how
 well the document matches, relative to other documents.
 
 Query context is in effect whenever a query clause is passed to a `query` parameter,

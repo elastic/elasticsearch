@@ -19,8 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.optimize;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.action.support.broadcast.BroadcastOperationRequest;
+import org.elasticsearch.action.support.broadcast.BroadcastRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -37,21 +36,17 @@ import java.io.IOException;
  * @see org.elasticsearch.client.IndicesAdminClient#optimize(OptimizeRequest)
  * @see OptimizeResponse
  */
-public class OptimizeRequest extends BroadcastOperationRequest<OptimizeRequest> {
+public class OptimizeRequest extends BroadcastRequest<OptimizeRequest> {
 
     public static final class Defaults {
         public static final int MAX_NUM_SEGMENTS = -1;
         public static final boolean ONLY_EXPUNGE_DELETES = false;
         public static final boolean FLUSH = true;
-        public static final boolean UPGRADE = false;
-        public static final boolean UPGRADE_ONLY_ANCIENT_SEGMENTS = false;
     }
     
     private int maxNumSegments = Defaults.MAX_NUM_SEGMENTS;
     private boolean onlyExpungeDeletes = Defaults.ONLY_EXPUNGE_DELETES;
     private boolean flush = Defaults.FLUSH;
-    private boolean upgrade = Defaults.UPGRADE;
-    private boolean upgradeOnlyAncientSegments = Defaults.UPGRADE_ONLY_ANCIENT_SEGMENTS;
 
     /**
      * Constructs an optimization request over one or more indices.
@@ -115,30 +110,12 @@ public class OptimizeRequest extends BroadcastOperationRequest<OptimizeRequest> 
         return this;
     }
 
-    /**
-     * Should the merge upgrade all old segments to the current index format.
-     * Defaults to <tt>false</tt>.
-     */
-    public boolean upgrade() {
-        return upgrade;
-    }
-
-    /**
-     * See {@link #upgrade()}
-     */
-    public OptimizeRequest upgrade(boolean upgrade) {
-        this.upgrade = upgrade;
-        return this;
-    }
-
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         maxNumSegments = in.readInt();
         onlyExpungeDeletes = in.readBoolean();
         flush = in.readBoolean();
-        upgrade = in.readBoolean();
-        upgradeOnlyAncientSegments = in.readBoolean();
     }
 
     @Override
@@ -147,24 +124,6 @@ public class OptimizeRequest extends BroadcastOperationRequest<OptimizeRequest> 
         out.writeInt(maxNumSegments);
         out.writeBoolean(onlyExpungeDeletes);
         out.writeBoolean(flush);
-        out.writeBoolean(upgrade);
-        out.writeBoolean(upgradeOnlyAncientSegments);
-    }
-
-    /**
-     * Should the merge upgrade only the ancient (older major version of Lucene) segments?
-     * Defaults to <tt>false</tt>.
-     */
-    public boolean upgradeOnlyAncientSegments() {
-        return upgradeOnlyAncientSegments;
-    }
-
-    /**
-     * See {@link #upgradeOnlyAncientSegments()}
-     */
-    public OptimizeRequest upgradeOnlyAncientSegments(boolean upgradeOnlyAncientSegments) {
-        this.upgradeOnlyAncientSegments = upgradeOnlyAncientSegments;
-        return this;
     }
 
     @Override
@@ -173,8 +132,6 @@ public class OptimizeRequest extends BroadcastOperationRequest<OptimizeRequest> 
                 "maxNumSegments=" + maxNumSegments +
                 ", onlyExpungeDeletes=" + onlyExpungeDeletes +
                 ", flush=" + flush +
-                ", upgrade=" + upgrade +
-                ", upgradeOnlyAncientSegments=" + upgradeOnlyAncientSegments +
                 '}';
     }
 }

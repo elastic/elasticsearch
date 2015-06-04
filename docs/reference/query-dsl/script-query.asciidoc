@@ -1,5 +1,5 @@
 [[query-dsl-script-query]]
-== Script Query
+=== Script Query
 
 A query allowing to define
 <<modules-scripting,scripts>> as filters. For
@@ -20,7 +20,7 @@ example:
 ----------------------------------------------
 
 [float]
-=== Custom Parameters
+==== Custom Parameters
 
 Scripts are compiled and cached for faster execution. If the same script
 can be used, just with different parameters provider, it is preferable
@@ -34,9 +34,11 @@ to use the ability to pass parameters to the script itself, for example:
     }, 
     "filter" : {
         "script" : {
-            "script" : "doc['num1'].value > param1"
-            "params" : {
-                "param1" : 5
+            "script" : {
+                "inline" : "doc['num1'].value > param1"
+                "params" : {
+                    "param1" : 5
+                }
             }
         }
     }

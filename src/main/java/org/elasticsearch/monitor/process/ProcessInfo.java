@@ -19,10 +19,10 @@
 
 package org.elasticsearch.monitor.process;
 
+import org.elasticsearch.bootstrap.Bootstrap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
-import org.elasticsearch.common.jna.Natives;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
@@ -50,7 +50,7 @@ public class ProcessInfo implements Streamable, Serializable, ToXContent {
     public ProcessInfo(long id, long maxFileDescriptors) {
         this.id = id;
         this.maxFileDescriptors = maxFileDescriptors;
-        this.mlockall = Natives.LOCAL_MLOCKALL;
+        this.mlockall = Bootstrap.isMemoryLocked();
     }
 
     public long refreshInterval() {

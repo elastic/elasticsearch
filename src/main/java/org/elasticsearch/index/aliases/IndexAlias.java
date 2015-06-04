@@ -21,7 +21,7 @@ package org.elasticsearch.index.aliases;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.compress.CompressedString;
+import org.elasticsearch.common.compress.CompressedXContent;
 
 /**
  *
@@ -30,11 +30,11 @@ public class IndexAlias {
 
     private final String alias;
 
-    private final CompressedString filter;
+    private final CompressedXContent filter;
 
     private final Query parsedFilter;
 
-    public IndexAlias(String alias, @Nullable CompressedString filter, @Nullable Query parsedFilter) {
+    public IndexAlias(String alias, @Nullable CompressedXContent filter, @Nullable Query parsedFilter) {
         this.alias = alias;
         this.filter = filter;
         this.parsedFilter = parsedFilter;
@@ -45,7 +45,7 @@ public class IndexAlias {
     }
 
     @Nullable
-    public CompressedString filter() {
+    public CompressedXContent filter() {
         return filter;
     }
 

@@ -46,7 +46,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.compress.CompressedString;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.regex.Regex;
@@ -87,7 +87,6 @@ public class MetaDataCreateIndexService extends AbstractComponent {
     public final static int MAX_INDEX_NAME_BYTES = 255;
     private static final DefaultIndexTemplateFilter DEFAULT_INDEX_TEMPLATE_FILTER = new DefaultIndexTemplateFilter();
 
-    private final Environment environment;
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
     private final IndicesService indicesService;
@@ -100,12 +99,11 @@ public class MetaDataCreateIndexService extends AbstractComponent {
     private final NodeEnvironment nodeEnv;
 
     @Inject
-    public MetaDataCreateIndexService(Settings settings, Environment environment, ThreadPool threadPool, ClusterService clusterService,
+    public MetaDataCreateIndexService(Settings settings, ThreadPool threadPool, ClusterService clusterService,
                                       IndicesService indicesService, AllocationService allocationService, MetaDataService metaDataService,
                                       Version version, @RiverIndexName String riverIndexName, AliasValidator aliasValidator,
                                       Set<IndexTemplateFilter> indexTemplateFilters, NodeEnvironment nodeEnv) {
         super(settings);
-        this.environment = environment;
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.indicesService = indicesService;
@@ -254,7 +252,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                     // apply templates, merging the mappings into the request mapping if exists
                     for (IndexTemplateMetaData template : templates) {
                         templateNames.add(template.getName());
-                        for (ObjectObjectCursor<String, CompressedString> cursor : template.mappings()) {
+                        for (ObjectObjectCursor<String, CompressedXContent> cursor : template.mappings()) {
                             if (mappings.containsKey(cursor.key)) {
                                 XContentHelper.mergeDefaults(mappings.get(cursor.key), parseMapping(cursor.value.string()));
                             } else {
@@ -357,7 +355,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                     // first, add the default mapping
                     if (mappings.containsKey(MapperService.DEFAULT_MAPPING)) {
                         try {
-                            mapperService.merge(MapperService.DEFAULT_MAPPING, new CompressedString(XContentFactory.jsonBuilder().map(mappings.get(MapperService.DEFAULT_MAPPING)).string()), false);
+                            mapperService.merge(MapperService.DEFAULT_MAPPING, new CompressedXContent(XContentFactory.jsonBuilder().map(mappings.get(MapperService.DEFAULT_MAPPING)).string()), false);
                         } catch (Exception e) {
                             removalReason = "failed on parsing default mapping on index creation";
                             throw new MapperParsingException("mapping [" + MapperService.DEFAULT_MAPPING + "]", e);
@@ -369,7 +367,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                         }
                         try {
                             // apply the default here, its the first time we parse it
-                            mapperService.merge(entry.getKey(), new CompressedString(XContentFactory.jsonBuilder().map(entry.getValue()).string()), true);
+                            mapperService.merge(entry.getKey(), new CompressedXContent(XContentFactory.jsonBuilder().map(entry.getValue()).string()), true);
                         } catch (Exception e) {
                             removalReason = "failed on parsing mappings on index creation";
                             throw new MapperParsingException("mapping [" + entry.getKey() + "]", e);

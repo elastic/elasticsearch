@@ -1,5 +1,5 @@
 [[query-dsl-geo-distance-query]]
-== Geo Distance Query
+=== Geo Distance Query
 
 Filters documents that include only hits that exists within a specific
 distance from a geo point. Assuming the following indexed json:
@@ -40,13 +40,13 @@ filter:
 --------------------------------------------------
 
 [float]
-=== Accepted Formats
+==== Accepted Formats
 
 In much the same way the `geo_point` type can accept different
 representation of the geo point, the filter can accept it as well:
 
 [float]
-==== Lat Lon As Properties
+===== Lat Lon As Properties
 
 [source,js]
 --------------------------------------------------
@@ -69,7 +69,7 @@ representation of the geo point, the filter can accept it as well:
 --------------------------------------------------
 
 [float]
-==== Lat Lon As Array
+===== Lat Lon As Array
 
 Format in `[lon, lat]`, note, the order of lon/lat here in order to
 conform with http://geojson.org/[GeoJSON].
@@ -92,7 +92,7 @@ conform with http://geojson.org/[GeoJSON].
 --------------------------------------------------
 
 [float]
-==== Lat Lon As String
+===== Lat Lon As String
 
 Format in `lat,lon`.
 
@@ -114,7 +114,7 @@ Format in `lat,lon`.
 --------------------------------------------------
 
 [float]
-==== Geohash
+===== Geohash
 
 [source,js]
 --------------------------------------------------
@@ -134,7 +134,7 @@ Format in `lat,lon`.
 --------------------------------------------------
 
 [float]
-=== Options
+==== Options
 
 The following are options allowed on the filter:
 
@@ -160,13 +160,13 @@ The following are options allowed on the filter:
 
 
 [float]
-=== geo_point Type
+==== geo_point Type
 
 The filter *requires* the `geo_point` type to be set on the relevant
 field.
 
 [float]
-=== Multi Location Per Document
+==== Multi Location Per Document
 
 The `geo_distance` filter can work with multiple locations / points per
 document. Once a single location / point matches the filter, the

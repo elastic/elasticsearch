@@ -20,7 +20,7 @@
 package org.elasticsearch.action.admin.cluster.stats;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.action.support.nodes.NodesOperationResponse;
+import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -37,7 +37,7 @@ import java.util.Map;
 /**
  *
  */
-public class ClusterStatsResponse extends NodesOperationResponse<ClusterStatsNodeResponse> implements ToXContent {
+public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResponse> implements ToXContent {
 
     ClusterStatsNodes nodesStats;
     ClusterStatsIndices indicesStats;

@@ -19,14 +19,12 @@
 
 package org.elasticsearch.action.update;
 
-import com.google.common.collect.Maps;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocumentRequest;
 import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.single.instance.InstanceShardOperationRequest;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -37,11 +35,14 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptParameterParser;
 import org.elasticsearch.script.ScriptParameterParser.ScriptParameterValue;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptService.ScriptType;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
@@ -59,13 +60,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
     private String parent;
 
     @Nullable
-    String script;
-    @Nullable
-    ScriptService.ScriptType scriptType;
-    @Nullable
-    String scriptLang;
-    @Nullable
-    Map<String, Object> scriptParams;
+    Script script;
 
     private String[] fields;
 
@@ -205,105 +200,171 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
         return this.shardId;
     }
 
-    public String script() {
+    public Script script() {
         return this.script;
     }
 
-    public ScriptService.ScriptType scriptType() { return this.scriptType; }
+    /**
+     * The script to execute. Note, make sure not to send different script each times and instead
+     * use script params if possible with the same (automatically compiled) script.
+     */
+    public UpdateRequest script(Script script) {
+        this.script = script;
+        return this;
+    }
 
+    /**
+     * @deprecated Use {@link #script()} instead
+     */
+    @Deprecated
+    public String scriptString() {
+        return this.script == null ? null : this.script.getScript();
+    }
+
+    /**
+     * @deprecated Use {@link #script()} instead
+     */
+    @Deprecated
+    public ScriptService.ScriptType scriptType() {
+        return this.script == null ? null : this.script.getType();
+    }
+
+    /**
+     * @deprecated Use {@link #script()} instead
+     */
+    @Deprecated
     public Map<String, Object> scriptParams() {
-        return this.scriptParams;
+        return this.script == null ? null : this.script.getParams();
     }
 
     /**
-     * The script to execute. Note, make sure not to send different script each times and instead
-     * use script params if possible with the same (automatically compiled) script.
+     * The script to execute. Note, make sure not to send different script each
+     * times and instead use script params if possible with the same
+     * (automatically compiled) script.
+     * 
+     * @deprecated Use {@link #script(Script)} instead
      */
+    @Deprecated
     public UpdateRequest script(String script, ScriptService.ScriptType scriptType) {
-        this.script = script;
-        this.scriptType = scriptType;
+        updateOrCreateScript(script, scriptType, null, null);
         return this;
     }
 
     /**
-     * The script to execute. Note, make sure not to send different script each times and instead
-     * use script params if possible with the same (automatically compiled) script.
+     * The script to execute. Note, make sure not to send different script each
+     * times and instead use script params if possible with the same
+     * (automatically compiled) script.
+     * 
+     * @deprecated Use {@link #script(Script)} instead
      */
+    @Deprecated
     public UpdateRequest script(String script) {
-        this.script = script;
-        this.scriptType = ScriptService.ScriptType.INLINE;
+        updateOrCreateScript(script, ScriptType.INLINE, null, null);
         return this;
     }
-
 
     /**
      * The language of the script to execute.
+     * 
+     * @deprecated Use {@link #script(Script)} instead
      */
+    @Deprecated
     public UpdateRequest scriptLang(String scriptLang) {
-        this.scriptLang = scriptLang;
+        updateOrCreateScript(null, null, scriptLang, null);
         return this;
     }
 
+    /**
+     * @deprecated Use {@link #script()} instead
+     */
+    @Deprecated
     public String scriptLang() {
-        return scriptLang;
+        return script == null ? null : script.getLang();
     }
 
     /**
      * Add a script parameter.
+     * 
+     * @deprecated Use {@link #script(Script)} instead
      */
+    @Deprecated
     public UpdateRequest addScriptParam(String name, Object value) {
-        if (scriptParams == null) {
-            scriptParams = Maps.newHashMap();
+        Script script = script();
+        if (script == null) {
+            HashMap<String, Object> scriptParams = new HashMap<String, Object>();
+            scriptParams.put(name, value);
+            updateOrCreateScript(null, null, null, scriptParams);
+        } else {
+            Map<String, Object> scriptParams = script.getParams();
+            if (scriptParams == null) {
+                scriptParams = new HashMap<String, Object>();
+                scriptParams.put(name, value);
+                updateOrCreateScript(null, null, null, scriptParams);
+            } else {
+                scriptParams.put(name, value);
+            }
         }
-        scriptParams.put(name, value);
         return this;
     }
 
     /**
      * Sets the script parameters to use with the script.
+     * 
+     * @deprecated Use {@link #script(Script)} instead
      */
+    @Deprecated
     public UpdateRequest scriptParams(Map<String, Object> scriptParams) {
-        if (this.scriptParams == null) {
-            this.scriptParams = scriptParams;
-        } else {
-            this.scriptParams.putAll(scriptParams);
-        }
+        updateOrCreateScript(null, null, null, scriptParams);
         return this;
     }
 
+    private void updateOrCreateScript(String scriptContent, ScriptType type, String lang, Map<String, Object> params) {
+        Script script = script();
+        if (script == null) {
+            script = new Script(scriptContent == null ? "" : scriptContent, type == null ? ScriptType.INLINE : type, lang, params);
+        } else {
+            String newScriptContent = scriptContent == null ? script.getScript() : scriptContent;
+            ScriptType newScriptType = type == null ? script.getType() : type;
+            String newScriptLang = lang == null ? script.getLang() : lang;
+            Map<String, Object> newScriptParams = params == null ? script.getParams() : params;
+            script = new Script(newScriptContent, newScriptType, newScriptLang, newScriptParams);
+        }
+        script(script);
+    }
+
     /**
-     * The script to execute. Note, make sure not to send different script each times and instead
-     * use script params if possible with the same (automatically compiled) script.
+     * The script to execute. Note, make sure not to send different script each
+     * times and instead use script params if possible with the same
+     * (automatically compiled) script.
+     * 
+     * @deprecated Use {@link #script(Script)} instead
      */
+    @Deprecated
     public UpdateRequest script(String script, ScriptService.ScriptType scriptType, @Nullable Map<String, Object> scriptParams) {
-        this.script = script;
-        this.scriptType = scriptType;
-        if (this.scriptParams != null) {
-            this.scriptParams.putAll(scriptParams);
-        } else {
-            this.scriptParams = scriptParams;
-        }
+        this.script = new Script(script, scriptType, null, scriptParams);
         return this;
     }
 
     /**
-     * The script to execute. Note, make sure not to send different script each times and instead
-     * use script params if possible with the same (automatically compiled) script.
+     * The script to execute. Note, make sure not to send different script each
+     * times and instead use script params if possible with the same
+     * (automatically compiled) script.
      *
-     * @param script       The script to execute
-     * @param scriptLang   The script language
-     * @param scriptType   The script type
-     * @param scriptParams The script parameters
+     * @param script
+     *            The script to execute
+     * @param scriptLang
+     *            The script language
+     * @param scriptType
+     *            The script type
+     * @param scriptParams
+     *            The script parameters
+     * 
+     * @deprecated Use {@link #script(Script)} instead
      */
-    public UpdateRequest script(String script, @Nullable String scriptLang, ScriptService.ScriptType scriptType, @Nullable Map<String, Object> scriptParams) {
-        this.script = script;
-        this.scriptLang = scriptLang;
-        this.scriptType = scriptType;
-        if (this.scriptParams != null) {
-            this.scriptParams.putAll(scriptParams);
-        } else {
-            this.scriptParams = scriptParams;
-        }
+    @Deprecated
+    public UpdateRequest script(String script, @Nullable String scriptLang, ScriptService.ScriptType scriptType,
+            @Nullable Map<String, Object> scriptParams) {
+        this.script = new Script(script, scriptType, scriptLang, scriptParams);
         return this;
     }
 
@@ -574,6 +635,8 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
 
     public UpdateRequest source(BytesReference source) throws Exception {
         ScriptParameterParser scriptParameterParser = new ScriptParameterParser();
+        Map<String, Object> scriptParams = null;
+        Script script = null;
         XContentType xContentType = XContentFactory.xContentType(source);
         try (XContentParser parser = XContentFactory.xContent(xContentType).createParser(source)) {
             XContentParser.Token token = parser.nextToken();
@@ -584,6 +647,8 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
+                } else if ("script".equals(currentFieldName) && token == XContentParser.Token.START_OBJECT) {
+                    script = Script.parse(parser);
                 } else if ("params".equals(currentFieldName)) {
                     scriptParams = parser.map();
                 } else if ("scripted_upsert".equals(currentFieldName)) {
@@ -604,12 +669,16 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
                     scriptParameterParser.token(currentFieldName, token, parser);
                 }
             }
-            ScriptParameterValue scriptValue = scriptParameterParser.getDefaultScriptParameterValue();
-            if (scriptValue != null) {
-                script = scriptValue.script();
-                scriptType = scriptValue.scriptType();
+            // Don't have a script using the new API so see if it is specified with the old API
+            if (script == null) {
+                ScriptParameterValue scriptValue = scriptParameterParser.getDefaultScriptParameterValue();
+                if (scriptValue != null) {
+                    script = new Script(scriptValue.script(), scriptValue.scriptType(), scriptParameterParser.lang(), scriptParams);
+                }
             }
-            scriptLang = scriptParameterParser.lang();
+            if (script != null) {
+                this.script = script;
+            }
         }
         return this;
     }
@@ -639,12 +708,9 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
         id = in.readString();
         routing = in.readOptionalString();
         parent = in.readOptionalString();
-        script = in.readOptionalString();
-        if(Strings.hasLength(script)) {
-            scriptType = ScriptService.ScriptType.readFrom(in);
+        if (in.readBoolean()) {
+            script = Script.readScript(in);
         }
-        scriptLang = in.readOptionalString();
-        scriptParams = in.readMap();
         retryOnConflict = in.readVInt();
         refresh = in.readBoolean();
         if (in.readBoolean()) {
@@ -677,12 +743,11 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
         out.writeString(id);
         out.writeOptionalString(routing);
         out.writeOptionalString(parent);
-        out.writeOptionalString(script);
-        if (Strings.hasLength(script)) {
-            ScriptService.ScriptType.writeTo(scriptType, out);
+        boolean hasScript = script != null;
+        out.writeBoolean(hasScript);
+        if (hasScript) {
+            script.writeTo(out);
         }
-        out.writeOptionalString(scriptLang);
-        out.writeMap(scriptParams);
         out.writeVInt(retryOnConflict);
         out.writeBoolean(refresh);
         if (doc == null) {

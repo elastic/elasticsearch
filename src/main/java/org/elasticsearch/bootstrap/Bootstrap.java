@@ -25,11 +25,10 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.PidFile;
 import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.common.cli.Terminal;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.CreationException;
 import org.elasticsearch.common.inject.spi.Message;
-import org.elasticsearch.common.jna.Kernel32Library;
-import org.elasticsearch.common.jna.Natives;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
@@ -48,7 +47,6 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 
 import static com.google.common.collect.Sets.newHashSet;
-import static org.elasticsearch.common.jna.Kernel32Library.ConsoleCtrlHandler;
 import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 
 /**
@@ -87,14 +85,6 @@ public class Bootstrap {
     /** initialize native resources */
     public static void initializeNatives(boolean mlockAll, boolean ctrlHandler, boolean loadSigar) {
         final ESLogger logger = Loggers.getLogger(Bootstrap.class);
-        // mlockall if requested
-        if (mlockAll) {
-            if (Constants.WINDOWS) {
-               Natives.tryVirtualLock();
-            } else {
-               Natives.tryMlockall();
-            }
-        }
         
         // check if the user is running as root, and bail
         if (Natives.definitelyRunningAsRoot()) {
@@ -102,6 +92,15 @@ public class Bootstrap {
                 logger.warn("running as ROOT user. this is a bad idea!");
             } else {
                 throw new RuntimeException("don't run elasticsearch as root.");
+            }
+        }
+        
+        // mlockall if requested
+        if (mlockAll) {
+            if (Constants.WINDOWS) {
+               Natives.tryVirtualLock();
+            } else {
+               Natives.tryMlockall();
             }
         }
 
@@ -122,7 +121,7 @@ public class Bootstrap {
 
         // force remainder of JNA to be loaded (if available).
         try {
-            Kernel32Library.getInstance();
+            JNAKernel32Library.getInstance();
         } catch (Throwable ignored) {
             // we've already logged this.
         }
@@ -143,6 +142,10 @@ public class Bootstrap {
         StringHelper.randomId();
     }
 
+    public static boolean isMemoryLocked() {
+        return Natives.isMemoryLocked();
+    }
+
     private void setup(boolean addShutdownHook, Settings settings, Environment environment) throws Exception {
         initializeNatives(settings.getAsBoolean("bootstrap.mlockall", false), 
                           settings.getAsBoolean("bootstrap.ctrlhandler", true),
@@ -161,8 +164,16 @@ public class Bootstrap {
         
         // install SM after natives, shutdown hooks, etc.
         setupSecurity(settings, environment);
-        
-        NodeBuilder nodeBuilder = NodeBuilder.nodeBuilder().settings(settings).loadConfigSettings(false);
+
+        // We do not need to reload system properties here as we have already applied them in building the settings and
+        // reloading could cause multiple prompts to the user for values if a system property was specified with a prompt
+        // placeholder
+        Settings nodeSettings = Settings.settingsBuilder()
+                .put(settings)
+                .put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING, true)
+                .build();
+
+        NodeBuilder nodeBuilder = NodeBuilder.nodeBuilder().settings(nodeSettings).loadConfigSettings(false);
         node = nodeBuilder.build();
     }
     
@@ -193,8 +204,9 @@ public class Bootstrap {
         }
     }
 
-    private static Tuple<Settings, Environment> initialSettings() {
-        return InternalSettingsPreparer.prepareSettings(EMPTY_SETTINGS, true);
+    private static Tuple<Settings, Environment> initialSettings(boolean foreground) {
+        Terminal terminal = foreground ? Terminal.DEFAULT : null;
+        return InternalSettingsPreparer.prepareSettings(EMPTY_SETTINGS, true, terminal);
     }
 
     private void start() {
@@ -225,7 +237,7 @@ public class Bootstrap {
         Settings settings = null;
         Environment environment = null;
         try {
-            Tuple<Settings, Environment> tuple = initialSettings();
+            Tuple<Settings, Environment> tuple = initialSettings(foreground);
             settings = tuple.v1();
             environment = tuple.v2();
 

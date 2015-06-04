@@ -4,6 +4,10 @@ rootLogger: ${es.logger.level}, console, file
 logger:
   # log action execution errors for easier debugging
   action: DEBUG
+
+  # deprecation logging, turn to DEBUG to see them
+  deprecation: INFO, deprecation_log_file
+
   # reduce the logging for aws, too much is logged under the default INFO
   com.amazonaws: WARN
   org.apache.http: INFO
@@ -24,6 +28,7 @@ logger:
 additivity:
   index.search.slowlog: false
   index.indexing.slowlog: false
+  deprecation: false
 
 appender:
   console:
@@ -50,6 +55,14 @@ appender:
     #layout:
       #type: pattern
       #conversionPattern: "[%d{ISO8601}][%-5p][%-25c] %m%n"
+
+  deprecation_log_file:
+    type: dailyRollingFile
+    file: ${path.logs}/${cluster.name}_deprecation.log
+    datePattern: "'.'yyyy-MM-dd"
+    layout:
+      type: pattern
+      conversionPattern: "[%d{ISO8601}][%-5p][%-25c] %m%n"
 
   index_search_slow_log_file:
     type: dailyRollingFile

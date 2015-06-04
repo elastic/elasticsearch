@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index;
 
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
@@ -30,9 +31,8 @@ import org.elasticsearch.index.settings.IndexSettings;
 public abstract class AbstractIndexComponent implements IndexComponent {
 
     protected final ESLogger logger;
-
+    protected final DeprecationLogger deprecationLogger;
     protected final Index index;
-
     protected final Settings indexSettings;
 
     /**
@@ -45,11 +45,16 @@ public abstract class AbstractIndexComponent implements IndexComponent {
         this.index = index;
         this.indexSettings = indexSettings;
         this.logger = Loggers.getLogger(getClass(), indexSettings, index);
+        this.deprecationLogger = new DeprecationLogger(logger);
     }
 
     @Override
     public Index index() {
         return this.index;
+    }
+
+    public Settings indexSettings() {
+        return indexSettings;
     }
 
     public String nodeName() {

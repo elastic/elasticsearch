@@ -20,7 +20,7 @@
 package org.elasticsearch.action.admin.indices.segments;
 
 import com.google.common.collect.ImmutableList;
-import org.elasticsearch.action.support.broadcast.BroadcastShardOperationResponse;
+import org.elasticsearch.action.support.broadcast.BroadcastShardResponse;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -33,7 +33,7 @@ import java.util.List;
 
 import static org.elasticsearch.cluster.routing.ImmutableShardRouting.readShardRoutingEntry;
 
-public class ShardSegments extends BroadcastShardOperationResponse implements Iterable<Segment> {
+public class ShardSegments extends BroadcastShardResponse implements Iterable<Segment> {
 
     private ShardRouting shardRouting;
 

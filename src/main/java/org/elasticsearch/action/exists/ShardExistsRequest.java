@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.exists;
 
-import org.elasticsearch.action.support.broadcast.BroadcastShardOperationRequest;
+import org.elasticsearch.action.support.broadcast.BroadcastShardRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -29,7 +29,7 @@ import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 
-class ShardExistsRequest extends BroadcastShardOperationRequest {
+class ShardExistsRequest extends BroadcastShardRequest {
 
     private float minScore;
 

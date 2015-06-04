@@ -21,6 +21,8 @@ package org.elasticsearch.search.functionscore;
 import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.index.query.functionscore.random.RandomScoreFunctionBuilder;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.hamcrest.CoreMatchers;
@@ -28,14 +30,26 @@ import org.junit.Ignore;
 
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.HashMap;
+import java.util.Map;
 
 import static com.google.common.collect.Lists.newArrayList;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.QueryBuilders.*;
-import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.*;
+import static org.elasticsearch.index.query.QueryBuilders.functionScoreQuery;
+import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
+import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.fieldValueFactorFunction;
+import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.randomFunction;
+import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.scriptFunction;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.nullValue;
 
 public class RandomScoreFunctionTests extends ElasticsearchIntegrationTest {
 
@@ -101,7 +115,10 @@ public class RandomScoreFunctionTests extends ElasticsearchIntegrationTest {
         }
     }
 
-    public void testScoreAccessWithinScript() throws Exception {
+    /*
+     * TODO Remove in 2.0
+     */
+    public void testScoreAccessWithinScriptOldScriptAPI() throws Exception {
         assertAcked(prepareCreate("test")
                 .addMapping("type", "body", "type=string", "index", "type=" + randomFrom(new String[]{"short", "float", "long", "integer", "double"})));
         ensureYellow();
@@ -162,6 +179,76 @@ public class RandomScoreFunctionTests extends ElasticsearchIntegrationTest {
                         .add(scriptFunction("log(doc['index'].value + (factor * _score.doubleValue()))")
                                 .param("factor", randomIntBetween(2, 4))))
                 .get();
+        assertNoFailures(resp);
+        firstHit = resp.getHits().getAt(0);
+        assertThat(firstHit.getScore(), greaterThan(1f));
+    }
+
+    public void testScoreAccessWithinScript() throws Exception {
+        assertAcked(prepareCreate("test").addMapping("type", "body", "type=string", "index",
+                "type=" + randomFrom(new String[] { "short", "float", "long", "integer", "double" })));
+        ensureYellow();
+
+        int docCount = randomIntBetween(100, 200);
+        for (int i = 0; i < docCount; i++) {
+            client().prepareIndex("test", "type", "" + i).setSource("body", randomFrom(newArrayList("foo", "bar", "baz")), "index", i)
+                    .get();
+        }
+        refresh();
+
+        Map<String, Object> params = new HashMap<>();
+        params.put("factor", randomIntBetween(2, 4));
+        // Test for accessing _score
+        SearchResponse resp = client()
+                .prepareSearch("test")
+                .setQuery(
+                        functionScoreQuery(matchQuery("body", "foo")).add(fieldValueFactorFunction("index").factor(2)).add(
+                                scriptFunction(new Script("log(doc['index'].value + (factor * _score))", ScriptType.INLINE, null, params))))
+                .get();
+        assertNoFailures(resp);
+        SearchHit firstHit = resp.getHits().getAt(0);
+        assertThat(firstHit.getScore(), greaterThan(1f));
+
+        // Test for accessing _score.intValue()
+        resp = client()
+                .prepareSearch("test")
+                .setQuery(
+                        functionScoreQuery(matchQuery("body", "foo")).add(fieldValueFactorFunction("index").factor(2)).add(
+                                scriptFunction(new Script("log(doc['index'].value + (factor * _score.intValue()))", ScriptType.INLINE,
+                                        null, params)))).get();
+        assertNoFailures(resp);
+        firstHit = resp.getHits().getAt(0);
+        assertThat(firstHit.getScore(), greaterThan(1f));
+
+        // Test for accessing _score.longValue()
+        resp = client()
+                .prepareSearch("test")
+                .setQuery(
+                        functionScoreQuery(matchQuery("body", "foo")).add(fieldValueFactorFunction("index").factor(2)).add(
+                                scriptFunction(new Script("log(doc['index'].value + (factor * _score.longValue()))", ScriptType.INLINE,
+                                        null, params)))).get();
+        assertNoFailures(resp);
+        firstHit = resp.getHits().getAt(0);
+        assertThat(firstHit.getScore(), greaterThan(1f));
+
+        // Test for accessing _score.floatValue()
+        resp = client()
+                .prepareSearch("test")
+                .setQuery(
+                        functionScoreQuery(matchQuery("body", "foo")).add(fieldValueFactorFunction("index").factor(2)).add(
+                                scriptFunction(new Script("log(doc['index'].value + (factor * _score.floatValue()))", ScriptType.INLINE,
+                                        null, params)))).get();
+        assertNoFailures(resp);
+        firstHit = resp.getHits().getAt(0);
+        assertThat(firstHit.getScore(), greaterThan(1f));
+
+        // Test for accessing _score.doubleValue()
+        resp = client()
+                .prepareSearch("test")
+                .setQuery(
+                        functionScoreQuery(matchQuery("body", "foo")).add(fieldValueFactorFunction("index").factor(2)).add(
+                                scriptFunction(new Script("log(doc['index'].value + (factor * _score.doubleValue()))", ScriptType.INLINE,
+                                        null, params)))).get();
         assertNoFailures(resp);
         firstHit = resp.getHits().getAt(0);
         assertThat(firstHit.getScore(), greaterThan(1f));

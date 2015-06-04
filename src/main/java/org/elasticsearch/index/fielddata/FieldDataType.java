@@ -20,7 +20,7 @@
 package org.elasticsearch.index.fielddata;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.mapper.FieldMapper.Loading;
+import org.elasticsearch.index.mapper.MappedFieldType.Loading;
 
 /**
  */

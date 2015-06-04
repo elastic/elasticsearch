@@ -20,7 +20,7 @@ package org.elasticsearch.action.admin.indices.template.put;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
+import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -34,7 +34,7 @@ import org.elasticsearch.transport.TransportService;
 /**
  * Put index template action.
  */
-public class TransportPutIndexTemplateAction extends TransportMasterNodeOperationAction<PutIndexTemplateRequest, PutIndexTemplateResponse> {
+public class TransportPutIndexTemplateAction extends TransportMasterNodeAction<PutIndexTemplateRequest, PutIndexTemplateResponse> {
 
     private final MetaDataIndexTemplateService indexTemplateService;
 

@@ -26,9 +26,9 @@ import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.bootstrap.Bootstrap;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
-import org.elasticsearch.common.jna.Natives;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.SizeValue;
@@ -71,7 +71,7 @@ public class TermsAggregationSearchAndIndexingBenchmark {
     static Node[] nodes;
 
     public static void main(String[] args) throws Exception {
-        Natives.tryMlockall();
+        Bootstrap.initializeNatives(true, false, false);
         Settings settings = settingsBuilder()
                 .put("refresh_interval", "-1")
                 .put(SETTING_NUMBER_OF_SHARDS, 1)

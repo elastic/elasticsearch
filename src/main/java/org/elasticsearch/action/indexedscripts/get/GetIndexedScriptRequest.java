@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.indexedscripts.get;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
@@ -31,7 +30,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.search.fetch.source.FetchSourceContext;
 
 import java.io.IOException;
 
@@ -147,47 +145,19 @@ public class GetIndexedScriptRequest extends ActionRequest<GetIndexedScriptReque
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        if (in.getVersion().before(Version.V_1_4_0_Beta1)) {
-            //the index was previously serialized although not needed
-            in.readString();
-        }
         scriptLang = in.readString();
         id = in.readString();
-        if (in.getVersion().before(Version.V_1_5_0)) {
-            in.readOptionalString(); //Preference
-            in.readBoolean(); //Refresh
-            in.readByte(); //Realtime
-        }
         this.versionType = VersionType.fromValue(in.readByte());
         this.version = in.readLong();
-
-        if (in.getVersion().before(Version.V_1_5_0)) {
-            FetchSourceContext.optionalReadFromStream(in);
-        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getVersion().before(Version.V_1_4_0_Beta1)) {
-            //the index was previously serialized although not needed
-            out.writeString(ScriptService.SCRIPT_INDEX);
-        }
         out.writeString(scriptLang);
         out.writeString(id);
-        if (out.getVersion().before(Version.V_1_5_0)) {
-            out.writeOptionalString("_local"); //Preference
-            out.writeBoolean(true); //Refresh
-            out.writeByte((byte) -1); //Realtime
-        }
-
         out.writeByte(versionType.getValue());
         out.writeLong(version);
-
-        if (out.getVersion().before(Version.V_1_5_0)) {
-            FetchSourceContext.optionalWriteToStream(null, out);
-        }
-
     }
 
     @Override

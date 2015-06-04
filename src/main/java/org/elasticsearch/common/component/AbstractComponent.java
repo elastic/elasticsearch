@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.component;
 
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
@@ -29,16 +30,18 @@ import org.elasticsearch.common.settings.Settings;
 public abstract class AbstractComponent {
 
     protected final ESLogger logger;
-
+    protected final DeprecationLogger deprecationLogger;
     protected final Settings settings;
 
     public AbstractComponent(Settings settings) {
         this.logger = Loggers.getLogger(getClass(), settings);
+        this.deprecationLogger = new DeprecationLogger(logger);
         this.settings = settings;
     }
 
     public AbstractComponent(Settings settings, Class customClass) {
         this.logger = Loggers.getLogger(customClass, settings);
+        this.deprecationLogger = new DeprecationLogger(logger);
         this.settings = settings;
     }
 

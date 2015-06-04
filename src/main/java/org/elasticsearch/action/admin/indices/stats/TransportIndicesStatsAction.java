@@ -24,8 +24,8 @@ import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
-import org.elasticsearch.action.support.broadcast.BroadcastShardOperationRequest;
-import org.elasticsearch.action.support.broadcast.TransportBroadcastOperationAction;
+import org.elasticsearch.action.support.broadcast.BroadcastShardRequest;
+import org.elasticsearch.action.support.broadcast.TransportBroadcastAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -52,7 +52,7 @@ import static com.google.common.collect.Lists.newArrayList;
 
 /**
  */
-public class TransportIndicesStatsAction extends TransportBroadcastOperationAction<IndicesStatsRequest, IndicesStatsResponse, TransportIndicesStatsAction.IndexShardStatsRequest, ShardStats> {
+public class TransportIndicesStatsAction extends TransportBroadcastAction<IndicesStatsRequest, IndicesStatsResponse, TransportIndicesStatsAction.IndexShardStatsRequest, ShardStats> {
 
     private final IndicesService indicesService;
 
@@ -190,7 +190,7 @@ public class TransportIndicesStatsAction extends TransportBroadcastOperationActi
         return new ShardStats(indexShard, indexShard.routingEntry(), flags);
     }
 
-    static class IndexShardStatsRequest extends BroadcastShardOperationRequest {
+    static class IndexShardStatsRequest extends BroadcastShardRequest {
 
         // TODO if there are many indices, the request might hold a large indices array..., we don't really need to serialize it
         IndicesStatsRequest request;

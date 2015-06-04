@@ -20,7 +20,7 @@
 package org.elasticsearch.action.fieldstats;
 
 import org.elasticsearch.action.ShardOperationFailedException;
-import org.elasticsearch.action.support.broadcast.BroadcastOperationResponse;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -32,7 +32,7 @@ import java.util.Map;
 
 /**
  */
-public class FieldStatsResponse extends BroadcastOperationResponse {
+public class FieldStatsResponse extends BroadcastResponse {
 
     private Map<String, Map<String, FieldStats>> indicesMergedFieldStats;
 

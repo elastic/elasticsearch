@@ -293,6 +293,7 @@ deprecated[1.5.0,Rivers have been deprecated.  See https://www.elastic.co/blog/d
 * https://github.com/karmi/elasticsearch-paramedic[Paramedic Plugin] (by Karel Minařík)
 * https://github.com/polyfractal/elasticsearch-segmentspy[SegmentSpy Plugin] (by Zachary Tong)
 * https://github.com/xyu/elasticsearch-whatson[Whatson Plugin] (by Xiao Yu)
+* https://github.com/lmenezes/elasticsearch-kopf[Kopf Plugin] (by lmenezes)
 
 [float]
 [[repository-plugins]]

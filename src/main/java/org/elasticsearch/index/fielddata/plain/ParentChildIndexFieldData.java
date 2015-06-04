@@ -21,16 +21,10 @@ package org.elasticsearch.index.fielddata.plain;
 
 import com.carrotsearch.hppc.ObjectObjectHashMap;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.ImmutableSortedSet;
-
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.LeafReader;
-import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.*;
 import org.apache.lucene.index.MultiDocValues.OrdinalMap;
-import org.apache.lucene.index.PostingsEnum;
-import org.apache.lucene.index.SortedDocValues;
-import org.apache.lucene.index.Terms;
-import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
@@ -39,6 +33,7 @@ import org.apache.lucene.util.PagedBytes;
 import org.apache.lucene.util.packed.PackedInts;
 import org.apache.lucene.util.packed.PackedLongValues;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -47,21 +42,16 @@ import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.fielddata.AtomicOrdinalsFieldData;
-import org.elasticsearch.index.fielddata.AtomicParentChildFieldData;
-import org.elasticsearch.index.fielddata.FieldDataType;
-import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.*;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
-import org.elasticsearch.index.fielddata.IndexFieldDataCache;
-import org.elasticsearch.index.fielddata.IndexParentChildFieldData;
-import org.elasticsearch.index.fielddata.RamAccountingTermsEnum;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.index.fielddata.ordinals.OrdinalsBuilder;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentTypeListener;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.FieldMapper.Names;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedFieldType.Names;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
@@ -70,17 +60,7 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.MultiValueMode;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.NavigableSet;
-import java.util.Set;
-import java.util.TreeSet;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -89,18 +69,18 @@ import java.util.concurrent.TimeUnit;
  */
 public class ParentChildIndexFieldData extends AbstractIndexFieldData<AtomicParentChildFieldData> implements IndexParentChildFieldData, DocumentTypeListener {
 
-    private final NavigableSet<BytesRef> parentTypes;
+    private final NavigableSet<String> parentTypes;
     private final CircuitBreakerService breakerService;
 
     // If child type (a type with _parent field) is added or removed, we want to make sure modifications don't happen
     // while loading.
     private final Object lock = new Object();
 
-    public ParentChildIndexFieldData(Index index, @IndexSettings Settings indexSettings, FieldMapper.Names fieldNames,
+    public ParentChildIndexFieldData(Index index, @IndexSettings Settings indexSettings, MappedFieldType.Names fieldNames,
                                      FieldDataType fieldDataType, IndexFieldDataCache cache, MapperService mapperService,
                                      CircuitBreakerService breakerService) {
         super(index, indexSettings, fieldNames, fieldDataType, cache);
-        parentTypes = new TreeSet<>(BytesRef.getUTF8SortedAsUnicodeComparator());
+        parentTypes = new TreeSet<>();
         this.breakerService = breakerService;
         for (DocumentMapper documentMapper : mapperService.docMappers(false)) {
             beforeCreate(documentMapper);
@@ -114,15 +94,60 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<AtomicPare
     }
 
     @Override
-    public ParentChildAtomicFieldData loadDirect(LeafReaderContext context) throws Exception {
+    public AtomicParentChildFieldData load(LeafReaderContext context) {
+        if (Version.indexCreated(indexSettings).onOrAfter(Version.V_2_0_0)) {
+            final LeafReader reader = context.reader();
+            final NavigableSet<String> parentTypes;
+            synchronized (lock) {
+                parentTypes = ImmutableSortedSet.copyOf(this.parentTypes);
+            }
+            return new AbstractAtomicParentChildFieldData() {
+
+                public Set<String> types() {
+                    return parentTypes;
+                }
+
+                @Override
+                public SortedDocValues getOrdinalsValues(String type) {
+                    try {
+                        return DocValues.getSorted(reader, ParentFieldMapper.joinField(type));
+                    } catch (IOException e) {
+                        throw new IllegalStateException("cannot load join doc values field for type [" + type + "]", e);
+                    }
+                }
+
+                @Override
+                public long ramBytesUsed() {
+                    // unknown
+                    return 0;
+                }
+
+                @Override
+                public Collection<Accountable> getChildResources() {
+                    return Collections.emptyList();
+                }
+
+                @Override
+                public void close() throws ElasticsearchException {
+                }
+            };
+        } else {
+            return super.load(context);
+        }
+    }
+
+    @Override
+    public AbstractAtomicParentChildFieldData loadDirect(LeafReaderContext context) throws Exception {
         LeafReader reader = context.reader();
         final float acceptableTransientOverheadRatio = fieldDataType.getSettings().getAsFloat(
                 "acceptable_transient_overhead_ratio", OrdinalsBuilder.DEFAULT_ACCEPTABLE_OVERHEAD_RATIO
         );
 
-        final NavigableSet<BytesRef> parentTypes;
+        final NavigableSet<BytesRef> parentTypes = new TreeSet<>();
         synchronized (lock) {
-            parentTypes = ImmutableSortedSet.copyOf(BytesRef.getUTF8SortedAsUnicodeComparator(), this.parentTypes);
+            for (String parentType : this.parentTypes) {
+                parentTypes.add(new BytesRef(parentType));
+            }
         }
         boolean success = false;
         ParentChildAtomicFieldData data = null;
@@ -192,7 +217,7 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<AtomicPare
             if (parentFieldMapper.active()) {
                 // A _parent field can never be added to an existing mapping, so a _parent field either exists on
                 // a new created or doesn't exists. This is why we can update the known parent types via DocumentTypeListener
-                if (parentTypes.add(new BytesRef(parentFieldMapper.type()))) {
+                if (parentTypes.add(parentFieldMapper.type())) {
                     clear();
                 }
             }
@@ -228,8 +253,8 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<AtomicPare
         public IndexFieldData<?> build(Index index, @IndexSettings Settings indexSettings, FieldMapper mapper,
                                        IndexFieldDataCache cache, CircuitBreakerService breakerService,
                                        MapperService mapperService) {
-            return new ParentChildIndexFieldData(index, indexSettings, mapper.names(), mapper.fieldDataType(), cache,
-                    mapperService, breakerService);
+            return new ParentChildIndexFieldData(index, indexSettings, mapper.fieldType().names(), mapper.fieldType().fieldDataType(), cache,
+                mapperService, breakerService);
         }
     }
 
@@ -320,11 +345,9 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<AtomicPare
     @Override
     public IndexParentChildFieldData localGlobalDirect(IndexReader indexReader) throws Exception {
         final long startTime = System.nanoTime();
-        final Set<String> parentTypes = new HashSet<>();
+        final Set<String> parentTypes;
         synchronized (lock) {
-            for (BytesRef type : this.parentTypes) {
-                parentTypes.add(type.utf8ToString());
-            }
+            parentTypes = ImmutableSet.copyOf(this.parentTypes);
         }
 
         long ramBytesUsed = 0;
@@ -352,7 +375,7 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<AtomicPare
             );
         }
 
-        return new GlobalFieldData(indexReader, fielddata, ramBytesUsed);
+        return new GlobalFieldData(indexReader, fielddata, ramBytesUsed, perType);
     }
 
     private static class GlobalAtomicFieldData extends AbstractAtomicParentChildFieldData {
@@ -436,16 +459,18 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<AtomicPare
 
     }
 
-    private class GlobalFieldData implements IndexParentChildFieldData, Accountable {
+    public class GlobalFieldData implements IndexParentChildFieldData, Accountable {
 
         private final AtomicParentChildFieldData[] fielddata;
         private final IndexReader reader;
         private final long ramBytesUsed;
+        private final Map<String, OrdinalMapAndAtomicFieldData> ordinalMapPerType;
 
-        GlobalFieldData(IndexReader reader, AtomicParentChildFieldData[] fielddata, long ramBytesUsed) {
+        GlobalFieldData(IndexReader reader, AtomicParentChildFieldData[] fielddata, long ramBytesUsed, Map<String, OrdinalMapAndAtomicFieldData> ordinalMapPerType) {
             this.reader = reader;
             this.ramBytesUsed = ramBytesUsed;
             this.fielddata = fielddata;
+            this.ordinalMapPerType = ordinalMapPerType;
         }
 
         @Override
@@ -512,6 +537,22 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<AtomicPare
             return loadGlobal(indexReader);
         }
 
+    }
+
+    /**
+     * Returns the global ordinal map for the specified type
+     */
+    // TODO: OrdinalMap isn't expose in the field data framework, because it is an implementation detail.
+    // However the JoinUtil works directly with OrdinalMap, so this is a hack to get access to OrdinalMap
+    // I don't think we should expose OrdinalMap in IndexFieldData, because only parent/child relies on it and for the
+    // rest of the code OrdinalMap is an implementation detail, but maybe we can expose it in IndexParentChildFieldData interface?
+    public static MultiDocValues.OrdinalMap getOrdinalMap(IndexParentChildFieldData indexParentChildFieldData, String type) {
+        if (indexParentChildFieldData instanceof ParentChildIndexFieldData.GlobalFieldData) {
+            return ((GlobalFieldData) indexParentChildFieldData).ordinalMapPerType.get(type).ordMap;
+        } else {
+            // one segment, local ordinals are global
+            return null;
+        }
     }
 
 }

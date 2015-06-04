@@ -253,7 +253,7 @@ public class AnalyzingCompletionLookupProvider extends CompletionLookupProvider 
         return new LookupFactory() {
             @Override
             public Lookup getLookup(CompletionFieldMapper mapper, CompletionSuggestionContext suggestionContext) {
-                AnalyzingSuggestHolder analyzingSuggestHolder = lookupMap.get(mapper.names().indexName());
+                AnalyzingSuggestHolder analyzingSuggestHolder = lookupMap.get(mapper.fieldType().names().indexName());
                 if (analyzingSuggestHolder == null) {
                     return null;
                 }
@@ -263,19 +263,19 @@ public class AnalyzingCompletionLookupProvider extends CompletionLookupProvider 
                 final Automaton queryPrefix = mapper.requiresContext() ? ContextQuery.toAutomaton(analyzingSuggestHolder.getPreserveSeparator(), suggestionContext.getContextQueries()) : null;
 
                 if (suggestionContext.isFuzzy()) {
-                    suggester = new XFuzzySuggester(mapper.indexAnalyzer(), queryPrefix, mapper.searchAnalyzer(), flags,
-                            analyzingSuggestHolder.maxSurfaceFormsPerAnalyzedForm, analyzingSuggestHolder.maxGraphExpansions,
-                            suggestionContext.getFuzzyEditDistance(), suggestionContext.isFuzzyTranspositions(),
-                            suggestionContext.getFuzzyPrefixLength(), suggestionContext.getFuzzyMinLength(), suggestionContext.isFuzzyUnicodeAware(),
-                            analyzingSuggestHolder.fst, analyzingSuggestHolder.hasPayloads,
-                            analyzingSuggestHolder.maxAnalyzedPathsForOneInput, analyzingSuggestHolder.sepLabel, analyzingSuggestHolder.payloadSep, analyzingSuggestHolder.endByte,
-                            analyzingSuggestHolder.holeCharacter);
+                    suggester = new XFuzzySuggester(mapper.fieldType().indexAnalyzer(), queryPrefix, mapper.fieldType().searchAnalyzer(), flags,
+                        analyzingSuggestHolder.maxSurfaceFormsPerAnalyzedForm, analyzingSuggestHolder.maxGraphExpansions,
+                        suggestionContext.getFuzzyEditDistance(), suggestionContext.isFuzzyTranspositions(),
+                        suggestionContext.getFuzzyPrefixLength(), suggestionContext.getFuzzyMinLength(), suggestionContext.isFuzzyUnicodeAware(),
+                        analyzingSuggestHolder.fst, analyzingSuggestHolder.hasPayloads,
+                        analyzingSuggestHolder.maxAnalyzedPathsForOneInput, analyzingSuggestHolder.sepLabel, analyzingSuggestHolder.payloadSep, analyzingSuggestHolder.endByte,
+                        analyzingSuggestHolder.holeCharacter);
                 } else {
-                    suggester = new XAnalyzingSuggester(mapper.indexAnalyzer(), queryPrefix, mapper.searchAnalyzer(), flags,
-                            analyzingSuggestHolder.maxSurfaceFormsPerAnalyzedForm, analyzingSuggestHolder.maxGraphExpansions,
-                            analyzingSuggestHolder.preservePositionIncrements, analyzingSuggestHolder.fst, analyzingSuggestHolder.hasPayloads,
-                            analyzingSuggestHolder.maxAnalyzedPathsForOneInput, analyzingSuggestHolder.sepLabel, analyzingSuggestHolder.payloadSep, analyzingSuggestHolder.endByte,
-                            analyzingSuggestHolder.holeCharacter);
+                    suggester = new XAnalyzingSuggester(mapper.fieldType().indexAnalyzer(), queryPrefix, mapper.fieldType().searchAnalyzer(), flags,
+                        analyzingSuggestHolder.maxSurfaceFormsPerAnalyzedForm, analyzingSuggestHolder.maxGraphExpansions,
+                        analyzingSuggestHolder.preservePositionIncrements, analyzingSuggestHolder.fst, analyzingSuggestHolder.hasPayloads,
+                        analyzingSuggestHolder.maxAnalyzedPathsForOneInput, analyzingSuggestHolder.sepLabel, analyzingSuggestHolder.payloadSep, analyzingSuggestHolder.endByte,
+                        analyzingSuggestHolder.holeCharacter);
                 }
                 return suggester;
             }
@@ -304,7 +304,7 @@ public class AnalyzingCompletionLookupProvider extends CompletionLookupProvider 
 
             @Override
             AnalyzingSuggestHolder getAnalyzingSuggestHolder(CompletionFieldMapper mapper) {
-                return lookupMap.get(mapper.names().indexName());
+                return lookupMap.get(mapper.fieldType().names().indexName());
             }
 
             @Override

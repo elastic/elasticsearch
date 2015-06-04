@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.stats;
 
-import org.elasticsearch.action.support.broadcast.BroadcastShardOperationResponse;
+import org.elasticsearch.action.support.broadcast.BroadcastShardResponse;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -36,7 +36,7 @@ import static org.elasticsearch.cluster.routing.ImmutableShardRouting.readShardR
 
 /**
  */
-public class ShardStats extends BroadcastShardOperationResponse implements ToXContent {
+public class ShardStats extends BroadcastShardResponse implements ToXContent {
 
     private ShardRouting shardRouting;
 

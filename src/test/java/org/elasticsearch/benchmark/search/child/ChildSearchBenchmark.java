@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.benchmark.search.child;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.search.SearchResponse;
@@ -36,12 +37,7 @@ import static org.elasticsearch.client.Requests.createIndexRequest;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
-import static org.elasticsearch.index.query.QueryBuilders.filteredQuery;
-import static org.elasticsearch.index.query.QueryBuilders.hasChildQuery;
-import static org.elasticsearch.index.query.QueryBuilders.hasParentQuery;
-import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
-import static org.elasticsearch.index.query.QueryBuilders.termQuery;
+import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.elasticsearch.node.NodeBuilder.nodeBuilder;
 
 /**
@@ -49,26 +45,49 @@ import static org.elasticsearch.node.NodeBuilder.nodeBuilder;
  */
 public class ChildSearchBenchmark {
 
+    /*
+        Run: MAVEN_OPTS=-Xmx4g mvn test-compile exec:java -Dexec.mainClass="org.elasticsearch.benchmark.search.child.ChildSearchBenchmark" -Dexec.classpathScope="test" -Dexec.args="bwc false"
+     */
+
     public static void main(String[] args) throws Exception {
-        Settings settings = settingsBuilder()
+        boolean bwcMode = false;
+        int numParents = (int) SizeValue.parseSizeValue("2m").singles();;
+
+        if (args.length % 2 != 0) {
+            throw new IllegalArgumentException("Uneven number of arguments");
+        }
+        for (int i = 0; i < args.length; i += 2) {
+            String value = args[i + 1];
+            if ("--bwc_mode".equals(args[i])) {
+                bwcMode = Boolean.valueOf(value);
+            } else if ("--num_parents".equals(args[i])) {
+                numParents = Integer.valueOf(value);
+            }
+        }
+
+
+        Settings.Builder settings = settingsBuilder()
                 .put("index.refresh_interval", "-1")
                 .put(SETTING_NUMBER_OF_SHARDS, 1)
-                .put(SETTING_NUMBER_OF_REPLICAS, 0)
-                .build();
+                .put(SETTING_NUMBER_OF_REPLICAS, 0);
+
+        // enable bwc parent child mode:
+        if (bwcMode) {
+            settings.put("tests.mock.version", Version.V_1_6_0);
+        }
 
         String clusterName = ChildSearchBenchmark.class.getSimpleName();
         Node node1 = nodeBuilder().clusterName(clusterName)
-                .settings(settingsBuilder().put(settings).put("name", "node1")).node();
+                .settings(settingsBuilder().put(settings.build()).put("name", "node1")).node();
         Client client = node1.client();
 
-        int COUNT = (int) SizeValue.parseSizeValue("2m").singles();
         int CHILD_COUNT = 15;
         int QUERY_VALUE_RATIO = 3;
         int QUERY_WARMUP = 10;
         int QUERY_COUNT = 20;
         String indexName = "test";
 
-        ParentChildIndexGenerator parentChildIndexGenerator = new ParentChildIndexGenerator(client, COUNT, CHILD_COUNT, QUERY_VALUE_RATIO);
+        ParentChildIndexGenerator parentChildIndexGenerator = new ParentChildIndexGenerator(client, numParents, CHILD_COUNT, QUERY_VALUE_RATIO);
         client.admin().cluster().prepareHealth(indexName).setWaitForGreenStatus().setTimeout("10s").execute().actionGet();
         try {
             client.admin().indices().create(createIndexRequest(indexName)).actionGet();

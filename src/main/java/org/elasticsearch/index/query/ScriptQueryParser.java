@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.query;
 
+import com.google.common.base.Objects;
+
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
@@ -29,6 +31,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.script.LeafSearchScript;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.Script.ScriptField;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptParameterParser;
 import org.elasticsearch.script.ScriptParameterParser.ScriptParameterValue;
@@ -38,7 +41,6 @@ import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.util.Map;
-import java.util.Objects;
 
 import static com.google.common.collect.Maps.newHashMap;
 
@@ -55,7 +57,7 @@ public class ScriptQueryParser implements QueryParser {
 
     @Override
     public String[] names() {
-        return new String[]{NAME};
+        return new String[] { NAME };
     }
 
     @Override
@@ -66,13 +68,11 @@ public class ScriptQueryParser implements QueryParser {
         XContentParser.Token token;
 
         // also, when caching, since its isCacheable is false, will result in loading all bit set...
-        String script = null;
-        String scriptLang;
+        Script script = null;
         Map<String, Object> params = null;
 
         String queryName = null;
         String currentFieldName = null;
-        ScriptService.ScriptType scriptType = null;
 
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
@@ -80,7 +80,9 @@ public class ScriptQueryParser implements QueryParser {
             } else if (parseContext.isDeprecatedSetting(currentFieldName)) {
                 // skip
             } else if (token == XContentParser.Token.START_OBJECT) {
-                if ("params".equals(currentFieldName)) {
+                if (ScriptField.SCRIPT.match(currentFieldName)) {
+                    script = Script.parse(parser);
+                } else if ("params".equals(currentFieldName)) { // TODO remove in 2.0 (here to support old script APIs)
                     params = parser.map();
                 } else {
                     throw new QueryParsingException(parseContext, "[script] query does not support [" + currentFieldName + "]");
@@ -88,27 +90,29 @@ public class ScriptQueryParser implements QueryParser {
             } else if (token.isValue()) {
                 if ("_name".equals(currentFieldName)) {
                     queryName = parser.text();
-                } else if (!scriptParameterParser.token(currentFieldName, token, parser)){
+                } else if (!scriptParameterParser.token(currentFieldName, token, parser)) {
                     throw new QueryParsingException(parseContext, "[script] query does not support [" + currentFieldName + "]");
                 }
             }
         }
 
-        ScriptParameterValue scriptValue = scriptParameterParser.getDefaultScriptParameterValue();
-        if (scriptValue != null) {
-            script = scriptValue.script();
-            scriptType = scriptValue.scriptType();
+        if (script == null) { // Didn't find anything using the new API so try using the old one instead
+            ScriptParameterValue scriptValue = scriptParameterParser.getDefaultScriptParameterValue();
+            if (scriptValue != null) {
+                if (params == null) {
+                    params = newHashMap();
+                }
+                script = new Script(scriptValue.script(), scriptValue.scriptType(), scriptParameterParser.lang(), params);
+            }
+        } else if (params != null) {
+            throw new QueryParsingException(parseContext, "script params must be specified inside script object in a [script] filter");
         }
-        scriptLang = scriptParameterParser.lang();
 
         if (script == null) {
             throw new QueryParsingException(parseContext, "script must be provided with a [script] filter");
         }
-        if (params == null) {
-            params = newHashMap();
-        }
 
-        Query query = new ScriptQuery(scriptLang, script, scriptType, params, parseContext.scriptService(), parseContext.lookup());
+        Query query = new ScriptQuery(script, parseContext.scriptService(), parseContext.lookup());
         if (queryName != null) {
             parseContext.addNamedQuery(queryName, query);
         }
@@ -117,14 +121,13 @@ public class ScriptQueryParser implements QueryParser {
 
     static class ScriptQuery extends Query {
 
-        private final String script;
-        private final Map<String, Object> params;
+        private final Script script;
+
         private final SearchScript searchScript;
 
-        private ScriptQuery(String scriptLang, String script, ScriptService.ScriptType scriptType, Map<String, Object> params, ScriptService scriptService, SearchLookup searchLookup) {
+        public ScriptQuery(Script script, ScriptService scriptService, SearchLookup searchLookup) {
             this.script = script;
-            this.params = params;
-            this.searchScript = scriptService.search(searchLookup, new Script(scriptLang, script, scriptType, newHashMap(params)), ScriptContext.Standard.SEARCH);
+            this.searchScript = scriptService.search(searchLookup, script, ScriptContext.Standard.SEARCH);
         }
 
         @Override
@@ -137,23 +140,20 @@ public class ScriptQueryParser implements QueryParser {
         }
 
         @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (super.equals(o) == false) return false;
-
-            ScriptQuery that = (ScriptQuery) o;
-
-            if (params != null ? !params.equals(that.params) : that.params != null) return false;
-            if (script != null ? !script.equals(that.script) : that.script != null) return false;
-
-            return true;
+        public boolean equals(Object obj) {
+            if (this == obj)
+                return true;
+            if (!super.equals(obj))
+                return false;
+            ScriptQuery other = (ScriptQuery) obj;
+            return Objects.equal(script, other.script);
         }
 
         @Override
         public int hashCode() {
+            final int prime = 31;
             int result = super.hashCode();
-            result = 31 * result + Objects.hashCode(script);
-            result = 31 * result + Objects.hashCode(params);
+            result = prime * result + Objects.hashCode(script);
             return result;
         }
 

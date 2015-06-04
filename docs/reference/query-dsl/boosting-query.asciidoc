@@ -1,5 +1,5 @@
 [[query-dsl-boosting-query]]
-== Boosting Query
+=== Boosting Query
 
 The `boosting` query can be used to effectively demote results that
 match a given query. Unlike the "NOT" clause in bool query, this still

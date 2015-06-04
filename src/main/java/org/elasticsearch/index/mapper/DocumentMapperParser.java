@@ -27,7 +27,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.compress.CompressedString;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.geo.ShapesAvailability;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
@@ -71,10 +71,8 @@ import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.mapper.object.RootObjectMapper;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.similarity.SimilarityLookupService;
-import org.elasticsearch.script.ScriptParameterParser;
-import org.elasticsearch.script.ScriptParameterParser.ScriptParameterValue;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.script.ScriptService.ScriptType;
 
 import java.util.Iterator;
 import java.util.List;
@@ -194,15 +192,15 @@ public class DocumentMapperParser extends AbstractIndexComponent {
         return parse(type, mapping, defaultSource);
     }
 
-    public DocumentMapper parseCompressed(@Nullable String type, CompressedString source) throws MapperParsingException {
+    public DocumentMapper parseCompressed(@Nullable String type, CompressedXContent source) throws MapperParsingException {
         return parseCompressed(type, source, null);
     }
 
     @SuppressWarnings({"unchecked"})
-    public DocumentMapper parseCompressed(@Nullable String type, CompressedString source, String defaultSource) throws MapperParsingException {
+    public DocumentMapper parseCompressed(@Nullable String type, CompressedXContent source, String defaultSource) throws MapperParsingException {
         Map<String, Object> mapping = null;
         if (source != null) {
-            Map<String, Object> root = XContentHelper.convertToMap(source.compressed(), true).v2();
+            Map<String, Object> root = XContentHelper.convertToMap(source.compressedReference(), true).v2();
             Tuple<String, Map<String, Object>> t = extractMapping(type, root);
             type = t.v1();
             mapping = t.v2();
@@ -238,7 +236,6 @@ public class DocumentMapperParser extends AbstractIndexComponent {
             Object fieldNode = entry.getValue();
 
             if ("transform".equals(fieldName)) {
-                iterator.remove();
                 if (fieldNode instanceof Map) {
                     parseTransform(docBuilder, (Map<String, Object>) fieldNode, parserContext.indexVersionCreated());
                 } else if (fieldNode instanceof List) {
@@ -251,6 +248,7 @@ public class DocumentMapperParser extends AbstractIndexComponent {
                 } else {
                     throw new MapperParsingException("Transform must be an object or an array but was:  " + fieldNode);
                 }
+                iterator.remove();
             } else {
                 Mapper.TypeParser typeParser = rootTypeParsers.get(fieldName);
                 if (typeParser != null) {
@@ -296,23 +294,10 @@ public class DocumentMapperParser extends AbstractIndexComponent {
         return remainingFields.toString();
     }
 
-    @SuppressWarnings("unchecked")
     private void parseTransform(DocumentMapper.Builder docBuilder, Map<String, Object> transformConfig, Version indexVersionCreated) {
-        ScriptParameterParser scriptParameterParser = new ScriptParameterParser();
-        scriptParameterParser.parseConfig(transformConfig, true);
-        
-        String script = null;
-        ScriptType scriptType = null;
-        ScriptParameterValue scriptValue = scriptParameterParser.getDefaultScriptParameterValue();
-        if (scriptValue != null) {
-            script = scriptValue.script();
-            scriptType = scriptValue.scriptType();
-        }
-        
+        Script script = Script.parse(transformConfig, true);
         if (script != null) {
-            String scriptLang = scriptParameterParser.lang();
-            Map<String, Object> params = (Map<String, Object>)transformConfig.remove("params");
-            docBuilder.transform(scriptService, script, scriptType, scriptLang, params);
+            docBuilder.transform(scriptService, script);
         }
         checkNoRemainingFields(transformConfig, indexVersionCreated, "Transform config has unsupported parameters: ");
     }

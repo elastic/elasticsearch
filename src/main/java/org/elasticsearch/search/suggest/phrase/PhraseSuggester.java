@@ -34,7 +34,6 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.Lucene.EarlyTerminatingCollector;
 import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.common.text.Text;
-import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
@@ -105,14 +104,7 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
 
             final BytesRefBuilder byteSpare = new BytesRefBuilder();
             final EarlyTerminatingCollector collector = Lucene.createExistsCollector();
-            final CompiledScript collateScript;
-            if (suggestion.getCollateQueryScript() != null) {
-                collateScript = suggestion.getCollateQueryScript();
-            } else if (suggestion.getCollateFilterScript() != null) {
-                collateScript = suggestion.getCollateFilterScript();
-            } else {
-                collateScript = null;
-            }
+            final CompiledScript collateScript = suggestion.getCollateQueryScript();
             final boolean collatePrune = (collateScript != null) && suggestion.collatePrune();
             for (int i = 0; i < checkerResult.corrections.length; i++) {
                 Correction correction = checkerResult.corrections[i];
@@ -125,13 +117,7 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
                     vars.put(SUGGESTION_TEMPLATE_VAR_NAME, spare.toString());
                     final ExecutableScript executable = scriptService.executable(collateScript, vars);
                     final BytesReference querySource = (BytesReference) executable.run();
-                    final ParsedQuery parsedQuery;
-                    if (suggestion.getCollateFilterScript() != null) {
-                        parsedQuery = suggestion.getQueryParserService().parse(
-                                QueryBuilders.constantScoreQuery(QueryBuilders.wrapperQuery(querySource)));
-                    } else {
-                        parsedQuery = suggestion.getQueryParserService().parse(querySource);
-                    }
+                    final ParsedQuery parsedQuery = suggestion.getQueryParserService().parse(querySource);
                     collateMatch = Lucene.exists(searcher, parsedQuery.query(), collector);
                 }
                 if (!collateMatch && !collatePrune) {

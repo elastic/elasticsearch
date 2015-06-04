@@ -57,8 +57,6 @@ import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryAction
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequest;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkRequest;
-import org.elasticsearch.action.count.CountAction;
-import org.elasticsearch.action.count.CountRequest;
 import org.elasticsearch.action.delete.DeleteAction;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.exists.ExistsAction;
@@ -92,21 +90,37 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.search.action.SearchServiceTransportAction;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
+import org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.*;
+import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.TransportChannel;
+import org.elasticsearch.transport.TransportModule;
+import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportRequestHandler;
+import org.elasticsearch.transport.TransportService;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.emptyIterable;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.instanceOf;
 
 @ClusterScope(scope = Scope.SUITE, numClientNodes = 1, minNumDataNodes = 2)
 @Slow
@@ -242,7 +256,7 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
 
         String indexOrAlias = randomIndexOrAlias();
         client().prepareIndex(indexOrAlias, "type", "id").setSource("field", "value").get();
-        UpdateRequest updateRequest = new UpdateRequest(indexOrAlias, "type", "id").script("ctx.op='delete'");
+        UpdateRequest updateRequest = new UpdateRequest(indexOrAlias, "type", "id").script(new Script("ctx.op='delete'"));
         UpdateResponse updateResponse = internalCluster().clientNodeClient().update(updateRequest).actionGet();
         assertThat(updateResponse.isCreated(), equalTo(false));
 
@@ -354,18 +368,6 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
 
         clearInterceptedActions();
         assertIndicesSubset(indices, multiGetShardAction);
-    }
-
-    @Test
-    public void testCount() {
-        String countShardAction = CountAction.NAME + "[s]";
-        interceptTransportActions(countShardAction);
-
-        CountRequest countRequest = new CountRequest(randomIndicesOrAliases());
-        internalCluster().clientNodeClient().count(countRequest).actionGet();
-
-        clearInterceptedActions();
-        assertSameIndices(countRequest, countShardAction);
     }
 
     @Test

@@ -157,7 +157,7 @@ public class MatchQuery {
         final String field;
         FieldMapper mapper = parseContext.fieldMapper(fieldName);
         if (mapper != null) {
-            field = mapper.names().indexName();
+            field = mapper.fieldType().names().indexName();
         } else {
             field = fieldName;
         }

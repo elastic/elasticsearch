@@ -1,5 +1,5 @@
 [[query-dsl-span-containing-query]]
-== Span Containing Query
+=== Span Containing Query
 
 Returns matches which enclose another span query. The span containing
 query maps to Lucene `SpanContainingQuery`. Here is an example:

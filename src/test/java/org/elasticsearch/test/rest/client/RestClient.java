@@ -21,6 +21,7 @@ package org.elasticsearch.test.rest.client;
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
+import com.google.common.collect.Sets;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
@@ -41,6 +42,7 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -50,6 +52,8 @@ import java.util.concurrent.TimeUnit;
 public class RestClient implements Closeable {
 
     private static final ESLogger logger = Loggers.getLogger(RestClient.class);
+    //query_string params that don't need to be declared in the spec, thay are supported by default
+    private static final Set<String> ALWAYS_ACCEPTED_QUERY_STRING_PARAMS = Sets.newHashSet("pretty", "source", "filter_path");
 
     private final RestSpec restSpec;
     private final CloseableHttpClient httpClient;
@@ -172,10 +176,11 @@ public class RestClient implements Closeable {
                 if (restApi.getPathParts().contains(entry.getKey())) {
                     pathParts.put(entry.getKey(), entry.getValue());
                 } else {
-                    if (!restApi.getParams().contains(entry.getKey())) {
+                    if (restApi.getParams().contains(entry.getKey()) || ALWAYS_ACCEPTED_QUERY_STRING_PARAMS.contains(entry.getKey())) {
+                        httpRequestBuilder.addParam(entry.getKey(), entry.getValue());
+                    } else {
                         throw new IllegalArgumentException("param [" + entry.getKey() + "] not supported in [" + restApi.getName() + "] api");
                     }
-                    httpRequestBuilder.addParam(entry.getKey(), entry.getValue());
                 }
             }
         }

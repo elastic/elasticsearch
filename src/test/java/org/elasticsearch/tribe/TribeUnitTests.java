@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeBuilder;
+import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.junit.AfterClass;
@@ -51,7 +52,7 @@ public class TribeUnitTests extends ElasticsearchTestCase {
     @BeforeClass
     public static void createTribes() {
         Settings baseSettings = Settings.builder()
-            .put("config.ignore_system_properties", true)
+            .put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING, true)
             .put("http.enabled", false)
             .put("node.mode", NODE_MODE)
             .put("path.home", createTempDir()).build();
@@ -86,7 +87,7 @@ public class TribeUnitTests extends ElasticsearchTestCase {
     @Test
     public void testThatTribeClientsIgnoreGlobalConfig() throws Exception {
         Path pathConf = getDataPath("elasticsearch.yml").getParent();
-        Settings settings = Settings.builder().put("config.ignore_system_properties", true).put("path.conf", pathConf).build();
+        Settings settings = Settings.builder().put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING, true).put("path.conf", pathConf).build();
         assertTribeNodeSuccesfullyCreated(settings);
     }
 

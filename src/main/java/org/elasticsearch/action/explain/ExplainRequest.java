@@ -22,7 +22,7 @@ package org.elasticsearch.action.explain;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.QuerySourceBuilder;
-import org.elasticsearch.action.support.single.shard.SingleShardOperationRequest;
+import org.elasticsearch.action.support.single.shard.SingleShardRequest;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -35,7 +35,7 @@ import java.io.IOException;
 /**
  * Explain request encapsulating the explain query and document identifier to get an explanation for.
  */
-public class ExplainRequest extends SingleShardOperationRequest<ExplainRequest> {
+public class ExplainRequest extends SingleShardRequest<ExplainRequest> {
 
     private String type = "_all";
     private String id;

@@ -21,15 +21,7 @@ package org.elasticsearch.index.engine;
 
 import com.google.common.base.Preconditions;
 
-import org.apache.lucene.index.FilterLeafReader;
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.IndexWriter;
-import org.apache.lucene.index.LeafReader;
-import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.SegmentCommitInfo;
-import org.apache.lucene.index.SegmentInfos;
-import org.apache.lucene.index.SegmentReader;
-import org.apache.lucene.index.Term;
+import org.apache.lucene.index.*;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SearcherManager;
@@ -324,7 +316,26 @@ public abstract class Engine implements Closeable {
         return new CommitStats(getLastCommittedSegmentInfos());
     }
 
-
+    /**
+     * Read the last segments info from the commit pointed to by the searcher manager
+     */
+    protected static SegmentInfos readLastCommittedSegmentInfos(final SearcherManager sm, final Store store) throws IOException {
+        IndexSearcher searcher = sm.acquire();
+        try {
+            IndexCommit latestCommit = ((DirectoryReader) searcher.getIndexReader()).getIndexCommit();
+            return Lucene.readSegmentInfos(latestCommit);
+        } catch (IOException e) {
+            // Fall back to reading from the store if reading from the commit fails
+            try {
+                return store. readLastCommittedSegmentsInfo();
+            } catch (IOException e2) {
+                e2.addSuppressed(e);
+                throw e2;
+            }
+        } finally {
+            sm.release(searcher);
+        }
+    }
 
     /**
      * Global stats on segments.

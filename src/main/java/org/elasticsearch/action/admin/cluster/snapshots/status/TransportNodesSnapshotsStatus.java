@@ -47,7 +47,7 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
 /**
  * Transport client that collects snapshot shard statuses from data nodes
  */
-public class TransportNodesSnapshotsStatus extends TransportNodesOperationAction<TransportNodesSnapshotsStatus.Request, TransportNodesSnapshotsStatus.NodesSnapshotStatus, TransportNodesSnapshotsStatus.NodeRequest, TransportNodesSnapshotsStatus.NodeSnapshotStatus> {
+public class TransportNodesSnapshotsStatus extends TransportNodesAction<TransportNodesSnapshotsStatus.Request, TransportNodesSnapshotsStatus.NodesSnapshotStatus, TransportNodesSnapshotsStatus.NodeRequest, TransportNodesSnapshotsStatus.NodeSnapshotStatus> {
 
     public static final String ACTION_NAME = SnapshotsStatusAction.NAME + "[nodes]";
 
@@ -128,7 +128,7 @@ public class TransportNodesSnapshotsStatus extends TransportNodesOperationAction
         return true;
     }
 
-    static class Request extends NodesOperationRequest<Request> {
+    static class Request extends BaseNodesRequest<Request> {
 
         private SnapshotId[] snapshotIds;
 
@@ -157,7 +157,7 @@ public class TransportNodesSnapshotsStatus extends TransportNodesOperationAction
         }
     }
 
-    public static class NodesSnapshotStatus extends NodesOperationResponse<NodeSnapshotStatus> {
+    public static class NodesSnapshotStatus extends BaseNodesResponse<NodeSnapshotStatus> {
 
         private FailedNodeException[] failures;
 
@@ -194,7 +194,7 @@ public class TransportNodesSnapshotsStatus extends TransportNodesOperationAction
     }
 
 
-    static class NodeRequest extends NodeOperationRequest {
+    static class NodeRequest extends BaseNodeRequest {
 
         private SnapshotId[] snapshotIds;
 
@@ -230,7 +230,7 @@ public class TransportNodesSnapshotsStatus extends TransportNodesOperationAction
         }
     }
 
-    public static class NodeSnapshotStatus extends NodeOperationResponse {
+    public static class NodeSnapshotStatus extends BaseNodeResponse {
 
         private ImmutableMap<SnapshotId, ImmutableMap<ShardId, SnapshotIndexShardStatus>> status;
 

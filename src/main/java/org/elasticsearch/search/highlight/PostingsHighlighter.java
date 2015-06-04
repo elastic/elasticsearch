@@ -50,7 +50,7 @@ public class PostingsHighlighter implements Highlighter {
 
         FieldMapper fieldMapper = highlighterContext.mapper;
         SearchContextHighlight.Field field = highlighterContext.field;
-        if (fieldMapper.fieldType().indexOptions() != IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS) {
+        if (canHighlight(fieldMapper) == false) {
             throw new IllegalArgumentException("the field [" + highlighterContext.fieldName + "] should be indexed with positions and offsets in the postings list to be used with postings highlighter");
         }
 
@@ -91,7 +91,7 @@ public class PostingsHighlighter implements Highlighter {
             }
 
             IndexSearcher searcher = new IndexSearcher(hitContext.reader());
-            Snippet[] fieldSnippets = highlighter.highlightField(fieldMapper.names().indexName(), highlighterContext.query.originalQuery(), searcher, hitContext.docId(), numberOfFragments);
+            Snippet[] fieldSnippets = highlighter.highlightField(fieldMapper.fieldType().names().indexName(), highlighterContext.query, searcher, hitContext.docId(), numberOfFragments);
             for (Snippet fieldSnippet : fieldSnippets) {
                 if (Strings.hasText(fieldSnippet.getText())) {
                     snippets.add(fieldSnippet);
@@ -124,6 +124,11 @@ public class PostingsHighlighter implements Highlighter {
         }
 
         return null;
+    }
+
+    @Override
+    public boolean canHighlight(FieldMapper fieldMapper) {
+        return fieldMapper.fieldType().indexOptions() == IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS;
     }
 
     private static String mergeFieldValues(List<Object> fieldValues, char valuesSeparator) {

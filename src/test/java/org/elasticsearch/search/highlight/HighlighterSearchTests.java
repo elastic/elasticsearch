@@ -51,11 +51,123 @@ import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.highlight;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.RegexMatcher.matches;
 import static org.hamcrest.Matchers.*;
 
 @Slow
 public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
+
+    @Test
+    public void testHighlightingWithWildcardName() throws IOException {
+        // test the kibana case with * as fieldname that will try highlight all fields including meta fields
+        XContentBuilder mappings = jsonBuilder();
+        mappings.startObject();
+        mappings.startObject("type")
+                .startObject("properties")
+                .startObject("text")
+                .field("type", "string")
+                .field("analyzer", "keyword")
+                .field("index_options", "offsets")
+                .field("term_vector", "with_positions_offsets")
+                .endObject()
+                .endObject()
+                .endObject();
+        mappings.endObject();
+        assertAcked(prepareCreate("test")
+                .addMapping("type", mappings));
+        ensureYellow();
+        client().prepareIndex("test", "type", "1")
+                .setSource(jsonBuilder().startObject().field("text", "text").endObject())
+                .get();
+        refresh();
+        String highlighter = randomFrom(new String[]{"plain", "postings", "fvh"});
+        SearchResponse search = client().prepareSearch().setQuery(constantScoreQuery(matchQuery("text", "text"))).addHighlightedField(new Field("*").highlighterType(highlighter)).get();
+        assertHighlight(search, 0, "text", 0, equalTo("<em>text</em>"));
+    }
+
+    @Test
+    public void testPlainHighlighterWithLongUnanalyzedStringTerm() throws IOException {
+        XContentBuilder mappings = jsonBuilder();
+        mappings.startObject();
+        mappings.startObject("type")
+                .startObject("properties")
+                .startObject("long_text")
+                .field("type", "string")
+                .field("analyzer", "keyword")
+                .field("index_options", "offsets")
+                .field("term_vector", "with_positions_offsets")
+                .field("ignore_above", 1)
+                .endObject()
+                .startObject("text")
+                .field("type", "string")
+                .field("analyzer", "keyword")
+                .field("index_options", "offsets")
+                .field("term_vector", "with_positions_offsets")
+                .endObject()
+                .endObject()
+                .endObject();
+        mappings.endObject();
+        assertAcked(prepareCreate("test")
+                .addMapping("type", mappings));
+        ensureYellow();
+        // crate a term that is larger than the allowed 32766, index it and then try highlight on it
+        // the search request should still succeed
+        StringBuilder builder = new StringBuilder();
+        for (int i = 0; i < 32767; i++) {
+            builder.append('a');
+        }
+        client().prepareIndex("test", "type", "1")
+                .setSource(jsonBuilder().startObject().field("long_text", builder.toString()).field("text", "text").endObject())
+                .get();
+        refresh();
+        String highlighter = randomFrom(new String[]{"plain", "postings", "fvh"});
+        SearchResponse search = client().prepareSearch().setQuery(constantScoreQuery(matchQuery("text", "text"))).addHighlightedField(new Field("*").highlighterType(highlighter)).get();
+        assertHighlight(search, 0, "text", 0, equalTo("<em>text</em>"));
+        search = client().prepareSearch().setQuery(constantScoreQuery(matchQuery("text", "text"))).addHighlightedField(new Field("long_text").highlighterType(highlighter)).get();
+        assertNoFailures(search);
+        assertThat(search.getHits().getAt(0).getHighlightFields().size(), equalTo(0));
+    }
+
+    @Test
+    public void testHighlightingWhenFieldsAreNotStoredThereIsNoSource() throws IOException {
+        XContentBuilder mappings = jsonBuilder();
+        mappings.startObject();
+        mappings.startObject("type")
+                .startObject("_source")
+                .field("enabled", false)
+                .endObject()
+                .startObject("properties")
+                .startObject("unstored_field")
+                .field("index_options", "offsets")
+                .field("term_vector", "with_positions_offsets")
+                .field("type", "string")
+                .field("store", "no")
+                .endObject()
+                .startObject("text")
+                .field("index_options", "offsets")
+                .field("term_vector", "with_positions_offsets")
+                .field("type", "string")
+                .field("store", "yes")
+                .endObject()
+                .endObject()
+                .endObject();
+        mappings.endObject();
+        assertAcked(prepareCreate("test")
+                .addMapping("type", mappings));
+        ensureYellow();
+        client().prepareIndex("test", "type", "1")
+                .setSource(jsonBuilder().startObject().field("unstored_text", "text").field("text", "text").endObject())
+                .get();
+        refresh();
+        String highlighter = randomFrom(new String[]{"plain", "postings", "fvh"});
+        SearchResponse search = client().prepareSearch().setQuery(constantScoreQuery(matchQuery("text", "text"))).addHighlightedField(new Field("*").highlighterType(highlighter)).get();
+        assertHighlight(search, 0, "text", 0, equalTo("<em>text</em>"));
+        search = client().prepareSearch().setQuery(constantScoreQuery(matchQuery("text", "text"))).addHighlightedField(new Field("unstored_text")).get();
+        assertNoFailures(search);
+        assertThat(search.getHits().getAt(0).getHighlightFields().size(), equalTo(0));
+    }
+
 
     @Test
     // see #3486
@@ -1171,12 +1283,11 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
                 RestStatus.BAD_REQUEST,
                 containsString("the field [title] should be indexed with term vector with position offsets to be used with fast vector highlighter"));
 
-        assertFailures(client().prepareSearch()
+        //should not fail if there is a wildcard
+        assertNoFailures(client().prepareSearch()
                 .setQuery(matchPhraseQuery("title", "this is a test"))
                 .addHighlightedField("tit*", 50, 1, 10)
-                .setHighlighterType("fast-vector-highlighter"),
-                RestStatus.BAD_REQUEST,
-                containsString("the field [title] should be indexed with term vector with position offsets to be used with fast vector highlighter"));
+                .setHighlighterType("fast-vector-highlighter").get());
     }
 
     @Test
@@ -2169,12 +2280,11 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
                 RestStatus.BAD_REQUEST,
                 containsString("the field [title] should be indexed with positions and offsets in the postings list to be used with postings highlighter"));
 
-        assertFailures(client().prepareSearch()
+        //should not fail if there is a wildcard
+        assertNoFailures(client().prepareSearch()
                         .setQuery(matchQuery("title", "this is a test"))
                         .addHighlightedField("tit*")
-                        .setHighlighterType("postings"),
-                RestStatus.BAD_REQUEST,
-                containsString("the field [title] should be indexed with positions and offsets in the postings list to be used with postings highlighter"));
+                        .setHighlighterType("postings").get());
     }
 
     @Test

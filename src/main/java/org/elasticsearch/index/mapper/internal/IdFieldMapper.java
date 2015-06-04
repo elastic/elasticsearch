@@ -22,7 +22,6 @@ package org.elasticsearch.index.mapper.internal;
 import com.google.common.collect.Iterables;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.TermsQuery;
@@ -43,6 +42,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.FieldDataType;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MergeMappingException;
@@ -73,14 +73,16 @@ public class IdFieldMapper extends AbstractFieldMapper implements RootMapper {
 
     public static class Defaults extends AbstractFieldMapper.Defaults {
         public static final String NAME = IdFieldMapper.NAME;
-        public static final String INDEX_NAME = IdFieldMapper.NAME;
 
-        public static final FieldType FIELD_TYPE = new FieldType(AbstractFieldMapper.Defaults.FIELD_TYPE);
+        public static final MappedFieldType FIELD_TYPE = new IdFieldType();
 
         static {
             FIELD_TYPE.setIndexOptions(IndexOptions.NONE);
             FIELD_TYPE.setStored(false);
             FIELD_TYPE.setOmitNorms(true);
+            FIELD_TYPE.setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
+            FIELD_TYPE.setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
+            FIELD_TYPE.setNames(new MappedFieldType.Names(NAME));
             FIELD_TYPE.freeze();
         }
 
@@ -92,8 +94,8 @@ public class IdFieldMapper extends AbstractFieldMapper implements RootMapper {
         private String path = Defaults.PATH;
 
         public Builder() {
-            super(Defaults.NAME, new FieldType(Defaults.FIELD_TYPE));
-            indexName = Defaults.INDEX_NAME;
+            super(Defaults.NAME, Defaults.FIELD_TYPE);
+            indexName = Defaults.NAME;
         }
 
         public Builder path(String path) {
@@ -108,7 +110,8 @@ public class IdFieldMapper extends AbstractFieldMapper implements RootMapper {
 
         @Override
         public IdFieldMapper build(BuilderContext context) {
-            return new IdFieldMapper(name, indexName, boost, fieldType, docValues, path, fieldDataSettings, context.indexSettings());
+            fieldType.setNames(new MappedFieldType.Names(name, indexName, indexName, name));
+            return new IdFieldMapper(fieldType, docValues, path, fieldDataSettings, context.indexSettings());
         }
     }
 
@@ -133,21 +136,109 @@ public class IdFieldMapper extends AbstractFieldMapper implements RootMapper {
         }
     }
 
+    static final class IdFieldType extends MappedFieldType {
+
+        public IdFieldType() {
+            super(AbstractFieldMapper.Defaults.FIELD_TYPE);
+        }
+
+        protected IdFieldType(IdFieldType ref) {
+            super(ref);
+        }
+
+        @Override
+        public MappedFieldType clone() {
+            return new IdFieldType(this);
+        }
+
+
+        @Override
+        public String value(Object value) {
+            if (value == null) {
+                return null;
+            }
+            return value.toString();
+        }
+
+        @Override
+        public boolean useTermQueryWithQueryString() {
+            return true;
+        }
+
+        @Override
+        public Query termQuery(Object value, @Nullable QueryParseContext context) {
+            if (indexOptions() != IndexOptions.NONE || context == null) {
+                return super.termQuery(value, context);
+            }
+            final BytesRef[] uids = Uid.createUidsForTypesAndId(context.queryTypes(), value);
+            return new TermsQuery(UidFieldMapper.NAME, uids);
+        }
+
+        @Override
+        public Query termsQuery(List values, @Nullable QueryParseContext context) {
+            if (indexOptions() != IndexOptions.NONE || context == null) {
+                return super.termsQuery(values, context);
+            }
+            return new TermsQuery(UidFieldMapper.NAME, Uid.createUidsForTypesAndIds(context.queryTypes(), values));
+        }
+
+        @Override
+        public Query prefixQuery(Object value, @Nullable MultiTermQuery.RewriteMethod method, @Nullable QueryParseContext context) {
+            if (indexOptions() != IndexOptions.NONE || context == null) {
+                return super.prefixQuery(value, method, context);
+            }
+            Collection<String> queryTypes = context.queryTypes();
+            BooleanQuery query = new BooleanQuery();
+            for (String queryType : queryTypes) {
+                PrefixQuery prefixQuery = new PrefixQuery(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(queryType, BytesRefs.toBytesRef(value))));
+                if (method != null) {
+                    prefixQuery.setRewriteMethod(method);
+                }
+                query.add(prefixQuery, BooleanClause.Occur.SHOULD);
+            }
+            return query;
+        }
+
+        @Override
+        public Query regexpQuery(Object value, int flags, int maxDeterminizedStates, @Nullable MultiTermQuery.RewriteMethod method, @Nullable QueryParseContext context) {
+            if (indexOptions() != IndexOptions.NONE || context == null) {
+                return super.regexpQuery(value, flags, maxDeterminizedStates, method, context);
+            }
+            Collection<String> queryTypes = context.queryTypes();
+            if (queryTypes.size() == 1) {
+                RegexpQuery regexpQuery = new RegexpQuery(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(Iterables.getFirst(queryTypes, null), BytesRefs.toBytesRef(value))),
+                    flags, maxDeterminizedStates);
+                if (method != null) {
+                    regexpQuery.setRewriteMethod(method);
+                }
+                return regexpQuery;
+            }
+            BooleanQuery query = new BooleanQuery();
+            for (String queryType : queryTypes) {
+                RegexpQuery regexpQuery = new RegexpQuery(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(queryType, BytesRefs.toBytesRef(value))), flags, maxDeterminizedStates);
+                if (method != null) {
+                    regexpQuery.setRewriteMethod(method);
+                }
+                query.add(regexpQuery, BooleanClause.Occur.SHOULD);
+            }
+            return query;
+        }
+    }
+
     private final String path;
 
     public IdFieldMapper(Settings indexSettings) {
-        this(Defaults.NAME, Defaults.INDEX_NAME, Defaults.BOOST, idFieldType(indexSettings), null, Defaults.PATH, null, indexSettings);
+        this(idFieldType(indexSettings), null, Defaults.PATH, null, indexSettings);
     }
 
-    protected IdFieldMapper(String name, String indexName, float boost, FieldType fieldType, Boolean docValues, String path,
+    protected IdFieldMapper(MappedFieldType fieldType, Boolean docValues, String path,
                             @Nullable Settings fieldDataSettings, Settings indexSettings) {
-        super(new Names(name, indexName, indexName, name), boost, fieldType, docValues, Lucene.KEYWORD_ANALYZER,
-                Lucene.KEYWORD_ANALYZER, null, null, fieldDataSettings, indexSettings);
+        super(fieldType, docValues, fieldDataSettings, indexSettings);
         this.path = path;
     }
     
-    private static FieldType idFieldType(Settings indexSettings) {
-        FieldType fieldType = new FieldType(Defaults.FIELD_TYPE);
+    private static MappedFieldType idFieldType(Settings indexSettings) {
+        MappedFieldType fieldType = Defaults.FIELD_TYPE.clone();
         boolean pre2x = Version.indexCreated(indexSettings).before(Version.V_2_0_0);
         if (pre2x && indexSettings.getAsBoolean("index.mapping._id.indexed", true) == false) {
             fieldType.setTokenized(false);
@@ -160,89 +251,13 @@ public class IdFieldMapper extends AbstractFieldMapper implements RootMapper {
     }
 
     @Override
-    public FieldType defaultFieldType() {
+    public MappedFieldType defaultFieldType() {
         return Defaults.FIELD_TYPE;
     }
 
     @Override
     public FieldDataType defaultFieldDataType() {
         return new FieldDataType("string");
-    }
-
-    @Override
-    public String value(Object value) {
-        if (value == null) {
-            return null;
-        }
-        return value.toString();
-    }
-
-    @Override
-    public boolean useTermQueryWithQueryString() {
-        return true;
-    }
-
-    @Override
-    public Query termQuery(Object value, @Nullable QueryParseContext context) {
-        if (fieldType.indexOptions() != IndexOptions.NONE || context == null) {
-            return super.termQuery(value, context);
-        }
-        final BytesRef[] uids = Uid.createUidsForTypesAndId(context.queryTypes(), value);
-        if (uids.length == 1) {
-            return new TermQuery(new Term(UidFieldMapper.NAME, uids[0]));
-        } else {
-            return new TermsQuery(UidFieldMapper.NAME, uids);
-        }
-    }
-
-    @Override
-    public Query termsQuery(List values, @Nullable QueryParseContext context) {
-        if (fieldType.indexOptions() != IndexOptions.NONE || context == null) {
-            return super.termsQuery(values, context);
-        }
-        return new TermsQuery(UidFieldMapper.NAME, Uid.createUidsForTypesAndIds(context.queryTypes(), values));
-    }
-
-    @Override
-    public Query prefixQuery(Object value, @Nullable MultiTermQuery.RewriteMethod method, @Nullable QueryParseContext context) {
-        if (fieldType.indexOptions() != IndexOptions.NONE || context == null) {
-            return super.prefixQuery(value, method, context);
-        }
-        Collection<String> queryTypes = context.queryTypes();
-        BooleanQuery query = new BooleanQuery();
-        for (String queryType : queryTypes) {
-            PrefixQuery prefixQuery = new PrefixQuery(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(queryType, BytesRefs.toBytesRef(value))));
-            if (method != null) {
-                prefixQuery.setRewriteMethod(method);
-            }
-            query.add(prefixQuery, BooleanClause.Occur.SHOULD);
-        }
-        return query;
-    }
-
-    @Override
-    public Query regexpQuery(Object value, int flags, int maxDeterminizedStates, @Nullable MultiTermQuery.RewriteMethod method, @Nullable QueryParseContext context) {
-        if (fieldType.indexOptions() != IndexOptions.NONE || context == null) {
-            return super.regexpQuery(value, flags, maxDeterminizedStates, method, context);
-        }
-        Collection<String> queryTypes = context.queryTypes();
-        if (queryTypes.size() == 1) {
-            RegexpQuery regexpQuery = new RegexpQuery(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(Iterables.getFirst(queryTypes, null), BytesRefs.toBytesRef(value))),
-                                                      flags, maxDeterminizedStates);
-            if (method != null) {
-                regexpQuery.setRewriteMethod(method);
-            }
-            return regexpQuery;
-        }
-        BooleanQuery query = new BooleanQuery();
-        for (String queryType : queryTypes) {
-            RegexpQuery regexpQuery = new RegexpQuery(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(queryType, BytesRefs.toBytesRef(value))), flags, maxDeterminizedStates);
-            if (method != null) {
-                regexpQuery.setRewriteMethod(method);
-            }
-            query.add(regexpQuery, BooleanClause.Occur.SHOULD);
-        }
-        return query;
     }
 
     @Override
@@ -274,10 +289,10 @@ public class IdFieldMapper extends AbstractFieldMapper implements RootMapper {
         } // else we are in the pre/post parse phase
 
         if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored()) {
-            fields.add(new Field(names.indexName(), context.id(), fieldType));
+            fields.add(new Field(fieldType.names().indexName(), context.id(), fieldType));
         }
-        if (hasDocValues()) {
-            fields.add(new BinaryDocValuesField(names.indexName(), new BytesRef(context.id())));
+        if (fieldType().hasDocValues()) {
+            fields.add(new BinaryDocValuesField(fieldType.names().indexName(), new BytesRef(context.id())));
         }
     }
 
@@ -314,7 +329,7 @@ public class IdFieldMapper extends AbstractFieldMapper implements RootMapper {
         if (customFieldDataSettings != null) {
             builder.field("fielddata", (Map) customFieldDataSettings.getAsMap());
         } else if (includeDefaults) {
-            builder.field("fielddata", (Map) fieldDataType.getSettings().getAsMap());
+            builder.field("fielddata", (Map) fieldType.fieldDataType().getSettings().getAsMap());
         }
         builder.endObject();
         return builder;

@@ -128,8 +128,6 @@ It is also possible to customize the key for each range:
 
 ==== Script
 
-TIP: The `script` parameter expects an inline script. Use `script_id` for indexed scripts and `script_file` for scripts in the `config/scripts/` directory.
-
 [source,js]
 --------------------------------------------------
 {
@@ -147,6 +145,33 @@ TIP: The `script` parameter expects an inline script. Use `script_id` for indexe
     }
 }
 --------------------------------------------------
+
+This will interpret the `script` parameter as an `inline` script with the default script language and no script parameters. To use a file script use the following syntax:
+
+[source,js]
+--------------------------------------------------
+{
+    "aggs" : {
+        "price_ranges" : {
+            "range" : {
+                "script" : {
+                    "file": "my_script",
+                    "params": {
+                        "field": "price"
+                    }
+                },
+                "ranges" : [
+                    { "to" : 50 },
+                    { "from" : 50, "to" : 100 },
+                    { "from" : 100 }
+                ]
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+TIP: for indexed scripts replace the `file` parameter with an `id` parameter.
 
 ==== Value Script
 

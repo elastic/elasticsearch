@@ -23,16 +23,18 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.joda.time.DateTimeZone;
+import org.junit.Test;
 
+import java.util.TimeZone;
 import java.util.concurrent.Callable;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public class DateMathParserTests extends ElasticsearchTestCase {
-    FormatDateTimeFormatter formatter = Joda.forPattern("dateOptionalTime");
-    DateMathParser parser = new DateMathParser(formatter, TimeUnit.MILLISECONDS);
+
+    FormatDateTimeFormatter formatter = Joda.forPattern("dateOptionalTime||epoch_millis");
+    DateMathParser parser = new DateMathParser(formatter);
 
     private static Callable<Long> callable(final long value) {
         return new Callable<Long>() {
@@ -195,25 +197,22 @@ public class DateMathParserTests extends ElasticsearchTestCase {
     public void testTimestamps() {
         assertDateMathEquals("1418248078000", "2014-12-10T21:47:58.000");
 
-        // timezone does not affect timestamps
-        assertDateMathEquals("1418248078000", "2014-12-10T21:47:58.000", 0, false, DateTimeZone.forID("-08:00"));
-
         // datemath still works on timestamps
         assertDateMathEquals("1418248078000||/m", "2014-12-10T21:47:00.000");
         
         // also check other time units
-        DateMathParser parser = new DateMathParser(Joda.forPattern("dateOptionalTime"), TimeUnit.SECONDS);
+        DateMathParser parser = new DateMathParser(Joda.forPattern("epoch_second||dateOptionalTime"));
         long datetime = parser.parse("1418248078", callable(0));
         assertDateEquals(datetime, "1418248078", "2014-12-10T21:47:58.000");
         
         // a timestamp before 10000 is a year
         assertDateMathEquals("9999", "9999-01-01T00:00:00.000");
-        // 10000 is the first timestamp
-        assertDateMathEquals("10000", "1970-01-01T00:00:10.000");
+        // 10000 is also a year, breaking bwc, used to be a timestamp
+        assertDateMathEquals("10000", "10000-01-01T00:00:00.000");
         // but 10000 with T is still a date format
         assertDateMathEquals("10000T", "10000-01-01T00:00:00.000");
     }
-    
+
     void assertParseException(String msg, String date, String exc) {
         try {
             parser.parse(date, callable(0));
@@ -232,7 +231,7 @@ public class DateMathParserTests extends ElasticsearchTestCase {
     }
     
     public void testIllegalDateFormat() {
-        assertParseException("Expected bad timestamp exception", Long.toString(Long.MAX_VALUE) + "0", "timestamp");
+        assertParseException("Expected bad timestamp exception", Long.toString(Long.MAX_VALUE) + "0", "failed to parse date field");
         assertParseException("Expected bad date format exception", "123bogus", "with format");
     }
 
@@ -249,5 +248,11 @@ public class DateMathParserTests extends ElasticsearchTestCase {
         assertFalse(called.get());
         parser.parse("now/d", now, false, null);
         assertTrue(called.get());
+    }
+
+    @Test(expected = ElasticsearchParseException.class)
+    public void testThatUnixTimestampMayNotHaveTimeZone() {
+        DateMathParser parser = new DateMathParser(Joda.forPattern("epoch_millis"));
+        parser.parse("1234567890123", callable(42), false, DateTimeZone.forTimeZone(TimeZone.getTimeZone("CET")));
     }
 }

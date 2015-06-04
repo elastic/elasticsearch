@@ -28,14 +28,14 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.compress.CompressedStreamInput;
 import org.elasticsearch.common.compress.Compressor;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.ToXContent.Params;
 
+import java.io.BufferedInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -49,77 +49,34 @@ import static org.elasticsearch.common.xcontent.ToXContent.EMPTY_PARAMS;
 public class XContentHelper {
 
     public static XContentParser createParser(BytesReference bytes) throws IOException {
-        if (bytes.hasArray()) {
-            return createParser(bytes.array(), bytes.arrayOffset(), bytes.length());
-        }
         Compressor compressor = CompressorFactory.compressor(bytes);
         if (compressor != null) {
-            CompressedStreamInput compressedInput = compressor.streamInput(bytes.streamInput());
+            InputStream compressedInput = compressor.streamInput(bytes.streamInput());
+            if (compressedInput.markSupported() == false) {
+                compressedInput = new BufferedInputStream(compressedInput);
+            }
             XContentType contentType = XContentFactory.xContentType(compressedInput);
-            compressedInput.resetToBufferStart();
             return XContentFactory.xContent(contentType).createParser(compressedInput);
         } else {
             return XContentFactory.xContent(bytes).createParser(bytes.streamInput());
         }
     }
 
-
-    public static XContentParser createParser(byte[] data, int offset, int length) throws IOException {
-        Compressor compressor = CompressorFactory.compressor(data, offset, length);
-        if (compressor != null) {
-            CompressedStreamInput compressedInput = compressor.streamInput(StreamInput.wrap(data, offset, length));
-            XContentType contentType = XContentFactory.xContentType(compressedInput);
-            compressedInput.resetToBufferStart();
-            return XContentFactory.xContent(contentType).createParser(compressedInput);
-        } else {
-            return XContentFactory.xContent(data, offset, length).createParser(data, offset, length);
-        }
-    }
-
     public static Tuple<XContentType, Map<String, Object>> convertToMap(BytesReference bytes, boolean ordered) throws ElasticsearchParseException {
-        if (bytes.hasArray()) {
-            return convertToMap(bytes.array(), bytes.arrayOffset(), bytes.length(), ordered);
-        }
         try {
             XContentParser parser;
             XContentType contentType;
             Compressor compressor = CompressorFactory.compressor(bytes);
             if (compressor != null) {
-                CompressedStreamInput compressedStreamInput = compressor.streamInput(bytes.streamInput());
+                InputStream compressedStreamInput = compressor.streamInput(bytes.streamInput());
+                if (compressedStreamInput.markSupported() == false) {
+                    compressedStreamInput = new BufferedInputStream(compressedStreamInput);
+                }
                 contentType = XContentFactory.xContentType(compressedStreamInput);
-                compressedStreamInput.resetToBufferStart();
                 parser = XContentFactory.xContent(contentType).createParser(compressedStreamInput);
             } else {
                 contentType = XContentFactory.xContentType(bytes);
                 parser = XContentFactory.xContent(contentType).createParser(bytes.streamInput());
-            }
-            if (ordered) {
-                return Tuple.tuple(contentType, parser.mapOrderedAndClose());
-            } else {
-                return Tuple.tuple(contentType, parser.mapAndClose());
-            }
-        } catch (IOException e) {
-            throw new ElasticsearchParseException("Failed to parse content to map", e);
-        }
-    }
-
-    public static Tuple<XContentType, Map<String, Object>> convertToMap(byte[] data, boolean ordered) throws ElasticsearchParseException {
-        return convertToMap(data, 0, data.length, ordered);
-    }
-
-    public static Tuple<XContentType, Map<String, Object>> convertToMap(byte[] data, int offset, int length, boolean ordered) throws ElasticsearchParseException {
-        try {
-            XContentParser parser;
-            XContentType contentType;
-            Compressor compressor = CompressorFactory.compressor(data, offset, length);
-            if (compressor != null) {
-                CompressedStreamInput compressedStreamInput = compressor.streamInput(StreamInput.wrap(data, offset, length));
-                contentType = XContentFactory.xContentType(compressedStreamInput);
-                compressedStreamInput.resetToBufferStart();
-                parser = XContentFactory.xContent(contentType).createParser(compressedStreamInput);
-            } else {
-                contentType = XContentFactory.xContentType(data, offset, length);
-                parser = XContentFactory.xContent(contentType).createParser(data, offset, length);
             }
             if (ordered) {
                 return Tuple.tuple(contentType, parser.mapOrderedAndClose());
@@ -426,9 +383,11 @@ public class XContentHelper {
     public static void writeDirect(BytesReference source, XContentBuilder rawBuilder, ToXContent.Params params) throws IOException {
         Compressor compressor = CompressorFactory.compressor(source);
         if (compressor != null) {
-            CompressedStreamInput compressedStreamInput = compressor.streamInput(source.streamInput());
+            InputStream compressedStreamInput = compressor.streamInput(source.streamInput());
+            if (compressedStreamInput.markSupported() == false) {
+                compressedStreamInput = new BufferedInputStream(compressedStreamInput);
+            }
             XContentType contentType = XContentFactory.xContentType(compressedStreamInput);
-            compressedStreamInput.resetToBufferStart();
             if (contentType == rawBuilder.contentType()) {
                 Streams.copy(compressedStreamInput, rawBuilder.stream());
             } else {
@@ -457,9 +416,11 @@ public class XContentHelper {
     public static void writeRawField(String field, BytesReference source, XContentBuilder builder, ToXContent.Params params) throws IOException {
         Compressor compressor = CompressorFactory.compressor(source);
         if (compressor != null) {
-            CompressedStreamInput compressedStreamInput = compressor.streamInput(source.streamInput());
+            InputStream compressedStreamInput = compressor.streamInput(source.streamInput());
+            if (compressedStreamInput.markSupported() == false) {
+                compressedStreamInput = new BufferedInputStream(compressedStreamInput);
+            }
             XContentType contentType = XContentFactory.xContentType(compressedStreamInput);
-            compressedStreamInput.resetToBufferStart();
             if (contentType == builder.contentType()) {
                 builder.rawField(field, compressedStreamInput);
             } else {

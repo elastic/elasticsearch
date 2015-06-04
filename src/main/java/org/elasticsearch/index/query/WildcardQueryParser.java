@@ -95,7 +95,7 @@ public class WildcardQueryParser implements QueryParser {
         BytesRef valueBytes;
         FieldMapper mapper = parseContext.fieldMapper(fieldName);
         if (mapper != null) {
-            fieldName = mapper.names().indexName();
+            fieldName = mapper.fieldType().names().indexName();
             valueBytes = mapper.indexedValueForSearch(value);
         } else {
             valueBytes = new BytesRef(value);

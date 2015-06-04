@@ -68,11 +68,11 @@ public class ValueFormat {
         public static final DateTime DEFAULT = new DateTime(DateFieldMapper.Defaults.DATE_TIME_FORMATTER.format(), ValueFormatter.DateTime.DEFAULT, ValueParser.DateMath.DEFAULT);
 
         public static DateTime format(String format) {
-            return new DateTime(format, new ValueFormatter.DateTime(format), new ValueParser.DateMath(format, DateFieldMapper.Defaults.TIME_UNIT));
+            return new DateTime(format, new ValueFormatter.DateTime(format), new ValueParser.DateMath(format));
         }
 
         public static DateTime mapper(DateFieldMapper mapper) {
-            return new DateTime(mapper.dateTimeFormatter().format(), ValueFormatter.DateTime.mapper(mapper), ValueParser.DateMath.mapper(mapper));
+            return new DateTime(mapper.fieldType().dateTimeFormatter().format(), ValueFormatter.DateTime.mapper(mapper), ValueParser.DateMath.mapper(mapper));
         }
 
         public DateTime(String pattern, ValueFormatter formatter, ValueParser parser) {

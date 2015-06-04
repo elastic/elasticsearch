@@ -20,16 +20,18 @@
 package org.elasticsearch.index.mapper.internal;
 
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.FieldType;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.analysis.NumericIntegerAnalyzer;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.MergeMappingException;
+import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.RootMapper;
 import org.elasticsearch.index.mapper.core.IntegerFieldMapper;
@@ -53,10 +55,12 @@ public class SizeFieldMapper extends IntegerFieldMapper implements RootMapper {
         public static final String NAME = CONTENT_TYPE;
         public static final EnabledAttributeMapper ENABLED_STATE = EnabledAttributeMapper.UNSET_DISABLED;
 
-        public static final FieldType SIZE_FIELD_TYPE = new FieldType(IntegerFieldMapper.Defaults.FIELD_TYPE);
+        public static final MappedFieldType SIZE_FIELD_TYPE = IntegerFieldMapper.Defaults.FIELD_TYPE.clone();
 
         static {
             SIZE_FIELD_TYPE.setStored(true);
+            SIZE_FIELD_TYPE.setNumericPrecisionStep(Defaults.PRECISION_STEP_32_BIT);
+            SIZE_FIELD_TYPE.setNames(new MappedFieldType.Names(NAME));
             SIZE_FIELD_TYPE.freeze();
         }
     }
@@ -66,7 +70,7 @@ public class SizeFieldMapper extends IntegerFieldMapper implements RootMapper {
         protected EnabledAttributeMapper enabledState = EnabledAttributeMapper.UNSET_DISABLED;
 
         public Builder() {
-            super(Defaults.NAME, new FieldType(Defaults.SIZE_FIELD_TYPE), Defaults.PRECISION_STEP_32_BIT);
+            super(Defaults.NAME, Defaults.SIZE_FIELD_TYPE, Defaults.PRECISION_STEP_32_BIT);
             builder = this;
         }
 
@@ -77,7 +81,18 @@ public class SizeFieldMapper extends IntegerFieldMapper implements RootMapper {
 
         @Override
         public SizeFieldMapper build(BuilderContext context) {
+            setupFieldType(context);
             return new SizeFieldMapper(enabledState, fieldType, fieldDataSettings, context.indexSettings());
+        }
+
+        @Override
+        protected NamedAnalyzer makeNumberAnalyzer(int precisionStep) {
+            return NumericIntegerAnalyzer.buildNamedAnalyzer(precisionStep);
+        }
+
+        @Override
+        protected int maxPrecisionStep() {
+            return 32;
         }
     }
 
@@ -104,12 +119,12 @@ public class SizeFieldMapper extends IntegerFieldMapper implements RootMapper {
     private EnabledAttributeMapper enabledState;
 
     public SizeFieldMapper(Settings indexSettings) {
-        this(Defaults.ENABLED_STATE, new FieldType(Defaults.SIZE_FIELD_TYPE), null, indexSettings);
+        this(Defaults.ENABLED_STATE, Defaults.SIZE_FIELD_TYPE.clone(), null, indexSettings);
     }
 
-    public SizeFieldMapper(EnabledAttributeMapper enabled, FieldType fieldType, @Nullable Settings fieldDataSettings, Settings indexSettings) {
-        super(new Names(Defaults.NAME), Defaults.PRECISION_STEP_32_BIT, Defaults.BOOST, fieldType, false, Defaults.NULL_VALUE,
-                Defaults.IGNORE_MALFORMED,  Defaults.COERCE, null, null, fieldDataSettings, 
+    public SizeFieldMapper(EnabledAttributeMapper enabled, MappedFieldType fieldType, @Nullable Settings fieldDataSettings, Settings indexSettings) {
+        super(fieldType, false, Defaults.NULL_VALUE,
+                Defaults.IGNORE_MALFORMED,  Defaults.COERCE, fieldDataSettings,
                 indexSettings, MultiFields.empty(), null);
         this.enabledState = enabled;
     }

@@ -33,6 +33,8 @@ import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.sort.SortOrder;
@@ -155,9 +157,9 @@ public class SearchFieldsTests extends ElasticsearchIntegrationTest {
         SearchResponse response = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .addSort("num1", SortOrder.ASC)
-                .addScriptField("sNum1", "doc['num1'].value")
-                .addScriptField("sNum1_field", "_fields['num1'].value")
-                .addScriptField("date1", "doc['date'].date.millis")
+                .addScriptField("sNum1", new Script("doc['num1'].value"))
+                .addScriptField("sNum1_field", new Script("_fields['num1'].value"))
+                .addScriptField("date1", new Script("doc['date'].date.millis"))
                 .execute().actionGet();
 
         assertNoFailures(response);
@@ -185,7 +187,7 @@ public class SearchFieldsTests extends ElasticsearchIntegrationTest {
         response = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .addSort("num1", SortOrder.ASC)
-                .addScriptField("sNum1", "doc['num1'].value * factor", params)
+                .addScriptField("sNum1", new Script("doc['num1'].value * factor", ScriptType.INLINE, null, params))
                 .execute().actionGet();
 
         assertThat(response.getHits().totalHits(), equalTo(3l));
@@ -215,7 +217,7 @@ public class SearchFieldsTests extends ElasticsearchIntegrationTest {
 
         SearchResponse response = client().prepareSearch()
                 .setQuery(matchAllQuery()).addSort("num1", SortOrder.ASC).setSize(numDocs)
-                .addScriptField("uid", "_fields._uid.value").get();
+                .addScriptField("uid", new Script("_fields._uid.value")).get();
 
         assertNoFailures(response);
 
@@ -228,7 +230,7 @@ public class SearchFieldsTests extends ElasticsearchIntegrationTest {
 
         response = client().prepareSearch()
                 .setQuery(matchAllQuery()).addSort("num1", SortOrder.ASC).setSize(numDocs)
-                .addScriptField("id", "_fields._id.value").get();
+                .addScriptField("id", new Script("_fields._id.value")).get();
 
         assertNoFailures(response);
 
@@ -241,7 +243,7 @@ public class SearchFieldsTests extends ElasticsearchIntegrationTest {
 
         response = client().prepareSearch()
                 .setQuery(matchAllQuery()).addSort("num1", SortOrder.ASC).setSize(numDocs)
-                .addScriptField("type", "_fields._type.value").get();
+                .addScriptField("type", new Script("_fields._type.value")).get();
 
         assertNoFailures(response);
 
@@ -254,9 +256,8 @@ public class SearchFieldsTests extends ElasticsearchIntegrationTest {
 
         response = client().prepareSearch()
                 .setQuery(matchAllQuery()).addSort("num1", SortOrder.ASC).setSize(numDocs)
-                .addScriptField("id", "_fields._id.value")
-                .addScriptField("uid", "_fields._uid.value")
-                .addScriptField("type", "_fields._type.value").get();
+                .addScriptField("id", new Script("_fields._id.value")).addScriptField("uid", new Script("_fields._uid.value"))
+                .addScriptField("type", new Script("_fields._type.value")).get();
 
         assertNoFailures(response);
 
@@ -286,11 +287,9 @@ public class SearchFieldsTests extends ElasticsearchIntegrationTest {
 
         SearchResponse response = client().prepareSearch()
                 .setQuery(matchAllQuery())
-                .addScriptField("s_obj1", "_source.obj1")
-                .addScriptField("s_obj1_test", "_source.obj1.test")
-                .addScriptField("s_obj2", "_source.obj2")
-                .addScriptField("s_obj2_arr2", "_source.obj2.arr2")
-                .addScriptField("s_arr3", "_source.arr3")
+.addScriptField("s_obj1", new Script("_source.obj1"))
+                .addScriptField("s_obj1_test", new Script("_source.obj1.test")).addScriptField("s_obj2", new Script("_source.obj2"))
+                .addScriptField("s_obj2_arr2", new Script("_source.obj2.arr2")).addScriptField("s_arr3", new Script("_source.arr3"))
                 .execute().actionGet();
 
         assertThat("Failures " + Arrays.toString(response.getShardFailures()), response.getShardFailures().length, equalTo(0));
@@ -596,6 +595,221 @@ public class SearchFieldsTests extends ElasticsearchIntegrationTest {
         ensureSearchable();
         SearchRequestBuilder req = client().prepareSearch("index");
         for (String field : Arrays.asList("s", "ms", "l", "ml", "d", "md")) {
+            req.addScriptField(field, new Script("doc['" + field + "'].values"));
+        }
+        SearchResponse resp = req.get();
+        assertSearchResponse(resp);
+        for (SearchHit hit : resp.getHits().getHits()) {
+            final int id = Integer.parseInt(hit.getId());
+            Map<String, SearchHitField> fields = hit.getFields();
+            assertThat(fields.get("s").getValues(), equalTo(Collections.<Object> singletonList(Integer.toString(id))));
+            assertThat(fields.get("l").getValues(), equalTo(Collections.<Object> singletonList((long) id)));
+            assertThat(fields.get("d").getValues(), equalTo(Collections.<Object> singletonList((double) id)));
+            assertThat(fields.get("ms").getValues(), equalTo(Arrays.<Object> asList(Integer.toString(id), Integer.toString(id + 1))));
+            assertThat(fields.get("ml").getValues(), equalTo(Arrays.<Object> asList((long) id, id + 1L)));
+            assertThat(fields.get("md").getValues(), equalTo(Arrays.<Object> asList((double) id, id + 1d)));
+        }
+    }
+
+    /*
+     * TODO Remove in 2.0
+     */
+    @Test
+    public void testScriptDocAndFieldsOldScriptAPI() throws Exception {
+        createIndex("test");
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
+
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("num1")
+                .field("type", "double").field("store", "yes").endObject().endObject().endObject().endObject().string();
+
+        client().admin().indices().preparePutMapping().setType("type1").setSource(mapping).execute().actionGet();
+
+        client().prepareIndex("test", "type1", "1")
+                .setSource(
+                        jsonBuilder().startObject().field("test", "value beck").field("num1", 1.0f).field("date", "1970-01-01T00:00:00")
+                                .endObject()).execute().actionGet();
+        client().admin().indices().prepareFlush().execute().actionGet();
+        client().prepareIndex("test", "type1", "2")
+                .setSource(
+                        jsonBuilder().startObject().field("test", "value beck").field("num1", 2.0f).field("date", "1970-01-01T00:00:25")
+                                .endObject()).execute().actionGet();
+        client().admin().indices().prepareFlush().execute().actionGet();
+        client().prepareIndex("test", "type1", "3")
+                .setSource(
+                        jsonBuilder().startObject().field("test", "value beck").field("num1", 3.0f).field("date", "1970-01-01T00:02:00")
+                                .endObject()).execute().actionGet();
+        client().admin().indices().refresh(refreshRequest()).actionGet();
+
+        logger.info("running doc['num1'].value");
+        SearchResponse response = client().prepareSearch().setQuery(matchAllQuery()).addSort("num1", SortOrder.ASC)
+                .addScriptField("sNum1", "doc['num1'].value").addScriptField("sNum1_field", "_fields['num1'].value")
+                .addScriptField("date1", "doc['date'].date.millis").execute().actionGet();
+
+        assertNoFailures(response);
+
+        assertThat(response.getHits().totalHits(), equalTo(3l));
+        assertThat(response.getHits().getAt(0).isSourceEmpty(), equalTo(true));
+        assertThat(response.getHits().getAt(0).id(), equalTo("1"));
+        assertThat(response.getHits().getAt(0).fields().size(), equalTo(3));
+        assertThat((Double) response.getHits().getAt(0).fields().get("sNum1").values().get(0), equalTo(1.0));
+        assertThat((Double) response.getHits().getAt(0).fields().get("sNum1_field").values().get(0), equalTo(1.0));
+        assertThat((Long) response.getHits().getAt(0).fields().get("date1").values().get(0), equalTo(0l));
+        assertThat(response.getHits().getAt(1).id(), equalTo("2"));
+        assertThat(response.getHits().getAt(1).fields().size(), equalTo(3));
+        assertThat((Double) response.getHits().getAt(1).fields().get("sNum1").values().get(0), equalTo(2.0));
+        assertThat((Double) response.getHits().getAt(1).fields().get("sNum1_field").values().get(0), equalTo(2.0));
+        assertThat((Long) response.getHits().getAt(1).fields().get("date1").values().get(0), equalTo(25000l));
+        assertThat(response.getHits().getAt(2).id(), equalTo("3"));
+        assertThat(response.getHits().getAt(2).fields().size(), equalTo(3));
+        assertThat((Double) response.getHits().getAt(2).fields().get("sNum1").values().get(0), equalTo(3.0));
+        assertThat((Double) response.getHits().getAt(2).fields().get("sNum1_field").values().get(0), equalTo(3.0));
+        assertThat((Long) response.getHits().getAt(2).fields().get("date1").values().get(0), equalTo(120000l));
+
+        logger.info("running doc['num1'].value * factor");
+        Map<String, Object> params = MapBuilder.<String, Object> newMapBuilder().put("factor", 2.0).map();
+        response = client().prepareSearch().setQuery(matchAllQuery()).addSort("num1", SortOrder.ASC)
+                .addScriptField("sNum1", "doc['num1'].value * factor", params).execute().actionGet();
+
+        assertThat(response.getHits().totalHits(), equalTo(3l));
+        assertThat(response.getHits().getAt(0).id(), equalTo("1"));
+        assertThat(response.getHits().getAt(0).fields().size(), equalTo(1));
+        assertThat((Double) response.getHits().getAt(0).fields().get("sNum1").values().get(0), equalTo(2.0));
+        assertThat(response.getHits().getAt(1).id(), equalTo("2"));
+        assertThat(response.getHits().getAt(1).fields().size(), equalTo(1));
+        assertThat((Double) response.getHits().getAt(1).fields().get("sNum1").values().get(0), equalTo(4.0));
+        assertThat(response.getHits().getAt(2).id(), equalTo("3"));
+        assertThat(response.getHits().getAt(2).fields().size(), equalTo(1));
+        assertThat((Double) response.getHits().getAt(2).fields().get("sNum1").values().get(0), equalTo(6.0));
+    }
+
+    /*
+     * TODO Remove in 2.0
+     */
+    @Test
+    public void testUidBasedScriptFieldsOldScriptAPI() throws Exception {
+        prepareCreate("test").addMapping("type1", "num1", "type=long").execute().actionGet();
+        ensureYellow();
+
+        int numDocs = randomIntBetween(1, 30);
+        IndexRequestBuilder[] indexRequestBuilders = new IndexRequestBuilder[numDocs];
+        for (int i = 0; i < numDocs; i++) {
+            indexRequestBuilders[i] = client().prepareIndex("test", "type1", Integer.toString(i)).setSource(
+                    jsonBuilder().startObject().field("num1", i).endObject());
+        }
+        indexRandom(true, indexRequestBuilders);
+
+        SearchResponse response = client().prepareSearch().setQuery(matchAllQuery()).addSort("num1", SortOrder.ASC).setSize(numDocs)
+                .addScriptField("uid", "_fields._uid.value").get();
+
+        assertNoFailures(response);
+
+        assertThat(response.getHits().totalHits(), equalTo((long) numDocs));
+        for (int i = 0; i < numDocs; i++) {
+            assertThat(response.getHits().getAt(i).id(), equalTo(Integer.toString(i)));
+            assertThat(response.getHits().getAt(i).fields().size(), equalTo(1));
+            assertThat((String) response.getHits().getAt(i).fields().get("uid").value(), equalTo("type1#" + Integer.toString(i)));
+        }
+
+        response = client().prepareSearch().setQuery(matchAllQuery()).addSort("num1", SortOrder.ASC).setSize(numDocs)
+                .addScriptField("id", "_fields._id.value").get();
+
+        assertNoFailures(response);
+
+        assertThat(response.getHits().totalHits(), equalTo((long) numDocs));
+        for (int i = 0; i < numDocs; i++) {
+            assertThat(response.getHits().getAt(i).id(), equalTo(Integer.toString(i)));
+            assertThat(response.getHits().getAt(i).fields().size(), equalTo(1));
+            assertThat((String) response.getHits().getAt(i).fields().get("id").value(), equalTo(Integer.toString(i)));
+        }
+
+        response = client().prepareSearch().setQuery(matchAllQuery()).addSort("num1", SortOrder.ASC).setSize(numDocs)
+                .addScriptField("type", "_fields._type.value").get();
+
+        assertNoFailures(response);
+
+        assertThat(response.getHits().totalHits(), equalTo((long) numDocs));
+        for (int i = 0; i < numDocs; i++) {
+            assertThat(response.getHits().getAt(i).id(), equalTo(Integer.toString(i)));
+            assertThat(response.getHits().getAt(i).fields().size(), equalTo(1));
+            assertThat((String) response.getHits().getAt(i).fields().get("type").value(), equalTo("type1"));
+        }
+
+        response = client().prepareSearch().setQuery(matchAllQuery()).addSort("num1", SortOrder.ASC).setSize(numDocs)
+                .addScriptField("id", "_fields._id.value").addScriptField("uid", "_fields._uid.value")
+                .addScriptField("type", "_fields._type.value").get();
+
+        assertNoFailures(response);
+
+        assertThat(response.getHits().totalHits(), equalTo((long) numDocs));
+        for (int i = 0; i < numDocs; i++) {
+            assertThat(response.getHits().getAt(i).id(), equalTo(Integer.toString(i)));
+            assertThat(response.getHits().getAt(i).fields().size(), equalTo(3));
+            assertThat((String) response.getHits().getAt(i).fields().get("uid").value(), equalTo("type1#" + Integer.toString(i)));
+            assertThat((String) response.getHits().getAt(i).fields().get("type").value(), equalTo("type1"));
+            assertThat((String) response.getHits().getAt(i).fields().get("id").value(), equalTo(Integer.toString(i)));
+        }
+    }
+
+    /*
+     * TODO Remove in 2.0
+     */
+    @Test
+    public void testScriptFieldUsingSourceOldScriptAPI() throws Exception {
+        createIndex("test");
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
+
+        client().prepareIndex("test", "type1", "1")
+                .setSource(
+                        jsonBuilder().startObject().startObject("obj1").field("test", "something").endObject().startObject("obj2")
+                                .startArray("arr2").value("arr_value1").value("arr_value2").endArray().endObject().startArray("arr3")
+                                .startObject().field("arr3_field1", "arr3_value1").endObject().endArray().endObject()).execute()
+                .actionGet();
+        client().admin().indices().refresh(refreshRequest()).actionGet();
+
+        SearchResponse response = client().prepareSearch().setQuery(matchAllQuery()).addScriptField("s_obj1", "_source.obj1")
+                .addScriptField("s_obj1_test", "_source.obj1.test").addScriptField("s_obj2", "_source.obj2")
+                .addScriptField("s_obj2_arr2", "_source.obj2.arr2").addScriptField("s_arr3", "_source.arr3").execute().actionGet();
+
+        assertThat("Failures " + Arrays.toString(response.getShardFailures()), response.getShardFailures().length, equalTo(0));
+
+        assertThat(response.getHits().getAt(0).field("s_obj1_test").value().toString(), equalTo("something"));
+
+        Map<String, Object> sObj1 = response.getHits().getAt(0).field("s_obj1").value();
+        assertThat(sObj1.get("test").toString(), equalTo("something"));
+        assertThat(response.getHits().getAt(0).field("s_obj1_test").value().toString(), equalTo("something"));
+
+        Map<String, Object> sObj2 = response.getHits().getAt(0).field("s_obj2").value();
+        List sObj2Arr2 = (List) sObj2.get("arr2");
+        assertThat(sObj2Arr2.size(), equalTo(2));
+        assertThat(sObj2Arr2.get(0).toString(), equalTo("arr_value1"));
+        assertThat(sObj2Arr2.get(1).toString(), equalTo("arr_value2"));
+
+        sObj2Arr2 = response.getHits().getAt(0).field("s_obj2_arr2").values();
+        assertThat(sObj2Arr2.size(), equalTo(2));
+        assertThat(sObj2Arr2.get(0).toString(), equalTo("arr_value1"));
+        assertThat(sObj2Arr2.get(1).toString(), equalTo("arr_value2"));
+
+        List sObj2Arr3 = response.getHits().getAt(0).field("s_arr3").values();
+        assertThat(((Map) sObj2Arr3.get(0)).get("arr3_field1").toString(), equalTo("arr3_value1"));
+    }
+
+    /*
+     * TODO Remove in 2.0
+     */
+    public void testScriptFieldsOldScriptAPI() throws Exception {
+        assertAcked(prepareCreate("index").addMapping("type", "s", "type=string,index=not_analyzed", "l", "type=long", "d", "type=double",
+                "ms", "type=string,index=not_analyzed", "ml", "type=long", "md", "type=double").get());
+        final int numDocs = randomIntBetween(3, 8);
+        List<IndexRequestBuilder> reqs = new ArrayList<>();
+        for (int i = 0; i < numDocs; ++i) {
+            reqs.add(client().prepareIndex("index", "type", Integer.toString(i)).setSource("s", Integer.toString(i), "ms",
+                    new String[] { Integer.toString(i), Integer.toString(i + 1) }, "l", i, "ml", new long[] { i, i + 1 }, "d", i, "md",
+                    new double[] { i, i + 1 }));
+        }
+        indexRandom(true, reqs);
+        ensureSearchable();
+        SearchRequestBuilder req = client().prepareSearch("index");
+        for (String field : Arrays.asList("s", "ms", "l", "ml", "d", "md")) {
             req.addScriptField(field, "doc['" + field + "'].values");
         }
         SearchResponse resp = req.get();
@@ -603,12 +817,12 @@ public class SearchFieldsTests extends ElasticsearchIntegrationTest {
         for (SearchHit hit : resp.getHits().getHits()) {
             final int id = Integer.parseInt(hit.getId());
             Map<String, SearchHitField> fields = hit.getFields();
-            assertThat(fields.get("s").getValues(), equalTo(Collections.<Object>singletonList(Integer.toString(id))));
-            assertThat(fields.get("l").getValues(), equalTo(Collections.<Object>singletonList((long) id)));
-            assertThat(fields.get("d").getValues(), equalTo(Collections.<Object>singletonList((double) id)));
-            assertThat(fields.get("ms").getValues(), equalTo(Arrays.<Object>asList(Integer.toString(id), Integer.toString(id + 1))));
-            assertThat(fields.get("ml").getValues(), equalTo(Arrays.<Object>asList((long) id, id+1L)));
-            assertThat(fields.get("md").getValues(), equalTo(Arrays.<Object>asList((double) id, id+1d)));
+            assertThat(fields.get("s").getValues(), equalTo(Collections.<Object> singletonList(Integer.toString(id))));
+            assertThat(fields.get("l").getValues(), equalTo(Collections.<Object> singletonList((long) id)));
+            assertThat(fields.get("d").getValues(), equalTo(Collections.<Object> singletonList((double) id)));
+            assertThat(fields.get("ms").getValues(), equalTo(Arrays.<Object> asList(Integer.toString(id), Integer.toString(id + 1))));
+            assertThat(fields.get("ml").getValues(), equalTo(Arrays.<Object> asList((long) id, id + 1L)));
+            assertThat(fields.get("md").getValues(), equalTo(Arrays.<Object> asList((double) id, id + 1d)));
         }
     }
 }

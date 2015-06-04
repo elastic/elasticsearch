@@ -20,13 +20,16 @@
 package org.elasticsearch.index.mapper.core;
 
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.FieldType;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.hash.MurmurHash3;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.analysis.NumericDateAnalyzer;
+import org.elasticsearch.index.analysis.NumericLongAnalyzer;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParseContext;
@@ -36,7 +39,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
 import static org.elasticsearch.index.mapper.MapperBuilders.murmur3Field;
 import static org.elasticsearch.index.mapper.core.TypeParsers.parseNumberField;
 
@@ -50,19 +52,29 @@ public class Murmur3FieldMapper extends LongFieldMapper {
     public static class Builder extends NumberFieldMapper.Builder<Builder, Murmur3FieldMapper> {
 
         public Builder(String name) {
-            super(name, new FieldType(Defaults.FIELD_TYPE), Integer.MAX_VALUE);
+            super(name, Defaults.FIELD_TYPE, Integer.MAX_VALUE);
             builder = this;
             builder.precisionStep(Integer.MAX_VALUE);
         }
 
         @Override
         public Murmur3FieldMapper build(BuilderContext context) {
-            fieldType.setOmitNorms(fieldType.omitNorms() && boost == 1.0f);
-            Murmur3FieldMapper fieldMapper = new Murmur3FieldMapper(buildNames(context), fieldType.numericPrecisionStep(), boost, fieldType, docValues, null,
-                    ignoreMalformed(context), coerce(context), similarity, normsLoading,
+            setupFieldType(context);
+            Murmur3FieldMapper fieldMapper = new Murmur3FieldMapper(fieldType, docValues, null,
+                    ignoreMalformed(context), coerce(context),
                     fieldDataSettings, context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
             fieldMapper.includeInAll(includeInAll);
             return fieldMapper;
+        }
+
+        @Override
+        protected NamedAnalyzer makeNumberAnalyzer(int precisionStep) {
+            return NumericLongAnalyzer.buildNamedAnalyzer(precisionStep);
+        }
+
+        @Override
+        protected int maxPrecisionStep() {
+            return 64;
         }
     }
 
@@ -92,13 +104,12 @@ public class Murmur3FieldMapper extends LongFieldMapper {
         }
     }
 
-    protected Murmur3FieldMapper(Names names, int precisionStep, float boost, FieldType fieldType, Boolean docValues,
+    protected Murmur3FieldMapper(MappedFieldType fieldType, Boolean docValues,
             Long nullValue, Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce,
-            SimilarityProvider similarity, Loading normsLoading, @Nullable Settings fieldDataSettings,
+            @Nullable Settings fieldDataSettings,
             Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
-        super(names, precisionStep, boost, fieldType, docValues, nullValue, ignoreMalformed, coerce,
-                similarity, normsLoading, fieldDataSettings,
-                indexSettings, multiFields, copyTo);
+        super(fieldType, docValues, nullValue, ignoreMalformed, coerce,
+                fieldDataSettings, indexSettings, multiFields, copyTo);
     }
 
     @Override

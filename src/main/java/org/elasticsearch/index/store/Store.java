@@ -151,8 +151,9 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      * @throws IOException if the index is corrupted or the segments file is not present
      */
     private static SegmentInfos readSegmentsInfo(IndexCommit commit, Directory directory) throws IOException {
+        assert commit == null || commit.getDirectory() == directory;
         try {
-            return commit == null ? Lucene.readSegmentInfos(directory) : Lucene.readSegmentInfos(commit, directory);
+            return commit == null ? Lucene.readSegmentInfos(directory) : Lucene.readSegmentInfos(commit);
         } catch (EOFException eof) {
             // TODO this should be caught by lucene - EOF is almost certainly an index corruption
             throw new CorruptIndexException("Read past EOF while reading segment infos", "commit(" + commit + ")", eof);
@@ -258,10 +259,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         metadataLock.writeLock().lock();
         // we make sure that nobody fetches the metadata while we do this rename operation here to ensure we don't
         // get exceptions if files are still open.
-        try (Lock writeLock = directory.makeLock(IndexWriter.WRITE_LOCK_NAME)) {
-            if (!writeLock.obtain(IndexWriterConfig.getDefaultWriteLockTimeout())) { // obtain write lock
-                throw new LockObtainFailedException("Index locked for write: " + writeLock);
-            }
+        try (Lock writeLock = Lucene.acquireWriteLock(directory())) {
             for (Map.Entry<String, String> entry : entries) {
                 String tempFile = entry.getKey();
                 String origFile = entry.getValue();
@@ -585,10 +583,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      */
     public void cleanupAndVerify(String reason, MetadataSnapshot sourceMetaData) throws IOException {
         metadataLock.writeLock().lock();
-        try (Lock writeLock = directory.makeLock(IndexWriter.WRITE_LOCK_NAME)) {
-            if (!writeLock.obtain(IndexWriterConfig.getDefaultWriteLockTimeout())) { // obtain write lock
-                throw new LockObtainFailedException("Index locked for write: " + writeLock);
-            }
+        try (Lock writeLock = Lucene.acquireWriteLock(directory)) {
             final StoreDirectory dir = directory;
             for (String existingFile : dir.listAll()) {
                 if (existingFile.equals(IndexWriter.WRITE_LOCK_NAME) || Store.isChecksum(existingFile) || sourceMetaData.contains(existingFile)) {

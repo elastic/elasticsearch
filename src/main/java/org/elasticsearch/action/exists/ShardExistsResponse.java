@@ -19,14 +19,14 @@
 
 package org.elasticsearch.action.exists;
 
-import org.elasticsearch.action.support.broadcast.BroadcastShardOperationResponse;
+import org.elasticsearch.action.support.broadcast.BroadcastShardResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 
-class ShardExistsResponse extends BroadcastShardOperationResponse {
+class ShardExistsResponse extends BroadcastShardResponse {
 
     private boolean exists;
 

@@ -1,5 +1,5 @@
 [[query-dsl-geo-bounding-box-query]]
-== Geo Bounding Box Query
+=== Geo Bounding Box Query
 
 A query allowing to filter hits based on a point location using a
 bounding box. Assuming the following indexed document:
@@ -45,13 +45,13 @@ Then the following simple query can be executed with a
 --------------------------------------------------
 
 [float]
-=== Accepted Formats
+==== Accepted Formats
 
 In much the same way the geo_point type can accept different
 representation of the geo point, the filter can accept it as well:
 
 [float]
-==== Lat Lon As Properties
+===== Lat Lon As Properties
 
 [source,js]
 --------------------------------------------------
@@ -79,7 +79,7 @@ representation of the geo point, the filter can accept it as well:
 --------------------------------------------------
 
 [float]
-==== Lat Lon As Array
+===== Lat Lon As Array
 
 Format in `[lon, lat]`, note, the order of lon/lat here in order to
 conform with http://geojson.org/[GeoJSON].
@@ -104,7 +104,7 @@ conform with http://geojson.org/[GeoJSON].
 --------------------------------------------------
 
 [float]
-==== Lat Lon As String
+===== Lat Lon As String
 
 Format in `lat,lon`.
 
@@ -128,7 +128,7 @@ Format in `lat,lon`.
 --------------------------------------------------
 
 [float]
-==== Geohash
+===== Geohash
 
 [source,js]
 --------------------------------------------------
@@ -150,7 +150,7 @@ Format in `lat,lon`.
 --------------------------------------------------
 
 [float]
-=== Vertices
+==== Vertices
 
 The vertices of the bounding box can either be set by `top_left` and
 `bottom_right` or by `top_right` and `bottom_left` parameters. More
@@ -182,20 +182,20 @@ values separately.
 
 
 [float]
-=== geo_point Type
+==== geo_point Type
 
 The filter *requires* the `geo_point` type to be set on the relevant
 field.
 
 [float]
-=== Multi Location Per Document
+==== Multi Location Per Document
 
 The filter can work with multiple locations / points per document. Once
 a single location / point matches the filter, the document will be
 included in the filter
 
 [float]
-=== Type
+==== Type
 
 The type of the bounding box execution by default is set to `memory`,
 which means in memory checks if the doc falls within the bounding box

@@ -365,7 +365,7 @@ public enum CollectionUtils {
      * Combines multiple iterators into a single iterator.
      */
     public static <T> Iterator<T> concat(Iterator<? extends T>... iterators) {
-        return Iterators.concat(iterators);
+        return Iterators.<T>concat(iterators);
     }
 
     public static <E> ArrayList<E> newArrayList(E... elements) {

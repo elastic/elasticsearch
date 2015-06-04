@@ -19,13 +19,13 @@
 
 package org.elasticsearch.plugin.analysis.smartcn;
 
-import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.index.analysis.AnalysisModule;
 import org.elasticsearch.index.analysis.SmartChineseAnalysisBinderProcessor;
 import org.elasticsearch.indices.analysis.smartcn.SmartChineseIndicesAnalysisModule;
 import org.elasticsearch.plugins.AbstractPlugin;
 
+import java.util.ArrayList;
 import java.util.Collection;
 
 /**
@@ -45,7 +45,9 @@ public class AnalysisSmartChinesePlugin extends AbstractPlugin {
 
     @Override
     public Collection<Class<? extends Module>> modules() {
-        return ImmutableList.<Class<? extends Module>>of(SmartChineseIndicesAnalysisModule.class);
+        Collection<Class<? extends Module>> classes = new ArrayList<>();
+        classes.add(SmartChineseIndicesAnalysisModule.class);
+        return classes;
     }
 
     public void onModule(AnalysisModule module) {

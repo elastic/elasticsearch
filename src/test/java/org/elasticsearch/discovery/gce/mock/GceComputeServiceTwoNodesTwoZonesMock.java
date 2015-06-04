@@ -19,22 +19,22 @@
 
 package org.elasticsearch.discovery.gce.mock;
 
-import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 /**
  *
  */
 public class GceComputeServiceTwoNodesTwoZonesMock extends GceComputeServiceAbstractMock {
-    private static List<String> zones = Lists.newArrayList("us-central1-a","europe-west1-a");
+    private static List<String> zones = Arrays.asList("us-central1-a", "europe-west1-a");
 
     @Override
-    protected List<ArrayList<String>> getTags() {
-        return Lists.newArrayList();
+    protected List<List<String>> getTags() {
+        return new ArrayList();
     }
 
     @Override

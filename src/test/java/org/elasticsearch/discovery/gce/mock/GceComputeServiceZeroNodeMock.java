@@ -20,9 +20,9 @@
 package org.elasticsearch.discovery.gce.mock;
 
 import com.google.api.services.compute.model.Instance;
-import org.elasticsearch.common.base.Function;
-import org.elasticsearch.common.collect.Iterables;
-import org.elasticsearch.common.collect.Lists;
+import com.google.common.base.Function;
+import com.google.common.collect.Iterables;
+import com.google.common.collect.Lists;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 
@@ -36,13 +36,13 @@ import java.util.List;
 public class GceComputeServiceZeroNodeMock extends GceComputeServiceAbstractMock {
 
     @Override
-    protected List<ArrayList<String>> getTags() {
-        return Lists.newArrayList();
+    protected List<List<String>> getTags() {
+        return new ArrayList();
     }
 
     @Override
     protected List<String> getZones() {
-        return Lists.newArrayList();
+        return new ArrayList();
     }
 
     private final List<String> zoneList;
@@ -55,7 +55,7 @@ public class GceComputeServiceZeroNodeMock extends GceComputeServiceAbstractMock
             @Override
             public List<Instance> apply(String zoneId) {
                 // If we return null here we will get a trace as explained in issue 43
-                return Lists.newArrayList();
+                return new ArrayList();
             }
         });
 

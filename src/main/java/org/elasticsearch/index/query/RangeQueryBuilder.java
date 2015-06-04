@@ -284,32 +284,29 @@ public class RangeQueryBuilder extends MultiTermQueryBuilder<RangeQueryBuilder> 
         FieldMapper mapper = parseContext.fieldMapper(this.fieldName);
         if (mapper != null) {
             if (mapper instanceof DateFieldMapper) {
-                if ((from instanceof Number || to instanceof Number) && timeZone != null) {
-                    throw new QueryParsingException(parseContext,
-                            "[range] time_zone when using ms since epoch format as it's UTC based can not be applied to [" + this.fieldName
-                                    + "]");
-                }
                 DateMathParser forcedDateParser = null;
                 if (this.format  != null) {
-                    forcedDateParser = new DateMathParser(Joda.forPattern(this.format), DateFieldMapper.Defaults.TIME_UNIT);
+                    forcedDateParser = new DateMathParser(Joda.forPattern(this.format));
                 }
                 DateTimeZone dateTimeZone = null;
                 if (this.timeZone != null) {
                     dateTimeZone = DateTimeZone.forID(this.timeZone);
                 }
-                query = ((DateFieldMapper) mapper).rangeQuery(from, to, includeLower, includeUpper, dateTimeZone, forcedDateParser, parseContext);
+                query = ((DateFieldMapper) mapper).fieldType().rangeQuery(from, to, includeLower, includeUpper, dateTimeZone, forcedDateParser, parseContext);
             } else  {
                 if (timeZone != null) {
                     throw new QueryParsingException(parseContext, "[range] time_zone can not be applied to non date field ["
-                            + this.fieldName + "]");
+                            + fieldName + "]");
                 }
                 //LUCENE 4 UPGRADE Mapper#rangeQuery should use bytesref as well?
                 query = mapper.rangeQuery(from, to, includeLower, includeUpper, parseContext);
             }
         }
+
         if (query == null) {
             query = new TermRangeQuery(this.fieldName, BytesRefs.toBytesRef(from), BytesRefs.toBytesRef(to), includeLower, includeUpper);
         }
+
         query.setBoost(boost);
         if (queryName != null) {
             parseContext.addNamedQuery(queryName, query);

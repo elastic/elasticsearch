@@ -200,7 +200,7 @@ For string `"abcd"`:
 
 --
 
-====== Optional operators
+===== Optional operators
 
 These operators are available by default as the `flags` parameter defaults to `ALL`.
 Different flag combinations (concatened with `"\"`) can be used to enable/disable

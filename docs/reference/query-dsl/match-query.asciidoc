@@ -38,7 +38,7 @@ data-type mismatches,  such as trying to query a numeric field with a text
 query string. Defaults to `false`.
 
 [[query-dsl-match-query-fuzziness]]
-====== Fuzziness
+===== Fuzziness
 
 `fuzziness` allows _fuzzy matching_ based on the type of field being queried.
 See <<fuzziness>> for allowed settings.

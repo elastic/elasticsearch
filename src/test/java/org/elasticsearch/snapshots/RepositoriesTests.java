@@ -39,6 +39,7 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
 import java.nio.file.Path;
+import java.util.List;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
@@ -116,7 +117,7 @@ public class RepositoriesTests extends AbstractSnapshotTests {
         assertThat(repositoriesResponse.repositories().size(), equalTo(0));
     }
 
-    private RepositoryMetaData findRepository(ImmutableList<RepositoryMetaData> repositories, String name) {
+    private RepositoryMetaData findRepository(List<RepositoryMetaData> repositories, String name) {
         for (RepositoryMetaData repository : repositories) {
             if (repository.name().equals(name)) {
                 return repository;

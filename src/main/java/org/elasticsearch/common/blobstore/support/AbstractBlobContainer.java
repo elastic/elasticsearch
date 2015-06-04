@@ -25,6 +25,7 @@ import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
 
 import java.io.IOException;
+import java.util.Map;
 
 /**
  *
@@ -44,7 +45,7 @@ public abstract class AbstractBlobContainer implements BlobContainer {
 
     @Override
     public void deleteBlobsByPrefix(final String blobNamePrefix) throws IOException {
-        ImmutableMap<String, BlobMetaData> blobs = listBlobsByPrefix(blobNamePrefix);
+        Map<String, BlobMetaData> blobs = listBlobsByPrefix(blobNamePrefix);
         for (BlobMetaData blob : blobs.values()) {
             deleteBlob(blob.name());
         }

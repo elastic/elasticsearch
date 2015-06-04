@@ -80,7 +80,7 @@ import static com.google.common.collect.Sets.newHashSet;
  * <li>When cluster state is updated the {@link #beginSnapshot(ClusterState, SnapshotMetaData.Entry, boolean, CreateSnapshotListener)} method
  * kicks in and initializes the snapshot in the repository and then populates list of shards that needs to be snapshotted in cluster state</li>
  * <li>Each data node is watching for these shards and when new shards scheduled for snapshotting appear in the cluster state, data nodes
- * start processing them through {@link #processIndexShardSnapshots(SnapshotMetaData)} method</li>
+ * start processing them through {@link SnapshotsService#processIndexShardSnapshots(ClusterChangedEvent)} method</li>
  * <li>Once shard snapshot is created data node updates state of the shard in the cluster state using the {@link #updateIndexShardSnapshotStatus(UpdateIndexShardSnapshotStatusRequest)} method</li>
  * <li>When last shard is completed master node in {@link #innerUpdateSnapshotState} method marks the snapshot as completed</li>
  * <li>After cluster state is updated, the {@link #endSnapshot(SnapshotMetaData.Entry)} finalizes snapshot in the repository,
@@ -135,7 +135,7 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
      * @throws SnapshotMissingException if snapshot is not found
      */
     public Snapshot snapshot(SnapshotId snapshotId) {
-        ImmutableList<SnapshotMetaData.Entry> entries = currentSnapshots(snapshotId.getRepository(), new String[]{snapshotId.getSnapshot()});
+        List<SnapshotMetaData.Entry> entries = currentSnapshots(snapshotId.getRepository(), new String[]{snapshotId.getSnapshot()});
         if (!entries.isEmpty()) {
             return inProgressSnapshot(entries.iterator().next());
         }
@@ -148,14 +148,14 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
      * @param repositoryName repository name
      * @return list of snapshots
      */
-    public ImmutableList<Snapshot> snapshots(String repositoryName) {
+    public List<Snapshot> snapshots(String repositoryName) {
         Set<Snapshot> snapshotSet = newHashSet();
-        ImmutableList<SnapshotMetaData.Entry> entries = currentSnapshots(repositoryName, null);
+        List<SnapshotMetaData.Entry> entries = currentSnapshots(repositoryName, null);
         for (SnapshotMetaData.Entry entry : entries) {
             snapshotSet.add(inProgressSnapshot(entry));
         }
         Repository repository = repositoriesService.repository(repositoryName);
-        ImmutableList<SnapshotId> snapshotIds = repository.snapshots();
+        List<SnapshotId> snapshotIds = repository.snapshots();
         for (SnapshotId snapshotId : snapshotIds) {
             snapshotSet.add(repository.readSnapshot(snapshotId));
         }
@@ -170,9 +170,9 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
      * @param repositoryName repository name
      * @return list of snapshots
      */
-    public ImmutableList<Snapshot> currentSnapshots(String repositoryName) {
+    public List<Snapshot> currentSnapshots(String repositoryName) {
         List<Snapshot> snapshotList = newArrayList();
-        ImmutableList<SnapshotMetaData.Entry> entries = currentSnapshots(repositoryName, null);
+        List<SnapshotMetaData.Entry> entries = currentSnapshots(repositoryName, null);
         for (SnapshotMetaData.Entry entry : entries) {
             snapshotList.add(inProgressSnapshot(entry));
         }
@@ -421,7 +421,7 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
      * @param snapshots  optional list of snapshots that will be used as a filter
      * @return list of metadata for currently running snapshots
      */
-    public ImmutableList<SnapshotMetaData.Entry> currentSnapshots(String repository, String[] snapshots) {
+    public List<SnapshotMetaData.Entry> currentSnapshots(String repository, String[] snapshots) {
         MetaData metaData = clusterService.state().metaData();
         SnapshotMetaData snapshotMetaData = metaData.custom(SnapshotMetaData.TYPE);
         if (snapshotMetaData == null || snapshotMetaData.entries().isEmpty()) {
@@ -524,7 +524,7 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
     }
 
 
-    private SnapshotShardFailure findShardFailure(ImmutableList<SnapshotShardFailure> shardFailures, ShardId shardId) {
+    private SnapshotShardFailure findShardFailure(List<SnapshotShardFailure> shardFailures, ShardId shardId) {
         for (SnapshotShardFailure shardFailure : shardFailures) {
             if (shardId.getIndex().equals(shardFailure.index()) && shardId.getId() == shardFailure.shardId()) {
                 return shardFailure;

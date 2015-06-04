@@ -21,6 +21,7 @@ package org.elasticsearch.index.snapshots.blobstore;
 import com.google.common.collect.ImmutableList;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
 
+import java.util.List;
 import java.util.Map;
 
 import static com.google.common.collect.Maps.newHashMap;
@@ -32,7 +33,7 @@ public class SnapshotFiles {
 
     private final String snapshot;
 
-    private final ImmutableList<FileInfo> indexFiles;
+    private final List<FileInfo> indexFiles;
 
     private Map<String, FileInfo> physicalFiles = null;
 
@@ -40,7 +41,7 @@ public class SnapshotFiles {
         return snapshot;
     }
 
-    public SnapshotFiles(String snapshot, ImmutableList<FileInfo> indexFiles ) {
+    public SnapshotFiles(String snapshot, List<FileInfo> indexFiles ) {
         this.snapshot = snapshot;
         this.indexFiles = indexFiles;
     }
@@ -48,7 +49,7 @@ public class SnapshotFiles {
     /**
      * Returns a list of file in the snapshot
      */
-    public ImmutableList<FileInfo> indexFiles() {
+    public List<FileInfo> indexFiles() {
         return indexFiles;
     }
 

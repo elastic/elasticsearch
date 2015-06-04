@@ -26,6 +26,7 @@ import org.elasticsearch.common.blobstore.BlobPath;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.Map;
 
 /**
  *
@@ -68,12 +69,12 @@ public class BlobContainerWrapper implements BlobContainer {
     }
 
     @Override
-    public ImmutableMap<String, BlobMetaData> listBlobs() throws IOException {
+    public Map<String, BlobMetaData> listBlobs() throws IOException {
         return delegate.listBlobs();
     }
 
     @Override
-    public ImmutableMap<String, BlobMetaData> listBlobsByPrefix(String blobNamePrefix) throws IOException {
+    public Map<String, BlobMetaData> listBlobsByPrefix(String blobNamePrefix) throws IOException {
         return delegate.listBlobsByPrefix(blobNamePrefix);
     }
 

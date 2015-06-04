@@ -108,7 +108,7 @@ public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, To
      *
      * @return list of snapshots
      */
-    public ImmutableList<SnapshotFiles> snapshots() {
+    public List<SnapshotFiles> snapshots() {
         return this.shardSnapshots;
     }
 
@@ -118,7 +118,7 @@ public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, To
      * @param physicalName original name
      * @return a list of file infos that match specified physical file or null if the file is not present in any of snapshots
      */
-    public ImmutableList<FileInfo> findPhysicalIndexFiles(String physicalName) {
+    public List<FileInfo> findPhysicalIndexFiles(String physicalName) {
         return physicalFiles.get(physicalName);
     }
 

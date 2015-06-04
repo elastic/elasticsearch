@@ -25,6 +25,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.IndexMissingException;
 
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 /**
@@ -40,7 +41,7 @@ public class SnapshotUtils {
      * @param indicesOptions    ignore indices flag
      * @return filtered out indices
      */
-    public static ImmutableList<String> filterIndices(ImmutableList<String> availableIndices, String[] selectedIndices, IndicesOptions indicesOptions) {
+    public static List<String> filterIndices(List<String> availableIndices, String[] selectedIndices, IndicesOptions indicesOptions) {
         if (selectedIndices == null || selectedIndices.length == 0) {
             return availableIndices;
         }

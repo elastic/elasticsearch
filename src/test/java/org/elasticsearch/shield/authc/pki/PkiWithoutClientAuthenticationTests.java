@@ -15,6 +15,7 @@ import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
+import org.elasticsearch.shield.transport.SSLClientAuth;
 import org.elasticsearch.shield.transport.netty.ShieldNettyHttpServerTransport;
 import org.elasticsearch.shield.transport.netty.ShieldNettyTransport;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
@@ -29,6 +30,7 @@ import javax.net.ssl.TrustManager;
 import javax.net.ssl.X509TrustManager;
 import java.security.SecureRandom;
 import java.security.cert.X509Certificate;
+import java.util.Locale;
 
 import static org.hamcrest.Matchers.is;
 
@@ -61,7 +63,7 @@ public class PkiWithoutClientAuthenticationTests extends ShieldIntegrationTest {
                 .put(Node.HTTP_ENABLED, true)
                 .put(ShieldNettyTransport.TRANSPORT_CLIENT_AUTH_SETTING, false)
                 .put(ShieldNettyHttpServerTransport.HTTP_SSL_SETTING, true)
-                .put(ShieldNettyHttpServerTransport.HTTP_CLIENT_AUTH_SETTING, false)
+                .put(ShieldNettyHttpServerTransport.HTTP_CLIENT_AUTH_SETTING, randomFrom(SSLClientAuth.NO.name(), false, "false", "FALSE", SSLClientAuth.NO.name().toLowerCase(Locale.ROOT)))
                 .put("shield.authc.realms.pki1.type", "pki")
                 .put("shield.authc.realms.pki1.order", "0")
                 .build();

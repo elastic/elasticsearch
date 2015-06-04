@@ -78,8 +78,8 @@ public class ShieldServerTransportService extends TransportService {
         for (Map.Entry<String, Settings> entry : profileSettingsMap.entrySet()) {
             Settings profileSettings = entry.getValue();
             final boolean profileSsl = profileSettings.getAsBoolean(TRANSPORT_PROFILE_SSL_SETTING, settings.getAsBoolean(TRANSPORT_SSL_SETTING, TRANSPORT_SSL_DEFAULT));
-            final boolean needClientAuth = profileSettings.getAsBoolean(TRANSPORT_PROFILE_CLIENT_AUTH_SETTING, settings.getAsBoolean(TRANSPORT_CLIENT_AUTH_SETTING, TRANSPORT_CLIENT_AUTH_DEFAULT));
-            final boolean extractClientCert = profileSsl && needClientAuth;
+            final boolean clientAuth = SSLClientAuth.parse(profileSettings.get(TRANSPORT_PROFILE_CLIENT_AUTH_SETTING, settings.get(TRANSPORT_CLIENT_AUTH_SETTING)), TRANSPORT_CLIENT_AUTH_DEFAULT).enabled();
+            final boolean extractClientCert = profileSsl && clientAuth;
             String type = entry.getValue().get(SETTING_NAME, "node");
             switch (type) {
                 case "client":
@@ -92,8 +92,8 @@ public class ShieldServerTransportService extends TransportService {
 
         if (!profileFilters.containsKey(NettyTransport.DEFAULT_PROFILE)) {
             final boolean profileSsl = settings.getAsBoolean(TRANSPORT_SSL_SETTING, TRANSPORT_SSL_DEFAULT);
-            final boolean needClientAuth = settings.getAsBoolean(TRANSPORT_CLIENT_AUTH_SETTING, TRANSPORT_CLIENT_AUTH_DEFAULT);
-            final boolean extractClientCert = profileSsl && needClientAuth;
+            final boolean clientAuth = SSLClientAuth.parse(settings.get(TRANSPORT_CLIENT_AUTH_SETTING), TRANSPORT_CLIENT_AUTH_DEFAULT).enabled();
+            final boolean extractClientCert = profileSsl && clientAuth;
             profileFilters.put(NettyTransport.DEFAULT_PROFILE, new ServerTransportFilter.NodeProfile(authcService, authzService, actionMapper, extractClientCert));
         }
 

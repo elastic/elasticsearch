@@ -16,6 +16,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.http.netty.NettyHttpServerTransport;
 import org.elasticsearch.shield.ssl.ServerSSLService;
+import org.elasticsearch.shield.transport.SSLClientAuth;
 import org.elasticsearch.shield.transport.filter.IPFilter;
 
 import javax.net.ssl.SSLEngine;
@@ -30,7 +31,7 @@ public class ShieldNettyHttpServerTransport extends NettyHttpServerTransport {
     public static final String HTTP_SSL_SETTING = "shield.http.ssl";
     public static final boolean HTTP_SSL_DEFAULT = false;
     public static final String HTTP_CLIENT_AUTH_SETTING = "shield.http.ssl.client.auth";
-    public static final boolean HTTP_CLIENT_AUTH_DEFAULT = false;
+    public static final SSLClientAuth HTTP_CLIENT_AUTH_DEFAULT = SSLClientAuth.NO;
 
     private final IPFilter ipFilter;
     private final ServerSSLService sslService;
@@ -78,11 +79,11 @@ public class ShieldNettyHttpServerTransport extends NettyHttpServerTransport {
 
     private class HttpSslChannelPipelineFactory extends HttpChannelPipelineFactory {
 
-        private final boolean useClientAuth;
+        private final SSLClientAuth clientAuth;
 
         public HttpSslChannelPipelineFactory(NettyHttpServerTransport transport) {
             super(transport, detailedErrorsEnabled);
-            useClientAuth = settings.getAsBoolean(HTTP_CLIENT_AUTH_SETTING, HTTP_CLIENT_AUTH_DEFAULT);
+            clientAuth = SSLClientAuth.parse(settings.get(HTTP_CLIENT_AUTH_SETTING), HTTP_CLIENT_AUTH_DEFAULT);
         }
 
         @Override
@@ -91,7 +92,7 @@ public class ShieldNettyHttpServerTransport extends NettyHttpServerTransport {
             if (ssl) {
                 SSLEngine engine = sslService.createSSLEngine();
                 engine.setUseClientMode(false);
-                engine.setNeedClientAuth(useClientAuth);
+                clientAuth.configure(engine);
 
                 pipeline.addFirst("ssl", new SslHandler(engine));
             }

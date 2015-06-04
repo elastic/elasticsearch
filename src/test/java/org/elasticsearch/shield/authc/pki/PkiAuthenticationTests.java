@@ -18,6 +18,7 @@ import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.shield.transport.SSLClientAuth;
 import org.elasticsearch.shield.transport.netty.ShieldNettyHttpServerTransport;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.test.ShieldIntegrationTest;
@@ -50,7 +51,7 @@ public class PkiAuthenticationTests extends ShieldIntegrationTest {
                 .put(super.nodeSettings(nodeOrdinal))
                 .put(Node.HTTP_ENABLED, true)
                 .put(ShieldNettyHttpServerTransport.HTTP_SSL_SETTING, true)
-                .put(ShieldNettyHttpServerTransport.HTTP_CLIENT_AUTH_SETTING, true)
+                .put(ShieldNettyHttpServerTransport.HTTP_CLIENT_AUTH_SETTING, randomBoolean() ? SSLClientAuth.REQUIRED : SSLClientAuth.OPTIONAL)
                 .put("shield.authc.realms.esusers.type", "esusers")
                 .put("shield.authc.realms.esusers.order", "0")
                 .put("shield.authc.realms.pki1.type", "pki")

@@ -5,6 +5,10 @@
  */
 package org.elasticsearch.shield.transport;
 
+import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.ESLoggerFactory;
+import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.netty.channel.Channel;
 import org.elasticsearch.common.netty.handler.ssl.SslHandler;
 import org.elasticsearch.shield.ShieldException;
 import org.elasticsearch.shield.User;
@@ -18,6 +22,7 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.netty.NettyTransportChannel;
 
 import javax.net.ssl.SSLPeerUnverifiedException;
+import javax.net.ssl.SSLSession;
 import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
 
@@ -41,6 +46,7 @@ public interface ServerTransportFilter {
      * request is properly authenticated and authorized
      */
     public static class NodeProfile implements ServerTransportFilter {
+        private static final ESLogger logger = Loggers.getLogger(NodeProfile.class);
 
         private final AuthenticationService authcService;
         private final AuthorizationService authzService;
@@ -67,7 +73,8 @@ public interface ServerTransportFilter {
             String shieldAction = actionMapper.action(action, request);
 
             if (extractClientCert && (transportChannel instanceof NettyTransportChannel)) {
-                SslHandler sslHandler = ((NettyTransportChannel)transportChannel).getChannel().getPipeline().get(SslHandler.class);
+                Channel channel = ((NettyTransportChannel)transportChannel).getChannel();
+                SslHandler sslHandler = channel.getPipeline().get(SslHandler.class);
                 assert sslHandler != null;
 
                 try {
@@ -76,8 +83,12 @@ public interface ServerTransportFilter {
                         request.putInContext(PkiRealm.PKI_CERT_HEADER_NAME, certs);
                     }
                 } catch (SSLPeerUnverifiedException e) {
-                    // In the future this may need to be a debug log message if we only "request" client authentication and don't require it
-                    throw new ShieldException("SSL Peer did not present a certificate and was required to do so", e);
+                    // this happens when we only request client authentication and the client does not provide it
+                    if (logger.isTraceEnabled()) {
+                        logger.trace("SSL Peer did not present a certificate on channel [{}]", e, channel);
+                    } else if (logger.isDebugEnabled()) {
+                        logger.debug("SSL Peer did not present a certificate on channel [{}]", channel);
+                    }
                 }
             }
 

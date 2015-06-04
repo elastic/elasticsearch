@@ -17,6 +17,7 @@ import org.elasticsearch.shield.authc.AuthenticationToken;
 import org.elasticsearch.shield.authc.Realm;
 import org.elasticsearch.shield.authc.RealmConfig;
 import org.elasticsearch.shield.authc.support.DnRoleMapper;
+import org.elasticsearch.shield.transport.SSLClientAuth;
 import org.elasticsearch.shield.transport.netty.ShieldNettyHttpServerTransport;
 import org.elasticsearch.shield.transport.netty.ShieldNettyTransport;
 import org.elasticsearch.transport.TransportMessage;
@@ -176,21 +177,22 @@ public class PkiRealm extends Realm<X509AuthenticationToken> {
     /**
      * Checks to see if both SSL and Client authentication are enabled on at least one network communication layer. If
      * not an error message will be logged
-     * @param config
+     * @param config this realm's configuration
+     * @param logger the logger to use if there is a configuration issue
      */
     static void checkSSLEnabled(RealmConfig config, ESLogger logger) {
         Settings settings = config.globalSettings();
 
         // HTTP
         if (settings.getAsBoolean(ShieldNettyHttpServerTransport.HTTP_SSL_SETTING, ShieldNettyHttpServerTransport.HTTP_SSL_DEFAULT)
-                && settings.getAsBoolean(ShieldNettyHttpServerTransport.HTTP_CLIENT_AUTH_SETTING, ShieldNettyHttpServerTransport.HTTP_CLIENT_AUTH_DEFAULT)) {
+                && SSLClientAuth.parse(settings.get(ShieldNettyHttpServerTransport.HTTP_CLIENT_AUTH_SETTING), ShieldNettyHttpServerTransport.HTTP_CLIENT_AUTH_DEFAULT).enabled()) {
             return;
         }
 
         // Default Transport
         final boolean ssl = settings.getAsBoolean(ShieldNettyTransport.TRANSPORT_SSL_SETTING, ShieldNettyTransport.TRANSPORT_SSL_DEFAULT);
-        final boolean clientAuth = settings.getAsBoolean(ShieldNettyTransport.TRANSPORT_CLIENT_AUTH_SETTING, ShieldNettyTransport.TRANSPORT_CLIENT_AUTH_DEFAULT);
-        if (ssl && clientAuth) {
+        final SSLClientAuth clientAuth = SSLClientAuth.parse(settings.get(ShieldNettyTransport.TRANSPORT_CLIENT_AUTH_SETTING), ShieldNettyTransport.TRANSPORT_CLIENT_AUTH_DEFAULT);
+        if (ssl && clientAuth.enabled()) {
             return;
         }
 
@@ -199,7 +201,7 @@ public class PkiRealm extends Realm<X509AuthenticationToken> {
         for (Map.Entry<String, Settings> entry : groupedSettings.entrySet()) {
             Settings profileSettings = entry.getValue().getByPrefix("shield.filter.");
             if (profileSettings.getAsBoolean(ShieldNettyTransport.TRANSPORT_PROFILE_SSL_SETTING, ssl)
-                    && profileSettings.getAsBoolean(ShieldNettyTransport.TRANSPORT_CLIENT_AUTH_SETTING, clientAuth)) {
+                    && SSLClientAuth.parse(profileSettings.get(ShieldNettyTransport.TRANSPORT_CLIENT_AUTH_SETTING), clientAuth).enabled()) {
                 return;
             }
         }

@@ -16,6 +16,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.shield.ShieldSettingsFilter;
 import org.elasticsearch.shield.ssl.ClientSSLService;
 import org.elasticsearch.shield.ssl.ServerSSLService;
+import org.elasticsearch.shield.transport.SSLClientAuth;
 import org.elasticsearch.shield.transport.filter.IPFilter;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.netty.NettyTransport;
@@ -37,7 +38,7 @@ public class ShieldNettyTransport extends NettyTransport {
     public static final String TRANSPORT_SSL_SETTING = "shield.transport.ssl";
     public static final boolean TRANSPORT_SSL_DEFAULT = false;
     public static final String TRANSPORT_CLIENT_AUTH_SETTING = "shield.transport.ssl.client.auth";
-    public static final boolean TRANSPORT_CLIENT_AUTH_DEFAULT = true;
+    public static final SSLClientAuth TRANSPORT_CLIENT_AUTH_DEFAULT = SSLClientAuth.REQUIRED;
     public static final String TRANSPORT_PROFILE_SSL_SETTING = "shield.ssl";
     public static final String TRANSPORT_PROFILE_CLIENT_AUTH_SETTING = "shield.ssl.client.auth";
 
@@ -111,7 +112,7 @@ public class ShieldNettyTransport extends NettyTransport {
         public ChannelPipeline getPipeline() throws Exception {
             ChannelPipeline pipeline = super.getPipeline();
             final boolean profileSsl = profileSettings.getAsBoolean(TRANSPORT_PROFILE_SSL_SETTING, ssl);
-            final boolean needClientAuth = profileSettings.getAsBoolean(TRANSPORT_PROFILE_CLIENT_AUTH_SETTING, settings.getAsBoolean(TRANSPORT_CLIENT_AUTH_SETTING, TRANSPORT_CLIENT_AUTH_DEFAULT));
+            final SSLClientAuth clientAuth = SSLClientAuth.parse(profileSettings.get(TRANSPORT_PROFILE_CLIENT_AUTH_SETTING, settings.get(TRANSPORT_CLIENT_AUTH_SETTING)), TRANSPORT_CLIENT_AUTH_DEFAULT);
             if (profileSsl) {
                 SSLEngine serverEngine;
                 if (profileSettings.get("shield.truststore.path") != null) {
@@ -120,7 +121,7 @@ public class ShieldNettyTransport extends NettyTransport {
                     serverEngine = serverSslService.createSSLEngine();
                 }
                 serverEngine.setUseClientMode(false);
-                serverEngine.setNeedClientAuth(needClientAuth);
+                clientAuth.configure(serverEngine);
 
                 pipeline.addFirst("ssl", new SslHandler(serverEngine));
             }

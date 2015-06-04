@@ -22,7 +22,6 @@ package org.elasticsearch.search;
 import com.carrotsearch.hppc.ObjectHashSet;
 import com.carrotsearch.hppc.ObjectSet;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-import com.google.common.base.Charsets;
 import com.google.common.collect.ImmutableMap;
 
 import org.apache.lucene.index.IndexOptions;
@@ -682,9 +681,10 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
 
     private void parseTemplate(ShardSearchRequest request) {
 
-        final ExecutableScript executable;
+        BytesReference processedQuery;
         if (request.template() != null) {
-            executable = this.scriptService.executable(request.template(), ScriptContext.Standard.SEARCH);
+            ExecutableScript executable = this.scriptService.executable(request.template(), ScriptContext.Standard.SEARCH);
+            processedQuery = (BytesReference) executable.run();
         } else {
             if (!hasLength(request.templateSource())) {
                 return;
@@ -700,13 +700,16 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
                     //Try to double parse for nested template id/file
                     parser = null;
                     try {
-                        byte[] templateBytes = template.getScript().getBytes(Charsets.UTF_8);
-                        parser = XContentFactory.xContent(templateBytes).createParser(templateBytes);
+                        ExecutableScript executable = this.scriptService.executable(template, ScriptContext.Standard.SEARCH);
+                        processedQuery = (BytesReference) executable.run();
+                        parser = XContentFactory.xContent(processedQuery).createParser(processedQuery);
                     } catch (ElasticsearchParseException epe) {
                         //This was an non-nested template, the parse failure was due to this, it is safe to assume this refers to a file
                         //for backwards compatibility and keep going
                         template = new Template(template.getScript(), ScriptService.ScriptType.FILE, MustacheScriptEngineService.NAME,
                                 null, template.getParams());
+                        ExecutableScript executable = this.scriptService.executable(template, ScriptContext.Standard.SEARCH);
+                        processedQuery = (BytesReference) executable.run();
                     }
                     if (parser != null) {
                         try {
@@ -715,11 +718,16 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
                                 //An inner template referring to a filename or id
                                 template = new Template(innerTemplate.getScript(), innerTemplate.getType(),
                                         MustacheScriptEngineService.NAME, null, template.getParams());
+                                ExecutableScript executable = this.scriptService.executable(template, ScriptContext.Standard.SEARCH);
+                                processedQuery = (BytesReference) executable.run();
                             }
                         } catch (ScriptParseException e) {
                             // No inner template found, use original template from above
                         }
                     }
+                } else {
+                    ExecutableScript executable = this.scriptService.executable(template, ScriptContext.Standard.SEARCH);
+                    processedQuery = (BytesReference) executable.run();
                 }
             } catch (IOException e) {
                 throw new ElasticsearchParseException("Failed to parse template", e);
@@ -730,10 +738,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             if (!hasLength(template.getScript())) {
                 throw new ElasticsearchParseException("Template must have [template] field configured");
             }
-            executable = this.scriptService.executable(template, ScriptContext.Standard.SEARCH);
         }
-
-        BytesReference processedQuery = (BytesReference) executable.run();
         request.source(processedQuery);
     }
 

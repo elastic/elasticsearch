@@ -870,7 +870,7 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
         assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), equalTo(createSnapshotResponse.getSnapshotInfo().totalShards()));
 
         logger.info("--> delete index metadata and shard metadata");
-        Path metadata = repo.resolve("metadata-test-snap-1");
+        Path metadata = repo.resolve("meta-test-snap-1.dat");
         Files.delete(metadata);
 
         logger.info("--> delete snapshot");

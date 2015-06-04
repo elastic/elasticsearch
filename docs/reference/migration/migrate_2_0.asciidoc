@@ -642,3 +642,10 @@ created on or after clusters with version 2.0:
 * The `type` option on the `_parent` field can only point to a parent type that doesn't exist yet,
   so this means that an existing type/mapping can no longer become a parent type.
 * The `has_child` and `has_parent` queries can no longer be use in alias filters.
+
+[float]
+=== Delete index api performed against a filtered alias
+
+Delete index api returns an error when trying to delete a filtered alias,
+rather than ignoring the filter completely and deleting the whole index.
+

@@ -80,6 +80,13 @@ public class TransportDeleteIndexAction extends TransportMasterNodeAction<Delete
             listener.onResponse(new DeleteIndexResponse(true));
             return;
         }
+        for (String concreteIndex : concreteIndices) {
+            String[] filteringAliases = state.metaData().filteringAliases(concreteIndex, request.indices());
+            if (filteringAliases != null) {
+                throw new UnsupportedOperationException("delete index api doesn't support deleting a filtered alias.");
+            }
+        }
+
         // TODO: this API should be improved, currently, if one delete index failed, we send a failure, we should send a response array that includes all the indices that were deleted
         final CountDown count = new CountDown(concreteIndices.length);
         for (final String index : concreteIndices) {

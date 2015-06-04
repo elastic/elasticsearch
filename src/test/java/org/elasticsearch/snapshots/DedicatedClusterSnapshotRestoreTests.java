@@ -42,6 +42,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ProcessedClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
+import org.elasticsearch.cluster.routing.allocation.decider.ConcurrentRebalanceAllocationDecider;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -64,7 +65,6 @@ import org.elasticsearch.rest.action.admin.cluster.state.RestClusterStateAction;
 import org.elasticsearch.snapshots.mockstore.MockRepositoryModule;
 import org.elasticsearch.snapshots.mockstore.MockRepositoryPlugin;
 import org.elasticsearch.test.InternalTestCluster;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.junit.Ignore;
 import org.junit.Test;
@@ -548,8 +548,12 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
     @Test
     public void restoreIndexWithShardsMissingInLocalGateway() throws Exception {
         logger.info("--> start 2 nodes");
-        internalCluster().startNode(settingsBuilder().put("gateway.type", "local"));
-        internalCluster().startNode(settingsBuilder().put("gateway.type", "local"));
+        Settings nodeSettings = settingsBuilder()
+                .put(ConcurrentRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_REBALANCE, 0)
+                .put("gateway.type", "local")
+                .build();
+        internalCluster().startNode(nodeSettings);
+        internalCluster().startNode(nodeSettings);
         cluster().wipeIndices("_all");
 
         logger.info("--> create repository");

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.suggest;
 
-import org.elasticsearch.action.support.broadcast.BroadcastShardOperationRequest;
+import org.elasticsearch.action.support.broadcast.BroadcastShardRequest;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -30,7 +30,7 @@ import java.io.IOException;
 /**
  * Internal suggest request executed directly against a specific index shard.
  */
-final class ShardSuggestRequest extends BroadcastShardOperationRequest {
+final class ShardSuggestRequest extends BroadcastShardRequest {
 
     private BytesReference suggestSource;
 

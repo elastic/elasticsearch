@@ -19,13 +19,13 @@
 
 package org.elasticsearch.action.admin.indices.optimize;
 
-import org.elasticsearch.action.support.broadcast.BroadcastShardOperationResponse;
+import org.elasticsearch.action.support.broadcast.BroadcastShardResponse;
 import org.elasticsearch.index.shard.ShardId;
 
 /**
  *
  */
-class ShardOptimizeResponse extends BroadcastShardOperationResponse {
+class ShardOptimizeResponse extends BroadcastShardResponse {
 
     ShardOptimizeResponse() {
     }

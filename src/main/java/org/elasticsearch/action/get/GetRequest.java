@@ -22,7 +22,7 @@ package org.elasticsearch.action.get;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ValidateActions;
-import org.elasticsearch.action.support.single.shard.SingleShardOperationRequest;
+import org.elasticsearch.action.support.single.shard.SingleShardRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -43,7 +43,7 @@ import java.io.IOException;
  * @see org.elasticsearch.client.Requests#getRequest(String)
  * @see org.elasticsearch.client.Client#get(GetRequest)
  */
-public class GetRequest extends SingleShardOperationRequest<GetRequest> {
+public class GetRequest extends SingleShardRequest<GetRequest> {
 
     private String type;
     private String id;

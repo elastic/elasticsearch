@@ -29,6 +29,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.search.sort.ScriptSortBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.joda.time.PeriodType;
@@ -142,7 +144,7 @@ public class ScriptComparisonBenchmark {
     }
 
     static TimeValue timeQueries(Client client, String lang, String script, int numQueries) {
-        ScriptSortBuilder sort = SortBuilders.scriptSort(script, "number").lang(lang);
+        ScriptSortBuilder sort = SortBuilders.scriptSort(new Script(script, ScriptType.INLINE, lang, null), "number");
         SearchRequestBuilder req = client.prepareSearch(indexName)
                 .setQuery(QueryBuilders.matchAllQuery())
                 .addSort(sort);

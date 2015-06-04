@@ -26,6 +26,7 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
+import org.elasticsearch.search.aggregations.bucket.InternalSingleBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
 
 import java.util.ArrayList;
@@ -45,20 +46,34 @@ public abstract class SiblingPipelineAggregator extends PipelineAggregator {
     @SuppressWarnings("unchecked")
     @Override
     public InternalAggregation reduce(InternalAggregation aggregation, ReduceContext reduceContext) {
-        @SuppressWarnings("rawtypes")
-        InternalMultiBucketAggregation multiBucketsAgg = (InternalMultiBucketAggregation) aggregation;
-        List<? extends Bucket> buckets = multiBucketsAgg.getBuckets();
-        List<Bucket> newBuckets = new ArrayList<>();
-        for (int i = 0; i < buckets.size(); i++) {
-            InternalMultiBucketAggregation.InternalBucket bucket = (InternalMultiBucketAggregation.InternalBucket) buckets.get(i);
-            InternalAggregation aggToAdd = doReduce(bucket.getAggregations(), reduceContext);
-            List<InternalAggregation> aggs = new ArrayList<>(Lists.transform(bucket.getAggregations().asList(), AGGREGATION_TRANFORM_FUNCTION));
-            aggs.add(aggToAdd);
-            InternalMultiBucketAggregation.InternalBucket newBucket = multiBucketsAgg.createBucket(new InternalAggregations(aggs), bucket);
-            newBuckets.add(newBucket);
-        }
+        if (aggregation instanceof InternalMultiBucketAggregation) {
+            @SuppressWarnings("rawtypes")
+            InternalMultiBucketAggregation multiBucketsAgg = (InternalMultiBucketAggregation) aggregation;
+            List<? extends Bucket> buckets = multiBucketsAgg.getBuckets();
+            List<Bucket> newBuckets = new ArrayList<>();
+            for (int i = 0; i < buckets.size(); i++) {
+                InternalMultiBucketAggregation.InternalBucket bucket = (InternalMultiBucketAggregation.InternalBucket) buckets.get(i);
+                InternalAggregation aggToAdd = doReduce(bucket.getAggregations(), reduceContext);
+                List<InternalAggregation> aggs = new ArrayList<>(Lists.transform(bucket.getAggregations().asList(),
+                        AGGREGATION_TRANFORM_FUNCTION));
+                aggs.add(aggToAdd);
+                InternalMultiBucketAggregation.InternalBucket newBucket = multiBucketsAgg.createBucket(new InternalAggregations(aggs),
+                        bucket);
+                newBuckets.add(newBucket);
+            }
 
-        return multiBucketsAgg.create(newBuckets);
+            return multiBucketsAgg.create(newBuckets);
+        } else if (aggregation instanceof InternalSingleBucketAggregation) {
+            InternalSingleBucketAggregation singleBucketAgg = (InternalSingleBucketAggregation) aggregation;
+            InternalAggregation aggToAdd = doReduce(singleBucketAgg.getAggregations(), reduceContext);
+            List<InternalAggregation> aggs = new ArrayList<>(Lists.transform(singleBucketAgg.getAggregations().asList(),
+                    AGGREGATION_TRANFORM_FUNCTION));
+            aggs.add(aggToAdd);
+            return singleBucketAgg.create(new InternalAggregations(aggs));
+        } else {
+            throw new IllegalStateException("Aggregation [" + aggregation.getName() + "] must be a bucket aggregation ["
+                    + aggregation.type().name() + "]");
+        }
     }
 
     public abstract InternalAggregation doReduce(Aggregations aggregations, ReduceContext context);

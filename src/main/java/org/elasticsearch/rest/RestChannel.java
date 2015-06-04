@@ -44,10 +44,15 @@ public abstract class RestChannel {
     }
 
     public XContentBuilder newBuilder() throws IOException {
-        return newBuilder(request.hasContent() ? request.content() : null);
+        return newBuilder(request.hasContent() ? request.content() : null, request.hasParam("filter_path"));
     }
 
-    public XContentBuilder newBuilder(@Nullable BytesReference autoDetectSource) throws IOException {
+    public XContentBuilder newErrorBuilder() throws IOException {
+        // Disable filtering when building error responses
+        return newBuilder(request.hasContent() ? request.content() : null, false);
+    }
+
+    public XContentBuilder newBuilder(@Nullable BytesReference autoDetectSource, boolean useFiltering) throws IOException {
         XContentType contentType = XContentType.fromRestContentType(request.param("format", request.header("Content-Type")));
         if (contentType == null) {
             // try and guess it from the auto detect source
@@ -59,7 +64,9 @@ public abstract class RestChannel {
             // default to JSON
             contentType = XContentType.JSON;
         }
-        XContentBuilder builder = new XContentBuilder(XContentFactory.xContent(contentType), bytesOutput());
+
+        String[] filters = useFiltering ? request.paramAsStringArrayOrEmptyIfAll("filter_path") :  null;
+        XContentBuilder builder = new XContentBuilder(XContentFactory.xContent(contentType), bytesOutput(), filters);
         if (request.paramAsBoolean("pretty", false)) {
             builder.prettyPrint().lfAtEnd();
         }

@@ -21,7 +21,7 @@ package org.elasticsearch.action.admin.cluster.snapshots.delete;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
+import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -36,7 +36,7 @@ import org.elasticsearch.transport.TransportService;
 /**
  * Transport action for delete snapshot operation
  */
-public class TransportDeleteSnapshotAction extends TransportMasterNodeOperationAction<DeleteSnapshotRequest, DeleteSnapshotResponse> {
+public class TransportDeleteSnapshotAction extends TransportMasterNodeAction<DeleteSnapshotRequest, DeleteSnapshotResponse> {
     private final SnapshotsService snapshotsService;
 
     @Inject

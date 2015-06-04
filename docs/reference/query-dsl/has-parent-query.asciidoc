@@ -1,5 +1,5 @@
 [[query-dsl-has-parent-query]]
-== Has Parent Query
+=== Has Parent Query
 
 The `has_parent` query accepts a query and a parent type. The query is
 executed in the parent document space, which is specified by the parent
@@ -22,7 +22,7 @@ in the same manner as the `has_child` query.
 --------------------------------------------------
 
 [float]
-=== Scoring capabilities
+==== Scoring capabilities
 
 The `has_parent` also has scoring support. The
 supported score types are `score` or `none`. The default is `none` and
@@ -47,23 +47,3 @@ matching parent document. The score type can be specified with the
     }
 }
 --------------------------------------------------
-
-[float]
-=== Memory Considerations
-
-In order to support parent-child joins, all of the (string) parent IDs 
-must be resident in memory (in the <<index-modules-fielddata,field data cache>>. 
-Additionally, every child document is mapped to its parent using a long
-value (approximately). It is advisable to keep the string parent ID short
-in order to reduce memory usage.
-
-You can check how much memory is being used by the `_parent` field in the fielddata cache
-using the <<indices-stats,indices stats>> or <<cluster-nodes-stats,nodes stats>>
-APIS, eg:
-
-[source,js]
---------------------------------------------------
-curl -XGET "http://localhost:9200/_stats/fielddata?pretty&human&fielddata_fields=_parent"
---------------------------------------------------
-
-

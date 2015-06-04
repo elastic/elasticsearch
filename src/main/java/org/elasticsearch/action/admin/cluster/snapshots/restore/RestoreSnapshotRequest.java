@@ -20,10 +20,9 @@
 package org.elasticsearch.action.admin.cluster.snapshots.restore;
 
 import org.elasticsearch.ElasticsearchGenerationException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
+import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -48,32 +47,20 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBo
 /**
  * Restore snapshot request
  */
-public class RestoreSnapshotRequest extends MasterNodeOperationRequest<RestoreSnapshotRequest> {
+public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotRequest> {
 
     private String snapshot;
-
     private String repository;
-
     private String[] indices = Strings.EMPTY_ARRAY;
-
     private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpen();
-
     private String renamePattern;
-
     private String renameReplacement;
-
     private boolean waitForCompletion;
-
     private boolean includeGlobalState = true;
-
     private boolean partial = false;
-
     private boolean includeAliases = true;
-
     private Settings settings = EMPTY_SETTINGS;
-
     private Settings indexSettings = EMPTY_SETTINGS;
-
     private String[] ignoreIndexSettings = Strings.EMPTY_ARRAY;
 
     RestoreSnapshotRequest() {
@@ -638,10 +625,8 @@ public class RestoreSnapshotRequest extends MasterNodeOperationRequest<RestoreSn
         partial = in.readBoolean();
         includeAliases = in.readBoolean();
         settings = readSettingsFromStream(in);
-        if (in.getVersion().onOrAfter(Version.V_1_5_0)) {
-            indexSettings = readSettingsFromStream(in);
-            ignoreIndexSettings = in.readStringArray();
-        }
+        indexSettings = readSettingsFromStream(in);
+        ignoreIndexSettings = in.readStringArray();
     }
 
     @Override
@@ -658,9 +643,7 @@ public class RestoreSnapshotRequest extends MasterNodeOperationRequest<RestoreSn
         out.writeBoolean(partial);
         out.writeBoolean(includeAliases);
         writeSettingsToStream(settings, out);
-        if (out.getVersion().onOrAfter(Version.V_1_5_0)) {
-            writeSettingsToStream(indexSettings, out);
-            out.writeStringArray(ignoreIndexSettings);
-        }
+        writeSettingsToStream(indexSettings, out);
+        out.writeStringArray(ignoreIndexSettings);
     }
 }

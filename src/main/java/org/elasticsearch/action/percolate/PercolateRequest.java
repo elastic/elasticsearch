@@ -24,7 +24,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.get.GetRequest;
-import org.elasticsearch.action.support.broadcast.BroadcastOperationRequest;
+import org.elasticsearch.action.support.broadcast.BroadcastRequest;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -43,7 +43,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  * A request to execute a percolate operation.
  */
-public class PercolateRequest extends BroadcastOperationRequest<PercolateRequest> implements CompositeIndicesRequest {
+public class PercolateRequest extends BroadcastRequest<PercolateRequest> implements CompositeIndicesRequest {
 
     private String documentType;
     private String routing;
@@ -55,7 +55,7 @@ public class PercolateRequest extends BroadcastOperationRequest<PercolateRequest
 
     private BytesReference docSource;
 
-    // Used internally in order to compute tookInMillis, TransportBroadcastOperationAction itself doesn't allow
+    // Used internally in order to compute tookInMillis, TransportBroadcastAction itself doesn't allow
     // to hold it temporarily in an easy way
     long startTime;
 

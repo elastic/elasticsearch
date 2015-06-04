@@ -33,7 +33,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
-import org.elasticsearch.common.compress.CompressedString;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
@@ -117,7 +117,7 @@ public class NestedAggregatorTest extends ElasticsearchSingleNodeTest {
         IndexSearcher searcher = new IndexSearcher(directoryReader);
 
         IndexService indexService = createIndex("test");
-        indexService.mapperService().merge("test", new CompressedString(PutMappingRequest.buildFromSimplifiedDef("test", "nested_field", "type=nested").string()), true);
+        indexService.mapperService().merge("test", new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef("test", "nested_field", "type=nested").string()), true);
         SearchContext searchContext = createSearchContext(indexService);
         AggregationContext context = new AggregationContext(searchContext);
 

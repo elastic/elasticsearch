@@ -35,7 +35,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.common.compress.CompressedString;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
@@ -134,8 +134,18 @@ public class DocumentMapper implements ToXContent {
             return this;
         }
 
-        public Builder transform(ScriptService scriptService, String script, ScriptType scriptType, String language, Map<String, Object> parameters) {
-            sourceTransforms.add(new ScriptTransform(scriptService, script, scriptType, language, parameters));
+        public Builder transform(ScriptService scriptService, Script script) {
+            sourceTransforms.add(new ScriptTransform(scriptService, script));
+            return this;
+        }
+
+        /**
+         * @deprecated Use {@link #transform(ScriptService, Script)} instead.
+         */
+        @Deprecated
+        public Builder transform(ScriptService scriptService, String script, ScriptType scriptType, String language,
+                Map<String, Object> parameters) {
+            sourceTransforms.add(new ScriptTransform(scriptService, new Script(script, scriptType, language, parameters)));
             return this;
         }
 
@@ -150,7 +160,7 @@ public class DocumentMapper implements ToXContent {
     private final String type;
     private final StringAndBytesText typeText;
 
-    private volatile CompressedString mappingSource;
+    private volatile CompressedXContent mappingSource;
 
     private final Mapping mapping;
 
@@ -235,7 +245,7 @@ public class DocumentMapper implements ToXContent {
         return mapping.meta;
     }
 
-    public CompressedString mappingSource() {
+    public CompressedXContent mappingSource() {
         return this.mappingSource;
     }
 
@@ -388,20 +398,24 @@ public class DocumentMapper implements ToXContent {
 
     private void addFieldMappers(Collection<FieldMapper> fieldMappers) {
         assert mappingLock.isWriteLockedByCurrentThread();
-        this.fieldMappers = this.fieldMappers.copyAndAllAll(fieldMappers);
+            this.fieldMappers = this.fieldMappers.copyAndAllAll(fieldMappers);
         mapperService.addFieldMappers(fieldMappers);
+    }
+
+    public boolean isParent(String type) {
+        return mapperService.getParentTypes().contains(type);
     }
 
     private void addObjectMappers(Collection<ObjectMapper> objectMappers) {
         assert mappingLock.isWriteLockedByCurrentThread();
-        MapBuilder<String, ObjectMapper> builder = MapBuilder.newMapBuilder(this.objectMappers);
-        for (ObjectMapper objectMapper : objectMappers) {
-            builder.put(objectMapper.fullPath(), objectMapper);
-            if (objectMapper.nested().isNested()) {
-                hasNestedObjects = true;
+            MapBuilder<String, ObjectMapper> builder = MapBuilder.newMapBuilder(this.objectMappers);
+            for (ObjectMapper objectMapper : objectMappers) {
+                builder.put(objectMapper.fullPath(), objectMapper);
+                if (objectMapper.nested().isNested()) {
+                    hasNestedObjects = true;
+                }
             }
-        }
-        this.objectMappers = builder.immutableMap();
+            this.objectMappers = builder.immutableMap();
         mapperService.addObjectMappers(objectMappers);
     }
 
@@ -454,26 +468,26 @@ public class DocumentMapper implements ToXContent {
 
     public MergeResult merge(Mapping mapping, boolean simulate) {
         try (ReleasableLock lock = mappingWriteLock.acquire()) {
-            final MergeResult mergeResult = newMergeContext(simulate);
-            this.mapping.merge(mapping, mergeResult);
-            if (simulate == false) {
-                addFieldMappers(mergeResult.getNewFieldMappers());
-                addObjectMappers(mergeResult.getNewObjectMappers());
-                refreshSource();
-            }
-            return mergeResult;
+        final MergeResult mergeResult = newMergeContext(simulate);
+        this.mapping.merge(mapping, mergeResult);
+        if (simulate == false) {
+            addFieldMappers(mergeResult.getNewFieldMappers());
+            addObjectMappers(mergeResult.getNewObjectMappers());
+            refreshSource();
         }
+        return mergeResult;
+    }
     }
 
     private void refreshSource() throws ElasticsearchGenerationException {
         try {
             BytesStreamOutput bStream = new BytesStreamOutput();
-            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON, CompressorFactory.defaultCompressor().streamOutput(bStream));
-            builder.startObject();
-            toXContent(builder, ToXContent.EMPTY_PARAMS);
-            builder.endObject();
-            builder.close();
-            mappingSource = new CompressedString(bStream.bytes());
+            try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON, CompressorFactory.defaultCompressor().streamOutput(bStream))) {
+                builder.startObject();
+                toXContent(builder, ToXContent.EMPTY_PARAMS);
+                builder.endObject();
+            }
+            mappingSource = new CompressedXContent(bStream.bytes());
         } catch (Exception e) {
             throw new ElasticsearchGenerationException("failed to serialize source for type [" + type + "]", e);
         }
@@ -498,28 +512,13 @@ public class DocumentMapper implements ToXContent {
     private static class ScriptTransform implements SourceTransform {
         private final ScriptService scriptService;
         /**
-         * Contents of the script to transform the source document before indexing.
+         * The script to transform the source document before indexing.
          */
-        private final String script;
-        /**
-         * The type of the script to run.
-         */
-        private final ScriptType scriptType;
-        /**
-         * Language of the script to transform the source document before indexing.
-         */
-        private final String language;
-        /**
-         * Parameters passed to the transform script.
-         */
-        private final Map<String, Object> parameters;
+        private final Script script;
 
-        public ScriptTransform(ScriptService scriptService, String script, ScriptType scriptType, String language, Map<String, Object> parameters) {
+        public ScriptTransform(ScriptService scriptService, Script script) {
             this.scriptService = scriptService;
             this.script = script;
-            this.scriptType = scriptType;
-            this.language = language;
-            this.parameters = parameters;
         }
 
         @Override
@@ -527,7 +526,7 @@ public class DocumentMapper implements ToXContent {
         public Map<String, Object> transformSourceAsMap(Map<String, Object> sourceAsMap) {
             try {
                 // We use the ctx variable and the _source name to be consistent with the update api.
-                ExecutableScript executable = scriptService.executable(new Script(language, script, scriptType, parameters), ScriptContext.Standard.MAPPING);
+                ExecutableScript executable = scriptService.executable(script, ScriptContext.Standard.MAPPING);
                 Map<String, Object> ctx = new HashMap<>(1);
                 ctx.put("_source", sourceAsMap);
                 executable.setNextVar("ctx", ctx);
@@ -541,16 +540,7 @@ public class DocumentMapper implements ToXContent {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            builder.field("script", script);
-            if (language != null) {
-                builder.field("lang", language);
-            }
-            if (parameters != null) {
-                builder.field("params", parameters);
-            }
-            builder.endObject();
-            return builder;
+            return script.toXContent(builder, params);
         }
     }
 }

@@ -27,7 +27,6 @@ import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorFactory;
 import org.elasticsearch.search.aggregations.pipeline.movavg.models.MovAvgModel;
-import org.elasticsearch.search.aggregations.pipeline.movavg.models.MovAvgModelParser;
 import org.elasticsearch.search.aggregations.pipeline.movavg.models.MovAvgModelParserMapper;
 import org.elasticsearch.search.aggregations.support.format.ValueFormat;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
@@ -140,12 +139,12 @@ public class MovAvgParser implements PipelineAggregator.Parser {
             formatter = ValueFormat.Patternable.Number.format(format).formatter();
         }
 
-        MovAvgModelParser modelParser = movAvgModelParserMapper.get(model);
+        MovAvgModel.AbstractModelParser modelParser = movAvgModelParserMapper.get(model);
         if (modelParser == null) {
             throw new SearchParseException(context, "Unknown model [" + model + "] specified.  Valid options are:"
                     + movAvgModelParserMapper.getAllNames().toString(), parser.getTokenLocation());
         }
-        MovAvgModel movAvgModel = modelParser.parse(settings);
+        MovAvgModel movAvgModel = modelParser.parse(settings, pipelineAggregatorName, context, window);
 
         return new MovAvgPipelineAggregator.Factory(pipelineAggregatorName, bucketsPaths, formatter, gapPolicy, window, predict,
                 movAvgModel);

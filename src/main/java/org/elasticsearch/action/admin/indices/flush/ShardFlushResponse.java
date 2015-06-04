@@ -19,13 +19,13 @@
 
 package org.elasticsearch.action.admin.indices.flush;
 
-import org.elasticsearch.action.support.broadcast.BroadcastShardOperationResponse;
+import org.elasticsearch.action.support.broadcast.BroadcastShardResponse;
 import org.elasticsearch.index.shard.ShardId;
 
 /**
  *
  */
-class ShardFlushResponse extends BroadcastShardOperationResponse {
+class ShardFlushResponse extends BroadcastShardResponse {
 
     ShardFlushResponse() {
 

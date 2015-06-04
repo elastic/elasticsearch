@@ -566,7 +566,7 @@ Which means that we just successfully bulk indexed 1000 documents into the bank 
 
 === The Search API
 
-Now let's start with some simple searches. There are two basic ways to run searches: one is by sending search parameters through the <<search-uri-request,REST request URI>> and the other by sending them through the<<search-request-body,[REST request body>>. The request body method allows you to be more expressive and also to define your searches in a more readable JSON format. We'll try one example of the request URI method but for the remainder of this tutorial, we will exclusively be using the request body method.
+Now let's start with some simple searches. There are two basic ways to run searches: one is by sending search parameters through the <<search-uri-request,REST request URI>> and the other by sending them through the <<search-request-body,REST request body>>. The request body method allows you to be more expressive and also to define your searches in a more readable JSON format. We'll try one example of the request URI method but for the remainder of this tutorial, we will exclusively be using the request body method.
 
 The REST API for search is accessible from the `_search` endpoint. This example returns all documents in the bank index:
 

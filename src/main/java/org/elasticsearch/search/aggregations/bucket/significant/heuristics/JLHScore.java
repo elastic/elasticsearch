@@ -124,8 +124,9 @@ public class JLHScore extends SignificanceHeuristic {
     public static class JLHScoreBuilder implements SignificanceHeuristicBuilder {
 
         @Override
-        public void toXContent(XContentBuilder builder) throws IOException {
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject(STREAM.getName()).endObject();
+            return builder;
         }
     }
 }

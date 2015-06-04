@@ -149,6 +149,7 @@ field data format.
     Computes and stores field data data-structures on disk at indexing time.
 
 [float]
+[[global-ordinals]]
 ==== Global ordinals
 
 Global ordinals is a data-structure on top of field data, that maintains an
@@ -182,6 +183,7 @@ ordinals is a small because it is very efficiently compressed. Eager loading of 
 can move the loading time from the first search request, to the refresh itself.
 
 [float]
+[[fielddata-loading]]
 === Fielddata loading
 
 By default, field data is loaded lazily, ie. the first time that a query that

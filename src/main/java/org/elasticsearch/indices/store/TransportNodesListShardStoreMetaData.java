@@ -58,7 +58,7 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
 /**
  *
  */
-public class TransportNodesListShardStoreMetaData extends TransportNodesOperationAction<TransportNodesListShardStoreMetaData.Request, TransportNodesListShardStoreMetaData.NodesStoreFilesMetaData, TransportNodesListShardStoreMetaData.NodeRequest, TransportNodesListShardStoreMetaData.NodeStoreFilesMetaData>
+public class TransportNodesListShardStoreMetaData extends TransportNodesAction<TransportNodesListShardStoreMetaData.Request, TransportNodesListShardStoreMetaData.NodesStoreFilesMetaData, TransportNodesListShardStoreMetaData.NodeRequest, TransportNodesListShardStoreMetaData.NodeStoreFilesMetaData>
         implements AsyncShardFetch.List<TransportNodesListShardStoreMetaData.NodesStoreFilesMetaData, TransportNodesListShardStoreMetaData.NodeStoreFilesMetaData> {
 
     public static final String ACTION_NAME = "internal:cluster/nodes/indices/shard/store";
@@ -235,13 +235,16 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesOperatio
             metadataSnapshot.writeTo(out);
         }
 
+        /**
+         * @return commit sync id if exists, else null
+         */
         public String syncId() {
             return metadataSnapshot.getSyncId();
         }
     }
 
 
-    static class Request extends NodesOperationRequest<Request> {
+    static class Request extends BaseNodesRequest<Request> {
 
         private ShardId shardId;
 
@@ -277,7 +280,7 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesOperatio
         }
     }
 
-    public static class NodesStoreFilesMetaData extends NodesOperationResponse<NodeStoreFilesMetaData> {
+    public static class NodesStoreFilesMetaData extends BaseNodesResponse<NodeStoreFilesMetaData> {
 
         private FailedNodeException[] failures;
 
@@ -314,7 +317,7 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesOperatio
     }
 
 
-    static class NodeRequest extends NodeOperationRequest {
+    static class NodeRequest extends BaseNodeRequest {
 
         private ShardId shardId;
 
@@ -344,7 +347,7 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesOperatio
         }
     }
 
-    public static class NodeStoreFilesMetaData extends NodeOperationResponse {
+    public static class NodeStoreFilesMetaData extends BaseNodeResponse {
 
         private StoreFilesMetaData storeFilesMetaData;
 

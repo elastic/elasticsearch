@@ -93,7 +93,7 @@ public abstract class CliTool {
         Preconditions.checkArgument(config.cmds().size() != 0, "At least one command must be configured");
         this.config = config;
         this.terminal = terminal;
-        Tuple<Settings, Environment> tuple = InternalSettingsPreparer.prepareSettings(EMPTY_SETTINGS, true);
+        Tuple<Settings, Environment> tuple = InternalSettingsPreparer.prepareSettings(EMPTY_SETTINGS, true, terminal);
         settings = tuple.v1();
         env = tuple.v2();
     }

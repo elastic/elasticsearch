@@ -20,10 +20,10 @@ package org.elasticsearch.benchmark.recovery;
 
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.admin.indices.recovery.ShardRecoveryResponse;
+import org.elasticsearch.bootstrap.Bootstrap;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
-import org.elasticsearch.common.jna.Natives;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.Settings;
@@ -57,7 +57,7 @@ public class ReplicaRecoveryBenchmark {
 
     public static void main(String[] args) throws Exception {
         System.setProperty("es.logger.prefix", "");
-        Natives.tryMlockall();
+        Bootstrap.initializeNatives(true, false, false);
 
         Settings settings = settingsBuilder()
                 .put("gateway.type", "local")

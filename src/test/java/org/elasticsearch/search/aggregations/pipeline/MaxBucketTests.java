@@ -21,6 +21,7 @@ package org.elasticsearch.search.aggregations.pipeline;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram.Bucket;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
@@ -34,11 +35,13 @@ import org.junit.Test;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilders.maxBucket;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.index.query.QueryBuilders.termQuery;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.filter;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
+import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilders.maxBucket;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
@@ -280,6 +283,55 @@ public class MaxBucketTests extends ElasticsearchIntegrationTest {
             assertThat(maxBucketValue.value(), equalTo(maxValue));
             assertThat(maxBucketValue.keys(), equalTo(maxKeys.toArray(new String[maxKeys.size()])));
         }
+    }
+
+    @Test
+    public void testMetric_asSubAggOfSingleBucketAgg() throws Exception {
+        SearchResponse response = client()
+                .prepareSearch("idx")
+                .addAggregation(
+                        filter("filter")
+                                .filter(termQuery("tag", "tag0"))
+                                .subAggregation(
+                                        histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
+                                                .extendedBounds((long) minRandomValue, (long) maxRandomValue)
+                                                .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME)))
+                                .subAggregation(maxBucket("max_bucket").setBucketsPaths("histo>sum"))).execute().actionGet();
+
+        assertSearchResponse(response);
+
+        Filter filter = response.getAggregations().get("filter");
+        assertThat(filter, notNullValue());
+        assertThat(filter.getName(), equalTo("filter"));
+        Histogram histo = filter.getAggregations().get("histo");
+        assertThat(histo, notNullValue());
+        assertThat(histo.getName(), equalTo("histo"));
+        List<? extends Bucket> buckets = histo.getBuckets();
+
+        List<String> maxKeys = new ArrayList<>();
+        double maxValue = Double.NEGATIVE_INFINITY;
+        for (int j = 0; j < numValueBuckets; ++j) {
+            Histogram.Bucket bucket = buckets.get(j);
+            assertThat(bucket, notNullValue());
+            assertThat(((Number) bucket.getKey()).longValue(), equalTo((long) j * interval));
+            if (bucket.getDocCount() != 0) {
+                Sum sum = bucket.getAggregations().get("sum");
+                assertThat(sum, notNullValue());
+                if (sum.value() > maxValue) {
+                    maxValue = sum.value();
+                    maxKeys = new ArrayList<>();
+                    maxKeys.add(bucket.getKeyAsString());
+                } else if (sum.value() == maxValue) {
+                    maxKeys.add(bucket.getKeyAsString());
+                }
+            }
+        }
+
+        InternalBucketMetricValue maxBucketValue = filter.getAggregations().get("max_bucket");
+        assertThat(maxBucketValue, notNullValue());
+        assertThat(maxBucketValue.getName(), equalTo("max_bucket"));
+        assertThat(maxBucketValue.value(), equalTo(maxValue));
+        assertThat(maxBucketValue.keys(), equalTo(maxKeys.toArray(new String[maxKeys.size()])));
     }
 
     @Test

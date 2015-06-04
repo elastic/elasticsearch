@@ -1,5 +1,5 @@
 [[query-dsl-constant-score-query]]
-== Constant Score Query
+=== Constant Score Query
 
 A query that wraps another query and simply returns a
 constant score equal to the query boost for every document in the

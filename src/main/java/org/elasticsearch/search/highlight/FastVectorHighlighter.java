@@ -63,7 +63,7 @@ public class FastVectorHighlighter implements Highlighter {
         FetchSubPhase.HitContext hitContext = highlighterContext.hitContext;
         FieldMapper mapper = highlighterContext.mapper;
 
-        if (!(mapper.fieldType().storeTermVectors() && mapper.fieldType().storeTermVectorOffsets() && mapper.fieldType().storeTermVectorPositions())) {
+        if (canHighlight(mapper) == false) {
             throw new IllegalArgumentException("the field [" + highlighterContext.fieldName + "] should be indexed with term vector with position offsets to be used with fast vector highlighter");
         }
 
@@ -79,13 +79,13 @@ public class FastVectorHighlighter implements Highlighter {
             if (field.fieldOptions().requireFieldMatch()) {
                 if (cache.fieldMatchFieldQuery == null) {
                     // we use top level reader to rewrite the query against all readers, with use caching it across hits (and across readers...)
-                    cache.fieldMatchFieldQuery = new CustomFieldQuery(highlighterContext.query.originalQuery(), hitContext.topLevelReader(), true, field.fieldOptions().requireFieldMatch());
+                    cache.fieldMatchFieldQuery = new CustomFieldQuery(highlighterContext.query, hitContext.topLevelReader(), true, field.fieldOptions().requireFieldMatch());
                 }
                 fieldQuery = cache.fieldMatchFieldQuery;
             } else {
                 if (cache.noFieldMatchFieldQuery == null) {
                     // we use top level reader to rewrite the query against all readers, with use caching it across hits (and across readers...)
-                    cache.noFieldMatchFieldQuery = new CustomFieldQuery(highlighterContext.query.originalQuery(), hitContext.topLevelReader(), true, field.fieldOptions().requireFieldMatch());
+                    cache.noFieldMatchFieldQuery = new CustomFieldQuery(highlighterContext.query, hitContext.topLevelReader(), true, field.fieldOptions().requireFieldMatch());
                 }
                 fieldQuery = cache.noFieldMatchFieldQuery;
             }
@@ -147,10 +147,10 @@ public class FastVectorHighlighter implements Highlighter {
             // we highlight against the low level reader and docId, because if we load source, we want to reuse it if possible
             // Only send matched fields if they were requested to save time.
             if (field.fieldOptions().matchedFields() != null && !field.fieldOptions().matchedFields().isEmpty()) {
-                fragments = cache.fvh.getBestFragments(fieldQuery, hitContext.reader(), hitContext.docId(), mapper.names().indexName(), field.fieldOptions().matchedFields(), fragmentCharSize,
+                fragments = cache.fvh.getBestFragments(fieldQuery, hitContext.reader(), hitContext.docId(), mapper.fieldType().names().indexName(), field.fieldOptions().matchedFields(), fragmentCharSize,
                         numberOfFragments, entry.fragListBuilder, entry.fragmentsBuilder, field.fieldOptions().preTags(), field.fieldOptions().postTags(), encoder);
             } else {
-                fragments = cache.fvh.getBestFragments(fieldQuery, hitContext.reader(), hitContext.docId(), mapper.names().indexName(), fragmentCharSize,
+                fragments = cache.fvh.getBestFragments(fieldQuery, hitContext.reader(), hitContext.docId(), mapper.fieldType().names().indexName(), fragmentCharSize,
                         numberOfFragments, entry.fragListBuilder, entry.fragmentsBuilder, field.fieldOptions().preTags(), field.fieldOptions().postTags(), encoder);
             }
 
@@ -163,7 +163,7 @@ public class FastVectorHighlighter implements Highlighter {
                 // Essentially we just request that a fragment is built from 0 to noMatchSize using the normal fragmentsBuilder
                 FieldFragList fieldFragList = new SimpleFieldFragList(-1 /*ignored*/);
                 fieldFragList.add(0, noMatchSize, Collections.<WeightedPhraseInfo>emptyList());
-                fragments = entry.fragmentsBuilder.createFragments(hitContext.reader(), hitContext.docId(), mapper.names().indexName(),
+                fragments = entry.fragmentsBuilder.createFragments(hitContext.reader(), hitContext.docId(), mapper.fieldType().names().indexName(),
                         fieldFragList, 1, field.fieldOptions().preTags(), field.fieldOptions().postTags(), encoder);
                 if (fragments != null && fragments.length > 0) {
                     return new HighlightField(highlighterContext.fieldName, StringText.convertFromStringArray(fragments));
@@ -175,6 +175,11 @@ public class FastVectorHighlighter implements Highlighter {
         } catch (Exception e) {
             throw new FetchPhaseExecutionException(context, "Failed to highlight field [" + highlighterContext.fieldName + "]", e);
         }
+    }
+
+    @Override
+    public boolean canHighlight(FieldMapper fieldMapper) {
+        return fieldMapper.fieldType().storeTermVectors() && fieldMapper.fieldType().storeTermVectorOffsets() && fieldMapper.fieldType().storeTermVectorPositions();
     }
 
     private class MapperHighlightEntry {

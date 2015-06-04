@@ -24,11 +24,10 @@ import org.elasticsearch.common.HasContext;
 import org.elasticsearch.common.HasContextAndHeaders;
 import org.elasticsearch.common.HasHeaders;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.Template;
 import org.elasticsearch.search.Scroll;
 
 import java.io.IOException;
-import java.util.Map;
 
 /**
  * Shard level request that represents a search.
@@ -57,11 +56,7 @@ public interface ShardSearchRequest extends HasContextAndHeaders {
 
     long nowInMillis();
 
-    String templateName();
-
-    ScriptService.ScriptType templateType();
-
-    Map<String, Object> templateParams();
+    Template template();
 
     BytesReference templateSource();
 

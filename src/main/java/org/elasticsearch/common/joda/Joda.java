@@ -27,6 +27,7 @@ import org.joda.time.field.ScaledDurationField;
 import org.joda.time.format.*;
 
 import java.util.Locale;
+import java.util.regex.Pattern;
 
 /**
  *
@@ -133,6 +134,10 @@ public class Joda {
             formatter = ISODateTimeFormat.yearMonth();
         } else if ("yearMonthDay".equals(input) || "year_month_day".equals(input)) {
             formatter = ISODateTimeFormat.yearMonthDay();
+        } else if ("epoch_second".equals(input)) {
+            formatter = new DateTimeFormatterBuilder().append(new EpochTimeParser(false)).toFormatter();
+        } else if ("epoch_millis".equals(input)) {
+            formatter = new DateTimeFormatterBuilder().append(new EpochTimeParser(true)).toFormatter();
         } else if (Strings.hasLength(input) && input.contains("||")) {
                 String[] formats = Strings.delimitedListToStringArray(input, "||");
                 DateTimeParser[] parsers = new DateTimeParser[formats.length];
@@ -190,6 +195,52 @@ public class Joda {
         @Override
         public DateTimeField getField(Chronology chronology) {
             return new OffsetDateTimeField(new DividedDateTimeField(new OffsetDateTimeField(chronology.monthOfYear(), -1), QuarterOfYear, 3), 1);
+        }
+    };
+
+    public static class EpochTimeParser implements DateTimeParser {
+
+        private static final Pattern MILLI_SECOND_PRECISION_PATTERN = Pattern.compile("^\\d{1,13}$");
+        private static final Pattern SECOND_PRECISION_PATTERN = Pattern.compile("^\\d{1,10}$");
+
+        private final boolean hasMilliSecondPrecision;
+        private final Pattern pattern;
+
+        public EpochTimeParser(boolean hasMilliSecondPrecision) {
+            this.hasMilliSecondPrecision = hasMilliSecondPrecision;
+            this.pattern = hasMilliSecondPrecision ? MILLI_SECOND_PRECISION_PATTERN : SECOND_PRECISION_PATTERN;
+        }
+
+        @Override
+        public int estimateParsedLength() {
+            return hasMilliSecondPrecision ? 13 : 10;
+        }
+
+        @Override
+        public int parseInto(DateTimeParserBucket bucket, String text, int position) {
+            if (text.length() > estimateParsedLength() ||
+                // timestamps have to have UTC timezone
+                bucket.getZone() != DateTimeZone.UTC ||
+                pattern.matcher(text).matches() == false) {
+                return -1;
+            }
+
+            int factor = hasMilliSecondPrecision ? 1 : 1000;
+            try {
+                long millis = Long.valueOf(text) * factor;
+                DateTime dt = new DateTime(millis, DateTimeZone.UTC);
+                bucket.saveField(DateTimeFieldType.year(), dt.getYear());
+                bucket.saveField(DateTimeFieldType.monthOfYear(), dt.getMonthOfYear());
+                bucket.saveField(DateTimeFieldType.dayOfMonth(), dt.getDayOfMonth());
+                bucket.saveField(DateTimeFieldType.hourOfDay(), dt.getHourOfDay());
+                bucket.saveField(DateTimeFieldType.minuteOfHour(), dt.getMinuteOfHour());
+                bucket.saveField(DateTimeFieldType.secondOfMinute(), dt.getSecondOfMinute());
+                bucket.saveField(DateTimeFieldType.millisOfSecond(), dt.getMillisOfSecond());
+                bucket.setZone(DateTimeZone.UTC);
+            } catch (Exception e) {
+                return -1;
+            }
+            return text.length();
         }
     };
 }

@@ -89,6 +89,8 @@ public class TermQueryParser implements QueryParser {
                     fieldName = currentFieldName;
                     value = parser.objectBytes();
                 }
+            } else if (token == XContentParser.Token.START_ARRAY) {
+                throw new QueryParsingException(parseContext, "[term] query does not support array of values");
             }
         }
 

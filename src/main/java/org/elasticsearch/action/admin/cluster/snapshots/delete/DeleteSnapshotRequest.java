@@ -20,7 +20,7 @@
 package org.elasticsearch.action.admin.cluster.snapshots.delete;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
+import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -35,7 +35,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * files that are associated with this particular snapshot. All files that are shared with
  * at least one other existing snapshot are left intact.
  */
-public class DeleteSnapshotRequest extends MasterNodeOperationRequest<DeleteSnapshotRequest> {
+public class DeleteSnapshotRequest extends MasterNodeRequest<DeleteSnapshotRequest> {
 
     private String repository;
 

@@ -261,7 +261,7 @@ public class SignificantTermsBuilder extends AggregationBuilder<SignificantTerms
             filterBuilder.toXContent(builder, params); 
         }
         if (significanceHeuristicBuilder != null) {
-            significanceHeuristicBuilder.toXContent(builder);
+            significanceHeuristicBuilder.toXContent(builder, params);
         }
 
         return builder.endObject();

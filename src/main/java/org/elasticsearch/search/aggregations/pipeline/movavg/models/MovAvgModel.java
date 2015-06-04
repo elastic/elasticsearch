@@ -21,13 +21,30 @@ package org.elasticsearch.search.aggregations.pipeline.movavg.models;
 
 import com.google.common.collect.EvictingQueue;
 
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.search.SearchParseException;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Map;
 
 public abstract class MovAvgModel {
+
+    /**
+     * Checks to see this model can produce a new value, without actually running the algo.
+     * This can be used for models that have certain preconditions that need to be met in order
+     * to short-circuit execution
+     *
+     * @param windowLength  Length of current window
+     * @return              Returns `true` if calling next() will produce a value, `false` otherwise
+     */
+    public boolean hasValue(int windowLength) {
+        // Default implementation can always provide a next() value
+        return true;
+    }
 
     /**
      * Returns the next value in the series, according to the underlying smoothing model
@@ -90,6 +107,122 @@ public abstract class MovAvgModel {
      * @throws IOException
      */
     public abstract void writeTo(StreamOutput out) throws IOException;
+
+    /**
+     * Abstract class which also provides some concrete parsing functionality.
+     */
+    public abstract static class AbstractModelParser {
+
+        /**
+         * Returns the name of the model
+         *
+         * @return The model's name
+         */
+        public abstract String getName();
+
+        /**
+         * Parse a settings hash that is specific to this model
+         *
+         * @param settings      Map of settings, extracted from the request
+         * @param pipelineName   Name of the parent pipeline agg
+         * @param context       The parser context that we are in
+         * @param windowSize    Size of the window for this moving avg
+         * @return              A fully built moving average model
+         */
+        public abstract MovAvgModel parse(@Nullable Map<String, Object> settings, String pipelineName, SearchContext context, int windowSize);
+
+
+        /**
+         * Extracts a 0-1 inclusive double from the settings map, otherwise throws an exception
+         *
+         * @param context       Search query context
+         * @param settings      Map of settings provided to this model
+         * @param name          Name of parameter we are attempting to extract
+         * @param defaultValue  Default value to be used if value does not exist in map
+         *
+         * @throws SearchParseException
+         *
+         * @return Double value extracted from settings map
+         */
+        protected double parseDoubleParam(SearchContext context, @Nullable Map<String, Object> settings, String name, double defaultValue) {
+            if (settings == null) {
+                return defaultValue;
+            }
+
+            Object value = settings.get(name);
+            if (value == null) {
+                return defaultValue;
+            } else if (value instanceof Double) {
+                double v = (Double)value;
+                if (v >= 0 && v <= 1) {
+                    return v;
+                }
+
+                throw new SearchParseException(context, "Parameter [" + name + "] must be between 0-1 inclusive.  Provided"
+                        + "value was [" + v + "]", null);
+            }
+
+            throw new SearchParseException(context, "Parameter [" + name + "] must be a double, type `"
+                    + value.getClass().getSimpleName() + "` provided instead", null);
+        }
+
+        /**
+         * Extracts an integer from the settings map, otherwise throws an exception
+         *
+         * @param context       Search query context
+         * @param settings      Map of settings provided to this model
+         * @param name          Name of parameter we are attempting to extract
+         * @param defaultValue  Default value to be used if value does not exist in map
+         *
+         * @throws SearchParseException
+         *
+         * @return Integer value extracted from settings map
+         */
+        protected int parseIntegerParam(SearchContext context, @Nullable Map<String, Object> settings, String name, int defaultValue) {
+            if (settings == null) {
+                return defaultValue;
+            }
+
+            Object value = settings.get(name);
+            if (value == null) {
+                return defaultValue;
+            } else if (value instanceof Integer) {
+                return (Integer)value;
+            }
+
+            throw new SearchParseException(context, "Parameter [" + name + "] must be an integer, type `"
+                    + value.getClass().getSimpleName() + "` provided instead", null);
+        }
+
+        /**
+         * Extracts a boolean from the settings map, otherwise throws an exception
+         *
+         * @param context       Search query context
+         * @param settings      Map of settings provided to this model
+         * @param name          Name of parameter we are attempting to extract
+         * @param defaultValue  Default value to be used if value does not exist in map
+         *
+         * @throws SearchParseException
+         *
+         * @return Boolean value extracted from settings map
+         */
+        protected boolean parseBoolParam(SearchContext context, @Nullable Map<String, Object> settings, String name, boolean defaultValue) {
+            if (settings == null) {
+                return defaultValue;
+            }
+
+            Object value = settings.get(name);
+            if (value == null) {
+                return defaultValue;
+            } else if (value instanceof Boolean) {
+                return (Boolean)value;
+            }
+
+            throw new SearchParseException(context, "Parameter [" + name + "] must be a boolean, type `"
+                    + value.getClass().getSimpleName() + "` provided instead", null);
+        }
+    }
+
 }
 
 

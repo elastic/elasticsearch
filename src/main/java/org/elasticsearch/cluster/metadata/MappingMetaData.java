@@ -19,13 +19,11 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import com.google.common.collect.Maps;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.TimestampParsingException;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.compress.CompressedString;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
@@ -40,10 +38,8 @@ import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.Map;
 
-import static com.google.common.collect.Maps.newHashMap;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
 
 /**
@@ -165,19 +161,11 @@ public class MappingMetaData extends AbstractDiffable<MappingMetaData> {
     public static class Timestamp {
 
         public static String parseStringTimestamp(String timestampAsString, FormatDateTimeFormatter dateTimeFormatter) throws TimestampParsingException {
-            long ts;
             try {
-                // if we manage to parse it, its a millisecond timestamp, just return the string as is
-                ts = Long.parseLong(timestampAsString);
-                return timestampAsString;
-            } catch (NumberFormatException e) {
-                try {
-                    ts = dateTimeFormatter.parser().parseMillis(timestampAsString);
-                } catch (RuntimeException e1) {
-                    throw new TimestampParsingException(timestampAsString);
-                }
+                return Long.toString(dateTimeFormatter.parser().parseMillis(timestampAsString));
+            } catch (RuntimeException e) {
+                throw new TimestampParsingException(timestampAsString, e);
             }
-            return Long.toString(ts);
         }
 
 
@@ -280,7 +268,7 @@ public class MappingMetaData extends AbstractDiffable<MappingMetaData> {
 
     private final String type;
 
-    private final CompressedString source;
+    private final CompressedXContent source;
 
     private Id id;
     private Routing routing;
@@ -293,14 +281,14 @@ public class MappingMetaData extends AbstractDiffable<MappingMetaData> {
         this.id = new Id(docMapper.idFieldMapper().path());
         this.routing = new Routing(docMapper.routingFieldMapper().required(), docMapper.routingFieldMapper().path());
         this.timestamp = new Timestamp(docMapper.timestampFieldMapper().enabled(), docMapper.timestampFieldMapper().path(),
-                docMapper.timestampFieldMapper().dateTimeFormatter().format(), docMapper.timestampFieldMapper().defaultTimestamp(),
+                docMapper.timestampFieldMapper().fieldType().dateTimeFormatter().format(), docMapper.timestampFieldMapper().defaultTimestamp(),
                 docMapper.timestampFieldMapper().ignoreMissing());
         this.hasParentField = docMapper.parentFieldMapper().active();
     }
 
-    public MappingMetaData(CompressedString mapping) throws IOException {
+    public MappingMetaData(CompressedXContent mapping) throws IOException {
         this.source = mapping;
-        Map<String, Object> mappingMap = XContentHelper.createParser(mapping.compressed(), 0, mapping.compressed().length).mapOrderedAndClose();
+        Map<String, Object> mappingMap = XContentHelper.createParser(mapping.compressedReference()).mapOrderedAndClose();
         if (mappingMap.size() != 1) {
             throw new IllegalStateException("Can't derive type from mapping, no root type: " + mapping.string());
         }
@@ -315,7 +303,7 @@ public class MappingMetaData extends AbstractDiffable<MappingMetaData> {
     public MappingMetaData(String type, Map<String, Object> mapping) throws IOException {
         this.type = type;
         XContentBuilder mappingBuilder = XContentFactory.jsonBuilder().map(mapping);
-        this.source = new CompressedString(mappingBuilder.bytes());
+        this.source = new CompressedXContent(mappingBuilder.bytes());
         Map<String, Object> withoutType = mapping;
         if (mapping.size() == 1 && mapping.containsKey(type)) {
             withoutType = (Map<String, Object>) mapping.get(type);
@@ -326,7 +314,7 @@ public class MappingMetaData extends AbstractDiffable<MappingMetaData> {
     private MappingMetaData() {
         this.type = "";
         try {
-            this.source = new CompressedString("");
+            this.source = new CompressedXContent("{}");
         } catch (IOException ex) {
             throw new IllegalStateException("Cannot create MappingMetaData prototype", ex);
         }
@@ -397,7 +385,7 @@ public class MappingMetaData extends AbstractDiffable<MappingMetaData> {
         }
     }
 
-    public MappingMetaData(String type, CompressedString source, Id id, Routing routing, Timestamp timestamp, boolean hasParentField) {
+    public MappingMetaData(String type, CompressedXContent source, Id id, Routing routing, Timestamp timestamp, boolean hasParentField) {
         this.type = type;
         this.source = source;
         this.id = id;
@@ -422,7 +410,7 @@ public class MappingMetaData extends AbstractDiffable<MappingMetaData> {
         return this.type;
     }
 
-    public CompressedString source() {
+    public CompressedXContent source() {
         return this.source;
     }
 
@@ -434,7 +422,7 @@ public class MappingMetaData extends AbstractDiffable<MappingMetaData> {
      * Converts the serialized compressed form of the mappings into a parsed map.
      */
     public Map<String, Object> sourceAsMap() throws IOException {
-        Map<String, Object> mapping = XContentHelper.convertToMap(source.compressed(), 0, source.compressed().length, true).v2();
+        Map<String, Object> mapping = XContentHelper.convertToMap(source.compressedReference(), true).v2();
         if (mapping.size() == 1 && mapping.containsKey(type())) {
             // the type name is the root value, reduce it
             mapping = (Map<String, Object>) mapping.get(type());
@@ -571,10 +559,7 @@ public class MappingMetaData extends AbstractDiffable<MappingMetaData> {
         out.writeOptionalString(timestamp().path());
         out.writeString(timestamp().format());
         out.writeOptionalString(timestamp().defaultTimestamp());
-        // TODO Remove the test in elasticsearch 2.0.0
-        if (out.getVersion().onOrAfter(Version.V_1_5_0)) {
-            out.writeOptionalBoolean(timestamp().ignoreMissing());
-        }
+        out.writeOptionalBoolean(timestamp().ignoreMissing());
         out.writeBoolean(hasParentField());
     }
 
@@ -606,7 +591,7 @@ public class MappingMetaData extends AbstractDiffable<MappingMetaData> {
 
     public MappingMetaData readFrom(StreamInput in) throws IOException {
         String type = in.readString();
-        CompressedString source = CompressedString.readCompressedString(in);
+        CompressedXContent source = CompressedXContent.readCompressedString(in);
         // id
         Id id = new Id(in.readBoolean() ? in.readString() : null);
         // routing
@@ -619,10 +604,7 @@ public class MappingMetaData extends AbstractDiffable<MappingMetaData> {
         String defaultTimestamp = in.readOptionalString();
         Boolean ignoreMissing = null;
 
-        // TODO Remove the test in elasticsearch 2.0.0
-        if (in.getVersion().onOrAfter(Version.V_1_5_0)) {
-            ignoreMissing = in.readOptionalBoolean();
-        }
+        ignoreMissing = in.readOptionalBoolean();
 
         final Timestamp timestamp = new Timestamp(enabled, path, format, defaultTimestamp, ignoreMissing);
         final boolean hasParentField = in.readBoolean();

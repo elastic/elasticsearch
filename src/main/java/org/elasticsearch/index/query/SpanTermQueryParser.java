@@ -95,7 +95,7 @@ public class SpanTermQueryParser implements QueryParser {
         BytesRef valueBytes = null;
         FieldMapper mapper = parseContext.fieldMapper(fieldName);
         if (mapper != null) {
-            fieldName = mapper.names().indexName();
+            fieldName = mapper.fieldType().names().indexName();
             valueBytes = mapper.indexedValueForSearch(value);
         }
         if (valueBytes == null) {

@@ -20,7 +20,6 @@
 package org.elasticsearch.index.mapper.core;
 
 import com.carrotsearch.hppc.ObjectArrayList;
-
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.DocValuesType;
@@ -36,10 +35,12 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
+import org.elasticsearch.common.compress.NotXContentException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.FieldDataType;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParseContext;
@@ -63,7 +64,7 @@ public class BinaryFieldMapper extends AbstractFieldMapper {
 
 
     public static class Defaults extends AbstractFieldMapper.Defaults {
-        public static final FieldType FIELD_TYPE = new FieldType(AbstractFieldMapper.Defaults.FIELD_TYPE);
+        public static final MappedFieldType FIELD_TYPE = new BinaryFieldType();
 
         static {
             FIELD_TYPE.setIndexOptions(IndexOptions.NONE);
@@ -74,13 +75,15 @@ public class BinaryFieldMapper extends AbstractFieldMapper {
     public static class Builder extends AbstractFieldMapper.Builder<Builder, BinaryFieldMapper> {
 
         public Builder(String name) {
-            super(name, new FieldType(Defaults.FIELD_TYPE));
+            super(name, Defaults.FIELD_TYPE);
             builder = this;
         }
 
         @Override
         public BinaryFieldMapper build(BuilderContext context) {
-            return new BinaryFieldMapper(buildNames(context), fieldType, docValues,
+            setupFieldType(context);
+            ((BinaryFieldType)fieldType).tryUncompressing = context.indexCreatedVersion().before(Version.V_2_0_0);
+            return new BinaryFieldMapper(fieldType, docValues,
                     fieldDataSettings, context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
         }
     }
@@ -102,13 +105,67 @@ public class BinaryFieldMapper extends AbstractFieldMapper {
         }
     }
 
-    protected BinaryFieldMapper(Names names, FieldType fieldType, Boolean docValues,
+    static final class BinaryFieldType extends MappedFieldType {
+        protected boolean tryUncompressing = false;
+
+        public BinaryFieldType() {
+            super(AbstractFieldMapper.Defaults.FIELD_TYPE);
+        }
+
+        protected BinaryFieldType(BinaryFieldType ref) {
+            super(ref);
+            this.tryUncompressing = ref.tryUncompressing;
+        }
+
+        @Override
+        public MappedFieldType clone() {
+            return new BinaryFieldType(this);
+        }
+
+        @Override
+        public BytesReference value(Object value) {
+            if (value == null) {
+                return null;
+            }
+
+            BytesReference bytes;
+            if (value instanceof BytesRef) {
+                bytes = new BytesArray((BytesRef) value);
+            } else if (value instanceof BytesReference) {
+                bytes = (BytesReference) value;
+            } else if (value instanceof byte[]) {
+                bytes = new BytesArray((byte[]) value);
+            } else {
+                try {
+                    bytes = new BytesArray(Base64.decode(value.toString()));
+                } catch (IOException e) {
+                    throw new ElasticsearchParseException("failed to convert bytes", e);
+                }
+            }
+            try {
+                if (tryUncompressing) { // backcompat behavior
+                    return CompressorFactory.uncompressIfNeeded(bytes);
+                } else {
+                    return bytes;
+                }
+            } catch (IOException e) {
+                throw new ElasticsearchParseException("failed to decompress source", e);
+            }
+        }
+
+        @Override
+        public Object valueForSearch(Object value) {
+            return value(value);
+        }
+    }
+
+    protected BinaryFieldMapper(MappedFieldType fieldType, Boolean docValues,
                                 @Nullable Settings fieldDataSettings, Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
-        super(names, 1.0f, fieldType, docValues, null, null, null, null, fieldDataSettings, indexSettings, multiFields, copyTo);
+        super(fieldType, docValues, fieldDataSettings, indexSettings, multiFields, copyTo);
     }
 
     @Override
-    public FieldType defaultFieldType() {
+    public MappedFieldType defaultFieldType() {
         return Defaults.FIELD_TYPE;
     }
 
@@ -118,44 +175,8 @@ public class BinaryFieldMapper extends AbstractFieldMapper {
     }
 
     @Override
-    public Object valueForSearch(Object value) {
-        return value(value);
-    }
-
-    @Override
-    public BytesReference value(Object value) {
-        if (value == null) {
-            return null;
-        }
-
-        BytesReference bytes;
-        if (value instanceof BytesRef) {
-            bytes = new BytesArray((BytesRef) value);
-        } else if (value instanceof BytesReference) {
-            bytes = (BytesReference) value;
-        } else if (value instanceof byte[]) {
-            bytes = new BytesArray((byte[]) value);
-        } else {
-            try {
-                bytes = new BytesArray(Base64.decode(value.toString()));
-            } catch (IOException e) {
-                throw new ElasticsearchParseException("failed to convert bytes", e);
-            }
-        }
-        try {
-            if (indexCreatedBefore2x) {
-                return CompressorFactory.uncompressIfNeeded(bytes);
-            } else {
-                return bytes;
-            }
-        } catch (IOException e) {
-            throw new ElasticsearchParseException("failed to decompress source", e);
-        }
-    }
-
-    @Override
     protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException {
-        if (!fieldType().stored() && !hasDocValues()) {
+        if (!fieldType().stored() && !fieldType().hasDocValues()) {
             return;
         }
         byte[] value = context.parseExternalValue(byte[].class);
@@ -170,14 +191,14 @@ public class BinaryFieldMapper extends AbstractFieldMapper {
             return;
         }
         if (fieldType().stored()) {
-            fields.add(new Field(names.indexName(), value, fieldType));
+            fields.add(new Field(fieldType().names().indexName(), value, fieldType()));
         }
 
-        if (hasDocValues()) {
-            CustomBinaryDocValuesField field = (CustomBinaryDocValuesField) context.doc().getByKey(names().indexName());
+        if (fieldType().hasDocValues()) {
+            CustomBinaryDocValuesField field = (CustomBinaryDocValuesField) context.doc().getByKey(fieldType().names().indexName());
             if (field == null) {
-                field = new CustomBinaryDocValuesField(names().indexName(), value);
-                context.doc().addWithKey(names().indexName(), field);
+                field = new CustomBinaryDocValuesField(fieldType().names().indexName(), value);
+                context.doc().addWithKey(fieldType().names().indexName(), field);
             } else {
                 field.add(value);
             }
@@ -192,17 +213,11 @@ public class BinaryFieldMapper extends AbstractFieldMapper {
 
     public static class CustomBinaryDocValuesField extends NumberFieldMapper.CustomNumericDocValuesField {
 
-        public static final FieldType TYPE = new FieldType();
-        static {
-            TYPE.setDocValuesType(DocValuesType.BINARY);
-            TYPE.freeze();
-        }
-
         private final ObjectArrayList<byte[]> bytesList;
 
         private int totalSize = 0;
 
-        public CustomBinaryDocValuesField(String  name, byte[] bytes) {
+        public CustomBinaryDocValuesField(String name, byte[] bytes) {
             super(name);
             bytesList = new ObjectArrayList<>();
             add(bytes);

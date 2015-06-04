@@ -31,6 +31,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.fielddata.FieldDataType;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MergeMappingException;
@@ -38,6 +39,7 @@ import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.RootMapper;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
+import org.elasticsearch.search.highlight.HighlightBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -65,13 +67,16 @@ public class FieldNamesFieldMapper extends AbstractFieldMapper implements RootMa
         public static final String NAME = FieldNamesFieldMapper.NAME;
         
         public static final EnabledAttributeMapper ENABLED_STATE = EnabledAttributeMapper.UNSET_ENABLED;
-        public static final FieldType FIELD_TYPE = new FieldType(AbstractFieldMapper.Defaults.FIELD_TYPE);
+        public static final MappedFieldType FIELD_TYPE = new FieldNamesFieldType();
 
         static {
             FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
             FIELD_TYPE.setTokenized(false);
             FIELD_TYPE.setStored(false);
             FIELD_TYPE.setOmitNorms(true);
+            FIELD_TYPE.setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
+            FIELD_TYPE.setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
+            FIELD_TYPE.setNames(new MappedFieldType.Names(NAME));
             FIELD_TYPE.freeze();
         }
     }
@@ -80,7 +85,7 @@ public class FieldNamesFieldMapper extends AbstractFieldMapper implements RootMa
         private EnabledAttributeMapper enabledState = Defaults.ENABLED_STATE;
 
         public Builder() {
-            super(Defaults.NAME, new FieldType(Defaults.FIELD_TYPE));
+            super(Defaults.NAME, Defaults.FIELD_TYPE);
             indexName = Defaults.NAME;
         }
 
@@ -98,7 +103,8 @@ public class FieldNamesFieldMapper extends AbstractFieldMapper implements RootMa
 
         @Override
         public FieldNamesFieldMapper build(BuilderContext context) {
-            return new FieldNamesFieldMapper(name, indexName, boost, fieldType, enabledState, fieldDataSettings, context.indexSettings());
+            fieldType.setNames(new MappedFieldType.Names(name, indexName, indexName, name));
+            return new FieldNamesFieldMapper(fieldType, enabledState, fieldDataSettings, context.indexSettings());
         }
     }
 
@@ -127,17 +133,45 @@ public class FieldNamesFieldMapper extends AbstractFieldMapper implements RootMa
         }
     }
 
-    private final FieldType defaultFieldType;
+    static final class FieldNamesFieldType extends MappedFieldType {
+
+        public FieldNamesFieldType() {
+            super(AbstractFieldMapper.Defaults.FIELD_TYPE);
+        }
+
+        protected FieldNamesFieldType(FieldNamesFieldType ref) {
+            super(ref);
+        }
+
+        @Override
+        public MappedFieldType clone() {
+            return new FieldNamesFieldType(this);
+        }
+
+        @Override
+        public String value(Object value) {
+            if (value == null) {
+                return null;
+            }
+            return value.toString();
+        }
+
+        @Override
+        public boolean useTermQueryWithQueryString() {
+            return true;
+        }
+    }
+
+    private final MappedFieldType defaultFieldType;
     private EnabledAttributeMapper enabledState;
     private final boolean pre13Index; // if the index was created before 1.3, _field_names is always disabled
 
     public FieldNamesFieldMapper(Settings indexSettings) {
-        this(Defaults.NAME, Defaults.NAME, Defaults.BOOST, new FieldType(Defaults.FIELD_TYPE), Defaults.ENABLED_STATE, null, indexSettings);
+        this(Defaults.FIELD_TYPE.clone(), Defaults.ENABLED_STATE, null, indexSettings);
     }
 
-    public FieldNamesFieldMapper(String name, String indexName, float boost, FieldType fieldType, EnabledAttributeMapper enabledState, @Nullable Settings fieldDataSettings, Settings indexSettings) {
-        super(new Names(name, indexName, indexName, name), boost, fieldType, false, Lucene.KEYWORD_ANALYZER,
-                Lucene.KEYWORD_ANALYZER, null, null, fieldDataSettings, indexSettings);
+    public FieldNamesFieldMapper(MappedFieldType fieldType, EnabledAttributeMapper enabledState, @Nullable Settings fieldDataSettings, Settings indexSettings) {
+        super(fieldType, false, fieldDataSettings, indexSettings);
         this.defaultFieldType = Defaults.FIELD_TYPE;
         this.pre13Index = Version.indexCreated(indexSettings).before(Version.V_1_3_0);
         this.enabledState = enabledState;
@@ -148,26 +182,13 @@ public class FieldNamesFieldMapper extends AbstractFieldMapper implements RootMa
     }
 
     @Override
-    public FieldType defaultFieldType() {
+    public MappedFieldType defaultFieldType() {
         return defaultFieldType;
     }
 
     @Override
     public FieldDataType defaultFieldDataType() {
         return new FieldDataType("string");
-    }
-
-    @Override
-    public String value(Object value) {
-        if (value == null) {
-            return null;
-        }
-        return value.toString();
-    }
-
-    @Override
-    public boolean useTermQueryWithQueryString() {
-        return true;
     }
 
     @Override
@@ -230,7 +251,7 @@ public class FieldNamesFieldMapper extends AbstractFieldMapper implements RootMa
             for (String path : paths) {
                 for (String fieldName : extractFieldNames(path)) {
                     if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored()) {
-                        document.add(new Field(names().indexName(), fieldName, fieldType));
+                        document.add(new Field(fieldType().names().indexName(), fieldName, fieldType));
                     }
                 }
             }

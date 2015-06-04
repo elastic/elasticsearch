@@ -19,17 +19,17 @@
 
 package org.elasticsearch.action.admin.indices.recovery;
 
-import java.io.IOException;
-
-import org.elasticsearch.action.support.broadcast.BroadcastOperationRequest;
+import org.elasticsearch.action.support.broadcast.BroadcastRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
+import java.io.IOException;
+
 /**
  * Request for recovery information
  */
-public class RecoveryRequest extends BroadcastOperationRequest<RecoveryRequest> {
+public class RecoveryRequest extends BroadcastRequest<RecoveryRequest> {
 
     private boolean detailed = false;       // Provides extra details in the response
     private boolean activeOnly = false;     // Only reports on active recoveries

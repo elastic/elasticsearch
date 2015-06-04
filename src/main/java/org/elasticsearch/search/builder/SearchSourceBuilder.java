@@ -23,6 +23,7 @@ import com.carrotsearch.hppc.ObjectFloatHashMap;
 import com.google.common.base.Charsets;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
+
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.action.support.QuerySourceBuilder;
 import org.elasticsearch.action.support.ToXContentToBytes;
@@ -35,6 +36,8 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.fetch.innerhits.InnerHitsBuilder;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
@@ -47,10 +50,7 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.suggest.SuggestBuilder;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 /**
  * A search source builder allowing to easily build search source. Simple
@@ -188,6 +188,7 @@ public class SearchSourceBuilder extends ToXContentToBytes {
     /**
      * Constructs a new search source builder with a query from a map.
      */
+    @SuppressWarnings("unchecked")
     public SearchSourceBuilder query(Map query) {
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(Requests.CONTENT_TYPE);
@@ -251,6 +252,7 @@ public class SearchSourceBuilder extends ToXContentToBytes {
     /**
      * Constructs a new search source builder with a query from a map.
      */
+    @SuppressWarnings("unchecked")
     public SearchSourceBuilder postFilter(Map postFilter) {
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(Requests.CONTENT_TYPE);
@@ -415,9 +417,6 @@ public class SearchSourceBuilder extends ToXContentToBytes {
 
     /**
      * Set the rescore window size for rescores that don't specify their window.
-     * 
-     * @param defaultRescoreWindowSize
-     * @return
      */
     public SearchSourceBuilder defaultRescoreWindowSize(int defaultRescoreWindowSize) {
         this.defaultRescoreWindowSize = defaultRescoreWindowSize;
@@ -427,6 +426,7 @@ public class SearchSourceBuilder extends ToXContentToBytes {
     /**
      * Sets a raw (xcontent / json) addAggregation.
      */
+    @SuppressWarnings("unchecked")
     public SearchSourceBuilder aggregations(Map aggregations) {
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(Requests.CONTENT_TYPE);
@@ -482,9 +482,6 @@ public class SearchSourceBuilder extends ToXContentToBytes {
     /**
      * Indicates whether the response should contain the stored _source for
      * every hit
-     *
-     * @param fetch
-     * @return
      */
     public SearchSourceBuilder fetchSource(boolean fetch) {
         if (this.fetchSourceContext == null) {
@@ -563,9 +560,7 @@ public class SearchSourceBuilder extends ToXContentToBytes {
         if (fieldNames == null) {
             fieldNames = new ArrayList<>();
         }
-        for (String field : fields) {
-            fieldNames.add(field);
-        }
+        Collections.addAll(fieldNames, fields);
         return this;
     }
 
@@ -602,6 +597,24 @@ public class SearchSourceBuilder extends ToXContentToBytes {
      * @param script
      *            The script
      */
+    public SearchSourceBuilder scriptField(String name, Script script) {
+        if (scriptFields == null) {
+            scriptFields = Lists.newArrayList();
+        }
+        scriptFields.add(new ScriptField(name, script));
+        return this;
+    }
+
+    /**
+     * Adds a script field under the given name with the provided script.
+     *
+     * @param name
+     *            The name of the field
+     * @param script
+     *            The script
+     * @deprecated Use {@link #scriptField(String, Script)} instead.
+     */
+    @Deprecated
     public SearchSourceBuilder scriptField(String name, String script) {
         return scriptField(name, null, script, null);
     }
@@ -615,7 +628,9 @@ public class SearchSourceBuilder extends ToXContentToBytes {
      *            The script to execute
      * @param params
      *            The script parameters
+     * @deprecated Use {@link #scriptField(String, Script)} instead.
      */
+    @Deprecated
     public SearchSourceBuilder scriptField(String name, String script, Map<String, Object> params) {
         return scriptField(name, null, script, params);
     }
@@ -631,13 +646,11 @@ public class SearchSourceBuilder extends ToXContentToBytes {
      *            The script to execute
      * @param params
      *            The script parameters (can be <tt>null</tt>)
+     * @deprecated Use {@link #scriptField(String, Script)} instead.
      */
+    @Deprecated
     public SearchSourceBuilder scriptField(String name, String lang, String script, Map<String, Object> params) {
-        if (scriptFields == null) {
-            scriptFields = Lists.newArrayList();
-        }
-        scriptFields.add(new ScriptField(name, lang, script, params));
-        return this;
+        return scriptField(name, new Script(script, ScriptType.INLINE, lang, params));
     }
 
     /**
@@ -754,13 +767,6 @@ public class SearchSourceBuilder extends ToXContentToBytes {
             for (ScriptField scriptField : scriptFields) {
                 builder.startObject(scriptField.fieldName());
                 builder.field("script", scriptField.script());
-                if (scriptField.lang() != null) {
-                    builder.field("lang", scriptField.lang());
-                }
-                if (scriptField.params() != null) {
-                    builder.field("params");
-                    builder.map(scriptField.params());
-                }
                 builder.endObject();
             }
             builder.endObject();
@@ -777,7 +783,7 @@ public class SearchSourceBuilder extends ToXContentToBytes {
         }
 
         if (trackScores) {
-            builder.field("track_scores", trackScores);
+            builder.field("track_scores", true);
         }
 
         if (indexBoost != null) {
@@ -865,31 +871,19 @@ public class SearchSourceBuilder extends ToXContentToBytes {
 
     private static class ScriptField {
         private final String fieldName;
-        private final String script;
-        private final String lang;
-        private final Map<String, Object> params;
+        private final Script script;
 
-        private ScriptField(String fieldName, String lang, String script, Map<String, Object> params) {
+        private ScriptField(String fieldName, Script script) {
             this.fieldName = fieldName;
-            this.lang = lang;
             this.script = script;
-            this.params = params;
         }
 
         public String fieldName() {
             return fieldName;
         }
 
-        public String script() {
+        public Script script() {
             return script;
-        }
-
-        public String lang() {
-            return this.lang;
-        }
-
-        public Map<String, Object> params() {
-            return params;
         }
     }
 }

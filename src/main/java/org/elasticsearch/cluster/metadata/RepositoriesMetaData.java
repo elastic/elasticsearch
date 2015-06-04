@@ -202,9 +202,7 @@ public class RepositoriesMetaData extends AbstractDiffable<Custom> implements Me
         builder.startObject(repository.name(), XContentBuilder.FieldCaseConversion.NONE);
         builder.field("type", repository.type());
         builder.startObject("settings");
-        for (Map.Entry<String, String> settingEntry : repository.settings().getAsMap().entrySet()) {
-            builder.field(settingEntry.getKey(), settingEntry.getValue());
-        }
+        repository.settings().toXContent(builder, params);
         builder.endObject();
 
         builder.endObject();

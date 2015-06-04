@@ -90,3 +90,9 @@
   - match: { hits.hits.0.fields: { include.field2 : [v2] }}
   - is_true:  hits.hits.0._source
 
+
+  - do:
+      search:
+        fielddata_fields: [ "count" ]
+  - match: { hits.hits.0.fields.count: [1] }
+

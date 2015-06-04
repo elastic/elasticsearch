@@ -30,10 +30,9 @@ import java.io.IOException;
  * @deprecated Used only for backward comp. to read old compressed files, since we now use codec based compression
  */
 @Deprecated
-public abstract class CompressedIndexInput<T extends CompressorContext> extends IndexInput {
+public abstract class CompressedIndexInput extends IndexInput {
 
     private IndexInput in;
-    protected final T context;
 
     private int version;
     private long totalUncompressedLength;
@@ -48,10 +47,9 @@ public abstract class CompressedIndexInput<T extends CompressorContext> extends 
     private int currentOffsetIdx;
     private long currentUncompressedChunkPointer;
 
-    public CompressedIndexInput(IndexInput in, T context) throws IOException {
+    public CompressedIndexInput(IndexInput in) throws IOException {
         super("compressed(" + in.toString() + ")");
         this.in = in;
-        this.context = context;
         readHeader(in);
         this.version = in.readInt();
         long metaDataPosition = in.readLong();

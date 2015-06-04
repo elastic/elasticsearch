@@ -25,7 +25,9 @@ import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.JsonParser;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.FastStringReader;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.*;
+import org.elasticsearch.common.xcontent.support.filtering.FilteringJsonGenerator;
 
 import java.io.*;
 
@@ -63,14 +65,27 @@ public class JsonXContent implements XContent {
         return '\n';
     }
 
+    private XContentGenerator newXContentGenerator(JsonGenerator jsonGenerator) {
+        return new JsonXContentGenerator(new BaseJsonGenerator(jsonGenerator));
+    }
+
     @Override
     public XContentGenerator createGenerator(OutputStream os) throws IOException {
-        return new JsonXContentGenerator(jsonFactory.createGenerator(os, JsonEncoding.UTF8));
+        return newXContentGenerator(jsonFactory.createGenerator(os, JsonEncoding.UTF8));
+    }
+
+    @Override
+    public XContentGenerator createGenerator(OutputStream os, String[] filters) throws IOException {
+        if (CollectionUtils.isEmpty(filters)) {
+            return createGenerator(os);
+        }
+        FilteringJsonGenerator jsonGenerator = new FilteringJsonGenerator(jsonFactory.createGenerator(os, JsonEncoding.UTF8), filters);
+        return new JsonXContentGenerator(jsonGenerator);
     }
 
     @Override
     public XContentGenerator createGenerator(Writer writer) throws IOException {
-        return new JsonXContentGenerator(jsonFactory.createGenerator(writer));
+        return newXContentGenerator(jsonFactory.createGenerator(writer));
     }
 
     @Override

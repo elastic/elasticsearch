@@ -32,19 +32,19 @@ import java.util.Set;
  */
 public class MovAvgModelParserMapper {
 
-    protected ImmutableMap<String, MovAvgModelParser> movAvgParsers;
+    protected ImmutableMap<String, MovAvgModel.AbstractModelParser> movAvgParsers;
 
     @Inject
-    public MovAvgModelParserMapper(Set<MovAvgModelParser> parsers) {
-        MapBuilder<String, MovAvgModelParser> builder = MapBuilder.newMapBuilder();
-        for (MovAvgModelParser parser : parsers) {
+    public MovAvgModelParserMapper(Set<MovAvgModel.AbstractModelParser> parsers) {
+        MapBuilder<String, MovAvgModel.AbstractModelParser> builder = MapBuilder.newMapBuilder();
+        for (MovAvgModel.AbstractModelParser parser : parsers) {
             builder.put(parser.getName(), parser);
         }
         movAvgParsers = builder.immutableMap();
     }
 
     public @Nullable
-    MovAvgModelParser get(String parserName) {
+    MovAvgModel.AbstractModelParser get(String parserName) {
         return movAvgParsers.get(parserName);
     }
 

@@ -32,14 +32,9 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.elasticsearch.index.query.QueryBuilders.andQuery;
-import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.index.query.QueryBuilders.notQuery;
-import static org.elasticsearch.index.query.QueryBuilders.termQuery;
+import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.hamcrest.CoreMatchers.equalTo;
-import static org.hamcrest.CoreMatchers.is;
-import static org.hamcrest.CoreMatchers.notNullValue;
+import static org.hamcrest.CoreMatchers.*;
 import static org.hamcrest.Matchers.lessThan;
 
 /**
@@ -90,7 +85,7 @@ public class HotThreadsTest extends ElasticsearchIntegrationTest {
                     boolean success = false;
                     try {
                         assertThat(nodeHotThreads, notNullValue());
-                        Map<String,NodeHotThreads> nodesMap = nodeHotThreads.getNodesMap();
+                        Map<String, NodeHotThreads> nodesMap = nodeHotThreads.getNodesMap();
                         assertThat(nodesMap.size(), equalTo(cluster().size()));
                         for (NodeHotThreads ht : nodeHotThreads) {
                             assertNotNull(ht.getHotThreads());

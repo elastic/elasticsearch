@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.validate.query;
 
-import org.elasticsearch.action.support.broadcast.BroadcastShardOperationRequest;
+import org.elasticsearch.action.support.broadcast.BroadcastShardRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -32,7 +32,7 @@ import java.io.IOException;
 /**
  * Internal validate request executed directly against a specific index shard.
  */
-class ShardValidateQueryRequest extends BroadcastShardOperationRequest {
+class ShardValidateQueryRequest extends BroadcastShardRequest {
 
     private BytesReference source;
     private String[] types = Strings.EMPTY_ARRAY;

@@ -29,7 +29,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.FieldMapper.Names;
+import org.elasticsearch.index.mapper.MappedFieldType.Names;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.MultiValueMode;
@@ -67,8 +67,8 @@ public class BytesBinaryDVIndexFieldData extends DocValuesIndexFieldData impleme
         public IndexFieldData<?> build(Index index, Settings indexSettings, FieldMapper mapper, IndexFieldDataCache cache,
                                        CircuitBreakerService breakerService, MapperService mapperService) {
             // Ignore breaker
-            final Names fieldNames = mapper.names();
-            return new BytesBinaryDVIndexFieldData(index, fieldNames, mapper.fieldDataType());
+            final Names fieldNames = mapper.fieldType().names();
+            return new BytesBinaryDVIndexFieldData(index, fieldNames, mapper.fieldType().fieldDataType());
         }
 
     }

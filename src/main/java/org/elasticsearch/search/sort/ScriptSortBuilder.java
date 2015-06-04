@@ -19,11 +19,13 @@
 
 package org.elasticsearch.search.sort;
 
-import com.google.common.collect.Maps;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptService.ScriptType;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -31,15 +33,20 @@ import java.util.Map;
  */
 public class ScriptSortBuilder extends SortBuilder {
 
-    private String lang;
+    private Script script;
 
-    private final String script;
+    @Deprecated
+    private String scriptString;
 
     private final String type;
 
-    private SortOrder order;
+    @Deprecated
+    private String lang;
 
+    @Deprecated
     private Map<String, Object> params;
+
+    private SortOrder order;
 
     private String sortMode;
 
@@ -48,25 +55,46 @@ public class ScriptSortBuilder extends SortBuilder {
     private String nestedPath;
 
     /**
+     * Constructs a script sort builder with the given script.
+     *
+     * @param script
+     *            The script to use.
+     */
+    public ScriptSortBuilder(Script script, String type) {
+        this.script = script;
+        this.type = type;
+    }
+
+    /**
      * Constructs a script sort builder with the script and the type.
      *
-     * @param script The script to use.
-     * @param type   The type, can either be "string" or "number".
+     * @param script
+     *            The script to use.
+     * @param type
+     *            The type, can either be "string" or "number".
+     *
+     * @deprecated Use {@link #ScriptSortBuilder(Script, String)} instead.
      */
+    @Deprecated
     public ScriptSortBuilder(String script, String type) {
-        this.script = script;
+        this.scriptString = script;
         this.type = type;
     }
 
     /**
      * Adds a parameter to the script.
      *
-     * @param name  The name of the parameter.
-     * @param value The value of the parameter.
+     * @param name
+     *            The name of the parameter.
+     * @param value
+     *            The value of the parameter.
+     *
+     * @deprecated Use {@link #ScriptSortBuilder(Script, String)} instead.
      */
+    @Deprecated
     public ScriptSortBuilder param(String name, Object value) {
         if (params == null) {
-            params = Maps.newHashMap();
+            params = new HashMap<>();
         }
         params.put(name, value);
         return this;
@@ -75,10 +103,25 @@ public class ScriptSortBuilder extends SortBuilder {
     /**
      * Sets parameters for the script.
      *
-     * @param params The script parameters
+     * @param params
+     *            The script parameters
+     *
+     * @deprecated Use {@link #ScriptSortBuilder(Script, String)} instead.
      */
+    @Deprecated
     public ScriptSortBuilder setParams(Map<String, Object> params) {
         this.params = params;
+        return this;
+    }
+
+    /**
+     * The language of the script.
+     *
+     * @deprecated Use {@link #ScriptSortBuilder(Script, String)} instead.
+     */
+    @Deprecated
+    public ScriptSortBuilder lang(String lang) {
+        this.lang = lang;
         return this;
     }
 
@@ -96,14 +139,6 @@ public class ScriptSortBuilder extends SortBuilder {
      */
     @Override
     public SortBuilder missing(Object missing) {
-        return this;
-    }
-
-    /**
-     * The language of the script.
-     */
-    public ScriptSortBuilder lang(String lang) {
-        this.lang = lang;
         return this;
     }
 
@@ -135,18 +170,17 @@ public class ScriptSortBuilder extends SortBuilder {
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+    public XContentBuilder toXContent(XContentBuilder builder, Params builderParams) throws IOException {
         builder.startObject("_script");
-        builder.field("script", script);
+        if (script == null) {
+
+            builder.field("script", new Script(scriptString, ScriptType.INLINE, lang, params));
+        } else {
+            builder.field("script", script);
+        }
         builder.field("type", type);
         if (order == SortOrder.DESC) {
             builder.field("reverse", true);
-        }
-        if (lang != null) {
-            builder.field("lang", lang);
-        }
-        if (this.params != null) {
-            builder.field("params", this.params);
         }
         if (sortMode != null) {
             builder.field("mode", sortMode);

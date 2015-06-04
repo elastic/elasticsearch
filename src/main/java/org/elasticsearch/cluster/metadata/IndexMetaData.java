@@ -35,7 +35,7 @@ import org.elasticsearch.cluster.routing.Murmur3HashFunction;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.common.compress.CompressedString;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
@@ -49,6 +49,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.warmer.IndexWarmersMetaData;
 
 import java.io.IOException;
+import java.text.ParseException;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Locale;
@@ -159,6 +160,7 @@ public class IndexMetaData implements Diffable<IndexMetaData> {
     public static final String SETTING_BLOCKS_WRITE = "index.blocks.write";
     public static final String SETTING_BLOCKS_METADATA = "index.blocks.metadata";
     public static final String SETTING_VERSION_CREATED = "index.version.created";
+    public static final String SETTING_VERSION_UPGRADED = "index.version.upgraded";
     public static final String SETTING_VERSION_MINIMUM_COMPATIBLE = "index.version.minimum_compatible";
     public static final String SETTING_CREATION_DATE = "index.creation_date";
     public static final String SETTING_UUID = "index.uuid";
@@ -192,7 +194,8 @@ public class IndexMetaData implements Diffable<IndexMetaData> {
     private final DiscoveryNodeFilters excludeFilters;
 
     private final Version indexCreatedVersion;
-    private final Version indexMinimumCompatibleVersion;
+    private final Version indexUpgradedVersion;
+    private final org.apache.lucene.util.Version minimumCompatibleLuceneVersion;
     private final HashFunction routingHashFunction;
     private final boolean useTypeForRouting;
 
@@ -227,7 +230,17 @@ public class IndexMetaData implements Diffable<IndexMetaData> {
             excludeFilters = DiscoveryNodeFilters.buildFromKeyValue(OR, excludeMap);
         }
         indexCreatedVersion = Version.indexCreated(settings);
-        indexMinimumCompatibleVersion = settings.getAsVersion(SETTING_VERSION_MINIMUM_COMPATIBLE, indexCreatedVersion);
+        indexUpgradedVersion = settings.getAsVersion(IndexMetaData.SETTING_VERSION_UPGRADED, indexCreatedVersion);
+        String stringLuceneVersion = settings.get(SETTING_VERSION_MINIMUM_COMPATIBLE);
+        if (stringLuceneVersion != null) {
+            try {
+                this.minimumCompatibleLuceneVersion = org.apache.lucene.util.Version.parse(stringLuceneVersion);
+            } catch (ParseException ex) {
+                throw new IllegalStateException("Cannot parse lucene version [" + stringLuceneVersion + "] in the [" + SETTING_VERSION_MINIMUM_COMPATIBLE +"] setting", ex);
+            }
+        } else {
+            this.minimumCompatibleLuceneVersion = null;
+        }
         final Class<? extends HashFunction> hashFunctionClass = settings.getAsClass(SETTING_LEGACY_ROUTING_HASH_FUNCTION, null);
         if (hashFunctionClass == null) {
             routingHashFunction = MURMUR3_HASH_FUNCTION;
@@ -280,8 +293,6 @@ public class IndexMetaData implements Diffable<IndexMetaData> {
     /**
      * Return the {@link Version} on which this index has been created. This
      * information is typically useful for backward compatibility.
-     *
-     * Returns null if the index was created before 0.19.0.RC1.
      */
     public Version creationVersion() {
         return indexCreatedVersion;
@@ -292,17 +303,22 @@ public class IndexMetaData implements Diffable<IndexMetaData> {
     }
 
     /**
-     * Return the {@link Version} of that created the oldest segment in the index.
-     *
-     * If the index was created before v1.6 and didn't go through upgrade API the creation verion is returned.
-     * Returns null if the index was created before 0.19.0.RC1.
+     * Return the {@link Version} on which this index has been upgraded. This
+     * information is typically useful for backward compatibility.
      */
-    public Version minimumCompatibleVersion() {
-        return indexMinimumCompatibleVersion;
+    public Version upgradeVersion() {
+        return indexUpgradedVersion;
     }
 
-    public Version getMinimumCompatibleVersion() {
-        return minimumCompatibleVersion();
+    public Version getUpgradeVersion() {
+        return upgradeVersion();
+    }
+
+    /**
+     * Return the {@link org.apache.lucene.util.Version} of the oldest lucene segment in the index
+     */
+    public org.apache.lucene.util.Version getMinimumCompatibleVersion() {
+        return minimumCompatibleLuceneVersion;
     }
 
     /**
@@ -858,7 +874,7 @@ public class IndexMetaData implements Diffable<IndexMetaData> {
                     if ("mappings".equals(currentFieldName)) {
                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                             if (token == XContentParser.Token.VALUE_EMBEDDED_OBJECT) {
-                                builder.putMapping(new MappingMetaData(new CompressedString(parser.binaryValue())));
+                                builder.putMapping(new MappingMetaData(new CompressedXContent(parser.binaryValue())));
                             } else {
                                 Map<String, Object> mapping = parser.mapOrdered();
                                 if (mapping.size() == 1) {

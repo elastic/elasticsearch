@@ -25,6 +25,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.pipeline.movavg.MovAvgParser;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -83,7 +84,7 @@ public class EwmaModel extends MovAvgModel {
         out.writeDouble(alpha);
     }
 
-    public static class SingleExpModelParser implements MovAvgModelParser {
+    public static class SingleExpModelParser extends AbstractModelParser {
 
         @Override
         public String getName() {
@@ -91,15 +92,13 @@ public class EwmaModel extends MovAvgModel {
         }
 
         @Override
-        public MovAvgModel parse(@Nullable Map<String, Object> settings) {
+        public MovAvgModel parse(@Nullable Map<String, Object> settings, String pipelineName,  SearchContext context, int windowSize) {
 
-            Double alpha;
-            if (settings == null || (alpha = (Double)settings.get("alpha")) == null) {
-                alpha = 0.5;
-            }
+            double alpha = parseDoubleParam(context, settings, "alpha", 0.5);
 
             return new EwmaModel(alpha);
         }
+
     }
 
     public static class EWMAModelBuilder implements MovAvgModelBuilder {

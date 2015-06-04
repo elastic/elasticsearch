@@ -23,7 +23,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.support.master.TransportMasterNodeReadOperationAction;
+import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -45,6 +45,7 @@ import org.elasticsearch.discovery.DiscoveryService;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeBuilder;
+import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.elasticsearch.rest.RestStatus;
 
 import java.util.EnumSet;
@@ -99,7 +100,7 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
         if (sb.get("cluster.name") == null) {
             sb.put("cluster.name", "tribe_" + Strings.randomBase64UUID()); // make sure it won't join other tribe nodes in the same JVM
         }
-        sb.put(TransportMasterNodeReadOperationAction.FORCE_LOCAL_SETTING, true);
+        sb.put(TransportMasterNodeReadAction.FORCE_LOCAL_SETTING, true);
         return sb.build();
     }
 
@@ -128,7 +129,7 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
             sb.put("node.name", settings.get("name") + "/" + entry.getKey());
             sb.put("path.home", settings.get("path.home")); // pass through ES home dir
             sb.put(TRIBE_NAME, entry.getKey());
-            sb.put("config.ignore_system_properties", true);
+            sb.put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING, true);
             if (sb.get("http.enabled") == null) {
                 sb.put("http.enabled", false);
             }

@@ -20,6 +20,7 @@
 package org.elasticsearch.benchmark.search.aggregations;
 
 import com.google.common.collect.Lists;
+
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
@@ -38,11 +39,15 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.IndexAlreadyExistsException;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.concurrent.ThreadLocalRandom;
 
 import static org.elasticsearch.client.Requests.createIndexRequest;
@@ -207,9 +212,13 @@ public class TimeDataHistogramAggregationBenchmark {
     }
 
     private static SearchResponse doTermsAggsSearch(String name, String field, float matchPercentage) {
+        Map<String, Object> params = new HashMap<>();
+        params.put("matchP", matchPercentage);
         SearchResponse response = client.prepareSearch()
                 .setSize(0)
-                .setQuery(QueryBuilders.constantScoreQuery(QueryBuilders.scriptQuery("random()<matchP").addParam("matchP", matchPercentage)))
+                .setQuery(
+                        QueryBuilders.constantScoreQuery(QueryBuilders.scriptQuery(new Script("random()<matchP", ScriptType.INLINE, null,
+                                params))))
                 .addAggregation(AggregationBuilders.histogram(name).field(field).interval(3600 * 1000)).get();
 
         if (response.getHits().totalHits() < COUNT * matchPercentage * 0.7) {

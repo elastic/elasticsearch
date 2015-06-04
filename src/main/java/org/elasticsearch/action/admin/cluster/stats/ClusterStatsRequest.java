@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.admin.cluster.stats;
 
-import org.elasticsearch.action.support.nodes.NodesOperationRequest;
+import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -28,7 +28,7 @@ import java.io.IOException;
 /**
  * A request to get cluster level stats.
  */
-public class ClusterStatsRequest extends NodesOperationRequest<ClusterStatsRequest> {
+public class ClusterStatsRequest extends BaseNodesRequest<ClusterStatsRequest> {
 
     ClusterStatsRequest() {
     }

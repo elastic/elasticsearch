@@ -60,6 +60,16 @@ public class InputStreamStreamInput extends StreamInput {
     }
 
     @Override
+    public boolean markSupported() {
+        return is.markSupported();
+    }
+
+    @Override
+    public void mark(int readlimit) {
+        is.mark(readlimit);
+    }
+
+    @Override
     public void close() throws IOException {
         is.close();
     }

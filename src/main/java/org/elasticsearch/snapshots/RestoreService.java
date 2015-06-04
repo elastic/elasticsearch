@@ -106,6 +106,8 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
             .addAll(UNMODIFIABLE_SETTINGS)
             .add(SETTING_NUMBER_OF_REPLICAS)
             .add(SETTING_AUTO_EXPAND_REPLICAS)
+            .add(SETTING_VERSION_UPGRADED)
+            .add(SETTING_VERSION_MINIMUM_COMPATIBLE)
             .build();
 
     private final ClusterService clusterService;

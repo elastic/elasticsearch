@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.common;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -35,9 +34,6 @@ public final class Priority implements Comparable<Priority> {
 
     public static void writeTo(Priority priority, StreamOutput output) throws IOException {
         byte b = priority.value;
-        if (output.getVersion().before(Version.V_1_1_0)) {
-            b = (byte) Math.max(URGENT.value, b);
-        }
         output.writeByte(b);
     }
 

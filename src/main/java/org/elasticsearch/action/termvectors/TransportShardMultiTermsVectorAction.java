@@ -23,7 +23,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportActions;
-import org.elasticsearch.action.support.single.shard.TransportShardSingleOperationAction;
+import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.ShardIterator;
@@ -36,7 +36,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-public class TransportShardMultiTermsVectorAction extends TransportShardSingleOperationAction<MultiTermVectorsShardRequest, MultiTermVectorsShardResponse> {
+public class TransportShardMultiTermsVectorAction extends TransportSingleShardAction<MultiTermVectorsShardRequest, MultiTermVectorsShardResponse> {
 
     private final IndicesService indicesService;
 

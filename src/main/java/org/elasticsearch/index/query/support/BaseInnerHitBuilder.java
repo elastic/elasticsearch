@@ -23,6 +23,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.highlight.HighlightBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
@@ -148,33 +149,60 @@ public abstract class BaseInnerHitBuilder<T extends BaseInnerHitBuilder> impleme
      * @param name   The name that will represent this value in the return hit
      * @param script The script to use
      */
+    public T addScriptField(String name, Script script) {
+        sourceBuilder().scriptField(name, script);
+        return (T) this;
+    }
+
+    /**
+     * Adds a script based field to load and return. The field does not have to
+     * be stored, but its recommended to use non analyzed or numeric fields.
+     *
+     * @param name
+     *            The name that will represent this value in the return hit
+     * @param script
+     *            The script to use
+     * @deprecated Use {@link #addScriptField(String, Script)} instead.
+     */
+    @Deprecated
     public T addScriptField(String name, String script) {
         sourceBuilder().scriptField(name, script);
         return (T) this;
     }
 
     /**
-     * Adds a script based field to load and return. The field does not have to be stored,
-     * but its recommended to use non analyzed or numeric fields.
+     * Adds a script based field to load and return. The field does not have to
+     * be stored, but its recommended to use non analyzed or numeric fields.
      *
-     * @param name   The name that will represent this value in the return hit
-     * @param script The script to use
-     * @param params Parameters that the script can use.
+     * @param name
+     *            The name that will represent this value in the return hit
+     * @param script
+     *            The script to use
+     * @param params
+     *            Parameters that the script can use.
+     * @deprecated Use {@link #addScriptField(String, Script)} instead.
      */
+    @Deprecated
     public T addScriptField(String name, String script, Map<String, Object> params) {
         sourceBuilder().scriptField(name, script, params);
         return (T) this;
     }
 
     /**
-     * Adds a script based field to load and return. The field does not have to be stored,
-     * but its recommended to use non analyzed or numeric fields.
+     * Adds a script based field to load and return. The field does not have to
+     * be stored, but its recommended to use non analyzed or numeric fields.
      *
-     * @param name   The name that will represent this value in the return hit
-     * @param lang   The language of the script
-     * @param script The script to use
-     * @param params Parameters that the script can use (can be <tt>null</tt>).
+     * @param name
+     *            The name that will represent this value in the return hit
+     * @param lang
+     *            The language of the script
+     * @param script
+     *            The script to use
+     * @param params
+     *            Parameters that the script can use (can be <tt>null</tt>).
+     * @deprecated Use {@link #addScriptField(String, Script)} instead.
      */
+    @Deprecated
     public T addScriptField(String name, String lang, String script, Map<String, Object> params) {
         sourceBuilder().scriptField(name, lang, script, params);
         return (T) this;

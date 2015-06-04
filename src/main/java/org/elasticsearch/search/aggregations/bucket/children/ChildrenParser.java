@@ -80,7 +80,7 @@ public class ChildrenParser implements Aggregator.Parser {
         if (childDocMapper != null) {
             ParentFieldMapper parentFieldMapper = childDocMapper.parentFieldMapper();
             if (!parentFieldMapper.active()) {
-                throw new SearchParseException(context, "[children] _parent field not configured", parser.getTokenLocation());
+                throw new SearchParseException(context, "[children] no [_parent] field not configured that points to a parent type", parser.getTokenLocation());
             }
             parentType = parentFieldMapper.type();
             DocumentMapper parentDocMapper = context.mapperService().documentMapper(parentType);
@@ -89,7 +89,7 @@ public class ChildrenParser implements Aggregator.Parser {
                 parentFilter = new QueryWrapperFilter(parentDocMapper.typeFilter());
                 childFilter = new QueryWrapperFilter(childDocMapper.typeFilter());
                 ParentChildIndexFieldData parentChildIndexFieldData = context.fieldData().getForField(parentFieldMapper);
-                config.fieldContext(new FieldContext(parentFieldMapper.names().indexName(), parentChildIndexFieldData, parentFieldMapper));
+                config.fieldContext(new FieldContext(parentFieldMapper.fieldType().names().indexName(), parentChildIndexFieldData, parentFieldMapper));
             } else {
                 config.unmapped(true);
             }

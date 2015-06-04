@@ -1,5 +1,5 @@
 [[query-dsl-type-query]]
-== Type Query
+=== Type Query
 
 Filters documents matching the provided document / mapping type.
 

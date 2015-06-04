@@ -142,20 +142,20 @@ public class DiskThresholdDecider extends AllocationDecider {
         private void warnAboutDiskIfNeeded(DiskUsage usage) {
             // Check absolute disk values
             if (usage.getFreeBytes() < DiskThresholdDecider.this.freeBytesThresholdHigh.bytes()) {
-                logger.warn("high disk watermark [{} free] exceeded on {}, shards will be relocated away from this node",
+                logger.warn("high disk watermark [{}] exceeded on {}, shards will be relocated away from this node",
                         DiskThresholdDecider.this.freeBytesThresholdHigh, usage);
             } else if (usage.getFreeBytes() < DiskThresholdDecider.this.freeBytesThresholdLow.bytes()) {
-                logger.info("low disk watermark [{} free] exceeded on {}, replicas will not be assigned to this node",
+                logger.info("low disk watermark [{}] exceeded on {}, replicas will not be assigned to this node",
                         DiskThresholdDecider.this.freeBytesThresholdLow, usage);
             }
 
             // Check percentage disk values
             if (usage.getFreeDiskAsPercentage() < DiskThresholdDecider.this.freeDiskThresholdHigh) {
-                logger.warn("high disk watermark [{} free] exceeded on {}, shards will be relocated away from this node",
-                        Strings.format1Decimals(DiskThresholdDecider.this.freeDiskThresholdHigh, "%"), usage);
+                logger.warn("high disk watermark [{}] exceeded on {}, shards will be relocated away from this node",
+                        Strings.format1Decimals(100.0 - DiskThresholdDecider.this.freeDiskThresholdHigh, "%"), usage);
             } else if (usage.getFreeDiskAsPercentage() < DiskThresholdDecider.this.freeDiskThresholdLow) {
-                logger.info("low disk watermark [{} free] exceeded on {}, replicas will not be assigned to this node",
-                        Strings.format1Decimals(DiskThresholdDecider.this.freeDiskThresholdLow, "%"), usage);
+                logger.info("low disk watermark [{}] exceeded on {}, replicas will not be assigned to this node",
+                        Strings.format1Decimals(100.0 - DiskThresholdDecider.this.freeDiskThresholdLow, "%"), usage);
             }
         }
 
@@ -235,6 +235,16 @@ public class DiskThresholdDecider extends AllocationDecider {
     }
 
     // For Testing
+    public Double getUsedDiskThresholdLow() {
+        return 100.0 - freeDiskThresholdLow;
+    }
+
+    // For Testing
+    public Double getUsedDiskThresholdHigh() {
+        return 100.0 - freeDiskThresholdHigh;
+    }
+
+    // For Testing
     public ByteSizeValue getFreeBytesThresholdLow() {
         return freeBytesThresholdLow;
     }
@@ -285,6 +295,8 @@ public class DiskThresholdDecider extends AllocationDecider {
 
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+        double usedDiskThresholdLow = 100.0 - DiskThresholdDecider.this.freeDiskThresholdLow;
+        double usedDiskThresholdHigh = 100.0 - DiskThresholdDecider.this.freeDiskThresholdHigh;
 
         // Always allow allocation if the decider is disabled
         if (!enabled) {
@@ -342,9 +354,11 @@ public class DiskThresholdDecider extends AllocationDecider {
 
         // First, check that the node currently over the low watermark
         double freeDiskPercentage = usage.getFreeDiskAsPercentage();
+        // Cache the used disk percentage for displaying disk percentages consistent with documentation
+        double usedDiskPercentage = usage.getUsedDiskAsPercentage();
         long freeBytes = usage.getFreeBytes();
         if (logger.isTraceEnabled()) {
-            logger.trace("Node [{}] has {}% free disk", node.nodeId(), freeDiskPercentage);
+            logger.trace("Node [{}] has {}% used disk", node.nodeId(), usedDiskPercentage);
         }
 
         // a flag for whether the primary shard has been previously allocated
@@ -387,20 +401,20 @@ public class DiskThresholdDecider extends AllocationDecider {
             // If the shard is a replica or has a primary that has already been allocated before, check the low threshold
             if (!shardRouting.primary() || (shardRouting.primary() && primaryHasBeenAllocated)) {
                 if (logger.isDebugEnabled()) {
-                    logger.debug("Less than the required {} free disk threshold ({} free) on node [{}], preventing allocation",
-                            Strings.format1Decimals(freeDiskThresholdLow, "%"),
-                            Strings.format1Decimals(freeDiskPercentage, "%"), node.nodeId());
+                    logger.debug("More than the allowed {} used disk threshold ({} used) on node [{}], preventing allocation",
+                            Strings.format1Decimals(usedDiskThresholdLow, "%"),
+                            Strings.format1Decimals(usedDiskPercentage, "%"), node.nodeId());
                 }
-                return allocation.decision(Decision.NO, NAME, "less than required [%s%%] free disk on node, free: [%s%%]",
-                        freeDiskThresholdLow, freeDiskPercentage);
+                return allocation.decision(Decision.NO, NAME, "more than allowed [%s%%] used disk on node, free: [%s%%]",
+                        usedDiskThresholdLow, freeDiskPercentage);
             } else if (freeDiskPercentage > freeDiskThresholdHigh) {
                 // Allow the shard to be allocated because it is primary that
                 // has never been allocated if it's under the high watermark
                 if (logger.isDebugEnabled()) {
-                    logger.debug("Less than the required {} free disk threshold ({} free) on node [{}], " +
+                    logger.debug("More than the allowed {} used disk threshold ({} used) on node [{}], " +
                                     "but allowing allocation because primary has never been allocated",
-                            Strings.format1Decimals(freeDiskThresholdLow, "%"),
-                            Strings.format1Decimals(freeDiskPercentage, "%"), node.nodeId());
+                            Strings.format1Decimals(usedDiskThresholdLow, "%"),
+                            Strings.format1Decimals(usedDiskPercentage, "%"), node.nodeId());
                 }
                 return allocation.decision(Decision.YES, NAME, "primary has never been allocated before");
             } else {
@@ -412,8 +426,8 @@ public class DiskThresholdDecider extends AllocationDecider {
                             Strings.format1Decimals(freeDiskThresholdHigh, "%"),
                             Strings.format1Decimals(freeDiskPercentage, "%"), node.nodeId());
                 }
-                return allocation.decision(Decision.NO, NAME, "less than required [%s%%] free disk on node, free: [%s%%]",
-                        freeDiskThresholdLow, freeDiskPercentage);
+                return allocation.decision(Decision.NO, NAME, "more than allowed [%s%%] used disk on node, free: [%s%%]",
+                        usedDiskThresholdHigh, freeDiskPercentage);
             }
         }
 
@@ -429,10 +443,10 @@ public class DiskThresholdDecider extends AllocationDecider {
                     freeBytesThresholdLow, new ByteSizeValue(freeBytesAfterShard));
         }
         if (freeSpaceAfterShard < freeDiskThresholdHigh) {
-            logger.warn("After allocating, node [{}] would have less than the required {} free disk threshold ({} free), preventing allocation",
+            logger.warn("After allocating, node [{}] would have more than the allowed {} free disk threshold ({} free), preventing allocation",
                     node.nodeId(), Strings.format1Decimals(freeDiskThresholdHigh, "%"), Strings.format1Decimals(freeSpaceAfterShard, "%"));
-            return allocation.decision(Decision.NO, NAME, "after allocation less than required [%s%%] free disk on node, free: [%s%%]",
-                    freeDiskThresholdLow, freeSpaceAfterShard);
+            return allocation.decision(Decision.NO, NAME, "after allocation more than allowed [%s%%] used disk on node, free: [%s%%]",
+                    usedDiskThresholdLow, freeSpaceAfterShard);
         }
 
         return allocation.decision(Decision.YES, NAME, "enough disk for shard on node, free: [%s]", new ByteSizeValue(freeBytes));

@@ -105,7 +105,8 @@ rm -rf target
 # echo "## create git $GIT_BRANCH work branch"
 
 # It first clean the existing branch if any
-git branch -D $GIT_BRANCH > /dev/null
+echo "(You can safely ignore branch not found below)"
+git branch -D $GIT_BRANCH > /dev/null || :
 
 # Create the new branch
 git branch $GIT_BRANCH > /dev/null

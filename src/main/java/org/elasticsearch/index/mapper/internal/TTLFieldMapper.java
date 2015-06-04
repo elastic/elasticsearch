@@ -207,7 +207,7 @@ public class TTLFieldMapper extends LongFieldMapper implements RootMapper {
         if (context.sourceToParse().ttl() < 0) { // no ttl has been provided externally
             long ttl;
             if (context.parser().currentToken() == XContentParser.Token.VALUE_STRING) {
-                ttl = TimeValue.parseTimeValue(context.parser().text(), null).millis();
+                ttl = TimeValue.parseTimeValue(context.parser().text(), null, "ttl").millis();
             } else {
                 ttl = context.parser().longValue(coerce.value());
             }

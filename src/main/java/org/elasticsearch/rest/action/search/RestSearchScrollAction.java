@@ -63,7 +63,7 @@ public class RestSearchScrollAction extends BaseRestHandler {
         searchScrollRequest.scrollId(scrollId);
         String scroll = request.param("scroll");
         if (scroll != null) {
-            searchScrollRequest.scroll(new Scroll(parseTimeValue(scroll, null)));
+            searchScrollRequest.scroll(new Scroll(parseTimeValue(scroll, null, "scroll")));
         }
 
         if (RestActions.hasBodyContent(request)) {
@@ -94,7 +94,7 @@ public class RestSearchScrollAction extends BaseRestHandler {
                     } else if ("scroll_id".equals(currentFieldName) && token == XContentParser.Token.VALUE_STRING) {
                         searchScrollRequest.scrollId(parser.text());
                     } else if ("scroll".equals(currentFieldName) && token == XContentParser.Token.VALUE_STRING) {
-                        searchScrollRequest.scroll(new Scroll(TimeValue.parseTimeValue(parser.text(), null)));
+                        searchScrollRequest.scroll(new Scroll(TimeValue.parseTimeValue(parser.text(), null, "scroll")));
                     } else {
                         throw new IllegalArgumentException("Unknown parameter [" + currentFieldName + "] in request body or parameter is of the wrong type[" + token + "] ");
                     }

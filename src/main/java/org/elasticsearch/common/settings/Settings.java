@@ -56,12 +56,25 @@ import static org.elasticsearch.common.unit.SizeValue.parseSizeValue;
 import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
 
 /**
- * An immutable {@code Settings} implementation.
+ * An immutable settings implementation.
  */
 public final class Settings implements ToXContent {
 
     public static final Settings EMPTY = new Builder().build();
-    private final static Pattern ARRAY_PATTERN = Pattern.compile("(.*)\\.\\d+$");
+    private static final Pattern ARRAY_PATTERN = Pattern.compile("(.*)\\.\\d+$");
+
+    /** Name of the setting to use to disable required units for byte size, time settings. */
+    public static final String SETTINGS_REQUIRE_UNITS = "settings_require_units";
+
+    private static boolean settingsRequireUnits = true;
+
+    public static void setSettingsRequireUnits(boolean v) {
+        settingsRequireUnits = v;
+    }
+
+    public static boolean getSettingsRequireUnits() {
+        return settingsRequireUnits;
+    }
 
     private ImmutableMap<String, String> settings;
     private final ImmutableMap<String, String> forcedUnderscoreSettings;
@@ -417,7 +430,7 @@ public final class Settings implements ToXContent {
      * returns the default value provided.
      */
     public TimeValue getAsTime(String setting, TimeValue defaultValue) {
-        return parseTimeValue(get(setting), defaultValue);
+        return parseTimeValue(get(setting), defaultValue, setting);
     }
 
     /**
@@ -425,7 +438,14 @@ public final class Settings implements ToXContent {
      * returns the default value provided.
      */
     public TimeValue getAsTime(String[] settings, TimeValue defaultValue) {
-        return parseTimeValue(get(settings), defaultValue);
+         // NOTE: duplicated from get(String[]) so we can pass which setting name was actually used to parseTimeValue:
+         for (String setting : settings) {
+             String retVal = get(setting);
+             if (retVal != null) {
+                 parseTimeValue(get(settings), defaultValue, setting);
+             }
+         }
+         return defaultValue;
     }
 
     /**
@@ -433,7 +453,7 @@ public final class Settings implements ToXContent {
      * returns the default value provided.
      */
     public ByteSizeValue getAsBytesSize(String setting, ByteSizeValue defaultValue) throws SettingsException {
-        return parseBytesSizeValue(get(setting), defaultValue);
+        return parseBytesSizeValue(get(setting), defaultValue, setting);
     }
 
     /**
@@ -441,7 +461,14 @@ public final class Settings implements ToXContent {
      * returns the default value provided.
      */
     public ByteSizeValue getAsBytesSize(String[] settings, ByteSizeValue defaultValue) throws SettingsException {
-        return parseBytesSizeValue(get(settings), defaultValue);
+        // NOTE: duplicated from get(String[]) so we can pass which setting name was actually used to parseBytesSizeValue
+        for (String setting : settings) {
+            String retVal = get(setting);
+            if (retVal != null) {
+                parseBytesSizeValue(get(settings), defaultValue, setting);
+            }
+        }
+        return defaultValue;
     }
 
     /**
@@ -450,7 +477,7 @@ public final class Settings implements ToXContent {
      * (eg. 12%). If it does not exists, parses the default value provided.
      */
     public ByteSizeValue getAsMemory(String setting, String defaultValue) throws SettingsException {
-        return MemorySizeValue.parseBytesSizeValueOrHeapRatio(get(setting, defaultValue));
+        return MemorySizeValue.parseBytesSizeValueOrHeapRatio(get(setting, defaultValue), setting);
     }
 
     /**
@@ -459,7 +486,14 @@ public final class Settings implements ToXContent {
      * (eg. 12%). If it does not exists, parses the default value provided.
      */
     public ByteSizeValue getAsMemory(String[] settings, String defaultValue) throws SettingsException {
-        return MemorySizeValue.parseBytesSizeValueOrHeapRatio(get(settings, defaultValue));
+        // NOTE: duplicated from get(String[]) so we can pass which setting name was actually used to parseBytesSizeValueOrHeapRatio
+        for (String setting : settings) {
+            String retVal = get(setting);
+            if (retVal != null) {
+                return MemorySizeValue.parseBytesSizeValueOrHeapRatio(retVal, setting);
+            }
+        }
+        return MemorySizeValue.parseBytesSizeValueOrHeapRatio(defaultValue, settings[0]);
     }
 
     /**
@@ -953,7 +987,7 @@ public final class Settings implements ToXContent {
          * @return The builder
          */
         public Builder put(String setting, long value, TimeUnit timeUnit) {
-            put(setting, timeUnit.toMillis(value));
+            put(setting, timeUnit.toMillis(value) + "ms");
             return this;
         }
 
@@ -965,7 +999,7 @@ public final class Settings implements ToXContent {
          * @return The builder
          */
         public Builder put(String setting, long value, ByteSizeUnit sizeUnit) {
-            put(setting, sizeUnit.toBytes(value));
+            put(setting, sizeUnit.toBytes(value) + "b");
             return this;
         }
 

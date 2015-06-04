@@ -20,10 +20,12 @@
 package org.elasticsearch.common.unit;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.cluster.metadata.MetaDataIndexUpgradeService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.settings.Settings;
 import org.joda.time.Period;
 import org.joda.time.PeriodType;
 import org.joda.time.format.PeriodFormat;
@@ -31,11 +33,10 @@ import org.joda.time.format.PeriodFormatter;
 
 import java.io.IOException;
 import java.io.Serializable;
+import java.util.Locale;
+import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
-/**
- *
- */
 public class TimeValue implements Serializable, Streamable {
 
     /** How many nano-seconds in one milli-second */
@@ -228,28 +229,41 @@ public class TimeValue implements Serializable, Streamable {
         return Strings.format1Decimals(value, suffix);
     }
 
-    public static TimeValue parseTimeValue(String sValue, TimeValue defaultValue) {
+    public static TimeValue parseTimeValue(String sValue, TimeValue defaultValue, String settingName) {
+        settingName = Objects.requireNonNull(settingName);
+        assert settingName.startsWith("index.") == false || MetaDataIndexUpgradeService.INDEX_TIME_SETTINGS.contains(settingName);
         if (sValue == null) {
             return defaultValue;
         }
         try {
             long millis;
-            if (sValue.endsWith("S")) {
-                millis = Long.parseLong(sValue.substring(0, sValue.length() - 1));
-            } else if (sValue.endsWith("ms")) {
-                millis = (long) (Double.parseDouble(sValue.substring(0, sValue.length() - 2)));
-            } else if (sValue.endsWith("s")) {
-                millis = (long) (Double.parseDouble(sValue.substring(0, sValue.length() - 1)) * 1000);
-            } else if (sValue.endsWith("m")) {
-                millis = (long) (Double.parseDouble(sValue.substring(0, sValue.length() - 1)) * 60 * 1000);
-            } else if (sValue.endsWith("H") || sValue.endsWith("h")) {
-                millis = (long) (Double.parseDouble(sValue.substring(0, sValue.length() - 1)) * 60 * 60 * 1000);
-            } else if (sValue.endsWith("d")) {
-                millis = (long) (Double.parseDouble(sValue.substring(0, sValue.length() - 1)) * 24 * 60 * 60 * 1000);
-            } else if (sValue.endsWith("w")) {
-                millis = (long) (Double.parseDouble(sValue.substring(0, sValue.length() - 1)) * 7 * 24 * 60 * 60 * 1000);
+            String lowerSValue = sValue.toLowerCase(Locale.ROOT).trim();
+            if (lowerSValue.endsWith("ms")) {
+                millis = (long) (Double.parseDouble(lowerSValue.substring(0, lowerSValue.length() - 2)));
+            } else if (lowerSValue.endsWith("s")) {
+                millis = (long) Double.parseDouble(lowerSValue.substring(0, lowerSValue.length() - 1)) * 1000;
+            } else if (lowerSValue.endsWith("m")) {
+                millis = (long) (Double.parseDouble(lowerSValue.substring(0, lowerSValue.length() - 1)) * 60 * 1000);
+            } else if (lowerSValue.endsWith("h")) {
+                millis = (long) (Double.parseDouble(lowerSValue.substring(0, lowerSValue.length() - 1)) * 60 * 60 * 1000);
+            } else if (lowerSValue.endsWith("d")) {
+                millis = (long) (Double.parseDouble(lowerSValue.substring(0, lowerSValue.length() - 1)) * 24 * 60 * 60 * 1000);
+            } else if (lowerSValue.endsWith("w")) {
+                millis = (long) (Double.parseDouble(lowerSValue.substring(0, lowerSValue.length() - 1)) * 7 * 24 * 60 * 60 * 1000);
+            } else if (lowerSValue.equals("-1")) {
+                // Allow this special value to be unit-less:
+                millis = -1;
+            } else if (lowerSValue.equals("0")) {
+                // Allow this special value to be unit-less:
+                millis = 0;
             } else {
-                millis = Long.parseLong(sValue);
+                if (Settings.getSettingsRequireUnits()) {
+                    // Missing units:
+                    throw new ElasticsearchParseException("Failed to parse setting [" + settingName + "] with value [" + sValue + "] as a time value: unit is missing or unrecognized");
+                } else {
+                    // Leniency default to msec for bwc:
+                    millis = Long.parseLong(sValue);
+                }
             }
             return new TimeValue(millis, TimeUnit.MILLISECONDS);
         } catch (NumberFormatException e) {

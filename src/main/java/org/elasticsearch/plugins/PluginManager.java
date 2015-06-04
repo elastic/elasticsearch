@@ -409,7 +409,7 @@ public class PluginManager {
                     case "timeout":
                     case "-timeout":
                         String timeoutValue = getCommandValue(args, ++c, "--timeout");
-                        timeout = TimeValue.parseTimeValue(timeoutValue, DEFAULT_TIMEOUT);
+                        timeout = TimeValue.parseTimeValue(timeoutValue, DEFAULT_TIMEOUT, command);
                         break;
                     case "-l":
                     case "--list":

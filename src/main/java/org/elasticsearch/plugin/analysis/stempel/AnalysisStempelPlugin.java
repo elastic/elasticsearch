@@ -19,14 +19,13 @@
 
 package org.elasticsearch.plugin.analysis.stempel;
 
-import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.index.analysis.AnalysisModule;
 import org.elasticsearch.index.analysis.pl.PolishAnalysisBinderProcessor;
 import org.elasticsearch.indices.analysis.pl.PolishIndicesAnalysisModule;
 import org.elasticsearch.plugins.AbstractPlugin;
 
-import java.util.Collection;
+import java.util.*;
 
 /**
  *
@@ -45,7 +44,9 @@ public class AnalysisStempelPlugin extends AbstractPlugin {
 
     @Override
     public Collection<Class<? extends Module>> modules() {
-        return ImmutableList.<Class<? extends Module>>of(PolishIndicesAnalysisModule.class);
+        Collection<Class<? extends Module>> classes = new ArrayList<>();
+        classes.add(PolishIndicesAnalysisModule.class);
+        return classes;
     }
 
     public void onModule(AnalysisModule module) {

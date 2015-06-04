@@ -26,6 +26,7 @@ import org.apache.lucene.index.TermsEnum;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -190,6 +191,18 @@ public class MultiTermVectorsTests extends AbstractTermVectorsTests {
         assertThat(response.getResponses()[2].getFailure(), nullValue());
         assertThat(response.getResponses()[2].getResponse().isExists(), equalTo(true));
         checkTermTexts(response.getResponses()[2].getResponse().getFields().terms("field"), new String[]{"value2"});
+    }
+
+    @Test
+    public void testFilteredAlias() {
+        assertAcked(prepareCreate("test").addMapping("test", "field", "type=string"));
+        assertAcked(client().admin().indices().prepareAliases().addAlias("test", "alias").addAlias("test", "filtered-alias", QueryBuilders.termQuery("field", "value")));
+        client().prepareIndex("test", "test", "1").setSource("field", "value").get();
+        client().prepareIndex("test", "test", "2").setSource("field", "non_matching").get();
+
+        MultiTermVectorsItemResponse[] responses = client().prepareMultiTermVectors().add("alias", "test", "1").add("filtered-alias", "test", "2").get().getResponses();
+        assertThat(responses[0].isFailed(), equalTo(false));
+        assertThat(responses[1].isFailed(), equalTo(true));
     }
 
     private static String indexOrAlias() {

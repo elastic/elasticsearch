@@ -69,6 +69,13 @@ public class TransportTermVectorsAction extends TransportSingleShardAction<TermV
 
     @Override
     protected void resolveRequest(ClusterState state, InternalRequest request) {
+        if (request.concreteIndex().equals(request.request().index()) == false) {
+            String[] filteringAliases = state.metaData().filteringAliases(request.concreteIndex(), request.request().index());
+            if (filteringAliases != null) {
+                throw new UnsupportedOperationException("term_vector api doesn't support retrieving term vectors from a filtered alias, use the concrete index instead.");
+            }
+        }
+
         // update the routing (request#index here is possibly an alias)
         request.request().routing(state.metaData().resolveIndexRouting(request.request().routing(), request.request().index()));
         // Fail fast on the node that received the request.

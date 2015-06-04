@@ -100,6 +100,12 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
 
     @Override
     protected boolean resolveRequest(ClusterState state, InternalRequest request, ActionListener<UpdateResponse> listener) {
+        if (request.concreteIndex().equals(request.request().index()) == false) {
+            String[] filteringAliases = state.metaData().filteringAliases(request.concreteIndex(), request.request().index());
+            if (filteringAliases != null) {
+                throw new UnsupportedOperationException("update api doesn't support updating documents retrieved from a filtered alias, use the concrete index instead.");
+            }
+        }
         request.request().routing((state.metaData().resolveIndexRouting(request.request().routing(), request.request().index())));
         // Fail fast on the node that received the request, rather than failing when translating on the index or delete request.
         if (request.request().routing() == null && state.getMetaData().routingRequired(request.concreteIndex(), request.request().type())) {

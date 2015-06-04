@@ -26,6 +26,7 @@ import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
@@ -170,6 +171,18 @@ public class SimpleMgetTests extends ElasticsearchIntegrationTest {
         assertThat(mgetResponse.getResponses()[1].isFailed(), is(false));
         assertThat(mgetResponse.getResponses()[1].getResponse().isExists(), is(false));
         assertThat(mgetResponse.getResponses()[1].getResponse().getIndex(), is("test"));
+    }
+
+    @Test
+    public void testFilteredAlias() {
+        assertAcked(prepareCreate("test").addMapping("test", "field", "type=string"));
+        assertAcked(client().admin().indices().prepareAliases().addAlias("test", "alias").addAlias("test", "filtered-alias", QueryBuilders.termQuery("field", "value")));
+        client().prepareIndex("test", "test", "1").setSource("field", "value").get();
+        client().prepareIndex("test", "test", "2").setSource("field", "non_matching").get();
+
+        MultiGetItemResponse[] responses = client().prepareMultiGet().add("alias", "test", "1").add("filtered-alias", "test", "2").get().getResponses();
+        assertThat(responses[0].isFailed(), equalTo(false));
+        assertThat(responses[1].isFailed(), equalTo(true));
     }
 
     private static String indexOrAlias() {

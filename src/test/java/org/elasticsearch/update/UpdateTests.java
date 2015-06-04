@@ -37,6 +37,7 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.merge.policy.MergePolicyModule;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
@@ -1361,6 +1362,17 @@ public class UpdateTests extends ElasticsearchIntegrationTest {
             assertThat(response.getVersion(), equalTo((long) numberOfThreads));
             assertThat((Integer) response.getSource().get("field"), equalTo(numberOfThreads));
         }
+    }
+
+    @Test(expected = UnsupportedOperationException.class)
+    public void testFilteredAlias() {
+        assertAcked(prepareCreate("test").addMapping("test", "field", "type=string"));
+        assertAcked(client().admin().indices().prepareAliases().addAlias("test", "alias").addAlias("test", "filtered-alias", QueryBuilders.termQuery("field", "value")));
+        client().prepareIndex("test", "test", "1").setSource("field", "value").get();
+
+        assertThat(client().prepareUpdate("test", "test", "1").setDoc("test1", "test1").get().getVersion(), equalTo(2l));
+        assertThat(client().prepareUpdate("test", "test", "1").setDoc("test2", "test2").get().getVersion(), equalTo(3l));
+        client().prepareUpdate("filtered-alias", "test", "1").setDoc("test3", "test3").get();
     }
 
     /*

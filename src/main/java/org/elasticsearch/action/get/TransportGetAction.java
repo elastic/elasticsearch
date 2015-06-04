@@ -71,6 +71,14 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
         if (request.request().realtime == null) {
             request.request().realtime = this.realtime;
         }
+
+        if (request.concreteIndex().equals(request.request().index()) == false) {
+            String[] filteringAliases = state.metaData().filteringAliases(request.concreteIndex(), request.request().index());
+            if (filteringAliases != null) {
+                throw new UnsupportedOperationException("get api doesn't support retrieving documents from a filtered alias, use the concrete index instead.");
+            }
+        }
+
         IndexMetaData indexMeta = state.getMetaData().index(request.concreteIndex());
         if (request.request().realtime && // if the realtime flag is set
                 request.request().preference() == null && // the preference flag is not already set

@@ -37,6 +37,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
@@ -1201,6 +1202,17 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
         flush();
         //after flush - document is in not anymore translog - only indexed
         assertGetFieldsAlwaysWorks(indexOrAlias(), "doc", "1", fieldsList);
+    }
+
+    @Test(expected = UnsupportedOperationException.class)
+    public void testFilteredAlias() {
+        assertAcked(prepareCreate("test").addMapping("test", "field", "type=string"));
+        assertAcked(client().admin().indices().prepareAliases().addAlias("test", "alias").addAlias("test", "filtered-alias", QueryBuilders.termQuery("field", "value")));
+        client().prepareIndex("test", "test", "1").setSource("field", "value").get();
+
+        assertThat(client().prepareGet("test", "test", "1").get().isExists(), equalTo(true));
+        assertThat(client().prepareGet("alias", "test", "1").get().isExists(), equalTo(true));
+        client().prepareGet("filtered-alias", "test", "1").setRealtime(randomBoolean()).get();
     }
 
     void indexSingleDocumentWithNumericFieldsGeneratedFromText(boolean stored, boolean sourceEnabled) {

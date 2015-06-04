@@ -77,6 +77,12 @@ public class TransportShardMultiTermsVectorAction extends TransportSingleShardAc
         for (int i = 0; i < request.locations.size(); i++) {
             TermVectorsRequest termVectorsRequest = request.requests.get(i);
             try {
+                if (shardId.index().name().equals(termVectorsRequest.index()) == false) {
+                    String[] filteringAliases = clusterService.state().metaData().filteringAliases(shardId.index().name(), termVectorsRequest.index());
+                    if (filteringAliases != null) {
+                        throw new UnsupportedOperationException("multi_term_vector api doesn't support retrieving documents from a filtered alias, use the concrete index instead.");
+                    }
+                }
                 IndexService indexService = indicesService.indexServiceSafe(request.index());
                 IndexShard indexShard = indexService.shardSafe(shardId.id());
                 TermVectorsResponse termVectorsResponse = indexShard.termVectorsService().getTermVectors(termVectorsRequest, shardId.getIndex());

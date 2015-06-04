@@ -92,7 +92,13 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
 
     @Override
     protected void resolveRequest(ClusterState state, InternalRequest request) {
-        request.request().filteringAlias(state.metaData().filteringAliases(request.concreteIndex(), request.request().index()));
+
+        if (request.concreteIndex().equals(request.request().index()) == false) {
+            String[] filteringAliases = state.metaData().filteringAliases(request.concreteIndex(), request.request().index());
+            if (filteringAliases != null) {
+                throw new UnsupportedOperationException("explain api doesn't support retrieving documents from a filtered alias, use the concrete index instead.");
+            }
+        }
         // Fail fast on the node that received the request.
         if (request.request().routing() == null && state.getMetaData().routingRequired(request.concreteIndex(), request.request().type())) {
             throw new RoutingMissingException(request.concreteIndex(), request.request().type(), request.request().id());

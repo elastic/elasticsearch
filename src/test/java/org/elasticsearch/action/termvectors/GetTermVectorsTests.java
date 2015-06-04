@@ -38,6 +38,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.hamcrest.Matcher;
 import org.junit.Test;
 
@@ -1344,6 +1345,17 @@ public class GetTermVectorsTests extends AbstractTermVectorsTests {
                     .get();
             checkBestTerms(response.getFields().terms("tags"), tags.subList((numDocs - i - 1), numDocs));
         }
+    }
+
+    @Test(expected = UnsupportedOperationException.class)
+    public void testFilteredAlias() {
+        assertAcked(prepareCreate("test").addMapping("test", "field", "type=string"));
+        assertAcked(client().admin().indices().prepareAliases().addAlias("test", "alias").addAlias("test", "filtered-alias", QueryBuilders.termQuery("field", "value")));
+        client().prepareIndex("test", "test", "1").setSource("field", "value").get();
+
+        assertThat(client().prepareTermVectors("test", "test", "1").get().isExists(), equalTo(true));
+        assertThat(client().prepareTermVectors("alias", "test", "1").get().isExists(), equalTo(true));
+        client().prepareTermVectors("filtered-alias", "test", "1").setRealtime(randomBoolean()).get();
     }
 
     private void checkBestTerms(Terms terms, List<String> expectedTerms) throws IOException {

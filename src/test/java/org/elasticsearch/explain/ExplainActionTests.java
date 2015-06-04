@@ -41,7 +41,6 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.notNullValue;
 
 /**
  */
@@ -205,7 +204,7 @@ public class ExplainActionTests extends ElasticsearchIntegrationTest {
         assertThat(((Map<String, Object>) response.getGetResult().getSource().get("obj1")).get("field1").toString(), equalTo("value1"));
     }
 
-    @Test
+    @Test(expected = UnsupportedOperationException.class)
     public void testExplainWithFilteredAlias() throws Exception {
         assertAcked(prepareCreate("test")
                 .addMapping("test", "field2", "type=string")
@@ -215,38 +214,8 @@ public class ExplainActionTests extends ElasticsearchIntegrationTest {
         client().prepareIndex("test", "test", "1").setSource("field1", "value1", "field2", "value1").get();
         refresh();
 
-        ExplainResponse response = client().prepareExplain("alias1", "test", "1")
+        client().prepareExplain("alias1", "test", "1")
                 .setQuery(QueryBuilders.matchAllQuery()).get();
-        assertNotNull(response);
-        assertTrue(response.isExists());
-        assertFalse(response.isMatch());
-    }
-
-    @Test
-    public void testExplainWithFilteredAliasFetchSource() throws Exception {
-        assertAcked(client().admin().indices().prepareCreate("test")
-                .addMapping("test", "field2", "type=string")
-                .addAlias(new Alias("alias1").filter(QueryBuilders.termQuery("field2", "value2"))));
-        ensureGreen("test");
-
-        client().prepareIndex("test", "test", "1").setSource("field1", "value1", "field2", "value1").get();
-        refresh();
-
-        ExplainResponse response = client().prepareExplain("alias1", "test", "1")
-                .setQuery(QueryBuilders.matchAllQuery()).setFetchSource(true).get();
-
-        assertNotNull(response);
-        assertTrue(response.isExists());
-        assertFalse(response.isMatch());
-        assertThat(response.getIndex(), equalTo("test"));
-        assertThat(response.getType(), equalTo("test"));
-        assertThat(response.getId(), equalTo("1"));
-        assertThat(response.getGetResult(), notNullValue());
-        assertThat(response.getGetResult().getIndex(), equalTo("test"));
-        assertThat(response.getGetResult().getType(), equalTo("test"));
-        assertThat(response.getGetResult().getId(), equalTo("1"));
-        assertThat(response.getGetResult().getSource(), notNullValue());
-        assertThat((String)response.getGetResult().getSource().get("field1"), equalTo("value1"));
     }
 
     @Test

@@ -642,3 +642,12 @@ created on or after clusters with version 2.0:
 * The `type` option on the `_parent` field can only point to a parent type that doesn't exist yet,
   so this means that an existing type/mapping can no longer become a parent type.
 * The `has_child` and `has_parent` queries can no longer be use in alias filters.
+
+[float]
+=== CRUD
+
+The get api doesn't support retrieving documents from a filtered alias anymore,
+as it could lead to returning documents that don't match the filter, in case
+the documents need to be retrieved from the transaction log. This change
+affects also other api that use the get api internally, like multi_get,
+ term_vector, multi_term_vector, explain and update.

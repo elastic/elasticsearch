@@ -36,6 +36,8 @@ import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.List;
+
 /**
  * Transport Action for get snapshots operation
  */
@@ -69,12 +71,12 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         try {
             ImmutableList.Builder<SnapshotInfo> snapshotInfoBuilder = ImmutableList.builder();
             if (isAllSnapshots(request.snapshots())) {
-                ImmutableList<Snapshot> snapshots = snapshotsService.snapshots(request.repository());
+                List<Snapshot> snapshots = snapshotsService.snapshots(request.repository());
                 for (Snapshot snapshot : snapshots) {
                     snapshotInfoBuilder.add(new SnapshotInfo(snapshot));
                 }
             } else if (isCurrentSnapshots(request.snapshots())) {
-                ImmutableList<Snapshot> snapshots = snapshotsService.currentSnapshots(request.repository());
+                List<Snapshot> snapshots = snapshotsService.currentSnapshots(request.repository());
                 for (Snapshot snapshot : snapshots) {
                     snapshotInfoBuilder.add(new SnapshotInfo(snapshot));
                 }

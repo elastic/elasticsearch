@@ -220,7 +220,7 @@ public class CopyToMapperTests extends ElasticsearchSingleNodeTest {
         DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
         DocumentMapper docMapperBefore = parser.parse(mappingBefore);
 
-        ImmutableList<String> fields = docMapperBefore.mappers().getMapper("copy_test").copyTo().copyToFields();
+        List<String> fields = docMapperBefore.mappers().getMapper("copy_test").copyTo().copyToFields();
 
         assertThat(fields.size(), equalTo(2));
         assertThat(fields.get(0), equalTo("foo"));

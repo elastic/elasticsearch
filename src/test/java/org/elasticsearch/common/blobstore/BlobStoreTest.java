@@ -90,7 +90,7 @@ public class BlobStoreTest extends ElasticsearchTestCase {
         generatedBlobs.put(name, (long) length);
         byte[] data = createRandomBlob(container, name, length);
 
-        ImmutableMap<String, BlobMetaData> blobs = container.listBlobs();
+        Map<String, BlobMetaData> blobs = container.listBlobs();
         assertThat(blobs.size(), equalTo(numberOfFooBlobs + numberOfBarBlobs));
         for (Map.Entry<String, Long> generated : generatedBlobs.entrySet()) {
             BlobMetaData blobMetaData = blobs.get(generated.getKey());

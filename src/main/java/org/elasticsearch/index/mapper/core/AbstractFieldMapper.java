@@ -891,7 +891,7 @@ public abstract class AbstractFieldMapper implements FieldMapper {
             }
         }
 
-        public ImmutableList<String> copyToFields() {
+        public List<String> copyToFields() {
             return copyToFields;
         }
     }

@@ -24,13 +24,17 @@ import com.carrotsearch.hppc.FloatArrayList;
 import com.carrotsearch.hppc.LongArrayList;
 import com.carrotsearch.hppc.ObjectArrayList;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Iterators;
+import com.google.common.collect.Lists;
 import org.apache.lucene.util.*;
+import org.elasticsearch.common.inject.Module;
 
 import java.util.*;
 
 /** Collections-related utility methods. */
 public enum CollectionUtils {
-    ;
+    CollectionUtils;
 
     public static void sort(LongArrayList list) {
         sort(list.buffer, list.size());
@@ -357,5 +361,15 @@ public enum CollectionUtils {
 
     }
 
+    /**
+     * Combines multiple iterators into a single iterator.
+     */
+    public static <T> Iterator<T> concat(Iterator<? extends T>... iterators) {
+        return Iterators.concat(iterators);
+    }
+
+    public static <E> ArrayList<E> newArrayList(E... elements) {
+        return Lists.newArrayList(elements);
+    }
 
 }

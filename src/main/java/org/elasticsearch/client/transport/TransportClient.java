@@ -19,8 +19,6 @@
 
 package org.elasticsearch.client.transport;
 
-import com.google.common.collect.ImmutableList;
-
 import org.elasticsearch.Version;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
@@ -56,6 +54,7 @@ import org.elasticsearch.transport.TransportModule;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.netty.NettyTransport;
 
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
@@ -180,7 +179,7 @@ public class TransportClient extends AbstractClient {
      * Returns the current registered transport addresses to use (added using
      * {@link #addTransportAddress(org.elasticsearch.common.transport.TransportAddress)}.
      */
-    public ImmutableList<TransportAddress> transportAddresses() {
+    public List<TransportAddress> transportAddresses() {
         return nodesService.transportAddresses();
     }
 
@@ -190,7 +189,7 @@ public class TransportClient extends AbstractClient {
      * <p>The nodes include all the nodes that are currently alive based on the transport
      * addresses provided.
      */
-    public ImmutableList<DiscoveryNode> connectedNodes() {
+    public List<DiscoveryNode> connectedNodes() {
         return nodesService.connectedNodes();
     }
 
@@ -198,14 +197,14 @@ public class TransportClient extends AbstractClient {
      * The list of filtered nodes that were not connected to, for example, due to
      * mismatch in cluster name.
      */
-    public ImmutableList<DiscoveryNode> filteredNodes() {
+    public List<DiscoveryNode> filteredNodes() {
         return nodesService.filteredNodes();
     }
 
     /**
      * Returns the listed nodes in the transport client (ones added to it).
      */
-    public ImmutableList<DiscoveryNode> listedNodes() {
+    public List<DiscoveryNode> listedNodes() {
         return nodesService.listedNodes();
     }
 

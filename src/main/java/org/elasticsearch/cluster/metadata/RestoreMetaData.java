@@ -31,6 +31,7 @@ import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 import java.util.EnumSet;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -67,7 +68,7 @@ public class RestoreMetaData extends AbstractDiffable<MetaData.Custom> implement
      *
      * @return list of currently running restore processes
      */
-    public ImmutableList<Entry> entries() {
+    public List<Entry> entries() {
         return this.entries;
     }
 

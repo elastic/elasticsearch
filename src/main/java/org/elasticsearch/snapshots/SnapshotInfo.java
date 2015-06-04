@@ -19,6 +19,8 @@
 package org.elasticsearch.snapshots;
 
 import java.io.IOException;
+import java.util.List;
+
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -44,7 +46,7 @@ public class SnapshotInfo implements ToXContent, Streamable {
 
     private String reason;
 
-    private ImmutableList<String> indices;
+    private List<String> indices;
 
     private long startTime;
 
@@ -54,7 +56,7 @@ public class SnapshotInfo implements ToXContent, Streamable {
 
     private int successfulShards;
 
-    private ImmutableList<SnapshotShardFailure> shardFailures;
+    private List<SnapshotShardFailure> shardFailures;
 
     SnapshotInfo() {
 
@@ -109,7 +111,7 @@ public class SnapshotInfo implements ToXContent, Streamable {
      *
      * @return list of indices
      */
-    public ImmutableList<String> indices() {
+    public List<String> indices() {
         return indices;
     }
 
@@ -165,7 +167,7 @@ public class SnapshotInfo implements ToXContent, Streamable {
      *
      * @return shard failures
      */
-    public ImmutableList<SnapshotShardFailure> shardFailures() {
+    public List<SnapshotShardFailure> shardFailures() {
         return shardFailures;
     }
 

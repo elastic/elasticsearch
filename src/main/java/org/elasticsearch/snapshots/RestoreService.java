@@ -156,7 +156,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
             Repository repository = repositoriesService.repository(request.repository());
             final SnapshotId snapshotId = new SnapshotId(request.repository(), request.name());
             final Snapshot snapshot = repository.readSnapshot(snapshotId);
-            ImmutableList<String> filteredIndices = SnapshotUtils.filterIndices(snapshot.indices(), request.indices(), request.indicesOptions());
+            List<String> filteredIndices = SnapshotUtils.filterIndices(snapshot.indices(), request.indices(), request.indicesOptions());
             MetaData metaDataIn = repository.readSnapshotMetaData(snapshotId, filteredIndices);
 
             final MetaData metaData;
@@ -658,7 +658,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
         return failedShards;
     }
 
-    private Map<String, String> renamedIndices(RestoreRequest request, ImmutableList<String> filteredIndices) {
+    private Map<String, String> renamedIndices(RestoreRequest request, List<String> filteredIndices) {
         Map<String, String> renamedIndices = newHashMap();
         for (String index : filteredIndices) {
             String renamedIndex = index;

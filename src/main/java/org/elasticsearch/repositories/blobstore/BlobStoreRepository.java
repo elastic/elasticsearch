@@ -75,6 +75,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -235,7 +236,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
      * {@inheritDoc}
      */
     @Override
-    public void initializeSnapshot(SnapshotId snapshotId, ImmutableList<String> indices, MetaData metaData) {
+    public void initializeSnapshot(SnapshotId snapshotId, List<String> indices, MetaData metaData) {
         try {
             String snapshotBlobName = snapshotBlobName(snapshotId);
             if (snapshotsBlobContainer.blobExists(snapshotBlobName)) {
@@ -268,7 +269,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
      */
     @Override
     public void deleteSnapshot(SnapshotId snapshotId) {
-        ImmutableList<String> indices = ImmutableList.of();
+        List<String> indices = Collections.EMPTY_LIST;
         try {
             indices = readSnapshot(snapshotId).indices();
         } catch (SnapshotMissingException ex) {
@@ -288,7 +289,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
             snapshotsBlobContainer.deleteBlob(blobName);
             snapshotsBlobContainer.deleteBlob(metaDataBlobName(snapshotId));
             // Delete snapshot from the snapshot list
-            ImmutableList<SnapshotId> snapshotIds = snapshots();
+            List<SnapshotId> snapshotIds = snapshots();
             if (snapshotIds.contains(snapshotId)) {
                 ImmutableList.Builder<SnapshotId> builder = ImmutableList.builder();
                 for (SnapshotId id : snapshotIds) {
@@ -352,7 +353,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
      * {@inheritDoc}
      */
     @Override
-    public Snapshot finalizeSnapshot(SnapshotId snapshotId, ImmutableList<String> indices, long startTime, String failure, int totalShards, ImmutableList<SnapshotShardFailure> shardFailures) {
+    public Snapshot finalizeSnapshot(SnapshotId snapshotId, List<String> indices, long startTime, String failure, int totalShards, List<SnapshotShardFailure> shardFailures) {
         try {
             String tempBlobName = tempSnapshotBlobName(snapshotId);
             String blobName = snapshotBlobName(snapshotId);
@@ -361,7 +362,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
                 writeSnapshot(blobStoreSnapshot, output);
             }
             snapshotsBlobContainer.move(tempBlobName, blobName);
-            ImmutableList<SnapshotId> snapshotIds = snapshots();
+            List<SnapshotId> snapshotIds = snapshots();
             if (!snapshotIds.contains(snapshotId)) {
                 snapshotIds = ImmutableList.<SnapshotId>builder().addAll(snapshotIds).add(snapshotId).build();
             }
@@ -376,10 +377,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
      * {@inheritDoc}
      */
     @Override
-    public ImmutableList<SnapshotId> snapshots() {
+    public List<SnapshotId> snapshots() {
         try {
             List<SnapshotId> snapshots = newArrayList();
-            ImmutableMap<String, BlobMetaData> blobs;
+            Map<String, BlobMetaData> blobs;
             try {
                 blobs = snapshotsBlobContainer.listBlobsByPrefix(SNAPSHOT_PREFIX);
             } catch (UnsupportedOperationException ex) {
@@ -401,7 +402,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
      * {@inheritDoc}
      */
     @Override
-    public MetaData readSnapshotMetaData(SnapshotId snapshotId, ImmutableList<String> indices) throws IOException {
+    public MetaData readSnapshotMetaData(SnapshotId snapshotId, List<String> indices) throws IOException {
         return readSnapshotMetaData(snapshotId, indices, false);
     }
 
@@ -421,7 +422,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
         }
     }
 
-    private MetaData readSnapshotMetaData(SnapshotId snapshotId, ImmutableList<String> indices, boolean ignoreIndexErrors) throws IOException {
+    private MetaData readSnapshotMetaData(SnapshotId snapshotId, List<String> indices, boolean ignoreIndexErrors) throws IOException {
         MetaData metaData;
         try (InputStream blob = snapshotsBlobContainer.openInput(metaDataBlobName(snapshotId))) {
             byte[] data = ByteStreams.toByteArray(blob);
@@ -597,7 +598,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
      * @param snapshots list of snapshot ids
      * @throws IOException I/O errors
      */
-    protected void writeSnapshotList(ImmutableList<SnapshotId> snapshots) throws IOException {
+    protected void writeSnapshotList(List<SnapshotId> snapshots) throws IOException {
         BytesStreamOutput bStream = new BytesStreamOutput();
         StreamOutput stream = compressIfNeeded(bStream);
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON, stream);
@@ -623,7 +624,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
      * @return list of snapshots in the repository
      * @throws IOException I/O errors
      */
-    protected ImmutableList<SnapshotId> readSnapshotList() throws IOException {
+    protected List<SnapshotId> readSnapshotList() throws IOException {
         try (InputStream blob = snapshotsBlobContainer.openInput(SNAPSHOTS_FILE)) {
             final byte[] data = ByteStreams.toByteArray(blob);
             ArrayList<SnapshotId> snapshots = new ArrayList<>();

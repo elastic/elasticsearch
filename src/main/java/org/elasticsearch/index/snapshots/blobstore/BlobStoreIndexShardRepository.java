@@ -318,7 +318,7 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
          * Delete shard snapshot
          */
         public void delete() {
-            final ImmutableMap<String, BlobMetaData> blobs;
+            final Map<String, BlobMetaData> blobs;
             try {
                 blobs = blobContainer.listBlobs();
             } catch (IOException e) {
@@ -372,7 +372,7 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
          * @param fileListGeneration the generation number of the snapshot index file
          * @param blobs     list of blobs in the container
          */
-        protected void finalize(List<SnapshotFiles> snapshots, int fileListGeneration, ImmutableMap<String, BlobMetaData> blobs) {
+        protected void finalize(List<SnapshotFiles> snapshots, int fileListGeneration, Map<String, BlobMetaData> blobs) {
             BlobStoreIndexShardSnapshots newSnapshots = new BlobStoreIndexShardSnapshots(snapshots);
             // delete old index files first
             for (String blobName : blobs.keySet()) {
@@ -437,7 +437,7 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
          * @param blobs list of blobs in the repository
          * @return next available blob number
          */
-        protected long findLatestFileNameGeneration(ImmutableMap<String, BlobMetaData> blobs) {
+        protected long findLatestFileNameGeneration(Map<String, BlobMetaData> blobs) {
             long generation = -1;
             for (String name : blobs.keySet()) {
                 if (!name.startsWith(DATA_BLOB_PREFIX)) {
@@ -462,7 +462,7 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
          * @param blobs list of blobs in repository
          * @return tuple of BlobStoreIndexShardSnapshots and the last snapshot index generation
          */
-        protected Tuple<BlobStoreIndexShardSnapshots, Integer> buildBlobStoreIndexShardSnapshots(ImmutableMap<String, BlobMetaData> blobs) {
+        protected Tuple<BlobStoreIndexShardSnapshots, Integer> buildBlobStoreIndexShardSnapshots(Map<String, BlobMetaData> blobs) {
             int latest = -1;
             for (String name : blobs.keySet()) {
                 if (name.startsWith(SNAPSHOT_INDEX_PREFIX)) {
@@ -538,7 +538,7 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
             logger.debug("[{}] [{}] snapshot to [{}] ...", shardId, snapshotId, repositoryName);
             store.incRef();
             try {
-                final ImmutableMap<String, BlobMetaData> blobs;
+                final Map<String, BlobMetaData> blobs;
                 try {
                     blobs = blobContainer.listBlobs();
                 } catch (IOException e) {
@@ -570,7 +570,7 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
                     logger.trace("[{}] [{}] Processing [{}]", shardId, snapshotId, fileName);
                     final StoreFileMetaData md = metadata.get(fileName);
                     FileInfo existingFileInfo = null;
-                    ImmutableList<FileInfo> filesInfo = snapshots.findPhysicalIndexFiles(fileName);
+                    List<FileInfo> filesInfo = snapshots.findPhysicalIndexFiles(fileName);
                     if (filesInfo != null) {
                         for (FileInfo fileInfo : filesInfo) {
                             try {
@@ -696,7 +696,7 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
          * @param blobs    list of blobs
          * @return true if file exists in the list of blobs
          */
-        private boolean snapshotFileExistsInBlobs(BlobStoreIndexShardSnapshot.FileInfo fileInfo, ImmutableMap<String, BlobMetaData> blobs) {
+        private boolean snapshotFileExistsInBlobs(BlobStoreIndexShardSnapshot.FileInfo fileInfo, Map<String, BlobMetaData> blobs) {
             BlobMetaData blobMetaData = blobs.get(fileInfo.name());
             if (blobMetaData != null) {
                 return blobMetaData.length() == fileInfo.length();

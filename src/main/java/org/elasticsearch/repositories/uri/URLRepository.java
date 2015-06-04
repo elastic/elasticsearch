@@ -33,6 +33,7 @@ import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 
 import java.io.IOException;
 import java.net.URL;
+import java.util.List;
 
 /**
  * Read-only URL-based implementation of the BlobStoreRepository
@@ -90,7 +91,7 @@ public class URLRepository extends BlobStoreRepository {
     }
 
     @Override
-    public ImmutableList<SnapshotId> snapshots() {
+    public List<SnapshotId> snapshots() {
         if (listDirectories) {
             return super.snapshots();
         } else {

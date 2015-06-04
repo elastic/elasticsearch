@@ -46,6 +46,8 @@ import java.io.UnsupportedEncodingException;
 import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicLong;
@@ -95,7 +97,7 @@ public class MockRepository extends FsRepository {
     }
 
     @Override
-    public void initializeSnapshot(SnapshotId snapshotId, ImmutableList<String> indices, MetaData metaData) {
+    public void initializeSnapshot(SnapshotId snapshotId, List<String> indices, MetaData metaData) {
         if (blockOnInitialization ) {
             blockExecution();
         }
@@ -292,13 +294,13 @@ public class MockRepository extends FsRepository {
             }
 
             @Override
-            public ImmutableMap<String, BlobMetaData> listBlobs() throws IOException {
+            public Map<String, BlobMetaData> listBlobs() throws IOException {
                 maybeIOExceptionOrBlock("");
                 return super.listBlobs();
             }
 
             @Override
-            public ImmutableMap<String, BlobMetaData> listBlobsByPrefix(String blobNamePrefix) throws IOException {
+            public Map<String, BlobMetaData> listBlobsByPrefix(String blobNamePrefix) throws IOException {
                 maybeIOExceptionOrBlock(blobNamePrefix);
                 return super.listBlobsByPrefix(blobNamePrefix);
             }

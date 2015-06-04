@@ -19,7 +19,6 @@
 
 package org.elasticsearch.cloud.aws.blobstore;
 
-import org.elasticsearch.common.base.Charsets;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
@@ -40,7 +39,7 @@ public class S3OutputStreamTest extends ElasticsearchTestCase {
     @Test
     public void testWriteLessDataThanBufferSize() throws IOException {
         MockDefaultS3OutputStream out = newS3OutputStream(BUFFER_SIZE);
-        byte[] content = randomUnicodeOfLengthBetween(1, 512).getBytes(Charsets.UTF_8);
+        byte[] content = randomUnicodeOfLengthBetween(1, 512).getBytes("UTF-8");
         copy(content, out);
 
         // Checks length & content

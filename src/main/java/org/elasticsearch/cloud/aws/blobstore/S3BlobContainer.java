@@ -27,12 +27,13 @@ import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStoreException;
 import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
-import org.elasticsearch.common.collect.ImmutableMap;
+import org.elasticsearch.common.collect.MapBuilder;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.Map;
 
 /**
  *
@@ -104,8 +105,8 @@ public class S3BlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public ImmutableMap<String, BlobMetaData> listBlobsByPrefix(@Nullable String blobNamePrefix) throws IOException {
-        ImmutableMap.Builder<String, BlobMetaData> blobsBuilder = ImmutableMap.builder();
+    public Map<String, BlobMetaData> listBlobsByPrefix(@Nullable String blobNamePrefix) throws IOException {
+        MapBuilder<String, BlobMetaData> blobsBuilder = MapBuilder.newMapBuilder();
         ObjectListing prevListing = null;
         while (true) {
             ObjectListing list;
@@ -128,7 +129,7 @@ public class S3BlobContainer extends AbstractBlobContainer {
                 break;
             }
         }
-        return blobsBuilder.build();
+        return blobsBuilder.immutableMap();
     }
 
     @Override
@@ -150,7 +151,7 @@ public class S3BlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public ImmutableMap<String, BlobMetaData> listBlobs() throws IOException {
+    public Map<String, BlobMetaData> listBlobs() throws IOException {
         return listBlobsByPrefix(null);
     }
 

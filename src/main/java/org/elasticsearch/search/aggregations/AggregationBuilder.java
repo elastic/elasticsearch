@@ -109,12 +109,13 @@ public abstract class AggregationBuilder<B extends AggregationBuilder<B>> extend
         internalXContent(builder, params);
 
         if (aggregations != null || aggregationsBinary != null) {
-            builder.startObject("aggregations");
 
             if (aggregations != null) {
+                builder.startObject("aggregations");
                 for (AbstractAggregationBuilder subAgg : aggregations) {
                     subAgg.toXContent(builder, params);
                 }
+                builder.endObject();
             }
 
             if (aggregationsBinary != null) {
@@ -125,7 +126,6 @@ public abstract class AggregationBuilder<B extends AggregationBuilder<B>> extend
                 }
             }
 
-            builder.endObject();
         }
 
         return builder.endObject();

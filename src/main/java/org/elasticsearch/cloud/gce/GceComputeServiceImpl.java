@@ -27,10 +27,10 @@ import com.google.api.client.json.jackson2.JacksonFactory;
 import com.google.api.services.compute.Compute;
 import com.google.api.services.compute.model.Instance;
 import com.google.api.services.compute.model.InstanceList;
+import com.google.common.base.Function;
+import com.google.common.collect.Iterables;
+import com.google.common.collect.Lists;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.base.Function;
-import org.elasticsearch.common.collect.Iterables;
-import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -38,6 +38,7 @@ import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.unit.TimeValue;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
@@ -67,7 +68,7 @@ public class GceComputeServiceImpl extends AbstractLifecycleComponent<GceCompute
                         Compute.Instances.List list = client().instances().list(project, zoneId);
                         InstanceList instanceList = list.execute();
                         if (instanceList.isEmpty()) {
-                            return Lists.newArrayList();
+                            return new ArrayList();
                         }
 
                         return instanceList.getItems();
@@ -75,7 +76,7 @@ public class GceComputeServiceImpl extends AbstractLifecycleComponent<GceCompute
                         logger.warn("Problem fetching instance list for zone {}", zoneId);
                         logger.debug("Full exception:", e);
 
-                        return Lists.newArrayList();
+                        return new ArrayList();
                     }
                 }
             });

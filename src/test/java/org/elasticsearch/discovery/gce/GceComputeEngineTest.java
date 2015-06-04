@@ -19,10 +19,10 @@
 
 package org.elasticsearch.discovery.gce;
 
+import com.google.common.collect.Lists;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.cloud.gce.GceComputeService;
 import org.elasticsearch.cloud.gce.GceComputeService.Fields;
-import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.gce.mock.*;
 import org.elasticsearch.plugins.PluginsService;

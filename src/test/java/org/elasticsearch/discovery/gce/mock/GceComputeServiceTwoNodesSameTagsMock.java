@@ -19,30 +19,30 @@
 
 package org.elasticsearch.discovery.gce.mock;
 
-import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 /**
  *
  */
 public class GceComputeServiceTwoNodesSameTagsMock extends GceComputeServiceAbstractMock {
-    private static List<ArrayList<String>> tags = Lists.newArrayList(
-            Lists.newArrayList("elasticsearch","dev"),
-            Lists.newArrayList("elasticsearch","dev"));
+    private static List<List<String>> tags = Arrays.asList(
+            Arrays.asList("elasticsearch", "dev"),
+            Arrays.asList("elasticsearch", "dev"));
 
 
     @Override
-    protected List<ArrayList<String>> getTags() {
+    protected List<List<String>> getTags() {
         return tags;
     }
 
     @Override
     protected List<String> getZones() {
-        return Lists.newArrayList();
+        return new ArrayList<>();
     }
 
     @Inject

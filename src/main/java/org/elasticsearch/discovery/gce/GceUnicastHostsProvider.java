@@ -26,7 +26,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cloud.gce.GceComputeService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.network.NetworkService;
@@ -38,6 +37,8 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.net.InetAddress;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 
@@ -86,7 +87,7 @@ public class GceUnicastHostsProvider extends AbstractComponent implements Unicas
 
         this.tags = settings.getAsArray(Fields.TAGS);
         if (logger.isDebugEnabled()) {
-            logger.debug("using tags {}", Lists.newArrayList(this.tags));
+            logger.debug("using tags {}", Arrays.asList(this.tags));
         }
     }
 
@@ -108,7 +109,7 @@ public class GceUnicastHostsProvider extends AbstractComponent implements Unicas
         }
         logger.debug("start building nodes list using GCE API");
 
-        cachedDiscoNodes = Lists.newArrayList();
+        cachedDiscoNodes = new ArrayList<>();
         String ipAddress = null;
         try {
             InetAddress inetAddress = networkService.resolvePublishHostAddress(null);

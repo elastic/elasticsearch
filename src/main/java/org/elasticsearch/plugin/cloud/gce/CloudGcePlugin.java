@@ -20,12 +20,12 @@
 package org.elasticsearch.plugin.cloud.gce;
 
 import org.elasticsearch.cloud.gce.GceModule;
-import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.AbstractPlugin;
 
+import java.util.ArrayList;
 import java.util.Collection;
 
 /**
@@ -51,7 +51,7 @@ public class CloudGcePlugin extends AbstractPlugin {
 
     @Override
     public Collection<Class<? extends Module>> modules() {
-        Collection<Class<? extends Module>> modules = Lists.newArrayList();
+        Collection<Class<? extends Module>> modules = new ArrayList<>();
         if (settings.getAsBoolean("cloud.enabled", true)) {
             modules.add(GceModule.class);
         }
@@ -60,7 +60,7 @@ public class CloudGcePlugin extends AbstractPlugin {
 
     @Override
     public Collection<Class<? extends LifecycleComponent>> services() {
-        Collection<Class<? extends LifecycleComponent>> services = Lists.newArrayList();
+        Collection<Class<? extends LifecycleComponent>> services = new ArrayList<>();
         if (settings.getAsBoolean("cloud.enabled", true)) {
 //            services.add(GceComputeServiceImpl.class);
         }

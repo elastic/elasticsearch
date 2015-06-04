@@ -23,9 +23,9 @@ import com.google.api.services.compute.model.Instance;
 import com.google.api.services.compute.model.Metadata;
 import com.google.api.services.compute.model.NetworkInterface;
 import com.google.api.services.compute.model.Tags;
+import com.google.common.collect.Lists;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cloud.gce.GceComputeService;
-import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.gce.GceComputeEngineTest;
@@ -42,7 +42,7 @@ import static com.carrotsearch.randomizedtesting.RandomizedTest.randomInt;
 public abstract class GceComputeServiceAbstractMock extends AbstractLifecycleComponent<GceComputeServiceAbstractMock>
     implements GceComputeService {
 
-    protected abstract List<ArrayList<String>> getTags();
+    protected abstract List<List<String>> getTags();
     protected abstract List<String> getZones();
     private final List<String> zoneList;
 

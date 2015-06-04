@@ -13,18 +13,21 @@ import org.elasticsearch.shield.authc.RealmConfig;
 import org.elasticsearch.shield.authc.support.DnRoleMapper;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
+import org.elasticsearch.shield.support.NoOpLogger;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.transport.TransportMessage;
 import org.junit.Before;
 import org.junit.Test;
 
+import javax.security.auth.x500.X500Principal;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 import java.util.Collections;
+import java.util.regex.Pattern;
 
 import static org.hamcrest.Matchers.*;
 import static org.mockito.Mockito.*;
@@ -57,7 +60,7 @@ public class PkiRealmTests extends ElasticsearchTestCase {
 
         X509AuthenticationToken token = realm.token(restRequest);
         assertThat(token, is(notNullValue()));
-        assertThat(token.dn(), is("CN=Elasticsearch Test Node,OU=elasticsearch,O=org"));
+        assertThat(token.dn(), is("CN=Elasticsearch Test Node, OU=elasticsearch, O=org"));
         assertThat(token.principal(), is("Elasticsearch Test Node"));
     }
 
@@ -70,7 +73,7 @@ public class PkiRealmTests extends ElasticsearchTestCase {
 
         X509AuthenticationToken token = realm.token(message);
         assertThat(token, is(notNullValue()));
-        assertThat(token.dn(), is("CN=Elasticsearch Test Node,OU=elasticsearch,O=org"));
+        assertThat(token.dn(), is("CN=Elasticsearch Test Node, OU=elasticsearch, O=org"));
         assertThat(token.principal(), is("Elasticsearch Test Node"));
     }
 
@@ -158,6 +161,42 @@ public class PkiRealmTests extends ElasticsearchTestCase {
         } catch (ShieldSettingsException e) {
             assertThat(e.getMessage(), containsString("no truststore password configured"));
         }
+    }
+
+    @Test
+    public void certificateWithOnlyCnExtractsProperly() throws Exception {
+        X509Certificate certificate = mock(X509Certificate.class);
+        X500Principal principal = new X500Principal("CN=PKI Client");
+        when(certificate.getSubjectX500Principal()).thenReturn(principal);
+
+        X509AuthenticationToken token = PkiRealm.token(new X509Certificate[]{certificate}, Pattern.compile(PkiRealm.DEFAULT_USERNAME_PATTERN), NoOpLogger.INSTANCE);
+        assertThat(token, notNullValue());
+        assertThat(token.principal(), is("PKI Client"));
+        assertThat(token.dn(), is("CN=PKI Client"));
+    }
+
+    @Test
+    public void certificateWithCnAndOuExtractsProperly() throws Exception {
+        X509Certificate certificate = mock(X509Certificate.class);
+        X500Principal principal = new X500Principal("CN=PKI Client, OU=Shield");
+        when(certificate.getSubjectX500Principal()).thenReturn(principal);
+
+        X509AuthenticationToken token = PkiRealm.token(new X509Certificate[]{certificate}, Pattern.compile(PkiRealm.DEFAULT_USERNAME_PATTERN), NoOpLogger.INSTANCE);
+        assertThat(token, notNullValue());
+        assertThat(token.principal(), is("PKI Client"));
+        assertThat(token.dn(), is("CN=PKI Client, OU=Shield"));
+    }
+
+    @Test
+    public void certificateWithCnInMiddle() throws Exception {
+        X509Certificate certificate = mock(X509Certificate.class);
+        X500Principal principal = new X500Principal("EMAILADDRESS=pki@elastic.co, CN=PKI Client, OU=Shield");
+        when(certificate.getSubjectX500Principal()).thenReturn(principal);
+
+        X509AuthenticationToken token = PkiRealm.token(new X509Certificate[]{certificate}, Pattern.compile(PkiRealm.DEFAULT_USERNAME_PATTERN), NoOpLogger.INSTANCE);
+        assertThat(token, notNullValue());
+        assertThat(token.principal(), is("PKI Client"));
+        assertThat(token.dn(), is("EMAILADDRESS=pki@elastic.co, CN=PKI Client, OU=Shield"));
     }
 
     static X509Certificate readCert(Path path) throws Exception {

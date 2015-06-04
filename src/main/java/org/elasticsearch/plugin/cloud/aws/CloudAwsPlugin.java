@@ -21,8 +21,6 @@ package org.elasticsearch.plugin.cloud.aws;
 
 import org.elasticsearch.cloud.aws.AwsEc2Service;
 import org.elasticsearch.cloud.aws.AwsModule;
-import org.elasticsearch.cloud.aws.AwsS3Service;
-import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.settings.Settings;
@@ -31,6 +29,7 @@ import org.elasticsearch.repositories.RepositoriesModule;
 import org.elasticsearch.repositories.s3.S3Repository;
 import org.elasticsearch.repositories.s3.S3RepositoryModule;
 
+import java.util.ArrayList;
 import java.util.Collection;
 
 /**
@@ -56,7 +55,7 @@ public class CloudAwsPlugin extends AbstractPlugin {
 
     @Override
     public Collection<Module> modules(Settings settings) {
-        Collection<Module> modules = Lists.newArrayList();
+        Collection<Module> modules = new ArrayList<>();
         if (settings.getAsBoolean("cloud.enabled", true)) {
             modules.add(new AwsModule(settings));
         }
@@ -65,7 +64,7 @@ public class CloudAwsPlugin extends AbstractPlugin {
 
     @Override
     public Collection<Class<? extends LifecycleComponent>> services() {
-        Collection<Class<? extends LifecycleComponent>> services = Lists.newArrayList();
+        Collection<Class<? extends LifecycleComponent>> services = new ArrayList<>();
         if (settings.getAsBoolean("cloud.enabled", true)) {
             services.add(AwsModule.getS3ServiceClass(settings));
             services.add(AwsEc2Service.class);

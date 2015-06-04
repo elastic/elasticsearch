@@ -26,10 +26,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cloud.aws.AwsEc2Service;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.ImmutableMap;
-import org.elasticsearch.common.collect.ImmutableSet;
-import org.elasticsearch.common.collect.Lists;
-import org.elasticsearch.common.collect.Sets;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -60,11 +56,11 @@ public class AwsEc2UnicastHostsProvider extends AbstractComponent implements Uni
 
     private final boolean bindAnyGroup;
 
-    private final ImmutableSet<String> groups;
+    private final Set<String> groups;
 
-    private final ImmutableMap<String, String> tags;
+    private final Map<String, String> tags;
 
-    private final ImmutableSet<String> availabilityZones;
+    private final Set<String> availabilityZones;
 
     private final HostType hostType;
 
@@ -78,15 +74,17 @@ public class AwsEc2UnicastHostsProvider extends AbstractComponent implements Uni
         this.hostType = HostType.valueOf(settings.get("discovery.ec2.host_type", "private_ip").toUpperCase(Locale.ROOT));
 
         this.bindAnyGroup = settings.getAsBoolean("discovery.ec2.any_group", true);
-        this.groups = ImmutableSet.copyOf(settings.getAsArray("discovery.ec2.groups"));
+        this.groups = new HashSet<>();
+        groups.addAll(Arrays.asList(settings.getAsArray("discovery.ec2.groups")));
 
         this.tags = settings.getByPrefix("discovery.ec2.tag.").getAsMap();
 
-        Set<String> availabilityZones = Sets.newHashSet(settings.getAsArray("discovery.ec2.availability_zones"));
+        Set<String> availabilityZones = new HashSet();
+        availabilityZones.addAll(Arrays.asList(settings.getAsArray("discovery.ec2.availability_zones")));
         if (settings.get("discovery.ec2.availability_zones") != null) {
             availabilityZones.addAll(Strings.commaDelimitedListToSet(settings.get("discovery.ec2.availability_zones")));
         }
-        this.availabilityZones = ImmutableSet.copyOf(availabilityZones);
+        this.availabilityZones = availabilityZones;
 
         if (logger.isDebugEnabled()) {
             logger.debug("using host_type [{}], tags [{}], groups [{}] with any_group [{}], availability_zones [{}]", hostType, tags, groups, bindAnyGroup, availabilityZones);
@@ -95,7 +93,7 @@ public class AwsEc2UnicastHostsProvider extends AbstractComponent implements Uni
 
     @Override
     public List<DiscoveryNode> buildDynamicNodes() {
-        List<DiscoveryNode> discoNodes = Lists.newArrayList();
+        List<DiscoveryNode> discoNodes = new ArrayList<>();
 
         DescribeInstancesResult descInstances;
         try {

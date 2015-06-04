@@ -21,6 +21,7 @@ package org.elasticsearch.search.aggregations;
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.internal.SearchContext;
@@ -107,11 +108,28 @@ public class AggregatorParsers {
                 final String fieldName = parser.currentName();
 
                 token = parser.nextToken();
-                if (token != XContentParser.Token.START_OBJECT) {
-                    throw new SearchParseException(context, "Expected [" + XContentParser.Token.START_OBJECT + "] under [" + fieldName + "], but got a [" + token + "] in [" + aggregationName + "]");
-                }
-
-                switch (fieldName) {
+                if ("aggregations_binary".equals(fieldName)) {
+                    if (subFactories != null) {
+                        throw new SearchParseException(context, "Found two sub aggregation definitions under [" + aggregationName + "]");
+                    }
+                    XContentParser binaryParser = null;
+                    if (token == XContentParser.Token.VALUE_STRING || token == XContentParser.Token.VALUE_EMBEDDED_OBJECT) {
+                        byte[] source = parser.binaryValue();
+                        binaryParser = XContentFactory.xContent(source).createParser(source);
+                    } else {
+                        throw new SearchParseException(context, "Expected [" + XContentParser.Token.VALUE_STRING + " or "
+                                + XContentParser.Token.VALUE_EMBEDDED_OBJECT + "] for [" + fieldName + "], but got a [" + token + "] in ["
+                                + aggregationName + "]");
+                    }
+                    XContentParser.Token binaryToken = binaryParser.nextToken();
+                    if (binaryToken != XContentParser.Token.START_OBJECT) {
+                        throw new SearchParseException(context, "Expected [" + XContentParser.Token.START_OBJECT
+                                + "] as first token when parsing [" + fieldName + "], but got a [" + binaryToken + "] in ["
+                                + aggregationName + "]");
+                    }
+                    subFactories = parseAggregators(binaryParser, context, level + 1);
+                } else if (token == XContentParser.Token.START_OBJECT) {
+                    switch (fieldName) {
                     case "aggregations":
                     case "aggs":
                         if (subFactories != null) {
@@ -129,6 +147,11 @@ public class AggregatorParsers {
                         }
                         factory = aggregatorParser.parse(aggregationName, parser, context);
                 }
+                } else {
+                    throw new SearchParseException(context, "Expected [" + XContentParser.Token.START_OBJECT + "] under [" + fieldName
+                            + "], but got a [" + token + "] in [" + aggregationName + "]");
+                }
+
             }
 
             if (factory == null) {

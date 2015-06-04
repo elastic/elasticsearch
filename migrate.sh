@@ -64,7 +64,7 @@ function migratePlugin() {
 	
 	# echo "### fetch $1 project from $PLUGIN_GIT_REPO in plugins"
 	# If you want to run that locally, uncomment this line and comment one below
-	#cp -r ../elasticsearch-$1/* plugins/$1
+	#cp -R ../elasticsearch-$1/* plugins/$1
 	git clone $PLUGIN_GIT_REPO plugins/$1 > /dev/null 2>/dev/null
 
 	# We can now add plugin module
@@ -156,12 +156,12 @@ echo "# STEP 2 : Parent pom.xml from $PARENT_GIT"
 
 # echo "## fetch parent project from $PARENT_GIT in $DIR_TMP"
 # If you want to run that locally, uncomment this line and comment one below
-# cp -r ../elasticsearch-parent $DIR_TMP
+# cp -R ../elasticsearch-parent $DIR_TMP
 git clone $PARENT_GIT $DIR_TMP/$PARENT_NAME > /dev/null 2>/dev/null
 
 cp $DIR_TMP/$PARENT_NAME/pom.xml .
-cp -r $DIR_TMP/$PARENT_NAME/dev-tools .
-cp -r $DIR_TMP/$PARENT_NAME/plugins .
+cp -R $DIR_TMP/$PARENT_NAME/dev-tools .
+cp -R $DIR_TMP/$PARENT_NAME/plugins .
 
 # echo "## commit changes"
 git add .

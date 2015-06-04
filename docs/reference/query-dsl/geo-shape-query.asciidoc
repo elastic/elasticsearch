@@ -1,5 +1,5 @@
 [[query-dsl-geo-shape-query]]
-=== GeoShape Filter
+=== GeoShape Query
 
 Filter documents indexed using the `geo_shape` type.
 
@@ -10,14 +10,12 @@ geo_shape mapping to find documents that have a shape that intersects
 with the query shape. It will also use the same PrefixTree configuration
 as defined for the field mapping.
 
-==== Filter Format
-
-The Filter supports two ways of defining the Filter shape, either by
+The query supports two ways of defining the query shape, either by
 providing a whole shape definition, or by referencing the name of a shape
 pre-indexed in another index. Both formats are defined below with
 examples.
 
-====== Provided Shape Definition
+==== Inline Shape Definition
 
 Similar to the `geo_shape` type, the `geo_shape` Filter uses
 http://www.geojson.org[GeoJSON] to represent shapes.
@@ -61,7 +59,7 @@ The following query will find the point using the Elasticsearch's
 }
 --------------------------------------------------
 
-===== Pre-Indexed Shape
+==== Pre-Indexed Shape
 
 The Filter also supports using a shape which has already been indexed in
 another index and/or index type. This is particularly useful for when

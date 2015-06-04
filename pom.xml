@@ -378,6 +378,7 @@
             <configuration>
               <executable>${jvm.executable}</executable>
               <arguments>
+                <argument>-Des.path.home=.</argument>
                 <argument>-Des.security.manager.enabled=false</argument>
                 <argument>-classpath</argument>
                 <classpath/>

@@ -1,5 +1,5 @@
 [[query-dsl-filtered-query]]
-== Filtered Query
+=== Filtered Query
 
 deprecated[2.0.0, Use the `bool` query instead with a `must` clause for the query and a `filter` clause for the filter]
 
@@ -47,7 +47,7 @@ curl -XGET localhost:9200/_search -d '
 <1> The `filtered` query is passed as the value of the `query`
     parameter in the search request.
 
-=== Filtering without a query
+==== Filtering without a query
 
 If a `query` is not specified, it defaults to the
 <<query-dsl-match-all-query,`match_all` query>>.  This means that the
@@ -71,7 +71,7 @@ curl -XGET localhost:9200/_search -d '
 <1> No `query` has been specified, so this request applies just the filter,
    returning all documents created since yesterday.
 
-==== Multiple filters
+===== Multiple filters
 
 Multiple filters can be applied by wrapping them in a
 <<query-dsl-bool-query,`bool` query>>, for example:
@@ -95,7 +95,7 @@ Multiple filters can be applied by wrapping them in a
 }
 --------------------------------------------------
 
-==== Filter strategy
+===== Filter strategy
 
 You can control how the filter and query are executed with the `strategy`
 parameter:

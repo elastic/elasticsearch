@@ -26,7 +26,6 @@ import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
@@ -108,7 +107,7 @@ public class MinDocCountTests extends AbstractTermsTests {
         YES {
             @Override
             TermsBuilder apply(TermsBuilder builder, String field) {
-                return builder.script("doc['" + field + "'].values");
+                return builder.script(new org.elasticsearch.script.Script("doc['" + field + "'].values"));
             }
         };
         abstract TermsBuilder apply(TermsBuilder builder, String field);

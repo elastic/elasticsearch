@@ -27,14 +27,18 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
-import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParseContext.Document;
-import org.elasticsearch.index.mapper.core.*;
+import org.elasticsearch.index.mapper.core.CompletionFieldMapper;
+import org.elasticsearch.index.mapper.core.DateFieldMapper;
+import org.elasticsearch.index.mapper.core.LongFieldMapper;
+import org.elasticsearch.index.mapper.core.StringFieldMapper;
+import org.elasticsearch.index.mapper.core.TokenCountFieldMapper;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
-import org.elasticsearch.index.IndexService;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.junit.Test;
 
@@ -46,8 +50,12 @@ import java.util.TreeMap;
 import static org.elasticsearch.common.io.Streams.copyToBytesFromClasspath;
 import static org.elasticsearch.common.io.Streams.copyToStringFromClasspath;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.mapper.MapperBuilders.*;
-import static org.hamcrest.Matchers.*;
+import static org.elasticsearch.index.mapper.MapperBuilders.doc;
+import static org.elasticsearch.index.mapper.MapperBuilders.rootObject;
+import static org.elasticsearch.index.mapper.MapperBuilders.stringField;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.notNullValue;
 
 /**
  *
@@ -119,7 +127,7 @@ public class MultiFieldTests extends ElasticsearchSingleNodeTest {
         assertNotSame(IndexOptions.NONE, docMapper.mappers().getMapper("name.test1").fieldType().indexOptions());
         assertThat(docMapper.mappers().getMapper("name.test1").fieldType().stored(), equalTo(true));
         assertThat(docMapper.mappers().getMapper("name.test1").fieldType().tokenized(), equalTo(true));
-        assertThat(docMapper.mappers().getMapper("name.test1").fieldDataType().getLoading(), equalTo(FieldMapper.Loading.EAGER));
+        assertThat(docMapper.mappers().getMapper("name.test1").fieldType().fieldDataType().getLoading(), equalTo(MappedFieldType.Loading.EAGER));
 
         assertThat(docMapper.mappers().getMapper("name.test2"), notNullValue());
         assertThat(docMapper.mappers().getMapper("name.test2"), instanceOf(TokenCountFieldMapper.class));
@@ -432,7 +440,7 @@ public class MultiFieldTests extends ElasticsearchSingleNodeTest {
         DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
         Arrays.sort(multiFieldNames);
 
-        Map<String, Object> sourceAsMap = XContentHelper.convertToMap(docMapper.mappingSource().compressed(), true).v2();
+        Map<String, Object> sourceAsMap = XContentHelper.convertToMap(docMapper.mappingSource().compressedReference(), true).v2();
         @SuppressWarnings("unchecked")
         Map<String, Object> multiFields = (Map<String, Object>) XContentMapValues.extractValue("type.properties.my_field.fields", sourceAsMap);
         assertThat(multiFields.size(), equalTo(multiFieldNames.length));

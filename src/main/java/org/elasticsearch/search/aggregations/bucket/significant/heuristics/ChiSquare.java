@@ -105,10 +105,11 @@ public class ChiSquare extends NXYSignificanceHeuristic {
         }
 
         @Override
-        public void toXContent(XContentBuilder builder) throws IOException {
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject(STREAM.getName());
             super.build(builder);
             builder.endObject();
+            return builder;
         }
     }
 }

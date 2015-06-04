@@ -24,6 +24,7 @@ import com.google.common.collect.ImmutableMap;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.Map;
 
 /**
  *
@@ -59,12 +60,12 @@ public interface BlobContainer {
     /**
      * Lists all blobs in the container
      */
-    ImmutableMap<String, BlobMetaData> listBlobs() throws IOException;
+    Map<String, BlobMetaData> listBlobs() throws IOException;
 
     /**
      * Lists all blobs in the container that match specified prefix
      */
-    ImmutableMap<String, BlobMetaData> listBlobsByPrefix(String blobNamePrefix) throws IOException;
+    Map<String, BlobMetaData> listBlobsByPrefix(String blobNamePrefix) throws IOException;
 
     /**
      * Atomically renames source blob into target blob

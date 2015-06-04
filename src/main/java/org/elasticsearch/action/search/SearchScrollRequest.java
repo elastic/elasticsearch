@@ -93,7 +93,7 @@ public class SearchScrollRequest extends ActionRequest<SearchScrollRequest> {
      * If set, will enable scrolling of the search request for the specified timeout.
      */
     public SearchScrollRequest scroll(String keepAlive) {
-        return scroll(new Scroll(TimeValue.parseTimeValue(keepAlive, null)));
+        return scroll(new Scroll(TimeValue.parseTimeValue(keepAlive, null, getClass().getSimpleName() + ".keepAlive")));
     }
 
     @Override

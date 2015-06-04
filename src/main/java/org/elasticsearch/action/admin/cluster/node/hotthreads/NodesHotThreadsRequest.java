@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.cluster.node.hotthreads;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -100,12 +99,7 @@ public class NodesHotThreadsRequest extends BaseNodesRequest<NodesHotThreadsRequ
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         threads = in.readInt();
-        if (in.getVersion().before(Version.V_1_5_0)) {
-            // Pre-1.5.0 did not filter hot threads, so we shouldn't:
-            ignoreIdleThreads = false;
-        } else {
-            ignoreIdleThreads = in.readBoolean();
-        }
+        ignoreIdleThreads = in.readBoolean();
         type = in.readString();
         interval = TimeValue.readTimeValue(in);
         snapshots = in.readInt();
@@ -115,9 +109,7 @@ public class NodesHotThreadsRequest extends BaseNodesRequest<NodesHotThreadsRequ
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeInt(threads);
-        if (out.getVersion().onOrAfter(Version.V_1_5_0)) {
-            out.writeBoolean(ignoreIdleThreads);
-        }
+        out.writeBoolean(ignoreIdleThreads);
         out.writeString(type);
         interval.writeTo(out);
         out.writeInt(snapshots);

@@ -30,8 +30,10 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.plugins.AbstractPlugin;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFilter;
@@ -41,7 +43,16 @@ import org.elasticsearch.search.aggregations.bucket.significant.SignificantStrin
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTerms;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTermsAggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTermsBuilder;
-import org.elasticsearch.search.aggregations.bucket.significant.heuristics.*;
+import org.elasticsearch.search.aggregations.bucket.significant.heuristics.ChiSquare;
+import org.elasticsearch.search.aggregations.bucket.significant.heuristics.GND;
+import org.elasticsearch.search.aggregations.bucket.significant.heuristics.MutualInformation;
+import org.elasticsearch.search.aggregations.bucket.significant.heuristics.ScriptHeuristic;
+import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
+import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicBuilder;
+import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicParser;
+import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicStreams;
+import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificantTermsHeuristicModule;
+import org.elasticsearch.search.aggregations.bucket.significant.heuristics.TransportSignificantTermsHeuristicModule;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsBuilder;
@@ -49,7 +60,12 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
@@ -57,7 +73,10 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.is;
 
 /**
  *
@@ -229,8 +248,9 @@ public class SignificantTermsSignificanceScoreTests extends ElasticsearchIntegra
         public static class SimpleHeuristicBuilder implements SignificanceHeuristicBuilder {
 
             @Override
-            public void toXContent(XContentBuilder builder) throws IOException {
+            public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
                 builder.startObject(STREAM.getName()).endObject();
+                return builder;
             }
         }
     }
@@ -488,8 +508,67 @@ public class SignificantTermsSignificanceScoreTests extends ElasticsearchIntegra
         }
     }
 
+    /*
+     * TODO Remove in 2.0
+     */
+    @Test
+    public void testScriptScoreOldScriptAPI() throws ExecutionException, InterruptedException, IOException {
+        indexRandomFrequencies01(randomBoolean() ? "string" : "long");
+        ScriptHeuristic.ScriptHeuristicBuilder scriptHeuristicBuilder = getScriptSignificanceHeuristicBuilderOldScriptAPI();
+        ensureYellow();
+        SearchResponse response = client()
+                .prepareSearch(INDEX_NAME)
+                .addAggregation(
+                        new TermsBuilder("class").field(CLASS_FIELD).subAggregation(
+                                new SignificantTermsBuilder("mySignificantTerms").field(TEXT_FIELD).executionHint(randomExecutionHint())
+                                        .significanceHeuristic(scriptHeuristicBuilder).minDocCount(1).shardSize(2).size(2))).execute()
+                .actionGet();
+        assertSearchResponse(response);
+        for (Terms.Bucket classBucket : ((Terms) response.getAggregations().get("class")).getBuckets()) {
+            for (SignificantTerms.Bucket bucket : ((SignificantTerms) classBucket.getAggregations().get("mySignificantTerms")).getBuckets()) {
+                assertThat(bucket.getSignificanceScore(),
+                        is((double) bucket.getSubsetDf() + bucket.getSubsetSize() + bucket.getSupersetDf() + bucket.getSupersetSize()));
+            }
+        }
+    }
+
     @Test
     public void testNoNumberFormatExceptionWithDefaultScriptingEngine() throws ExecutionException, InterruptedException, IOException {
+        assertAcked(client().admin().indices().prepareCreate("test").setSettings(Settings.builder().put("index.number_of_shards", 1)));
+        index("test", "doc", "1", "{\"field\":\"a\"}");
+        index("test", "doc", "11", "{\"field\":\"a\"}");
+        index("test", "doc", "2", "{\"field\":\"b\"}");
+        index("test", "doc", "22", "{\"field\":\"b\"}");
+        index("test", "doc", "3", "{\"field\":\"a b\"}");
+        index("test", "doc", "33", "{\"field\":\"a b\"}");
+        ScriptHeuristic.ScriptHeuristicBuilder scriptHeuristicBuilder = new ScriptHeuristic.ScriptHeuristicBuilder();
+        scriptHeuristicBuilder.setScript(new Script("_subset_freq/(_superset_freq - _subset_freq + 1)"));
+        ensureYellow();
+        refresh();
+        SearchResponse response = client()
+                .prepareSearch("test")
+                .addAggregation(
+                        new TermsBuilder("letters").field("field").subAggregation(
+                                new SignificantTermsBuilder("mySignificantTerms").field("field").executionHint(randomExecutionHint())
+                                        .significanceHeuristic(scriptHeuristicBuilder).minDocCount(1).shardSize(2).size(2))).execute()
+                .actionGet();
+        assertSearchResponse(response);
+        assertThat(((Terms) response.getAggregations().get("letters")).getBuckets().size(), equalTo(2));
+        for (Terms.Bucket classBucket : ((Terms) response.getAggregations().get("letters")).getBuckets()) {
+            assertThat(((SignificantStringTerms) classBucket.getAggregations().get("mySignificantTerms")).getBuckets().size(), equalTo(2));
+            for (SignificantTerms.Bucket bucket : ((SignificantTerms) classBucket.getAggregations().get("mySignificantTerms")).getBuckets()) {
+                assertThat(bucket.getSignificanceScore(),
+                        closeTo((double) bucket.getSubsetDf() / (bucket.getSupersetDf() - bucket.getSubsetDf() + 1), 1.e-6));
+            }
+        }
+    }
+
+    /*
+     * TODO Remove in 2.0
+     */
+    @Test
+    public void testNoNumberFormatExceptionWithDefaultScriptingEngineOldScriptAPI() throws ExecutionException, InterruptedException,
+            IOException {
         assertAcked(client().admin().indices().prepareCreate("test").setSettings(Settings.builder().put("index.number_of_shards", 1)));
         index("test", "doc", "1", "{\"field\":\"a\"}");
         index("test", "doc", "11", "{\"field\":\"a\"}");
@@ -520,6 +599,70 @@ public class SignificantTermsSignificanceScoreTests extends ElasticsearchIntegra
     }
 
     private ScriptHeuristic.ScriptHeuristicBuilder getScriptSignificanceHeuristicBuilder() throws IOException {
+        Map<String, Object> params = null;
+        Script script = null;
+        String lang = null;
+        if (randomBoolean()) {
+            params = new HashMap<>();
+            params.put("param", randomIntBetween(1, 100));
+        }
+        int randomScriptKind = randomIntBetween(0, 3);
+        if (randomBoolean()) {
+            lang = "groovy";
+        }
+        switch (randomScriptKind) {
+        case 0: {
+            if (params == null) {
+                script = new Script("return _subset_freq + _subset_size + _superset_freq + _superset_size");
+            } else {
+                script = new Script("return param*(_subset_freq + _subset_size + _superset_freq + _superset_size)/param",
+                        ScriptType.INLINE, lang, params);
+            }
+            break;
+        }
+        case 1: {
+            String scriptString;
+            if (params == null) {
+                scriptString = "return _subset_freq + _subset_size + _superset_freq + _superset_size";
+            } else {
+                scriptString = "return param*(_subset_freq + _subset_size + _superset_freq + _superset_size)/param";
+            }
+            client().prepareIndex().setIndex(ScriptService.SCRIPT_INDEX).setType(ScriptService.DEFAULT_LANG).setId("my_script")
+                    .setSource(XContentFactory.jsonBuilder().startObject().field("script", scriptString).endObject()).get();
+            refresh();
+            script = new Script("my_script", ScriptType.INDEXED, lang, params);
+            break;
+        }
+        case 2: {
+            if (params == null) {
+                script = new Script("significance_script_no_params", ScriptType.FILE, lang, null);
+            } else {
+                script = new Script("significance_script_with_params", ScriptType.FILE, lang, params);
+            }
+            break;
+        }
+        case 3: {
+            logger.info("NATIVE SCRIPT");
+            if (params == null) {
+                script = new Script("native_significance_score_script_no_params", ScriptType.INLINE, "native", null);
+            } else {
+                script = new Script("native_significance_score_script_with_params", ScriptType.INLINE, "native", params);
+            }
+            lang = "native";
+            if (randomBoolean()) {
+            }
+            break;
+        }
+        }
+        ScriptHeuristic.ScriptHeuristicBuilder builder = new ScriptHeuristic.ScriptHeuristicBuilder().setScript(script);
+
+        return builder;
+    }
+
+    /*
+     * TODO Remove in 2.0
+     */
+    private ScriptHeuristic.ScriptHeuristicBuilder getScriptSignificanceHeuristicBuilderOldScriptAPI() throws IOException {
         Map<String, Object> params = null;
         String script = null;
         String lang = null;

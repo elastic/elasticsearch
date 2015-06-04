@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.mapper;
 
-import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.CopyOnWriteHashMap;
 import org.elasticsearch.common.regex.Regex;
@@ -27,7 +27,7 @@ import org.elasticsearch.common.regex.Regex;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
-import java.util.List;
+import java.util.Set;
 
 /**
  * A class that holds a map of field mappers from name, index name, and full name.
@@ -53,7 +53,7 @@ class FieldMappersLookup implements Iterable<FieldMapper> {
         CopyOnWriteHashMap<String, FieldMappers> map = this.mappers;
 
         for (FieldMapper mapper : newMappers) {
-            String key = mapper.names().fullName();
+            String key = mapper.fieldType().names().fullName();
             FieldMappers mappers = map.get(key);
 
             if (mappers == null) {
@@ -76,13 +76,13 @@ class FieldMappersLookup implements Iterable<FieldMapper> {
     public FieldMappers indexName(String indexName) {
         FieldMappers fieldMappers = fullName(indexName);
         if (fieldMappers != null) {
-            if (fieldMappers.mapper().names().indexName().equals(indexName)) {
+            if (fieldMappers.mapper().fieldType().names().indexName().equals(indexName)) {
                 return fieldMappers;
             }
         }
         fieldMappers = new FieldMappers();
         for (FieldMapper mapper : this) {
-            if (mapper.names().indexName().equals(indexName)) {
+            if (mapper.fieldType().names().indexName().equals(indexName)) {
                 fieldMappers = fieldMappers.concat(mapper);
             }
         }
@@ -114,13 +114,13 @@ class FieldMappersLookup implements Iterable<FieldMapper> {
     /**
      * Returns a list of the index names of a simple match regex like pattern against full name and index name.
      */
-    public List<String> simpleMatchToIndexNames(String pattern) {
-        List<String> fields = Lists.newArrayList();
+    public Collection<String> simpleMatchToIndexNames(String pattern) {
+        Set<String> fields = Sets.newHashSet();
         for (FieldMapper fieldMapper : this) {
-            if (Regex.simpleMatch(pattern, fieldMapper.names().fullName())) {
-                fields.add(fieldMapper.names().indexName());
-            } else if (Regex.simpleMatch(pattern, fieldMapper.names().indexName())) {
-                fields.add(fieldMapper.names().indexName());
+            if (Regex.simpleMatch(pattern, fieldMapper.fieldType().names().fullName())) {
+                fields.add(fieldMapper.fieldType().names().indexName());
+            } else if (Regex.simpleMatch(pattern, fieldMapper.fieldType().names().indexName())) {
+                fields.add(fieldMapper.fieldType().names().indexName());
             }
         }
         return fields;
@@ -129,13 +129,13 @@ class FieldMappersLookup implements Iterable<FieldMapper> {
     /**
      * Returns a list of the full names of a simple match regex like pattern against full name and index name.
      */
-    public List<String> simpleMatchToFullName(String pattern) {
-        List<String> fields = Lists.newArrayList();
+    public Collection<String> simpleMatchToFullName(String pattern) {
+        Set<String> fields = Sets.newHashSet();
         for (FieldMapper fieldMapper : this) {
-            if (Regex.simpleMatch(pattern, fieldMapper.names().fullName())) {
-                fields.add(fieldMapper.names().fullName());
-            } else if (Regex.simpleMatch(pattern, fieldMapper.names().indexName())) {
-                fields.add(fieldMapper.names().fullName());
+            if (Regex.simpleMatch(pattern, fieldMapper.fieldType().names().fullName())) {
+                fields.add(fieldMapper.fieldType().names().fullName());
+            } else if (Regex.simpleMatch(pattern, fieldMapper.fieldType().names().indexName())) {
+                fields.add(fieldMapper.fieldType().names().fullName());
             }
         }
         return fields;

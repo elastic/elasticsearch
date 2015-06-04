@@ -67,7 +67,7 @@ public class SingleFieldsVisitor extends FieldsVisitor {
         if (fieldsValues == null) {
             return;
         }
-        List<Object> fieldValues = fieldsValues.get(mapper.names().indexName());
+        List<Object> fieldValues = fieldsValues.get(mapper.fieldType().names().indexName());
         if (fieldValues == null) {
             return;
         }

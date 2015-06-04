@@ -85,12 +85,26 @@ This syntax applies to Elasticsearch 1.0 and later:
 
 [source,sh]
 --------------------------------------------------
-        curl -XPUT localhost:9200/_cluster/settings -d '{
-                "transient" : {
-                    "cluster.routing.allocation.enable" : "none"
-                }
-        }'
+curl -XPUT localhost:9200/_cluster/settings -d '{
+        "transient" : {
+            "cluster.routing.allocation.enable" : "none"
+        }
+}'
 --------------------------------------------------
+
+* There is no problem continuing to index while doing the upgrade. However, you can speed the process considerably
+by *temporarily* stopping non-essential indexing and issuing a manual <<indices-synced-flush, synced flush>>.
+A synced flush is special kind of flush which can seriously speed up recovery of shards. Elasticsearch automatically
+uses it when an index has been inactive for a while (default is `30m`) but you can manuallky trigger it using the following command:
+
+[source,sh]
+--------------------------------------------------
+curl -XPOST localhost:9200/_all/_flush/synced
+--------------------------------------------------
+
+Note that a synced flush call is a best effort operation. It will fail there are any pending indexing operations. It is safe to issue
+it multiple times if needed.
+
 
 * Shut down a single node within the cluster.
 
@@ -110,11 +124,11 @@ This syntax applies to Elasticsearch 1.0 and later:
 
 [source,sh]
 --------------------------------------------------
-        curl -XPUT localhost:9200/_cluster/settings -d '{
-                "transient" : {
-                    "cluster.routing.allocation.enable" : "all"
-                }
-        }'
+curl -XPUT localhost:9200/_cluster/settings -d '{
+        "transient" : {
+            "cluster.routing.allocation.enable" : "all"
+        }
+}'
 --------------------------------------------------
 
 * Observe that all shards are properly allocated on all nodes.  Balancing may take some time.
@@ -150,11 +164,11 @@ This syntax is from versions prior to 1.0:
 
 [source,sh]
 --------------------------------------------------
-	curl -XPUT localhost:9200/_cluster/settings -d '{
-		"persistent" : {
-		"cluster.routing.allocation.disable_allocation" : true
-		}
-	}'
+curl -XPUT localhost:9200/_cluster/settings -d '{
+    "persistent" : {
+    "cluster.routing.allocation.disable_allocation" : true
+    }
+}'
 --------------------------------------------------
 
 * Stop all Elasticsearch services on all nodes in the cluster.
@@ -169,12 +183,12 @@ This syntax is from versions prior to 1.0:
 This syntax is from release 1.0 and later:
 [source,sh]
 ------------------------------------------------------
-	curl -XPUT localhost:9200/_cluster/settings -d '{
-     		"persistent" : {
-		"cluster.routing.allocation.disable_allocation": false,
-         	"cluster.routing.allocation.enable" : "all"
-     		}
- 	}'
+curl -XPUT localhost:9200/_cluster/settings -d '{
+        "persistent" : {
+    "cluster.routing.allocation.disable_allocation": false,
+        "cluster.routing.allocation.enable" : "all"
+        }
+}'
 ------------------------------------------------------
 
 The cluster upgrade can be streamlined by installing the software before stopping cluster services.  If this is done, testing must be performed to ensure that no production data or configuration files are overwritten prior to restart.

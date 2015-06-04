@@ -131,7 +131,8 @@ public class SimpleClusterStateTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testLargeClusterStatePublishing() throws Exception {
-        int estimatedBytesSize = scaledRandomIntBetween(ByteSizeValue.parseBytesSizeValue("10k").bytesAsInt(), ByteSizeValue.parseBytesSizeValue("256k").bytesAsInt());
+        int estimatedBytesSize = scaledRandomIntBetween(ByteSizeValue.parseBytesSizeValue("10k", "estimatedBytesSize").bytesAsInt(),
+                                                        ByteSizeValue.parseBytesSizeValue("256k", "estimatedBytesSize").bytesAsInt());
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties");
         int counter = 0;
         int numberOfFields = 0;

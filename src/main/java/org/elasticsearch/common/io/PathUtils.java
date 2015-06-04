@@ -83,8 +83,9 @@ public final class PathUtils {
      */
     public static Path get(Path[] roots, String path) {
         for (Path root : roots) {
-            Path normalizedPath = root.resolve(path).normalize();
-            if(normalizedPath.startsWith(root)) {
+            Path normalizedRoot = root.normalize();
+            Path normalizedPath = normalizedRoot.resolve(path).normalize();
+            if(normalizedPath.startsWith(normalizedRoot)) {
                 return normalizedPath;
             }
         }

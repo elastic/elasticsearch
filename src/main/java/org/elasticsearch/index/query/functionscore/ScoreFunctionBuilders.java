@@ -27,6 +27,7 @@ import org.elasticsearch.index.query.functionscore.lin.LinearDecayFunctionBuilde
 import org.elasticsearch.index.query.functionscore.random.RandomScoreFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.script.ScriptScoreFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.weight.WeightBuilder;
+import org.elasticsearch.script.Script;
 
 import java.util.Map;
 
@@ -56,18 +57,38 @@ public class ScoreFunctionBuilders {
         return new LinearDecayFunctionBuilder(fieldName, null, scale);
     }
 
+    public static ScriptScoreFunctionBuilder scriptFunction(Script script) {
+        return (new ScriptScoreFunctionBuilder()).script(script);
+    }
+
+    /**
+     * @deprecated Use {@link #scriptFunction(Script)} instead.
+     */
+    @Deprecated
     public static ScriptScoreFunctionBuilder scriptFunction(String script) {
         return (new ScriptScoreFunctionBuilder()).script(script);
     }
 
+    /**
+     * @deprecated Use {@link #scriptFunction(Script)} instead.
+     */
+    @Deprecated
     public static ScriptScoreFunctionBuilder scriptFunction(String script, String lang) {
         return (new ScriptScoreFunctionBuilder()).script(script).lang(lang);
     }
 
+    /**
+     * @deprecated Use {@link #scriptFunction(Script)} instead.
+     */
+    @Deprecated
     public static ScriptScoreFunctionBuilder scriptFunction(String script, String lang, Map<String, Object> params) {
         return (new ScriptScoreFunctionBuilder()).script(script).lang(lang).params(params);
     }
 
+    /**
+     * @deprecated Use {@link #scriptFunction(Script)} instead.
+     */
+    @Deprecated
     public static ScriptScoreFunctionBuilder scriptFunction(String script, Map<String, Object> params) {
         return (new ScriptScoreFunctionBuilder()).script(script).params(params);
     }

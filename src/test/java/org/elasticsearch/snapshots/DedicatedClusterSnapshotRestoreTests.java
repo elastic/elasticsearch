@@ -24,6 +24,7 @@ import com.carrotsearch.hppc.IntSet;
 import com.google.common.base.Predicate;
 import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.ListenableFuture;
+
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ListenableActionFuture;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryResponse;
@@ -34,20 +35,23 @@ import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotR
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
 import org.elasticsearch.action.admin.indices.recovery.ShardRecoveryResponse;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ProcessedClusterStateUpdateTask;
-import org.elasticsearch.cluster.AbstractDiffable;
-import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.MetaData.Custom;
-import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
+import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -56,9 +60,16 @@ import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.indices.ttl.IndicesTTLService;
 import org.elasticsearch.repositories.RepositoryMissingException;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.action.admin.cluster.repositories.get.RestGetRepositoriesAction;
+import org.elasticsearch.rest.action.admin.cluster.state.RestClusterStateAction;
 import org.elasticsearch.snapshots.mockstore.MockRepositoryModule;
 import org.elasticsearch.snapshots.mockstore.MockRepositoryPlugin;
 import org.elasticsearch.test.InternalTestCluster;
+import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.test.rest.FakeRestRequest;
 import org.junit.Ignore;
 import org.junit.Test;
 
@@ -70,6 +81,7 @@ import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static com.google.common.collect.Lists.newArrayList;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
@@ -623,6 +635,64 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
     }
 
     @Test
+    public void testThatSensitiveRepositorySettingsAreNotExposed() throws Exception {
+        Settings nodeSettings = settingsBuilder().put("plugin.types", MockRepositoryPlugin.class.getName()).build();
+        logger.info("--> start two nodes");
+        internalCluster().startNodesAsync(2, nodeSettings).get();
+        // Register mock repositories
+        client().admin().cluster().preparePutRepository("test-repo")
+                .setType("mock").setSettings(Settings.settingsBuilder()
+                        .put("location", randomRepoPath())
+                        .put("secret.mock.username", "notsecretusername")
+                        .put("secret.mock.password", "verysecretpassword")
+        ).get();
+
+        RestGetRepositoriesAction getRepoAction = internalCluster().getInstance(RestGetRepositoriesAction.class);
+        RestRequest getRepoRequest = new FakeRestRequest();
+        getRepoRequest.params().put("repository", "test-repo");
+        final CountDownLatch getRepoLatch = new CountDownLatch(1);
+        final AtomicReference<AssertionError> getRepoError = new AtomicReference<>();
+        getRepoAction.handleRequest(getRepoRequest, new RestChannel(getRepoRequest, true) {
+            @Override
+            public void sendResponse(RestResponse response) {
+                try {
+                    assertThat(response.content().toUtf8(), containsString("notsecretusername"));
+                    assertThat(response.content().toUtf8(), not(containsString("verysecretpassword")));
+                } catch (AssertionError ex) {
+                    getRepoError.set(ex);
+                }
+                getRepoLatch.countDown();
+            }
+        });
+        assertTrue(getRepoLatch.await(1, TimeUnit.SECONDS));
+        if (getRepoError.get() != null) {
+            throw getRepoError.get();
+        }
+
+        RestClusterStateAction clusterStateAction = internalCluster().getInstance(RestClusterStateAction.class);
+        RestRequest clusterStateRequest = new FakeRestRequest();
+        final CountDownLatch clusterStateLatch = new CountDownLatch(1);
+        final AtomicReference<AssertionError> clusterStateError = new AtomicReference<>();
+        clusterStateAction.handleRequest(clusterStateRequest, new RestChannel(clusterStateRequest, true) {
+            @Override
+            public void sendResponse(RestResponse response) {
+                try {
+                    assertThat(response.content().toUtf8(), containsString("notsecretusername"));
+                    assertThat(response.content().toUtf8(), not(containsString("verysecretpassword")));
+                } catch (AssertionError ex) {
+                    clusterStateError.set(ex);
+                }
+                clusterStateLatch.countDown();
+            }
+        });
+        assertTrue(clusterStateLatch.await(1, TimeUnit.SECONDS));
+        if (clusterStateError.get() != null) {
+            throw clusterStateError.get();
+        }
+        
+    }
+
+    @Test
     @Ignore
     public void chaosSnapshotTest() throws Exception {
         final List<String> indices = new CopyOnWriteArrayList<>();
@@ -638,7 +708,7 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
                 .setType("fs").setSettings(Settings.settingsBuilder()
                         .put("location", randomRepoPath())
                         .put("compress", randomBoolean())
-                        .put("chunk_size", randomIntBetween(100, 1000))));
+                        .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
 
         int initialIndices = between(1, 3);
         logger.info("--> create {} indices", initialIndices);
@@ -725,6 +795,84 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
         asyncNodesFuture.get();
         logger.info("--> done");
     }
+
+    @Test
+    public void masterShutdownDuringSnapshotTest() throws Exception {
+
+        Settings masterSettings = settingsBuilder().put("node.data", false).build();
+        Settings dataSettings = settingsBuilder().put("node.master", false).build();
+
+        logger.info("-->  starting two master nodes and two data nodes");
+        internalCluster().startNode(masterSettings);
+        internalCluster().startNode(masterSettings);
+        internalCluster().startNode(dataSettings);
+        internalCluster().startNode(dataSettings);
+
+        final Client client = client();
+
+        logger.info("-->  creating repository");
+        assertAcked(client.admin().cluster().preparePutRepository("test-repo")
+                .setType("fs").setSettings(Settings.settingsBuilder()
+                        .put("location", randomRepoPath())
+                        .put("compress", randomBoolean())
+                        .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
+
+        assertAcked(prepareCreate("test-idx", 0, settingsBuilder().put("number_of_shards", between(1, 20))
+                .put("number_of_replicas", 0)));
+        ensureGreen();
+
+        logger.info("--> indexing some data");
+        final int numdocs = randomIntBetween(10, 100);
+        IndexRequestBuilder[] builders = new IndexRequestBuilder[numdocs];
+        for (int i = 0; i < builders.length; i++) {
+            builders[i] = client().prepareIndex("test-idx", "type1", Integer.toString(i)).setSource("field1", "bar " + i);
+        }
+        indexRandom(true, builders);
+        flushAndRefresh();
+
+        final int numberOfShards = getNumShards("test-idx").numPrimaries;
+        logger.info("number of shards: {}", numberOfShards);
+
+        final ClusterService clusterService = internalCluster().clusterService(internalCluster().getMasterName());
+        BlockingClusterStateListener snapshotListener = new BlockingClusterStateListener(clusterService, "update_snapshot [", "update snapshot state", Priority.HIGH);
+        try {
+            clusterService.addFirst(snapshotListener);
+            logger.info("--> snapshot");
+            dataNodeClient().admin().cluster().prepareCreateSnapshot("test-repo", "test-snap").setWaitForCompletion(false).setIndices("test-idx").get();
+
+            // Await until some updates are in pending state.
+            assertBusyPendingTasks("update snapshot state", 1);
+
+            logger.info("--> stopping master node");
+            internalCluster().stopCurrentMasterNode();
+
+            logger.info("--> unblocking snapshot execution");
+            snapshotListener.unblock();
+
+        } finally {
+            clusterService.remove(snapshotListener);
+        }
+
+        logger.info("--> wait until the snapshot is done");
+
+        assertBusy(new Runnable() {
+            @Override
+            public void run() {
+                GetSnapshotsResponse snapshotsStatusResponse = client().admin().cluster().prepareGetSnapshots("test-repo").setSnapshots("test-snap").get();
+                SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots().get(0);
+                assertTrue(snapshotInfo.state().completed());
+            }
+        }, 1, TimeUnit.MINUTES);
+
+        logger.info("--> verify that snapshot was succesful");
+
+        GetSnapshotsResponse snapshotsStatusResponse = client().admin().cluster().prepareGetSnapshots("test-repo").setSnapshots("test-snap").get();
+        SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots().get(0);
+        assertEquals(SnapshotState.SUCCESS, snapshotInfo.state());
+        assertEquals(snapshotInfo.totalShards(), snapshotInfo.successfulShards());
+        assertEquals(0, snapshotInfo.failedShards());
+    }
+
 
     private boolean snapshotIsDone(String repository, String snapshot) {
         try {

@@ -20,7 +20,7 @@
 package org.elasticsearch.index.mapper.update;
 
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
-import org.elasticsearch.common.compress.CompressedString;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -80,11 +80,11 @@ public class UpdateMappingTests extends ElasticsearchSingleNodeTest {
     private void testNoConflictWhileMergingAndMappingChanged(XContentBuilder mapping, XContentBuilder mappingUpdate, XContentBuilder expectedMapping) throws IOException {
         IndexService indexService = createIndex("test", Settings.settingsBuilder().build(), "type", mapping);
         // simulate like in MetaDataMappingService#putMapping
-        MergeResult mergeResult = indexService.mapperService().documentMapper("type").merge(indexService.mapperService().parse("type", new CompressedString(mappingUpdate.bytes()), true).mapping(), false);
+        MergeResult mergeResult = indexService.mapperService().documentMapper("type").merge(indexService.mapperService().parse("type", new CompressedXContent(mappingUpdate.bytes()), true).mapping(), false);
         // assure we have no conflicts
         assertThat(mergeResult.buildConflicts().length, equalTo(0));
         // make sure mappings applied
-        CompressedString mappingAfterUpdate = indexService.mapperService().documentMapper("type").mappingSource();
+        CompressedXContent mappingAfterUpdate = indexService.mapperService().documentMapper("type").mappingSource();
         assertThat(mappingAfterUpdate.toString(), equalTo(expectedMapping.string()));
     }
 
@@ -102,13 +102,13 @@ public class UpdateMappingTests extends ElasticsearchSingleNodeTest {
 
     protected void testConflictWhileMergingAndMappingUnchanged(XContentBuilder mapping, XContentBuilder mappingUpdate) throws IOException {
         IndexService indexService = createIndex("test", Settings.settingsBuilder().build(), "type", mapping);
-        CompressedString mappingBeforeUpdate = indexService.mapperService().documentMapper("type").mappingSource();
+        CompressedXContent mappingBeforeUpdate = indexService.mapperService().documentMapper("type").mappingSource();
         // simulate like in MetaDataMappingService#putMapping
-        MergeResult mergeResult = indexService.mapperService().documentMapper("type").merge(indexService.mapperService().parse("type", new CompressedString(mappingUpdate.bytes()), true).mapping(), true);
+        MergeResult mergeResult = indexService.mapperService().documentMapper("type").merge(indexService.mapperService().parse("type", new CompressedXContent(mappingUpdate.bytes()), true).mapping(), true);
         // assure we have conflicts
         assertThat(mergeResult.buildConflicts().length, equalTo(1));
         // make sure simulate flag actually worked - no mappings applied
-        CompressedString mappingAfterUpdate = indexService.mapperService().documentMapper("type").mappingSource();
+        CompressedXContent mappingAfterUpdate = indexService.mapperService().documentMapper("type").mappingSource();
         assertThat(mappingAfterUpdate, equalTo(mappingBeforeUpdate));
     }
 
@@ -124,9 +124,9 @@ public class UpdateMappingTests extends ElasticsearchSingleNodeTest {
                 .endObject()
                 .endObject()
                 .endObject();
-        DocumentMapper documentMapper = indexService.mapperService().parse("type", new CompressedString(indexMapping.string()), true);
+        DocumentMapper documentMapper = indexService.mapperService().parse("type", new CompressedXContent(indexMapping.string()), true);
         assertThat(documentMapper.indexMapper().enabled(), equalTo(enabled));
-        documentMapper = indexService.mapperService().parse("type", new CompressedString(documentMapper.mappingSource().string()), true);
+        documentMapper = indexService.mapperService().parse("type", new CompressedXContent(documentMapper.mappingSource().string()), true);
         assertThat(documentMapper.indexMapper().enabled(), equalTo(enabled));
     }
 
@@ -146,13 +146,13 @@ public class UpdateMappingTests extends ElasticsearchSingleNodeTest {
                 .endObject()
                 .endObject()
                 .endObject();
-        DocumentMapper documentMapper = indexService.mapperService().parse("type", new CompressedString(indexMapping.string()), true);
+        DocumentMapper documentMapper = indexService.mapperService().parse("type", new CompressedXContent(indexMapping.string()), true);
         assertThat(documentMapper.timestampFieldMapper().enabled(), equalTo(enabled));
         assertTrue(documentMapper.timestampFieldMapper().fieldType().stored());
-        assertTrue(documentMapper.timestampFieldMapper().hasDocValues());
-        documentMapper = indexService.mapperService().parse("type", new CompressedString(documentMapper.mappingSource().string()), true);
+        assertTrue(documentMapper.timestampFieldMapper().fieldType().hasDocValues());
+        documentMapper = indexService.mapperService().parse("type", new CompressedXContent(documentMapper.mappingSource().string()), true);
         assertThat(documentMapper.timestampFieldMapper().enabled(), equalTo(enabled));
-        assertTrue(documentMapper.timestampFieldMapper().hasDocValues());
+        assertTrue(documentMapper.timestampFieldMapper().fieldType().hasDocValues());
         assertTrue(documentMapper.timestampFieldMapper().fieldType().stored());
     }
 
@@ -168,10 +168,10 @@ public class UpdateMappingTests extends ElasticsearchSingleNodeTest {
                 .endObject()
                 .endObject()
                 .endObject();
-        DocumentMapper documentMapper = indexService.mapperService().parse("type", new CompressedString(indexMapping.string()), true);
+        DocumentMapper documentMapper = indexService.mapperService().parse("type", new CompressedXContent(indexMapping.string()), true);
         assertThat(documentMapper.sizeFieldMapper().enabled(), equalTo(enabled));
         assertTrue(documentMapper.sizeFieldMapper().fieldType().stored());
-        documentMapper = indexService.mapperService().parse("type", new CompressedString(documentMapper.mappingSource().string()), true);
+        documentMapper = indexService.mapperService().parse("type", new CompressedXContent(documentMapper.mappingSource().string()), true);
         assertThat(documentMapper.sizeFieldMapper().enabled(), equalTo(enabled));
     }
 
@@ -179,9 +179,9 @@ public class UpdateMappingTests extends ElasticsearchSingleNodeTest {
     public void testSizeTimestampIndexParsing() throws IOException {
         IndexService indexService = createIndex("test", Settings.settingsBuilder().build());
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/update/default_mapping_with_disabled_root_types.json");
-        DocumentMapper documentMapper = indexService.mapperService().parse("type", new CompressedString(mapping), true);
+        DocumentMapper documentMapper = indexService.mapperService().parse("type", new CompressedXContent(mapping), true);
         assertThat(documentMapper.mappingSource().string(), equalTo(mapping));
-        documentMapper = indexService.mapperService().parse("type", new CompressedString(documentMapper.mappingSource().string()), true);
+        documentMapper = indexService.mapperService().parse("type", new CompressedXContent(documentMapper.mappingSource().string()), true);
         assertThat(documentMapper.mappingSource().string(), equalTo(mapping));
     }
 

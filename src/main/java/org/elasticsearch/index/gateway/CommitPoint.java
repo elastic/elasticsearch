@@ -105,11 +105,11 @@ public class CommitPoint {
         return this.type;
     }
 
-    public ImmutableList<FileInfo> indexFiles() {
+    public List<FileInfo> indexFiles() {
         return this.indexFiles;
     }
 
-    public ImmutableList<FileInfo> translogFiles() {
+    public List<FileInfo> translogFiles() {
         return this.translogFiles;
     }
 

@@ -19,17 +19,14 @@
 
 package org.elasticsearch.rest.action.admin.indices.upgrade;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.action.admin.indices.optimize.OptimizeRequest;
-import org.elasticsearch.action.admin.indices.optimize.OptimizeResponse;
-import org.elasticsearch.action.admin.indices.segments.*;
+import org.elasticsearch.action.admin.indices.upgrade.get.UpgradeStatusResponse;
+import org.elasticsearch.action.admin.indices.upgrade.post.UpgradeRequest;
+import org.elasticsearch.action.admin.indices.upgrade.post.UpgradeResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
-import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
@@ -37,7 +34,8 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
-import java.io.IOException;
+
+import java.util.Map;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -66,72 +64,36 @@ public class RestUpgradeAction extends BaseRestHandler {
         }
     }
 
-    void handleGet(RestRequest request, RestChannel channel, Client client) {
-        IndicesSegmentsRequest segsReq = new IndicesSegmentsRequest(Strings.splitStringByCommaToArray(request.param("index")));
-        client.admin().indices().segments(segsReq, new RestBuilderListener<IndicesSegmentResponse>(channel) {
-            @Override
-            public RestResponse buildResponse(IndicesSegmentResponse response, XContentBuilder builder) throws Exception {
-                builder.startObject();
-                
-                // TODO: getIndices().values() is what IndicesSegmentsResponse uses, but this will produce different orders with jdk8?
-                for (IndexSegments indexSegments : response.getIndices().values()) {
-                    builder.startObject(indexSegments.getIndex());
-                    buildUpgradeStatus(indexSegments, builder);
-                    builder.endObject();
-                }
-                
-                builder.endObject();
-                return new BytesRestResponse(OK, builder);
-            }
-        });
+    void handleGet(final RestRequest request, RestChannel channel, Client client) {
+        client.admin().indices().prepareUpgradeStatus(Strings.splitStringByCommaToArray(request.param("index")))
+                .execute(new RestBuilderListener<UpgradeStatusResponse>(channel) {
+                    @Override
+                    public RestResponse buildResponse(UpgradeStatusResponse response, XContentBuilder builder) throws Exception {
+                        builder.startObject();
+                        response.toXContent(builder, request);
+                        builder.endObject();
+                        return new BytesRestResponse(OK, builder);
+                    }
+                });
     }
-    
+
     void handlePost(final RestRequest request, RestChannel channel, Client client) {
-        OptimizeRequest optimizeReq = new OptimizeRequest(Strings.splitStringByCommaToArray(request.param("index")));
-        optimizeReq.flush(true);
-        optimizeReq.upgrade(true);
-        optimizeReq.upgradeOnlyAncientSegments(request.paramAsBoolean("only_ancient_segments", false));
-        optimizeReq.maxNumSegments(Integer.MAX_VALUE); // we just want to upgrade the segments, not actually optimize to a single segment
-        client.admin().indices().optimize(optimizeReq, new RestBuilderListener<OptimizeResponse>(channel) {
+        UpgradeRequest upgradeReq = new UpgradeRequest(Strings.splitStringByCommaToArray(request.param("index")));
+        upgradeReq.upgradeOnlyAncientSegments(request.paramAsBoolean("only_ancient_segments", false));
+        client.admin().indices().upgrade(upgradeReq, new RestBuilderListener<UpgradeResponse>(channel) {
             @Override
-            public RestResponse buildResponse(OptimizeResponse response, XContentBuilder builder) throws Exception {
+            public RestResponse buildResponse(UpgradeResponse response, XContentBuilder builder) throws Exception {
                 builder.startObject();
                 buildBroadcastShardsHeader(builder, request, response);
+                builder.startObject("upgraded_indices");
+                for (Map.Entry<String, String> entry : response.versions().entrySet()) {
+                    builder.field(entry.getKey(), entry.getValue(), XContentBuilder.FieldCaseConversion.NONE);
+                }
+                builder.endObject();
                 builder.endObject();
                 return new BytesRestResponse(OK, builder);
             }
         });
     }
-    
-    void buildUpgradeStatus(IndexSegments indexSegments, XContentBuilder builder) throws IOException {
-        long total_bytes = 0;
-        long to_upgrade_bytes = 0;
-        long to_upgrade_bytes_ancient = 0;
-        for (IndexShardSegments shard : indexSegments) {
-            for (ShardSegments segs : shard.getShards()) {
-                for (Segment seg : segs.getSegments()) {
-                    total_bytes += seg.sizeInBytes;
-                    if (seg.version.major != Version.CURRENT.luceneVersion.major) {
-                        to_upgrade_bytes_ancient += seg.sizeInBytes;
-                        to_upgrade_bytes += seg.sizeInBytes;
-                    } else if (seg.version.minor != Version.CURRENT.luceneVersion.minor) {
-                        // TODO: this comparison is bogus! it would cause us to upgrade even with the same format
-                        // instead, we should check if the codec has changed
-                        to_upgrade_bytes += seg.sizeInBytes;
-                    }
-                }
-            }
-        }
 
-        builder.byteSizeField(SIZE_IN_BYTES, SIZE, total_bytes);
-        builder.byteSizeField(SIZE_TO_UPGRADE_IN_BYTES, SIZE_TO_UPGRADE, to_upgrade_bytes);
-        builder.byteSizeField(SIZE_TO_UPGRADE_ANCIENT_IN_BYTES, SIZE_TO_UPGRADE_ANCIENT, to_upgrade_bytes_ancient);
-    }
-
-    static final XContentBuilderString SIZE = new XContentBuilderString("size");
-    static final XContentBuilderString SIZE_IN_BYTES = new XContentBuilderString("size_in_bytes");
-    static final XContentBuilderString SIZE_TO_UPGRADE = new XContentBuilderString("size_to_upgrade");
-    static final XContentBuilderString SIZE_TO_UPGRADE_ANCIENT = new XContentBuilderString("size_to_upgrade_ancient");
-    static final XContentBuilderString SIZE_TO_UPGRADE_IN_BYTES = new XContentBuilderString("size_to_upgrade_in_bytes");
-    static final XContentBuilderString SIZE_TO_UPGRADE_ANCIENT_IN_BYTES = new XContentBuilderString("size_to_upgrade_ancient_in_bytes");
 }

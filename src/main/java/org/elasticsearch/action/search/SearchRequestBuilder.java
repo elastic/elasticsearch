@@ -29,7 +29,9 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.Template;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -423,33 +425,60 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      * @param name   The name that will represent this value in the return hit
      * @param script The script to use
      */
+    public SearchRequestBuilder addScriptField(String name, Script script) {
+        sourceBuilder().scriptField(name, script);
+        return this;
+    }
+
+    /**
+     * Adds a script based field to load and return. The field does not have to
+     * be stored, but its recommended to use non analyzed or numeric fields.
+     *
+     * @param name
+     *            The name that will represent this value in the return hit
+     * @param script
+     *            The script to use
+     * @deprecated Use {@link #addScriptField(String, Script)} instead.
+     */
+    @Deprecated
     public SearchRequestBuilder addScriptField(String name, String script) {
         sourceBuilder().scriptField(name, script);
         return this;
     }
 
     /**
-     * Adds a script based field to load and return. The field does not have to be stored,
-     * but its recommended to use non analyzed or numeric fields.
+     * Adds a script based field to load and return. The field does not have to
+     * be stored, but its recommended to use non analyzed or numeric fields.
      *
-     * @param name   The name that will represent this value in the return hit
-     * @param script The script to use
-     * @param params Parameters that the script can use.
+     * @param name
+     *            The name that will represent this value in the return hit
+     * @param script
+     *            The script to use
+     * @param params
+     *            Parameters that the script can use.
+     * @deprecated Use {@link #addScriptField(String, Script)} instead.
      */
+    @Deprecated
     public SearchRequestBuilder addScriptField(String name, String script, Map<String, Object> params) {
         sourceBuilder().scriptField(name, script, params);
         return this;
     }
 
     /**
-     * Adds a script based field to load and return. The field does not have to be stored,
-     * but its recommended to use non analyzed or numeric fields.
+     * Adds a script based field to load and return. The field does not have to
+     * be stored, but its recommended to use non analyzed or numeric fields.
      *
-     * @param name   The name that will represent this value in the return hit
-     * @param lang   The language of the script
-     * @param script The script to use
-     * @param params Parameters that the script can use (can be <tt>null</tt>).
+     * @param name
+     *            The name that will represent this value in the return hit
+     * @param lang
+     *            The language of the script
+     * @param script
+     *            The script to use
+     * @param params
+     *            Parameters that the script can use (can be <tt>null</tt>).
+     * @deprecated Use {@link #addScriptField(String, Script)} instead.
      */
+    @Deprecated
     public SearchRequestBuilder addScriptField(String name, String lang, String script, Map<String, Object> params) {
         sourceBuilder().scriptField(name, lang, script, params);
         return this;
@@ -939,16 +968,33 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      * template stuff
      */
 
+    public SearchRequestBuilder setTemplate(Template template) {
+        request.template(template);
+        return this;
+    }
+
+    /**
+     * @deprecated Use {@link #setTemplate(Template)} instead.
+     */
+    @Deprecated
     public SearchRequestBuilder setTemplateName(String templateName) {
         request.templateName(templateName);
         return this;
     }
 
+    /**
+     * @deprecated Use {@link #setTemplate(Template)} instead.
+     */
+    @Deprecated
     public SearchRequestBuilder setTemplateType(ScriptService.ScriptType templateType) {
         request.templateType(templateType);
         return this;
     }
 
+    /**
+     * @deprecated Use {@link #setTemplate(Template)} instead.
+     */
+    @Deprecated
     public SearchRequestBuilder setTemplateParams(Map<String, Object> templateParams) {
         request.templateParams(templateParams);
         return this;

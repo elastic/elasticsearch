@@ -25,6 +25,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.SearchHits;
@@ -63,7 +64,15 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.arrayContaining;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
 
 /**
  *
@@ -228,7 +237,9 @@ public class TopHitsTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testBasics() throws Exception {
-        SearchResponse response = client().prepareSearch("idx").setTypes("type")
+        SearchResponse response = client()
+                .prepareSearch("idx")
+                .setTypes("type")
                 .addAggregation(terms("terms")
                         .executionHint(randomExecutionHint())
                         .field(TERMS_AGGS_FIELD)
@@ -263,6 +274,65 @@ public class TopHitsTests extends ElasticsearchIntegrationTest {
             assertThat(hits.getAt(0).sourceAsMap().size(), equalTo(4));
         }
     }
+
+    @Test
+    public void testIssue11119() throws Exception {
+        // Test that top_hits aggregation is fed scores if query results size=0
+        SearchResponse response = client()
+                .prepareSearch("idx")
+                .setTypes("field-collapsing")
+                .setSize(0)
+                .setQuery(matchQuery("text", "x y z"))
+                .addAggregation(terms("terms").executionHint(randomExecutionHint()).field("group").subAggregation(topHits("hits")))
+                .get();
+
+        assertSearchResponse(response);
+
+        assertThat(response.getHits().getTotalHits(), equalTo(8l));
+        assertThat(response.getHits().hits().length, equalTo(0));
+        assertThat(response.getHits().maxScore(), equalTo(0f));
+        Terms terms = response.getAggregations().get("terms");
+        assertThat(terms, notNullValue());
+        assertThat(terms.getName(), equalTo("terms"));
+        assertThat(terms.getBuckets().size(), equalTo(3));
+
+        for (Terms.Bucket bucket : terms.getBuckets()) {
+            assertThat(bucket, notNullValue());
+            TopHits topHits = bucket.getAggregations().get("hits");
+            SearchHits hits = topHits.getHits();
+            float bestScore = Float.MAX_VALUE;
+            for (int h = 0; h < hits.getHits().length; h++) {
+                float score=hits.getAt(h).getScore();
+                assertThat(score, lessThanOrEqualTo(bestScore));
+                assertThat(score, greaterThan(0f));
+                bestScore = hits.getAt(h).getScore();
+            }
+        }
+
+        // Also check that min_score setting works when size=0
+        // (technically not a test of top_hits but implementation details are
+        // tied up with the need to feed scores into the agg tree even when
+        // users don't want ranked set of query results.)
+        response = client()
+                .prepareSearch("idx")
+                .setTypes("field-collapsing")
+                .setSize(0)
+                .setMinScore(0.0001f)
+                .setQuery(matchQuery("text", "x y z"))
+                .addAggregation(terms("terms").executionHint(randomExecutionHint()).field("group"))
+                .get();
+
+        assertSearchResponse(response);
+
+        assertThat(response.getHits().getTotalHits(), equalTo(8l));
+        assertThat(response.getHits().hits().length, equalTo(0));
+        assertThat(response.getHits().maxScore(), equalTo(0f));
+        terms = response.getAggregations().get("terms");
+        assertThat(terms, notNullValue());
+        assertThat(terms.getName(), equalTo("terms"));
+        assertThat(terms.getBuckets().size(), equalTo(3));
+    }
+
 
     @Test
     public void testBreadthFirst() throws Exception {
@@ -464,7 +534,7 @@ public class TopHitsTests extends ElasticsearchIntegrationTest {
                                             .addHighlightedField("text")
                                             .setExplain(true)
                                             .addFieldDataField("field1")
-                                            .addScriptField("script", "doc['field1'].value")
+                                                .addScriptField("script", new Script("doc['field1'].value"))
                                             .setFetchSource("text", null)
                                             .setVersion(true)
                                 )
@@ -778,23 +848,15 @@ public class TopHitsTests extends ElasticsearchIntegrationTest {
                 .forceSource(randomBoolean()) // randomly from stored field or _source
                 .highlighterType(hlType);
 
-        SearchResponse searchResponse = client().prepareSearch("articles")
+        SearchResponse searchResponse = client()
+                .prepareSearch("articles")
                 .setQuery(nestedQuery("comments", matchQuery("comments.message", "comment").queryName("test")))
                 .addAggregation(
-                        nested("to-comments")
-                                .path("comments")
-                                .subAggregation(
-                                        topHits("top-comments").setSize(1)
-                                                .addHighlightedField(hlField)
-                                                .setExplain(true)
+                        nested("to-comments").path("comments").subAggregation(
+                                topHits("top-comments").setSize(1).addHighlightedField(hlField).setExplain(true)
                                                 .addFieldDataField("comments.user")
-                                                .addScriptField("script", "doc['comments.user'].value")
-                                                .setFetchSource("message", null)
-                                                .setVersion(true)
-                                                .addSort("comments.date", SortOrder.ASC)
-                                )
-                )
-                .get();
+                                        .addScriptField("script", new Script("doc['comments.user'].value")).setFetchSource("message", null)
+                                        .setVersion(true).addSort("comments.date", SortOrder.ASC))).get();
         assertHitCount(searchResponse, 2);
         Nested nested = searchResponse.getAggregations().get("to-comments");
         assertThat(nested.getDocCount(), equalTo(4l));
@@ -872,6 +934,115 @@ public class TopHitsTests extends ElasticsearchIntegrationTest {
                 assertThat(highlightField.getFragments()[0].string(), equalTo("some <em>text</em>"));
             }
         }
+    }
+
+    /*
+     * TODO Remove in 2.0
+     */
+    @Test
+    public void testFetchFeaturesOldScriptAPI() {
+        SearchResponse response = client()
+                .prepareSearch("idx")
+                .setTypes("type")
+                .setQuery(matchQuery("text", "text").queryName("test"))
+                .addAggregation(
+                        terms("terms")
+                                .executionHint(randomExecutionHint())
+                                .field(TERMS_AGGS_FIELD)
+                                .subAggregation(
+                                        topHits("hits").setSize(1).addHighlightedField("text").setExplain(true).addFieldDataField("field1")
+                                                .addScriptField("script", "doc['field1'].value").setFetchSource("text", null)
+                                                .setVersion(true))).get();
+        assertSearchResponse(response);
+
+        Terms terms = response.getAggregations().get("terms");
+        assertThat(terms, notNullValue());
+        assertThat(terms.getName(), equalTo("terms"));
+        assertThat(terms.getBuckets().size(), equalTo(5));
+
+        for (Terms.Bucket bucket : terms.getBuckets()) {
+            TopHits topHits = bucket.getAggregations().get("hits");
+            SearchHits hits = topHits.getHits();
+            assertThat(hits.totalHits(), equalTo(10l));
+            assertThat(hits.getHits().length, equalTo(1));
+
+            SearchHit hit = hits.getAt(0);
+            HighlightField highlightField = hit.getHighlightFields().get("text");
+            assertThat(highlightField.getFragments().length, equalTo(1));
+            assertThat(highlightField.getFragments()[0].string(), equalTo("some <em>text</em> to entertain"));
+
+            Explanation explanation = hit.explanation();
+            assertThat(explanation.toString(), containsString("text:text"));
+
+            long version = hit.version();
+            assertThat(version, equalTo(1l));
+
+            assertThat(hit.matchedQueries()[0], equalTo("test"));
+
+            SearchHitField field = hit.field("field1");
+            assertThat(field.getValue().toString(), equalTo("5"));
+
+            field = hit.field("script");
+            assertThat(field.getValue().toString(), equalTo("5"));
+
+            assertThat(hit.sourceAsMap().size(), equalTo(1));
+            assertThat(hit.sourceAsMap().get("text").toString(), equalTo("some text to entertain"));
+        }
+    }
+
+    /*
+     * TODO Remove in 2.0
+     */
+    @Test
+    public void testNestedFetchFeaturesOldScriptAPI() {
+        String hlType = randomFrom("plain", "fvh", "postings");
+        HighlightBuilder.Field hlField = new HighlightBuilder.Field("comments.message")
+                .highlightQuery(matchQuery("comments.message", "comment")).forceSource(randomBoolean()) // randomly from stored field or _source
+                .highlighterType(hlType);
+
+        SearchResponse searchResponse = client()
+                .prepareSearch("articles")
+                .setQuery(nestedQuery("comments", matchQuery("comments.message", "comment").queryName("test")))
+                .addAggregation(
+                        nested("to-comments").path("comments").subAggregation(
+                                topHits("top-comments").setSize(1).addHighlightedField(hlField).setExplain(true)
+                                        .addFieldDataField("comments.user").addScriptField("script", "doc['comments.user'].value")
+                                        .setFetchSource("message", null).setVersion(true).addSort("comments.date", SortOrder.ASC))).get();
+        assertHitCount(searchResponse, 2);
+        Nested nested = searchResponse.getAggregations().get("to-comments");
+        assertThat(nested.getDocCount(), equalTo(4l));
+
+        SearchHits hits = ((TopHits) nested.getAggregations().get("top-comments")).getHits();
+        assertThat(hits.totalHits(), equalTo(4l));
+        SearchHit searchHit = hits.getAt(0);
+        assertThat(searchHit.getId(), equalTo("1"));
+        assertThat(searchHit.getNestedIdentity().getField().string(), equalTo("comments"));
+        assertThat(searchHit.getNestedIdentity().getOffset(), equalTo(0));
+
+        HighlightField highlightField = searchHit.getHighlightFields().get("comments.message");
+        assertThat(highlightField.getFragments().length, equalTo(1));
+        assertThat(highlightField.getFragments()[0].string(), equalTo("some <em>comment</em>"));
+
+        // Can't explain nested hit with the main query, since both are in a different scopes, also the nested doc may not even have matched with the main query
+        // If top_hits would have a query option then we can explain that query
+        Explanation explanation = searchHit.explanation();
+        assertFalse(explanation.isMatch());
+
+        // Returns the version of the root document. Nested docs don't have a separate version
+        long version = searchHit.version();
+        assertThat(version, equalTo(1l));
+
+        // Can't use named queries for the same reason explain doesn't work:
+        assertThat(searchHit.matchedQueries(), arrayContaining("test"));
+
+        SearchHitField field = searchHit.field("comments.user");
+        assertThat(field.getValue().toString(), equalTo("a"));
+
+        field = searchHit.field("script");
+        assertThat(field.getValue().toString(), equalTo("a"));
+
+        assertThat(searchHit.sourceAsMap().size(), equalTo(1));
+        assertThat(searchHit.sourceAsMap().get("message").toString(), equalTo("some comment"));
     }
 
 }

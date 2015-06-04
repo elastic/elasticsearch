@@ -21,7 +21,6 @@ package org.elasticsearch.action.admin.cluster.health;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Maps;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -229,9 +228,7 @@ public class ClusterHealthResponse extends ActionResponse implements Iterable<Cl
             }
         }
 
-        if (in.getVersion().onOrAfter(Version.V_1_6_0)) {
-            numberOfInFlightFetch = in.readInt();
-        }
+        numberOfInFlightFetch = in.readInt();
     }
 
     @Override
@@ -258,9 +255,7 @@ public class ClusterHealthResponse extends ActionResponse implements Iterable<Cl
             out.writeString(failure);
         }
 
-        if (out.getVersion().onOrAfter(Version.V_1_6_0)) {
-            out.writeInt(numberOfInFlightFetch);
-        }
+        out.writeInt(numberOfInFlightFetch);
     }
 
 

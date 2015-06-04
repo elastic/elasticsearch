@@ -24,6 +24,7 @@ import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.node.settings.NodeSettingsService;
@@ -336,7 +337,7 @@ public class BigArraysTests extends ElasticsearchSingleNodeTest {
         for (String type : Arrays.asList("Byte", "Int", "Long", "Float", "Double", "Object")) {
             HierarchyCircuitBreakerService hcbs = new HierarchyCircuitBreakerService(
                     Settings.builder()
-                            .put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING, size - 1)
+                            .put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING, size - 1, ByteSizeUnit.BYTES)
                             .build(),
                     new NodeSettingsService(Settings.EMPTY));
             BigArrays bigArrays = new BigArrays(null, hcbs).withCircuitBreaking();
@@ -356,7 +357,7 @@ public class BigArraysTests extends ElasticsearchSingleNodeTest {
             final long maxSize = randomIntBetween(1 << 10, 1 << 22);
             HierarchyCircuitBreakerService hcbs = new HierarchyCircuitBreakerService(
                     Settings.builder()
-                            .put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING, maxSize)
+                            .put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING, maxSize, ByteSizeUnit.BYTES)
                             .build(),
                     new NodeSettingsService(Settings.EMPTY));
             BigArrays bigArrays = new BigArrays(null, hcbs).withCircuitBreaking();

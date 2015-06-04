@@ -26,8 +26,12 @@ import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.RateLimiter;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -41,6 +45,7 @@ import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.index.IndexShardMissingException;
 import org.elasticsearch.index.engine.RecoveryEngineException;
+import org.elasticsearch.index.mapper.MapperException;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexShard;
@@ -294,13 +299,51 @@ public class RecoveryTarget extends AbstractComponent {
     class TranslogOperationsRequestHandler implements TransportRequestHandler<RecoveryTranslogOperationsRequest> {
 
         @Override
-        public void messageReceived(RecoveryTranslogOperationsRequest request, TransportChannel channel) throws Exception {
+        public void messageReceived(final RecoveryTranslogOperationsRequest request, final TransportChannel channel) throws Exception {
             try (RecoveriesCollection.StatusRef statusRef = onGoingRecoveries.getStatusSafe(request.recoveryId(), request.shardId())) {
+                final ClusterStateObserver observer = new ClusterStateObserver(clusterService, null, logger);
                 final RecoveryStatus recoveryStatus = statusRef.status();
                 final RecoveryState.Translog translog = recoveryStatus.state().getTranslog();
                 translog.totalOperations(request.totalTranslogOps());
                 assert recoveryStatus.indexShard().recoveryState() == recoveryStatus.state();
-                recoveryStatus.indexShard().performBatchRecovery(request.operations());
+                try {
+                    recoveryStatus.indexShard().performBatchRecovery(request.operations());
+                } catch (MapperException mapperException) {
+                    // in very rare cases a translog replay from primary is processed before a mapping update on this node
+                    // which causes local mapping changes. we want to wait until these mappings are processed.
+                    logger.trace("delaying recovery due to missing mapping changes", mapperException);
+                    // we do not need to use a timeout here since the entire recovery mechanism has an inactivity protection (it will be
+                    // canceled)
+                    observer.waitForNextChange(new ClusterStateObserver.Listener() {
+                        @Override
+                        public void onNewClusterState(ClusterState state) {
+                            try {
+                                messageReceived(request, channel);
+                            } catch (Exception e) {
+                                onFailure(e);
+                            }
+                        }
+
+                        protected void onFailure(Exception e) {
+                            try {
+                                channel.sendResponse(e);
+                            } catch (IOException e1) {
+                                logger.warn("failed to send error back to recovery source", e1);
+                            }
+                        }
+
+                        @Override
+                        public void onClusterServiceClose() {
+                            onFailure(new ElasticsearchException("cluster service was closed while waiting for mapping updates"));
+                        }
+
+                        @Override
+                        public void onTimeout(TimeValue timeout) {
+                            // note that we do not use a timeout (see comment above)
+                            onFailure(new ElasticsearchTimeoutException("timed out waiting for mapping updates (timeout [" + timeout + "])"));
+                        }
+                    });
+                }
             }
             channel.sendResponse(TransportResponse.Empty.INSTANCE);
 

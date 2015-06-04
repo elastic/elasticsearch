@@ -20,34 +20,56 @@
 package org.elasticsearch.index.query;
 
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.Script.ScriptField;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
-
-import static com.google.common.collect.Maps.newHashMap;
 
 public class ScriptQueryBuilder extends QueryBuilder {
 
-    private final String script;
+    private Script script;
 
+    @Deprecated
+    private String scriptString;
+
+    @Deprecated
     private Map<String, Object> params;
 
+    @Deprecated
     private String lang;
 
     private String queryName;
 
-    public ScriptQueryBuilder(String script) {
+    public ScriptQueryBuilder(Script script) {
         this.script = script;
     }
 
+    /**
+     * @deprecated Use {@link #ScriptQueryBuilder(Script)} instead.
+     */
+    @Deprecated
+    public ScriptQueryBuilder(String script) {
+        this.scriptString = script;
+    }
+
+    /**
+     * @deprecated Use {@link #ScriptQueryBuilder(Script)} instead.
+     */
+    @Deprecated
     public ScriptQueryBuilder addParam(String name, Object value) {
         if (params == null) {
-            params = newHashMap();
+            params = new HashMap<>();
         }
         params.put(name, value);
         return this;
     }
 
+    /**
+     * @deprecated Use {@link #ScriptQueryBuilder(Script)} instead.
+     */
+    @Deprecated
     public ScriptQueryBuilder params(Map<String, Object> params) {
         if (this.params == null) {
             this.params = params;
@@ -59,7 +81,10 @@ public class ScriptQueryBuilder extends QueryBuilder {
 
     /**
      * Sets the script language.
+     * 
+     * @deprecated Use {@link #ScriptQueryBuilder(Script)} instead.
      */
+    @Deprecated
     public ScriptQueryBuilder lang(String lang) {
         this.lang = lang;
         return this;
@@ -74,15 +99,23 @@ public class ScriptQueryBuilder extends QueryBuilder {
     }
 
     @Override
-    protected void doXContent(XContentBuilder builder, Params params) throws IOException {
+    protected void doXContent(XContentBuilder builder, Params builderParams) throws IOException {
+
         builder.startObject(ScriptQueryParser.NAME);
-        builder.field("script", script);
-        if (this.params != null) {
-            builder.field("params", this.params);
+        if (script != null) {
+            builder.field(ScriptField.SCRIPT.getPreferredName(), script);
+        } else {
+            if (this.scriptString != null) {
+                builder.field("script", scriptString);
+            }
+            if (this.params != null) {
+                builder.field("params", this.params);
+            }
+            if (this.lang != null) {
+                builder.field("lang", lang);
+            }
         }
-        if (this.lang != null) {
-            builder.field("lang", lang);
-        }
+
         if (queryName != null) {
             builder.field("_name", queryName);
         }

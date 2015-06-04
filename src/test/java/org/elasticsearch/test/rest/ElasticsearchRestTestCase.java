@@ -24,10 +24,10 @@ import com.carrotsearch.randomizedtesting.annotations.TestGroup;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 import com.google.common.collect.Lists;
 
+import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
 import org.apache.lucene.util.LuceneTestCase.SuppressFsync;
-import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
@@ -40,7 +40,11 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.test.rest.client.RestException;
 import org.elasticsearch.test.rest.parser.RestTestParseException;
 import org.elasticsearch.test.rest.parser.RestTestSuiteParser;
-import org.elasticsearch.test.rest.section.*;
+import org.elasticsearch.test.rest.section.DoSection;
+import org.elasticsearch.test.rest.section.ExecutableSection;
+import org.elasticsearch.test.rest.section.RestTestSuite;
+import org.elasticsearch.test.rest.section.SkipSection;
+import org.elasticsearch.test.rest.section.TestSection;
 import org.elasticsearch.test.rest.spec.RestApi;
 import org.elasticsearch.test.rest.spec.RestSpec;
 import org.elasticsearch.test.rest.support.FileUtils;
@@ -51,7 +55,11 @@ import org.junit.Test;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.lang.annotation.*;
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Inherited;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
@@ -61,7 +69,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.PathMatcher;
 import java.nio.file.StandardCopyOption;
-import java.util.*;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * Runs the clients test suite against an elasticsearch cluster.
@@ -312,7 +324,7 @@ public abstract class ElasticsearchRestTestCase extends ElasticsearchIntegration
         //skip test if it matches one of the blacklist globs
         for (PathMatcher blacklistedPathMatcher : blacklistPathMatchers) {
             //we need to replace a few characters otherwise the test section name can't be parsed as a path on windows
-            String testSection = testCandidate.getTestSection().getName().replace("*", "").replace("\\", "/").replaceAll("\\s+/", "/").trim();
+            String testSection = testCandidate.getTestSection().getName().replace("*", "").replace("\\", "/").replaceAll("\\s+/", "/").replace(":", "").trim();
             String testPath = testCandidate.getSuitePath() + "/" + testSection;
             assumeFalse("[" + testCandidate.getTestPath() + "] skipped, reason: blacklisted", blacklistedPathMatcher.matches(PathUtils.get(testPath)));
         }

@@ -90,7 +90,7 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
      *
      * @param source The map to index
      */
-    public IndexRequestBuilder setSource(Map<String, Object> source) {
+    public IndexRequestBuilder setSource(Map<String, ?> source) {
         request.source(source);
         return this;
     }
@@ -100,7 +100,7 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
      *
      * @param source The map to index
      */
-    public IndexRequestBuilder setSource(Map<String, Object> source, XContentType contentType) {
+    public IndexRequestBuilder setSource(Map<String, ?> source, XContentType contentType) {
         request.source(source, contentType);
         return this;
     }

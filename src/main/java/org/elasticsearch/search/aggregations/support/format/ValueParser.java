@@ -32,7 +32,6 @@ import java.text.NumberFormat;
 import java.text.ParseException;
 import java.util.Locale;
 import java.util.concurrent.Callable;
-import java.util.concurrent.TimeUnit;
 
 /**
  *
@@ -81,12 +80,12 @@ public interface ValueParser {
      */
     static class DateMath implements ValueParser {
 
-        public static final DateMath DEFAULT = new ValueParser.DateMath(new DateMathParser(DateFieldMapper.Defaults.DATE_TIME_FORMATTER, DateFieldMapper.Defaults.TIME_UNIT));
+        public static final DateMath DEFAULT = new ValueParser.DateMath(new DateMathParser(DateFieldMapper.Defaults.DATE_TIME_FORMATTER));
 
         private DateMathParser parser;
 
-        public DateMath(String format, TimeUnit timeUnit) {
-            this(new DateMathParser(Joda.forPattern(format), timeUnit));
+        public DateMath(String format) {
+            this(new DateMathParser(Joda.forPattern(format)));
         }
 
         public DateMath(DateMathParser parser) {
@@ -110,7 +109,7 @@ public interface ValueParser {
         }
 
         public static DateMath mapper(DateFieldMapper mapper) {
-            return new DateMath(new DateMathParser(mapper.dateTimeFormatter(), DateFieldMapper.Defaults.TIME_UNIT));
+            return new DateMath(new DateMathParser(mapper.fieldType().dateTimeFormatter()));
         }
     }
 

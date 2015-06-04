@@ -24,7 +24,7 @@ import com.google.common.collect.Sets;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.common.compress.CompressedString;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
@@ -54,13 +54,13 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
     private final Settings settings;
 
     // the mapping source should always include the type as top level
-    private final ImmutableOpenMap<String, CompressedString> mappings;
+    private final ImmutableOpenMap<String, CompressedXContent> mappings;
 
     private final ImmutableOpenMap<String, AliasMetaData> aliases;
 
     private final ImmutableOpenMap<String, IndexMetaData.Custom> customs;
 
-    public IndexTemplateMetaData(String name, int order, String template, Settings settings, ImmutableOpenMap<String, CompressedString> mappings,
+    public IndexTemplateMetaData(String name, int order, String template, Settings settings, ImmutableOpenMap<String, CompressedXContent> mappings,
                                  ImmutableOpenMap<String, AliasMetaData> aliases, ImmutableOpenMap<String, IndexMetaData.Custom> customs) {
         this.name = name;
         this.order = order;
@@ -103,11 +103,11 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
         return settings();
     }
 
-    public ImmutableOpenMap<String, CompressedString> mappings() {
+    public ImmutableOpenMap<String, CompressedXContent> mappings() {
         return this.mappings;
     }
 
-    public ImmutableOpenMap<String, CompressedString> getMappings() {
+    public ImmutableOpenMap<String, CompressedXContent> getMappings() {
         return this.mappings;
     }
 
@@ -170,7 +170,7 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
         builder.settings(Settings.readSettingsFromStream(in));
         int mappingsSize = in.readVInt();
         for (int i = 0; i < mappingsSize; i++) {
-            builder.putMapping(in.readString(), CompressedString.readCompressedString(in));
+            builder.putMapping(in.readString(), CompressedXContent.readCompressedString(in));
         }
         int aliasesSize = in.readVInt();
         for (int i = 0; i < aliasesSize; i++) {
@@ -193,7 +193,7 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
         out.writeString(template);
         Settings.writeSettingsToStream(settings, out);
         out.writeVInt(mappings.size());
-        for (ObjectObjectCursor<String, CompressedString> cursor : mappings) {
+        for (ObjectObjectCursor<String, CompressedXContent> cursor : mappings) {
             out.writeString(cursor.key);
             cursor.value.writeTo(out);
         }
@@ -223,7 +223,7 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
 
         private Settings settings = Settings.Builder.EMPTY_SETTINGS;
 
-        private final ImmutableOpenMap.Builder<String, CompressedString> mappings;
+        private final ImmutableOpenMap.Builder<String, CompressedXContent> mappings;
 
         private final ImmutableOpenMap.Builder<String, AliasMetaData> aliases;
 
@@ -276,13 +276,13 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
             return this;
         }
 
-        public Builder putMapping(String mappingType, CompressedString mappingSource) throws IOException {
+        public Builder putMapping(String mappingType, CompressedXContent mappingSource) throws IOException {
             mappings.put(mappingType, mappingSource);
             return this;
         }
 
         public Builder putMapping(String mappingType, String mappingSource) throws IOException {
-            mappings.put(mappingType, new CompressedString(mappingSource));
+            mappings.put(mappingType, new CompressedXContent(mappingSource));
             return this;
         }
 
@@ -327,7 +327,7 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
 
             if (params.paramAsBoolean("reduce_mappings", false)) {
                 builder.startObject("mappings");
-                for (ObjectObjectCursor<String, CompressedString> cursor : indexTemplateMetaData.mappings()) {
+                for (ObjectObjectCursor<String, CompressedXContent> cursor : indexTemplateMetaData.mappings()) {
                     byte[] mappingSource = cursor.value.uncompressed();
                     XContentParser parser = XContentFactory.xContent(mappingSource).createParser(mappingSource);
                     Map<String, Object> mapping = parser.map();
@@ -341,7 +341,7 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
                 builder.endObject();
             } else {
                 builder.startArray("mappings");
-                for (ObjectObjectCursor<String, CompressedString> cursor : indexTemplateMetaData.mappings()) {
+                for (ObjectObjectCursor<String, CompressedXContent> cursor : indexTemplateMetaData.mappings()) {
                     byte[] data = cursor.value.uncompressed();
                     XContentParser parser = XContentFactory.xContent(data).createParser(data);
                     Map<String, Object> mapping = parser.mapOrderedAndClose();

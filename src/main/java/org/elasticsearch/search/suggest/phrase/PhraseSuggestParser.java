@@ -22,7 +22,6 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.index.analysis.ShingleTokenFilterFactory;
@@ -30,10 +29,8 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.script.CompiledScript;
-import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
-import org.elasticsearch.script.ScriptService.ScriptType;
-import org.elasticsearch.script.mustache.MustacheScriptEngineService;
+import org.elasticsearch.script.Template;
 import org.elasticsearch.search.suggest.SuggestContextParser;
 import org.elasticsearch.search.suggest.SuggestUtils;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
@@ -137,30 +134,13 @@ public final class PhraseSuggestParser implements SuggestContextParser {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                         if (token == XContentParser.Token.FIELD_NAME) {
                             fieldName = parser.currentName();
-                        } else if ("query".equals(fieldName) || "filter".equals(fieldName)) {
-                            String templateNameOrTemplateContent;
-                            if (token == XContentParser.Token.START_OBJECT) {
-                                XContentBuilder builder = XContentBuilder.builder(parser.contentType().xContent());
-                                builder.copyCurrentStructure(parser);
-                                templateNameOrTemplateContent = builder.string();
-                            } else {
-                                templateNameOrTemplateContent = parser.text();
-                            }
-                            if (templateNameOrTemplateContent == null) {
-                                throw new IllegalArgumentException("suggester[phrase][collate] no query/filter found in collate object");
-                            }
-                            if (suggestion.getCollateFilterScript() != null) {
-                                throw new IllegalArgumentException("suggester[phrase][collate] filter already set, doesn't support additional [" + fieldName + "]");
-                            }
+                        } else if ("query".equals(fieldName)) {
                             if (suggestion.getCollateQueryScript() != null) {
                                 throw new IllegalArgumentException("suggester[phrase][collate] query already set, doesn't support additional [" + fieldName + "]");
                             }
-                            CompiledScript compiledScript = suggester.scriptService().compile(new Script(MustacheScriptEngineService.NAME, templateNameOrTemplateContent, ScriptType.INLINE, null), ScriptContext.Standard.SEARCH);
-                            if ("query".equals(fieldName)) {
-                                suggestion.setCollateQueryScript(compiledScript);
-                            } else {
-                                suggestion.setCollateFilterScript(compiledScript);
-                            }
+                            Template template = Template.parse(parser);
+                            CompiledScript compiledScript = suggester.scriptService().compile(template, ScriptContext.Standard.SEARCH);
+                            suggestion.setCollateQueryScript(compiledScript);
                         } else if ("params".equals(fieldName)) {
                             suggestion.setCollateScriptParams(parser.map());
                         } else if ("prune".equals(fieldName)) {
@@ -191,10 +171,10 @@ public final class PhraseSuggestParser implements SuggestContextParser {
             throw new IllegalArgumentException("No mapping found for field [" + suggestion.getField() + "]");
         } else if (suggestion.getAnalyzer() == null) {
             // no analyzer name passed in, so try the field's analyzer, or the default analyzer
-            if (fieldMapper.searchAnalyzer() == null) {
+            if (fieldMapper.fieldType().searchAnalyzer() == null) {
                 suggestion.setAnalyzer(mapperService.searchAnalyzer());
             } else {
-                suggestion.setAnalyzer(fieldMapper.searchAnalyzer());
+                suggestion.setAnalyzer(fieldMapper.fieldType().searchAnalyzer());
             }
         }
         

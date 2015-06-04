@@ -45,7 +45,6 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptContext;
-import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
 import org.elasticsearch.search.lookup.SourceLookup;
@@ -94,7 +93,7 @@ public class UpdateHelper extends AbstractComponent {
                 ctx.put("op", "create");
                 ctx.put("_source", upsertDoc);
                 try {
-                    ExecutableScript script = scriptService.executable(new Script(request.scriptLang, request.script, request.scriptType, request.scriptParams), ScriptContext.Standard.UPDATE);
+                    ExecutableScript script = scriptService.executable(request.script, ScriptContext.Standard.UPDATE);
                     script.setNextVar("ctx", ctx);
                     script.run();
                     // we need to unwrap the ctx...
@@ -111,7 +110,8 @@ public class UpdateHelper extends AbstractComponent {
                 // (the default) or "none", meaning abort upsert
                 if (!"create".equals(scriptOpChoice)) {
                     if (!"none".equals(scriptOpChoice)) {
-                        logger.warn("Used upsert operation [{}] for script [{}], doing nothing...", scriptOpChoice, request.script);
+                        logger.warn("Used upsert operation [{}] for script [{}], doing nothing...", scriptOpChoice,
+                                request.script.getScript());
                     }
                     UpdateResponse update = new UpdateResponse(getResult.getIndex(), getResult.getType(), getResult.getId(),
                             getResult.getVersion(), false);
@@ -193,7 +193,7 @@ public class UpdateHelper extends AbstractComponent {
             ctx.put("_source", sourceAndContent.v2());
 
             try {
-                ExecutableScript script = scriptService.executable(new Script(request.scriptLang, request.script, request.scriptType, request.scriptParams), ScriptContext.Standard.UPDATE);
+                ExecutableScript script = scriptService.executable(request.script, ScriptContext.Standard.UPDATE);
                 script.setNextVar("ctx", ctx);
                 script.run();
                 // we need to unwrap the ctx...
@@ -246,7 +246,7 @@ public class UpdateHelper extends AbstractComponent {
             update.setGetResult(extractGetResult(request, indexShard.indexService().index().name(), getResult.getVersion(), updatedSourceAsMap, updateSourceContentType, getResult.internalSourceRef()));
             return new Result(update, Operation.NONE, updatedSourceAsMap, updateSourceContentType);
         } else {
-            logger.warn("Used update operation [{}] for script [{}], doing nothing...", operation, request.script);
+            logger.warn("Used update operation [{}] for script [{}], doing nothing...", operation, request.script.getScript());
             UpdateResponse update = new UpdateResponse(getResult.getIndex(), getResult.getType(), getResult.getId(), getResult.getVersion(), false);
             return new Result(update, Operation.NONE, updatedSourceAsMap, updateSourceContentType);
         }
@@ -259,7 +259,7 @@ public class UpdateHelper extends AbstractComponent {
             if (fetchedTTL instanceof Number) {
                 ttl = ((Number) fetchedTTL).longValue();
             } else {
-                ttl = TimeValue.parseTimeValue((String) fetchedTTL, null).millis();
+                ttl = TimeValue.parseTimeValue((String) fetchedTTL, null, "_ttl").millis();
             }
         }
         return ttl;

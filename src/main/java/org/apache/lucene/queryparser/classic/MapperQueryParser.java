@@ -260,7 +260,7 @@ public class MapperQueryParser extends QueryParser {
                         }
                     }
                     if (query == null) {
-                        query = super.getFieldQuery(currentMapper.names().indexName(), queryText, quoted);
+                        query = super.getFieldQuery(currentMapper.fieldType().names().indexName(), queryText, quoted);
                     }
                     return query;
                 }
@@ -372,7 +372,7 @@ public class MapperQueryParser extends QueryParser {
                 Query rangeQuery;
                 if (currentMapper instanceof DateFieldMapper && settings.timeZone() != null) {
                     DateFieldMapper dateFieldMapper = (DateFieldMapper) this.currentMapper;
-                    rangeQuery = dateFieldMapper.rangeQuery(part1, part2, startInclusive, endInclusive, settings.timeZone(), null, parseContext);
+                    rangeQuery = dateFieldMapper.fieldType().rangeQuery(part1, part2, startInclusive, endInclusive, settings.timeZone(), null, parseContext);
                 } else {
                     rangeQuery = currentMapper.rangeQuery(part1, part2, startInclusive, endInclusive, parseContext);
                 }
@@ -508,7 +508,7 @@ public class MapperQueryParser extends QueryParser {
                     query = currentMapper.prefixQuery(termStr, multiTermRewriteMethod, parseContext);
                 }
                 if (query == null) {
-                    query = getPossiblyAnalyzedPrefixQuery(currentMapper.names().indexName(), termStr);
+                    query = getPossiblyAnalyzedPrefixQuery(currentMapper.fieldType().names().indexName(), termStr);
                 }
                 return query;
             }
@@ -644,7 +644,7 @@ public class MapperQueryParser extends QueryParser {
                 if (!forcedAnalyzer) {
                     setAnalyzer(parseContext.getSearchAnalyzer(currentMapper));
                 }
-                indexedNameField = currentMapper.names().indexName();
+                indexedNameField = currentMapper.fieldType().names().indexName();
                 return getPossiblyAnalyzedWildcardQuery(indexedNameField, termStr);
             }
             return getPossiblyAnalyzedWildcardQuery(indexedNameField, termStr);

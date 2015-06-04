@@ -61,13 +61,16 @@ public abstract class MulticastChannel implements Closeable {
         public final int bufferSize;
         public final int ttl;
         public final InetAddress multicastInterface;
+        public final boolean deferToInterface;
 
-        public Config(int port, String group, int bufferSize, int ttl, InetAddress multicastInterface) {
+        public Config(int port, String group, int bufferSize, int ttl,
+                      InetAddress multicastInterface, boolean deferToInterface) {
             this.port = port;
             this.group = group;
             this.bufferSize = bufferSize;
             this.ttl = ttl;
             this.multicastInterface = multicastInterface;
+            this.deferToInterface = deferToInterface;
         }
 
         @Override
@@ -281,12 +284,23 @@ public abstract class MulticastChannel implements Closeable {
         }
 
         private MulticastSocket buildMulticastSocket(Config config) throws Exception {
+            SocketAddress addr = new InetSocketAddress(InetAddress.getByName(config.group), config.port);
             MulticastSocket multicastSocket = new MulticastSocket(config.port);
             try {
                 multicastSocket.setTimeToLive(config.ttl);
-                // set the send interface
-                multicastSocket.setInterface(config.multicastInterface);
-                multicastSocket.joinGroup(InetAddress.getByName(config.group));
+                // OSX is not smart enough to tell that a socket bound to the
+                // 'lo0' interface needs to make sure to send the UDP packet
+                // out of the lo0 interface, so we need to do some special
+                // workarounds to fix it.
+                if (config.deferToInterface) {
+                    // 'null' here tells the socket to deter to the interface set
+                    // with .setInterface
+                    multicastSocket.joinGroup(addr, null);
+                    multicastSocket.setInterface(config.multicastInterface);
+                } else {
+                    multicastSocket.setInterface(config.multicastInterface);
+                    multicastSocket.joinGroup(InetAddress.getByName(config.group));
+                }
                 multicastSocket.setReceiveBufferSize(config.bufferSize);
                 multicastSocket.setSendBufferSize(config.bufferSize);
                 multicastSocket.setSoTimeout(60000);

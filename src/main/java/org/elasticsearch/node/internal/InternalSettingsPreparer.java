@@ -19,14 +19,19 @@
 
 package org.elasticsearch.node.internal;
 
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.UnmodifiableIterator;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Names;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.cli.Terminal;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.FailedToResolveConfigException;
 
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.Strings.cleanPath;
@@ -37,10 +42,40 @@ import static org.elasticsearch.common.settings.Settings.settingsBuilder;
  */
 public class InternalSettingsPreparer {
 
+    static final List<String> ALLOWED_SUFFIXES = ImmutableList.of(".yml", ".yaml", ".json", ".properties");
+
+    public static final String SECRET_PROMPT_VALUE = "${prompt::secret}";
+    public static final String TEXT_PROMPT_VALUE = "${prompt::text}";
+    public static final String IGNORE_SYSTEM_PROPERTIES_SETTING = "config.ignore_system_properties";
+
+    /**
+     * Prepares the settings by gathering all elasticsearch system properties, optionally loading the configuration settings,
+     * and then replacing all property placeholders. This method will not work with settings that have <code>__prompt__</code>
+     * as their value unless they have been resolved previously.
+     * @param pSettings The initial settings to use
+     * @param loadConfigSettings flag to indicate whether to load settings from the configuration directory/file
+     * @return the {@link Settings} and {@link Environment} as a {@link Tuple}
+     */
     public static Tuple<Settings, Environment> prepareSettings(Settings pSettings, boolean loadConfigSettings) {
+        return prepareSettings(pSettings, loadConfigSettings, null);
+    }
+
+    /**
+     * Prepares the settings by gathering all elasticsearch system properties, optionally loading the configuration settings,
+     * and then replacing all property placeholders. If a {@link Terminal} is provided and configuration settings are loaded,
+     * settings with the <code>__prompt__</code> value will result in a prompt for the setting to the user.
+     * @param pSettings The initial settings to use
+     * @param loadConfigSettings flag to indicate whether to load settings from the configuration directory/file
+     * @param terminal the Terminal to use for input/output
+     * @return the {@link Settings} and {@link Environment} as a {@link Tuple}
+     */
+    public static Tuple<Settings, Environment> prepareSettings(Settings pSettings, boolean loadConfigSettings, Terminal terminal) {
         // ignore this prefixes when getting properties from es. and elasticsearch.
         String[] ignorePrefixes = new String[]{"es.default.", "elasticsearch.default."};
-        boolean useSystemProperties = !pSettings.getAsBoolean("config.ignore_system_properties", false);
+        // ignore the special prompt placeholders since they have the same format as property placeholders and will be resolved
+        // as having a default value because of the ':' in the format
+        String[] ignoredPlaceholders = new String[] { SECRET_PROMPT_VALUE, TEXT_PROMPT_VALUE };
+        boolean useSystemProperties = !pSettings.getAsBoolean(IGNORE_SYSTEM_PROPERTIES_SETTING, false);
         // just create enough settings to build the environment
         Settings.Builder settingsBuilder = settingsBuilder().put(pSettings);
         if (useSystemProperties) {
@@ -49,7 +84,7 @@ public class InternalSettingsPreparer {
                     .putProperties("elasticsearch.", System.getProperties(), ignorePrefixes)
                     .putProperties("es.", System.getProperties(), ignorePrefixes);
         }
-        settingsBuilder.replacePropertyPlaceholders();
+        settingsBuilder.replacePropertyPlaceholders(ignoredPlaceholders);
 
         Environment environment = new Environment(settingsBuilder.build());
 
@@ -72,22 +107,12 @@ public class InternalSettingsPreparer {
                 }
             }
             if (loadFromEnv) {
-                try {
-                    settingsBuilder.loadFromUrl(environment.resolveConfig("elasticsearch.yml"));
-                } catch (FailedToResolveConfigException e) {
-                    // ignore
-                } catch (NoClassDefFoundError e) {
-                    // ignore, no yaml
-                }
-                try {
-                    settingsBuilder.loadFromUrl(environment.resolveConfig("elasticsearch.json"));
-                } catch (FailedToResolveConfigException e) {
-                    // ignore
-                }
-                try {
-                    settingsBuilder.loadFromUrl(environment.resolveConfig("elasticsearch.properties"));
-                } catch (FailedToResolveConfigException e) {
-                    // ignore
+                for (String allowedSuffix : ALLOWED_SUFFIXES) {
+                    try {
+                        settingsBuilder.loadFromUrl(environment.resolveConfig("elasticsearch" + allowedSuffix));
+                    } catch (FailedToResolveConfigException e) {
+                        // ignore
+                    }
                 }
             }
         }
@@ -97,17 +122,17 @@ public class InternalSettingsPreparer {
             settingsBuilder.putProperties("elasticsearch.", System.getProperties(), ignorePrefixes)
                     .putProperties("es.", System.getProperties(), ignorePrefixes);
         }
-        settingsBuilder.replacePropertyPlaceholders();
+        settingsBuilder.replacePropertyPlaceholders(ignoredPlaceholders);
 
         // allow to force set properties based on configuration of the settings provided
         for (Map.Entry<String, String> entry : pSettings.getAsMap().entrySet()) {
             String setting = entry.getKey();
             if (setting.startsWith("force.")) {
                 settingsBuilder.remove(setting);
-                settingsBuilder.put(setting.substring(".force".length()), entry.getValue());
+                settingsBuilder.put(setting.substring("force.".length()), entry.getValue());
             }
         }
-        settingsBuilder.replacePropertyPlaceholders();
+        settingsBuilder.replacePropertyPlaceholders(ignoredPlaceholders);
 
         // generate the name
         if (settingsBuilder.get("name") == null) {
@@ -129,7 +154,11 @@ public class InternalSettingsPreparer {
             settingsBuilder.put(ClusterName.SETTING, ClusterName.DEFAULT.value());
         }
 
-        Settings v1 = settingsBuilder.build();
+        String v = settingsBuilder.get(Settings.SETTINGS_REQUIRE_UNITS);
+        if (v != null) {
+            Settings.setSettingsRequireUnits(Booleans.parseBoolean(v, true));
+        }
+        Settings v1 = replacePromptPlaceholders(settingsBuilder.build(), terminal);
         environment = new Environment(v1);
 
         // put back the env settings
@@ -140,5 +169,46 @@ public class InternalSettingsPreparer {
         v1 = settingsBuilder.build();
 
         return new Tuple<>(v1, environment);
+    }
+
+    static Settings replacePromptPlaceholders(Settings settings, Terminal terminal) {
+        UnmodifiableIterator<Map.Entry<String, String>> iter = settings.getAsMap().entrySet().iterator();
+        Settings.Builder builder = Settings.builder();
+
+        while (iter.hasNext()) {
+            Map.Entry<String, String> entry = iter.next();
+            String value = entry.getValue();
+            String key = entry.getKey();
+            switch (value) {
+                case SECRET_PROMPT_VALUE:
+                    String secretValue = promptForValue(key, terminal, true);
+                    if (Strings.hasLength(secretValue)) {
+                        builder.put(key, secretValue);
+                    }
+                    break;
+                case TEXT_PROMPT_VALUE:
+                    String textValue = promptForValue(key, terminal, false);
+                    if (Strings.hasLength(textValue)) {
+                        builder.put(key, textValue);
+                    }
+                    break;
+                default:
+                    builder.put(key, value);
+                    break;
+            }
+        }
+
+        return builder.build();
+    }
+
+    static String promptForValue(String key, Terminal terminal, boolean secret) {
+        if (terminal == null) {
+            throw new UnsupportedOperationException("found property [" + key + "] with value [" + (secret ? SECRET_PROMPT_VALUE : TEXT_PROMPT_VALUE) +"]. prompting for property values is only supported when running elasticsearch in the foreground");
+        }
+
+        if (secret) {
+            return new String(terminal.readSecret("Enter value for [%s]: ", key));
+        }
+        return terminal.readText("Enter value for [%s]: ", key);
     }
 }

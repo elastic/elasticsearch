@@ -25,7 +25,6 @@ import org.elasticsearch.script.LeafSearchScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -47,42 +46,23 @@ import java.util.Map.Entry;
 
 public class ScriptedMetricAggregator extends MetricsAggregator {
 
-    private final String scriptLang;
     private final SearchScript mapScript;
     private final ExecutableScript combineScript;
-    private final String reduceScript;
-    // initial parameters for same shard scripts {init, map, combine}
-    // state can be passed in params between them too
-    private final Map<String, Object> params;
-    // initial parameters for {reduce}
-    private final Map<String, Object> reduceParams;
-    private final ScriptType reduceScriptType;
+    private final Script reduceScript;
+    private Map<String, Object> params;
 
-    protected ScriptedMetricAggregator(String name, String scriptLang, ScriptType initScriptType, String initScript,
-            ScriptType mapScriptType, String mapScript, ScriptType combineScriptType, String combineScript, ScriptType reduceScriptType,
-            String reduceScript, Map<String, Object> params, Map<String, Object> reduceParams, AggregationContext context,
-            Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
+    protected ScriptedMetricAggregator(String name, Script initScript, Script mapScript, Script combineScript, Script reduceScript,
+            Map<String, Object> params, AggregationContext context, Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
+            throws IOException {
         super(name, context, parent, pipelineAggregators, metaData);
-        this.scriptLang = scriptLang;
-        this.reduceScriptType = reduceScriptType;
-        if (params == null) {
-            this.params = new HashMap<>();
-            this.params.put("_agg", new HashMap<>());
-        } else {
-            this.params = new HashMap<>(params);
-        }
-        if (reduceParams == null) {
-            this.reduceParams = new HashMap<>();
-        } else {
-            this.reduceParams = reduceParams;
-        }
+        this.params = params;
         ScriptService scriptService = context.searchContext().scriptService();
         if (initScript != null) {
-            scriptService.executable(new Script(scriptLang, initScript, initScriptType, this.params), ScriptContext.Standard.AGGS).run();
+            scriptService.executable(initScript, ScriptContext.Standard.AGGS).run();
         }
-        this.mapScript = scriptService.search(context.searchContext().lookup(), new Script(scriptLang, mapScript, mapScriptType, this.params), ScriptContext.Standard.AGGS);
+        this.mapScript = scriptService.search(context.searchContext().lookup(), mapScript, ScriptContext.Standard.AGGS);
         if (combineScript != null) {
-            this.combineScript = scriptService.executable(new Script(scriptLang, combineScript, combineScriptType, this.params), ScriptContext.Standard.AGGS);
+            this.combineScript = scriptService.executable(combineScript, ScriptContext.Standard.AGGS);
         } else {
             this.combineScript = null;
         }
@@ -116,43 +96,31 @@ public class ScriptedMetricAggregator extends MetricsAggregator {
         } else {
             aggregation = params.get("_agg");
         }
-        return new InternalScriptedMetric(name, aggregation, scriptLang, reduceScriptType, reduceScript, reduceParams, pipelineAggregators(),
+        return new InternalScriptedMetric(name, aggregation, reduceScript, pipelineAggregators(),
                 metaData());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalScriptedMetric(name, null, scriptLang, reduceScriptType, reduceScript, reduceParams, pipelineAggregators(), metaData());
+        return new InternalScriptedMetric(name, null, reduceScript, pipelineAggregators(), metaData());
     }
 
     public static class Factory extends AggregatorFactory {
 
-        private String scriptLang;
-        private ScriptType initScriptType;
-        private ScriptType mapScriptType;
-        private ScriptType combineScriptType;
-        private ScriptType reduceScriptType;
-        private String initScript;
-        private String mapScript;
-        private String combineScript;
-        private String reduceScript;
+        private Script initScript;
+        private Script mapScript;
+        private Script combineScript;
+        private Script reduceScript;
         private Map<String, Object> params;
-        private Map<String, Object> reduceParams;
 
-        public Factory(String name, String scriptLang, ScriptType initScriptType, String initScript, ScriptType mapScriptType, String mapScript, ScriptType combineScriptType, String combineScript, ScriptType reduceScriptType, String reduceScript,
-                Map<String, Object> params, Map<String, Object> reduceParams) {
+        public Factory(String name, Script initScript, Script mapScript, Script combineScript, Script reduceScript,
+                Map<String, Object> params) {
             super(name, InternalScriptedMetric.TYPE.name());
-            this.scriptLang = scriptLang;
-            this.initScriptType = initScriptType;
-            this.mapScriptType = mapScriptType;
-            this.combineScriptType = combineScriptType;
-            this.reduceScriptType = reduceScriptType;
             this.initScript = initScript;
             this.mapScript = mapScript;
             this.combineScript = combineScript;
             this.reduceScript = reduceScript;
             this.params = params;
-            this.reduceParams = reduceParams;
         }
 
         @Override
@@ -161,16 +129,35 @@ public class ScriptedMetricAggregator extends MetricsAggregator {
             if (collectsFromSingleBucket == false) {
                 return asMultiBucketAggregator(this, context, parent);
             }
-            Map<String, Object> params = null;
-            if (this.params != null) {
-                params = deepCopyParams(this.params, context.searchContext());
+            Map<String, Object> params = this.params;
+            if (params != null) {
+                params = deepCopyParams(params, context.searchContext());
+            } else {
+                params = new HashMap<>();
+                params.put("_agg", new HashMap<String, Object>());
             }
-            Map<String, Object> reduceParams = null;
-            if (this.reduceParams != null) {
-                reduceParams = deepCopyParams(this.reduceParams, context.searchContext());
+            return new ScriptedMetricAggregator(name, insertParams(initScript, params), insertParams(mapScript, params), insertParams(
+                    combineScript, params), deepCopyScript(reduceScript, context.searchContext()), params, context, parent, pipelineAggregators,
+                    metaData);
             }
-            return new ScriptedMetricAggregator(name, scriptLang, initScriptType, initScript, mapScriptType, mapScript, combineScriptType,
-                    combineScript, reduceScriptType, reduceScript, params, reduceParams, context, parent, pipelineAggregators, metaData);
+
+        private static Script insertParams(Script script, Map<String, Object> params) {
+            if (script == null) {
+                return null;
+            }
+            return new Script(script.getScript(), script.getType(), script.getLang(), params);
+        }
+
+        private static Script deepCopyScript(Script script, SearchContext context) {
+            if (script != null) {
+                Map<String, Object> params = script.getParams();
+                if (params != null) {
+                    params = deepCopyParams(params, context);
+                }
+                return new Script(script.getScript(), script.getType(), script.getLang(), params);
+            } else {
+                return null;
+            }
         }
         
         @SuppressWarnings({ "unchecked" })

@@ -21,10 +21,7 @@ package org.elasticsearch.index.mapper;
 
 import com.carrotsearch.hppc.ObjectHashSet;
 import com.google.common.base.Predicate;
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Iterators;
-import com.google.common.collect.Lists;
+import com.google.common.collect.*;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.DelegatingAnalyzerWrapper;
@@ -40,10 +37,11 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.compress.CompressedString;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.regex.Regex;
@@ -116,6 +114,8 @@ public class MapperService extends AbstractIndexComponent  {
     private final List<DocumentTypeListener> typeListeners = new CopyOnWriteArrayList<>();
 
     private volatile ImmutableMap<String, FieldMapper> unmappedFieldMappers = ImmutableMap.of();
+
+    private volatile ImmutableSet<String> parentTypes = ImmutableSet.of();
 
     @Inject
     public MapperService(Index index, @IndexSettings Settings indexSettings, AnalysisService analysisService, IndexFieldDataService fieldDataService,
@@ -214,7 +214,7 @@ public class MapperService extends AbstractIndexComponent  {
         typeListeners.remove(listener);
     }
 
-    public DocumentMapper merge(String type, CompressedString mappingSource, boolean applyDefault) {
+    public DocumentMapper merge(String type, CompressedXContent mappingSource, boolean applyDefault) {
         if (DEFAULT_MAPPING.equals(type)) {
             // verify we can parse it
             DocumentMapper mapper = documentParser.parseCompressed(type, mappingSource);
@@ -250,6 +250,9 @@ public class MapperService extends AbstractIndexComponent  {
             if (mapper.type().contains(",")) {
                 throw new InvalidTypeNameException("mapping type name [" + mapper.type() + "] should not include ',' in it");
             }
+            if (Version.indexCreated(indexSettings).onOrAfter(Version.V_2_0_0) && mapper.type().equals(mapper.parentFieldMapper().type())) {
+                throw new IllegalArgumentException("The [_parent.type] option can't point to the same type");
+            }
             if (mapper.type().contains(".") && !PercolatorService.TYPE_NAME.equals(mapper.type())) {
                 logger.warn("Type [{}] contains a '.', it is recommended not to include it within a type name", mapper.type());
             }
@@ -267,6 +270,7 @@ public class MapperService extends AbstractIndexComponent  {
                     }
                 }
                 fieldDataService.onMappingUpdate();
+                assert assertSerialization(oldMapper);
                 return oldMapper;
             } else {
                 List<ObjectMapper> newObjectMappers = new ArrayList<>();
@@ -284,9 +288,29 @@ public class MapperService extends AbstractIndexComponent  {
                     typeListener.beforeCreate(mapper);
                 }
                 mappers = newMapBuilder(mappers).put(mapper.type(), mapper).map();
+                if (mapper.parentFieldMapper().active()) {
+                    ImmutableSet.Builder<String> parentTypesCopy = ImmutableSet.builder();
+                    parentTypesCopy.addAll(parentTypes);
+                    parentTypesCopy.add(mapper.parentFieldMapper().type());
+                    parentTypes = parentTypesCopy.build();
+                }
+                assert assertSerialization(mapper);
                 return mapper;
             }
         }
+    }
+
+    private boolean assertSerialization(DocumentMapper mapper) {
+        // capture the source now, it may change due to concurrent parsing
+        final CompressedXContent mappingSource = mapper.mappingSource();
+        DocumentMapper newMapper = parse(mapper.type(), mappingSource, false);
+
+        if (newMapper.mappingSource().equals(mappingSource) == false) {
+            throw new IllegalStateException("DocumentMapper serialization result is different from source. \n--> Source ["
+                + mappingSource + "]\n--> Result ["
+                + newMapper.mappingSource() + "]");
+        }
+        return true;
     }
 
     protected void addObjectMappers(Collection<ObjectMapper> objectMappers) {
@@ -313,7 +337,7 @@ public class MapperService extends AbstractIndexComponent  {
         this.fieldMappers = this.fieldMappers.copyAndAddAll(fieldMappers);
     }
 
-    public DocumentMapper parse(String mappingType, CompressedString mappingSource, boolean applyDefault) throws MapperParsingException {
+    public DocumentMapper parse(String mappingType, CompressedXContent mappingSource, boolean applyDefault) throws MapperParsingException {
         String defaultMappingSource;
         if (PercolatorService.TYPE_NAME.equals(mappingType)) {
             defaultMappingSource = this.defaultPercolatorMappingSource;
@@ -481,14 +505,14 @@ public class MapperService extends AbstractIndexComponent  {
      * Returns all the fields that match the given pattern. If the pattern is prefixed with a type
      * then the fields will be returned with a type prefix.
      */
-    public List<String> simpleMatchToIndexNames(String pattern) {
+    public Collection<String> simpleMatchToIndexNames(String pattern) {
         return simpleMatchToIndexNames(pattern, null);
     }
     /**
      * Returns all the fields that match the given pattern, with an optional narrowing
      * based on a list of types.
      */
-    public List<String> simpleMatchToIndexNames(String pattern, @Nullable String[] types) {
+    public Collection<String> simpleMatchToIndexNames(String pattern, @Nullable String[] types) {
         if (Regex.isSimpleMatchPattern(pattern) == false) {
             // no wildcards
             return ImmutableList.of(pattern);
@@ -630,6 +654,10 @@ public class MapperService extends AbstractIndexComponent  {
         return null;
     }
 
+    public ImmutableSet<String> getParentTypes() {
+        return parentTypes;
+    }
+
     /**
      * @return Whether a field is a metadata field.
      */
@@ -675,8 +703,8 @@ public class MapperService extends AbstractIndexComponent  {
         @Override
         protected Analyzer getWrappedAnalyzer(String fieldName) {
             FieldMapper mapper = smartNameFieldMapper(fieldName);
-            if (mapper != null && mapper.searchAnalyzer() != null) {
-                return mapper.searchAnalyzer();
+            if (mapper != null && mapper.fieldType().searchAnalyzer() != null) {
+                return mapper.fieldType().searchAnalyzer();
             }
             return defaultAnalyzer;
         }
@@ -694,8 +722,8 @@ public class MapperService extends AbstractIndexComponent  {
         @Override
         protected Analyzer getWrappedAnalyzer(String fieldName) {
             FieldMapper mapper = smartNameFieldMapper(fieldName);
-            if (mapper != null && mapper.searchQuoteAnalyzer() != null) {
-                return mapper.searchQuoteAnalyzer();
+            if (mapper != null && mapper.fieldType().searchQuoteAnalyzer() != null) {
+                return mapper.fieldType().searchQuoteAnalyzer();
             }
             return defaultAnalyzer;
         }

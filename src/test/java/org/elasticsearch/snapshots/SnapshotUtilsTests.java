@@ -23,6 +23,8 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
+import java.util.List;
+
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 
@@ -50,8 +52,8 @@ public class SnapshotUtilsTests extends ElasticsearchTestCase {
     }
 
     private void assertIndexNameFiltering(String[] indices, String[] filter, IndicesOptions indicesOptions, String[] expected) {
-        ImmutableList<String> indicesList = ImmutableList.copyOf(indices);
-        ImmutableList<String> actual = SnapshotUtils.filterIndices(indicesList, filter, indicesOptions);
+        List<String> indicesList = ImmutableList.copyOf(indices);
+        List<String> actual = SnapshotUtils.filterIndices(indicesList, filter, indicesOptions);
         assertThat(actual, containsInAnyOrder(expected));
     }
 }

@@ -27,7 +27,9 @@ import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.Template;
 
 import java.util.Collection;
 import java.util.Map;
@@ -565,6 +567,13 @@ public abstract class QueryBuilders {
     /**
      * Facilitates creating template query requests using an inline script
      */
+    public static TemplateQueryBuilder templateQuery(Template template) {
+        return new TemplateQueryBuilder(template);
+    }
+
+    /**
+     * Facilitates creating template query requests using an inline script
+     */
     public static TemplateQueryBuilder templateQuery(String template, Map<String, Object> vars) {
         return new TemplateQueryBuilder(template, vars);
     }
@@ -596,6 +605,18 @@ public abstract class QueryBuilders {
      *
      * @param script The script to filter by.
      */
+    public static ScriptQueryBuilder scriptQuery(Script script) {
+        return new ScriptQueryBuilder(script);
+    }
+
+    /**
+     * A builder for filter based on a script.
+     *
+     * @param script
+     *            The script to filter by.
+     * @deprecated Use {@link #scriptQuery(Script)} instead.
+     */
+    @Deprecated
     public static ScriptQueryBuilder scriptQuery(String script) {
         return new ScriptQueryBuilder(script);
     }

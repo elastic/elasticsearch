@@ -33,6 +33,7 @@ import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 import java.util.EnumSet;
+import java.util.List;
 import java.util.Map;
 
 import static com.google.common.collect.Maps.newHashMap;
@@ -319,7 +320,7 @@ public class SnapshotMetaData extends AbstractDiffable<Custom> implements MetaDa
         this.entries = ImmutableList.copyOf(entries);
     }
 
-    public ImmutableList<Entry> entries() {
+    public List<Entry> entries() {
         return this.entries;
     }
 

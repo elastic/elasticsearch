@@ -33,6 +33,7 @@ my @Groups = qw(
 );
 my %Group_Labels = (
     breaking    => 'Breaking changes',
+    build       => 'Build',
     deprecation => 'Deprecations',
     doc         => 'Docs',
     feature     => 'New features',
@@ -69,6 +70,14 @@ sub dump_issues {
     my ( $day, $month, $year ) = (gmtime)[ 3 .. 5 ];
     $month++;
     $year += 1900;
+
+    print <<"HTML";
+<html>
+<head>
+  <meta charset="UTF-8">
+</head>
+<body>
+HTML
 
     for my $group ( @Groups, 'other' ) {
         my $group_issues = $issues->{$group} or next;
@@ -115,6 +124,7 @@ sub dump_issues {
         print "</ul>";
         print "\n\n";
     }
+    print "</body></html>\n";
 }
 
 #===================================

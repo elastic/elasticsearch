@@ -30,7 +30,7 @@ import org.elasticsearch.common.settings.loader.SettingsLoader;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
-import org.elasticsearch.index.mapper.FieldMapper.Loading;
+import org.elasticsearch.index.mapper.MappedFieldType.Loading;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.object.ObjectMapper;

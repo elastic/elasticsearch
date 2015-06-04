@@ -1,17 +1,17 @@
 [[regexp-syntax]]
-=== Regular expression syntax
+==== Regular expression syntax
 
 Regular expression queries are supported by the `regexp` and the `query_string`
 queries.  The Lucene regular expression engine
 is not Perl-compatible but supports a smaller range of operators.
 
 [NOTE]
-====
+=====
 We will not attempt to explain regular expressions, but
 just explain the supported operators.
-====
+=====
 
-==== Standard operators
+===== Standard operators
 
 Anchoring::
 +

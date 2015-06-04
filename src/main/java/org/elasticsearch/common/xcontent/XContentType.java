@@ -19,10 +19,14 @@
 
 package org.elasticsearch.common.xcontent;
 
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.cbor.CborXContent;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.smile.SmileXContent;
 import org.elasticsearch.common.xcontent.yaml.YamlXContent;
+
+import java.io.IOException;
 
 /**
  * The content type of {@link org.elasticsearch.common.xcontent.XContent}.
@@ -144,4 +148,18 @@ public enum XContentType {
     public abstract String shortName();
 
     public abstract XContent xContent();
+
+    public static XContentType readFrom(StreamInput in) throws IOException {
+        int index = in.readVInt();
+        for (XContentType contentType : values()) {
+            if (index == contentType.index) {
+                return contentType;
+            }
+        }
+        throw new IllegalStateException("Unknown XContentType with index [" + index + "]");
+    }
+
+    public static void writeTo(XContentType contentType, StreamOutput out) throws IOException {
+        out.writeVInt(contentType.index);
+    }
 }

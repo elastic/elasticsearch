@@ -27,10 +27,9 @@ import java.io.IOException;
 
 /**
  */
-public abstract class CompressedStreamInput<T extends CompressorContext> extends StreamInput {
+public abstract class CompressedStreamInput extends StreamInput {
 
     private final StreamInput in;
-    protected final CompressorContext context;
 
     private boolean closed;
 
@@ -38,9 +37,8 @@ public abstract class CompressedStreamInput<T extends CompressorContext> extends
     private int position = 0;
     private int valid = 0;
 
-    public CompressedStreamInput(StreamInput in, T context) throws IOException {
+    public CompressedStreamInput(StreamInput in) throws IOException {
         this.in = in;
-        this.context = context;
         super.setVersion(in.getVersion());
         readHeader(in);
     }
@@ -49,13 +47,6 @@ public abstract class CompressedStreamInput<T extends CompressorContext> extends
     public StreamInput setVersion(Version version) {
         in.setVersion(version);
         return super.setVersion(version);
-    }
-
-    /**
-     * Expert!, resets to buffer start, without the need to decompress it again.
-     */
-    public void resetToBufferStart() {
-        this.position = 0;
     }
 
     /**

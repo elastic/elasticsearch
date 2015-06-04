@@ -36,39 +36,42 @@ import org.elasticsearch.index.aliases.IndexAliasesService;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
-import org.elasticsearch.index.cache.bitset.ShardBitsetFilterCacheModule;
-import org.elasticsearch.index.cache.filter.ShardFilterCacheModule;
-import org.elasticsearch.index.cache.query.ShardQueryCacheModule;
+import org.elasticsearch.index.cache.bitset.ShardBitsetFilterCache;
+import org.elasticsearch.index.cache.filter.ShardFilterCache;
+import org.elasticsearch.index.cache.query.ShardQueryCache;
 import org.elasticsearch.index.deletionpolicy.DeletionPolicyModule;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
-import org.elasticsearch.index.fielddata.ShardFieldDataModule;
-import org.elasticsearch.index.gateway.IndexShardGatewayModule;
+import org.elasticsearch.index.fielddata.ShardFieldData;
+import org.elasticsearch.index.gateway.IndexShardGateway;
 import org.elasticsearch.index.gateway.IndexShardGatewayService;
-import org.elasticsearch.index.get.ShardGetModule;
-import org.elasticsearch.index.indexing.ShardIndexingModule;
+import org.elasticsearch.index.get.ShardGetService;
+import org.elasticsearch.index.indexing.ShardIndexingService;
+import org.elasticsearch.index.indexing.slowlog.ShardSlowLogIndexingService;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.merge.policy.MergePolicyModule;
 import org.elasticsearch.index.merge.policy.MergePolicyProvider;
 import org.elasticsearch.index.merge.scheduler.MergeSchedulerModule;
 import org.elasticsearch.index.merge.scheduler.MergeSchedulerProvider;
 import org.elasticsearch.index.percolator.PercolatorQueriesRegistry;
-import org.elasticsearch.index.percolator.PercolatorShardModule;
+import org.elasticsearch.index.percolator.stats.ShardPercolateService;
 import org.elasticsearch.index.query.IndexQueryParserService;
-import org.elasticsearch.index.search.stats.ShardSearchModule;
+import org.elasticsearch.index.search.slowlog.ShardSlowLogSearchService;
+import org.elasticsearch.index.search.stats.ShardSearchService;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.shard.*;
 import org.elasticsearch.index.similarity.SimilarityService;
-import org.elasticsearch.index.snapshots.IndexShardSnapshotModule;
+import org.elasticsearch.index.snapshots.IndexShardSnapshotAndRestoreService;
 import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreModule;
-import org.elasticsearch.index.suggest.SuggestShardModule;
-import org.elasticsearch.index.termvectors.ShardTermVectorsModule;
+import org.elasticsearch.index.suggest.stats.ShardSuggestService;
+import org.elasticsearch.index.termvectors.ShardTermVectorsService;
 import org.elasticsearch.index.translog.TranslogService;
 import org.elasticsearch.indices.IndicesLifecycle;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InternalIndicesLifecycle;
+import org.elasticsearch.indices.cache.filter.IndicesFilterCache;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.ShardsPluginsModule;
 
@@ -298,31 +301,19 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
             }
 
             indicesLifecycle.beforeIndexShardCreated(shardId, indexSettings);
-
             logger.debug("creating shard_id {}", shardId);
             // if we are on a shared FS we only own the shard (ie. we can safely delete it) if we are the primary.
             final boolean canDeleteShardContent = IndexMetaData.isOnSharedFilesystem(indexSettings) == false ||
                     (primary && IndexMetaData.isOnSharedFilesystem(indexSettings));
+            final ShardFilterCache shardFilterCache = new ShardFilterCache(shardId, injector.getInstance(IndicesFilterCache.class));
             ModulesBuilder modules = new ModulesBuilder();
             modules.add(new ShardsPluginsModule(indexSettings, pluginsService));
-            modules.add(new IndexShardModule(shardId, primary, indexSettings));
-            modules.add(new ShardIndexingModule());
-            modules.add(new ShardSearchModule());
-            modules.add(new ShardGetModule());
+            modules.add(new IndexShardModule(shardId, primary, indexSettings, shardFilterCache));
             modules.add(new StoreModule(injector.getInstance(IndexStore.class).shardDirectory(), lock,
-                    new StoreCloseListener(shardId, canDeleteShardContent), path));
+                    new StoreCloseListener(shardId, canDeleteShardContent, shardFilterCache), path));
             modules.add(new DeletionPolicyModule(indexSettings));
             modules.add(new MergePolicyModule(indexSettings));
             modules.add(new MergeSchedulerModule(indexSettings));
-            modules.add(new ShardFilterCacheModule());
-            modules.add(new ShardQueryCacheModule());
-            modules.add(new ShardBitsetFilterCacheModule());
-            modules.add(new ShardFieldDataModule());
-            modules.add(new IndexShardGatewayModule());
-            modules.add(new PercolatorShardModule());
-            modules.add(new ShardTermVectorsModule());
-            modules.add(new IndexShardSnapshotModule());
-            modules.add(new SuggestShardModule());
             try {
                 shardInjector = modules.createChildInjector(injector);
             } catch (CreationException e) {
@@ -465,16 +456,27 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
     private class StoreCloseListener implements Store.OnClose {
         private final ShardId shardId;
         private final boolean ownsShard;
+        private final Closeable[] toClose;
 
-        public StoreCloseListener(ShardId shardId, boolean ownsShard) {
+        public StoreCloseListener(ShardId shardId, boolean ownsShard, Closeable... toClose) {
             this.shardId = shardId;
             this.ownsShard = ownsShard;
+            this.toClose = toClose;
         }
 
         @Override
         public void handle(ShardLock lock) {
-            assert lock.getShardId().equals(shardId) : "shard id mismatch, expected: " + shardId + " but got: " + lock.getShardId();
-            onShardClose(lock, ownsShard);
+            try {
+                assert lock.getShardId().equals(shardId) : "shard id mismatch, expected: " + shardId + " but got: " + lock.getShardId();
+                onShardClose(lock, ownsShard);
+            } finally {
+                try {
+                    IOUtils.close(toClose);
+                } catch (IOException ex) {
+                    logger.debug("failed to close resource", ex);
+                }
+            }
+
         }
     }
 

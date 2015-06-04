@@ -19,11 +19,7 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermRangeQuery;
+import org.apache.lucene.search.*;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -32,7 +28,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.internal.FieldNamesFieldMapper;
 
 import java.io.IOException;
-import java.util.List;
+import java.util.Collection;
 
 /**
  *
@@ -100,7 +96,7 @@ public class MissingQueryParser implements QueryParser {
             fieldPattern = fieldPattern + ".*";
         }
 
-        List<String> fields = parseContext.simpleMatchToIndexNames(fieldPattern);
+        Collection<String> fields = parseContext.simpleMatchToIndexNames(fieldPattern);
         if (fields.isEmpty()) {
             if (existence) {
                 // if we ask for existence of fields, and we found none, then we should match on all
@@ -120,7 +116,7 @@ public class MissingQueryParser implements QueryParser {
                 if (fieldNamesMapper != null && fieldNamesMapper.enabled()) {
                     final String f;
                     if (mapper != null) {
-                        f = mapper.names().indexName();
+                        f = mapper.fieldType().names().indexName();
                     } else {
                         f = field;
                     }

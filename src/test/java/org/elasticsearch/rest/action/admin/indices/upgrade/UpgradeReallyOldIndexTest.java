@@ -19,21 +19,40 @@
 
 package org.elasticsearch.rest.action.admin.indices.upgrade;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.bwcompat.StaticIndexBackwardCompatibilityTest;
-import org.elasticsearch.node.Node;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.index.IndexService;
+import org.elasticsearch.indices.IndicesService;
+
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 
 public class UpgradeReallyOldIndexTest extends StaticIndexBackwardCompatibilityTest {
 
     public void testUpgrade_0_90_6() throws Exception {
         String indexName = "index-0.90.6";
-        loadIndex(indexName, Node.HTTP_ENABLED, true);
-        
-        UpgradeTest.assertNotUpgraded(httpClient(), indexName);
-        assertTrue(UpgradeTest.hasAncientSegments(httpClient(), indexName));
-        UpgradeTest.runUpgrade(httpClient(), indexName, "wait_for_completion", "true", "only_ancient_segments", "true");
-        assertFalse(UpgradeTest.hasAncientSegments(httpClient(), "index-0.90.6"));
+
+        loadIndex(indexName);
+        assertMinVersion(indexName, org.apache.lucene.util.Version.parse("4.5.1"));
+        UpgradeTest.assertNotUpgraded(client(), indexName);
+        assertTrue(UpgradeTest.hasAncientSegments(client(), indexName));
+        assertNoFailures(client().admin().indices().prepareUpgrade(indexName).setUpgradeOnlyAncientSegments(true).get());
+
+        assertFalse(UpgradeTest.hasAncientSegments(client(), "index-0.90.6"));
         // This index has only ancient segments, so it should now be fully upgraded:
-        UpgradeTest.assertUpgraded(httpClient(), indexName);
+        UpgradeTest.assertUpgraded(client(), indexName);
+        assertEquals(Version.CURRENT.luceneVersion.toString(), client().admin().indices().prepareGetSettings(indexName).get().getSetting(indexName, IndexMetaData.SETTING_VERSION_MINIMUM_COMPATIBLE));
+        assertMinVersion(indexName, Version.CURRENT.luceneVersion);
+    }
+
+    private void assertMinVersion(String index, org.apache.lucene.util.Version version) {
+        for (IndicesService services : internalCluster().getInstances(IndicesService.class)) {
+            IndexService indexService = services.indexService(index);
+            if (indexService != null) {
+                assertEquals(version, indexService.shard(0).minimumCompatibleVersion());
+            }
+        }
+
     }
 
 }

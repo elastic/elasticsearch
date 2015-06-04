@@ -70,29 +70,79 @@ public class ByteSizeValueTests extends ElasticsearchTestCase {
 
     @Test
     public void testParsing() {
-        assertThat(ByteSizeValue.parseBytesSizeValue("42pb").toString(), is("42pb"));
-        assertThat(ByteSizeValue.parseBytesSizeValue("42P").toString(), is("42pb"));
-        assertThat(ByteSizeValue.parseBytesSizeValue("42PB").toString(), is("42pb"));
-        assertThat(ByteSizeValue.parseBytesSizeValue("54tb").toString(), is("54tb"));
-        assertThat(ByteSizeValue.parseBytesSizeValue("54T").toString(), is("54tb"));
-        assertThat(ByteSizeValue.parseBytesSizeValue("54TB").toString(), is("54tb"));
-        assertThat(ByteSizeValue.parseBytesSizeValue("12gb").toString(), is("12gb"));
-        assertThat(ByteSizeValue.parseBytesSizeValue("12G").toString(), is("12gb"));
-        assertThat(ByteSizeValue.parseBytesSizeValue("12GB").toString(), is("12gb"));
-        assertThat(ByteSizeValue.parseBytesSizeValue("12M").toString(), is("12mb"));
-        assertThat(ByteSizeValue.parseBytesSizeValue("1b").toString(), is("1b"));
-        assertThat(ByteSizeValue.parseBytesSizeValue("23kb").toString(), is("23kb"));
-        assertThat(ByteSizeValue.parseBytesSizeValue("23k").toString(), is("23kb"));
-        assertThat(ByteSizeValue.parseBytesSizeValue("23").toString(), is("23b"));
+        assertThat(ByteSizeValue.parseBytesSizeValue("42PB", "testParsing").toString(), is("42pb"));
+        assertThat(ByteSizeValue.parseBytesSizeValue("42 PB", "testParsing").toString(), is("42pb"));
+        assertThat(ByteSizeValue.parseBytesSizeValue("42pb", "testParsing").toString(), is("42pb"));
+        assertThat(ByteSizeValue.parseBytesSizeValue("42 pb", "testParsing").toString(), is("42pb"));
+
+        assertThat(ByteSizeValue.parseBytesSizeValue("42P", "testParsing").toString(), is("42pb"));
+        assertThat(ByteSizeValue.parseBytesSizeValue("42 P", "testParsing").toString(), is("42pb"));
+        assertThat(ByteSizeValue.parseBytesSizeValue("42p", "testParsing").toString(), is("42pb"));
+        assertThat(ByteSizeValue.parseBytesSizeValue("42 p", "testParsing").toString(), is("42pb"));
+
+        assertThat(ByteSizeValue.parseBytesSizeValue("54TB", "testParsing").toString(), is("54tb"));
+        assertThat(ByteSizeValue.parseBytesSizeValue("54 TB", "testParsing").toString(), is("54tb"));
+        assertThat(ByteSizeValue.parseBytesSizeValue("54tb", "testParsing").toString(), is("54tb"));
+        assertThat(ByteSizeValue.parseBytesSizeValue("54 tb", "testParsing").toString(), is("54tb"));
+
+        assertThat(ByteSizeValue.parseBytesSizeValue("54T", "testParsing").toString(), is("54tb"));
+        assertThat(ByteSizeValue.parseBytesSizeValue("54 T", "testParsing").toString(), is("54tb"));
+        assertThat(ByteSizeValue.parseBytesSizeValue("54t", "testParsing").toString(), is("54tb"));
+        assertThat(ByteSizeValue.parseBytesSizeValue("54 t", "testParsing").toString(), is("54tb"));
+
+        assertThat(ByteSizeValue.parseBytesSizeValue("12GB", "testParsing").toString(), is("12gb"));
+        assertThat(ByteSizeValue.parseBytesSizeValue("12 GB", "testParsing").toString(), is("12gb"));
+        assertThat(ByteSizeValue.parseBytesSizeValue("12gb", "testParsing").toString(), is("12gb"));
+        assertThat(ByteSizeValue.parseBytesSizeValue("12 gb", "testParsing").toString(), is("12gb"));
+
+        assertThat(ByteSizeValue.parseBytesSizeValue("12G", "testParsing").toString(), is("12gb"));
+        assertThat(ByteSizeValue.parseBytesSizeValue("12 G", "testParsing").toString(), is("12gb"));
+        assertThat(ByteSizeValue.parseBytesSizeValue("12g", "testParsing").toString(), is("12gb"));
+        assertThat(ByteSizeValue.parseBytesSizeValue("12 g", "testParsing").toString(), is("12gb"));
+
+        assertThat(ByteSizeValue.parseBytesSizeValue("12M", "testParsing").toString(), is("12mb"));
+        assertThat(ByteSizeValue.parseBytesSizeValue("12 M", "testParsing").toString(), is("12mb"));
+        assertThat(ByteSizeValue.parseBytesSizeValue("12m", "testParsing").toString(), is("12mb"));
+        assertThat(ByteSizeValue.parseBytesSizeValue("12 m", "testParsing").toString(), is("12mb"));
+
+        assertThat(ByteSizeValue.parseBytesSizeValue("23KB", "testParsing").toString(), is("23kb"));
+        assertThat(ByteSizeValue.parseBytesSizeValue("23 KB", "testParsing").toString(), is("23kb"));
+        assertThat(ByteSizeValue.parseBytesSizeValue("23kb", "testParsing").toString(), is("23kb"));
+        assertThat(ByteSizeValue.parseBytesSizeValue("23 kb", "testParsing").toString(), is("23kb"));
+
+        assertThat(ByteSizeValue.parseBytesSizeValue("23K", "testParsing").toString(), is("23kb"));
+        assertThat(ByteSizeValue.parseBytesSizeValue("23 K", "testParsing").toString(), is("23kb"));
+        assertThat(ByteSizeValue.parseBytesSizeValue("23k", "testParsing").toString(), is("23kb"));
+        assertThat(ByteSizeValue.parseBytesSizeValue("23 k", "testParsing").toString(), is("23kb"));
+
+        assertThat(ByteSizeValue.parseBytesSizeValue("1B", "testParsing").toString(), is("1b"));
+        assertThat(ByteSizeValue.parseBytesSizeValue("1 B", "testParsing").toString(), is("1b"));
+        assertThat(ByteSizeValue.parseBytesSizeValue("1b", "testParsing").toString(), is("1b"));
+        assertThat(ByteSizeValue.parseBytesSizeValue("1 b", "testParsing").toString(), is("1b"));
+    }
+
+    @Test(expected = ElasticsearchParseException.class)
+    public void testFailOnMissingUnits() {
+        ByteSizeValue.parseBytesSizeValue("23", "test");
+    }
+
+    @Test(expected = ElasticsearchParseException.class)
+    public void testFailOnUnknownUnits() {
+        ByteSizeValue.parseBytesSizeValue("23jw", "test");
     }
 
     @Test(expected = ElasticsearchParseException.class)
     public void testFailOnEmptyParsing() {
-        assertThat(ByteSizeValue.parseBytesSizeValue("").toString(), is("23kb"));
+        assertThat(ByteSizeValue.parseBytesSizeValue("", "emptyParsing").toString(), is("23kb"));
     }
 
     @Test(expected = ElasticsearchParseException.class)
     public void testFailOnEmptyNumberParsing() {
-        assertThat(ByteSizeValue.parseBytesSizeValue("g").toString(), is("23b"));
+        assertThat(ByteSizeValue.parseBytesSizeValue("g", "emptyNumberParsing").toString(), is("23b"));
+    }
+
+    @Test(expected = ElasticsearchParseException.class)
+    public void testNoDotsAllowed() {
+        ByteSizeValue.parseBytesSizeValue("42b.", null, "test");
     }
 }

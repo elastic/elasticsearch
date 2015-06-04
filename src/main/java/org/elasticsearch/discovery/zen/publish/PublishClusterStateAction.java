@@ -227,21 +227,21 @@ public class PublishClusterStateAction extends AbstractComponent {
 
     public static BytesReference serializeFullClusterState(ClusterState clusterState, Version nodeVersion) throws IOException {
         BytesStreamOutput bStream = new BytesStreamOutput();
-        StreamOutput stream = CompressorFactory.defaultCompressor().streamOutput(bStream);
-        stream.setVersion(nodeVersion);
-        stream.writeBoolean(true);
-        clusterState.writeTo(stream);
-        stream.close();
+        try (StreamOutput stream = CompressorFactory.defaultCompressor().streamOutput(bStream)) {
+            stream.setVersion(nodeVersion);
+            stream.writeBoolean(true);
+            clusterState.writeTo(stream);
+        }
         return bStream.bytes();
     }
 
     public static BytesReference serializeDiffClusterState(Diff diff, Version nodeVersion) throws IOException {
         BytesStreamOutput bStream = new BytesStreamOutput();
-        StreamOutput stream = CompressorFactory.defaultCompressor().streamOutput(bStream);
-        stream.setVersion(nodeVersion);
-        stream.writeBoolean(false);
-        diff.writeTo(stream);
-        stream.close();
+        try (StreamOutput stream = CompressorFactory.defaultCompressor().streamOutput(bStream)) {
+            stream.setVersion(nodeVersion);
+            stream.writeBoolean(false);
+            diff.writeTo(stream);
+        }
         return bStream.bytes();
     }
 

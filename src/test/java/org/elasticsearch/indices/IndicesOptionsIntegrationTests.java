@@ -773,7 +773,7 @@ public class IndicesOptionsIntegrationTests extends ElasticsearchIntegrationTest
         try {
             verify(client().admin().indices().prepareUpdateSettings("barbaz").setSettings(Settings.builder().put("e", "f")), false);
         } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), equalTo("Can't update non dynamic settings[[index.e]] for open indices[[barbaz]]"));
+            assertThat(e.getMessage(), equalTo("Can't update non dynamic settings[[index.e]] for open indices [[barbaz]]"));
         }
         verify(client().admin().indices().prepareUpdateSettings("baz*").setSettings(Settings.builder().put("a", "b")), true);
     }

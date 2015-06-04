@@ -180,10 +180,6 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequestBuilder;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
-import org.elasticsearch.action.admin.indices.seal.SealIndicesAction;
-import org.elasticsearch.action.admin.indices.seal.SealIndicesRequest;
-import org.elasticsearch.action.admin.indices.seal.SealIndicesRequestBuilder;
-import org.elasticsearch.action.admin.indices.seal.SealIndicesResponse;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateRequestBuilder;
@@ -196,6 +192,14 @@ import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateActio
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequestBuilder;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateResponse;
+import org.elasticsearch.action.admin.indices.upgrade.get.UpgradeStatusAction;
+import org.elasticsearch.action.admin.indices.upgrade.get.UpgradeStatusRequest;
+import org.elasticsearch.action.admin.indices.upgrade.get.UpgradeStatusRequestBuilder;
+import org.elasticsearch.action.admin.indices.upgrade.get.UpgradeStatusResponse;
+import org.elasticsearch.action.admin.indices.upgrade.post.UpgradeAction;
+import org.elasticsearch.action.admin.indices.upgrade.post.UpgradeRequest;
+import org.elasticsearch.action.admin.indices.upgrade.post.UpgradeRequestBuilder;
+import org.elasticsearch.action.admin.indices.upgrade.post.UpgradeResponse;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryAction;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequest;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequestBuilder;
@@ -1341,21 +1345,6 @@ public abstract class AbstractClient extends AbstractComponent implements Client
         }
 
         @Override
-        public ActionFuture<SealIndicesResponse> sealIndices(SealIndicesRequest request) {
-            return execute(SealIndicesAction.INSTANCE, request);
-        }
-
-        @Override
-        public void sealIndices(SealIndicesRequest request, ActionListener<SealIndicesResponse> listener) {
-            execute(SealIndicesAction.INSTANCE, request, listener);
-        }
-
-        @Override
-        public SealIndicesRequestBuilder prepareSealIndices(String... indices) {
-            return new SealIndicesRequestBuilder(this, SealIndicesAction.INSTANCE).indices(indices);
-        }
-
-        @Override
         public void getMappings(GetMappingsRequest request, ActionListener<GetMappingsResponse> listener) {
             execute(GetMappingsAction.INSTANCE, request, listener);
         }
@@ -1415,6 +1404,36 @@ public abstract class AbstractClient extends AbstractComponent implements Client
             return new OptimizeRequestBuilder(this, OptimizeAction.INSTANCE).setIndices(indices);
         }
 
+        @Override
+        public ActionFuture<UpgradeResponse> upgrade(final UpgradeRequest request) {
+            return execute(UpgradeAction.INSTANCE, request);
+        }
+
+        @Override
+        public void upgrade(final UpgradeRequest request, final ActionListener<UpgradeResponse> listener) {
+            execute(UpgradeAction.INSTANCE, request, listener);
+        }
+
+        @Override
+        public UpgradeRequestBuilder prepareUpgrade(String... indices) {
+            return new UpgradeRequestBuilder(this, UpgradeAction.INSTANCE).setIndices(indices);
+        }
+
+
+        @Override
+        public ActionFuture<UpgradeStatusResponse> upgradeStatus(final UpgradeStatusRequest request) {
+            return execute(UpgradeStatusAction.INSTANCE, request);
+        }
+
+        @Override
+        public void upgradeStatus(final UpgradeStatusRequest request, final ActionListener<UpgradeStatusResponse> listener) {
+            execute(UpgradeStatusAction.INSTANCE, request, listener);
+        }
+
+        @Override
+        public UpgradeStatusRequestBuilder prepareUpgradeStatus(String... indices) {
+            return new UpgradeStatusRequestBuilder(this, UpgradeStatusAction.INSTANCE).setIndices(indices);
+        }
         @Override
         public ActionFuture<RefreshResponse> refresh(final RefreshRequest request) {
             return execute(RefreshAction.INSTANCE, request);

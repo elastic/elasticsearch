@@ -27,6 +27,9 @@ import java.util.Arrays;
 public enum Transports {
     ;
 
+    /** threads whose name is prefixed by this string will be considered network threads, even though they aren't */
+    public final static String TEST_MOCK_TRANSPORT_THREAD_PREFIX = "__mock_network_thread";
+
     /**
      * Utility method to detect whether a thread is a network thread. Typically
      * used in assertions to make sure that we do not call blocking code from
@@ -39,7 +42,8 @@ public enum Transports {
                 NettyTransport.HTTP_SERVER_BOSS_THREAD_NAME_PREFIX,
                 NettyTransport.HTTP_SERVER_WORKER_THREAD_NAME_PREFIX,
                 NettyTransport.TRANSPORT_CLIENT_WORKER_THREAD_NAME_PREFIX,
-                NettyTransport.TRANSPORT_CLIENT_BOSS_THREAD_NAME_PREFIX)) {
+                NettyTransport.TRANSPORT_CLIENT_BOSS_THREAD_NAME_PREFIX,
+                TEST_MOCK_TRANSPORT_THREAD_PREFIX)) {
             if (threadName.contains(s)) {
                 return true;
             }
@@ -47,13 +51,15 @@ public enum Transports {
         return false;
     }
 
-    public static void assertTransportThread() {
+    public static boolean assertTransportThread() {
         final Thread t = Thread.currentThread();
         assert isTransportThread(t) : "Expected transport thread but got [" + t + "]";
+        return true;
     }
 
-    public static void assertNotTransportThread(String reason) {
+    public static boolean assertNotTransportThread(String reason) {
         final Thread t = Thread.currentThread();
-        assert isTransportThread(t) ==false : "Expected current thread [" + t + "] to not be a transport thread. Reason: ";
+        assert isTransportThread(t) == false : "Expected current thread [" + t + "] to not be a transport thread. Reason: [" + reason + "]";
+        return true;
     }
 }

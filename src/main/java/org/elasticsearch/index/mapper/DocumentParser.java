@@ -43,6 +43,7 @@ import org.elasticsearch.index.mapper.object.RootObjectMapper;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -598,7 +599,7 @@ class DocumentParser implements Closeable {
     }
 
     /** Creates instances of the fields that the current field should be copied to */
-    private static void parseCopyFields(ParseContext context, FieldMapper fieldMapper, ImmutableList<String> copyToFields) throws IOException {
+    private static void parseCopyFields(ParseContext context, FieldMapper fieldMapper, List<String> copyToFields) throws IOException {
         if (!context.isWithinCopyTo() && copyToFields.isEmpty() == false) {
             context = context.createCopyToContext();
             for (String field : copyToFields) {

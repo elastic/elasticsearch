@@ -20,10 +20,8 @@
 package org.elasticsearch.index.mapper.ip;
 
 import com.google.common.net.InetAddresses;
-
 import org.apache.lucene.analysis.NumericTokenStream;
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.NumericRangeQuery;
@@ -43,6 +41,7 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.NumericAnalyzer;
 import org.elasticsearch.index.analysis.NumericTokenizer;
 import org.elasticsearch.index.fielddata.FieldDataType;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MergeMappingException;
@@ -51,7 +50,6 @@ import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.core.LongFieldMapper.CustomLongNumericField;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
 import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.index.similarity.SimilarityProvider;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -101,7 +99,7 @@ public class IpFieldMapper extends NumberFieldMapper {
     public static class Defaults extends NumberFieldMapper.Defaults {
         public static final String NULL_VALUE = null;
 
-        public static final FieldType FIELD_TYPE = new FieldType(NumberFieldMapper.Defaults.FIELD_TYPE);
+        public static final MappedFieldType FIELD_TYPE = new IpFieldType();
 
         static {
             FIELD_TYPE.freeze();
@@ -113,7 +111,7 @@ public class IpFieldMapper extends NumberFieldMapper {
         protected String nullValue = Defaults.NULL_VALUE;
 
         public Builder(String name) {
-            super(name, new FieldType(Defaults.FIELD_TYPE), Defaults.PRECISION_STEP_64_BIT);
+            super(name, Defaults.FIELD_TYPE, Defaults.PRECISION_STEP_64_BIT);
             builder = this;
         }
 
@@ -124,12 +122,22 @@ public class IpFieldMapper extends NumberFieldMapper {
 
         @Override
         public IpFieldMapper build(BuilderContext context) {
-            fieldType.setOmitNorms(fieldType.omitNorms() && boost == 1.0f);
-            IpFieldMapper fieldMapper = new IpFieldMapper(buildNames(context),
-                    fieldType.numericPrecisionStep(), boost, fieldType, docValues, nullValue, ignoreMalformed(context), coerce(context),
-                    similarity, normsLoading, fieldDataSettings, context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
+            setupFieldType(context);
+            IpFieldMapper fieldMapper = new IpFieldMapper(fieldType, docValues, nullValue, ignoreMalformed(context), coerce(context),
+                    fieldDataSettings, context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
             fieldMapper.includeInAll(includeInAll);
             return fieldMapper;
+        }
+
+        @Override
+        protected NamedAnalyzer makeNumberAnalyzer(int precisionStep) {
+            String name = precisionStep == Integer.MAX_VALUE ? "_ip/max" : ("_ip/" + precisionStep);
+            return new NamedAnalyzer(name, new NumericIpAnalyzer(precisionStep));
+        }
+
+        @Override
+        protected int maxPrecisionStep() {
+            return 64;
         }
     }
 
@@ -154,21 +162,89 @@ public class IpFieldMapper extends NumberFieldMapper {
         }
     }
 
+    static final class IpFieldType extends NumberFieldType {
+
+        public IpFieldType() {}
+
+        protected IpFieldType(IpFieldType ref) {
+            super(ref);
+        }
+
+        @Override
+        public NumberFieldType clone() {
+            return new IpFieldType(this);
+        }
+
+        @Override
+        public Long value(Object value) {
+            if (value == null) {
+                return null;
+            }
+            if (value instanceof Number) {
+                return ((Number) value).longValue();
+            }
+            if (value instanceof BytesRef) {
+                return Numbers.bytesToLong((BytesRef) value);
+            }
+            return ipToLong(value.toString());
+        }
+
+        /**
+         * IPs should return as a string.
+         */
+        @Override
+        public Object valueForSearch(Object value) {
+            Long val = value(value);
+            if (val == null) {
+                return null;
+            }
+            return longToIp(val);
+        }
+
+        @Override
+        public BytesRef indexedValueForSearch(Object value) {
+            BytesRefBuilder bytesRef = new BytesRefBuilder();
+            NumericUtils.longToPrefixCoded(parseValue(value), 0, bytesRef); // 0 because of exact match
+            return bytesRef.get();
+        }
+
+        @Override
+        public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
+            return NumericRangeQuery.newLongRange(names().indexName(), numericPrecisionStep(),
+                lowerTerm == null ? null : parseValue(lowerTerm),
+                upperTerm == null ? null : parseValue(upperTerm),
+                includeLower, includeUpper);
+        }
+
+        @Override
+        public Query fuzzyQuery(String value, Fuzziness fuzziness, int prefixLength, int maxExpansions, boolean transpositions) {
+            long iValue = ipToLong(value);
+            long iSim;
+            try {
+                iSim = ipToLong(fuzziness.asString());
+            } catch (IllegalArgumentException e) {
+                iSim = fuzziness.asLong();
+            }
+            return NumericRangeQuery.newLongRange(names().indexName(), numericPrecisionStep(),
+                iValue - iSim,
+                iValue + iSim,
+                true, true);
+        }
+    }
+
     private String nullValue;
 
-    protected IpFieldMapper(Names names, int precisionStep, float boost, FieldType fieldType, Boolean docValues,
+    protected IpFieldMapper(MappedFieldType fieldType, Boolean docValues,
                             String nullValue, Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce,
-                            SimilarityProvider similarity, Loading normsLoading, @Nullable Settings fieldDataSettings,
+                            @Nullable Settings fieldDataSettings,
                             Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
-        super(names, precisionStep, boost, fieldType, docValues,
-                ignoreMalformed, coerce, new NamedAnalyzer("_ip/" + precisionStep, new NumericIpAnalyzer(precisionStep)),
-                new NamedAnalyzer("_ip/max", new NumericIpAnalyzer(Integer.MAX_VALUE)),
-                similarity, normsLoading, fieldDataSettings, indexSettings, multiFields, copyTo);
+        super(fieldType, docValues, ignoreMalformed, coerce,
+              fieldDataSettings, indexSettings, multiFields, copyTo);
         this.nullValue = nullValue;
     }
 
     @Override
-    public FieldType defaultFieldType() {
+    public MappedFieldType defaultFieldType() {
         return Defaults.FIELD_TYPE;
     }
 
@@ -177,45 +253,7 @@ public class IpFieldMapper extends NumberFieldMapper {
         return new FieldDataType("long");
     }
 
-    @Override
-    protected int maxPrecisionStep() {
-        return 64;
-    }
-
-    @Override
-    public Long value(Object value) {
-        if (value == null) {
-            return null;
-        }
-        if (value instanceof Number) {
-            return ((Number) value).longValue();
-        }
-        if (value instanceof BytesRef) {
-            return Numbers.bytesToLong((BytesRef) value);
-        }
-        return ipToLong(value.toString());
-    }
-
-    /**
-     * IPs should return as a string.
-     */
-    @Override
-    public Object valueForSearch(Object value) {
-        Long val = value(value);
-        if (val == null) {
-            return null;
-        }
-        return longToIp(val);
-    }
-
-    @Override
-    public BytesRef indexedValueForSearch(Object value) {
-        BytesRefBuilder bytesRef = new BytesRefBuilder();
-        NumericUtils.longToPrefixCoded(parseValue(value), 0, bytesRef); // 0 because of exact match
-        return bytesRef.get();
-    }
-
-    private long parseValue(Object value) {
+    private static long parseValue(Object value) {
         if (value instanceof Number) {
             return ((Number) value).longValue();
         }
@@ -223,29 +261,6 @@ public class IpFieldMapper extends NumberFieldMapper {
             return ipToLong(((BytesRef) value).utf8ToString());
         }
         return ipToLong(value.toString());
-    }
-
-    @Override
-    public Query fuzzyQuery(String value, Fuzziness fuzziness, int prefixLength, int maxExpansions, boolean transpositions) {
-        long iValue = ipToLong(value);
-        long iSim;
-        try {
-            iSim = ipToLong(fuzziness.asString());
-        } catch (IllegalArgumentException e) {
-            iSim = fuzziness.asLong();
-        }
-        return NumericRangeQuery.newLongRange(names.indexName(), precisionStep,
-                iValue - iSim,
-                iValue + iSim,
-                true, true);
-    }
-
-    @Override
-    public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
-        return NumericRangeQuery.newLongRange(names.indexName(), precisionStep,
-                lowerTerm == null ? null : parseValue(lowerTerm),
-                upperTerm == null ? null : parseValue(upperTerm),
-                includeLower, includeUpper);
     }
 
     @Override
@@ -276,16 +291,16 @@ public class IpFieldMapper extends NumberFieldMapper {
             return;
         }
         if (context.includeInAll(includeInAll, this)) {
-            context.allEntries().addText(names.fullName(), ipAsString, boost);
+            context.allEntries().addText(fieldType.names().fullName(), ipAsString, fieldType.boost());
         }
 
         final long value = ipToLong(ipAsString);
         if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored()) {
             CustomLongNumericField field = new CustomLongNumericField(this, value, fieldType);
-            field.setBoost(boost);
+            field.setBoost(fieldType.boost());
             fields.add(field);
         }
-        if (hasDocValues()) {
+        if (fieldType().hasDocValues()) {
             addDocValue(context, fields, value);
         }
     }
@@ -310,8 +325,8 @@ public class IpFieldMapper extends NumberFieldMapper {
     protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
         super.doXContentBody(builder, includeDefaults, params);
 
-        if (includeDefaults || precisionStep != Defaults.PRECISION_STEP_64_BIT) {
-            builder.field("precision_step", precisionStep);
+        if (includeDefaults || fieldType.numericPrecisionStep() != Defaults.PRECISION_STEP_64_BIT) {
+            builder.field("precision_step", fieldType.numericPrecisionStep());
         }
         if (includeDefaults || nullValue != null) {
             builder.field("null_value", nullValue);

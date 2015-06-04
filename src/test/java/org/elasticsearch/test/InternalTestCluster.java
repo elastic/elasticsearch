@@ -78,7 +78,6 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineClosedException;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardModule;
-import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.IndexStoreModule;
 import org.elasticsearch.index.translog.TranslogConfig;
@@ -89,6 +88,7 @@ import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.search.SearchService;
@@ -280,7 +280,7 @@ public final class InternalTestCluster extends TestCluster {
         builder.put("path.repo", baseDir.resolve("repos"));
         builder.put("transport.tcp.port", BASE_PORT + "-" + (BASE_PORT+100));
         builder.put("http.port", BASE_PORT+101 + "-" + (BASE_PORT+200));
-        builder.put("config.ignore_system_properties", true);
+        builder.put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING, true);
         builder.put("node.mode", NODE_MODE);
         builder.put("http.pipelining", enableHttpPipelining);
         builder.put("plugins." + PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, false);
@@ -448,7 +448,7 @@ public final class InternalTestCluster extends TestCluster {
             if (rarely(random)) {
                 builder.put(TranslogConfig.INDEX_TRANSLOG_SYNC_INTERVAL, 0); // 0 has special meaning to sync each op
             } else {
-                builder.put(TranslogConfig.INDEX_TRANSLOG_SYNC_INTERVAL, RandomInts.randomIntBetween(random, 100, 5000));
+                builder.put(TranslogConfig.INDEX_TRANSLOG_SYNC_INTERVAL, RandomInts.randomIntBetween(random, 100, 5000), TimeUnit.MILLISECONDS);
             }
         }
 
@@ -802,12 +802,11 @@ public final class InternalTestCluster extends TestCluster {
         }
 
         void resetClient() throws IOException {
-            if (closed.get()) {
-                throw new RuntimeException("already closed");
+            if (closed.get() == false) {
+                Releasables.close(nodeClient, transportClient);
+                nodeClient = null;
+                transportClient = null;
             }
-            Releasables.close(nodeClient, transportClient);
-            nodeClient = null;
-            transportClient = null;
         }
 
         void closeNode() {
@@ -876,7 +875,7 @@ public final class InternalTestCluster extends TestCluster {
                     .put("node.local", nodeSettings.get("node.local", ""))
                     .put("logger.prefix", nodeSettings.get("logger.prefix", ""))
                     .put("logger.level", nodeSettings.get("logger.level", "INFO"))
-                    .put("config.ignore_system_properties", true)
+                    .put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING, true)
                     .put(settings);
 
             TransportClient client = TransportClient.builder().settings(builder.build()).build();
@@ -975,7 +974,7 @@ public final class InternalTestCluster extends TestCluster {
 
     @Override
     public void beforeIndexDeletion() {
-        // Check that the operations counter on index shard has reached 1.
+        // Check that the operations counter on index shard has reached 0.
         // The assumption here is that after a test there are no ongoing write operations.
         // test that have ongoing write operations after the test (for example because ttl is used
         // and not all docs have been purged after the test) and inherit from
@@ -1018,10 +1017,7 @@ public final class InternalTestCluster extends TestCluster {
             IndicesService indexServices = getInstance(IndicesService.class, nodeAndClient.name);
             for (IndexService indexService : indexServices) {
                 for (IndexShard indexShard : indexService) {
-                    assertThat("index shard counter on shard " + indexShard.shardId() + " on node " + nodeAndClient.name + " not 0 or 1 ", indexShard.getOperationsCount(), anyOf(equalTo(1), equalTo(0)));
-                    if (indexShard.getOperationsCount() == 0) {
-                        assertThat(indexShard.state(), equalTo(IndexShardState.CLOSED));
-                    }
+                    assertThat("index shard counter on shard " + indexShard.shardId() + " on node " + nodeAndClient.name + " not 0", indexShard.getOperationsCount(), equalTo(0));
                 }
             }
         }

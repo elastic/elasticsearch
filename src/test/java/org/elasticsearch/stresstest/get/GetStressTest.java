@@ -39,7 +39,7 @@ public class GetStressTest {
 
         final int NUMBER_OF_NODES = 2;
         final int NUMBER_OF_THREADS = 50;
-        final TimeValue TEST_TIME = TimeValue.parseTimeValue("10m", null);
+        final TimeValue TEST_TIME = TimeValue.parseTimeValue("10m", null, "TEST_TIME");
 
         Node[] nodes = new Node[NUMBER_OF_NODES];
         for (int i = 0; i < nodes.length; i++) {

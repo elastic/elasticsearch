@@ -32,6 +32,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
 
@@ -71,11 +72,11 @@ public class GeohashCellQuery {
      * @return a new GeoBoundinboxfilter
      */
     public static Query create(QueryParseContext context, GeoPointFieldMapper fieldMapper, String geohash, @Nullable List<CharSequence> geohashes) {
-        if (fieldMapper.geoHashStringMapper() == null) {
+        MappedFieldType geoHashMapper = fieldMapper.fieldType().geohashFieldType();
+        if (geoHashMapper == null) {
             throw new IllegalArgumentException("geohash filter needs geohash_prefix to be enabled");
         }
 
-        StringFieldMapper geoHashMapper = fieldMapper.geoHashStringMapper();
         if (geohashes == null || geohashes.size() == 0) {
             return geoHashMapper.termQuery(geohash, context);
         } else {
@@ -246,7 +247,7 @@ public class GeohashCellQuery {
             }
 
             GeoPointFieldMapper geoMapper = ((GeoPointFieldMapper) mapper);
-            if (!geoMapper.isEnableGeohashPrefix()) {
+            if (!geoMapper.fieldType().isGeohashPrefixEnabled()) {
                 throw new QueryParsingException(parseContext, "can't execute geohash_cell on field [" + fieldName
                         + "], geohash_prefix is not enabled");
             }

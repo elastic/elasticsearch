@@ -32,13 +32,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.indices.SyncedFlushService;
+import org.elasticsearch.indices.flush.SyncedFlushUtil;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.test.InternalTestCluster.RestartCallback;
-import org.elasticsearch.indices.SyncedFlushUtil;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.store.MockFSDirectoryService;
 import org.junit.Test;
@@ -397,11 +395,7 @@ public class RecoveryFromGatewayTests extends ElasticsearchIntegrationTest {
             ensureGreen();
         } else {
             logger.info("--> trying to sync flush");
-            int numShards = Integer.parseInt(client().admin().indices().prepareGetSettings("test").get().getSetting("test", "index.number_of_shards"));
-            SyncedFlushService syncedFlushService = internalCluster().getInstance(SyncedFlushService.class);
-            for (int i = 0; i < numShards; i++) {
-                assertTrue(SyncedFlushUtil.attemptSyncedFlush(syncedFlushService, new ShardId("test", i)).success());
-            }
+            assertEquals(SyncedFlushUtil.attemptSyncedFlush(internalCluster(), "test").failedShards(), 0);
             assertSyncIdsNotNull();
         }
 

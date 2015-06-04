@@ -57,6 +57,7 @@ import org.elasticsearch.index.fielddata.fieldcomparator.LongValuesComparatorSou
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.index.fielddata.ordinals.OrdinalsBuilder;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -86,14 +87,14 @@ public class PackedArrayIndexFieldData extends AbstractIndexFieldData<AtomicNume
         @Override
         public IndexFieldData<AtomicNumericFieldData> build(Index index, @IndexSettings Settings indexSettings, FieldMapper mapper,
                                                             IndexFieldDataCache cache, CircuitBreakerService breakerService, MapperService mapperService) {
-            return new PackedArrayIndexFieldData(index, indexSettings, mapper.names(), mapper.fieldDataType(), cache, numericType, breakerService);
+            return new PackedArrayIndexFieldData(index, indexSettings, mapper.fieldType().names(), mapper.fieldType().fieldDataType(), cache, numericType, breakerService);
         }
     }
 
     private final NumericType numericType;
     private final CircuitBreakerService breakerService;
 
-    public PackedArrayIndexFieldData(Index index, @IndexSettings Settings indexSettings, FieldMapper.Names fieldNames,
+    public PackedArrayIndexFieldData(Index index, @IndexSettings Settings indexSettings, MappedFieldType.Names fieldNames,
                                      FieldDataType fieldDataType, IndexFieldDataCache cache, NumericType numericType,
                                      CircuitBreakerService breakerService) {
         super(index, indexSettings, fieldNames, fieldDataType, cache);

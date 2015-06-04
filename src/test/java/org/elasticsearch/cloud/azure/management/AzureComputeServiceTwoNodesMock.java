@@ -20,12 +20,13 @@
 package org.elasticsearch.cloud.azure.management;
 
 import com.microsoft.windowsazure.management.compute.models.*;
-import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
 
 import java.net.InetAddress;
+
 
 /**
  * Mock Azure API with two started nodes
@@ -62,7 +63,7 @@ public class AzureComputeServiceTwoNodesMock extends AzureComputeServiceAbstract
         endpoint1.setName("elasticsearch");
         endpoint1.setVirtualIPAddress(InetAddress.getLoopbackAddress());
         endpoint1.setPort(9400);
-        instance1.setInstanceEndpoints(Lists.newArrayList(endpoint1));
+        instance1.setInstanceEndpoints(CollectionUtils.newArrayList(endpoint1));
 
         // Fake a first instance
         RoleInstance instance2 = new RoleInstance();
@@ -76,11 +77,11 @@ public class AzureComputeServiceTwoNodesMock extends AzureComputeServiceAbstract
         endpoint2.setName("elasticsearch");
         endpoint2.setVirtualIPAddress(InetAddress.getLoopbackAddress());
         endpoint2.setPort(9401);
-        instance2.setInstanceEndpoints(Lists.newArrayList(endpoint2));
+        instance2.setInstanceEndpoints(CollectionUtils.newArrayList(endpoint2));
 
-        deployment.setRoleInstances(Lists.newArrayList(instance1, instance2));
+        deployment.setRoleInstances(CollectionUtils.newArrayList(instance1, instance2));
 
-        response.setDeployments(Lists.newArrayList(deployment));
+        response.setDeployments(CollectionUtils.newArrayList(deployment));
 
         return response;
     }

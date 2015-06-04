@@ -24,7 +24,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
-import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.repositories.RepositoryException;
@@ -35,6 +34,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URISyntaxException;
+import java.util.Map;
 
 /**
  *
@@ -109,7 +109,7 @@ public class AzureBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public ImmutableMap<String, BlobMetaData> listBlobsByPrefix(@Nullable String prefix) throws IOException {
+    public Map<String, BlobMetaData> listBlobsByPrefix(@Nullable String prefix) throws IOException {
 
         try {
             return blobStore.client().listBlobsByPrefix(blobStore.container(), keyPath, prefix);
@@ -138,7 +138,7 @@ public class AzureBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public ImmutableMap<String, BlobMetaData> listBlobs() throws IOException {
+    public Map<String, BlobMetaData> listBlobs() throws IOException {
         return listBlobsByPrefix(null);
     }
 

@@ -20,7 +20,6 @@
 package org.elasticsearch.plugin.cloud.azure;
 
 import org.elasticsearch.cloud.azure.AzureModule;
-import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
@@ -30,6 +29,7 @@ import org.elasticsearch.repositories.RepositoriesModule;
 import org.elasticsearch.repositories.azure.AzureRepository;
 import org.elasticsearch.repositories.azure.AzureRepositoryModule;
 
+import java.util.ArrayList;
 import java.util.Collection;
 
 import static org.elasticsearch.cloud.azure.AzureModule.isSnapshotReady;
@@ -59,7 +59,7 @@ public class CloudAzurePlugin extends AbstractPlugin {
 
     @Override
     public Collection<Class<? extends Module>> modules() {
-        Collection<Class<? extends Module>> modules = Lists.newArrayList();
+        Collection<Class<? extends Module>> modules = new ArrayList<>();
         if (AzureModule.isCloudReady(settings)) {
             modules.add(AzureModule.class);
         }

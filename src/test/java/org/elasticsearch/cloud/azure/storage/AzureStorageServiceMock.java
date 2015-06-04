@@ -23,7 +23,7 @@ import com.microsoft.azure.storage.StorageException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
-import org.elasticsearch.common.collect.ImmutableMap;
+import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -90,15 +90,14 @@ public class AzureStorageServiceMock extends AbstractLifecycleComponent<AzureSto
     }
 
     @Override
-    public ImmutableMap<String, BlobMetaData> listBlobsByPrefix(String container, String keyPath, String prefix) {
-        ImmutableMap.Builder<String, BlobMetaData> blobsBuilder = ImmutableMap.builder();
+    public Map<String, BlobMetaData> listBlobsByPrefix(String container, String keyPath, String prefix) {
+        MapBuilder<String, BlobMetaData> blobsBuilder = MapBuilder.newMapBuilder();
         for (String blobName : blobs.keySet()) {
             if (startsWithIgnoreCase(blobName, prefix)) {
                 blobsBuilder.put(blobName, new PlainBlobMetaData(blobName, blobs.get(blobName).size()));
             }
         }
-        ImmutableMap<String, BlobMetaData> map = blobsBuilder.build();
-        return map;
+        return blobsBuilder.immutableMap();
     }
 
     @Override

@@ -26,7 +26,6 @@ import org.elasticsearch.cloud.azure.AzureServiceRemoteException;
 import org.elasticsearch.cloud.azure.management.AzureComputeService;
 import org.elasticsearch.cloud.azure.management.AzureComputeService.Discovery;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.network.NetworkService;
@@ -38,6 +37,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.net.InetAddress;
+import java.util.ArrayList;
 import java.util.Locale;
 import java.util.List;
 
@@ -157,7 +157,7 @@ public class AzureUnicastHostsProvider extends AbstractComponent implements Unic
         }
         logger.debug("start building nodes list using Azure API");
 
-        cachedDiscoNodes = Lists.newArrayList();
+        cachedDiscoNodes = new ArrayList<>();
 
         HostedServiceGetDetailedResponse detailed;
         try {

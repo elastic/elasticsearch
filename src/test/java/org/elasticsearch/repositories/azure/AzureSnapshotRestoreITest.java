@@ -33,7 +33,6 @@ import org.elasticsearch.cloud.azure.storage.AzureStorageService.Storage;
 import org.elasticsearch.cloud.azure.storage.AzureStorageServiceImpl;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.base.Predicate;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.repositories.RepositoryVerificationException;
@@ -45,6 +44,7 @@ import org.elasticsearch.test.store.MockFSDirectoryService;
 import org.junit.*;
 
 import java.net.URISyntaxException;
+import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 import java.util.Locale;
 
@@ -329,7 +329,7 @@ public class AzureSnapshotRestoreITest extends AbstractAzureTest {
      * For issue #21: https://github.com/elasticsearch/elasticsearch-cloud-azure/issues/21
      */
     @Test
-    public void testForbiddenContainerName() throws URISyntaxException, StorageException, InterruptedException {
+    public void testForbiddenContainerName() throws Exception {
         checkContainerName("", false);
         checkContainerName("es", false);
         checkContainerName("-elasticsearch", false);
@@ -347,18 +347,19 @@ public class AzureSnapshotRestoreITest extends AbstractAzureTest {
      * @param container Container name we want to create
      * @param correct Is this container name correct
      */
-    private void checkContainerName(final String container, final boolean correct) throws URISyntaxException, StorageException, InterruptedException {
+    private void checkContainerName(final String container, final boolean correct) throws Exception {
         logger.info("-->  creating azure repository with container name [{}]", container);
         // It could happen that we just removed from a previous test the same container so
         // we can not create it yet.
-        assertThat(awaitBusy(new Predicate<Object>() {
-            public boolean apply(Object obj) {
+        assertBusy(new Runnable() {
+
+            public void run() {
                 try {
                     PutRepositoryResponse putRepositoryResponse = client().admin().cluster().preparePutRepository("test-repo")
                             .setType("azure").setSettings(Settings.settingsBuilder()
-                                    .put(Repository.CONTAINER, container)
-                                    .put(Repository.BASE_PATH, getRepositoryPath())
-                                    .put(Repository.CHUNK_SIZE, randomIntBetween(1000, 10000))
+                                            .put(Repository.CONTAINER, container)
+                                            .put(Repository.BASE_PATH, getRepositoryPath())
+                                            .put(Repository.CHUNK_SIZE, randomIntBetween(1000, 10000))
                             ).get();
                     client().admin().cluster().prepareDeleteRepository("test-repo").get();
                     try {
@@ -367,16 +368,15 @@ public class AzureSnapshotRestoreITest extends AbstractAzureTest {
                     } catch (StorageException | URISyntaxException e) {
                         // We can ignore that as we just try to clean after the test
                     }
-                    return (putRepositoryResponse.isAcknowledged() == correct);
+                    assertTrue(putRepositoryResponse.isAcknowledged() == correct);
                 } catch (RepositoryVerificationException e) {
-                    if (!correct) {
-                        return true;
+                    if (correct) {
+                        logger.debug(" -> container is being removed. Let's wait a bit...");
+                        fail();
                     }
-                    logger.debug(" -> container is being removed. Let's wait a bit...");
-                    return false;
                 }
             }
-        }, 5, TimeUnit.MINUTES), equalTo(true));
+        }, 5, TimeUnit.MINUTES);
     }
 
     /**
@@ -407,28 +407,28 @@ public class AzureSnapshotRestoreITest extends AbstractAzureTest {
      * When a user remove a container you can not immediately create it again.
      */
     @Test
-    public void testRemoveAndCreateContainer() throws URISyntaxException, StorageException, InterruptedException {
+    public void testRemoveAndCreateContainer() throws Exception {
         final String container = getContainerName().concat("-testremove");
         final AzureStorageService storageService = internalCluster().getInstance(AzureStorageService.class);
 
         // It could happen that we run this test really close to a previous one
         // so we might need some time to be able to create the container
-        assertThat(awaitBusy(new Predicate<Object>() {
-            public boolean apply(Object obj) {
+        assertBusy(new Runnable() {
+
+            public void run()  {
                 try {
                     storageService.createContainer(container);
                     logger.debug(" -> container created...");
-                    return true;
                 } catch (URISyntaxException e) {
                     // Incorrect URL. This should never happen.
-                    return false;
+                    fail();
                 } catch (StorageException e) {
                     // It could happen. Let's wait for a while.
                     logger.debug(" -> container is being removed. Let's wait a bit...");
-                    return false;
+                    fail();
                 }
             }
-        }, 30, TimeUnit.SECONDS), equalTo(true));
+        }, 30, TimeUnit.SECONDS);
         storageService.removeContainer(container);
 
         ClusterAdminClient client = client().admin().cluster();

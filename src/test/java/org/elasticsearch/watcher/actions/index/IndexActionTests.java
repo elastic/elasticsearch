@@ -7,99 +7,179 @@ package org.elasticsearch.watcher.actions.index;
 
 import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.collect.ImmutableList;
+import org.elasticsearch.common.collect.ImmutableMap;
+import org.elasticsearch.common.collect.ImmutableSet;
 import org.elasticsearch.common.joda.time.DateTime;
+import org.elasticsearch.common.joda.time.DateTimeZone;
 import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.aggregations.bucket.terms.Terms;
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.watcher.actions.Action;
 import org.elasticsearch.watcher.actions.Action.Result.Status;
-import org.elasticsearch.watcher.actions.email.service.Authentication;
-import org.elasticsearch.watcher.actions.email.service.Email;
-import org.elasticsearch.watcher.actions.email.service.EmailService;
-import org.elasticsearch.watcher.actions.email.service.Profile;
-import org.elasticsearch.watcher.execution.TriggeredExecutionContext;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
-import org.elasticsearch.watcher.support.http.HttpClient;
-import org.elasticsearch.watcher.support.http.auth.HttpAuthRegistry;
+import org.elasticsearch.watcher.support.WatcherDateTimeUtils;
 import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
-import org.elasticsearch.watcher.support.init.proxy.ScriptServiceProxy;
+import org.elasticsearch.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.watcher.test.WatcherTestUtils;
-import org.elasticsearch.watcher.trigger.schedule.ScheduleTriggerEvent;
 import org.elasticsearch.watcher.watch.Payload;
-import org.elasticsearch.watcher.watch.Watch;
 import org.junit.Test;
 
-import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
-import static org.mockito.Mockito.mock;
+import static org.hamcrest.Matchers.*;
 
 /**
  */
 public class IndexActionTests extends ElasticsearchIntegrationTest {
 
-    @Test
-    public void testIndexActionExecute() throws Exception {
+    @Test @Repeat(iterations = 6)
+    public void testIndexActionExecute_SingleDoc() throws Exception {
 
-        IndexAction action = new IndexAction("test-index", "test-type");
+        String timestampField = randomFrom(null, "_timestamp", "@timestamp");
+        boolean customTimestampField = "@timestamp".equals(timestampField);
+
+        if (timestampField == null || "_timestamp".equals(timestampField)) {
+            assertThat(prepareCreate("test-index")
+                    .addMapping("test-type", "{ \"test-type\" : { \"_timestamp\" : { \"enabled\" : \"true\" }}}")
+                    .get().isAcknowledged(), is(true));
+        }
+
+        IndexAction action = new IndexAction("test-index", "test-type", timestampField);
         ExecutableIndexAction executable = new ExecutableIndexAction(action, logger, ClientProxy.of(client()));
-        final String account = "account1";
-        Watch watch = WatcherTestUtils.createTestWatch("test_watch",
-                ClientProxy.of(client()),
-                ScriptServiceProxy.of(internalCluster().getInstance(ScriptService.class)),
-                new HttpClient(ImmutableSettings.EMPTY, mock(HttpAuthRegistry.class)).start(),
-                new EmailService() {
-                    @Override
-                    public EmailService.EmailSent send(Email email, Authentication auth, Profile profile) {
-                        return new EmailSent(account, email);
-                    }
+        DateTime executionTime = DateTime.now(DateTimeZone.UTC);
+        Payload payload = randomBoolean() ? new Payload.Simple("foo", "bar") : new Payload.Simple("_doc", ImmutableMap.of("foo", "bar"));
+        WatchExecutionContext ctx = WatcherTestUtils.mockExecutionContext("_id", executionTime, payload);
 
-                    @Override
-                    public EmailSent send(Email email, Authentication auth, Profile profile, String accountName) {
-                        return new EmailSent(account, email);
-                    }
-                },
-                logger);
-        WatchExecutionContext ctx = new TriggeredExecutionContext(watch, new DateTime(), new ScheduleTriggerEvent(watch.id(), new DateTime(), new DateTime()), TimeValue.timeValueSeconds(5));
-
-        Map<String, Object> payloadMap = new HashMap<>();
-        payloadMap.put("test", "foo");
-        Action.Result result = executable.execute("_id", ctx, new Payload.Simple(payloadMap));
+        Action.Result result = executable.execute("_id", ctx, ctx.payload());
 
         assertThat(result.status(), equalTo(Status.SUCCESS));
         assertThat(result, instanceOf(IndexAction.Result.Success.class));
         IndexAction.Result.Success successResult = (IndexAction.Result.Success) result;
-        Map<String, Object> responseData = successResult.response().data();
-        assertThat(responseData.get("created"), equalTo((Object)Boolean.TRUE));
-        assertThat(responseData.get("version"), equalTo((Object) 1L));
-        assertThat(responseData.get("type").toString(), equalTo("test-type"));
-        assertThat(responseData.get("index").toString(), equalTo("test-index"));
+        XContentSource response = successResult.response();
+        assertThat(response.getValue("created"), equalTo((Object)Boolean.TRUE));
+        assertThat(response.getValue("version"), equalTo((Object) 1));
+        assertThat(response.getValue("type").toString(), equalTo("test-type"));
+        assertThat(response.getValue("index").toString(), equalTo("test-index"));
 
         refresh(); //Manually refresh to make sure data is available
 
-        SearchResponse sr = client().prepareSearch("test-index")
+        SearchResponse searchResponse = client().prepareSearch("test-index")
                 .setTypes("test-type")
-                .setSource(searchSource().query(matchAllQuery()).buildAsBytes()).get();
+                .setSource(searchSource()
+                        .query(matchAllQuery())
+                        .aggregation(terms("timestamps").field(customTimestampField ? timestampField : "_timestamp"))
+                        .buildAsBytes())
+                .get();
 
-        assertThat(sr.getHits().totalHits(), equalTo(1L));
+        assertThat(searchResponse.getHits().totalHits(), equalTo(1L));
+        SearchHit hit = searchResponse.getHits().getAt(0);
+
+        if (customTimestampField) {
+            assertThat(hit.getSource().size(), is(2));
+            assertThat(hit.getSource(), hasEntry("foo", (Object) "bar"));
+            assertThat(hit.getSource(), hasEntry(timestampField, (Object) WatcherDateTimeUtils.formatDate(executionTime)));
+        } else {
+            assertThat(hit.getSource().size(), is(1));
+            assertThat(hit.getSource(), hasEntry("foo", (Object) "bar"));
+        }
+        Terms terms = searchResponse.getAggregations().get("timestamps");
+        assertThat(terms, notNullValue());
+        assertThat(terms.getBuckets(), hasSize(1));
+        assertThat(terms.getBuckets().get(0).getKeyAsNumber().longValue(), is(executionTime.getMillis()));
+        assertThat(terms.getBuckets().get(0).getDocCount(), is(1L));
+    }
+
+    @Test @Repeat(iterations = 6)
+    public void testIndexActionExecute_MultiDoc() throws Exception {
+
+        String timestampField = randomFrom(null, "_timestamp", "@timestamp");
+        boolean customTimestampField = "@timestamp".equals(timestampField);
+
+        if (timestampField == null || "_timestamp".equals(timestampField)) {
+            assertThat(prepareCreate("test-index")
+                    .addMapping("test-type", "{ \"test-type\" : { \"_timestamp\" : { \"enabled\" : \"true\" }}}")
+                    .get().isAcknowledged(), is(true));
+        }
+
+        Object list = randomFrom(
+                new Map[] { ImmutableMap.of("foo", "bar"), ImmutableMap.of("foo", "bar1") },
+                ImmutableList.of(ImmutableMap.of("foo", "bar"), ImmutableMap.of("foo", "bar1")),
+                ImmutableSet.of(ImmutableMap.of("foo", "bar"), ImmutableMap.of("foo", "bar1"))
+        );
+
+        IndexAction action = new IndexAction("test-index", "test-type", timestampField);
+        ExecutableIndexAction executable = new ExecutableIndexAction(action, logger, ClientProxy.of(client()));
+        DateTime executionTime = DateTime.now(DateTimeZone.UTC);
+        WatchExecutionContext ctx = WatcherTestUtils.mockExecutionContext("_id", executionTime, new Payload.Simple("_doc", list));
+
+        Action.Result result = executable.execute("_id", ctx, ctx.payload());
+
+        assertThat(result.status(), equalTo(Status.SUCCESS));
+        assertThat(result, instanceOf(IndexAction.Result.Success.class));
+        IndexAction.Result.Success successResult = (IndexAction.Result.Success) result;
+        XContentSource response = successResult.response();
+        assertThat(response.getValue("0.created"), equalTo((Object)Boolean.TRUE));
+        assertThat(response.getValue("0.version"), equalTo((Object) 1));
+        assertThat(response.getValue("0.type").toString(), equalTo("test-type"));
+        assertThat(response.getValue("0.index").toString(), equalTo("test-index"));
+        assertThat(response.getValue("1.created"), equalTo((Object)Boolean.TRUE));
+        assertThat(response.getValue("1.version"), equalTo((Object) 1));
+        assertThat(response.getValue("1.type").toString(), equalTo("test-type"));
+        assertThat(response.getValue("1.index").toString(), equalTo("test-index"));
+
+        refresh(); //Manually refresh to make sure data is available
+
+        SearchResponse searchResponse = client().prepareSearch("test-index")
+                .setTypes("test-type")
+                .addSort("foo", SortOrder.ASC)
+                .setSource(searchSource()
+                        .query(matchAllQuery())
+                        .aggregation(terms("timestamps").field(customTimestampField ? timestampField : "_timestamp"))
+                        .buildAsBytes())
+                .get();
+
+        assertThat(searchResponse.getHits().totalHits(), equalTo(2L));
+        SearchHit hit = searchResponse.getHits().getAt(0);
+        if (customTimestampField) {
+            assertThat(hit.getSource().size(), is(2));
+            assertThat(hit.getSource(), hasEntry("foo", (Object) "bar"));
+            assertThat(hit.getSource(), hasEntry(timestampField, (Object) WatcherDateTimeUtils.formatDate(executionTime)));
+        } else {
+            assertThat(hit.getSource().size(), is(1));
+            assertThat(hit.getSource(), hasEntry("foo", (Object) "bar"));
+        }
+        hit = searchResponse.getHits().getAt(1);
+        if (customTimestampField) {
+            assertThat(hit.getSource().size(), is(2));
+            assertThat(hit.getSource(), hasEntry("foo", (Object) "bar1"));
+            assertThat(hit.getSource(), hasEntry(timestampField, (Object) WatcherDateTimeUtils.formatDate(executionTime)));
+        } else {
+            assertThat(hit.getSource().size(), is(1));
+            assertThat(hit.getSource(), hasEntry("foo", (Object) "bar1"));
+        }
     }
 
     @Test @Repeat(iterations = 10)
     public void testParser() throws Exception {
+        String timestampField = randomBoolean() ? "@timestamp" : null;
         XContentBuilder builder = jsonBuilder();
-        builder.startObject()
-                .field(IndexAction.Field.INDEX.getPreferredName(), "test-index")
-                .field(IndexAction.Field.DOC_TYPE.getPreferredName(), "test-type")
-                .endObject();
+        builder.startObject();
+        builder.field(IndexAction.Field.INDEX.getPreferredName(), "test-index");
+        builder.field(IndexAction.Field.DOC_TYPE.getPreferredName(), "test-type");
+        if (timestampField != null) {
+            builder.field(IndexAction.Field.EXECUTION_TIME_FIELD.getPreferredName(), timestampField);
+        }
+        builder.endObject();
 
         IndexActionFactory actionParser = new IndexActionFactory(ImmutableSettings.EMPTY, ClientProxy.of(client()));
         XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes());
@@ -109,6 +189,9 @@ public class IndexActionTests extends ElasticsearchIntegrationTest {
 
         assertThat(executable.action().docType, equalTo("test-type"));
         assertThat(executable.action().index, equalTo("test-index"));
+        if (timestampField != null) {
+            assertThat(executable.action().executionTimeField, equalTo(timestampField));
+        }
     }
 
     @Test @Repeat(iterations = 10)

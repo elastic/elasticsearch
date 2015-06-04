@@ -14,16 +14,16 @@ import java.util.Map;
 /**
  *
  */
-public class MapPath {
+public class ObjectPath {
 
-    private MapPath() {
+    private ObjectPath() {
     }
 
-    public static <T> T eval(String path, Map<String, Object> map) {
-        return (T) eval(path, (Object) map);
+    public static <T> T eval(String path, Object object) {
+        return (T) evalContext(path, object);
     }
 
-    private static Object eval(String path, Object ctx) {
+    private static Object evalContext(String path, Object ctx) {
         String[] parts = Strings.splitStringToArray(path, '.');
         StringBuilder resolved = new StringBuilder();
         for (String part : parts) {

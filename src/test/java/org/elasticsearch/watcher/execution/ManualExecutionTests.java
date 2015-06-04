@@ -21,7 +21,7 @@ import org.elasticsearch.watcher.history.HistoryStore;
 import org.elasticsearch.watcher.history.WatchRecord;
 import org.elasticsearch.watcher.input.simple.SimpleInput;
 import org.elasticsearch.watcher.support.Script;
-import org.elasticsearch.watcher.support.xcontent.MapPath;
+import org.elasticsearch.watcher.support.xcontent.ObjectPath;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
 import org.elasticsearch.watcher.transport.actions.delete.DeleteWatchResponse;
 import org.elasticsearch.watcher.transport.actions.get.GetWatchRequest;
@@ -208,8 +208,8 @@ public class ManualExecutionTests extends AbstractWatcherIntegrationTests {
                 .get().getRecordSource().getAsMap();
 
 
-        assertThat(MapPath.<String>eval("state", executeWatchResult), equalTo(ExecutionState.EXECUTION_NOT_NEEDED.toString()));
-        assertThat(MapPath.<String>eval("result.input.payload.foo", executeWatchResult), equalTo("bar"));
+        assertThat(ObjectPath.<String>eval("state", executeWatchResult), equalTo(ExecutionState.EXECUTION_NOT_NEEDED.toString()));
+        assertThat(ObjectPath.<String>eval("result.input.payload.foo", executeWatchResult), equalTo("bar"));
 
         watchBuilder = watchBuilder()
                 .trigger(schedule(cron("0 0 0 1 * ? 2099")))
@@ -224,16 +224,16 @@ public class ManualExecutionTests extends AbstractWatcherIntegrationTests {
                 .setId("_id").setTriggerEvent(triggerEvent).setRecordExecution(true)
                 .get().getRecordSource().getAsMap();
 
-        assertThat(MapPath.<String>eval("state", executeWatchResult), equalTo(ExecutionState.EXECUTED.toString()));
-        assertThat(MapPath.<String>eval("result.input.payload.foo", executeWatchResult), equalTo("bar"));
-        assertThat(MapPath.<String>eval("result.actions.0.id", executeWatchResult), equalTo("log"));
+        assertThat(ObjectPath.<String>eval("state", executeWatchResult), equalTo(ExecutionState.EXECUTED.toString()));
+        assertThat(ObjectPath.<String>eval("result.input.payload.foo", executeWatchResult), equalTo("bar"));
+        assertThat(ObjectPath.<String>eval("result.actions.0.id", executeWatchResult), equalTo("log"));
 
 
         executeWatchResult = watcherClient().prepareExecuteWatch()
                 .setId("_id").setTriggerEvent(triggerEvent)
                 .get().getRecordSource().getAsMap();
 
-        assertThat(MapPath.<String>eval("state", executeWatchResult), equalTo(ExecutionState.THROTTLED.toString()));
+        assertThat(ObjectPath.<String>eval("state", executeWatchResult), equalTo(ExecutionState.THROTTLED.toString()));
     }
 
     @Test

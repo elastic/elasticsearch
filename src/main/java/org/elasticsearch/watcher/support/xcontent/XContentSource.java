@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.*;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -23,7 +24,7 @@ public class XContentSource implements ToXContent {
     private final BytesReference bytes;
 
     private XContentType contentType;
-    private Map<String, Object> data;
+    private Object data;
 
     /**
      * Constructs a new XContentSource out of the given bytes reference.
@@ -40,15 +41,31 @@ public class XContentSource implements ToXContent {
     }
 
     /**
+     * @return true if the top level value of the source is a map
+     */
+    public boolean isMap() {
+        return data() instanceof Map;
+    }
+
+    /**
      * @return The source as a map
      */
     public Map<String, Object> getAsMap() {
-        if (data == null) {
-            Tuple<XContentType, Map<String, Object>> tuple = XContentHelper.convertToMap(bytes, false);
-            this.contentType = tuple.v1();
-            this.data = tuple.v2();
-        }
-        return data;
+        return (Map<String, Object>) data();
+    }
+
+    /**
+     * @return true if the top level value of the source is a list
+     */
+    public boolean isList() {
+        return data() instanceof List;
+    }
+
+    /**
+     * @return The source as a list
+     */
+    public List<Object> getAsList() {
+        return (List<Object>) data();
     }
 
     /**
@@ -58,7 +75,7 @@ public class XContentSource implements ToXContent {
      * @return The extracted value or {@code null} if no value is associated with the given path
      */
     public <T> T getValue(String path) {
-        return (T) MapPath.eval(path, getAsMap());
+        return (T) ObjectPath.eval(path, data());
     }
 
     @Override
@@ -82,6 +99,15 @@ public class XContentSource implements ToXContent {
             contentType = XContentFactory.xContentType(bytes);
         }
         return contentType;
+    }
+
+    private Object data() {
+        if (data == null) {
+            Tuple<XContentType, Object> tuple = WatcherXContentUtils.convertToObject(bytes);
+            this.contentType = tuple.v1();
+            this.data = tuple.v2();
+        }
+        return data;
     }
 
 }

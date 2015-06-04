@@ -12,7 +12,7 @@ import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.watcher.support.Variables;
 import org.elasticsearch.watcher.support.WatcherDateTimeUtils;
 import org.elasticsearch.watcher.support.clock.Clock;
-import org.elasticsearch.watcher.support.xcontent.MapPath;
+import org.elasticsearch.watcher.support.xcontent.ObjectPath;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -59,13 +59,13 @@ public class ExecutableCompareCondition extends ExecutableCondition<CompareCondi
                 matcher = PATH_PATTERN.matcher((String) configuredValue);
                 if (matcher.matches()) {
                     String configuredPath = matcher.group(1);
-                    configuredValue = MapPath.eval(configuredPath, model);
+                    configuredValue = ObjectPath.eval(configuredPath, model);
                     resolvedValues.put(configuredPath, configuredValue);
                 }
             }
         }
 
-        Object resolvedValue = MapPath.eval(condition.getPath(), model);
+        Object resolvedValue = ObjectPath.eval(condition.getPath(), model);
         resolvedValues.put(condition.getPath(), resolvedValue);
 
         return new CompareCondition.Result(resolvedValues, condition.getOp().eval(resolvedValue, configuredValue));

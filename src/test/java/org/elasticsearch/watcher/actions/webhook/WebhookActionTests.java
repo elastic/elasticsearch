@@ -93,23 +93,19 @@ public class WebhookActionTests extends ElasticsearchTestCase {
 
     @Test @Repeat(iterations = 30)
     public void testExecute() throws Exception {
-        ClientProxy client = mock(ClientProxy.class);
         ExecuteScenario scenario = randomFrom(ExecuteScenario.Success, ExecuteScenario.ErrorCode);
 
         HttpClient httpClient = scenario.client();
         HttpMethod method = randomFrom(HttpMethod.GET, HttpMethod.POST, HttpMethod.PUT, HttpMethod.DELETE, HttpMethod.HEAD);
 
-        final String account = "account1";
-
         HttpRequestTemplate httpRequest = getHttpRequestTemplate(method, TEST_HOST, TEST_PORT, testPath, testBody, null);
 
         WebhookAction action = new WebhookAction(httpRequest);
         ExecutableWebhookAction executable = new ExecutableWebhookAction(action, logger, httpClient, templateEngine);
-
-        Watch watch = createWatch("test_watch", client, account);
-        WatchExecutionContext ctx = new TriggeredExecutionContext(watch, new DateTime(), new ScheduleTriggerEvent(watch.id(), new DateTime(), new DateTime()), timeValueSeconds(5));
+        WatchExecutionContext ctx = WatcherTestUtils.mockExecutionContext("_id", new Payload.Simple("foo", "bar"));
 
         Action.Result actionResult = executable.execute("_id", ctx, Payload.EMPTY);
+
         scenario.assertResult(httpClient, actionResult);
     }
 

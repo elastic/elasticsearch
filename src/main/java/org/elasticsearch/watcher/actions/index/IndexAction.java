@@ -5,11 +5,12 @@
  */
 package org.elasticsearch.watcher.actions.index;
 
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.watcher.actions.Action;
-import org.elasticsearch.watcher.watch.Payload;
+import org.elasticsearch.watcher.support.xcontent.XContentSource;
 
 import java.io.IOException;
 
@@ -22,10 +23,12 @@ public class IndexAction implements Action {
 
     final String index;
     final String docType;
+    final @Nullable String executionTimeField;
 
-    public IndexAction(String index, String docType) {
+    public IndexAction(String index, String docType, @Nullable String executionTimeField) {
         this.index = index;
         this.docType = docType;
+        this.executionTimeField = executionTimeField;
     }
 
     @Override
@@ -41,35 +44,45 @@ public class IndexAction implements Action {
         return docType;
     }
 
+    public String getExecutionTimeField() {
+        return executionTimeField;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
 
-        IndexAction action = (IndexAction) o;
+        IndexAction that = (IndexAction) o;
 
-        if (!index.equals(action.index)) return false;
-        return docType.equals(action.docType);
+        if (!index.equals(that.index)) return false;
+        if (!docType.equals(that.docType)) return false;
+        return !(executionTimeField != null ? !executionTimeField.equals(that.executionTimeField) : that.executionTimeField != null);
     }
 
     @Override
     public int hashCode() {
         int result = index.hashCode();
         result = 31 * result + docType.hashCode();
+        result = 31 * result + (executionTimeField != null ? executionTimeField.hashCode() : 0);
         return result;
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder.startObject()
-                .field(Field.INDEX.getPreferredName(), index)
-                .field(Field.DOC_TYPE.getPreferredName(), docType)
-                .endObject();
+        builder.startObject();
+        builder.field(Field.INDEX.getPreferredName(), index);
+        builder.field(Field.DOC_TYPE.getPreferredName(), docType);
+        if (executionTimeField != null) {
+            builder.field(Field.EXECUTION_TIME_FIELD.getPreferredName(), executionTimeField);
+        }
+        return builder.endObject();
     }
 
     public static IndexAction parse(String watchId, String actionId, XContentParser parser) throws IOException {
         String index = null;
         String docType = null;
+        String executionTimeField = null;
 
         String currentFieldName = null;
         XContentParser.Token token;
@@ -81,6 +94,8 @@ public class IndexAction implements Action {
                     index = parser.text();
                 } else if (Field.DOC_TYPE.match(currentFieldName)) {
                     docType = parser.text();
+                } else if (Field.EXECUTION_TIME_FIELD.match(currentFieldName)) {
+                    executionTimeField = parser.text();
                 } else {
                     throw new IndexActionException("could not parse [{}] action [{}/{}]. unexpected string field [{}]", TYPE, watchId, actionId, currentFieldName);
                 }
@@ -97,7 +112,7 @@ public class IndexAction implements Action {
             throw new IndexActionException("could not parse [{}] action [{}/{}]. missing required [{}] field", TYPE, watchId, actionId, Field.DOC_TYPE.getPreferredName());
         }
 
-        return new IndexAction(index, docType);
+        return new IndexAction(index, docType, executionTimeField);
     }
 
     public static Builder builder(String index, String docType) {
@@ -108,14 +123,14 @@ public class IndexAction implements Action {
 
         class Success extends Action.Result implements Result {
 
-            private final Payload response;
+            private final XContentSource response;
 
-            public Success(Payload response) {
+            public Success(XContentSource response) {
                 super(TYPE, Status.SUCCESS);
                 this.response = response;
             }
 
-            public Payload response() {
+            public XContentSource response() {
                 return response;
             }
 
@@ -131,9 +146,9 @@ public class IndexAction implements Action {
 
             private final String index;
             private final String docType;
-            private final Payload source;
+            private final XContentSource source;
 
-            protected Simulated(String index, String docType, Payload source) {
+            protected Simulated(String index, String docType, XContentSource source) {
                 super(TYPE, Status.SIMULATED);
                 this.index = index;
                 this.docType = docType;
@@ -148,7 +163,7 @@ public class IndexAction implements Action {
                 return docType;
             }
 
-            public Payload source() {
+            public XContentSource source() {
                 return source;
             }
 
@@ -169,21 +184,28 @@ public class IndexAction implements Action {
 
         final String index;
         final String docType;
+        String executionTimeField;
 
         private Builder(String index, String docType) {
             this.index = index;
             this.docType = docType;
         }
 
+        public Builder setExecutionTimeField(String executionTimeField) {
+            this.executionTimeField = executionTimeField;
+            return this;
+        }
+
         @Override
         public IndexAction build() {
-            return new IndexAction(index, docType);
+            return new IndexAction(index, docType, executionTimeField);
         }
     }
 
     interface Field extends Action.Field {
         ParseField INDEX = new ParseField("index");
         ParseField DOC_TYPE = new ParseField("doc_type");
+        ParseField EXECUTION_TIME_FIELD = new ParseField("execution_time_field");
         ParseField SOURCE = new ParseField("source");
         ParseField RESPONSE = new ParseField("response");
         ParseField REQUEST = new ParseField("request");

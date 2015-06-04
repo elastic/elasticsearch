@@ -28,8 +28,8 @@ public class MapPathTests extends ElasticsearchTestCase {
                 .put("key", "value")
                 .build();
 
-        assertThat(MapPath.eval("key", map), is((Object) "value"));
-        assertThat(MapPath.eval("key1", map), nullValue());
+        assertThat(ObjectPath.eval("key", map), is((Object) "value"));
+        assertThat(ObjectPath.eval("key1", map), nullValue());
     }
 
     @Test @Repeat(iterations = 5)
@@ -40,7 +40,7 @@ public class MapPathTests extends ElasticsearchTestCase {
                 .build();
 
         int index = randomInt(3);
-        assertThat(MapPath.eval("key." + index, map), is(list.get(index)));
+        assertThat(ObjectPath.eval("key." + index, map), is(list.get(index)));
     }
 
     @Test @Repeat(iterations = 5)
@@ -51,7 +51,7 @@ public class MapPathTests extends ElasticsearchTestCase {
                 .build();
 
         int index = randomInt(3);
-        assertThat(((Number) MapPath.eval("key." + index, map)).intValue(), is(array[index]));
+        assertThat(((Number) ObjectPath.eval("key." + index, map)).intValue(), is(array[index]));
     }
 
     @Test
@@ -60,7 +60,7 @@ public class MapPathTests extends ElasticsearchTestCase {
                 .put("a", ImmutableMap.of("b", "val"))
                 .build();
 
-        assertThat(MapPath.eval("a.b", map), is((Object) "val"));
+        assertThat(ObjectPath.eval("a.b", map), is((Object) "val"));
     }
 
 
@@ -78,11 +78,11 @@ public class MapPathTests extends ElasticsearchTestCase {
                     .build())
                 .build();
 
-        assertThat(MapPath.eval("", map), is((Object) map));
-        assertThat(MapPath.eval("a.b.0.0.c", map), is((Object) "val"));
-        assertThat(MapPath.eval("a.b.0.0.c.d", map), nullValue());
-        assertThat(MapPath.eval("a.b.0.0.d", map), nullValue());
-        assertThat(MapPath.eval("a.b.c", map), nullValue());
+        assertThat(ObjectPath.eval("", map), is((Object) map));
+        assertThat(ObjectPath.eval("a.b.0.0.c", map), is((Object) "val"));
+        assertThat(ObjectPath.eval("a.b.0.0.c.d", map), nullValue());
+        assertThat(ObjectPath.eval("a.b.0.0.d", map), nullValue());
+        assertThat(ObjectPath.eval("a.b.c", map), nullValue());
 
     }
 }

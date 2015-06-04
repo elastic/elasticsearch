@@ -30,6 +30,7 @@ import org.elasticsearch.watcher.actions.email.service.Profile;
 import org.elasticsearch.watcher.actions.index.ExecutableIndexAction;
 import org.elasticsearch.watcher.actions.index.IndexAction;
 import org.elasticsearch.watcher.actions.index.IndexActionFactory;
+import org.elasticsearch.watcher.actions.throttler.ActionThrottler;
 import org.elasticsearch.watcher.actions.webhook.ExecutableWebhookAction;
 import org.elasticsearch.watcher.actions.webhook.WebhookAction;
 import org.elasticsearch.watcher.actions.webhook.WebhookActionFactory;
@@ -76,7 +77,6 @@ import org.elasticsearch.watcher.support.secret.SecretService;
 import org.elasticsearch.watcher.support.template.Template;
 import org.elasticsearch.watcher.support.template.TemplateEngine;
 import org.elasticsearch.watcher.test.WatcherTestUtils;
-import org.elasticsearch.watcher.actions.throttler.ActionThrottler;
 import org.elasticsearch.watcher.transform.ExecutableTransform;
 import org.elasticsearch.watcher.transform.TransformFactory;
 import org.elasticsearch.watcher.transform.TransformRegistry;
@@ -387,7 +387,7 @@ public class WatchTests extends ElasticsearchTestCase {
             list.add(new ActionWrapper("_email_" + randomAsciiOfLength(8), randomThrottler(), transform, new ExecutableEmailAction(action, logger, emailService, templateEngine)));
         }
         if (randomBoolean()) {
-            IndexAction aciton = new IndexAction("_index", "_type");
+            IndexAction aciton = new IndexAction("_index", "_type", null);
             list.add(new ActionWrapper("_index_" + randomAsciiOfLength(8), randomThrottler(), randomTransform(), new ExecutableIndexAction(aciton, logger, client)));
         }
         if (randomBoolean()) {

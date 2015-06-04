@@ -25,7 +25,7 @@ import org.elasticsearch.watcher.history.WatchRecord;
 import org.elasticsearch.watcher.support.clock.SystemClock;
 import org.elasticsearch.watcher.support.http.HttpRequestTemplate;
 import org.elasticsearch.watcher.support.template.Template;
-import org.elasticsearch.watcher.support.xcontent.MapPath;
+import org.elasticsearch.watcher.support.xcontent.ObjectPath;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
 import org.elasticsearch.watcher.transport.actions.execute.ExecuteWatchResponse;
 import org.elasticsearch.watcher.transport.actions.get.GetWatchRequest;
@@ -358,7 +358,7 @@ public class ActionThrottleTests extends AbstractWatcherIntegrationTests {
 
 
     private String getExecutionStatus(Map<String, Object> watchRecordMap) {
-        return MapPath.eval("result.actions.0.status", watchRecordMap);
+        return ObjectPath.eval("result.actions.0.status", watchRecordMap);
     }
 
     private ManualExecutionContext getManualExecutionContext(TimeValue throttlePeriod) {

@@ -77,7 +77,7 @@ public interface Payload extends ToXContent {
         }
     }
 
-    static class XContent extends Simple {
+    class XContent extends Simple {
 
         public XContent(XContentParser parser) {
             super(mapOrdered(parser));

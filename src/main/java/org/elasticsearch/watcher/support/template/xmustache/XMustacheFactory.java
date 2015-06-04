@@ -11,6 +11,7 @@ import org.elasticsearch.common.mustache.DefaultMustacheFactory;
 import org.elasticsearch.common.mustache.MustacheException;
 import org.elasticsearch.common.mustache.reflect.ReflectionObjectHandler;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.watcher.support.ArrayObjectIterator;
 
 import java.io.IOException;
 import java.io.Writer;
@@ -100,36 +101,10 @@ public class XMustacheFactory extends DefaultMustacheFactory {
          */
         @Override
         public Iterator<Object> iterator() {
-            return new Iter(array);
+            return new ArrayObjectIterator(array);
         }
 
-        static class Iter implements Iterator<Object> {
 
-            private final Object array;
-            private final int length;
-            private int index;
-
-            public Iter(Object array) {
-                this.array = array;
-                this.length = Array.getLength(array);
-                this.index = 0;
-            }
-
-            @Override
-            public boolean hasNext() {
-                return index < length;
-            }
-
-            @Override
-            public Object next() {
-                return Array.get(array, index++);
-            }
-
-            @Override
-            public void remove() {
-                throw new UnsupportedOperationException("array iterator does not support removing elements");
-            }
-        }
     }
 
     static class CollectionMap extends AbstractMap<Object, Object> implements Iterable<Object> {

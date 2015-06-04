@@ -19,12 +19,12 @@
 
 package org.elasticsearch.plugin.analysis.kuromoji;
 
-import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.index.analysis.*;
 import org.elasticsearch.indices.analysis.KuromojiIndicesAnalysisModule;
 import org.elasticsearch.plugins.AbstractPlugin;
 
+import java.util.ArrayList;
 import java.util.Collection;
 
 /**
@@ -44,7 +44,9 @@ public class AnalysisKuromojiPlugin extends AbstractPlugin {
 
     @Override
     public Collection<Class<? extends Module>> modules() {
-        return ImmutableList.<Class<? extends Module>>of(KuromojiIndicesAnalysisModule.class);
+        Collection<Class<? extends Module>> classes = new ArrayList<>();
+        classes.add(KuromojiIndicesAnalysisModule.class);
+        return classes;
     }
 
     public void onModule(AnalysisModule module) {

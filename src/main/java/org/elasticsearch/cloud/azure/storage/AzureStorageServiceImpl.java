@@ -25,7 +25,7 @@ import com.microsoft.azure.storage.blob.*;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
-import org.elasticsearch.common.collect.ImmutableMap;
+import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -35,6 +35,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.Map;
 
 import static org.elasticsearch.cloud.azure.storage.AzureStorageService.Storage.*;
 
@@ -168,9 +169,9 @@ public class AzureStorageServiceImpl extends AbstractLifecycleComponent<AzureSto
     }
 
     @Override
-    public ImmutableMap<String, BlobMetaData> listBlobsByPrefix(String container, String keyPath, String prefix) throws URISyntaxException, StorageException {
+    public Map<String, BlobMetaData> listBlobsByPrefix(String container, String keyPath, String prefix) throws URISyntaxException, StorageException {
         logger.debug("listing container [{}], keyPath [{}], prefix [{}]", container, keyPath, prefix);
-        ImmutableMap.Builder<String, BlobMetaData> blobsBuilder = ImmutableMap.builder();
+        MapBuilder<String, BlobMetaData> blobsBuilder = MapBuilder.newMapBuilder();
 
         CloudBlobContainer blob_container = client.getContainerReference(container);
         if (blob_container.exists()) {
@@ -185,7 +186,7 @@ public class AzureStorageServiceImpl extends AbstractLifecycleComponent<AzureSto
             }
         }
 
-        return blobsBuilder.build();
+        return blobsBuilder.immutableMap();
     }
 
     @Override

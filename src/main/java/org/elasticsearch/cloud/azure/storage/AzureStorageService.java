@@ -21,11 +21,11 @@ package org.elasticsearch.cloud.azure.storage;
 
 import com.microsoft.azure.storage.StorageException;
 import org.elasticsearch.common.blobstore.BlobMetaData;
-import org.elasticsearch.common.collect.ImmutableMap;
 
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.URISyntaxException;
+import java.util.Map;
 
 /**
  * Azure Storage Service interface
@@ -58,7 +58,7 @@ public interface AzureStorageService {
 
     OutputStream getOutputStream(String container, String blob) throws URISyntaxException, StorageException;
 
-    ImmutableMap<String,BlobMetaData> listBlobsByPrefix(String container, String keyPath, String prefix) throws URISyntaxException, StorageException;
+    Map<String,BlobMetaData> listBlobsByPrefix(String container, String keyPath, String prefix) throws URISyntaxException, StorageException;
 
     void moveBlob(String container, String sourceBlob, String targetBlob) throws URISyntaxException, StorageException;
 }

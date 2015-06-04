@@ -20,9 +20,9 @@
 package org.elasticsearch.cloud.azure.management;
 
 import com.microsoft.windowsazure.management.compute.models.*;
-import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
 
 import java.net.InetAddress;
 
@@ -58,10 +58,10 @@ public class AzureComputeServiceSimpleMock extends AzureComputeServiceAbstractMo
         endpoint.setName("elasticsearch");
         endpoint.setVirtualIPAddress(InetAddress.getLoopbackAddress());
         endpoint.setPort(9400);
-        instance.setInstanceEndpoints(Lists.newArrayList(endpoint));
+        instance.setInstanceEndpoints(CollectionUtils.newArrayList(endpoint));
 
-        deployment.setRoleInstances(Lists.newArrayList(instance));
-        response.setDeployments(Lists.newArrayList(deployment));
+        deployment.setRoleInstances(CollectionUtils.newArrayList(instance));
+        response.setDeployments(CollectionUtils.newArrayList(deployment));
 
         return response;
     }

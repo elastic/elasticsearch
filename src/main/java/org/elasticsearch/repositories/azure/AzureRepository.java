@@ -27,7 +27,6 @@ import org.elasticsearch.cluster.metadata.SnapshotId;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
-import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -40,6 +39,7 @@ import org.elasticsearch.snapshots.SnapshotCreationException;
 
 import java.io.IOException;
 import java.net.URISyntaxException;
+import java.util.List;
 
 /**
  * Azure file system implementation of the BlobStoreRepository
@@ -139,7 +139,7 @@ public class AzureRepository extends BlobStoreRepository {
     }
 
     @Override
-    public void initializeSnapshot(SnapshotId snapshotId, ImmutableList<String> indices, MetaData metaData) {
+    public void initializeSnapshot(SnapshotId snapshotId, List<String> indices, MetaData metaData) {
         try {
             if (!blobStore.client().doesContainerExist(blobStore.container())) {
                 logger.debug("container [{}] does not exist. Creating...", blobStore.container());

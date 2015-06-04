@@ -21,16 +21,26 @@ package org.elasticsearch.gateway;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Predicate;
 import com.google.common.collect.Collections2;
+
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
-import org.apache.lucene.store.*;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.IOContext;
+import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.store.OutputStreamIndexOutput;
+import org.apache.lucene.store.SimpleFSDirectory;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
-import org.elasticsearch.common.xcontent.*;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -280,7 +290,7 @@ public abstract class MetaDataStateFormat<T> {
                         logger.debug("{}: no data for [{}], ignoring...", prefix, stateFile.toAbsolutePath());
                         continue;
                     }
-                    parser = XContentHelper.createParser(data, 0, data.length);
+                    parser = XContentHelper.createParser(new BytesArray(data));
                     state = fromXContent(parser);
                     if (state == null) {
                         logger.debug("{}: no data for [{}], ignoring...", prefix, stateFile.toAbsolutePath());

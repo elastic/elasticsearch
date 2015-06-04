@@ -27,6 +27,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
@@ -143,7 +144,7 @@ public class IndexingMemoryControllerTests extends ElasticsearchIntegrationTest 
                         .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
                         .put(EsExecutors.PROCESSORS, 1) // limit the number of threads created
                         .put("http.enabled", false)
-                        .put("config.ignore_system_properties", true) // make sure we get what we set :)
+                        .put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING, true) // make sure we get what we set :)
                         .put("indices.memory.interval", "100ms")
                         .put(settings)
         );

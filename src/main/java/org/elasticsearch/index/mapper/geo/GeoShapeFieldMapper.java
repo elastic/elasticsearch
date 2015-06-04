@@ -20,7 +20,6 @@ package org.elasticsearch.index.mapper.geo;
 
 import com.spatial4j.core.shape.Shape;
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.spatial.prefix.PrefixTreeStrategy;
 import org.apache.lucene.spatial.prefix.RecursivePrefixTreeStrategy;
@@ -40,10 +39,11 @@ import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.MergeMappingException;
+import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 
@@ -94,7 +94,7 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper {
         public static final double DISTANCE_ERROR_PCT = 0.025d;
         public static final Orientation ORIENTATION = Orientation.RIGHT;
 
-        public static final FieldType FIELD_TYPE = new FieldType();
+        public static final MappedFieldType FIELD_TYPE = new GeoShapeFieldType();
 
         static {
             FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
@@ -119,7 +119,7 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper {
         private SpatialPrefixTree prefixTree;
 
         public Builder(String name) {
-            super(name, new FieldType(Defaults.FIELD_TYPE));
+            super(name, Defaults.FIELD_TYPE);
         }
 
         public Builder tree(String tree) {
@@ -155,7 +155,6 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper {
         @Override
         public GeoShapeFieldMapper build(BuilderContext context) {
 
-            final FieldMapper.Names names = buildNames(context);
             if (Names.TREE_GEOHASH.equals(tree)) {
                 prefixTree = new GeohashPrefixTree(ShapeBuilder.SPATIAL_CONTEXT, getLevels(treeLevels, precisionInMeters, Defaults.GEOHASH_LEVELS, true));
             } else if (Names.TREE_QUADTREE.equals(tree)) {
@@ -169,9 +168,19 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper {
             } else {
                 throw new IllegalArgumentException("Unknown prefix tree type [" + tree + "]");
             }
+            setupFieldType(context);
 
-            return new GeoShapeFieldMapper(names, prefixTree, strategyName, distanceErrorPct, orientation, fieldType,
-                    context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
+            RecursivePrefixTreeStrategy recursiveStrategy = new RecursivePrefixTreeStrategy(prefixTree, fieldType.names().indexName());
+            recursiveStrategy.setDistErrPct(distanceErrorPct);
+            recursiveStrategy.setPruneLeafyBranches(false);
+            TermQueryPrefixTreeStrategy termStrategy = new TermQueryPrefixTreeStrategy(prefixTree, fieldType.names().indexName());
+            termStrategy.setDistErrPct(distanceErrorPct);
+
+            GeoShapeFieldType geoShapeFieldType = (GeoShapeFieldType)fieldType;
+            geoShapeFieldType.setStrategies(strategyName, recursiveStrategy, termStrategy);
+            geoShapeFieldType.setOrientation(orientation);
+
+            return new GeoShapeFieldMapper(fieldType, context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
         }
 
         private final int getLevels(int treeLevels, double precisionInMeters, int defaultLevels, boolean geoHash) {
@@ -223,25 +232,83 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper {
         }
     }
 
-    private final PrefixTreeStrategy defaultStrategy;
-    private final RecursivePrefixTreeStrategy recursiveStrategy;
-    private final TermQueryPrefixTreeStrategy termStrategy;
-    private Orientation shapeOrientation;
+    public static final class GeoShapeFieldType extends MappedFieldType {
 
-    public GeoShapeFieldMapper(FieldMapper.Names names, SpatialPrefixTree tree, String defaultStrategyName, double distanceErrorPct,
-                               Orientation shapeOrientation, FieldType fieldType, Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
-        super(names, 1, fieldType, false, null, null, null, null, null, indexSettings, multiFields, copyTo);
-        this.recursiveStrategy = new RecursivePrefixTreeStrategy(tree, names.indexName());
-        this.recursiveStrategy.setDistErrPct(distanceErrorPct);
-        this.recursiveStrategy.setPruneLeafyBranches(false);
-        this.termStrategy = new TermQueryPrefixTreeStrategy(tree, names.indexName());
-        this.termStrategy.setDistErrPct(distanceErrorPct);
-        this.defaultStrategy = resolveStrategy(defaultStrategyName);
-        this.shapeOrientation = shapeOrientation;
+        private PrefixTreeStrategy defaultStrategy;
+        private RecursivePrefixTreeStrategy recursiveStrategy;
+        private TermQueryPrefixTreeStrategy termStrategy;
+        private Orientation orientation;
+
+        public GeoShapeFieldType() {
+            super(AbstractFieldMapper.Defaults.FIELD_TYPE);
+        }
+
+        protected GeoShapeFieldType(GeoShapeFieldType ref) {
+            super(ref);
+            // TODO: this shallow copy is probably not good...need to extract the parameters and recreate the tree and strategies?
+            this.defaultStrategy = ref.defaultStrategy;
+            this.recursiveStrategy = ref.recursiveStrategy;
+            this.termStrategy = ref.termStrategy;
+            this.orientation = ref.orientation;
+        }
+
+        @Override
+        public MappedFieldType clone() {
+            return new GeoShapeFieldType(this);
+        }
+
+        public PrefixTreeStrategy defaultStrategy() {
+            return this.defaultStrategy;
+        }
+
+        public PrefixTreeStrategy resolveStrategy(String strategyName) {
+            if (SpatialStrategy.RECURSIVE.getStrategyName().equals(strategyName)) {
+                return recursiveStrategy;
+            }
+            if (SpatialStrategy.TERM.getStrategyName().equals(strategyName)) {
+                return termStrategy;
+            }
+            throw new IllegalArgumentException("Unknown prefix tree strategy [" + strategyName + "]");
+        }
+
+        public void setStrategies(String defaultStrategy, RecursivePrefixTreeStrategy recursiveStrategy, TermQueryPrefixTreeStrategy termStrategy) {
+            checkIfFrozen();
+            this.recursiveStrategy = recursiveStrategy;
+            this.termStrategy = termStrategy;
+            this.defaultStrategy = resolveStrategy(defaultStrategy);
+        }
+
+        public void setDistErrPct(double distErrPct) {
+            checkIfFrozen();
+            this.recursiveStrategy.setDistErrPct(distErrPct);
+            this.termStrategy.setDistErrPct(distErrPct);
+        }
+
+        public Orientation orientation() { return this.orientation; }
+
+        public void setOrientation(Orientation orientation) {
+            checkIfFrozen();
+            this.orientation = orientation;
+        }
+
+        @Override
+        public String value(Object value) {
+            throw new UnsupportedOperationException("GeoShape fields cannot be converted to String values");
+        }
+
+    }
+
+    public GeoShapeFieldMapper(MappedFieldType fieldType, Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
+        super(fieldType, false, null, indexSettings, multiFields, copyTo);
     }
 
     @Override
-    public FieldType defaultFieldType() {
+    public GeoShapeFieldType fieldType() {
+        return (GeoShapeFieldType)fieldType;
+    }
+
+    @Override
+    public MappedFieldType defaultFieldType() {
         return Defaults.FIELD_TYPE;
     }
 
@@ -261,18 +328,18 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper {
                 }
                 shape = shapeBuilder.build();
             }
-            Field[] fields = defaultStrategy.createIndexableFields(shape);
+            Field[] fields = fieldType().defaultStrategy().createIndexableFields(shape);
             if (fields == null || fields.length == 0) {
                 return null;
             }
             for (Field field : fields) {
                 if (!customBoost()) {
-                    field.setBoost(boost);
+                    field.setBoost(fieldType.boost());
                 }
                 context.doc().add(field);
             }
         } catch (Exception e) {
-            throw new MapperParsingException("failed to parse [" + names.fullName() + "]", e);
+            throw new MapperParsingException("failed to parse [" + fieldType.names().fullName() + "]", e);
         }
         return null;
     }
@@ -281,29 +348,29 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper {
     public void merge(Mapper mergeWith, MergeResult mergeResult) throws MergeMappingException {
         super.merge(mergeWith, mergeResult);
         if (!this.getClass().equals(mergeWith.getClass())) {
-            mergeResult.addConflict("mapper [" + names.fullName() + "] has different field type");
+            mergeResult.addConflict("mapper [" + fieldType.names().fullName() + "] has different field type");
             return;
         }
         final GeoShapeFieldMapper fieldMergeWith = (GeoShapeFieldMapper) mergeWith;
-        final PrefixTreeStrategy mergeWithStrategy = fieldMergeWith.defaultStrategy;
+        final PrefixTreeStrategy mergeWithStrategy = fieldMergeWith.fieldType().defaultStrategy();
 
         // prevent user from changing strategies
-        if (!(this.defaultStrategy.getClass().equals(mergeWithStrategy.getClass()))) {
-            mergeResult.addConflict("mapper [" + names.fullName() + "] has different strategy");
+        if (!(this.fieldType().defaultStrategy().getClass().equals(mergeWithStrategy.getClass()))) {
+            mergeResult.addConflict("mapper [" + fieldType.names().fullName() + "] has different strategy");
         }
 
-        final SpatialPrefixTree grid = this.defaultStrategy.getGrid();
+        final SpatialPrefixTree grid = this.fieldType().defaultStrategy().getGrid();
         final SpatialPrefixTree mergeGrid = mergeWithStrategy.getGrid();
 
         // prevent user from changing trees (changes encoding)
         if (!grid.getClass().equals(mergeGrid.getClass())) {
-            mergeResult.addConflict("mapper [" + names.fullName() + "] has different tree");
+            mergeResult.addConflict("mapper [" + fieldType.names().fullName() + "] has different tree");
         }
 
         // TODO we should allow this, but at the moment levels is used to build bookkeeping variables
         // in lucene's SpatialPrefixTree implementations, need a patch to correct that first
         if (grid.getMaxLevels() != mergeGrid.getMaxLevels()) {
-            mergeResult.addConflict("mapper [" + names.fullName() + "] has different tree_levels or precision");
+            mergeResult.addConflict("mapper [" + fieldType.names().fullName() + "] has different tree_levels or precision");
         }
 
         // bail if there were merge conflicts
@@ -312,11 +379,12 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper {
         }
 
         // change distance error percent
-        this.defaultStrategy.setDistErrPct(mergeWithStrategy.getDistErrPct());
-
+        this.fieldType = this.fieldType.clone();
+        this.fieldType().setDistErrPct(mergeWithStrategy.getDistErrPct());
         // change orientation - this is allowed because existing dateline spanning shapes
         // have already been unwound and segmented
-        this.shapeOrientation = fieldMergeWith.shapeOrientation;
+        this.fieldType().setOrientation(fieldMergeWith.fieldType().orientation());
+        this.fieldType.freeze();
     }
 
     @Override
@@ -328,25 +396,25 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper {
         builder.field("type", contentType());
 
         // TODO: Come up with a better way to get the name, maybe pass it from builder
-        if (defaultStrategy.getGrid() instanceof GeohashPrefixTree) {
+        if (fieldType().defaultStrategy().getGrid() instanceof GeohashPrefixTree) {
             // Don't emit the tree name since GeohashPrefixTree is the default
             // Only emit the tree levels if it isn't the default value
-            if (includeDefaults || defaultStrategy.getGrid().getMaxLevels() != Defaults.GEOHASH_LEVELS) {
-                builder.field(Names.TREE_LEVELS, defaultStrategy.getGrid().getMaxLevels());
+            if (includeDefaults || fieldType().defaultStrategy().getGrid().getMaxLevels() != Defaults.GEOHASH_LEVELS) {
+                builder.field(Names.TREE_LEVELS, fieldType().defaultStrategy().getGrid().getMaxLevels());
             }
         } else {
             builder.field(Names.TREE, Names.TREE_QUADTREE);
-            if (includeDefaults || defaultStrategy.getGrid().getMaxLevels() != Defaults.QUADTREE_LEVELS) {
-                builder.field(Names.TREE_LEVELS, defaultStrategy.getGrid().getMaxLevels());
+            if (includeDefaults || fieldType().defaultStrategy().getGrid().getMaxLevels() != Defaults.QUADTREE_LEVELS) {
+                builder.field(Names.TREE_LEVELS, fieldType().defaultStrategy().getGrid().getMaxLevels());
             }
         }
 
-        if (includeDefaults || defaultStrategy.getDistErrPct() != Defaults.DISTANCE_ERROR_PCT) {
-            builder.field(Names.DISTANCE_ERROR_PCT, defaultStrategy.getDistErrPct());
+        if (includeDefaults || fieldType().defaultStrategy().getDistErrPct() != Defaults.DISTANCE_ERROR_PCT) {
+            builder.field(Names.DISTANCE_ERROR_PCT, fieldType().defaultStrategy().getDistErrPct());
         }
 
-        if (includeDefaults || orientation() != Defaults.ORIENTATION) {
-            builder.field(Names.ORIENTATION, orientation());
+        if (includeDefaults || fieldType().orientation() != Defaults.ORIENTATION) {
+            builder.field(Names.ORIENTATION, fieldType().orientation());
         }
     }
 
@@ -354,34 +422,4 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper {
     protected String contentType() {
         return CONTENT_TYPE;
     }
-
-    @Override
-    public String value(Object value) {
-        throw new UnsupportedOperationException("GeoShape fields cannot be converted to String values");
-    }
-
-    public PrefixTreeStrategy defaultStrategy() {
-        return this.defaultStrategy;
-    }
-
-    public PrefixTreeStrategy recursiveStrategy() {
-        return this.recursiveStrategy;
-    }
-
-    public PrefixTreeStrategy termStrategy() {
-        return this.termStrategy;
-    }
-
-    public Orientation orientation() { return this.shapeOrientation; }
-
-    public PrefixTreeStrategy resolveStrategy(String strategyName) {
-        if (SpatialStrategy.RECURSIVE.getStrategyName().equals(strategyName)) {
-            return recursiveStrategy;
-        }
-        if (SpatialStrategy.TERM.getStrategyName().equals(strategyName)) {
-            return termStrategy;
-        }
-        throw new IllegalArgumentException("Unknown prefix tree strategy [" + strategyName + "]");
-    }
-
 }

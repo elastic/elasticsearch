@@ -23,7 +23,6 @@ import com.google.common.collect.Iterators;
 import com.google.common.collect.Lists;
 import com.spatial4j.core.shape.Point;
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.FieldType;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
@@ -32,6 +31,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MergeMappingException;
@@ -61,15 +61,6 @@ import static org.elasticsearch.index.mapper.core.TypeParsers.parseMultiField;
  * .shape GeoShape type
  */
 public class ExternalMapper extends AbstractFieldMapper {
-    /**
-     * Returns the actual value of the field.
-     *
-     * @param value
-     */
-    @Override
-    public Object value(Object value) {
-        return null;
-    }
 
     public static class Names {
         public static final String FIELD_BIN = "bin";
@@ -89,7 +80,7 @@ public class ExternalMapper extends AbstractFieldMapper {
         private String mapperName;
 
         public Builder(String name, String generatedValue, String mapperName) {
-            super(name, new FieldType(Defaults.FIELD_TYPE));
+            super(name, Defaults.FIELD_TYPE);
             this.builder = this;
             this.stringBuilder = stringField(name).store(false);
             this.generatedValue = generatedValue;
@@ -115,8 +106,9 @@ public class ExternalMapper extends AbstractFieldMapper {
             context.path().remove();
 
             context.path().pathType(origPathType);
+            setupFieldType(context);
 
-            return new ExternalMapper(buildNames(context), generatedValue, mapperName, binMapper, boolMapper, pointMapper, shapeMapper, stringMapper,
+            return new ExternalMapper(fieldType, generatedValue, mapperName, binMapper, boolMapper, pointMapper, shapeMapper, stringMapper,
                     context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
         }
     }
@@ -159,11 +151,11 @@ public class ExternalMapper extends AbstractFieldMapper {
     private final GeoShapeFieldMapper shapeMapper;
     private final FieldMapper stringMapper;
 
-    public ExternalMapper(FieldMapper.Names names,
+    public ExternalMapper(MappedFieldType fieldType,
                           String generatedValue, String mapperName,
                           BinaryFieldMapper binMapper, BooleanFieldMapper boolMapper, GeoPointFieldMapper pointMapper,
                           GeoShapeFieldMapper shapeMapper, FieldMapper stringMapper, Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
-        super(names, 1.0f, Defaults.FIELD_TYPE, false, null, null, null, null, null, indexSettings,
+        super(fieldType, false, null, indexSettings,
                 multiFields, copyTo);
         this.generatedValue = generatedValue;
         this.mapperName = mapperName;
@@ -175,7 +167,7 @@ public class ExternalMapper extends AbstractFieldMapper {
     }
 
     @Override
-    public FieldType defaultFieldType() {
+    public MappedFieldType defaultFieldType() {
         return Defaults.FIELD_TYPE;
     }
 
@@ -236,7 +228,7 @@ public class ExternalMapper extends AbstractFieldMapper {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(names().shortName());
+        builder.startObject(fieldType().names().shortName());
         builder.field("type", mapperName);
         multiFields.toXContent(builder, params);
         builder.endObject();

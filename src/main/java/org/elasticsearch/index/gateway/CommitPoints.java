@@ -49,7 +49,7 @@ public class CommitPoints implements Iterable<CommitPoint> {
         this.commitPoints = ImmutableList.copyOf(commitPoints);
     }
 
-    public ImmutableList<CommitPoint> commits() {
+    public List<CommitPoint> commits() {
         return this.commitPoints;
     }
 

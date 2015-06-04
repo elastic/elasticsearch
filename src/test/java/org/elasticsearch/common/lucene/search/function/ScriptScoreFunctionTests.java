@@ -22,6 +22,7 @@ package org.elasticsearch.common.lucene.search.function;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.script.AbstractFloatSearchScript;
 import org.elasticsearch.script.LeafSearchScript;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.test.ElasticsearchTestCase;
@@ -38,7 +39,7 @@ public class ScriptScoreFunctionTests extends ElasticsearchTestCase {
      */
     @Test
     public void testScriptScoresReturnsNaN() throws IOException {
-        ScoreFunction scoreFunction = new ScriptScoreFunction("Float.NaN", null, new FloatValueScript(Float.NaN));
+        ScoreFunction scoreFunction = new ScriptScoreFunction(new Script("Float.NaN"), new FloatValueScript(Float.NaN));
         LeafScoreFunction leafScoreFunction = scoreFunction.getLeafScoreFunction(null);
         try {
             leafScoreFunction.score(randomInt(), randomFloat());

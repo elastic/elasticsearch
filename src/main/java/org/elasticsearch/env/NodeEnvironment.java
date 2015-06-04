@@ -32,6 +32,7 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
@@ -146,18 +147,17 @@ public class NodeEnvironment extends AbstractComponent implements Closeable {
                 
                 try (Directory luceneDir = FSDirectory.open(dir, NativeFSLockFactory.INSTANCE)) {
                     logger.trace("obtaining node lock on {} ...", dir.toAbsolutePath());
-                    Lock tmpLock = luceneDir.makeLock(NODE_LOCK_FILENAME);
-                    boolean obtained = tmpLock.obtain();
-                    if (obtained) {
+                    try {
+                        locks[dirIndex] = Lucene.acquireLock(luceneDir, NODE_LOCK_FILENAME, 0);
                         nodePaths[dirIndex] = new NodePath(dir, environment);
-                        locks[dirIndex] = tmpLock;
                         localNodeId = possibleLockId;
-                    } else {
+                    } catch (LockObtainFailedException ex) {
                         logger.trace("failed to obtain node lock on {}", dir.toAbsolutePath());
                         // release all the ones that were obtained up until now
                         releaseAndNullLocks(locks);
                         break;
                     }
+
                 } catch (IOException e) {
                     logger.trace("failed to obtain node lock on {}", e, dir.toAbsolutePath());
                     lastException = new IOException("failed to obtain lock on " + dir.toAbsolutePath(), e);
@@ -314,8 +314,9 @@ public class NodeEnvironment extends AbstractComponent implements Closeable {
                 // open a directory (will be immediately closed) on the shard's location
                 dirs[i] = new SimpleFSDirectory(p, FsDirectoryService.buildLockFactory(indexSettings));
                 // create a lock for the "write.lock" file
-                locks[i] = dirs[i].makeLock(IndexWriter.WRITE_LOCK_NAME);
-                if (locks[i].obtain() == false) {
+                try {
+                    locks[i] = Lucene.acquireWriteLock(dirs[i]);
+                } catch (IOException ex) {
                     throw new ElasticsearchException("unable to acquire " +
                             IndexWriter.WRITE_LOCK_NAME + " for " + p);
                 }

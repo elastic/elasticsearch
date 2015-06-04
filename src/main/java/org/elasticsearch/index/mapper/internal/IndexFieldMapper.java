@@ -21,7 +21,6 @@ package org.elasticsearch.index.mapper.internal;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
@@ -30,6 +29,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.fielddata.FieldDataType;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilders;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -38,6 +38,7 @@ import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.RootMapper;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
+import org.elasticsearch.search.highlight.HighlightBuilder;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -59,13 +60,16 @@ public class IndexFieldMapper extends AbstractFieldMapper implements RootMapper 
     public static class Defaults extends AbstractFieldMapper.Defaults {
         public static final String NAME = IndexFieldMapper.NAME;
 
-        public static final FieldType FIELD_TYPE = new FieldType(AbstractFieldMapper.Defaults.FIELD_TYPE);
+        public static final MappedFieldType FIELD_TYPE = new IndexFieldType();
 
         static {
             FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
             FIELD_TYPE.setTokenized(false);
             FIELD_TYPE.setStored(false);
             FIELD_TYPE.setOmitNorms(true);
+            FIELD_TYPE.setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
+            FIELD_TYPE.setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
+            FIELD_TYPE.setNames(new MappedFieldType.Names(NAME));
             FIELD_TYPE.freeze();
         }
 
@@ -77,7 +81,7 @@ public class IndexFieldMapper extends AbstractFieldMapper implements RootMapper 
         private EnabledAttributeMapper enabledState = EnabledAttributeMapper.UNSET_DISABLED;
 
         public Builder() {
-            super(Defaults.NAME, new FieldType(Defaults.FIELD_TYPE));
+            super(Defaults.NAME, Defaults.FIELD_TYPE);
             indexName = Defaults.NAME;
         }
 
@@ -88,7 +92,8 @@ public class IndexFieldMapper extends AbstractFieldMapper implements RootMapper 
 
         @Override
         public IndexFieldMapper build(BuilderContext context) {
-            return new IndexFieldMapper(name, indexName, boost, fieldType, enabledState, fieldDataSettings, context.indexSettings());
+            fieldType.setNames(new MappedFieldType.Names(name, indexName, indexName, name));
+            return new IndexFieldMapper(fieldType, enabledState, fieldDataSettings, context.indexSettings());
         }
     }
 
@@ -114,16 +119,39 @@ public class IndexFieldMapper extends AbstractFieldMapper implements RootMapper 
         }
     }
 
+    static final class IndexFieldType extends MappedFieldType {
+
+        public IndexFieldType() {
+            super(AbstractFieldMapper.Defaults.FIELD_TYPE);
+        }
+
+        protected IndexFieldType(IndexFieldType ref) {
+            super(ref);
+        }
+
+        @Override
+        public MappedFieldType clone() {
+            return new IndexFieldType(this);
+        }
+
+        @Override
+        public String value(Object value) {
+            if (value == null) {
+                return null;
+            }
+            return value.toString();
+        }
+    }
+
     private EnabledAttributeMapper enabledState;
 
     public IndexFieldMapper(Settings indexSettings) {
-        this(Defaults.NAME, Defaults.NAME, Defaults.BOOST, new FieldType(Defaults.FIELD_TYPE), Defaults.ENABLED_STATE, null, indexSettings);
+        this(Defaults.FIELD_TYPE.clone(), Defaults.ENABLED_STATE, null, indexSettings);
     }
 
-    public IndexFieldMapper(String name, String indexName, float boost, FieldType fieldType, EnabledAttributeMapper enabledState,
+    public IndexFieldMapper(MappedFieldType fieldType, EnabledAttributeMapper enabledState,
                             @Nullable Settings fieldDataSettings, Settings indexSettings) {
-        super(new Names(name, indexName, indexName, name), boost, fieldType, false, Lucene.KEYWORD_ANALYZER,
-                Lucene.KEYWORD_ANALYZER, null, null, fieldDataSettings, indexSettings);
+        super(fieldType, false, fieldDataSettings, indexSettings);
         this.enabledState = enabledState;
     }
 
@@ -132,7 +160,7 @@ public class IndexFieldMapper extends AbstractFieldMapper implements RootMapper 
     }
 
     @Override
-    public FieldType defaultFieldType() {
+    public MappedFieldType defaultFieldType() {
         return Defaults.FIELD_TYPE;
     }
 
@@ -142,16 +170,8 @@ public class IndexFieldMapper extends AbstractFieldMapper implements RootMapper 
     }
 
     public String value(Document document) {
-        Field field = (Field) document.getField(names.indexName());
-        return field == null ? null : value(field);
-    }
-
-    @Override
-    public String value(Object value) {
-        if (value == null) {
-            return null;
-        }
-        return value.toString();
+        Field field = (Field) document.getField(fieldType.names().indexName());
+        return field == null ? null : (String)fieldType().value(field);
     }
 
     @Override
@@ -174,7 +194,7 @@ public class IndexFieldMapper extends AbstractFieldMapper implements RootMapper 
         if (!enabledState.enabled) {
             return;
         }
-        fields.add(new Field(names.indexName(), context.index(), fieldType));
+        fields.add(new Field(fieldType.names().indexName(), context.index(), fieldType));
     }
 
     @Override
@@ -202,7 +222,7 @@ public class IndexFieldMapper extends AbstractFieldMapper implements RootMapper 
             if (customFieldDataSettings != null) {
                 builder.field("fielddata", (Map) customFieldDataSettings.getAsMap());
             } else if (includeDefaults) {
-                builder.field("fielddata", (Map) fieldDataType.getSettings().getAsMap());
+                builder.field("fielddata", (Map) fieldType.fieldDataType().getSettings().getAsMap());
             }
         }
         builder.endObject();

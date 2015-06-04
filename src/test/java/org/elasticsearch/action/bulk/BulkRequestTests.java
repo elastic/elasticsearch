@@ -20,6 +20,7 @@
 package org.elasticsearch.action.bulk;
 
 import com.google.common.base.Charsets;
+
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -28,15 +29,18 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.common.io.Streams.copyToStringFromClasspath;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class BulkRequestTests extends ElasticsearchTestCase {
 
@@ -83,10 +87,14 @@ public class BulkRequestTests extends ElasticsearchTestCase {
         assertThat(((UpdateRequest) bulkRequest.requests().get(1)).id(), equalTo("0"));
         assertThat(((UpdateRequest) bulkRequest.requests().get(1)).type(), equalTo("type1"));
         assertThat(((UpdateRequest) bulkRequest.requests().get(1)).index(), equalTo("index1"));
-        assertThat(((UpdateRequest) bulkRequest.requests().get(1)).script(), equalTo("counter += param1"));
-        assertThat(((UpdateRequest) bulkRequest.requests().get(1)).scriptLang(), equalTo("js"));
-        assertThat(((UpdateRequest) bulkRequest.requests().get(1)).scriptParams().size(), equalTo(1));
-        assertThat(((Integer) ((UpdateRequest) bulkRequest.requests().get(1)).scriptParams().get("param1")), equalTo(1));
+        Script script = ((UpdateRequest) bulkRequest.requests().get(1)).script();
+        assertThat(script, notNullValue());
+        assertThat(script.getScript(), equalTo("counter += param1"));
+        assertThat(script.getLang(), equalTo("js"));
+        Map<String, Object> scriptParams = script.getParams();
+        assertThat(scriptParams, notNullValue());
+        assertThat(scriptParams.size(), equalTo(1));
+        assertThat(((Integer) scriptParams.get("param1")), equalTo(1));
         assertThat(((UpdateRequest) bulkRequest.requests().get(1)).upsertRequest().source().toUtf8(), equalTo("{\"counter\":1}"));
     }
 
@@ -168,5 +176,13 @@ public class BulkRequestTests extends ElasticsearchTestCase {
             assertThat("message contains error about the wrong format of line 3: " + e.getMessage(),
                     e.getMessage().contains("Malformed action/metadata line [3], expected START_OBJECT or END_OBJECT but found [START_ARRAY]"), equalTo(true));
         }
+    }
+
+    @Test
+    public void testSimpleBulk10() throws Exception {
+        String bulkAction = copyToStringFromClasspath("/org/elasticsearch/action/bulk/simple-bulk10.json");
+        BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.add(bulkAction.getBytes(Charsets.UTF_8), 0, bulkAction.length(), null, null);
+        assertThat(bulkRequest.numberOfActions(), equalTo(9));
     }
 }

@@ -1,5 +1,5 @@
 [[query-dsl-match-query]]
-== Match Query
+=== Match Query
 
 A family of `match` queries that accept text/numerics/dates, analyzes
 it, and constructs a query out of it. For example:
@@ -16,10 +16,8 @@ it, and constructs a query out of it. For example:
 Note, `message` is the name of a field, you can substitute the name of
 any field (including `_all`) instead.
 
-[float]
-=== Types of Match Queries
+There are three types of `match` query: `boolean`, `phrase`, and `phrase_prefix`:
 
-[float]
 [[query-dsl-match-query-boolean]]
 ==== boolean
 
@@ -40,7 +38,6 @@ data-type mismatches,  such as trying to query a numeric field with a text
 query string. Defaults to `false`.
 
 [[query-dsl-match-query-fuzziness]]
-[float]
 ===== Fuzziness
 
 `fuzziness` allows _fuzzy matching_ based on the type of field being queried.
@@ -69,7 +66,6 @@ change in structure, `message` is the field name):
 --------------------------------------------------
 
 [[query-dsl-match-query-zero]]
-[float]
 ===== Zero terms query
 If the analyzer used removes all tokens in a query like a `stop` filter
 does, the default behavior is to match no documents at all. In order to
@@ -90,7 +86,6 @@ change that the `zero_terms_query` option can be used, which accepts
 --------------------------------------------------
 
 [[query-dsl-match-query-cutoff]]
-[float]
 ===== Cutoff frequency
 
 The match query supports a `cutoff_frequency` that allows
@@ -132,7 +127,6 @@ that when trying it out on test indexes with low document numbers you
 should follow the advice in {defguide}/relevance-is-broken.html[Relevance is broken].
 
 [[query-dsl-match-query-phrase]]
-[float]
 ==== phrase
 
 The `match_phrase` query analyzes the text and creates a `phrase` query
@@ -181,9 +175,8 @@ definition, or the default search analyzer, for example:
 }
 --------------------------------------------------
 
-[float]
 [[query-dsl-match-query-phrase-prefix]]
-===== match_phrase_prefix
+==== match_phrase_prefix
 
 The `match_phrase_prefix` is the same as `match_phrase`, except that it
 allows for prefix matches on the last term in the text. For example:

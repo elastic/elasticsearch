@@ -21,11 +21,8 @@ package org.elasticsearch.index.shard;
 
 import com.google.common.base.Charsets;
 import com.google.common.base.Preconditions;
-
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.index.CheckIndex;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.join.BitDocIdSetFilter;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.ThreadInterruptedException;
@@ -33,6 +30,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.optimize.OptimizeRequest;
+import org.elasticsearch.action.admin.indices.upgrade.post.UpgradeRequest;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -41,14 +39,11 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -161,7 +156,6 @@ public class IndexShard extends AbstractIndexShardComponent {
     private final SnapshotDeletionPolicy deletionPolicy;
     private final SimilarityService similarityService;
     private final MergePolicyProvider mergePolicyProvider;
-    private final BigArrays bigArrays;
     private final EngineConfig engineConfig;
     private final TranslogConfig translogConfig;
 
@@ -212,7 +206,6 @@ public class IndexShard extends AbstractIndexShardComponent {
         this.deletionPolicy = deletionPolicy;
         this.similarityService = similarityService;
         this.mergePolicyProvider = mergePolicyProvider;
-        this.bigArrays = bigArrays;
         Preconditions.checkNotNull(store, "Store must be provided to the index shard");
         Preconditions.checkNotNull(deletionPolicy, "Snapshot deletion policy must be provided to the index shard");
         this.engineFactory = factory;
@@ -552,26 +545,6 @@ public class IndexShard extends AbstractIndexShardComponent {
         indexingService.postDelete(delete);
     }
 
-    public Engine.DeleteByQuery prepareDeleteByQuery(BytesReference source, @Nullable String[] filteringAliases, Engine.Operation.Origin origin, String... types) {
-        return prepareDeleteByQuery(queryParserService, mapperService, indexAliasesService, indexCache, source, filteringAliases, origin, types);
-    }
-
-    static Engine.DeleteByQuery prepareDeleteByQuery(IndexQueryParserService queryParserService, MapperService mapperService, IndexAliasesService indexAliasesService, IndexCache indexCache, BytesReference source, @Nullable String[] filteringAliases, Engine.Operation.Origin origin, String... types) {
-        long startTime = System.nanoTime();
-        if (types == null) {
-            types = Strings.EMPTY_ARRAY;
-        }
-        Query query = queryParserService.parseQuery(source).query();
-        Query searchFilter = mapperService.searchFilter(types);
-        if (searchFilter != null) {
-            query = Queries.filtered(query, searchFilter);
-        }
-
-        Query aliasFilter = indexAliasesService.aliasFilter(filteringAliases);
-        BitDocIdSetFilter parentFilter = mapperService.hasNested() ? indexCache.bitsetFilterCache().getBitDocIdSetFilter(Queries.newNonNestedFilter()) : null;
-        return new Engine.DeleteByQuery(query, source, filteringAliases, aliasFilter, parentFilter, origin, startTime, types);
-    }
-
     public Engine.GetResult get(Engine.Get get) {
         readAllowed();
         return engine().get(get);
@@ -717,8 +690,38 @@ public class IndexShard extends AbstractIndexShardComponent {
         if (logger.isTraceEnabled()) {
             logger.trace("optimize with {}", optimize);
         }
-        engine().forceMerge(optimize.flush(), optimize.maxNumSegments(), optimize.onlyExpungeDeletes(),
-                optimize.upgrade(), optimize.upgradeOnlyAncientSegments());
+        engine().forceMerge(optimize.flush(), optimize.maxNumSegments(), optimize.onlyExpungeDeletes(), false, false);
+    }
+
+    /**
+     * Upgrades the shard to the current version of Lucene and returns the minimum segment version
+     */
+    public org.apache.lucene.util.Version upgrade(UpgradeRequest upgrade) {
+        verifyStarted();
+        if (logger.isTraceEnabled()) {
+            logger.trace("upgrade with {}", upgrade);
+        }
+        org.apache.lucene.util.Version previousVersion = minimumCompatibleVersion();
+        // we just want to upgrade the segments, not actually optimize to a single segment
+        engine().forceMerge(true,  // we need to flush at the end to make sure the upgrade is durable
+                Integer.MAX_VALUE, // we just want to upgrade the segments, not actually optimize to a single segment
+                false, true, upgrade.upgradeOnlyAncientSegments());
+        org.apache.lucene.util.Version version = minimumCompatibleVersion();
+        if (logger.isTraceEnabled()) {
+            logger.trace("upgraded segment {} from version {} to version {}", previousVersion, version);
+        }
+
+        return version;
+    }
+
+    public org.apache.lucene.util.Version minimumCompatibleVersion() {
+        org.apache.lucene.util.Version luceneVersion = null;
+        for(Segment segment : engine().segments(false)) {
+            if (luceneVersion == null || luceneVersion.onOrAfter(segment.getVersion())) {
+                luceneVersion = segment.getVersion();
+            }
+        }
+        return luceneVersion == null ?  Version.indexCreated(indexSettings).luceneVersion : luceneVersion;
     }
 
     public SnapshotIndexCommit snapshotIndex(boolean flushFirst) throws EngineException {
@@ -764,7 +767,7 @@ public class IndexShard extends AbstractIndexShardComponent {
                         engine.flushAndClose();
                     }
                 } finally { // playing safe here and close the engine even if the above succeeds - close can be called multiple times
-                    IOUtils.close(engine, shardFilterCache);
+                    IOUtils.close(engine);
                 }
             }
         }
@@ -801,8 +804,8 @@ public class IndexShard extends AbstractIndexShardComponent {
 
     /**
      * Applies all operations in the iterable to the current engine and returns the number of operations applied.
-     * This operation will stop applying operations once an opertion failed to apply.
-     * Note: This method is typically used in peer recovery to replay remote tansaction log entries.
+     * This operation will stop applying operations once an operation failed to apply.
+     * Note: This method is typically used in peer recovery to replay remote transaction log entries.
      */
     public int performBatchRecovery(Iterable<Translog.Operation> operations) {
         if (state != IndexShardState.RECOVERING) {
@@ -1366,7 +1369,7 @@ public class IndexShard extends AbstractIndexShardComponent {
     }
 
     public int getOperationsCount() {
-        return indexShardOperationCounter.refCount();
+        return Math.max(0, indexShardOperationCounter.refCount() - 1); // refCount is incremented on creation and decremented on close
     }
 
     /**
@@ -1386,7 +1389,7 @@ public class IndexShard extends AbstractIndexShardComponent {
      * Returns the current translog durability mode
      */
     public Translog.Durabilty getTranslogDurability() {
-       return translogConfig.getDurabilty();
+        return translogConfig.getDurabilty();
     }
 
     private static Translog.Durabilty getFromSettings(ESLogger logger, Settings settings, Translog.Durabilty defaultValue) {

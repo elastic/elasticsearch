@@ -26,6 +26,7 @@ import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotShardFailure;
 
 import java.io.IOException;
+import java.util.List;
 
 /**
  * Snapshot repository interface.
@@ -36,7 +37,7 @@ import java.io.IOException;
  * <p/>
  * Typical snapshot usage pattern:
  * <ul>
- * <li>Master calls {@link #initializeSnapshot(org.elasticsearch.cluster.metadata.SnapshotId, com.google.common.collect.ImmutableList, org.elasticsearch.cluster.metadata.MetaData)}
+ * <li>Master calls {@link #initializeSnapshot(org.elasticsearch.cluster.metadata.SnapshotId, List, org.elasticsearch.cluster.metadata.MetaData)}
  * with list of indices that will be included into the snapshot</li>
  * <li>Data nodes call {@link org.elasticsearch.index.snapshots.IndexShardRepository#snapshot(org.elasticsearch.cluster.metadata.SnapshotId, org.elasticsearch.index.shard.ShardId, org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit, org.elasticsearch.index.snapshots.IndexShardSnapshotStatus)} for each shard</li>
  * <li>When all shard calls return master calls {@link #finalizeSnapshot}
@@ -62,14 +63,14 @@ public interface Repository extends LifecycleComponent<Repository> {
      * @param indices    list of indices
      * @return information about snapshot
      */
-    MetaData readSnapshotMetaData(SnapshotId snapshotId, ImmutableList<String> indices) throws IOException;
+    MetaData readSnapshotMetaData(SnapshotId snapshotId, List<String> indices) throws IOException;
 
     /**
      * Returns the list of snapshots currently stored in the repository
      *
      * @return snapshot list
      */
-    ImmutableList<SnapshotId> snapshots();
+    List<SnapshotId> snapshots();
 
     /**
      * Starts snapshotting process
@@ -78,7 +79,7 @@ public interface Repository extends LifecycleComponent<Repository> {
      * @param indices    list of indices to be snapshotted
      * @param metaData   cluster metadata
      */
-    void initializeSnapshot(SnapshotId snapshotId, ImmutableList<String> indices, MetaData metaData);
+    void initializeSnapshot(SnapshotId snapshotId, List<String> indices, MetaData metaData);
 
     /**
      * Finalizes snapshotting process
@@ -91,7 +92,7 @@ public interface Repository extends LifecycleComponent<Repository> {
      * @param shardFailures list of shard failures
      * @return snapshot description
      */
-    Snapshot finalizeSnapshot(SnapshotId snapshotId, ImmutableList<String> indices, long startTime, String failure, int totalShards, ImmutableList<SnapshotShardFailure> shardFailures);
+    Snapshot finalizeSnapshot(SnapshotId snapshotId, List<String> indices, long startTime, String failure, int totalShards, List<SnapshotShardFailure> shardFailures);
 
     /**
      * Deletes snapshot

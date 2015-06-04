@@ -1,5 +1,5 @@
 [[query-dsl-span-near-query]]
-== Span Near Query
+=== Span Near Query
 
 Matches spans which are near one another. One can specify _slop_, the
 maximum number of intervening unmatched positions, as well as whether

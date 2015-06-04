@@ -85,6 +85,12 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
                 }
 
                 @Override
+                public void onNoLongerMaster(String source) {
+                    logger.trace("stopped being master while waiting for events with priority [{}]. retrying.", request.waitForEvents());
+                    doExecute(request, listener);
+                }
+
+                @Override
                 public void onFailure(String source, Throwable t) {
                     logger.error("unexpected failure during [{}]", t, source);
                     listener.onFailure(t);

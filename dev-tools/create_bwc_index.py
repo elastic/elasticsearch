@@ -240,7 +240,11 @@ def generate_index(client, version, index_name):
   client.indices.create(index=index_name, body={
       'settings': {
           'number_of_shards': 1,
-          'number_of_replicas': 0
+          'number_of_replicas': 0,
+          # Same as ES default (60 seconds), but missing the units to make sure they are inserted on upgrade:
+          "gc_deletes": '60000',
+          # Same as ES default (5 GB), but missing the units to make sure they are inserted on upgrade:
+          "merge.policy.max_merged_segment": '5368709120'
       },
       'mappings': mappings
   })
@@ -261,7 +265,11 @@ def snapshot_index(client, version, repo_dir):
   # Add bogus persistent settings to make sure they can be restored
   client.cluster.put_settings(body={
     'persistent': {
-      'cluster.routing.allocation.exclude.version_attr': version
+      'cluster.routing.allocation.exclude.version_attr': version,
+      # Same as ES default (30 seconds), but missing the units to make sure they are inserted on upgrade:
+      'discovery.zen.publish_timeout': '30000',
+      # Same as ES default (512 KB), but missing the units to make sure they are inserted on upgrade:
+      'indices.recovery.file_chunk_size': '524288',
     }
   })
   client.indices.put_template(name='template_' + version.lower(), order=0, body={

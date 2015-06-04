@@ -102,7 +102,7 @@ public class RangeQueryParser implements QueryParser {
                         } else if ("time_zone".equals(currentFieldName) || "timeZone".equals(currentFieldName)) {
                             timeZone = DateTimeZone.forID(parser.text());
                         } else if ("format".equals(currentFieldName)) {
-                            forcedDateParser = new DateMathParser(Joda.forPattern(parser.text()), DateFieldMapper.Defaults.TIME_UNIT);
+                            forcedDateParser = new DateMathParser(Joda.forPattern(parser.text()));
                         } else {
                             throw new QueryParsingException(parseContext, "[range] query does not support [" + currentFieldName + "]");
                         }
@@ -123,12 +123,7 @@ public class RangeQueryParser implements QueryParser {
         FieldMapper mapper = parseContext.fieldMapper(fieldName);
         if (mapper != null) {
             if (mapper instanceof DateFieldMapper) {
-                if ((from instanceof Number || to instanceof Number) && timeZone != null) {
-                    throw new QueryParsingException(parseContext,
-                            "[range] time_zone when using ms since epoch format as it's UTC based can not be applied to [" + fieldName
-                                    + "]");
-                }
-                query = ((DateFieldMapper) mapper).rangeQuery(from, to, includeLower, includeUpper, timeZone, forcedDateParser, parseContext);
+                query = ((DateFieldMapper) mapper).fieldType().rangeQuery(from, to, includeLower, includeUpper, timeZone, forcedDateParser, parseContext);
             } else  {
                 if (timeZone != null) {
                     throw new QueryParsingException(parseContext, "[range] time_zone can not be applied to non date field ["

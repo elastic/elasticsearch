@@ -218,6 +218,21 @@ public class SimpleVersioningTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
+    public void testRequireUnitsOnUpdateSettings() throws Exception {
+        createIndex("test");
+        ensureGreen();
+        HashMap<String,Object> newSettings = new HashMap<>();
+        newSettings.put("index.gc_deletes", "42");
+        try {
+            client().admin().indices().prepareUpdateSettings("test").setSettings(newSettings).execute().actionGet();
+            fail("did not hit expected exception");
+        } catch (IllegalArgumentException iae) {
+            // expected
+            assertTrue(iae.getMessage().contains("Failed to parse setting [index.gc_deletes] with value [42] as a time value: unit is missing or unrecognized"));
+        }
+    }
+
+    @Test
     public void testInternalVersioningInitialDelete() throws Exception {
         createIndex("test");
         ensureGreen();

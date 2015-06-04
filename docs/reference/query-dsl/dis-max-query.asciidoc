@@ -1,5 +1,5 @@
 [[query-dsl-dis-max-query]]
-== Dis Max Query
+=== Dis Max Query
 
 A query that generates the union of documents produced by its
 subqueries, and that scores each document with the maximum score for

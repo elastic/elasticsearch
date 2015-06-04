@@ -21,19 +21,15 @@ package org.elasticsearch.index.fielddata;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedDocValues;
-import org.apache.lucene.search.FieldDoc;
-import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchAllDocsQuery;
-import org.apache.lucene.search.Sort;
-import org.apache.lucene.search.SortField;
-import org.apache.lucene.search.TopFieldDocs;
+import org.apache.lucene.search.*;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
-import org.elasticsearch.common.compress.CompressedString;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource;
 import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
 import org.elasticsearch.index.mapper.Uid;
@@ -49,7 +45,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.nullValue;
 
 /**
@@ -63,45 +58,56 @@ public class ParentChildFieldDataTests extends AbstractFieldDataTests {
     @Before
     public void before() throws Exception {
         mapperService.merge(
-                childType, new CompressedString(PutMappingRequest.buildFromSimplifiedDef(childType, "_parent", "type=" + parentType).string()), true
+                childType, new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef(childType, "_parent", "type=" + parentType).string()), true
         );
         mapperService.merge(
-                grandChildType, new CompressedString(PutMappingRequest.buildFromSimplifiedDef(grandChildType, "_parent", "type=" + childType).string()), true
+                grandChildType, new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef(grandChildType, "_parent", "type=" + childType).string()), true
         );
 
         Document d = new Document();
         d.add(new StringField(UidFieldMapper.NAME, Uid.createUid(parentType, "1"), Field.Store.NO));
+        d.add(createJoinField(parentType, "1"));
         writer.addDocument(d);
 
         d = new Document();
         d.add(new StringField(UidFieldMapper.NAME, Uid.createUid(childType, "2"), Field.Store.NO));
         d.add(new StringField(ParentFieldMapper.NAME, Uid.createUid(parentType, "1"), Field.Store.NO));
+        d.add(createJoinField(parentType, "1"));
+        d.add(createJoinField(childType, "2"));
         writer.addDocument(d);
         writer.commit();
 
         d = new Document();
         d.add(new StringField(UidFieldMapper.NAME, Uid.createUid(childType, "3"), Field.Store.NO));
         d.add(new StringField(ParentFieldMapper.NAME, Uid.createUid(parentType, "1"), Field.Store.NO));
+        d.add(createJoinField(parentType, "1"));
+        d.add(createJoinField(childType, "3"));
         writer.addDocument(d);
 
         d = new Document();
         d.add(new StringField(UidFieldMapper.NAME, Uid.createUid(parentType, "2"), Field.Store.NO));
+        d.add(createJoinField(parentType, "2"));
         writer.addDocument(d);
 
         d = new Document();
         d.add(new StringField(UidFieldMapper.NAME, Uid.createUid(childType, "4"), Field.Store.NO));
         d.add(new StringField(ParentFieldMapper.NAME, Uid.createUid(parentType, "2"), Field.Store.NO));
+        d.add(createJoinField(parentType, "2"));
+        d.add(createJoinField(childType, "4"));
         writer.addDocument(d);
 
         d = new Document();
         d.add(new StringField(UidFieldMapper.NAME, Uid.createUid(childType, "5"), Field.Store.NO));
         d.add(new StringField(ParentFieldMapper.NAME, Uid.createUid(parentType, "1"), Field.Store.NO));
+        d.add(createJoinField(parentType, "1"));
+        d.add(createJoinField(childType, "5"));
         writer.addDocument(d);
         writer.commit();
 
         d = new Document();
         d.add(new StringField(UidFieldMapper.NAME, Uid.createUid(grandChildType, "6"), Field.Store.NO));
         d.add(new StringField(ParentFieldMapper.NAME, Uid.createUid(childType, "2"), Field.Store.NO));
+        d.add(createJoinField(childType, "2"));
         writer.addDocument(d);
 
         d = new Document();
@@ -109,11 +115,14 @@ public class ParentChildFieldDataTests extends AbstractFieldDataTests {
         writer.addDocument(d);
     }
 
+    private SortedDocValuesField createJoinField(String parentType, String id) {
+        return new SortedDocValuesField(ParentFieldMapper.joinField(parentType), new BytesRef(id));
+    }
+
     @Test
     public void testGetBytesValues() throws Exception {
         IndexFieldData indexFieldData = getForField(childType);
         AtomicFieldData fieldData = indexFieldData.load(refreshReader());
-        assertThat(fieldData.ramBytesUsed(), greaterThan(0l));
 
         SortedBinaryDocValues bytesValues = fieldData.getBytesValues();
         bytesValues.setDocument(0);

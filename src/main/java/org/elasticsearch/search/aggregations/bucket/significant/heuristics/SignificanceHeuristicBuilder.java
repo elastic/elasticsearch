@@ -20,12 +20,8 @@
 
 package org.elasticsearch.search.aggregations.bucket.significant.heuristics;
 
-import org.elasticsearch.common.xcontent.XContentBuilder;
-
-import java.io.IOException;
+import org.elasticsearch.common.xcontent.ToXContent;
 
 
-public interface SignificanceHeuristicBuilder {
-
-    public void toXContent(XContentBuilder builder) throws IOException;
+public interface SignificanceHeuristicBuilder extends ToXContent {
 }

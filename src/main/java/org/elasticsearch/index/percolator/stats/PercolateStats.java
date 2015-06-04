@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.index.percolator.stats;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -152,11 +151,6 @@ public class PercolateStats implements Streamable, ToXContent {
         percolateCount = in.readVLong();
         percolateTimeInMillis = in.readVLong();
         current = in.readVLong();
-        if (in.getVersion().before(Version.V_1_1_0)) {
-            in.readVLong();
-        } else {
-            in.readLong();
-        }
         numQueries = in.readVLong();
     }
 
@@ -165,11 +159,6 @@ public class PercolateStats implements Streamable, ToXContent {
         out.writeVLong(percolateCount);
         out.writeVLong(percolateTimeInMillis);
         out.writeVLong(current);
-        if (out.getVersion().before(Version.V_1_1_0)) {
-            out.writeVLong(0);
-        } else {
-            out.writeLong(-1);
-        }
         out.writeVLong(numQueries);
     }
 }

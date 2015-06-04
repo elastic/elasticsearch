@@ -35,6 +35,7 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.Version;
 import org.elasticsearch.test.ElasticsearchTestCase;
 
 import java.io.IOException;
@@ -103,7 +104,10 @@ public class IndexCacheableQueryTests extends ElasticsearchTestCase {
         }
 
         IndexReader reader = writer.getReader();
-        IndexSearcher searcher = newSearcher(reader);
+        // IndexReader wrapping is disabled because of LUCENE-6500.
+        // Add it back when we are on 5.3
+        assert Version.LATEST == Version.LUCENE_5_2_0;
+        IndexSearcher searcher = newSearcher(reader, false);
         reader = searcher.getIndexReader(); // reader might be wrapped
         searcher.setQueryCache(cache);
         searcher.setQueryCachingPolicy(policy);
@@ -119,7 +123,10 @@ public class IndexCacheableQueryTests extends ElasticsearchTestCase {
         writer.addDocument(new Document());
 
         IndexReader reader2 = writer.getReader();
-        searcher = newSearcher(reader2);
+        // IndexReader wrapping is disabled because of LUCENE-6500.
+        // Add it back when we are on 5.3
+        assert Version.LATEST == Version.LUCENE_5_2_0;
+        searcher = newSearcher(reader2, false);
         reader2 = searcher.getIndexReader(); // reader might be wrapped
         searcher.setQueryCache(cache);
         searcher.setQueryCachingPolicy(policy);

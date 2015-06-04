@@ -59,7 +59,7 @@ public class TTLPercolatorTests extends ElasticsearchIntegrationTest {
     protected Settings nodeSettings(int nodeOrdinal) {
         return settingsBuilder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put("indices.ttl.interval", PURGE_INTERVAL)
+                .put("indices.ttl.interval", PURGE_INTERVAL, TimeUnit.MILLISECONDS)
                 .build();
     }
 
@@ -163,7 +163,7 @@ public class TTLPercolatorTests extends ElasticsearchIntegrationTest {
     public void testEnsureTTLDoesNotCreateIndex() throws IOException, InterruptedException {
         ensureGreen();
         client().admin().cluster().prepareUpdateSettings().setTransientSettings(settingsBuilder()
-                .put("indices.ttl.interval", 60) // 60 sec
+                                         .put("indices.ttl.interval", 60, TimeUnit.SECONDS) // 60 sec
                 .build()).get();
 
         String typeMapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
@@ -176,7 +176,7 @@ public class TTLPercolatorTests extends ElasticsearchIntegrationTest {
                 .execute().actionGet();
         ensureGreen();
         client().admin().cluster().prepareUpdateSettings().setTransientSettings(settingsBuilder()
-                .put("indices.ttl.interval", 1) // 60 sec
+                                         .put("indices.ttl.interval", 1, TimeUnit.SECONDS)
                 .build()).get();
 
         for (int i = 0; i < 100; i++) {

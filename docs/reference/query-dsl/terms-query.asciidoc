@@ -1,5 +1,5 @@
 [[query-dsl-terms-query]]
-== Terms Query
+=== Terms Query
 
 Filters documents that have fields that match any of the provided terms
 (*not analyzed*). For example:
@@ -19,7 +19,8 @@ The `terms` query is also aliased with `in` as the filter name for
 simpler usage.
 
 [float]
-==== Terms lookup mechanism
+[[query-dsl-terms-lookup]]
+===== Terms lookup mechanism
 
 When it's needed to specify a `terms` filter with a lot of terms it can
 be beneficial to fetch those term values from a document in an index. A
@@ -31,21 +32,21 @@ lookup mechanism.
 The terms lookup mechanism supports the following options:
 
 [horizontal]
-`index`:: 
+`index`::
     The index to fetch the term values from. Defaults to the
     current index.
 
-`type`:: 
+`type`::
     The type to fetch the term values from.
 
-`id`:: 
+`id`::
     The id of the document to fetch the term values from.
 
-`path`:: 
+`path`::
     The field specified as path to fetch the actual values for the
     `terms` filter.
 
-`routing`:: 
+`routing`::
     A custom routing value to be used when retrieving the
     external terms doc.
 
@@ -61,7 +62,7 @@ terms filter will prefer to execute the get request on a local node if
 possible, reducing the need for networking.
 
 [float]
-==== Terms lookup twitter example
+===== Terms lookup twitter example
 
 [source,js]
 --------------------------------------------------

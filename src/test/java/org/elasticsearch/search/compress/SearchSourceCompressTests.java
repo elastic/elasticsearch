@@ -24,8 +24,9 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.compress.Compressor;
 import org.elasticsearch.common.compress.CompressorFactory;
-import org.elasticsearch.common.compress.lzf.LZFCompressor;
+import org.elasticsearch.common.compress.lzf.LZFTestCompressor;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -41,10 +42,15 @@ public class SearchSourceCompressTests  extends ElasticsearchSingleNodeTest {
     
     @Test
     public void testSourceCompressionLZF() throws IOException {
-        CompressorFactory.setDefaultCompressor(new LZFCompressor());
-        verifySource(true);
-        verifySource(false);
-        verifySource(null);
+        final Compressor defaultCompressor = CompressorFactory.defaultCompressor();
+        try {
+            CompressorFactory.setDefaultCompressor(new LZFTestCompressor());
+            verifySource(true);
+            verifySource(false);
+            verifySource(null);
+        } finally {
+            CompressorFactory.setDefaultCompressor(defaultCompressor);
+        }
     }
 
     private void verifySource(Boolean compress) throws IOException {

@@ -30,6 +30,7 @@ import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 import org.elasticsearch.test.ElasticsearchTestCase;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 
@@ -39,7 +40,7 @@ public class FieldMappersLookupTests extends ElasticsearchTestCase {
         FieldMappersLookup lookup = new FieldMappersLookup();
         assertNull(lookup.fullName("foo"));
         assertNull(lookup.indexName("foo"));
-        List<String> names = lookup.simpleMatchToFullName("foo");
+        Collection<String> names = lookup.simpleMatchToFullName("foo");
         assertNotNull(names);
         assertTrue(names.isEmpty());
         names = lookup.simpleMatchToFullName("foo");
@@ -105,7 +106,7 @@ public class FieldMappersLookupTests extends ElasticsearchTestCase {
         FakeFieldMapper f2 = new FakeFieldMapper("bar", "boo");
         FieldMappersLookup lookup = new FieldMappersLookup();
         lookup = lookup.copyAndAddAll(newList(f1, f2));
-        List<String> names = lookup.simpleMatchToIndexNames("b*");
+        Collection<String> names = lookup.simpleMatchToIndexNames("b*");
         assertTrue(names.contains("baz"));
         assertTrue(names.contains("boo"));
     }
@@ -115,7 +116,7 @@ public class FieldMappersLookupTests extends ElasticsearchTestCase {
         FakeFieldMapper f2 = new FakeFieldMapper("bar", "boo");
         FieldMappersLookup lookup = new FieldMappersLookup();
         lookup = lookup.copyAndAddAll(newList(f1, f2));
-        List<String> names = lookup.simpleMatchToFullName("b*");
+        Collection<String> names = lookup.simpleMatchToFullName("b*");
         assertTrue(names.contains("foo"));
         assertTrue(names.contains("bar"));
     }
@@ -175,17 +176,20 @@ public class FieldMappersLookupTests extends ElasticsearchTestCase {
     static class FakeFieldMapper extends AbstractFieldMapper {
         static Settings dummySettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
         public FakeFieldMapper(String fullName, String indexName) {
-            super(new Names(fullName, indexName, indexName, fullName), 1.0f, AbstractFieldMapper.Defaults.FIELD_TYPE, null, null, null, null, null, null, dummySettings, null, null);
+            super(makeFieldType(fullName, indexName), null, null, dummySettings, null, null);
+        }
+        static MappedFieldType makeFieldType(String fullName, String indexName) {
+            MappedFieldType fieldType = Defaults.FIELD_TYPE.clone();
+            fieldType.setNames(new MappedFieldType.Names(fullName, indexName, indexName, fullName));
+            return fieldType;
         }
         @Override
-        public FieldType defaultFieldType() { return null; }
+        public MappedFieldType defaultFieldType() { return null; }
         @Override
         public FieldDataType defaultFieldDataType() { return null; }
         @Override
         protected String contentType() { return null; }
         @Override
         protected void parseCreateField(ParseContext context, List list) throws IOException {}
-        @Override
-        public String value(Object value) { return null; }
     }
 }

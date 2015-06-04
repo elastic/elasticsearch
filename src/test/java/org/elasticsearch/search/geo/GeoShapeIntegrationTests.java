@@ -461,7 +461,7 @@ public class GeoShapeIntegrationTests extends ElasticsearchIntegrationTest {
         assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
 
         GeoShapeFieldMapper gsfm = (GeoShapeFieldMapper)fieldMapper;
-        ShapeBuilder.Orientation orientation = gsfm.orientation();
+        ShapeBuilder.Orientation orientation = gsfm.fieldType().orientation();
         assertThat(orientation, equalTo(ShapeBuilder.Orientation.CLOCKWISE));
         assertThat(orientation, equalTo(ShapeBuilder.Orientation.LEFT));
         assertThat(orientation, equalTo(ShapeBuilder.Orientation.CW));
@@ -473,7 +473,7 @@ public class GeoShapeIntegrationTests extends ElasticsearchIntegrationTest {
         assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
 
         gsfm = (GeoShapeFieldMapper)fieldMapper;
-        orientation = gsfm.orientation();
+        orientation = gsfm.fieldType().orientation();
         assertThat(orientation, equalTo(ShapeBuilder.Orientation.COUNTER_CLOCKWISE));
         assertThat(orientation, equalTo(ShapeBuilder.Orientation.RIGHT));
         assertThat(orientation, equalTo(ShapeBuilder.Orientation.CCW));

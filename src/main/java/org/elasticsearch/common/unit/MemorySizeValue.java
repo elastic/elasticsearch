@@ -19,6 +19,8 @@
 
 package org.elasticsearch.common.unit;
 
+import java.util.Objects;
+
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 
@@ -31,7 +33,8 @@ public enum MemorySizeValue {
     /** Parse the provided string as a memory size. This method either accepts absolute values such as
      *  <tt>42</tt> (default assumed unit is byte) or <tt>2mb</tt>, or percentages of the heap size: if
      *  the heap is 1G, <tt>10%</tt> will be parsed as <tt>100mb</tt>.  */
-    public static ByteSizeValue parseBytesSizeValueOrHeapRatio(String sValue) {
+    public static ByteSizeValue parseBytesSizeValueOrHeapRatio(String sValue, String settingName) {
+        settingName = Objects.requireNonNull(settingName);
         if (sValue != null && sValue.endsWith("%")) {
             final String percentAsString = sValue.substring(0, sValue.length() - 1);
             try {
@@ -44,7 +47,7 @@ public enum MemorySizeValue {
                 throw new ElasticsearchParseException("Failed to parse [" + percentAsString + "] as a double", e);
             }
         } else {
-            return parseBytesSizeValue(sValue);
+            return parseBytesSizeValue(sValue, settingName);
         }
     }
 }

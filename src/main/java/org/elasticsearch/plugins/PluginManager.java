@@ -25,6 +25,7 @@ import com.google.common.collect.Iterators;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.*;
 import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.common.cli.Terminal;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.http.client.HttpDownloadHelper;
 import org.elasticsearch.common.io.FileSystemUtils;
@@ -338,7 +339,7 @@ public class PluginManager {
     private static final int EXIT_CODE_ERROR = 70;
 
     public static void main(String[] args) {
-        Tuple<Settings, Environment> initialSettings = InternalSettingsPreparer.prepareSettings(EMPTY_SETTINGS, true);
+        Tuple<Settings, Environment> initialSettings = InternalSettingsPreparer.prepareSettings(EMPTY_SETTINGS, true, Terminal.DEFAULT);
 
         try {
             Files.createDirectories(initialSettings.v2().pluginsFile());
@@ -408,7 +409,7 @@ public class PluginManager {
                     case "timeout":
                     case "-timeout":
                         String timeoutValue = getCommandValue(args, ++c, "--timeout");
-                        timeout = TimeValue.parseTimeValue(timeoutValue, DEFAULT_TIMEOUT);
+                        timeout = TimeValue.parseTimeValue(timeoutValue, DEFAULT_TIMEOUT, command);
                         break;
                     case "-l":
                     case "--list":

@@ -20,7 +20,12 @@
 package org.elasticsearch.action.bulk;
 
 import com.google.common.collect.Lists;
-import org.elasticsearch.action.*;
+
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.CompositeIndicesRequest;
+import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.update.UpdateRequest;
@@ -140,7 +145,7 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
             sizeInBytes += request.upsertRequest().source().length();
         }
         if (request.script() != null) {
-            sizeInBytes += request.script().length() * 2;
+            sizeInBytes += request.script().getScript().length() * 2;
         }
         return this;
     }
@@ -312,7 +317,7 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
                                 timestamp = parser.text();
                             } else if ("_ttl".equals(currentFieldName) || "ttl".equals(currentFieldName)) {
                                 if (parser.currentToken() == XContentParser.Token.VALUE_STRING) {
-                                    ttl = TimeValue.parseTimeValue(parser.text(), null).millis();
+                                    ttl = TimeValue.parseTimeValue(parser.text(), null, currentFieldName).millis();
                                 } else {
                                     ttl = parser.longValue();
                                 }
@@ -327,7 +332,7 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
                             } else {
                                 throw new IllegalArgumentException("Action/metadata line [" + line + "] contains an unknown parameter [" + currentFieldName + "]");
                             }
-                        } else {
+                        } else if (token != XContentParser.Token.VALUE_NULL) {
                             throw new IllegalArgumentException("Malformed action/metadata line [" + line + "], expected a simple value for field [" + currentFieldName + "] but found [" + token + "]");
                         }
                     }
@@ -431,7 +436,7 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
      * A timeout to wait if the index operation can't be performed immediately. Defaults to <tt>1m</tt>.
      */
     public final BulkRequest timeout(String timeout) {
-        return timeout(TimeValue.parseTimeValue(timeout, null));
+        return timeout(TimeValue.parseTimeValue(timeout, null, getClass().getSimpleName() + ".timeout"));
     }
 
     public TimeValue timeout() {

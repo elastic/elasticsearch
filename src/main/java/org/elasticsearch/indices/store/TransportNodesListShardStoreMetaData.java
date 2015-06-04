@@ -235,6 +235,9 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesAction<T
             metadataSnapshot.writeTo(out);
         }
 
+        /**
+         * @return commit sync id if exists, else null
+         */
         public String syncId() {
             return metadataSnapshot.getSyncId();
         }

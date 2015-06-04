@@ -19,7 +19,8 @@
 
 package org.elasticsearch.index.aliases;
 
-import org.elasticsearch.common.compress.CompressedString;
+import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -47,11 +48,11 @@ public class IndexAliasesServiceTests extends ElasticsearchSingleNodeTest {
         return indexService.aliasesService();
     }
 
-    public static CompressedString filter(QueryBuilder filterBuilder) throws IOException {
+    public static CompressedXContent filter(QueryBuilder filterBuilder) throws IOException {
         XContentBuilder builder = XContentFactory.jsonBuilder();
         filterBuilder.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.close();
-        return new CompressedString(builder.string());
+        return new CompressedXContent(builder.string());
     }
 
     @Test

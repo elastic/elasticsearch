@@ -1,5 +1,5 @@
 [[query-dsl-template-query]]
-== Template Query
+=== Template Query
 
 A query that accepts a query template and a map of key/value pairs to fill in
 template parameters. Templating is based on Mustache. For simple token substitution all you provide
@@ -12,7 +12,7 @@ GET /_search
 {
     "query": {
         "template": {
-            "query": { "match": { "text": "{{query_string}}" }},
+            "inline": { "match": { "text": "{{query_string}}" }},
             "params" : {
                 "query_string" : "all about search"
             }
@@ -45,7 +45,7 @@ GET /_search
 {
     "query": {
         "template": {
-            "query": "{ \"match\": { \"text\": \"{{query_string}}\" }}", <1>
+            "inline": "{ \"match\": { \"text\": \"{{query_string}}\" }}", <1>
             "params" : {
                 "query_string" : "all about search"
             }
@@ -56,7 +56,7 @@ GET /_search
 <1> New line characters (`\n`) should be escaped as `\\n` or removed,
     and quotes (`"`) should be escaped as `\\"`.
 
-=== Stored templates
+==== Stored templates
 
 You can register a template by storing it in the `config/scripts` directory, in a file using the `.mustache` extension.
 In order to execute the stored template, reference it by name in the `file`

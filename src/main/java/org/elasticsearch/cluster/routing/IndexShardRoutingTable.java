@@ -63,10 +63,10 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
 
     final boolean primaryAllocatedPostApi;
 
-    IndexShardRoutingTable(ShardId shardId, ImmutableList<ShardRouting> shards, boolean primaryAllocatedPostApi) {
+    IndexShardRoutingTable(ShardId shardId, List<ShardRouting> shards, boolean primaryAllocatedPostApi) {
         this.shardId = shardId;
         this.shuffler = new RotationShardShuffler(ThreadLocalRandom.current().nextInt());
-        this.shards = shards;
+        this.shards = ImmutableList.copyOf(shards);
         this.primaryAllocatedPostApi = primaryAllocatedPostApi;
 
         ShardRouting primary = null;
@@ -173,7 +173,7 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
     }
 
     @Override
-    public UnmodifiableIterator<ShardRouting> iterator() {
+    public Iterator<ShardRouting> iterator() {
         return shards.iterator();
     }
 
@@ -192,56 +192,56 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
     }
 
     /**
-     * Returns a {@link ImmutableList} of shards
+     * Returns a {@link List} of shards
      *
-     * @return a {@link ImmutableList} of shards
+     * @return a {@link List} of shards
      */
-    public ImmutableList<ShardRouting> shards() {
+    public List<ShardRouting> shards() {
         return this.shards;
     }
 
     /**
-     * Returns a {@link ImmutableList} of shards
+     * Returns a {@link List} of shards
      *
-     * @return a {@link ImmutableList} of shards
+     * @return a {@link List} of shards
      */
-    public ImmutableList<ShardRouting> getShards() {
+    public List<ShardRouting> getShards() {
         return shards();
     }
 
     /**
-     * Returns a {@link ImmutableList} of active shards
+     * Returns a {@link List} of active shards
      *
-     * @return a {@link ImmutableList} of shards
+     * @return a {@link List} of shards
      */
-    public ImmutableList<ShardRouting> activeShards() {
+    public List<ShardRouting> activeShards() {
         return this.activeShards;
     }
 
     /**
-     * Returns a {@link ImmutableList} of active shards
+     * Returns a {@link List} of active shards
      *
-     * @return a {@link ImmutableList} of shards
+     * @return a {@link List} of shards
      */
-    public ImmutableList<ShardRouting> getActiveShards() {
+    public List<ShardRouting> getActiveShards() {
         return activeShards();
     }
 
     /**
-     * Returns a {@link ImmutableList} of assigned shards
+     * Returns a {@link List} of assigned shards
      *
-     * @return a {@link ImmutableList} of shards
+     * @return a {@link List} of shards
      */
-    public ImmutableList<ShardRouting> assignedShards() {
+    public List<ShardRouting> assignedShards() {
         return this.assignedShards;
     }
 
     /**
-     * Returns a {@link ImmutableList} of assigned shards
+     * Returns a {@link List} of assigned shards
      *
-     * @return a {@link ImmutableList} of shards
+     * @return a {@link List} of shards
      */
-    public ImmutableList<ShardRouting> getAssignedShards() {
+    public List<ShardRouting> getAssignedShards() {
         return this.assignedShards;
     }
 

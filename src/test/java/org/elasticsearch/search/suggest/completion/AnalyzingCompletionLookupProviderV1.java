@@ -59,6 +59,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 
+import static org.apache.lucene.search.suggest.analyzing.XAnalyzingSuggester.HOLE_CHARACTER;
+
 /**
  * This is an older implementation of the AnalyzingCompletionLookupProvider class
  * We use this to test for backwards compatibility in our tests, namely
@@ -232,7 +234,7 @@ public class AnalyzingCompletionLookupProviderV1 extends CompletionLookupProvide
         return new LookupFactory() {
             @Override
             public Lookup getLookup(CompletionFieldMapper mapper, CompletionSuggestionContext suggestionContext) {
-                AnalyzingSuggestHolder analyzingSuggestHolder = lookupMap.get(mapper.names().indexName());
+                AnalyzingSuggestHolder analyzingSuggestHolder = lookupMap.get(mapper.fieldType().names().indexName());
                 if (analyzingSuggestHolder == null) {
                     return null;
                 }
@@ -242,18 +244,18 @@ public class AnalyzingCompletionLookupProviderV1 extends CompletionLookupProvide
 
                 XAnalyzingSuggester suggester;
                 if (suggestionContext.isFuzzy()) {
-                    suggester = new XFuzzySuggester(mapper.indexAnalyzer(), queryPrefix, mapper.searchAnalyzer(), flags,
-                            analyzingSuggestHolder.maxSurfaceFormsPerAnalyzedForm, analyzingSuggestHolder.maxGraphExpansions,
-                            suggestionContext.getFuzzyEditDistance(), suggestionContext.isFuzzyTranspositions(),
-                            suggestionContext.getFuzzyPrefixLength(), suggestionContext.getFuzzyMinLength(), false,
-                            analyzingSuggestHolder.fst, analyzingSuggestHolder.hasPayloads,
-                            analyzingSuggestHolder.maxAnalyzedPathsForOneInput, SEP_LABEL, PAYLOAD_SEP, END_BYTE, XAnalyzingSuggester.HOLE_CHARACTER);
+                    suggester = new XFuzzySuggester(mapper.fieldType().indexAnalyzer(), queryPrefix, mapper.fieldType().searchAnalyzer(), flags,
+                        analyzingSuggestHolder.maxSurfaceFormsPerAnalyzedForm, analyzingSuggestHolder.maxGraphExpansions,
+                        suggestionContext.getFuzzyEditDistance(), suggestionContext.isFuzzyTranspositions(),
+                        suggestionContext.getFuzzyPrefixLength(), suggestionContext.getFuzzyMinLength(), false,
+                        analyzingSuggestHolder.fst, analyzingSuggestHolder.hasPayloads,
+                        analyzingSuggestHolder.maxAnalyzedPathsForOneInput, SEP_LABEL, PAYLOAD_SEP, END_BYTE, HOLE_CHARACTER);
                 } else {
-                    suggester = new XAnalyzingSuggester(mapper.indexAnalyzer(), queryPrefix, mapper.searchAnalyzer(), flags,
-                            analyzingSuggestHolder.maxSurfaceFormsPerAnalyzedForm, analyzingSuggestHolder.maxGraphExpansions,
-                            analyzingSuggestHolder.preservePositionIncrements,
-                            analyzingSuggestHolder.fst, analyzingSuggestHolder.hasPayloads,
-                            analyzingSuggestHolder.maxAnalyzedPathsForOneInput, SEP_LABEL, PAYLOAD_SEP, END_BYTE, XAnalyzingSuggester.HOLE_CHARACTER);
+                    suggester = new XAnalyzingSuggester(mapper.fieldType().indexAnalyzer(), queryPrefix, mapper.fieldType().searchAnalyzer(), flags,
+                        analyzingSuggestHolder.maxSurfaceFormsPerAnalyzedForm, analyzingSuggestHolder.maxGraphExpansions,
+                        analyzingSuggestHolder.preservePositionIncrements,
+                        analyzingSuggestHolder.fst, analyzingSuggestHolder.hasPayloads,
+                        analyzingSuggestHolder.maxAnalyzedPathsForOneInput, SEP_LABEL, PAYLOAD_SEP, END_BYTE, HOLE_CHARACTER);
                 }
                 return suggester;
             }
@@ -285,7 +287,7 @@ public class AnalyzingCompletionLookupProviderV1 extends CompletionLookupProvide
 
             @Override
             AnalyzingSuggestHolder getAnalyzingSuggestHolder(CompletionFieldMapper mapper) {
-                return lookupMap.get(mapper.names().indexName());
+                return lookupMap.get(mapper.fieldType().names().indexName());
             }
 
             @Override

@@ -133,8 +133,11 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         }
     }
 
+
     @Override
-    public void search(List<LeafReaderContext> leaves, Weight weight, Collector collector) throws IOException {
+    public void search(Query query, Collector collector) throws IOException {
+        // Wrap the caller's collector with various wrappers e.g. those used to siphon
+        // matches off for aggregation or to impose a time-limit on collection.
         final boolean timeoutSet = searchContext.timeoutInMillis() != -1;
         final boolean terminateAfterSet = searchContext.terminateAfter() != SearchContext.DEFAULT_TERMINATE_AFTER;
 
@@ -166,8 +169,13 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
                 collector = new MinimumScoreCollector(collector, searchContext.minimumScore());
             }
         }
+        super.search(query, collector);
+    }
 
-        // we only compute the doc id set once since within a context, we execute the same query always...
+    @Override
+    public void search(List<LeafReaderContext> leaves, Weight weight, Collector collector) throws IOException {
+        final boolean timeoutSet = searchContext.timeoutInMillis() != -1;
+        final boolean terminateAfterSet = searchContext.terminateAfter() != SearchContext.DEFAULT_TERMINATE_AFTER;
         try {
             if (timeoutSet || terminateAfterSet) {
                 try {

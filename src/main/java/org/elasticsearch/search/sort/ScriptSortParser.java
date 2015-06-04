@@ -41,8 +41,10 @@ import org.elasticsearch.index.fielddata.fieldcomparator.DoubleValuesComparatorS
 import org.elasticsearch.index.query.support.NestedInnerQueryParseSupport;
 import org.elasticsearch.script.LeafSearchScript;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.Script.ScriptField;
 import org.elasticsearch.script.ScriptContext;
-import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptParameterParser;
+import org.elasticsearch.script.ScriptParameterParser.ScriptParameterValue;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.SearchParseException;
@@ -50,6 +52,8 @@ import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Map;
+
+import static com.google.common.collect.Maps.newHashMap;
 
 /**
  *
@@ -66,8 +70,8 @@ public class ScriptSortParser implements SortParser {
 
     @Override
     public SortField parse(XContentParser parser, SearchContext context) throws Exception {
-        String script = null;
-        String scriptLang = null;
+        ScriptParameterParser scriptParameterParser = new ScriptParameterParser();
+        Script script = null;
         String type = null;
         Map<String, Object> params = null;
         boolean reverse = false;
@@ -76,12 +80,13 @@ public class ScriptSortParser implements SortParser {
 
         XContentParser.Token token;
         String currentName = parser.currentName();
-        ScriptService.ScriptType scriptType = ScriptService.ScriptType.INLINE;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentName = parser.currentName();
             } else if (token == XContentParser.Token.START_OBJECT) {
-                if ("params".equals(currentName)) {
+                if (ScriptField.SCRIPT.match(currentName)) {
+                    script = Script.parse(parser);
+                } else if ("params".equals(currentName)) {
                     params = parser.map();
                 } else if ("nested_filter".equals(currentName) || "nestedFilter".equals(currentName)) {
                     if (nestedHelper == null) {
@@ -94,17 +99,8 @@ public class ScriptSortParser implements SortParser {
                     reverse = parser.booleanValue();
                 } else if ("order".equals(currentName)) {
                     reverse = "desc".equals(parser.text());
-                } else if (ScriptService.SCRIPT_INLINE.match(currentName)) {
-                    script = parser.text();
-                    scriptType = ScriptService.ScriptType.INLINE;
-                } else if (ScriptService.SCRIPT_ID.match(currentName)) {
-                    script = parser.text();
-                    scriptType = ScriptService.ScriptType.INDEXED;
-                } else if (ScriptService.SCRIPT_FILE.match(currentName)) {
-                    script = parser.text();
-                    scriptType = ScriptService.ScriptType.FILE;
-                } else if (ScriptService.SCRIPT_LANG.match(currentName)) {
-                    scriptLang = parser.text();
+                } else if (scriptParameterParser.token(currentName, token, parser)) {
+                    // Do Nothing (handled by ScriptParameterParser
                 } else if ("type".equals(currentName)) {
                     type = parser.text();
                 } else if ("mode".equals(currentName)) {
@@ -118,13 +114,25 @@ public class ScriptSortParser implements SortParser {
             }
         }
 
+        if (script == null) { // Didn't find anything using the new API so try using the old one instead
+            ScriptParameterValue scriptValue = scriptParameterParser.getDefaultScriptParameterValue();
+            if (scriptValue != null) {
+                if (params == null) {
+                    params = newHashMap();
+                }
+                script = new Script(scriptValue.script(), scriptValue.scriptType(), scriptParameterParser.lang(), params);
+            }
+        } else if (params != null) {
+            throw new SearchParseException(context, "script params must be specified inside script object", parser.getTokenLocation());
+        }
+
         if (script == null) {
             throw new SearchParseException(context, "_script sorting requires setting the script to sort by", parser.getTokenLocation());
         }
         if (type == null) {
             throw new SearchParseException(context, "_script sorting requires setting the type of the script", parser.getTokenLocation());
         }
-        final SearchScript searchScript = context.scriptService().search(context.lookup(), new Script(scriptLang, script, scriptType, params), ScriptContext.Standard.SEARCH);
+        final SearchScript searchScript = context.scriptService().search(context.lookup(), script, ScriptContext.Standard.SEARCH);
 
         if (STRING_SORT_TYPE.equals(type) && (sortMode == MultiValueMode.SUM || sortMode == MultiValueMode.AVG)) {
             throw new SearchParseException(context, "type [string] doesn't support mode [" + sortMode + "]", parser.getTokenLocation());

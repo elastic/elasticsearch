@@ -190,6 +190,24 @@ public class BlobStoreIndexShardSnapshot {
             return metadata.isSame(md);
         }
 
+        /**
+         * Checks if a file in a store is the same file
+         *
+         * @param fileInfo file in a store
+         * @return true if file in a store this this file have the same checksum and length
+         */
+        public boolean isSame(FileInfo fileInfo) {
+            if (numberOfParts != fileInfo.numberOfParts) return false;
+            if (partBytes != fileInfo.partBytes) return false;
+            if (!name.equals(fileInfo.name)) return false;
+            if (partSize != null) {
+                if (!partSize.equals(fileInfo.partSize)) return false;
+            } else {
+                if (fileInfo.partSize != null) return false;
+            }
+            return metadata.isSame(fileInfo.metadata);
+        }
+
         static final class Fields {
             static final XContentBuilderString NAME = new XContentBuilderString("name");
             static final XContentBuilderString PHYSICAL_NAME = new XContentBuilderString("physical_name");
@@ -346,7 +364,7 @@ public class BlobStoreIndexShardSnapshot {
      *
      * @return list of files
      */
-    public ImmutableList<FileInfo> indexFiles() {
+    public List<FileInfo> indexFiles() {
         return indexFiles;
     }
 
@@ -482,40 +500,6 @@ public class BlobStoreIndexShardSnapshot {
         }
         return new BlobStoreIndexShardSnapshot(snapshot, indexVersion, ImmutableList.<FileInfo>copyOf(indexFiles),
                 startTime, time, numberOfFiles, totalSize);
-    }
-
-    /**
-     * Returns true if this snapshot contains a file with a given original name
-     *
-     * @param physicalName original file name
-     * @return true if the file was found, false otherwise
-     */
-    public boolean containPhysicalIndexFile(String physicalName) {
-        return findPhysicalIndexFile(physicalName) != null;
-    }
-
-    public FileInfo findPhysicalIndexFile(String physicalName) {
-        for (FileInfo file : indexFiles) {
-            if (file.physicalName().equals(physicalName)) {
-                return file;
-            }
-        }
-        return null;
-    }
-
-    /**
-     * Returns true if this snapshot contains a file with a given name
-     *
-     * @param name file name
-     * @return true if file was found, false otherwise
-     */
-    public FileInfo findNameFile(String name) {
-        for (FileInfo file : indexFiles) {
-            if (file.name().equals(name)) {
-                return file;
-            }
-        }
-        return null;
     }
 
 }

@@ -137,6 +137,39 @@ public class OnDiskScriptTests extends ElasticsearchIntegrationTest {
             assertThat(e.toString(), containsString("scripts of type [file], operation [search] and lang [mustache] are disabled"));
         }
         try {
+            client().prepareUpdate("test", "scriptTest", "1")
+                    .setScript(new Script("script1", ScriptService.ScriptType.FILE, MustacheScriptEngineService.NAME, null)).get();
+            fail("update script should have been rejected");
+        } catch (Exception e) {
+            assertThat(e.getMessage(), containsString("failed to execute script"));
+            assertThat(e.getCause().toString(),
+                    containsString("scripts of type [file], operation [update] and lang [mustache] are disabled"));
+        }
+    }
+
+    /*
+     * TODO Remove in 2.0
+     */
+    @Test
+    public void testAllOpsDisabledOnDiskScriptsOldScriptAPI() {
+        //whether we even compile or cache the on disk scripts doesn't change the end result (the returned error)
+        client().prepareIndex("test", "scriptTest", "1").setSource("{\"theField\":\"foo\"}").get();
+        refresh();
+        String source = "{\"aggs\": {\"test\": { \"terms\" : { \"script_file\":\"script1\", \"lang\": \"mustache\" } } } }";
+        try {
+            client().prepareSearch("test").setSource(source).get();
+            fail("aggs script should have been rejected");
+        } catch (Exception e) {
+            assertThat(e.toString(), containsString("scripts of type [file], operation [aggs] and lang [mustache] are disabled"));
+        }
+        String query = "{ \"query\" : { \"match_all\": {}} , \"script_fields\" : { \"test1\" : { \"script_file\" : \"script1\", \"lang\":\"mustache\" }}, size:1}";
+        try {
+            client().prepareSearch().setSource(query).setIndices("test").setTypes("scriptTest").get();
+            fail("search script should have been rejected");
+        } catch (Exception e) {
+            assertThat(e.toString(), containsString("scripts of type [file], operation [search] and lang [mustache] are disabled"));
+        }
+        try {
             client().prepareUpdate("test", "scriptTest", "1").setScript("script1", ScriptService.ScriptType.FILE).setScriptLang(MustacheScriptEngineService.NAME).get();
             fail("update script should have been rejected");
         } catch(Exception e) {

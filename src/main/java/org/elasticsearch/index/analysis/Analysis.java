@@ -152,7 +152,7 @@ public class Analysis {
             .put("_turkish_", TurkishAnalyzer.getDefaultStopSet())
             .immutableMap();
 
-    public static CharArraySet parseWords(Environment env, Settings settings, String name, CharArraySet defaultWords, ImmutableMap<String, Set<?>> namedWords, boolean ignoreCase) {
+    public static CharArraySet parseWords(Environment env, Settings settings, String name, CharArraySet defaultWords, Map<String, Set<?>> namedWords, boolean ignoreCase) {
         String value = settings.get(name);
         if (value != null) {
             if ("_none_".equals(value)) {
@@ -184,7 +184,7 @@ public class Analysis {
         return parseWords(env, settings, "stopwords", defaultStopWords, namedStopWords, ignoreCase);
     }
 
-    private static CharArraySet resolveNamedWords(Collection<String> words, ImmutableMap<String, Set<?>> namedWords, boolean ignoreCase) {
+    private static CharArraySet resolveNamedWords(Collection<String> words, Map<String, Set<?>> namedWords, boolean ignoreCase) {
         if (namedWords == null) {
             return new CharArraySet(words, ignoreCase);
         }

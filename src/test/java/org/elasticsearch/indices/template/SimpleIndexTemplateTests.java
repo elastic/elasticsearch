@@ -20,6 +20,7 @@ package org.elasticsearch.indices.template;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
+
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -32,6 +33,7 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -42,6 +44,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
@@ -668,4 +671,5 @@ public class SimpleIndexTemplateTests extends ElasticsearchIntegrationTest {
         assertThat(response.getItems()[0].isFailed(), equalTo(true));
         assertThat(response.getItems()[0].getFailureMessage(), containsString("failed to parse filter for alias [alias4]"));
     }
+
 }

@@ -21,7 +21,7 @@ package org.elasticsearch.index.mapper.merge;
 
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.compress.CompressedString;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.analysis.FieldNameAnalyzer;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -130,11 +130,11 @@ public class TestMergeMapperTests extends ElasticsearchSingleNodeTest {
         DocumentMapper existing = parser.parse(mapping1);
         DocumentMapper changed = parser.parse(mapping2);
 
-        assertThat(((NamedAnalyzer) existing.mappers().getMapper("field").searchAnalyzer()).name(), equalTo("whitespace"));
+        assertThat(((NamedAnalyzer) existing.mappers().getMapper("field").fieldType().searchAnalyzer()).name(), equalTo("whitespace"));
         MergeResult mergeResult = existing.merge(changed.mapping(), false);
 
         assertThat(mergeResult.hasConflicts(), equalTo(false));
-        assertThat(((NamedAnalyzer) existing.mappers().getMapper("field").searchAnalyzer()).name(), equalTo("keyword"));
+        assertThat(((NamedAnalyzer) existing.mappers().getMapper("field").fieldType().searchAnalyzer()).name(), equalTo("keyword"));
     }
 
     @Test
@@ -150,17 +150,17 @@ public class TestMergeMapperTests extends ElasticsearchSingleNodeTest {
         DocumentMapper existing = parser.parse(mapping1);
         DocumentMapper changed = parser.parse(mapping2);
 
-        assertThat(((NamedAnalyzer) existing.mappers().getMapper("field").searchAnalyzer()).name(), equalTo("whitespace"));
+        assertThat(((NamedAnalyzer) existing.mappers().getMapper("field").fieldType().searchAnalyzer()).name(), equalTo("whitespace"));
         MergeResult mergeResult = existing.merge(changed.mapping(), false);
 
         assertThat(mergeResult.hasConflicts(), equalTo(false));
-        assertThat(((NamedAnalyzer) existing.mappers().getMapper("field").searchAnalyzer()).name(), equalTo("standard"));
+        assertThat(((NamedAnalyzer) existing.mappers().getMapper("field").fieldType().searchAnalyzer()).name(), equalTo("standard"));
         assertThat(((StringFieldMapper) (existing.mappers().getMapper("field"))).getIgnoreAbove(), equalTo(14));
     }
 
     public void testConcurrentMergeTest() throws Throwable {
         final MapperService mapperService = createIndex("test").mapperService();
-        mapperService.merge("test", new CompressedString("{\"test\":{}}"), true);
+        mapperService.merge("test", new CompressedXContent("{\"test\":{}}"), true);
         final DocumentMapper documentMapper = mapperService.documentMapper("test");
 
         DocumentFieldMappers dfm = documentMapper.mappers();
@@ -186,7 +186,7 @@ public class TestMergeMapperTests extends ElasticsearchSingleNodeTest {
                         Mapping update = doc.dynamicMappingsUpdate();
                         assert update != null;
                         lastIntroducedFieldName.set(fieldName);
-                        mapperService.merge("test", new CompressedString(update.toString()), false);
+                        mapperService.merge("test", new CompressedXContent(update.toString()), false);
                     }
                 } catch (Throwable t) {
                     error.set(t);

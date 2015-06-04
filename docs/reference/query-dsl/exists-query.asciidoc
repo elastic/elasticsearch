@@ -1,5 +1,5 @@
 [[query-dsl-exists-query]]
-== Exists Query
+=== Exists Query
 
 Returns documents that have at least one non-`null` value in the original field:
 
@@ -42,7 +42,7 @@ These documents would *not* match the above query:
 <3> The `user` field is missing completely.
 
 [float]
-==== `null_value` mapping
+===== `null_value` mapping
 
 If the field mapping includes the `null_value` setting (see <<mapping-core-types>>)
 then explicit `null` values are replaced with the specified `null_value`.  For

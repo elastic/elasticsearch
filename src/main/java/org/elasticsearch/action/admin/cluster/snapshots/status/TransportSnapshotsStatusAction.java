@@ -41,6 +41,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -81,7 +82,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
     protected void masterOperation(final SnapshotsStatusRequest request,
                                    final ClusterState state,
                                    final ActionListener<SnapshotsStatusResponse> listener) throws Exception {
-        ImmutableList<SnapshotMetaData.Entry> currentSnapshots = snapshotsService.currentSnapshots(request.repository(), request.snapshots());
+        List<SnapshotMetaData.Entry> currentSnapshots = snapshotsService.currentSnapshots(request.repository(), request.snapshots());
 
         if (currentSnapshots.isEmpty()) {
             listener.onResponse(buildResponse(request, currentSnapshots, null));
@@ -110,7 +111,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                         @Override
                         public void onResponse(TransportNodesSnapshotsStatus.NodesSnapshotStatus nodeSnapshotStatuses) {
                             try {
-                                ImmutableList<SnapshotMetaData.Entry> currentSnapshots =
+                                List<SnapshotMetaData.Entry> currentSnapshots =
                                         snapshotsService.currentSnapshots(request.repository(), request.snapshots());
                                 listener.onResponse(buildResponse(request, currentSnapshots, nodeSnapshotStatuses));
                             } catch (Throwable e) {
@@ -130,7 +131,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
 
     }
 
-    private SnapshotsStatusResponse buildResponse(SnapshotsStatusRequest request, ImmutableList<SnapshotMetaData.Entry> currentSnapshots,
+    private SnapshotsStatusResponse buildResponse(SnapshotsStatusRequest request, List<SnapshotMetaData.Entry> currentSnapshots,
                                                   TransportNodesSnapshotsStatus.NodesSnapshotStatus nodeSnapshotStatuses) throws IOException {
         // First process snapshot that are currently processed
         ImmutableList.Builder<SnapshotStatus> builder = ImmutableList.builder();

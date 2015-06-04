@@ -18,23 +18,27 @@
  */
 package org.elasticsearch.index.shard;
 
-import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.MutableShardRouting;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
+import org.elasticsearch.test.VersionUtils;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -43,8 +47,7 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.*;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
@@ -254,13 +257,14 @@ public class IndexShardTests extends ElasticsearchSingleNodeTest {
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         IndexService indexService = indicesService.indexServiceSafe("test");
         IndexShard indexShard = indexService.shard(0);
+        assertEquals(0, indexShard.getOperationsCount());
+        indexShard.incrementOperationCounter();
+        assertEquals(1, indexShard.getOperationsCount());
         indexShard.incrementOperationCounter();
         assertEquals(2, indexShard.getOperationsCount());
-        indexShard.incrementOperationCounter();
-        assertEquals(3, indexShard.getOperationsCount());
         indexShard.decrementOperationCounter();
         indexShard.decrementOperationCounter();
-        assertEquals(1, indexShard.getOperationsCount());
+        assertEquals(0, indexShard.getOperationsCount());
     }
 
     @Test
@@ -327,5 +331,49 @@ public class IndexShardTests extends ElasticsearchSingleNodeTest {
     private void setDurability(IndexShard shard, Translog.Durabilty durabilty) {
         client().admin().indices().prepareUpdateSettings(shard.shardId.getIndex()).setSettings(settingsBuilder().put(TranslogConfig.INDEX_TRANSLOG_DURABILITY, durabilty.name()).build()).get();
         assertEquals(durabilty, shard.getTranslogDurability());
+    }
+
+    public void testDeleteByQueryBWC() {
+        Version version = VersionUtils.randomVersion(random());
+        assertAcked(client().admin().indices().prepareCreate("test")
+                .setSettings(SETTING_NUMBER_OF_SHARDS, 1, SETTING_NUMBER_OF_REPLICAS, 0, IndexMetaData.SETTING_VERSION_CREATED, version.id));
+        ensureGreen("test");
+        client().prepareIndex("test", "person").setSource("{ \"user\" : \"kimchy\" }").get();
+
+        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        IndexService test = indicesService.indexService("test");
+        IndexShard shard = test.shard(0);
+        int numDocs = 1;
+        shard.state = IndexShardState.RECOVERING;
+        try {
+            shard.recoveryState().getTranslog().totalOperations(1);
+            shard.engine().config().getTranslogRecoveryPerformer().performRecoveryOperation(shard.engine(), new Translog.DeleteByQuery(new Engine.DeleteByQuery(null, new BytesArray("{\"term\" : { \"user\" : \"kimchy\" }}"), null, null, null, Engine.Operation.Origin.RECOVERY, 0, "person")), false);
+            assertTrue(version.onOrBefore(Version.V_1_0_0_Beta2));
+            numDocs = 0;
+        } catch (QueryParsingException ex) {
+            assertTrue(version.after(Version.V_1_0_0_Beta2));
+        } finally {
+            shard.state = IndexShardState.STARTED;
+        }
+        shard.engine().refresh("foo");
+
+        try (Engine.Searcher searcher = shard.engine().acquireSearcher("foo")) {
+            assertEquals(numDocs, searcher.reader().numDocs());
+        }
+    }
+
+    public void testMinimumCompatVersion() {
+        Version versionCreated = VersionUtils.randomVersion(random());
+        assertAcked(client().admin().indices().prepareCreate("test")
+                .setSettings(SETTING_NUMBER_OF_SHARDS, 1, SETTING_NUMBER_OF_REPLICAS, 0, SETTING_VERSION_CREATED, versionCreated.id));
+        client().prepareIndex("test", "test").setSource("{}").get();
+        ensureGreen("test");
+        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        IndexShard test = indicesService.indexService("test").shard(0);
+        assertEquals(versionCreated.luceneVersion, test.minimumCompatibleVersion());
+        client().prepareIndex("test", "test").setSource("{}").get();
+        assertEquals(versionCreated.luceneVersion, test.minimumCompatibleVersion());
+        test.engine().flush();
+        assertEquals(Version.CURRENT.luceneVersion, test.minimumCompatibleVersion());
     }
 }

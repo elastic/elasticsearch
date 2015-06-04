@@ -20,8 +20,10 @@
 package org.elasticsearch.cluster.metadata;
 
 import com.google.common.collect.Sets;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsClusterStateUpdateRequest;
+import org.elasticsearch.action.admin.indices.upgrade.post.UpgradeSettingsClusterStateUpdateRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
@@ -39,6 +41,8 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.settings.IndexDynamicSettings;
 
 import java.util.*;
+
+import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 
 /**
  * Service responsible for submitting update index settings requests
@@ -227,9 +231,15 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
                     }
                 }
 
+                if (closeIndices.size() > 0 && closeSettings.get(IndexMetaData.SETTING_NUMBER_OF_REPLICAS) != null) {
+                    throw new IllegalArgumentException(String.format(Locale.ROOT,
+                            "Can't update [%s] on closed indices [%s] - can leave index in an unopenable state", IndexMetaData.SETTING_NUMBER_OF_REPLICAS,
+                            closeIndices
+                    ));
+                }
                 if (!removedSettings.isEmpty() && !openIndices.isEmpty()) {
                     throw new IllegalArgumentException(String.format(Locale.ROOT,
-                            "Can't update non dynamic settings[%s] for open indices[%s]",
+                            "Can't update non dynamic settings[%s] for open indices [%s]",
                             removedSettings,
                             openIndices
                     ));
@@ -304,6 +314,39 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
                 updatedState = ClusterState.builder(updatedState).routingResult(routingResult).build();
 
                 return updatedState;
+            }
+        });
+    }
+
+    public void upgradeIndexSettings(final UpgradeSettingsClusterStateUpdateRequest request, final ActionListener<ClusterStateUpdateResponse> listener) {
+
+
+        clusterService.submitStateUpdateTask("update-index-compatibility-versions", Priority.URGENT, new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(request, listener) {
+
+            @Override
+            protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
+                return new ClusterStateUpdateResponse(acknowledged);
+            }
+
+            @Override
+            public ClusterState execute(ClusterState currentState) {
+                MetaData.Builder metaDataBuilder = MetaData.builder(currentState.metaData());
+                for (Map.Entry<String, String> entry : request.versions().entrySet()) {
+                    String index = entry.getKey();
+                    IndexMetaData indexMetaData = metaDataBuilder.get(index);
+                    if (indexMetaData != null) {
+                        if (Version.CURRENT.equals(indexMetaData.creationVersion()) == false) {
+                            // No reason to pollute the settings, we didn't really upgrade anything
+                            metaDataBuilder.put(IndexMetaData.builder(indexMetaData)
+                                            .settings(settingsBuilder().put(indexMetaData.settings())
+                                                            .put(IndexMetaData.SETTING_VERSION_MINIMUM_COMPATIBLE, entry.getValue())
+                                                            .put(IndexMetaData.SETTING_VERSION_UPGRADED, Version.CURRENT)
+                                            )
+                            );
+                        }
+                    }
+                }
+                return ClusterState.builder(currentState).metaData(metaDataBuilder).build();
             }
         });
     }

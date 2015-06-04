@@ -27,24 +27,31 @@ import com.google.common.base.Predicate;
 import com.google.common.collect.*;
 
 import org.apache.lucene.util.CollectionUtil;
-import org.elasticsearch.cluster.*;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.DiffableUtils.KeyedReader;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
+import org.elasticsearch.cluster.service.InternalClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.HppcMaps;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.loader.SettingsLoader;
 import org.elasticsearch.common.xcontent.*;
+import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.IndexMissingException;
+import org.elasticsearch.indices.recovery.RecoverySettings;
+import org.elasticsearch.indices.store.IndicesStore;
+import org.elasticsearch.indices.ttl.IndicesTTLService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.warmer.IndexWarmersMetaData;
 
@@ -55,9 +62,6 @@ import static com.google.common.collect.Lists.newArrayList;
 import static com.google.common.collect.Maps.newHashMap;
 import static org.elasticsearch.common.settings.Settings.*;
 
-/**
- *
- */
 public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData> {
 
     public static final MetaData PROTO = builder().build();
@@ -257,7 +261,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData> {
     }
 
     /**
-     * Returns the merges transient and persistent settings.
+     * Returns the merged transient and persistent settings.
      */
     public Settings settings() {
         return this.settings;
@@ -1286,6 +1290,80 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData> {
 
     public static Builder builder(MetaData metaData) {
         return new Builder(metaData);
+    }
+
+    /** All known byte-sized cluster settings. */
+    public static final Set<String> CLUSTER_BYTES_SIZE_SETTINGS = ImmutableSet.of(
+        IndicesStore.INDICES_STORE_THROTTLE_MAX_BYTES_PER_SEC,
+        RecoverySettings.INDICES_RECOVERY_FILE_CHUNK_SIZE,
+        RecoverySettings.INDICES_RECOVERY_TRANSLOG_SIZE,
+        RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC,
+        RecoverySettings.INDICES_RECOVERY_MAX_SIZE_PER_SEC);
+
+
+    /** All known time cluster settings. */
+    public static final Set<String> CLUSTER_TIME_SETTINGS = ImmutableSet.of(
+                                    IndicesTTLService.INDICES_TTL_INTERVAL,
+                                    RecoverySettings.INDICES_RECOVERY_RETRY_DELAY_STATE_SYNC,
+                                    RecoverySettings.INDICES_RECOVERY_RETRY_DELAY_NETWORK,
+                                    RecoverySettings.INDICES_RECOVERY_ACTIVITY_TIMEOUT,
+                                    RecoverySettings.INDICES_RECOVERY_INTERNAL_ACTION_TIMEOUT,
+                                    RecoverySettings.INDICES_RECOVERY_INTERNAL_LONG_ACTION_TIMEOUT,
+                                    DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL,
+                                    InternalClusterInfoService.INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL,
+                                    InternalClusterInfoService.INTERNAL_CLUSTER_INFO_TIMEOUT,
+                                    DiscoverySettings.PUBLISH_TIMEOUT,
+                                    InternalClusterService.SETTING_CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD);
+
+    /** As of 2.0 we require units for time and byte-sized settings.  This methods adds default units to any cluster settings that don't
+     *  specify a unit. */
+    public static MetaData addDefaultUnitsIfNeeded(ESLogger logger, MetaData metaData) {
+        Settings.Builder newPersistentSettings = null;
+        for(Map.Entry<String,String> ent : metaData.persistentSettings().getAsMap().entrySet()) {
+            String settingName = ent.getKey();
+            String settingValue = ent.getValue();
+            if (CLUSTER_BYTES_SIZE_SETTINGS.contains(settingName)) {
+                try {
+                    Long.parseLong(settingValue);
+                } catch (NumberFormatException nfe) {
+                    continue;
+                }
+                // It's a naked number that previously would be interpreted as default unit (bytes); now we add it:
+                logger.warn("byte-sized cluster setting [{}] with value [{}] is missing units; assuming default units (b) but in future versions this will be a hard error", settingName, settingValue);
+                if (newPersistentSettings == null) {
+                    newPersistentSettings = Settings.builder();
+                    newPersistentSettings.put(metaData.persistentSettings());
+                }
+                newPersistentSettings.put(settingName, settingValue + "b");
+            }
+            if (CLUSTER_TIME_SETTINGS.contains(settingName)) {
+                try {
+                    Long.parseLong(settingValue);
+                } catch (NumberFormatException nfe) {
+                    continue;
+                }
+                // It's a naked number that previously would be interpreted as default unit (ms); now we add it:
+                logger.warn("time cluster setting [{}] with value [{}] is missing units; assuming default units (ms) but in future versions this will be a hard error", settingName, settingValue);
+                if (newPersistentSettings == null) {
+                    newPersistentSettings = Settings.builder();
+                    newPersistentSettings.put(metaData.persistentSettings());
+                }
+                newPersistentSettings.put(settingName, settingValue + "ms");
+            }
+        }
+
+        if (newPersistentSettings != null) {
+            return new MetaData(metaData.uuid(),
+                                metaData.version(),
+                                metaData.transientSettings(),
+                                newPersistentSettings.build(),
+                                metaData.getIndices(),
+                                metaData.getTemplates(),
+                                metaData.getCustoms());
+        } else {
+            // No changes:
+            return metaData;
+        }
     }
 
     public static class Builder {

@@ -27,7 +27,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.compress.CompressedString;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.joda.Joda;
@@ -38,7 +38,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
-import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
@@ -113,8 +113,8 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
                 assertThat(docMapper.timestampFieldMapper().fieldType().stored(), equalTo(version.onOrAfter(Version.V_2_0_0) ? true : false));
                 assertThat(docMapper.timestampFieldMapper().fieldType().indexOptions(), equalTo(TimestampFieldMapper.Defaults.FIELD_TYPE.indexOptions()));
                 assertThat(docMapper.timestampFieldMapper().path(), equalTo(TimestampFieldMapper.Defaults.PATH));
-                assertThat(docMapper.timestampFieldMapper().dateTimeFormatter().format(), equalTo(TimestampFieldMapper.DEFAULT_DATE_TIME_FORMAT));
-                assertThat(docMapper.timestampFieldMapper().hasDocValues(), equalTo(false));
+                assertThat(docMapper.timestampFieldMapper().fieldType().dateTimeFormatter().format(), equalTo(TimestampFieldMapper.DEFAULT_DATE_TIME_FORMAT));
+                assertThat(docMapper.timestampFieldMapper().fieldType().hasDocValues(), equalTo(false));
                 assertAcked(client().admin().indices().prepareDelete("test").execute().get());
             }
         }
@@ -135,8 +135,8 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
         assertThat(docMapper.timestampFieldMapper().fieldType().stored(), equalTo(false));
         assertEquals(IndexOptions.NONE, docMapper.timestampFieldMapper().fieldType().indexOptions());
         assertThat(docMapper.timestampFieldMapper().path(), equalTo("timestamp"));
-        assertThat(docMapper.timestampFieldMapper().dateTimeFormatter().format(), equalTo("year"));
-        assertThat(docMapper.timestampFieldMapper().hasDocValues(), equalTo(true));
+        assertThat(docMapper.timestampFieldMapper().fieldType().dateTimeFormatter().format(), equalTo("year"));
+        assertThat(docMapper.timestampFieldMapper().fieldType().hasDocValues(), equalTo(true));
     }
 
     @Test
@@ -450,7 +450,7 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
         {
             MappingMetaData.Timestamp timestamp = new MappingMetaData.Timestamp(true, null,
                     TimestampFieldMapper.DEFAULT_DATE_TIME_FORMAT, null, null);
-            MappingMetaData expected = new MappingMetaData("type", new CompressedString("{}".getBytes(StandardCharsets.UTF_8)),
+            MappingMetaData expected = new MappingMetaData("type", new CompressedXContent("{}".getBytes(StandardCharsets.UTF_8)),
                     new MappingMetaData.Id(null), new MappingMetaData.Routing(false, null), timestamp, false);
 
             BytesStreamOutput out = new BytesStreamOutput();
@@ -467,7 +467,7 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
         {
             MappingMetaData.Timestamp timestamp = new MappingMetaData.Timestamp(true, null,
                     TimestampFieldMapper.DEFAULT_DATE_TIME_FORMAT, "now", null);
-            MappingMetaData expected = new MappingMetaData("type", new CompressedString("{}".getBytes(StandardCharsets.UTF_8)),
+            MappingMetaData expected = new MappingMetaData("type", new CompressedXContent("{}".getBytes(StandardCharsets.UTF_8)),
                     new MappingMetaData.Id(null), new MappingMetaData.Routing(false, null), timestamp, false);
 
             BytesStreamOutput out = new BytesStreamOutput();
@@ -484,7 +484,7 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
         {
             MappingMetaData.Timestamp timestamp = new MappingMetaData.Timestamp(true, null,
                     TimestampFieldMapper.DEFAULT_DATE_TIME_FORMAT, "now", false);
-            MappingMetaData expected = new MappingMetaData("type", new CompressedString("{}".getBytes(StandardCharsets.UTF_8)),
+            MappingMetaData expected = new MappingMetaData("type", new CompressedXContent("{}".getBytes(StandardCharsets.UTF_8)),
                     new MappingMetaData.Id(null), new MappingMetaData.Routing(false, null), timestamp, false);
 
             BytesStreamOutput out = new BytesStreamOutput();
@@ -507,16 +507,16 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
         DocumentMapperParser parser = createIndex("test", indexSettings).mapperService().documentMapperParser();
 
         DocumentMapper docMapper = parser.parse(mapping);
-        assertThat(docMapper.timestampFieldMapper().fieldDataType().getLoading(), equalTo(FieldMapper.Loading.LAZY));
-        assertThat(docMapper.timestampFieldMapper().fieldDataType().getFormat(indexSettings), equalTo("doc_values"));
+        assertThat(docMapper.timestampFieldMapper().fieldType().fieldDataType().getLoading(), equalTo(MappedFieldType.Loading.LAZY));
+        assertThat(docMapper.timestampFieldMapper().fieldType().fieldDataType().getFormat(indexSettings), equalTo("doc_values"));
         mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_timestamp").field("enabled", randomBoolean()).startObject("fielddata").field("loading", "eager").field("format", "array").endObject().field("store", "yes").endObject()
                 .endObject().endObject().string();
 
         MergeResult mergeResult = docMapper.merge(parser.parse(mapping).mapping(), false);
         assertThat(mergeResult.buildConflicts().length, equalTo(0));
-        assertThat(docMapper.timestampFieldMapper().fieldDataType().getLoading(), equalTo(FieldMapper.Loading.EAGER));
-        assertThat(docMapper.timestampFieldMapper().fieldDataType().getFormat(indexSettings), equalTo("array"));
+        assertThat(docMapper.timestampFieldMapper().fieldType().fieldDataType().getLoading(), equalTo(MappedFieldType.Loading.EAGER));
+        assertThat(docMapper.timestampFieldMapper().fieldType().fieldDataType().getFormat(indexSettings), equalTo("array"));
     }
 
     @Test
@@ -574,7 +574,7 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
         DocumentMapperParser parser = createIndex("test", indexSettings).mapperService().documentMapperParser();
 
         DocumentMapper docMapper = parser.parse(mapping);
-        assertThat(docMapper.timestampFieldMapper().fieldDataType().getLoading(), equalTo(FieldMapper.Loading.LAZY));
+        assertThat(docMapper.timestampFieldMapper().fieldType().fieldDataType().getLoading(), equalTo(MappedFieldType.Loading.LAZY));
         mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_timestamp").field("enabled", false)
                 .startObject("fielddata").field("format", "array").endObject()
@@ -597,9 +597,9 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
             assertTrue("found unexpected conflict [" + conflict + "]", expectedConflicts.remove(conflict));
         }
         assertTrue("missing conflicts: " + Arrays.toString(expectedConflicts.toArray()), expectedConflicts.isEmpty());
-        assertThat(docMapper.timestampFieldMapper().fieldDataType().getLoading(), equalTo(FieldMapper.Loading.LAZY));
+        assertThat(docMapper.timestampFieldMapper().fieldType().fieldDataType().getLoading(), equalTo(MappedFieldType.Loading.LAZY));
         assertTrue(docMapper.timestampFieldMapper().enabled());
-        assertThat(docMapper.timestampFieldMapper().fieldDataType().getFormat(indexSettings), equalTo("doc_values"));
+        assertThat(docMapper.timestampFieldMapper().fieldType().fieldDataType().getFormat(indexSettings), equalTo("doc_values"));
     }
 
     @Test
@@ -652,7 +652,7 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
                     .endObject()
                 .endObject().endObject().string();
         // This was causing a NPE
-        new MappingMetaData(new CompressedString(mapping));
+        new MappingMetaData(new CompressedXContent(mapping));
     }
 
     @Test
@@ -739,9 +739,9 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
     void assertDocValuesSerialization(String mapping) throws Exception {
         DocumentMapperParser parser = createIndex("test_doc_values").mapperService().documentMapperParser();
         DocumentMapper docMapper = parser.parse(mapping);
-        boolean docValues= docMapper.timestampFieldMapper().hasDocValues();
+        boolean docValues = docMapper.timestampFieldMapper().fieldType().hasDocValues();
         docMapper = parser.parse(docMapper.mappingSource().string());
-        assertThat(docMapper.timestampFieldMapper().hasDocValues(), equalTo(docValues));
+        assertThat(docMapper.timestampFieldMapper().fieldType().hasDocValues(), equalTo(docValues));
         assertAcked(client().admin().indices().prepareDelete("test_doc_values"));
     }
 
@@ -774,5 +774,19 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
         // _timestamp in a document never worked, so backcompat is ignoring the field
         assertEquals(MappingMetaData.Timestamp.parseStringTimestamp("1970", Joda.forPattern("YYYY")), request.timestamp());
         assertNull(docMapper.parse("type", "1", doc.bytes()).rootDoc().get("_timestamp"));
+    }
+
+    public void testThatEpochCanBeIgnoredWithCustomFormat() throws Exception {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+            .startObject("_timestamp").field("enabled", true).field("format", "yyyyMMddHH").field("path", "custom_timestamp").endObject()
+            .endObject().endObject().string();
+        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+
+        XContentBuilder doc = XContentFactory.jsonBuilder().startObject().field("custom_timestamp", 2015060210).endObject();
+        IndexRequest request = new IndexRequest("test", "type", "1").source(doc);
+        MappingMetaData mappingMetaData = new MappingMetaData(docMapper);
+        request.process(MetaData.builder().build(), mappingMetaData, true, "test");
+
+        assertThat(request.timestamp(), is("1433239200000"));
     }
 }

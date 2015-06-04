@@ -33,7 +33,6 @@ import org.elasticsearch.cluster.routing.allocation.StartedRerouteAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision.Type;
-import org.elasticsearch.common.collect.IdentityHashSet;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
@@ -597,7 +596,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
             int secondaryLength = 0;
             int primaryLength = primary.length;
             ArrayUtil.timSort(primary, comparator);
-            final Set<ModelNode> throttledNodes = new IdentityHashSet<>();
+            final Set<ModelNode> throttledNodes = Collections.newSetFromMap(new IdentityHashMap<ModelNode, Boolean>());
             do {
                 for (int i = 0; i < primaryLength; i++) {
                     MutableShardRouting shard = primary[i];

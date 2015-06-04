@@ -33,10 +33,17 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.query.*;
+import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.CommonTermsQueryBuilder.Operator;
+import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder.Type;
+import org.elasticsearch.index.query.MultiMatchQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.QueryStringQueryBuilder;
+import org.elasticsearch.index.query.TermQueryBuilder;
+import org.elasticsearch.index.query.WrapperQueryBuilder;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -55,11 +62,58 @@ import java.util.concurrent.ExecutionException;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.QueryBuilders.*;
+import static org.elasticsearch.index.query.QueryBuilders.andQuery;
+import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
+import static org.elasticsearch.index.query.QueryBuilders.commonTermsQuery;
+import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
+import static org.elasticsearch.index.query.QueryBuilders.existsQuery;
+import static org.elasticsearch.index.query.QueryBuilders.filteredQuery;
+import static org.elasticsearch.index.query.QueryBuilders.functionScoreQuery;
+import static org.elasticsearch.index.query.QueryBuilders.fuzzyQuery;
+import static org.elasticsearch.index.query.QueryBuilders.hasChildQuery;
+import static org.elasticsearch.index.query.QueryBuilders.idsQuery;
+import static org.elasticsearch.index.query.QueryBuilders.indicesQuery;
+import static org.elasticsearch.index.query.QueryBuilders.limitQuery;
+import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
+import static org.elasticsearch.index.query.QueryBuilders.missingQuery;
+import static org.elasticsearch.index.query.QueryBuilders.multiMatchQuery;
+import static org.elasticsearch.index.query.QueryBuilders.notQuery;
+import static org.elasticsearch.index.query.QueryBuilders.prefixQuery;
+import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
+import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
+import static org.elasticsearch.index.query.QueryBuilders.regexpQuery;
+import static org.elasticsearch.index.query.QueryBuilders.spanMultiTermQueryBuilder;
+import static org.elasticsearch.index.query.QueryBuilders.spanNearQuery;
+import static org.elasticsearch.index.query.QueryBuilders.spanNotQuery;
+import static org.elasticsearch.index.query.QueryBuilders.spanOrQuery;
+import static org.elasticsearch.index.query.QueryBuilders.spanTermQuery;
+import static org.elasticsearch.index.query.QueryBuilders.termQuery;
+import static org.elasticsearch.index.query.QueryBuilders.termsLookupQuery;
+import static org.elasticsearch.index.query.QueryBuilders.termsQuery;
+import static org.elasticsearch.index.query.QueryBuilders.typeQuery;
+import static org.elasticsearch.index.query.QueryBuilders.wildcardQuery;
+import static org.elasticsearch.index.query.QueryBuilders.wrapperQuery;
 import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.scriptFunction;
 import static org.elasticsearch.test.VersionUtils.randomVersion;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
-import static org.hamcrest.Matchers.*;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFirstHit;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHit;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSecondHit;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThirdHit;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasId;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasScore;
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.is;
 
 @Slow
 public class SearchQueryTests extends ElasticsearchIntegrationTest {
@@ -1620,7 +1674,7 @@ public class SearchQueryTests extends ElasticsearchIntegrationTest {
                 .startObject("ts")
                 .field("type", "date")
                 .field("ignore_malformed", false)
-                .field("format", "dateOptionalTime")
+                .field("format", "epoch_millis")
                 .endObject()
                 .startObject("bs")
                 .field("type", "string")
@@ -1629,7 +1683,7 @@ public class SearchQueryTests extends ElasticsearchIntegrationTest {
                 .endObject()
                 .endObject()
                 .endObject())
-            .addMapping("bs", "online", "type=boolean", "ts", "type=date,ignore_malformed=false,format=dateOptionalTime"));
+            .addMapping("bs", "online", "type=boolean", "ts", "type=date,ignore_malformed=false,format=epoch_millis"));
         ensureGreen();
 
         client().prepareIndex("test", "s", "1").setRouting("Y").setSource("online", false, "bs", "Y", "ts", System.currentTimeMillis() - 100).get();
@@ -2105,7 +2159,7 @@ public class SearchQueryTests extends ElasticsearchIntegrationTest {
                 client().prepareIndex("test", "test", "4").setSource("score", 0.5));
 
         SearchResponse searchResponse = client().prepareSearch("test").setQuery(
-                functionScoreQuery(scriptFunction("_doc['score'].value"))).setMinScore(1.5f).get();
+functionScoreQuery(scriptFunction(new Script("_doc['score'].value")))).setMinScore(1.5f).get();
         assertHitCount(searchResponse, 2);
         assertFirstHit(searchResponse, hasId("3"));
         assertSecondHit(searchResponse, hasId("1"));
@@ -2141,6 +2195,7 @@ public class SearchQueryTests extends ElasticsearchIntegrationTest {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/11478")
     @Test
     public void testDateProvidedAsNumber() throws ExecutionException, InterruptedException {
         createIndex("test");

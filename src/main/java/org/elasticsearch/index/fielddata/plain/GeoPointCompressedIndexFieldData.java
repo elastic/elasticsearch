@@ -36,6 +36,7 @@ import org.elasticsearch.index.fielddata.*;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.index.fielddata.ordinals.OrdinalsBuilder;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
 import org.elasticsearch.index.settings.IndexSettings;
@@ -54,7 +55,7 @@ public class GeoPointCompressedIndexFieldData extends AbstractIndexGeoPointField
         @Override
         public IndexFieldData<?> build(Index index, @IndexSettings Settings indexSettings, FieldMapper mapper, IndexFieldDataCache cache,
                                        CircuitBreakerService breakerService, MapperService mapperService) {
-            FieldDataType type = mapper.fieldDataType();
+            FieldDataType type = mapper.fieldType().fieldDataType();
             final String precisionAsString = type.getSettings().get(PRECISION_KEY);
             final Distance precision;
             if (precisionAsString != null) {
@@ -62,13 +63,13 @@ public class GeoPointCompressedIndexFieldData extends AbstractIndexGeoPointField
             } else {
                 precision = DEFAULT_PRECISION_VALUE;
             }
-            return new GeoPointCompressedIndexFieldData(index, indexSettings, mapper.names(), mapper.fieldDataType(), cache, precision, breakerService);
+            return new GeoPointCompressedIndexFieldData(index, indexSettings, mapper.fieldType().names(), mapper.fieldType().fieldDataType(), cache, precision, breakerService);
         }
     }
 
     private final GeoPointFieldMapper.Encoding encoding;
 
-    public GeoPointCompressedIndexFieldData(Index index, @IndexSettings Settings indexSettings, FieldMapper.Names fieldNames,
+    public GeoPointCompressedIndexFieldData(Index index, @IndexSettings Settings indexSettings, MappedFieldType.Names fieldNames,
                                             FieldDataType fieldDataType, IndexFieldDataCache cache, Distance precision,
                                             CircuitBreakerService breakerService) {
         super(index, indexSettings, fieldNames, fieldDataType, cache);

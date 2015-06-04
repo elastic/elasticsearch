@@ -44,12 +44,14 @@ public interface Validator {
     public static final Validator TIME = new Validator() {
         @Override
         public String validate(String setting, String value) {
+            if (value == null) {
+                throw new NullPointerException("value must not be null");
+            }
             try {
-                if (TimeValue.parseTimeValue(value, null) == null) {
-                    return "cannot parse value [" + value + "] as time";
-                }
+                // This never returns null:
+                TimeValue.parseTimeValue(value, null, setting);
             } catch (ElasticsearchParseException ex) {
-                return "cannot parse value [" + value + "] as time";
+                return ex.getMessage();
             }
             return null;
         }
@@ -59,15 +61,16 @@ public interface Validator {
         @Override
         public String validate(String setting, String value) {
             try {
-                TimeValue timeValue = TimeValue.parseTimeValue(value, null);
-                if (timeValue == null) {
-                    return "cannot parse value [" + value + "] as time";
+                if (value == null) {
+                    throw new NullPointerException("value must not be null");
                 }
+                TimeValue timeValue = TimeValue.parseTimeValue(value, null, setting);
+                assert timeValue != null;
                 if (timeValue.millis() < 0) {
                     return "cannot parse value [" + value + "] as non negative time";
                 }
             } catch (ElasticsearchParseException ex) {
-                return "cannot parse value [" + value + "] as time";
+                return ex.getMessage();
             }
             return null;
         }
@@ -197,7 +200,7 @@ public interface Validator {
         @Override
         public String validate(String setting, String value) {
             try {
-                parseBytesSizeValue(value);
+                parseBytesSizeValue(value, setting);
             } catch (ElasticsearchParseException ex) {
                 return ex.getMessage();
             }
@@ -247,7 +250,7 @@ public interface Validator {
         @Override
         public String validate(String setting, String value) {
             try {
-                parseBytesSizeValueOrHeapRatio(value);
+                parseBytesSizeValueOrHeapRatio(value, setting);
             } catch (ElasticsearchParseException ex) {
                 return ex.getMessage();
             }

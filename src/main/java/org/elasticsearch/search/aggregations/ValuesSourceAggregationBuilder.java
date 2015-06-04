@@ -20,7 +20,10 @@
 package org.elasticsearch.search.aggregations;
 
 import com.google.common.collect.Maps;
+
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptService.ScriptType;
 
 import java.io.IOException;
 import java.util.Map;
@@ -30,9 +33,13 @@ import java.util.Map;
  */
 public abstract class ValuesSourceAggregationBuilder<B extends ValuesSourceAggregationBuilder<B>> extends AggregationBuilder<B> {
 
+    private Script script;
     private String field;
-    private String script;
+    @Deprecated
+    private String scriptString;
+    @Deprecated
     private String lang;
+    @Deprecated
     private Map<String, Object> params;
     private Object missing;
 
@@ -68,8 +75,30 @@ public abstract class ValuesSourceAggregationBuilder<B extends ValuesSourceAggre
      * @return          This builder (fluent interface support)
      */
     @SuppressWarnings("unchecked")
-    public B script(String script) {
+    public B script(Script script) {
         this.script = script;
+        return (B) this;
+    }
+
+    /**
+     * Sets the script which generates the values. If the script is configured
+     * along with the field (as in {@link #field(String)}), then this script
+     * will be treated as a {@code value script}. A <i>value script</i> will be
+     * applied on the values that are extracted from the field data (you can
+     * refer to that value in the script using the {@code _value} reserved
+     * variable). If only the script is configured (and the no field is
+     * configured next to it), then the script will be responsible to generate
+     * the values that will be aggregated.
+     *
+     * @param script
+     *            The configured script.
+     * @return This builder (fluent interface support)
+     * @deprecated Use {@link #script(Script)} instead.
+     */
+    @Deprecated
+    @SuppressWarnings("unchecked")
+    public B script(String script) {
+        this.scriptString = script;
         return (B) this;
     }
 
@@ -78,9 +107,12 @@ public abstract class ValuesSourceAggregationBuilder<B extends ValuesSourceAggre
      * <p/>
      * Also see {@link #script(String)}.
      *
-     * @param lang    The language of the script.
-     * @return        This builder (fluent interface support)
+     * @param lang
+     *            The language of the script.
+     * @return This builder (fluent interface support)
+     * @deprecated Use {@link #script(Script)} instead.
      */
+    @Deprecated
     @SuppressWarnings("unchecked")
     public B lang(String lang) {
         this.lang = lang;
@@ -88,12 +120,17 @@ public abstract class ValuesSourceAggregationBuilder<B extends ValuesSourceAggre
     }
 
     /**
-     * Sets the value of a parameter that is used in the script (if one is configured).
+     * Sets the value of a parameter that is used in the script (if one is
+     * configured).
      *
-     * @param name      The name of the parameter.
-     * @param value     The value of the parameter.
-     * @return          This builder (fluent interface support)
+     * @param name
+     *            The name of the parameter.
+     * @param value
+     *            The value of the parameter.
+     * @return This builder (fluent interface support)
+     * @deprecated Use {@link #script(Script)} instead.
      */
+    @Deprecated
     @SuppressWarnings("unchecked")
     public B param(String name, Object value) {
         if (params == null) {
@@ -104,11 +141,15 @@ public abstract class ValuesSourceAggregationBuilder<B extends ValuesSourceAggre
     }
 
     /**
-     * Sets the values of a parameters that are used in the script (if one is configured).
+     * Sets the values of a parameters that are used in the script (if one is
+     * configured).
      *
-     * @param params    The the parameters.
-     * @return          This builder (fluent interface support)
+     * @param params
+     *            The the parameters.
+     * @return This builder (fluent interface support)
+     * @deprecated Use {@link #script(Script)} instead.
      */
+    @Deprecated
     @SuppressWarnings("unchecked")
     public B params(Map<String, Object> params) {
         if (this.params == null) {
@@ -127,25 +168,24 @@ public abstract class ValuesSourceAggregationBuilder<B extends ValuesSourceAggre
     }
 
     @Override
-    protected final XContentBuilder internalXContent(XContentBuilder builder, Params params) throws IOException {
+    protected final XContentBuilder internalXContent(XContentBuilder builder, Params builderParams) throws IOException {
         builder.startObject();
         if (field != null) {
             builder.field("field", field);
         }
-        if (script != null) {
+
+        if (script == null) {
+            if (scriptString != null) {
+                builder.field("script", new Script(scriptString, ScriptType.INLINE, lang, params));
+            }
+        } else {
             builder.field("script", script);
-        }
-        if (lang != null) {
-            builder.field("lang", lang);
-        }
-        if (this.params != null) {
-            builder.field("params").map(this.params);
         }
         if (missing != null) {
             builder.field("missing", missing);
         }
 
-        doInternalXContent(builder, params);
+        doInternalXContent(builder, builderParams);
         return builder.endObject();
     }
 

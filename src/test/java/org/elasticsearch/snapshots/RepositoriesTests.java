@@ -31,6 +31,7 @@ import org.elasticsearch.cluster.metadata.RepositoriesMetaData;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.RepositoryVerificationException;
 import org.elasticsearch.snapshots.mockstore.MockRepositoryModule;
@@ -38,6 +39,7 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
 import java.nio.file.Path;
+import java.util.List;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
@@ -115,7 +117,7 @@ public class RepositoriesTests extends AbstractSnapshotTests {
         assertThat(repositoriesResponse.repositories().size(), equalTo(0));
     }
 
-    private RepositoryMetaData findRepository(ImmutableList<RepositoryMetaData> repositories, String name) {
+    private RepositoryMetaData findRepository(List<RepositoryMetaData> repositories, String name) {
         for (RepositoryMetaData repository : repositories) {
             if (repository.name().equals(name)) {
                 return repository;
@@ -155,7 +157,7 @@ public class RepositoriesTests extends AbstractSnapshotTests {
                 .setType("fs").setSettings(Settings.settingsBuilder()
                                 .put("location", randomRepoPath())
                                 .put("compress", randomBoolean())
-                                .put("chunk_size", randomIntBetween(5, 100))
+                                .put("chunk_size", randomIntBetween(5, 100), ByteSizeUnit.BYTES)
                 )
                 .setTimeout("0s").get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(false));
@@ -165,7 +167,7 @@ public class RepositoriesTests extends AbstractSnapshotTests {
                 .setType("fs").setSettings(Settings.settingsBuilder()
                                 .put("location", randomRepoPath())
                                 .put("compress", randomBoolean())
-                                .put("chunk_size", randomIntBetween(5, 100))
+                                .put("chunk_size", randomIntBetween(5, 100), ByteSizeUnit.BYTES)
                 ).get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
 

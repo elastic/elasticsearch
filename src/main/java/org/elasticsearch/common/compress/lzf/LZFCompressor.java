@@ -21,29 +21,26 @@ package org.elasticsearch.common.compress.lzf;
 
 import com.ning.compress.lzf.ChunkDecoder;
 import com.ning.compress.lzf.LZFChunk;
-import com.ning.compress.lzf.LZFEncoder;
 import com.ning.compress.lzf.util.ChunkDecoderFactory;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedIndexInput;
-import org.elasticsearch.common.compress.CompressedStreamInput;
-import org.elasticsearch.common.compress.CompressedStreamOutput;
 import org.elasticsearch.common.compress.Compressor;
+import org.elasticsearch.common.compress.deflate.DeflateCompressor;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.settings.Settings;
 import org.jboss.netty.buffer.ChannelBuffer;
 
 import java.io.IOException;
 
 /**
+ * @deprecated Use {@link DeflateCompressor} instead
  */
+@Deprecated
 public class LZFCompressor implements Compressor {
 
     static final byte[] LUCENE_HEADER = {'L', 'Z', 'F', 0};
-
-    public static final String TYPE = "lzf";
 
     private ChunkDecoder decoder;
 
@@ -54,27 +51,11 @@ public class LZFCompressor implements Compressor {
     }
 
     @Override
-    public String type() {
-        return TYPE;
-    }
-
-    @Override
-    public void configure(Settings settings) {}
-
-    @Override
     public boolean isCompressed(BytesReference bytes) {
         return bytes.length() >= 3 &&
                 bytes.get(0) == LZFChunk.BYTE_Z &&
                 bytes.get(1) == LZFChunk.BYTE_V &&
                 (bytes.get(2) == LZFChunk.BLOCK_TYPE_COMPRESSED || bytes.get(2) == LZFChunk.BLOCK_TYPE_NON_COMPRESSED);
-    }
-
-    @Override
-    public boolean isCompressed(byte[] data, int offset, int length) {
-        return length >= 3 &&
-                data[offset] == LZFChunk.BYTE_Z &&
-                data[offset + 1] == LZFChunk.BYTE_V &&
-                (data[offset + 2] == LZFChunk.BLOCK_TYPE_COMPRESSED || data[offset + 2] == LZFChunk.BLOCK_TYPE_NON_COMPRESSED);
     }
 
     @Override
@@ -104,23 +85,13 @@ public class LZFCompressor implements Compressor {
     }
 
     @Override
-    public byte[] uncompress(byte[] data, int offset, int length) throws IOException {
-        return decoder.decode(data, offset, length);
-    }
-
-    @Override
-    public byte[] compress(byte[] data, int offset, int length) throws IOException {
-        return LZFEncoder.safeEncode(data, offset, length);
-    }
-
-    @Override
-    public CompressedStreamInput streamInput(StreamInput in) throws IOException {
+    public StreamInput streamInput(StreamInput in) throws IOException {
         return new LZFCompressedStreamInput(in, decoder);
     }
 
     @Override
-    public CompressedStreamOutput streamOutput(StreamOutput out) throws IOException {
-        return new LZFCompressedStreamOutput(out);
+    public StreamOutput streamOutput(StreamOutput out) throws IOException {
+        throw new UnsupportedOperationException("LZF is only here for back compat, no write support");
     }
 
     @Override

@@ -441,7 +441,27 @@ Generating the terms using a script:
 }
 --------------------------------------------------
 
-TIP: The `script` parameter expects an inline script. Use `script_id` for indexed scripts and `script_file` for scripts in the `config/scripts/` directory.
+This will interpret the `script` parameter as an `inline` script with the default script language and no script parameters. To use a file script use the following syntax:
+
+[source,js]
+--------------------------------------------------
+{
+    "aggs" : {
+        "genders" : {
+            "terms" : {
+                "script" : {
+                    "file": "my_script",
+                    "params": {
+                        "field": "gender"
+                    }
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+TIP: for indexed scripts replace the `file` parameter with an `id` parameter.
 
 
 ==== Value Script

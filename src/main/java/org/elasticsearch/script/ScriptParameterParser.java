@@ -19,10 +19,10 @@
 
 package org.elasticsearch.script;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.script.Script.ScriptParseException;
 import org.elasticsearch.script.ScriptService.ScriptType;
 
 import java.io.IOException;
@@ -113,7 +113,7 @@ public class ScriptParameterParser {
                        itr.remove();
                    }
                 } else {
-                   throw new ScriptParameterParseException("Value must be of type String: [" + parameterName + "]");
+                    throw new ScriptParseException("Value must be of type String: [" + parameterName + "]");
                }
             } else {
                 for (ParseField parameter : inlineParameters) {
@@ -123,7 +123,7 @@ public class ScriptParameterParser {
                         if (parameterValue instanceof String) {
                             stringValue = (String) parameterValue;
                         } else {
-                            throw new ScriptParameterParseException("Value must be of type String: [" + parameterName + "]");
+                            throw new ScriptParseException("Value must be of type String: [" + parameterName + "]");
                         }
                         putParameterValue(coreParameterName, stringValue, ScriptType.INLINE);
                         if (removeMatchedEntries) {
@@ -138,7 +138,7 @@ public class ScriptParameterParser {
                         if (parameterValue instanceof String) {
                             stringValue = (String) parameterValue;
                         } else {
-                            throw new ScriptParameterParseException("Value must be of type String: [" + parameterName + "]");
+                            throw new ScriptParseException("Value must be of type String: [" + parameterName + "]");
                         }
                         putParameterValue(coreParameterName, stringValue, ScriptType.FILE);
                         if (removeMatchedEntries) {
@@ -153,7 +153,7 @@ public class ScriptParameterParser {
                         if (parameterValue instanceof String) {
                             stringValue = (String) parameterValue;
                         } else {
-                            throw new ScriptParameterParseException("Value must be of type String: [" + parameterName + "]");
+                            throw new ScriptParseException("Value must be of type String: [" + parameterName + "]");
                         }
                         putParameterValue(coreParameterName, stringValue, ScriptType.INDEXED);
                         if (removeMatchedEntries) {
@@ -169,7 +169,7 @@ public class ScriptParameterParser {
         if (parameterValues.get(coreParameterName) == null) {
             parameterValues.put(coreParameterName, new ScriptParameterValue(script, scriptType));
         } else {
-            throw new ScriptParameterParseException("Only one of [" + coreParameterName + ", " + coreParameterName
+            throw new ScriptParseException("Only one of [" + coreParameterName + ", " + coreParameterName
                     + FILE_SUFFIX + ", " + coreParameterName + INDEXED_SUFFIX + "] is allowed.");
         }
     }
@@ -229,13 +229,6 @@ public class ScriptParameterParser {
 
         public ScriptType scriptType() {
             return scriptType;
-        }
-    }
-
-    public static class ScriptParameterParseException extends ElasticsearchException {
-
-        public ScriptParameterParseException(String msg) {
-            super(msg);
         }
     }
 }

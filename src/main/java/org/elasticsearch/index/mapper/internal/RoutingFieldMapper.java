@@ -21,7 +21,6 @@ package org.elasticsearch.index.mapper.internal;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
@@ -30,6 +29,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.fielddata.FieldDataType;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MergeMappingException;
@@ -58,13 +58,16 @@ public class RoutingFieldMapper extends AbstractFieldMapper implements RootMappe
     public static class Defaults extends AbstractFieldMapper.Defaults {
         public static final String NAME = "_routing";
 
-        public static final FieldType FIELD_TYPE = new FieldType(AbstractFieldMapper.Defaults.FIELD_TYPE);
+        public static final MappedFieldType FIELD_TYPE = new RoutingFieldType();
 
         static {
             FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
             FIELD_TYPE.setTokenized(false);
             FIELD_TYPE.setStored(true);
             FIELD_TYPE.setOmitNorms(true);
+            FIELD_TYPE.setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
+            FIELD_TYPE.setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
+            FIELD_TYPE.setNames(new MappedFieldType.Names(NAME));
             FIELD_TYPE.freeze();
         }
 
@@ -79,7 +82,7 @@ public class RoutingFieldMapper extends AbstractFieldMapper implements RootMappe
         private String path = Defaults.PATH;
 
         public Builder() {
-            super(Defaults.NAME, new FieldType(Defaults.FIELD_TYPE));
+            super(Defaults.NAME, Defaults.FIELD_TYPE);
         }
 
         public Builder required(boolean required) {
@@ -121,6 +124,29 @@ public class RoutingFieldMapper extends AbstractFieldMapper implements RootMappe
         }
     }
 
+    static final class RoutingFieldType extends MappedFieldType {
+
+        public RoutingFieldType() {
+            super(AbstractFieldMapper.Defaults.FIELD_TYPE);
+        }
+
+        protected RoutingFieldType(RoutingFieldType ref) {
+            super(ref);
+        }
+
+        @Override
+        public MappedFieldType clone() {
+            return new RoutingFieldType(this);
+        }
+
+        @Override
+        public String value(Object value) {
+            if (value == null) {
+                return null;
+            }
+            return value.toString();
+        }
+    }
 
     private boolean required;
     private final String path;
@@ -129,15 +155,14 @@ public class RoutingFieldMapper extends AbstractFieldMapper implements RootMappe
         this(Defaults.FIELD_TYPE, Defaults.REQUIRED, Defaults.PATH, null, indexSettings);
     }
 
-    protected RoutingFieldMapper(FieldType fieldType, boolean required, String path, @Nullable Settings fieldDataSettings, Settings indexSettings) {
-        super(new Names(Defaults.NAME, Defaults.NAME, Defaults.NAME, Defaults.NAME), 1.0f, fieldType, false, Lucene.KEYWORD_ANALYZER,
-                Lucene.KEYWORD_ANALYZER, null, null, fieldDataSettings, indexSettings);
+    protected RoutingFieldMapper(MappedFieldType fieldType, boolean required, String path, @Nullable Settings fieldDataSettings, Settings indexSettings) {
+        super(fieldType, false, fieldDataSettings, indexSettings);
         this.required = required;
         this.path = path;
     }
 
     @Override
-    public FieldType defaultFieldType() {
+    public MappedFieldType defaultFieldType() {
         return Defaults.FIELD_TYPE;
     }
 
@@ -159,16 +184,8 @@ public class RoutingFieldMapper extends AbstractFieldMapper implements RootMappe
     }
 
     public String value(Document document) {
-        Field field = (Field) document.getField(names.indexName());
-        return field == null ? null : value(field);
-    }
-
-    @Override
-    public String value(Object value) {
-        if (value == null) {
-            return null;
-        }
-        return value.toString();
+        Field field = (Field) document.getField(fieldType.names().indexName());
+        return field == null ? null : (String)value(field);
     }
 
     @Override
@@ -194,10 +211,10 @@ public class RoutingFieldMapper extends AbstractFieldMapper implements RootMappe
             String routing = context.sourceToParse().routing();
             if (routing != null) {
                 if (fieldType.indexOptions() == IndexOptions.NONE && !fieldType.stored()) {
-                    context.ignoredValue(names.indexName(), routing);
+                    context.ignoredValue(fieldType.names().indexName(), routing);
                     return;
                 }
-                fields.add(new Field(names.indexName(), routing, fieldType));
+                fields.add(new Field(fieldType.names().indexName(), routing, fieldType));
             }
         }
     }

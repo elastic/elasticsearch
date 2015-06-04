@@ -106,6 +106,8 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
             .addAll(UNMODIFIABLE_SETTINGS)
             .add(SETTING_NUMBER_OF_REPLICAS)
             .add(SETTING_AUTO_EXPAND_REPLICAS)
+            .add(SETTING_VERSION_UPGRADED)
+            .add(SETTING_VERSION_MINIMUM_COMPATIBLE)
             .build();
 
     private final ClusterService clusterService;
@@ -154,8 +156,17 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
             Repository repository = repositoriesService.repository(request.repository());
             final SnapshotId snapshotId = new SnapshotId(request.repository(), request.name());
             final Snapshot snapshot = repository.readSnapshot(snapshotId);
-            ImmutableList<String> filteredIndices = SnapshotUtils.filterIndices(snapshot.indices(), request.indices(), request.indicesOptions());
-            final MetaData metaData = repository.readSnapshotMetaData(snapshotId, filteredIndices);
+            List<String> filteredIndices = SnapshotUtils.filterIndices(snapshot.indices(), request.indices(), request.indicesOptions());
+            MetaData metaDataIn = repository.readSnapshotMetaData(snapshotId, filteredIndices);
+
+            final MetaData metaData;
+            if (snapshot.version().before(Version.V_2_0_0)) {
+                // ES 2.0 now requires units for all time and byte-sized settings, so we add the default unit if it's missing in this snapshot:
+                metaData = MetaData.addDefaultUnitsIfNeeded(logger, metaDataIn);
+            } else {
+                // Units are already enforced:
+                metaData = metaDataIn;
+            }
 
             // Make sure that we can restore from this snapshot
             validateSnapshotRestorable(snapshotId, snapshot);
@@ -647,7 +658,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
         return failedShards;
     }
 
-    private Map<String, String> renamedIndices(RestoreRequest request, ImmutableList<String> filteredIndices) {
+    private Map<String, String> renamedIndices(RestoreRequest request, List<String> filteredIndices) {
         Map<String, String> renamedIndices = newHashMap();
         for (String index : filteredIndices) {
             String renamedIndex = index;

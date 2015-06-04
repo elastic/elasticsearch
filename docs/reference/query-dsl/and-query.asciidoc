@@ -1,5 +1,5 @@
 [[query-dsl-and-query]]
-== And Query
+=== And Query
 
 deprecated[2.0.0, Use the `bool` query instead]
 

@@ -62,9 +62,10 @@ public class ClusterStateObserver {
     /**
      * @param clusterService
      * @param timeout        a global timeout for this observer. After it has expired the observer
-     *                       will fail any existing or new #waitForNextChange calls.
+     *                       will fail any existing or new #waitForNextChange calls. Set to null
+     *                       to wait indefinitely
      */
-    public ClusterStateObserver(ClusterService clusterService, TimeValue timeout, ESLogger logger) {
+    public ClusterStateObserver(ClusterService clusterService, @Nullable TimeValue timeout, ESLogger logger) {
         this.clusterService = clusterService;
         this.lastObservedState = new AtomicReference<>(new ObservedState(clusterService.state()));
         this.timeOutValue = timeout;

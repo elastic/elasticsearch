@@ -35,11 +35,13 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptService.ScriptType;
+import org.elasticsearch.script.Template;
+import org.elasticsearch.script.mustache.MustacheScriptEngineService;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.Map;
 
 import static org.elasticsearch.search.Scroll.readScroll;
@@ -69,9 +71,7 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
     private String preference;
 
     private BytesReference templateSource;
-    private String templateName;
-    private ScriptService.ScriptType templateType;
-    private Map<String, Object> templateParams = Collections.emptyMap();
+    private Template template;
 
     private BytesReference source;
 
@@ -100,9 +100,7 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
         this.routing = searchRequest.routing;
         this.preference = searchRequest.preference;
         this.templateSource = searchRequest.templateSource;
-        this.templateName = searchRequest.templateName;
-        this.templateType = searchRequest.templateType;
-        this.templateParams = searchRequest.templateParams;
+        this.template = searchRequest.template;
         this.source = searchRequest.source;
         this.extraSource = searchRequest.extraSource;
         this.queryCache = searchRequest.queryCache;
@@ -390,42 +388,92 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
     }
 
     /**
-     * The name of the stored template
+     * The stored template
      */
+    public void template(Template template) {
+        this.template = template;
+    }
+
+    /**
+     * The stored template
+     */
+    public Template template() {
+        return template;
+    }
+
+    /**
+     * The name of the stored template
+     * 
+     * @deprecated use {@link #template(Template))} instead.
+     */
+    @Deprecated
     public void templateName(String templateName) {
-        this.templateName = templateName;
+        updateOrCreateScript(templateName, null, null, null);
     }
 
+    /**
+     * The type of the stored template
+     * 
+     * @deprecated use {@link #template(Template))} instead.
+     */
+    @Deprecated
     public void templateType(ScriptService.ScriptType templateType) {
-        this.templateType = templateType;
+        updateOrCreateScript(null, templateType, null, null);
     }
 
     /**
      * Template parameters used for rendering
+     * 
+     * @deprecated use {@link #template(Template))} instead.
      */
+    @Deprecated
     public void templateParams(Map<String, Object> params) {
-        this.templateParams = params;
+        updateOrCreateScript(null, null, null, params);
     }
 
     /**
      * The name of the stored template
+     * 
+     * @deprecated use {@link #template()} instead.
      */
+    @Deprecated
     public String templateName() {
-        return templateName;
+        return template == null ? null : template.getScript();
     }
 
     /**
      * The name of the stored template
+     * 
+     * @deprecated use {@link #template()} instead.
      */
+    @Deprecated
     public ScriptService.ScriptType templateType() {
-        return templateType;
+        return template == null ? null : template.getType();
     }
 
     /**
      * Template parameters used for rendering
+     * 
+     * @deprecated use {@link #template()} instead.
      */
+    @Deprecated
     public Map<String, Object> templateParams() {
-        return templateParams;
+        return template == null ? null : template.getParams();
+    }
+
+    private void updateOrCreateScript(String templateContent, ScriptType type, String lang, Map<String, Object> params) {
+        Template template = template();
+        if (template == null) {
+            template = new Template(templateContent == null ? "" : templateContent, type == null ? ScriptType.INLINE : type, lang, null,
+                    params);
+        } else {
+            String newTemplateContent = templateContent == null ? template.getScript() : templateContent;
+            ScriptType newTemplateType = type == null ? template.getType() : type;
+            String newTemplateLang = lang == null ? template.getLang() : lang;
+            Map<String, Object> newTemplateParams = params == null ? template.getParams() : params;
+            template = new Template(newTemplateContent, newTemplateType, MustacheScriptEngineService.NAME, null, newTemplateParams);
+        }
+        template(template);
     }
 
     /**
@@ -476,7 +524,7 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
      * If set, will enable scrolling of the search request for the specified timeout.
      */
     public SearchRequest scroll(String keepAlive) {
-        return scroll(new Scroll(TimeValue.parseTimeValue(keepAlive, null)));
+        return scroll(new Scroll(TimeValue.parseTimeValue(keepAlive, null, getClass().getSimpleName() + ".Scroll.keepAlive")));
     }
 
     /**
@@ -517,10 +565,8 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
         indicesOptions = IndicesOptions.readIndicesOptions(in);
 
         templateSource = in.readBytesReference();
-        templateName = in.readOptionalString();
-        templateType = ScriptService.ScriptType.readFrom(in);
         if (in.readBoolean()) {
-            templateParams = (Map<String, Object>) in.readGenericValue();
+            template = Template.readTemplate(in);
         }
         queryCache = in.readOptionalBoolean();
     }
@@ -550,12 +596,10 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
         indicesOptions.writeIndicesOptions(out);
 
         out.writeBytesReference(templateSource);
-        out.writeOptionalString(templateName);
-        ScriptService.ScriptType.writeTo(templateType, out);
-        boolean existTemplateParams = templateParams != null;
-        out.writeBoolean(existTemplateParams);
-        if (existTemplateParams) {
-            out.writeGenericValue(templateParams);
+        boolean hasTemplate = template != null;
+        out.writeBoolean(hasTemplate);
+        if (hasTemplate) {
+            template.writeTo(out);
         }
 
         out.writeOptionalBoolean(queryCache);

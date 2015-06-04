@@ -508,7 +508,7 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
             return !removed.isEmpty();
         }
 
-        public ImmutableList<DiscoveryNode> removedNodes() {
+        public List<DiscoveryNode> removedNodes() {
             return removed;
         }
 
@@ -516,7 +516,7 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
             return !added.isEmpty();
         }
 
-        public ImmutableList<DiscoveryNode> addedNodes() {
+        public List<DiscoveryNode> addedNodes() {
             return added;
         }
 

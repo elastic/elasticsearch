@@ -77,8 +77,8 @@ public class TransportClientNodesService extends AbstractComponent {
 
     private final Object mutex = new Object();
 
-    private volatile ImmutableList<DiscoveryNode> nodes = ImmutableList.of();
-    private volatile ImmutableList<DiscoveryNode> filteredNodes = ImmutableList.of();
+    private volatile List<DiscoveryNode> nodes = ImmutableList.of();
+    private volatile List<DiscoveryNode> filteredNodes = ImmutableList.of();
 
     private final AtomicInteger tempNodeIdGenerator = new AtomicInteger();
 
@@ -118,7 +118,7 @@ public class TransportClientNodesService extends AbstractComponent {
         this.nodesSamplerFuture = threadPool.schedule(nodesSamplerInterval, ThreadPool.Names.GENERIC, new ScheduledNodeSampler());
     }
 
-    public ImmutableList<TransportAddress> transportAddresses() {
+    public List<TransportAddress> transportAddresses() {
         ImmutableList.Builder<TransportAddress> lstBuilder = ImmutableList.builder();
         for (DiscoveryNode listedNode : listedNodes) {
             lstBuilder.add(listedNode.address());
@@ -126,15 +126,15 @@ public class TransportClientNodesService extends AbstractComponent {
         return lstBuilder.build();
     }
 
-    public ImmutableList<DiscoveryNode> connectedNodes() {
+    public List<DiscoveryNode> connectedNodes() {
         return this.nodes;
     }
 
-    public ImmutableList<DiscoveryNode> filteredNodes() {
+    public List<DiscoveryNode> filteredNodes() {
         return this.filteredNodes;
     }
 
-    public ImmutableList<DiscoveryNode> listedNodes() {
+    public List<DiscoveryNode> listedNodes() {
         return this.listedNodes;
     }
 
@@ -193,7 +193,7 @@ public class TransportClientNodesService extends AbstractComponent {
     }
 
     public <Response> void execute(NodeListenerCallback<Response> callback, ActionListener<Response> listener) {
-        ImmutableList<DiscoveryNode> nodes = this.nodes;
+        List<DiscoveryNode> nodes = this.nodes;
         ensureNodesAreAvailable(nodes);
         int index = getNodeNumber();
         RetryListener<Response> retryListener = new RetryListener<>(callback, listener, nodes, index);
@@ -209,12 +209,12 @@ public class TransportClientNodesService extends AbstractComponent {
     public static class RetryListener<Response> implements ActionListener<Response> {
         private final NodeListenerCallback<Response> callback;
         private final ActionListener<Response> listener;
-        private final ImmutableList<DiscoveryNode> nodes;
+        private final List<DiscoveryNode> nodes;
         private final int index;
 
         private volatile int i;
 
-        public RetryListener(NodeListenerCallback<Response> callback, ActionListener<Response> listener, ImmutableList<DiscoveryNode> nodes, int index) {
+        public RetryListener(NodeListenerCallback<Response> callback, ActionListener<Response> listener, List<DiscoveryNode> nodes, int index) {
             this.callback = callback;
             this.listener = listener;
             this.nodes = nodes;
@@ -274,7 +274,7 @@ public class TransportClientNodesService extends AbstractComponent {
         return index;
     }
 
-    private void ensureNodesAreAvailable(ImmutableList<DiscoveryNode> nodes) {
+    private void ensureNodesAreAvailable(List<DiscoveryNode> nodes) {
         if (nodes.isEmpty()) {
             String message = String.format(Locale.ROOT, "None of the configured nodes are available: %s", nodes);
             throw new NoNodeAvailableException(message);
@@ -297,7 +297,7 @@ public class TransportClientNodesService extends AbstractComponent {
          * validates a set of potentially newly discovered nodes and returns an immutable
          * list of the nodes that has passed.
          */
-        protected ImmutableList<DiscoveryNode> validateNewNodes(Set<DiscoveryNode> nodes) {
+        protected List<DiscoveryNode> validateNewNodes(Set<DiscoveryNode> nodes) {
             for (Iterator<DiscoveryNode> it = nodes.iterator(); it.hasNext(); ) {
                 DiscoveryNode node = it.next();
                 if (!transportService.nodeConnected(node)) {

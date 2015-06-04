@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
@@ -40,11 +41,14 @@ import static org.elasticsearch.rest.RestStatus.OK;
  */
 public class RestGetRepositoriesAction extends BaseRestHandler {
 
+    private final SettingsFilter settingsFilter;
+
     @Inject
-    public RestGetRepositoriesAction(Settings settings, RestController controller, Client client) {
+    public RestGetRepositoriesAction(Settings settings, RestController controller, Client client, SettingsFilter settingsFilter) {
         super(settings, controller, client);
         controller.registerHandler(GET, "/_snapshot", this);
         controller.registerHandler(GET, "/_snapshot/{repository}", this);
+        this.settingsFilter = settingsFilter;
     }
 
     @Override
@@ -53,6 +57,7 @@ public class RestGetRepositoriesAction extends BaseRestHandler {
         GetRepositoriesRequest getRepositoriesRequest = getRepositoryRequest(repositories);
         getRepositoriesRequest.masterNodeTimeout(request.paramAsTime("master_timeout", getRepositoriesRequest.masterNodeTimeout()));
         getRepositoriesRequest.local(request.paramAsBoolean("local", getRepositoriesRequest.local()));
+        settingsFilter.addFilterSettingParams(request);
         client.admin().cluster().getRepositories(getRepositoriesRequest, new RestBuilderListener<GetRepositoriesResponse>(channel) {
             @Override
             public RestResponse buildResponse(GetRepositoriesResponse response, XContentBuilder builder) throws Exception {

@@ -263,15 +263,15 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
         }
         long origin = SearchContext.current().nowInMillis();
         if (originString != null) {
-            origin = dateFieldMapper.parseToMilliseconds(originString);
+            origin = dateFieldMapper.fieldType().parseToMilliseconds(originString, false, null, null);
         }
 
         if (scaleString == null) {
             throw new ElasticsearchParseException(DecayFunctionBuilder.SCALE + " must be set for date fields.");
         }
-        TimeValue val = TimeValue.parseTimeValue(scaleString, TimeValue.timeValueHours(24));
+        TimeValue val = TimeValue.parseTimeValue(scaleString, TimeValue.timeValueHours(24), getClass().getSimpleName() + ".scale");
         double scale = val.getMillis();
-        val = TimeValue.parseTimeValue(offsetString, TimeValue.timeValueHours(24));
+        val = TimeValue.parseTimeValue(offsetString, TimeValue.timeValueHours(24), getClass().getSimpleName() + ".offset");
         double offset = val.getMillis();
         IndexNumericFieldData numericFieldData = parseContext.getForField(dateFieldMapper);
         return new NumericFieldDataScoreFunction(origin, scale, decay, offset, getDecayFunction(), numericFieldData, mode);

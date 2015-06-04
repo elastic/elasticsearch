@@ -144,12 +144,12 @@ public class LeafFieldsLookup implements Map {
             cachedFieldData.put(name, data);
         }
         if (data.fields() == null) {
-            String fieldName = data.mapper().names().indexName();
+            String fieldName = data.mapper().fieldType().names().indexName();
             fieldVisitor.reset(fieldName);
             try {
                 reader.document(docId, fieldVisitor);
                 fieldVisitor.postProcess(data.mapper());
-                data.fields(ImmutableMap.of(name, fieldVisitor.fields().get(data.mapper().names().indexName())));
+                data.fields(ImmutableMap.of(name, fieldVisitor.fields().get(data.mapper().fieldType().names().indexName())));
             } catch (IOException e) {
                 throw new ElasticsearchParseException("failed to load field [" + name + "]", e);
             }

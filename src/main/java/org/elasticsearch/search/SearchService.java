@@ -41,6 +41,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -59,7 +60,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.FieldMapper.Loading;
+import org.elasticsearch.index.mapper.MappedFieldType.Loading;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.TemplateQueryParser;
 import org.elasticsearch.index.search.stats.StatsGroupsParseElement;
@@ -72,9 +73,10 @@ import org.elasticsearch.indices.IndicesWarmer.TerminationHandle;
 import org.elasticsearch.indices.IndicesWarmer.WarmerContext;
 import org.elasticsearch.indices.cache.query.IndicesQueryCache;
 import org.elasticsearch.script.ExecutableScript;
-import org.elasticsearch.script.Script;
+import org.elasticsearch.script.Script.ScriptParseException;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.Template;
 import org.elasticsearch.script.mustache.MustacheScriptEngineService;
 import org.elasticsearch.search.dfs.CachedDfSource;
 import org.elasticsearch.search.dfs.DfsPhase;
@@ -232,7 +234,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             return context.dfsResult();
         } catch (Throwable e) {
             logger.trace("Dfs phase failed", e);
-            freeContext(context.id());
+            processFailure(context, e);
             throw ExceptionsHelper.convertToRuntime(e);
         } finally {
             cleanContext(context);
@@ -262,7 +264,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             return context.queryResult();
         } catch (Throwable e) {
             logger.trace("Scan phase failed", e);
-            freeContext(context.id());
+            processFailure(context, e);
             throw ExceptionsHelper.convertToRuntime(e);
         } finally {
             context.size(originalSize);
@@ -291,7 +293,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             return new ScrollQueryFetchSearchResult(new QueryFetchSearchResult(context.queryResult(), context.fetchResult()), context.shardTarget());
         } catch (Throwable e) {
             logger.trace("Scan phase failed", e);
-            freeContext(context.id());
+            processFailure(context, e);
             throw ExceptionsHelper.convertToRuntime(e);
         } finally {
             cleanContext(context);
@@ -335,7 +337,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             }
             context.indexShard().searchService().onFailedQueryPhase(context);
             logger.trace("Query phase failed", e);
-            freeContext(context.id());
+            processFailure(context, e);
             throw ExceptionsHelper.convertToRuntime(e);
         } finally {
             cleanContext(context);
@@ -356,7 +358,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         } catch (Throwable e) {
             context.indexShard().searchService().onFailedQueryPhase(context);
             logger.trace("Query phase failed", e);
-            freeContext(context.id());
+            processFailure(context, e);
             throw ExceptionsHelper.convertToRuntime(e);
         } finally {
             cleanContext(context);
@@ -371,7 +373,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             context.searcher().dfSource(new CachedDfSource(context.searcher().getIndexReader(), request.dfs(), context.similarityService().similarity(),
                     indexCache.filter(), indexCache.filterPolicy()));
         } catch (Throwable e) {
-            freeContext(context.id());
+            processFailure(context, e);
             cleanContext(context);
             throw new QueryPhaseExecutionException(context, "Failed to set aggregated df", e);
         }
@@ -390,7 +392,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         } catch (Throwable e) {
             context.indexShard().searchService().onFailedQueryPhase(context);
             logger.trace("Query phase failed", e);
-            freeContext(context.id());
+            processFailure(context, e);
             throw ExceptionsHelper.convertToRuntime(e);
         } finally {
             cleanContext(context);
@@ -428,7 +430,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             return new QueryFetchSearchResult(context.queryResult(), context.fetchResult());
         } catch (Throwable e) {
             logger.trace("Fetch phase failed", e);
-            freeContext(context.id());
+            processFailure(context, e);
             throw ExceptionsHelper.convertToRuntime(e);
         } finally {
             cleanContext(context);
@@ -475,7 +477,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             return new QueryFetchSearchResult(context.queryResult(), context.fetchResult());
         } catch (Throwable e) {
             logger.trace("Fetch phase failed", e);
-            freeContext(context.id());
+            processFailure(context, e);
             throw ExceptionsHelper.convertToRuntime(e);
         } finally {
             cleanContext(context);
@@ -514,7 +516,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             return new ScrollQueryFetchSearchResult(new QueryFetchSearchResult(context.queryResult(), context.fetchResult()), context.shardTarget());
         } catch (Throwable e) {
             logger.trace("Fetch phase failed", e);
-            freeContext(context.id());
+            processFailure(context, e);
             throw ExceptionsHelper.convertToRuntime(e);
         } finally {
             cleanContext(context);
@@ -542,7 +544,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         } catch (Throwable e) {
             context.indexShard().searchService().onFailedFetchPhase(context);
             logger.trace("Fetch phase failed", e);
-            freeContext(context.id()); // we just try to make sure this is freed - rethrow orig exception.
+            processFailure(context, e);
             throw ExceptionsHelper.convertToRuntime(e);
         } finally {
             cleanContext(context);
@@ -667,38 +669,55 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         SearchContext.removeCurrent();
     }
 
+    private void processFailure(SearchContext context, Throwable t) {
+        freeContext(context.id());
+        try {
+            if (Lucene.isCorruptionException(t)) {
+                context.indexShard().failShard("search execution corruption failure", t);
+            }
+        } catch (Throwable e) {
+            logger.warn("failed to process shard failure to (potentially) send back shard failure on corruption", e);
+        }
+    }
+
     private void parseTemplate(ShardSearchRequest request) {
 
         final ExecutableScript executable;
-        if (hasLength(request.templateName())) {
-            executable = this.scriptService.executable(new Script(MustacheScriptEngineService.NAME, request.templateName(), request.templateType(), request.templateParams()), ScriptContext.Standard.SEARCH);
+        if (request.template() != null) {
+            executable = this.scriptService.executable(request.template(), ScriptContext.Standard.SEARCH);
         } else {
             if (!hasLength(request.templateSource())) {
                 return;
             }
             XContentParser parser = null;
-            TemplateQueryParser.TemplateContext templateContext = null;
+            Template template = null;
 
             try {
                 parser = XContentFactory.xContent(request.templateSource()).createParser(request.templateSource());
-                templateContext = TemplateQueryParser.parse(parser, "params", "template");
+                template = TemplateQueryParser.parse(parser, "params", "template");
 
-                if (templateContext.scriptType() == ScriptService.ScriptType.INLINE) {
+                if (template.getType() == ScriptService.ScriptType.INLINE) {
                     //Try to double parse for nested template id/file
                     parser = null;
                     try {
-                        byte[] templateBytes = templateContext.template().getBytes(Charsets.UTF_8);
+                        byte[] templateBytes = template.getScript().getBytes(Charsets.UTF_8);
                         parser = XContentFactory.xContent(templateBytes).createParser(templateBytes);
                     } catch (ElasticsearchParseException epe) {
                         //This was an non-nested template, the parse failure was due to this, it is safe to assume this refers to a file
                         //for backwards compatibility and keep going
-                        templateContext = new TemplateQueryParser.TemplateContext(ScriptService.ScriptType.FILE, templateContext.template(), templateContext.params());
+                        template = new Template(template.getScript(), ScriptService.ScriptType.FILE, MustacheScriptEngineService.NAME,
+                                null, template.getParams());
                     }
                     if (parser != null) {
-                        TemplateQueryParser.TemplateContext innerContext = TemplateQueryParser.parse(parser, "params");
-                        if (hasLength(innerContext.template()) && !innerContext.scriptType().equals(ScriptService.ScriptType.INLINE)) {
-                            //An inner template referring to a filename or id
-                            templateContext = new TemplateQueryParser.TemplateContext(innerContext.scriptType(), innerContext.template(), templateContext.params());
+                        try {
+                            Template innerTemplate = TemplateQueryParser.parse(parser);
+                            if (hasLength(innerTemplate.getScript()) && !innerTemplate.getType().equals(ScriptService.ScriptType.INLINE)) {
+                                //An inner template referring to a filename or id
+                                template = new Template(innerTemplate.getScript(), innerTemplate.getType(),
+                                        MustacheScriptEngineService.NAME, null, template.getParams());
+                            }
+                        } catch (ScriptParseException e) {
+                            // No inner template found, use original template from above
                         }
                     }
                 }
@@ -708,10 +727,10 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
                 Releasables.closeWhileHandlingException(parser);
             }
 
-            if (!hasLength(templateContext.template())) {
+            if (!hasLength(template.getScript())) {
                 throw new ElasticsearchParseException("Template must have [template] field configured");
             }
-            executable = this.scriptService.executable(new Script(MustacheScriptEngineService.NAME, templateContext.template(), templateContext.scriptType(), templateContext.params()), ScriptContext.Standard.SEARCH);
+            executable = this.scriptService.executable(template, ScriptContext.Standard.SEARCH);
         }
 
         BytesReference processedQuery = (BytesReference) executable.run();
@@ -840,8 +859,12 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             final ObjectSet<String> warmUp = new ObjectHashSet<>();
             for (DocumentMapper docMapper : mapperService.docMappers(false)) {
                 for (FieldMapper fieldMapper : docMapper.mappers()) {
-                    final String indexName = fieldMapper.names().indexName();
-                    if (fieldMapper.fieldType().indexOptions() != IndexOptions.NONE && !fieldMapper.fieldType().omitNorms() && fieldMapper.normsLoading(defaultLoading) == Loading.EAGER) {
+                    final String indexName = fieldMapper.fieldType().names().indexName();
+                    Loading normsLoading = fieldMapper.fieldType().normsLoading();
+                    if (normsLoading == null) {
+                        normsLoading = defaultLoading;
+                    }
+                    if (fieldMapper.fieldType().indexOptions() != IndexOptions.NONE && !fieldMapper.fieldType().omitNorms() && normsLoading == Loading.EAGER) {
                         warmUp.add(indexName);
                     }
                 }
@@ -896,7 +919,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             final Map<String, FieldMapper> warmUp = new HashMap<>();
             for (DocumentMapper docMapper : mapperService.docMappers(false)) {
                 for (FieldMapper fieldMapper : docMapper.mappers()) {
-                    final FieldDataType fieldDataType = fieldMapper.fieldDataType();
+                    final FieldDataType fieldDataType = fieldMapper.fieldType().fieldDataType();
                     if (fieldDataType == null) {
                         continue;
                     }
@@ -904,7 +927,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
                         continue;
                     }
 
-                    final String indexName = fieldMapper.names().indexName();
+                    final String indexName = fieldMapper.fieldType().names().indexName();
                     if (warmUp.containsKey(indexName)) {
                         continue;
                     }
@@ -924,10 +947,10 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
                                 final long start = System.nanoTime();
                                 indexFieldDataService.getForField(fieldMapper).load(ctx);
                                 if (indexShard.warmerService().logger().isTraceEnabled()) {
-                                    indexShard.warmerService().logger().trace("warmed fielddata for [{}], took [{}]", fieldMapper.names().fullName(), TimeValue.timeValueNanos(System.nanoTime() - start));
+                                    indexShard.warmerService().logger().trace("warmed fielddata for [{}], took [{}]", fieldMapper.fieldType().names().fullName(), TimeValue.timeValueNanos(System.nanoTime() - start));
                                 }
                             } catch (Throwable t) {
-                                indexShard.warmerService().logger().warn("failed to warm-up fielddata for [{}]", t, fieldMapper.names().fullName());
+                                indexShard.warmerService().logger().warn("failed to warm-up fielddata for [{}]", t, fieldMapper.fieldType().names().fullName());
                             } finally {
                                 latch.countDown();
                             }
@@ -950,14 +973,14 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             final Map<String, FieldMapper> warmUpGlobalOrdinals = new HashMap<>();
             for (DocumentMapper docMapper : mapperService.docMappers(false)) {
                 for (FieldMapper fieldMapper : docMapper.mappers()) {
-                    final FieldDataType fieldDataType = fieldMapper.fieldDataType();
+                    final FieldDataType fieldDataType = fieldMapper.fieldType().fieldDataType();
                     if (fieldDataType == null) {
                         continue;
                     }
                     if (fieldDataType.getLoading() != Loading.EAGER_GLOBAL_ORDINALS) {
                         continue;
                     }
-                    final String indexName = fieldMapper.names().indexName();
+                    final String indexName = fieldMapper.fieldType().names().indexName();
                     if (warmUpGlobalOrdinals.containsKey(indexName)) {
                         continue;
                     }
@@ -976,10 +999,10 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
                             IndexFieldData.Global ifd = indexFieldDataService.getForField(fieldMapper);
                             ifd.loadGlobal(context.reader());
                             if (indexShard.warmerService().logger().isTraceEnabled()) {
-                                indexShard.warmerService().logger().trace("warmed global ordinals for [{}], took [{}]", fieldMapper.names().fullName(), TimeValue.timeValueNanos(System.nanoTime() - start));
+                                indexShard.warmerService().logger().trace("warmed global ordinals for [{}], took [{}]", fieldMapper.fieldType().names().fullName(), TimeValue.timeValueNanos(System.nanoTime() - start));
                             }
                         } catch (Throwable t) {
-                            indexShard.warmerService().logger().warn("failed to warm-up global ordinals for [{}]", t, fieldMapper.names().fullName());
+                            indexShard.warmerService().logger().warn("failed to warm-up global ordinals for [{}]", t, fieldMapper.fieldType().names().fullName());
                         } finally {
                             latch.countDown();
                         }

@@ -18,19 +18,25 @@
  */
 package org.elasticsearch.index.shard;
 
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.join.BitDocIdSetFilter;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
+import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.aliases.IndexAliasesService;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.IgnoreOnRecoveryEngineException;
-import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.MapperAnalyzer;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.MapperUtils;
-import org.elasticsearch.index.mapper.Mapping;
-import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.query.IndexQueryParserService;
+import org.elasticsearch.index.query.ParsedQuery;
+import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.index.translog.Translog;
 
 import java.util.HashMap;
@@ -62,20 +68,28 @@ public class TranslogRecoveryPerformer {
         return mapperService.documentMapperWithAutoCreate(type); // protected for testing
     }
 
-    /*
+    /**
      * Applies all operations in the iterable to the current engine and returns the number of operations applied.
-     * This operation will stop applying operations once an opertion failed to apply.
+     * This operation will stop applying operations once an operation failed to apply.
+     *
+     * Throws a {@link MapperException} to be thrown if a mapping update is encountered.
      */
     int performBatchRecovery(Engine engine, Iterable<Translog.Operation> operations) {
         int numOps = 0;
         for (Translog.Operation operation : operations) {
-            performRecoveryOperation(engine, operation);
+            performRecoveryOperation(engine, operation, false);
             numOps++;
         }
         return numOps;
     }
 
-    private void addMappingUpdate(String type, Mapping update) {
+    private void maybeAddMappingUpdate(String type, Mapping update, String docId, boolean allowMappingUpdates) {
+        if (update == null) {
+            return;
+        }
+        if (allowMappingUpdates == false) {
+            throw new MapperException("mapping updates are not allowed (type: [" + type + "], id: [" + docId + "])");
+        }
         Mapping currentUpdate = recoveredTypes.get(type);
         if (currentUpdate == null) {
             recoveredTypes.put(type, update);
@@ -85,10 +99,13 @@ public class TranslogRecoveryPerformer {
     }
 
     /**
-     * Performs a single recovery operation, and returns the indexing operation (or null if its not an indexing operation)
-     * that can then be used for mapping updates (for example) if needed.
+     * Performs a single recovery operation.
+     *
+     * @param allowMappingUpdates true if mapping update should be accepted (but collected). Setting it to false will
+     *                            cause a {@link MapperException} to be thrown if an update
+     *                            is encountered.
      */
-    public void performRecoveryOperation(Engine engine, Translog.Operation operation) {
+    public void performRecoveryOperation(Engine engine, Translog.Operation operation, boolean allowMappingUpdates) {
         try {
             switch (operation.opType()) {
                 case CREATE:
@@ -98,10 +115,8 @@ public class TranslogRecoveryPerformer {
                                     .routing(create.routing()).parent(create.parent()).timestamp(create.timestamp()).ttl(create.ttl()),
                             create.version(), create.versionType().versionTypeForReplicationAndRecovery(), Engine.Operation.Origin.RECOVERY, true, false);
                     mapperAnalyzer.setType(create.type()); // this is a PITA - once mappings are per index not per type this can go away an we can just simply move this to the engine eventually :)
+                    maybeAddMappingUpdate(engineCreate.type(), engineCreate.parsedDoc().dynamicMappingsUpdate(), engineCreate.id(), allowMappingUpdates);
                     engine.create(engineCreate);
-                    if (engineCreate.parsedDoc().dynamicMappingsUpdate() != null) {
-                        addMappingUpdate(engineCreate.type(), engineCreate.parsedDoc().dynamicMappingsUpdate());
-                    }
                     break;
                 case SAVE:
                     Translog.Index index = (Translog.Index) operation;
@@ -109,10 +124,8 @@ public class TranslogRecoveryPerformer {
                                     .routing(index.routing()).parent(index.parent()).timestamp(index.timestamp()).ttl(index.ttl()),
                             index.version(), index.versionType().versionTypeForReplicationAndRecovery(), Engine.Operation.Origin.RECOVERY, true);
                     mapperAnalyzer.setType(index.type());
+                    maybeAddMappingUpdate(engineIndex.type(), engineIndex.parsedDoc().dynamicMappingsUpdate(), engineIndex.id(), allowMappingUpdates);
                     engine.index(engineIndex);
-                    if (engineIndex.parsedDoc().dynamicMappingsUpdate() != null) {
-                        addMappingUpdate(engineIndex.type(), engineIndex.parsedDoc().dynamicMappingsUpdate());
-                    }
                     break;
                 case DELETE:
                     Translog.Delete delete = (Translog.Delete) operation;
@@ -122,7 +135,7 @@ public class TranslogRecoveryPerformer {
                     break;
                 case DELETE_BY_QUERY:
                     Translog.DeleteByQuery deleteByQuery = (Translog.DeleteByQuery) operation;
-                    engine.delete(IndexShard.prepareDeleteByQuery(queryParserService, mapperService, indexAliasesService, indexCache,
+                    engine.delete(prepareDeleteByQuery(queryParserService, mapperService, indexAliasesService, indexCache,
                             deleteByQuery.source(), deleteByQuery.filteringAliases(), Engine.Operation.Origin.RECOVERY, deleteByQuery.types()));
                     break;
                 default:
@@ -147,6 +160,39 @@ public class TranslogRecoveryPerformer {
             }
         }
         operationProcessed();
+    }
+
+    private static Engine.DeleteByQuery prepareDeleteByQuery(IndexQueryParserService queryParserService, MapperService mapperService, IndexAliasesService indexAliasesService, IndexCache indexCache, BytesReference source, @Nullable String[] filteringAliases, Engine.Operation.Origin origin, String... types) {
+        long startTime = System.nanoTime();
+        if (types == null) {
+            types = Strings.EMPTY_ARRAY;
+        }
+        Query query;
+        try {
+            query = queryParserService.parseQuery(source).query();
+        } catch (QueryParsingException ex) {
+            // for BWC we try to parse directly the query since pre 1.0.0.Beta2 we didn't require a top level query field
+            if ( queryParserService.getIndexCreatedVersion().onOrBefore(Version.V_1_0_0_Beta2)) {
+                try {
+                    XContentParser parser = XContentHelper.createParser(source);
+                    ParsedQuery parse = queryParserService.parse(parser);
+                    query = parse.query();
+                } catch (Throwable t) {
+                    ex.addSuppressed(t);
+                    throw ex;
+                }
+            } else {
+                throw ex;
+            }
+        }
+        Query searchFilter = mapperService.searchFilter(types);
+        if (searchFilter != null) {
+            query = Queries.filtered(query, searchFilter);
+        }
+
+        Query aliasFilter = indexAliasesService.aliasFilter(filteringAliases);
+        BitDocIdSetFilter parentFilter = mapperService.hasNested() ? indexCache.bitsetFilterCache().getBitDocIdSetFilter(Queries.newNonNestedFilter()) : null;
+        return new Engine.DeleteByQuery(query, source, filteringAliases, aliasFilter, parentFilter, origin, startTime, types);
     }
 
     /**

@@ -35,6 +35,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.rescore.RescoreBuilder.QueryRescorer;
@@ -47,8 +48,19 @@ import java.util.Comparator;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
-import static org.hamcrest.Matchers.*;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFirstHit;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFourthHit;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSecondHit;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThirdHit;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasId;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasScore;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.notNullValue;
 
 /**
  *
@@ -586,9 +598,15 @@ public class QueryRescorerTests extends ElasticsearchIntegrationTest {
                         .queryRescorer(
                                 QueryBuilders.boolQuery()
                                         .disableCoord(true)
-                                        .should(QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("field1", intToEnglish[0])).boostMode(CombineFunction.REPLACE).add(ScoreFunctionBuilders.scriptFunction("5.0f")))
-                                    .should(QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("field1", intToEnglish[1])).boostMode(CombineFunction.REPLACE).add(ScoreFunctionBuilders.scriptFunction("7.0f")))
-                                    .should(QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("field1", intToEnglish[3])).boostMode(CombineFunction.REPLACE).add(ScoreFunctionBuilders.scriptFunction("0.0f"))))
+                                        .should(QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("field1", intToEnglish[0]))
+                                                .boostMode(CombineFunction.REPLACE)
+                                                .add(ScoreFunctionBuilders.scriptFunction(new Script("5.0f"))))
+                                        .should(QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("field1", intToEnglish[1]))
+                                                .boostMode(CombineFunction.REPLACE)
+                                                .add(ScoreFunctionBuilders.scriptFunction(new Script("7.0f"))))
+                                        .should(QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("field1", intToEnglish[3]))
+                                                .boostMode(CombineFunction.REPLACE)
+                                                .add(ScoreFunctionBuilders.scriptFunction(new Script("0.0f")))))
                         .setQueryWeight(primaryWeight)
                         .setRescoreQueryWeight(secondaryWeight);
 
@@ -601,10 +619,18 @@ public class QueryRescorerTests extends ElasticsearchIntegrationTest {
                         .setPreference("test") // ensure we hit the same shards for tie-breaking
                         .setQuery(QueryBuilders.boolQuery()
                                 .disableCoord(true)
-                                .should(QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("field1", intToEnglish[0])).boostMode(CombineFunction.REPLACE).add(ScoreFunctionBuilders.scriptFunction("2.0f")))
-                                .should(QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("field1", intToEnglish[1])).boostMode(CombineFunction.REPLACE).add(ScoreFunctionBuilders.scriptFunction("3.0f")))
-                                .should(QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("field1", intToEnglish[2])).boostMode(CombineFunction.REPLACE).add(ScoreFunctionBuilders.scriptFunction("5.0f")))
-                                .should(QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("field1", intToEnglish[3])).boostMode(CombineFunction.REPLACE).add(ScoreFunctionBuilders.scriptFunction("0.2f"))))
+                                        .should(QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("field1", intToEnglish[0]))
+                                                .boostMode(CombineFunction.REPLACE)
+                                                .add(ScoreFunctionBuilders.scriptFunction(new Script("2.0f"))))
+                                        .should(QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("field1", intToEnglish[1]))
+                                                .boostMode(CombineFunction.REPLACE)
+                                                .add(ScoreFunctionBuilders.scriptFunction(new Script("3.0f"))))
+                                        .should(QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("field1", intToEnglish[2]))
+                                                .boostMode(CombineFunction.REPLACE)
+                                                .add(ScoreFunctionBuilders.scriptFunction(new Script("5.0f"))))
+                                        .should(QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("field1", intToEnglish[3]))
+                                                .boostMode(CombineFunction.REPLACE)
+                                                .add(ScoreFunctionBuilders.scriptFunction(new Script("0.2f")))))
                         .setFrom(0)
                         .setSize(10)
                         .setRescorer(rescoreQuery)
@@ -662,10 +688,12 @@ public class QueryRescorerTests extends ElasticsearchIntegrationTest {
         int numDocs = indexRandomNumbers("keyword", 1, true);
         QueryRescorer eightIsGreat = RescoreBuilder.queryRescorer(
                 QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("field1", English.intToEnglish(8))).boostMode(CombineFunction.REPLACE)
-                .add(ScoreFunctionBuilders.scriptFunction("1000.0f"))).setScoreMode("total");
+.add(ScoreFunctionBuilders.scriptFunction(new Script("1000.0f")))).setScoreMode(
+                "total");
         QueryRescorer sevenIsBetter = RescoreBuilder.queryRescorer(
                 QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("field1", English.intToEnglish(7))).boostMode(CombineFunction.REPLACE)
-                .add(ScoreFunctionBuilders.scriptFunction("10000.0f"))).setScoreMode("total");
+.add(ScoreFunctionBuilders.scriptFunction(new Script("10000.0f"))))
+                .setScoreMode("total");
 
         // First set the rescore window large enough that both rescores take effect
         SearchRequestBuilder request = client().prepareSearch().setRescoreWindow(numDocs);
@@ -682,10 +710,10 @@ public class QueryRescorerTests extends ElasticsearchIntegrationTest {
         // Now use one rescore to drag the number we're looking for into the window of another
         QueryRescorer ninetyIsGood = RescoreBuilder.queryRescorer(
                 QueryBuilders.functionScoreQuery(QueryBuilders.queryStringQuery("*ninety*")).boostMode(CombineFunction.REPLACE)
-                .add(ScoreFunctionBuilders.scriptFunction("1000.0f"))).setScoreMode("total");
+                        .add(ScoreFunctionBuilders.scriptFunction(new Script("1000.0f")))).setScoreMode("total");
         QueryRescorer oneToo = RescoreBuilder.queryRescorer(
                 QueryBuilders.functionScoreQuery(QueryBuilders.queryStringQuery("*one*")).boostMode(CombineFunction.REPLACE)
-                .add(ScoreFunctionBuilders.scriptFunction("1000.0f"))).setScoreMode("total");
+                        .add(ScoreFunctionBuilders.scriptFunction(new Script("1000.0f")))).setScoreMode("total");
         request.clearRescorers().addRescorer(ninetyIsGood).addRescorer(oneToo, 10);
         response = request.setSize(2).get();
         assertFirstHit(response, hasId("91"));

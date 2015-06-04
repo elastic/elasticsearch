@@ -28,6 +28,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Represent information about snapshot
@@ -42,7 +43,7 @@ public class Snapshot implements Comparable<Snapshot>, ToXContent {
 
     private final String reason;
 
-    private final ImmutableList<String> indices;
+    private final List<String> indices;
 
     private final long startTime;
 
@@ -52,12 +53,12 @@ public class Snapshot implements Comparable<Snapshot>, ToXContent {
 
     private final int successfulShards;
 
-    private final ImmutableList<SnapshotShardFailure> shardFailures;
+    private final List<SnapshotShardFailure> shardFailures;
 
-    private final static ImmutableList<SnapshotShardFailure> NO_FAILURES = ImmutableList.of();
+    private final static List<SnapshotShardFailure> NO_FAILURES = ImmutableList.of();
 
-    private Snapshot(String name, ImmutableList<String> indices, SnapshotState state, String reason, Version version, long startTime, long endTime,
-                              int totalShard, int successfulShards, ImmutableList<SnapshotShardFailure> shardFailures) {
+    private Snapshot(String name, List<String> indices, SnapshotState state, String reason, Version version, long startTime, long endTime,
+                              int totalShard, int successfulShards, List<SnapshotShardFailure> shardFailures) {
         assert name != null;
         assert indices != null;
         assert state != null;
@@ -75,17 +76,17 @@ public class Snapshot implements Comparable<Snapshot>, ToXContent {
     }
 
 
-    public Snapshot(String name, ImmutableList<String> indices, long startTime) {
+    public Snapshot(String name, List<String> indices, long startTime) {
         this(name, indices, SnapshotState.IN_PROGRESS, null, Version.CURRENT, startTime, 0L, 0, 0, NO_FAILURES);
     }
 
-    public Snapshot(String name, ImmutableList<String> indices, long startTime, String reason, long endTime,
-                             int totalShard, ImmutableList<SnapshotShardFailure> shardFailures) {
+    public Snapshot(String name, List<String> indices, long startTime, String reason, long endTime,
+                             int totalShard, List<SnapshotShardFailure> shardFailures) {
         this(name, indices, snapshotState(reason, shardFailures), reason, Version.CURRENT,
                 startTime, endTime, totalShard, totalShard - shardFailures.size(), shardFailures);
     }
 
-    private static SnapshotState snapshotState(String reason, ImmutableList<SnapshotShardFailure> shardFailures) {
+    private static SnapshotState snapshotState(String reason, List<SnapshotShardFailure> shardFailures) {
         if (reason == null) {
             if (shardFailures.isEmpty()) {
                 return SnapshotState.SUCCESS;
@@ -138,7 +139,7 @@ public class Snapshot implements Comparable<Snapshot>, ToXContent {
      *
      * @return list of indices
      */
-    public ImmutableList<String> indices() {
+    public List<String> indices() {
         return indices;
     }
 
@@ -183,7 +184,7 @@ public class Snapshot implements Comparable<Snapshot>, ToXContent {
     /**
      * Returns shard failures
      */
-    public ImmutableList<SnapshotShardFailure> shardFailures() {
+    public List<SnapshotShardFailure> shardFailures() {
         return shardFailures;
     }
 
@@ -275,7 +276,7 @@ public class Snapshot implements Comparable<Snapshot>, ToXContent {
         long endTime = 0;
         int totalShard = 0;
         int successfulShards = 0;
-        ImmutableList<SnapshotShardFailure> shardFailures = NO_FAILURES;
+        List<SnapshotShardFailure> shardFailures = NO_FAILURES;
 
         XContentParser.Token token = parser.currentToken();
         if (token == XContentParser.Token.START_OBJECT) {

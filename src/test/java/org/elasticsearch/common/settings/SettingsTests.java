@@ -138,6 +138,17 @@ public class SettingsTests extends ElasticsearchTestCase {
     }
 
     @Test
+    public void testReplacePropertiesPlaceholderIgnores() {
+        Settings settings = settingsBuilder()
+                .put("setting1", "${foo.bar}")
+                .put("setting2", "${foo.bar1}")
+                .replacePropertyPlaceholders("${foo.bar}", "${foo.bar1}")
+                .build();
+        assertThat(settings.get("setting1"), is("${foo.bar}"));
+        assertThat(settings.get("setting2"), is("${foo.bar1}"));
+    }
+
+    @Test
     public void testUnFlattenedSettings() {
         Settings settings = settingsBuilder()
                 .put("foo", "abc")

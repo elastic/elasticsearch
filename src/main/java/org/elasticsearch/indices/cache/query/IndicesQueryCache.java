@@ -128,7 +128,7 @@ public class IndicesQueryCache extends AbstractComponent implements RemovalListe
     }
 
     private void buildCache() {
-        long sizeInBytes = MemorySizeValue.parseBytesSizeValueOrHeapRatio(size).bytes();
+        long sizeInBytes = MemorySizeValue.parseBytesSizeValueOrHeapRatio(size, INDICES_CACHE_QUERY_SIZE).bytes();
 
         CacheBuilder<Key, Value> cacheBuilder = CacheBuilder.newBuilder()
                 .maximumWeight(sizeInBytes).weigher(new QueryCacheWeigher()).removalListener(this);

@@ -73,7 +73,7 @@ public class RecoverySettings extends AbstractComponent implements Closeable {
     public static final String INDICES_RECOVERY_INTERNAL_LONG_ACTION_TIMEOUT = "indices.recovery.internal_action_long_timeout";
 
 
-    public static final long SMALL_FILE_CUTOFF_BYTES = ByteSizeValue.parseBytesSizeValue("5mb").bytes();
+    public static final long SMALL_FILE_CUTOFF_BYTES = ByteSizeValue.parseBytesSizeValue("5mb", "SMALL_FILE_CUTOFF_BYTES").bytes();
 
     /**
      * Use {@link #INDICES_RECOVERY_MAX_BYTES_PER_SEC} instead

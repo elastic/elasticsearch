@@ -101,20 +101,20 @@ public class DiskThresholdDecider extends AllocationDecider {
                 DiskThresholdDecider.this.includeRelocations = newRelocationsSetting;
             }
             if (newLowWatermark != null) {
-                if (!validWatermarkSetting(newLowWatermark)) {
+                if (!validWatermarkSetting(newLowWatermark, CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK)) {
                     throw new ElasticsearchParseException("Unable to parse low watermark: [" + newLowWatermark + "]");
                 }
                 logger.info("updating [{}] to [{}]", CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK, newLowWatermark);
                 DiskThresholdDecider.this.freeDiskThresholdLow = 100.0 - thresholdPercentageFromWatermark(newLowWatermark);
-                DiskThresholdDecider.this.freeBytesThresholdLow = thresholdBytesFromWatermark(newLowWatermark);
+                DiskThresholdDecider.this.freeBytesThresholdLow = thresholdBytesFromWatermark(newLowWatermark, CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK);
             }
             if (newHighWatermark != null) {
-                if (!validWatermarkSetting(newHighWatermark)) {
+                if (!validWatermarkSetting(newHighWatermark, CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK)) {
                     throw new ElasticsearchParseException("Unable to parse high watermark: [" + newHighWatermark + "]");
                 }
                 logger.info("updating [{}] to [{}]", CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK, newHighWatermark);
                 DiskThresholdDecider.this.freeDiskThresholdHigh = 100.0 - thresholdPercentageFromWatermark(newHighWatermark);
-                DiskThresholdDecider.this.freeBytesThresholdHigh = thresholdBytesFromWatermark(newHighWatermark);
+                DiskThresholdDecider.this.freeBytesThresholdHigh = thresholdBytesFromWatermark(newHighWatermark, CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK);
             }
             if (newRerouteInterval != null) {
                 logger.info("updating [{}] to [{}]", CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL, newRerouteInterval);
@@ -199,18 +199,18 @@ public class DiskThresholdDecider extends AllocationDecider {
         String lowWatermark = settings.get(CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK, "85%");
         String highWatermark = settings.get(CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK, "90%");
 
-        if (!validWatermarkSetting(lowWatermark)) {
+        if (!validWatermarkSetting(lowWatermark, CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK)) {
             throw new ElasticsearchParseException("Unable to parse low watermark: [" + lowWatermark + "]");
         }
-        if (!validWatermarkSetting(highWatermark)) {
+        if (!validWatermarkSetting(highWatermark, CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK)) {
             throw new ElasticsearchParseException("Unable to parse high watermark: [" + highWatermark + "]");
         }
         // Watermark is expressed in terms of used data, but we need "free" data watermark
         this.freeDiskThresholdLow = 100.0 - thresholdPercentageFromWatermark(lowWatermark);
         this.freeDiskThresholdHigh = 100.0 - thresholdPercentageFromWatermark(highWatermark);
 
-        this.freeBytesThresholdLow = thresholdBytesFromWatermark(lowWatermark);
-        this.freeBytesThresholdHigh = thresholdBytesFromWatermark(highWatermark);
+        this.freeBytesThresholdLow = thresholdBytesFromWatermark(lowWatermark, CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK);
+        this.freeBytesThresholdHigh = thresholdBytesFromWatermark(highWatermark, CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK);
         this.includeRelocations = settings.getAsBoolean(CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS, true);
         this.rerouteInterval = settings.getAsTime(CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL, TimeValue.timeValueSeconds(60));
 
@@ -569,6 +569,7 @@ public class DiskThresholdDecider extends AllocationDecider {
         try {
             return RatioValue.parseRatioValue(watermark).getAsPercent();
         } catch (ElasticsearchParseException ex) {
+            // NOTE: this is not end-user leniency, since up above we check that it's a valid byte or percentage, and then store the two cases separately
             return 100.0;
         }
     }
@@ -577,11 +578,12 @@ public class DiskThresholdDecider extends AllocationDecider {
      * Attempts to parse the watermark into a {@link ByteSizeValue}, returning
      * a ByteSizeValue of 0 bytes if the value cannot be parsed.
      */
-    public ByteSizeValue thresholdBytesFromWatermark(String watermark) {
+    public ByteSizeValue thresholdBytesFromWatermark(String watermark, String settingName) {
         try {
-            return ByteSizeValue.parseBytesSizeValue(watermark);
+            return ByteSizeValue.parseBytesSizeValue(watermark, settingName);
         } catch (ElasticsearchParseException ex) {
-            return ByteSizeValue.parseBytesSizeValue("0b");
+            // NOTE: this is not end-user leniency, since up above we check that it's a valid byte or percentage, and then store the two cases separately
+            return ByteSizeValue.parseBytesSizeValue("0b", settingName);
         }
     }
 
@@ -589,13 +591,13 @@ public class DiskThresholdDecider extends AllocationDecider {
      * Checks if a watermark string is a valid percentage or byte size value,
      * returning true if valid, false if invalid.
      */
-    public boolean validWatermarkSetting(String watermark) {
+    public boolean validWatermarkSetting(String watermark, String settingName) {
         try {
             RatioValue.parseRatioValue(watermark);
             return true;
         } catch (ElasticsearchParseException e) {
             try {
-                ByteSizeValue.parseBytesSizeValue(watermark);
+                ByteSizeValue.parseBytesSizeValue(watermark, settingName);
                 return true;
             } catch (ElasticsearchParseException ex) {
                 return false;

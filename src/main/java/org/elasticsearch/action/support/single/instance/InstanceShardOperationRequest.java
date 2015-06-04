@@ -97,7 +97,7 @@ public abstract class InstanceShardOperationRequest<T extends InstanceShardOpera
      * A timeout to wait if the index operation can't be performed immediately. Defaults to <tt>1m</tt>.
      */
     public final T timeout(String timeout) {
-        return timeout(TimeValue.parseTimeValue(timeout, null));
+        return timeout(TimeValue.parseTimeValue(timeout, null, getClass().getSimpleName() + ".timeout"));
     }
 
     @Override

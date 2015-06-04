@@ -47,7 +47,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.core.IsNull.notNullValue;
 
 @ElasticsearchIntegrationTest.SuiteScopeTest
-public class TermsDocCountErrorTests extends ElasticsearchIntegrationTest{
+public class TermsDocCountErrorTests extends ElasticsearchIntegrationTest {
 
     private static final String STRING_FIELD_NAME = "s_value";
     private static final String LONG_FIELD_NAME = "l_value";

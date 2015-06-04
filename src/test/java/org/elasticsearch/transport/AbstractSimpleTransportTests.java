@@ -490,7 +490,7 @@ public abstract class AbstractSimpleTransportTests extends ElasticsearchTestCase
         serviceA.registerRequestHandler("sayHelloTimeoutDelayedResponse", StringMessageRequest.class, ThreadPool.Names.GENERIC, new TransportRequestHandler<StringMessageRequest>() {
             @Override
             public void messageReceived(StringMessageRequest request, TransportChannel channel) {
-                TimeValue sleep = TimeValue.parseTimeValue(request.message, null);
+                TimeValue sleep = TimeValue.parseTimeValue(request.message, null, "sleep");
                 try {
                     Thread.sleep(sleep.millis());
                 } catch (InterruptedException e) {

@@ -40,7 +40,7 @@
           type:      test
           id:        1
           body:      { foo: bar }
-          ttl:       100000
+          ttl:       100000ms
  - do:
       get:
           index:   test_1

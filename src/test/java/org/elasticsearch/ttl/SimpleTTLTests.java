@@ -57,7 +57,7 @@ public class SimpleTTLTests extends ElasticsearchIntegrationTest {
     protected Settings nodeSettings(int nodeOrdinal) {
         return settingsBuilder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put("indices.ttl.interval", PURGE_INTERVAL)
+                .put("indices.ttl.interval", PURGE_INTERVAL, TimeUnit.MILLISECONDS)
                 .put("cluster.routing.operation.use_type", false) // make sure we control the shard computation
                 .put("cluster.routing.operation.hash.type", "djb")
                 .build();

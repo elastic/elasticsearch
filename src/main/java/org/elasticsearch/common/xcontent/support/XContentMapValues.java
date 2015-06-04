@@ -377,7 +377,7 @@ public class XContentMapValues {
         if (node instanceof Number) {
             return TimeValue.timeValueMillis(((Number) node).longValue());
         }
-        return TimeValue.parseTimeValue(node.toString(), null);
+        return TimeValue.parseTimeValue(node.toString(), null, XContentMapValues.class.getSimpleName() + ".nodeTimeValue");
     }
 
     public static Map<String, Object> nodeMapValue(Object node, String desc) {

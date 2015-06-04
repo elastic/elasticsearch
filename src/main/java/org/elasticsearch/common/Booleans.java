@@ -25,11 +25,11 @@ package org.elasticsearch.common;
 public class Booleans {
 
     /**
-     * Returns <code>true</code> iff the sequence is neither of the following:
-     *   <tt>false</tt>, <tt>0</tt>, <tt>off</tt>, <tt>no</tt>,
-     *   otherwise <code>false</code>
+     * Returns <code>false</code> if text is in <tt>false</tt>, <tt>0</tt>, <tt>off</tt>, <tt>no</tt>; else, true
      */
     public static boolean parseBoolean(char[] text, int offset, int length, boolean defaultValue) {
+        // TODO: the leniency here is very dangerous: a simple typo will be misinterpreted and the user won't know.
+        // We should remove it and cutover to https://github.com/rmuir/booleanparser
         if (text == null || length == 0) {
             return defaultValue;
         }
@@ -84,7 +84,7 @@ public class Booleans {
      * @return true/false
      * throws exception if string cannot be parsed to boolean
      */
-    public static Boolean parseBooleanExact(String value){
+    public static Boolean parseBooleanExact(String value) {
 
         boolean isFalse = isExplicitFalse(value);
         if (isFalse) {

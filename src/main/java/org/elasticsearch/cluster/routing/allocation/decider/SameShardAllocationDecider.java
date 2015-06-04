@@ -72,21 +72,17 @@ public class SameShardAllocationDecider extends AllocationDecider {
                         continue;
                     }
                     // check if its on the same host as the one we want to allocate to
-                    boolean checkNodeOnSameHost = false;
                     if (Strings.hasLength(checkNode.node().getHostAddress()) && Strings.hasLength(node.node().getHostAddress())) {
                         if (checkNode.node().getHostAddress().equals(node.node().getHostAddress())) {
-                            checkNodeOnSameHost = true;
-                        }
-                    } else if (Strings.hasLength(checkNode.node().getHostName()) && Strings.hasLength(node.node().getHostName())) {
-                        if (checkNode.node().getHostName().equals(node.node().getHostName())) {
-                            checkNodeOnSameHost = true;
-                        }
-                    }
-                    if (checkNodeOnSameHost) {
-                        for (MutableShardRouting assignedShard : assignedShards) {
-                            if (checkNode.nodeId().equals(assignedShard.currentNodeId())) {
-                                return allocation.decision(Decision.NO, NAME,
-                                        "shard cannot be allocated on same host [%s] it already exists on", node.nodeId());
+                            if (Strings.hasLength(checkNode.node().getHostName()) && Strings.hasLength(node.node().getHostName())) {
+                                if (checkNode.node().getHostName().equals(node.node().getHostName())) {
+                                    for (MutableShardRouting assignedShard : assignedShards) {
+                                        if (checkNode.nodeId().equals(assignedShard.currentNodeId())) {
+                                            return allocation.decision(Decision.NO, NAME,
+                                                    "shard cannot be allocated on same host [%s] it already exists on", node.nodeId());
+                                        }
+                                    }
+                                }
                             }
                         }
                     }

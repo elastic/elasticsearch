@@ -20,7 +20,6 @@
 package org.elasticsearch.cluster;
 
 import com.google.common.base.Predicate;
-
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.client.Client;
@@ -33,7 +32,6 @@ import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
 
 import java.util.concurrent.ExecutionException;
@@ -167,7 +165,6 @@ public class MinimumMasterNodesTests extends ElasticsearchIntegrationTest {
     }
 
     @Test @LuceneTestCase.Slow
-    @TestLogging("cluster.routing.allocation.allocator:TRACE")
     public void multipleNodesShutdownNonMasterNodes() throws Exception {
         Settings settings = settingsBuilder()
                 .put("discovery.type", "zen")

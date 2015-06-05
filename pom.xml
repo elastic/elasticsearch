@@ -50,7 +50,7 @@
 
         <!-- Build resources properties -->
         <elasticsearch.tools.directory>${project.build.directory}/dev-tools</elasticsearch.tools.directory>
-        <elasticsearch.thirdparty.config>shaded</elasticsearch.thirdparty.config>
+        <elasticsearch.thirdparty.config>unshaded</elasticsearch.thirdparty.config>
         <elasticsearch.license.header>${elasticsearch.tools.directory}/license-check/elasticsearch_license_header.txt</elasticsearch.license.header>
         <elasticsearch.license.headerDefinition>${elasticsearch.tools.directory}/license-check/license_header_definition.xml</elasticsearch.license.headerDefinition>
 

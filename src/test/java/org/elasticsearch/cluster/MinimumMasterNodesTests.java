@@ -167,7 +167,6 @@ public class MinimumMasterNodesTests extends ElasticsearchIntegrationTest {
 
     @Test @LuceneTestCase.Slow
     @TestLogging("cluster.routing.allocation.allocator:TRACE")
-    @LuceneTestCase.AwaitsFix(bugUrl = "boaz is looking into this")
     public void multipleNodesShutdownNonMasterNodes() throws Exception {
         Settings settings = settingsBuilder()
                 .put("discovery.type", "zen")

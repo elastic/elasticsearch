@@ -761,7 +761,7 @@
                                      <!-- if the used Java version is too new, don't fail, just do nothing: -->
                                      <failOnUnsupportedJava>false</failOnUnsupportedJava>
                                      <!-- Temporary until we stabilize builds -->
-                                     <failOnMissingClasses>false</failOnMissingClasses>
+                                     <failOnUnresolvableSignatures>false</failOnUnresolvableSignatures>
                                      <excludes>
                                          <exclude>jsr166e/**</exclude>
                                      </excludes>
@@ -793,7 +793,7 @@
                                  <!-- if the used Java version is too new, don't fail, just do nothing: -->
                                  <failOnUnsupportedJava>false</failOnUnsupportedJava>
                                  <!-- Temporary until we stabilize builds -->
-                                 <failOnMissingClasses>false</failOnMissingClasses>
+                                 <failOnUnresolvableSignatures>false</failOnUnresolvableSignatures>
                                  <bundledSignatures>
                                      <!-- This will automatically choose the right signatures based on 'targetVersion': -->
                                      <bundledSignature>jdk-unsafe</bundledSignature>

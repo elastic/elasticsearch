@@ -135,7 +135,7 @@ public class SSLSettingsTests extends ElasticsearchTestCase {
         assertThat(sslSettings.trustStoreAlgorithm, is(equalTo("trusted")));
         assertThat(sslSettings.sslProtocol, is(equalTo("ssl")));
         assertThat(sslSettings.sessionCacheSize, is(equalTo(3)));
-        assertThat(sslSettings.sessionCacheTimeout, is(equalTo(TimeValue.parseTimeValue("10m", null))));
+        assertThat(sslSettings.sessionCacheTimeout, is(equalTo(TimeValue.timeValueMinutes(10L))));
     }
 
     @Test

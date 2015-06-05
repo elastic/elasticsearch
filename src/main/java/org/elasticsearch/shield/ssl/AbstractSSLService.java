@@ -22,6 +22,9 @@ import org.elasticsearch.shield.ShieldSettingsException;
 import javax.net.ssl.*;
 import java.io.InputStream;
 import java.nio.file.Files;
+import java.io.IOException;
+import java.net.InetAddress;
+import java.net.Socket;
 import java.security.KeyStore;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -56,7 +59,8 @@ public abstract class AbstractSSLService extends AbstractComponent {
      * @return A SSLSocketFactory (for client-side SSL handshaking)
      */
     public SSLSocketFactory sslSocketFactory() {
-        return sslContext(Settings.EMPTY).getSocketFactory();
+        SSLSocketFactory socketFactory = sslContext().getSocketFactory();
+        return new ShieldSSLSocketFactory(socketFactory, supportedProtocols(), supportedCiphers(socketFactory.getSupportedCipherSuites(), ciphers()));
     }
 
     public String[] supportedProtocols() {
@@ -315,6 +319,79 @@ public abstract class AbstractSSLService extends AbstractComponent {
             result = 31 * result + (trustStorePath != null ? trustStorePath.hashCode() : 0);
             result = 31 * result + (sslProtocol != null ? sslProtocol.hashCode() : 0);
             return result;
+        }
+    }
+
+    /**
+     * This socket factory set the protocols and ciphers on each SSLSocket after it is created
+     */
+    static class ShieldSSLSocketFactory extends SSLSocketFactory {
+
+        private final SSLSocketFactory delegate;
+        private final String[] supportedProtocols;
+        private final String[] ciphers;
+
+        ShieldSSLSocketFactory(SSLSocketFactory delegate, String[] supportedProtocols, String[] ciphers) {
+            this.delegate = delegate;
+            this.supportedProtocols = supportedProtocols;
+            this.ciphers = ciphers;
+        }
+
+        @Override
+        public String[] getDefaultCipherSuites() {
+            return ciphers;
+        }
+
+        @Override
+        public String[] getSupportedCipherSuites() {
+            return delegate.getSupportedCipherSuites();
+        }
+
+        @Override
+        public Socket createSocket() throws IOException {
+            SSLSocket sslSocket = (SSLSocket) delegate.createSocket();
+            configureSSLSocket(sslSocket);
+            return sslSocket;
+        }
+
+        @Override
+        public Socket createSocket(Socket socket, String host, int port, boolean autoClose) throws IOException {
+            SSLSocket sslSocket = (SSLSocket) delegate.createSocket(socket, host, port, autoClose);
+            configureSSLSocket(sslSocket);
+            return sslSocket;
+        }
+
+        @Override
+        public Socket createSocket(String host, int port) throws IOException {
+            SSLSocket sslSocket = (SSLSocket) delegate.createSocket(host, port);
+            configureSSLSocket(sslSocket);
+            return sslSocket;
+        }
+
+        @Override
+        public Socket createSocket(String host, int port, InetAddress localHost, int localPort) throws IOException {
+            SSLSocket sslSocket = (SSLSocket) delegate.createSocket(host, port, localHost, localPort);
+            configureSSLSocket(sslSocket);
+            return sslSocket;
+        }
+
+        @Override
+        public Socket createSocket(InetAddress host, int port) throws IOException {
+            SSLSocket sslSocket = (SSLSocket) delegate.createSocket(host, port);
+            configureSSLSocket(sslSocket);
+            return sslSocket;
+        }
+
+        @Override
+        public Socket createSocket(InetAddress address, int port, InetAddress localAddress, int localPort) throws IOException {
+            SSLSocket sslSocket = (SSLSocket) delegate.createSocket(address, port, localAddress, localPort);
+            configureSSLSocket(sslSocket);
+            return sslSocket;
+        }
+
+        private void configureSSLSocket(SSLSocket socket) {
+            socket.setEnabledProtocols(supportedProtocols);
+            socket.setEnabledCipherSuites(ciphers);
         }
     }
 }

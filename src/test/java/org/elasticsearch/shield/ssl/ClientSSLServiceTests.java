@@ -17,10 +17,7 @@ import org.elasticsearch.test.junit.annotations.Network;
 import org.junit.Before;
 import org.junit.Test;
 
-import javax.net.ssl.SSLContext;
-import javax.net.ssl.SSLEngine;
-import javax.net.ssl.SSLHandshakeException;
-import javax.net.ssl.SSLSessionContext;
+import javax.net.ssl.*;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -232,5 +229,20 @@ public class ClientSSLServiceTests extends ElasticsearchTestCase {
                 .putArray("shield.ssl.ciphers", new String[] { "foo", "bar" })
                 .build(), env);
         sslService.createSSLEngine();
+    }
+
+    @Test
+    public void testThatSSLSocketFactoryHasProperCiphersAndProtocols() throws Exception {
+        ClientSSLService sslService = new ClientSSLService(settingsBuilder()
+                .put("shield.ssl.keystore.path", testclientStore)
+                .put("shield.ssl.keystore.password", "testclient")
+                .build(), env);
+        SSLSocketFactory factory = sslService.sslSocketFactory();
+        assertThat(factory.getDefaultCipherSuites(), is(sslService.ciphers()));
+
+        try (SSLSocket socket = (SSLSocket) factory.createSocket()) {
+            assertThat(socket.getEnabledCipherSuites(), is(sslService.ciphers()));
+            assertThat(socket.getEnabledProtocols(), is(sslService.supportedProtocols()));
+        }
     }
 }

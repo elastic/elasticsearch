@@ -119,4 +119,6 @@
         </pluginManagement>
     </build>
 
+    <modules>
+    </modules>
 </project>

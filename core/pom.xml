@@ -13,7 +13,7 @@
     <artifactId>elasticsearch</artifactId>
 
     <packaging>jar</packaging>
-    <name>Elasticsearch core</name>
+    <name>Elasticsearch Core</name>
     <description>Elasticsearch - Open Source, Distributed, RESTful Search Engine</description>
 
 

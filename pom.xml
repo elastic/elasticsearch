@@ -1413,5 +1413,6 @@
     <modules>
         <module>dev-tools</module>
         <module>plugins</module>
+        <module>core</module>
     </modules>
 </project>

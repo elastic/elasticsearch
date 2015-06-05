@@ -33,10 +33,10 @@
             doc:    { foo: baz }
             upsert: { foo: bar }
 
-  - match:   { get.fields._parent:  "5" }
-  - match:   { get.fields._routing: "5" }
-  - is_true:   get.fields._timestamp
-  - is_true:   get.fields._ttl
+  - match:   { get._parent:  "5" }
+  - match:   { get._routing: "5" }
+  - is_true:   get._timestamp
+  - is_true:   get._ttl
 
   - do:
       get:

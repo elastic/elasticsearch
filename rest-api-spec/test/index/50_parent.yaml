@@ -37,6 +37,6 @@
           fields:  [_parent, _routing]
 
  - match:   { _id:      "1"}
- - match:   { fields._parent: "5"}
- - match:   { fields._routing: "5"}
+ - match:   { _parent: "5"}
+ - match:   { _routing: "5"}
 

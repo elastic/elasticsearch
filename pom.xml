@@ -1038,7 +1038,6 @@
                     <configuration>
                         <buildOutputDirectory>eclipse-build</buildOutputDirectory>
                         <downloadSources>true</downloadSources>
-                        <useProjectReferences>false</useProjectReferences>
                     </configuration>
                 </plugin>
 

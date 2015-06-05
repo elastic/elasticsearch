@@ -1,9 +1,64 @@
 [[indices-upgrade]]
 == Upgrade
 
-The upgrade API allows to upgrade one or more indices to the latest format
-through an API. The upgrade process converts any segments written
-with previous formats.
+The upgrade API allows to upgrade one or more indices to the latest Lucene
+format through an API. The upgrade process converts any segments written with
+older formats.
+
+.When to use the `upgrade` API
+**************************************************
+
+Newer versions of Lucene often come with a new index format which provides bug
+fixes and performance improvements. In order to take advantage of these
+improvements, the segments in each shard need to be rewritten using the latest
+Lucene format.
+
+.Automatic upgrading
+
+Indices that are actively being written to will automatically write new
+segments in the latest format.  The background merge process which combines
+multiple small segments into a single bigger segment will also write the new
+merged segment in the latest format.
+
+.Optional manual upgrades
+
+Some old segments may never be merged away because they are already too big to
+be worth merging, and indices that no longer receive changes will not be
+upgraded automatically.  Upgrading segments is not required for most
+Elasticsearch upgrades because it can read older formats from the current and
+previous major version of Lucene.
+
+You can, however, choose to upgrade old segments manually to take advantage of
+the latest format. The `upgrade` API will rewrite any old segments in the
+latest Lucene format.  It can be run on one index, multiple or all indices, so
+you can control when it is run and how many indices it should upgrade.
+
+.When you must use the `upgrade` API
+
+Elasticsearch can only read formats from the current and previous major
+version of Lucene.  For instance, Elasticsearch 2.x (Lucene 5) can read disk
+formats from Elasticsearch 0.90 and 1.x (Lucene 4), but not from Elasticsearch
+0.20 and before (Lucene 3).
+
+In fact, an Elasticsearch 2.0 cluster will refuse to start if any indices
+created before Elasticsearch 0.90 are present, and it will refuse to open them
+if they are imported as dangling indices later on.  It will not be possible to
+restore an index created with Elasticsearch 0.20.x and before into a 2.0
+cluster.
+
+These ancient indices must either be deleted or upgraded before migrating to
+Elasticsearch 2.0.  Upgrading will:
+
+* Rewrite old segments in the latest Lucene format.
+* Add the `index.version.minimum_compatible` setting to the index, to mark it as
+  2.0 compatible coming[1.6.0].
+
+Instead of upgrading all segments that weren't written with the most recent
+version of Lucene, you can choose to do the minimum work required before
+moving to Elasticsearch 2.0, by specifying the `only_ancient_segments` option,
+which will only rewrite segments written by Lucene 3.
+
+**************************************************
 
 [float]
 === Start an upgrade

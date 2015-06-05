@@ -121,5 +121,6 @@
 
     <modules>
         <module>analysis-kuromoji</module>
+        <module>analysis-smartcn</module>
     </modules>
 </project>

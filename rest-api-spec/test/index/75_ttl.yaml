@@ -29,8 +29,8 @@
           id:      1
           fields:  _ttl
 
- - lte:   { fields._ttl: 10000}
- - gt:    { fields._ttl: 0}
+ - lte:   { _ttl: 10000}
+ - gt:    { _ttl: 0}
 
 # milliseconds
 
@@ -48,8 +48,8 @@
           id:      1
           fields:  _ttl
 
- - lte:   { fields._ttl: 100000}
- - gt:    { fields._ttl: 10000}
+ - lte:   { _ttl: 100000}
+ - gt:    { _ttl: 10000}
 
 # duration
 
@@ -68,8 +68,8 @@
           id:      1
           fields:  _ttl
 
- - lte:   { fields._ttl: 20000}
- - gt:    { fields._ttl: 10000}
+ - lte:   { _ttl: 20000}
+ - gt:    { _ttl: 10000}
 
 # with timestamp
 

@@ -109,7 +109,11 @@ public class PropertyPlaceholder {
                     propVal = defaultValue;
                 }
                 if (propVal == null && placeholderResolver.shouldIgnoreMissing(placeholder)) {
-                    propVal = "";
+                    if (placeholderResolver.shouldRemoveMissingPlaceholder(placeholder)) {
+                        propVal = "";
+                    } else {
+                        return strVal;
+                    }
                 }
                 if (propVal != null) {
                     // Recursive invocation, parsing placeholders contained in the
@@ -170,5 +174,13 @@ public class PropertyPlaceholder {
         String resolvePlaceholder(String placeholderName);
 
         boolean shouldIgnoreMissing(String placeholderName);
+
+        /**
+         * Allows for special handling for ignored missing placeholders that may be resolved elsewhere
+         *
+         * @param placeholderName the name of the placeholder to resolve.
+         * @return true if the placeholder should be replaced with a empty string
+         */
+        boolean shouldRemoveMissingPlaceholder(String placeholderName);
     }
 }

@@ -33,7 +33,7 @@ public class PropertyPlaceholderTest extends ElasticsearchTestCase {
         Map<String, String> map = new LinkedHashMap<>();
         map.put("foo1", "bar1");
         map.put("foo2", "bar2");
-        PropertyPlaceholder.PlaceholderResolver placeholderResolver = new SimplePlaceholderResolver(map, false);
+        PropertyPlaceholder.PlaceholderResolver placeholderResolver = new SimplePlaceholderResolver(map, false, true);
         assertEquals("bar1", propertyPlaceholder.replacePlaceholders("{foo1}", placeholderResolver));
         assertEquals("a bar1b", propertyPlaceholder.replacePlaceholders("a {foo1}b", placeholderResolver));
         assertEquals("bar1bar2", propertyPlaceholder.replacePlaceholders("{foo1}{foo2}", placeholderResolver));
@@ -48,7 +48,7 @@ public class PropertyPlaceholderTest extends ElasticsearchTestCase {
         PropertyPlaceholder ppShorterPrefix = new PropertyPlaceholder("{", "}}", false);
         Map<String, String> map = new LinkedHashMap<>();
         map.put("foo", "bar");
-        PropertyPlaceholder.PlaceholderResolver placeholderResolver = new SimplePlaceholderResolver(map, false);
+        PropertyPlaceholder.PlaceholderResolver placeholderResolver = new SimplePlaceholderResolver(map, false, true);
         assertEquals("bar", ppEqualsPrefix.replacePlaceholders("{foo}", placeholderResolver));
         assertEquals("bar", ppLongerPrefix.replacePlaceholders("${foo}", placeholderResolver));
         assertEquals("bar", ppShorterPrefix.replacePlaceholders("{foo}}", placeholderResolver));
@@ -58,7 +58,7 @@ public class PropertyPlaceholderTest extends ElasticsearchTestCase {
     public void testDefaultValue() {
         PropertyPlaceholder propertyPlaceholder = new PropertyPlaceholder("${", "}", false);
         Map<String, String> map = new LinkedHashMap<>();
-        PropertyPlaceholder.PlaceholderResolver placeholderResolver = new SimplePlaceholderResolver(map, false);
+        PropertyPlaceholder.PlaceholderResolver placeholderResolver = new SimplePlaceholderResolver(map, false, true);
         assertEquals("bar", propertyPlaceholder.replacePlaceholders("${foo:bar}", placeholderResolver));
         assertEquals("", propertyPlaceholder.replacePlaceholders("${foo:}", placeholderResolver));
     }
@@ -67,7 +67,7 @@ public class PropertyPlaceholderTest extends ElasticsearchTestCase {
     public void testIgnoredUnresolvedPlaceholder() {
         PropertyPlaceholder propertyPlaceholder = new PropertyPlaceholder("${", "}", true);
         Map<String, String> map = new LinkedHashMap<>();
-        PropertyPlaceholder.PlaceholderResolver placeholderResolver = new SimplePlaceholderResolver(map, false);
+        PropertyPlaceholder.PlaceholderResolver placeholderResolver = new SimplePlaceholderResolver(map, false, true);
         assertEquals("${foo}", propertyPlaceholder.replacePlaceholders("${foo}", placeholderResolver));
     }
 
@@ -75,7 +75,7 @@ public class PropertyPlaceholderTest extends ElasticsearchTestCase {
     public void testNotIgnoredUnresolvedPlaceholder() {
         PropertyPlaceholder propertyPlaceholder = new PropertyPlaceholder("${", "}", false);
         Map<String, String> map = new LinkedHashMap<>();
-        PropertyPlaceholder.PlaceholderResolver placeholderResolver = new SimplePlaceholderResolver(map, false);
+        PropertyPlaceholder.PlaceholderResolver placeholderResolver = new SimplePlaceholderResolver(map, false, true);
         propertyPlaceholder.replacePlaceholders("${foo}", placeholderResolver);
     }
 
@@ -83,7 +83,7 @@ public class PropertyPlaceholderTest extends ElasticsearchTestCase {
     public void testShouldIgnoreMissing() {
         PropertyPlaceholder propertyPlaceholder = new PropertyPlaceholder("${", "}", false);
         Map<String, String> map = new LinkedHashMap<>();
-        PropertyPlaceholder.PlaceholderResolver placeholderResolver = new SimplePlaceholderResolver(map, true);
+        PropertyPlaceholder.PlaceholderResolver placeholderResolver = new SimplePlaceholderResolver(map, true, true);
         assertEquals("bar", propertyPlaceholder.replacePlaceholders("bar${foo}", placeholderResolver));
     }
 
@@ -94,7 +94,7 @@ public class PropertyPlaceholderTest extends ElasticsearchTestCase {
         map.put("foo", "${foo1}");
         map.put("foo1", "${foo2}");
         map.put("foo2", "bar");
-        PropertyPlaceholder.PlaceholderResolver placeholderResolver = new SimplePlaceholderResolver(map, false);
+        PropertyPlaceholder.PlaceholderResolver placeholderResolver = new SimplePlaceholderResolver(map, false, true);
         assertEquals("bar", propertyPlaceholder.replacePlaceholders("${foo}", placeholderResolver));
         assertEquals("abarb", propertyPlaceholder.replacePlaceholders("a${foo}b", placeholderResolver));
     }
@@ -107,7 +107,7 @@ public class PropertyPlaceholderTest extends ElasticsearchTestCase {
         map.put("foo1", "${foo2}");
         map.put("foo2", "bar");
         map.put("barbar", "baz");
-        PropertyPlaceholder.PlaceholderResolver placeholderResolver = new SimplePlaceholderResolver(map, false);
+        PropertyPlaceholder.PlaceholderResolver placeholderResolver = new SimplePlaceholderResolver(map, false, true);
         assertEquals("baz", propertyPlaceholder.replacePlaceholders("${bar${foo}}", placeholderResolver));
     }
 
@@ -119,7 +119,7 @@ public class PropertyPlaceholderTest extends ElasticsearchTestCase {
         map.put("foo1", "{foo2}");
         map.put("foo2", "bar");
         map.put("barbar", "baz");
-        PropertyPlaceholder.PlaceholderResolver placeholderResolver = new SimplePlaceholderResolver(map, false);
+        PropertyPlaceholder.PlaceholderResolver placeholderResolver = new SimplePlaceholderResolver(map, false, true);
         assertEquals("baz", propertyPlaceholder.replacePlaceholders("{bar{foo}}", placeholderResolver));
     }
 
@@ -131,7 +131,7 @@ public class PropertyPlaceholderTest extends ElasticsearchTestCase {
         map.put("foo1", "{foo2}}");
         map.put("foo2", "bar");
         map.put("barbar", "baz");
-        PropertyPlaceholder.PlaceholderResolver placeholderResolver = new SimplePlaceholderResolver(map, false);
+        PropertyPlaceholder.PlaceholderResolver placeholderResolver = new SimplePlaceholderResolver(map, false, true);
         assertEquals("baz", propertyPlaceholder.replacePlaceholders("{bar{foo}}}}", placeholderResolver));
     }
 
@@ -141,17 +141,27 @@ public class PropertyPlaceholderTest extends ElasticsearchTestCase {
         Map<String, String> map = new LinkedHashMap<>();
         map.put("foo", "${bar}");
         map.put("bar", "${foo}");
-        PropertyPlaceholder.PlaceholderResolver placeholderResolver = new SimplePlaceholderResolver(map, false);
+        PropertyPlaceholder.PlaceholderResolver placeholderResolver = new SimplePlaceholderResolver(map, false, true);
         propertyPlaceholder.replacePlaceholders("${foo}", placeholderResolver);
+    }
+
+    @Test
+    public void testShouldRemoveMissing() {
+        PropertyPlaceholder propertyPlaceholder = new PropertyPlaceholder("${", "}", false);
+        Map<String, String> map = new LinkedHashMap<>();
+        PropertyPlaceholder.PlaceholderResolver placeholderResolver = new SimplePlaceholderResolver(map, true, false);
+        assertEquals("bar${foo}", propertyPlaceholder.replacePlaceholders("bar${foo}", placeholderResolver));
     }
 
     private class SimplePlaceholderResolver implements PropertyPlaceholder.PlaceholderResolver {
         private Map<String, String> map;
         private boolean shouldIgnoreMissing;
+        private boolean shouldRemoveMissing;
 
-        SimplePlaceholderResolver(Map<String, String> map, boolean shouldIgnoreMissing) {
+        SimplePlaceholderResolver(Map<String, String> map, boolean shouldIgnoreMissing, boolean shouldRemoveMissing) {
             this.map = map;
             this.shouldIgnoreMissing = shouldIgnoreMissing;
+            this.shouldRemoveMissing = shouldRemoveMissing;
         }
 
         @Override
@@ -162,6 +172,11 @@ public class PropertyPlaceholderTest extends ElasticsearchTestCase {
         @Override
         public boolean shouldIgnoreMissing(String placeholderName) {
             return shouldIgnoreMissing;
+        }
+
+        @Override
+        public boolean shouldRemoveMissingPlaceholder(String placeholderName) {
+            return shouldRemoveMissing;
         }
     }
 }

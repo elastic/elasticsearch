@@ -544,6 +544,7 @@ public class GatewayAllocator extends AbstractComponent {
 
                 @Override
                 public void onFailure(String source, Throwable t) {
+                    rerouting.set(false);
                     logger.warn("failed to perform reroute post async fetch for {}", t, source);
                 }
             });

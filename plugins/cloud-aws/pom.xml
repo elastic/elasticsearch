@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>org.elasticsearch.plugin</groupId>
+    <artifactId>elasticsearch-cloud-aws</artifactId>
+
+    <packaging>jar</packaging>
+    <name>Elasticsearch AWS cloud plugin</name>
+    <description>The Amazon Web Service (AWS) Cloud plugin allows to use AWS API for the unicast discovery mechanism and add S3 repositories.</description>
+
+    <parent>
+        <groupId>org.elasticsearch</groupId>
+        <artifactId>elasticsearch-plugin</artifactId>
+        <version>2.0.0-SNAPSHOT</version>
+    </parent>
+
+    <properties>
+        <amazonaws.version>1.9.34</amazonaws.version>
+        <tests.jvms>1</tests.jvms>
+    </properties>
+
+    <dependencies>
+        <!-- AWS SDK -->
+        <dependency>
+            <groupId>com.amazonaws</groupId>
+            <artifactId>aws-java-sdk-ec2</artifactId>
+            <version>${amazonaws.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.amazonaws</groupId>
+            <artifactId>aws-java-sdk-s3</artifactId>
+            <version>${amazonaws.version}</version>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-assembly-plugin</artifactId>
+            </plugin>
+        </plugins>
+    </build>
+
+</project>

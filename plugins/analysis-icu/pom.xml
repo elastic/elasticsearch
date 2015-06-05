@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <groupId>org.elasticsearch.plugin</groupId>
+    <artifactId>elasticsearch-analysis-icu</artifactId>
+
+    <packaging>jar</packaging>
+    <name>Elasticsearch ICU Analysis plugin</name>
+    <description>The ICU Analysis plugin integrates Lucene ICU module into elasticsearch, adding ICU relates analysis components.</description>
+
+    <parent>
+        <groupId>org.elasticsearch</groupId>
+        <artifactId>elasticsearch-plugin</artifactId>
+        <version>2.0.0-SNAPSHOT</version>
+    </parent>
+
+    <properties>
+        <tests.jvms>1</tests.jvms>
+        <es.logger.level>INFO</es.logger.level>
+    </properties>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.apache.lucene</groupId>
+            <artifactId>lucene-analyzers-icu</artifactId>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-assembly-plugin</artifactId>
+            </plugin>
+         </plugins>
+
+         <pluginManagement>
+            <plugins>
+                <plugin>
+                    <groupId>com.mycila</groupId>
+                    <artifactId>license-maven-plugin</artifactId>
+                    <configuration>
+                        <excludes>
+                            <!-- TODO: https://github.com/elastic/elasticsearch-analysis-icu/issues/29 -->
+                            <exclude>**/IndexableBinaryStringTools.java</exclude>
+                            <exclude>**/ICUCollationKeyFilter.java</exclude>
+                            <exclude>**/TestIndexableBinaryStringTools.java</exclude>
+                        </excludes>
+                    </configuration>
+                </plugin>
+            </plugins>
+        </pluginManagement>
+    </build>
+
+</project>

@@ -1,0 +1,47 @@
+# Licensed to Elasticsearch under one or more contributor
+# license agreements. See the NOTICE file distributed with
+# this work for additional information regarding copyright
+# ownership. Elasticsearch licenses this file to you under
+# the Apache License, Version 2.0 (the "License"); you may
+# not use this file except in compliance  with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on
+# an 'AS IS' BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
+# either express or implied. See the License for the specific
+# language governing permissions and limitations under the License.
+
+@defaultMessage Convert to URI
+java.net.URL#getPath()
+java.net.URL#getFile()
+
+@defaultMessage Use java.nio.file instead of java.io.File API
+java.util.jar.JarFile
+java.util.zip.ZipFile
+java.io.File
+java.io.FileInputStream
+java.io.FileOutputStream
+java.io.PrintStream#<init>(java.lang.String,java.lang.String)
+java.io.PrintWriter#<init>(java.lang.String,java.lang.String)
+java.util.Formatter#<init>(java.lang.String,java.lang.String,java.util.Locale)
+java.io.RandomAccessFile
+java.nio.file.Path#toFile()
+
+@defaultMessage Don't use deprecated lucene apis
+org.apache.lucene.index.DocsEnum
+org.apache.lucene.index.DocsAndPositionsEnum
+org.apache.lucene.queries.TermFilter
+org.apache.lucene.queries.TermsFilter
+org.apache.lucene.search.TermRangeFilter
+org.apache.lucene.search.NumericRangeFilter
+org.apache.lucene.search.PrefixFilter
+
+java.nio.file.Paths @ Use PathUtils.get instead.
+java.nio.file.FileSystems#getDefault() @ use PathUtils.getDefault instead.
+
+@defaultMessage Specify a location for the temp file/directory instead.
+java.nio.file.Files#createTempDirectory(java.lang.String,java.nio.file.attribute.FileAttribute[])
+java.nio.file.Files#createTempFile(java.lang.String,java.lang.String,java.nio.file.attribute.FileAttribute[])

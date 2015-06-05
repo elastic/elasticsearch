@@ -127,5 +127,6 @@
         <module>analysis-icu</module>
         <module>cloud-gce</module>
         <module>cloud-azure</module>
+        <module>cloud-aws</module>
     </modules>
 </project>

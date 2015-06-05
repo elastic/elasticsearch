@@ -126,5 +126,6 @@
         <module>analysis-phonetic</module>
         <module>analysis-icu</module>
         <module>cloud-gce</module>
+        <module>cloud-azure</module>
     </modules>
 </project>

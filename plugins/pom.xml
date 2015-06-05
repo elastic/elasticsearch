@@ -122,5 +122,6 @@
     <modules>
         <module>analysis-kuromoji</module>
         <module>analysis-smartcn</module>
+        <module>analysis-stempel</module>
     </modules>
 </project>

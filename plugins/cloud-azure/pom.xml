@@ -15,26 +15,12 @@ governing permissions and limitations under the License. -->
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>org.elasticsearch</groupId>
+    <groupId>org.elasticsearch.plugin</groupId>
     <artifactId>elasticsearch-cloud-azure</artifactId>
-    <version>3.0.0-SNAPSHOT</version>
+
     <packaging>jar</packaging>
     <name>Elasticsearch Azure cloud plugin</name>
     <description>The Azure Cloud plugin allows to use Azure API for the unicast discovery mechanism and add Azure storage repositories.</description>
-    <url>https://github.com/elastic/elasticsearch-cloud-azure/</url>
-    <inceptionYear>2013</inceptionYear>
-    <licenses>
-        <license>
-            <name>The Apache Software License, Version 2.0</name>
-            <url>http://www.apache.org/licenses/LICENSE-2.0.txt</url>
-            <distribution>repo</distribution>
-        </license>
-    </licenses>
-    <scm>
-        <connection>scm:git:git@github.com:elastic/elasticsearch-cloud-azure.git</connection>
-        <developerConnection>scm:git:git@github.com:elastic/elasticsearch-cloud-azure.git</developerConnection>
-        <url>http://github.com/elastic/elasticsearch-cloud-azure</url>
-    </scm>
 
     <parent>
         <groupId>org.elasticsearch</groupId>
@@ -75,11 +61,4 @@ governing permissions and limitations under the License. -->
         </plugins>
     </build>
 
-    <repositories>
-        <repository>
-            <id>oss-snapshots</id>
-            <name>Sonatype OSS Snapshots</name>
-            <url>https://oss.sonatype.org/content/repositories/snapshots/</url>
-        </repository>
-    </repositories>
 </project>

@@ -124,5 +124,6 @@
         <module>analysis-smartcn</module>
         <module>analysis-stempel</module>
         <module>analysis-phonetic</module>
+        <module>analysis-icu</module>
     </modules>
 </project>

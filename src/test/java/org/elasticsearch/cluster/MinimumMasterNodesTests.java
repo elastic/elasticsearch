@@ -20,7 +20,6 @@
 package org.elasticsearch.cluster;
 
 import com.google.common.base.Predicate;
-
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.client.Client;
@@ -168,6 +167,7 @@ public class MinimumMasterNodesTests extends ElasticsearchIntegrationTest {
 
     @Test @LuceneTestCase.Slow
     @TestLogging("cluster.routing.allocation.allocator:TRACE")
+    @LuceneTestCase.AwaitsFix(bugUrl = "boaz is looking into this")
     public void multipleNodesShutdownNonMasterNodes() throws Exception {
         Settings settings = settingsBuilder()
                 .put("discovery.type", "zen")

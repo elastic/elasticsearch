@@ -259,7 +259,7 @@ public class UpdateHelper extends AbstractComponent {
             if (fetchedTTL instanceof Number) {
                 ttl = ((Number) fetchedTTL).longValue();
             } else {
-                ttl = TimeValue.parseTimeValue((String) fetchedTTL, null).millis();
+                ttl = TimeValue.parseTimeValue((String) fetchedTTL, null, "_ttl").millis();
             }
         }
         return ttl;

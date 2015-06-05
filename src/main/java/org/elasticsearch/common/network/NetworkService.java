@@ -96,7 +96,7 @@ public class NetworkService extends AbstractComponent {
 
 
     public InetAddress resolveBindHostAddress(String bindHost) throws IOException {
-        return resolveBindHostAddress(bindHost, null);
+        return resolveBindHostAddress(bindHost, InetAddress.getLoopbackAddress().getHostAddress());
     }
 
     public InetAddress resolveBindHostAddress(String bindHost, String defaultValue2) throws IOException {
@@ -104,7 +104,8 @@ public class NetworkService extends AbstractComponent {
     }
 
     public InetAddress resolvePublishHostAddress(String publishHost) throws IOException {
-        InetAddress address = resolvePublishHostAddress(publishHost, null);
+        InetAddress address = resolvePublishHostAddress(publishHost,
+                InetAddress.getLoopbackAddress().getHostAddress());
         // verify that its not a local address
         if (address == null || address.isAnyLocalAddress()) {
             address = NetworkUtils.getFirstNonLoopbackAddress(NetworkUtils.StackType.IPv4);

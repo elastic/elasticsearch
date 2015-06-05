@@ -31,7 +31,7 @@
           fields:  [_routing]
 
  - match:   { _id:              "1"}
- - match:   { fields._routing:  "5"}
+ - match:   { _routing:  "5"}
 
  - do:
       catch: missing

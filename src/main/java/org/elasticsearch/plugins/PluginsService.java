@@ -415,7 +415,7 @@ public class PluginsService extends AbstractComponent {
         }
     }
 
-    private ImmutableList<Tuple<PluginInfo,Plugin>> loadPluginsFromClasspath(Settings settings) {
+    private List<Tuple<PluginInfo,Plugin>> loadPluginsFromClasspath(Settings settings) {
         ImmutableList.Builder<Tuple<PluginInfo, Plugin>> plugins = ImmutableList.builder();
 
         // Trying JVM plugins: looking for es-plugin.properties files

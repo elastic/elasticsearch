@@ -132,7 +132,7 @@ public class FuzzinessTests extends ElasticsearchTestCase {
                 assertThat(parser.nextToken(), equalTo(XContentParser.Token.FIELD_NAME));
                 assertThat(parser.nextToken(), equalTo(XContentParser.Token.VALUE_STRING));
                 Fuzziness parse = Fuzziness.parse(parser);
-                assertThat(parse.asTimeValue(), equalTo(TimeValue.parseTimeValue(actual, null)));
+                assertThat(parse.asTimeValue(), equalTo(TimeValue.parseTimeValue(actual, null, "fuzziness")));
                 assertThat(parser.nextToken(), equalTo(XContentParser.Token.END_OBJECT));
             }
         }
@@ -159,7 +159,7 @@ public class FuzzinessTests extends ElasticsearchTestCase {
         assertThat(Fuzziness.AUTO.asDouble(), equalTo(1d));
         assertThat(Fuzziness.AUTO.asLong(), equalTo(1l));
         assertThat(Fuzziness.AUTO.asShort(), equalTo((short) 1));
-        assertThat(Fuzziness.AUTO.asTimeValue(), equalTo(TimeValue.parseTimeValue("1", TimeValue.timeValueMillis(1))));
+        assertThat(Fuzziness.AUTO.asTimeValue(), equalTo(TimeValue.parseTimeValue("1ms", TimeValue.timeValueMillis(1), "fuzziness")));
 
     }
 

@@ -29,7 +29,7 @@
           id:      1
           fields:  _timestamp
 
- - is_true: fields._timestamp
+ - is_true: _timestamp
 
 # milliseconds since epoch
 
@@ -48,7 +48,7 @@
           id:      1
           fields:  _timestamp
 
- - match: { fields._timestamp: 1372011280000 }
+ - match: { _timestamp: 1372011280000 }
 
 # date format
 
@@ -67,5 +67,5 @@
           id:      1
           fields:  _timestamp
 
- - match: { fields._timestamp: 1372011280000 }
+ - match: { _timestamp: 1372011280000 }
 

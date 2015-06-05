@@ -21,9 +21,13 @@ package org.elasticsearch.cluster.settings;
 
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequestBuilder;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.allocation.decider.DisableAllocationDecider;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
@@ -62,7 +66,7 @@ public class ClusterSettingsTests extends ElasticsearchIntegrationTest {
         String key2 = DisableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_DISABLE_ALLOCATION;
         boolean value2 = true;
 
-        Settings transientSettings1 = Settings.builder().put(key1, value1).build();
+        Settings transientSettings1 = Settings.builder().put(key1, value1, ByteSizeUnit.BYTES).build();
         Settings persistentSettings1 = Settings.builder().put(key2, value2).build();
 
         ClusterUpdateSettingsResponse response1 = client().admin().cluster()
@@ -78,7 +82,7 @@ public class ClusterSettingsTests extends ElasticsearchIntegrationTest {
         assertThat(response1.getPersistentSettings().get(key1), nullValue());
         assertThat(response1.getPersistentSettings().get(key2), notNullValue());
 
-        Settings transientSettings2 = Settings.builder().put(key1, value1).put(key2, value2).build();
+        Settings transientSettings2 = Settings.builder().put(key1, value1, ByteSizeUnit.BYTES).put(key2, value2).build();
         Settings persistentSettings2 = Settings.EMPTY;
 
         ClusterUpdateSettingsResponse response2 = client().admin().cluster()
@@ -95,7 +99,7 @@ public class ClusterSettingsTests extends ElasticsearchIntegrationTest {
         assertThat(response2.getPersistentSettings().get(key2), nullValue());
 
         Settings transientSettings3 = Settings.EMPTY;
-        Settings persistentSettings3 = Settings.builder().put(key1, value1).put(key2, value2).build();
+        Settings persistentSettings3 = Settings.builder().put(key1, value1, ByteSizeUnit.BYTES).put(key2, value2).build();
 
         ClusterUpdateSettingsResponse response3 = client().admin().cluster()
                 .prepareUpdateSettings()
@@ -179,5 +183,40 @@ public class ClusterSettingsTests extends ElasticsearchIntegrationTest {
         assertThat(response.getTransientSettings().get(key2), nullValue());
         assertThat(response.getPersistentSettings().get(key1), nullValue());
         assertThat(response.getPersistentSettings().get(key2), notNullValue());
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void testMissingUnits() {
+        assertAcked(prepareCreate("test"));
+
+        // Should fail (missing units for refresh_interval):
+        client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder().put("index.refresh_interval", "10")).execute().actionGet();
+    }
+
+    @Test
+    public void testMissingUnitsLenient() {
+        try {
+            createNode(Settings.builder().put(Settings.SETTINGS_REQUIRE_UNITS, "false").build());
+            assertAcked(prepareCreate("test"));
+            ensureGreen();
+            client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder().put("index.refresh_interval", "10")).execute().actionGet();
+        } finally {
+            // Restore the default so subsequent tests require units:
+            assertFalse(Settings.getSettingsRequireUnits());
+            Settings.setSettingsRequireUnits(true);
+        }
+    }
+
+    private void createNode(Settings settings) {
+        internalCluster().startNode(Settings.builder()
+                        .put(ClusterName.SETTING, "ClusterSettingsTests")
+                        .put("node.name", "ClusterSettingsTests")
+                        .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+                        .put(EsExecutors.PROCESSORS, 1) // limit the number of threads created
+                        .put("http.enabled", false)
+                        .put("config.ignore_system_properties", true) // make sure we get what we set :)
+                        .put(settings)
+        );
     }
 }

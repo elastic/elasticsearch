@@ -74,7 +74,7 @@ public abstract class BaseNodesRequest<T extends BaseNodesRequest> extends Actio
 
     @SuppressWarnings("unchecked")
     public final T timeout(String timeout) {
-        this.timeout = TimeValue.parseTimeValue(timeout, null);
+        this.timeout = TimeValue.parseTimeValue(timeout, null, getClass().getSimpleName() + ".timeout");
         return (T) this;
     }
 

@@ -28,6 +28,7 @@ import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
+import java.util.List;
 
 /**
  * Information about successfully completed restore operation.
@@ -69,7 +70,7 @@ public class RestoreInfo implements ToXContent, Streamable {
      *
      * @return list of restored indices
      */
-    public ImmutableList<String> indices() {
+    public List<String> indices() {
         return indices;
     }
 

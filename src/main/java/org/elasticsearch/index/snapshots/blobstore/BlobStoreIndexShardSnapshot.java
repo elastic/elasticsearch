@@ -364,7 +364,7 @@ public class BlobStoreIndexShardSnapshot {
      *
      * @return list of files
      */
-    public ImmutableList<FileInfo> indexFiles() {
+    public List<FileInfo> indexFiles() {
         return indexFiles;
     }
 

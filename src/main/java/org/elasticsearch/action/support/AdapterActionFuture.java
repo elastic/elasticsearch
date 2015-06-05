@@ -51,7 +51,7 @@ public abstract class AdapterActionFuture<T, L> extends BaseFuture<T> implements
 
     @Override
     public T actionGet(String timeout) {
-        return actionGet(TimeValue.parseTimeValue(timeout, null));
+        return actionGet(TimeValue.parseTimeValue(timeout, null, getClass().getSimpleName() + ".actionGet.timeout"));
     }
 
     @Override

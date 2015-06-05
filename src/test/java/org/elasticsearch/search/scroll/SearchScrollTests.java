@@ -499,7 +499,7 @@ public class SearchScrollTests extends ElasticsearchIntegrationTest {
         RestSearchScrollAction.buildFromContent(content, searchScrollRequest);
 
         assertThat(searchScrollRequest.scrollId(), equalTo("SCROLL_ID"));
-        assertThat(searchScrollRequest.scroll().keepAlive(), equalTo(TimeValue.parseTimeValue("1m", null)));
+        assertThat(searchScrollRequest.scroll().keepAlive(), equalTo(TimeValue.parseTimeValue("1m", null, "scroll")));
     }
 
     @Test

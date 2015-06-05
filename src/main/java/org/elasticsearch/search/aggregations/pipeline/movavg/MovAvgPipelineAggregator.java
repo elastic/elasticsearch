@@ -47,9 +47,7 @@ import org.elasticsearch.search.aggregations.support.format.ValueFormatterStream
 import org.joda.time.DateTime;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 import static org.elasticsearch.search.aggregations.pipeline.BucketHelpers.resolveBucketValue;
 
@@ -110,12 +108,12 @@ public class MovAvgPipelineAggregator extends PipelineAggregator {
         List newBuckets = new ArrayList<>();
         EvictingQueue<Double> values = EvictingQueue.create(this.window);
 
-        long lastKey = 0;
-        Object currentKey;
+        long lastValidKey = 0;
+        int lastValidPosition = 0;
+        int counter = 0;
 
         for (InternalHistogram.Bucket bucket : buckets) {
             Double thisBucketValue = resolveBucketValue(histo, bucket, bucketsPaths()[0], gapPolicy);
-            currentKey = bucket.getKey();
 
             // Default is to reuse existing bucket.  Simplifies the rest of the logic,
             // since we only change newBucket if we can add to it
@@ -130,22 +128,23 @@ public class MovAvgPipelineAggregator extends PipelineAggregator {
 
                     List<InternalAggregation> aggs = new ArrayList<>(Lists.transform(bucket.getAggregations().asList(), AGGREGATION_TRANFORM_FUNCTION));
                     aggs.add(new InternalSimpleValue(name(), movavg, formatter, new ArrayList<PipelineAggregator>(), metaData()));
-                    newBucket = factory.createBucket(currentKey, bucket.getDocCount(), new InternalAggregations(
+                    newBucket = factory.createBucket(bucket.getKey(), bucket.getDocCount(), new InternalAggregations(
                             aggs), bucket.getKeyed(), bucket.getFormatter());
                 }
-            }
 
-            newBuckets.add(newBucket);
-
-            if (predict > 0) {
-                if (currentKey instanceof Number) {
-                    lastKey  = ((Number) bucket.getKey()).longValue();
-                } else if (currentKey instanceof DateTime) {
-                    lastKey = ((DateTime) bucket.getKey()).getMillis();
-                } else {
-                    throw new AggregationExecutionException("Expected key of type Number or DateTime but got [" + currentKey + "]");
+                if (predict > 0) {
+                    if (bucket.getKey() instanceof Number) {
+                        lastValidKey  = ((Number) bucket.getKey()).longValue();
+                    } else if (bucket.getKey() instanceof DateTime) {
+                        lastValidKey = ((DateTime) bucket.getKey()).getMillis();
+                    } else {
+                        throw new AggregationExecutionException("Expected key of type Number or DateTime but got [" + lastValidKey + "]");
+                    }
+                    lastValidPosition = counter;
                 }
             }
+            counter += 1;
+            newBuckets.add(newBucket);
 
         }
 
@@ -158,13 +157,35 @@ public class MovAvgPipelineAggregator extends PipelineAggregator {
 
             double[] predictions = model.predict(values, predict);
             for (int i = 0; i < predictions.length; i++) {
-                List<InternalAggregation> aggs = new ArrayList<>();
-                aggs.add(new InternalSimpleValue(name(), predictions[i], formatter, new ArrayList<PipelineAggregator>(), metaData()));
-                long newKey = histo.getRounding().nextRoundingValue(lastKey);
-                InternalHistogram.Bucket newBucket = factory.createBucket(newKey, 0, new InternalAggregations(
-                        aggs), keyed, formatter);
-                newBuckets.add(newBucket);
-                lastKey = newKey;
+
+                List<InternalAggregation> aggs;
+                long newKey = histo.getRounding().nextRoundingValue(lastValidKey);
+
+                if (lastValidPosition + i + 1 < newBuckets.size()) {
+                    InternalHistogram.Bucket bucket = (InternalHistogram.Bucket) newBuckets.get(lastValidPosition + i + 1);
+
+                    // Get the existing aggs in the bucket so we don't clobber data
+                    aggs = new ArrayList<>(Lists.transform(bucket.getAggregations().asList(), AGGREGATION_TRANFORM_FUNCTION));
+                    aggs.add(new InternalSimpleValue(name(), predictions[i], formatter, new ArrayList<PipelineAggregator>(), metaData()));
+
+                    InternalHistogram.Bucket newBucket = factory.createBucket(newKey, 0, new InternalAggregations(
+                            aggs), keyed, formatter);
+
+                    // Overwrite the existing bucket with the new version
+                    newBuckets.set(lastValidPosition + i + 1, newBucket);
+
+                } else {
+                    // Not seen before, create fresh
+                    aggs = new ArrayList<>();
+                    aggs.add(new InternalSimpleValue(name(), predictions[i], formatter, new ArrayList<PipelineAggregator>(), metaData()));
+
+                    InternalHistogram.Bucket newBucket = factory.createBucket(newKey, 0, new InternalAggregations(
+                            aggs), keyed, formatter);
+
+                    // Since this is a new bucket, simply append it
+                    newBuckets.add(newBucket);
+                }
+                lastValidKey = newKey;
             }
         }
 

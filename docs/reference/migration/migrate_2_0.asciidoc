@@ -4,6 +4,11 @@
 This section discusses the changes that you need to be aware of when migrating
 your application to Elasticsearch 2.0.
 
+=== Networking
+
+Elasticsearch now binds to the loopback interface by default (usually 127.0.0.1
+or ::1), the setting `network.host` can be specified to change this behavior.
+
 === Indices API
 
 The <<alias-retrieving, get alias api>> will, by default produce an error response
@@ -642,3 +647,37 @@ created on or after clusters with version 2.0:
 * The `type` option on the `_parent` field can only point to a parent type that doesn't exist yet,
   so this means that an existing type/mapping can no longer become a parent type.
 * The `has_child` and `has_parent` queries can no longer be use in alias filters.
+
+=== Meta fields returned under the top-level json object
+
+When selecting meta fields such as `_routing` or `_timestamp`, the field values
+are now directly put as a top-level property of the json objet, instead of being
+put under `fields` like regular stored fields.
+
+[source,sh]
+---------------
+curl -XGET 'localhost:9200/test/_search?fields=_timestamp,foo'
+---------------
+
+[source,json]
+---------------
+{
+   [...]
+   "hits": {
+      "total": 1,
+      "max_score": 1,
+      "hits": [
+         {
+            "_index": "test",
+            "_type": "test",
+            "_id": "1",
+            "_score": 1,
+            "_timestamp": 10000000,
+            "fields": {
+              "foo" : [ "bar" ]
+            }
+         }
+      ]
+   }
+}
+---------------

@@ -152,7 +152,7 @@ public final class Fuzziness implements ToXContent {
         if (this == AUTO) {
             return TimeValue.timeValueMillis(1);
         } else {
-            return TimeValue.parseTimeValue(fuzziness.toString(), null);
+            return TimeValue.parseTimeValue(fuzziness.toString(), null, "fuzziness");
         }
     }
 

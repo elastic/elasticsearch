@@ -28,6 +28,7 @@ import org.elasticsearch.common.settings.Settings;
 
 import java.io.IOException;
 import java.util.Iterator;
+import java.util.List;
 
 /**
  * Get repositories response
@@ -49,7 +50,7 @@ public class GetRepositoriesResponse extends ActionResponse implements Iterable<
      *
      * @return list or repositories
      */
-    public ImmutableList<RepositoryMetaData> repositories() {
+    public List<RepositoryMetaData> repositories() {
         return repositories;
     }
 

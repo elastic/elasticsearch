@@ -29,6 +29,7 @@ import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.snapshots.SnapshotInfo;
 
 import java.io.IOException;
+import java.util.List;
 
 /**
  * Get snapshots response
@@ -49,7 +50,7 @@ public class GetSnapshotsResponse extends ActionResponse implements ToXContent {
      *
      * @return the list of snapshots
      */
-    public ImmutableList<SnapshotInfo> getSnapshots() {
+    public List<SnapshotInfo> getSnapshots() {
         return snapshots;
     }
 

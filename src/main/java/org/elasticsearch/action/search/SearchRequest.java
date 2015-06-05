@@ -524,7 +524,7 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
      * If set, will enable scrolling of the search request for the specified timeout.
      */
     public SearchRequest scroll(String keepAlive) {
-        return scroll(new Scroll(TimeValue.parseTimeValue(keepAlive, null)));
+        return scroll(new Scroll(TimeValue.parseTimeValue(keepAlive, null, getClass().getSimpleName() + ".Scroll.keepAlive")));
     }
 
     /**

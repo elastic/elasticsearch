@@ -126,8 +126,12 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
             // we know OSX has bugs in the JVM when creating multiple instances of multicast sockets
             // causing for "socket close" exceptions when receive and/or crashes
             boolean shared = settings.getAsBoolean("discovery.zen.ping.multicast.shared", Constants.MAC_OS_X);
+            // OSX does not correctly send multicasts FROM the right interface
+            boolean deferToInterface = settings.getAsBoolean("discovery.zen.ping.multicast.defer_group_to_set_interface", Constants.MAC_OS_X);
             multicastChannel = MulticastChannel.getChannel(nodeName(), shared,
-                    new MulticastChannel.Config(port, group, bufferSize, ttl, networkService.resolvePublishHostAddress(address)),
+                    new MulticastChannel.Config(port, group, bufferSize, ttl,
+                            networkService.resolvePublishHostAddress(address),
+                            deferToInterface),
                     new Receiver());
         } catch (Throwable t) {
             String msg = "multicast failed to start [{}], disabling. Consider using IPv4 only (by defining env. variable `ES_USE_IPV4`)";

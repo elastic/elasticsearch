@@ -106,7 +106,7 @@ public class DerivativeParser implements PipelineAggregator.Parser {
             if (dateTimeUnit != null) {
                 xAxisUnits = dateTimeUnit.field().getDurationField().getUnitMillis();
             } else {
-                TimeValue timeValue = TimeValue.parseTimeValue(units, null);
+                TimeValue timeValue = TimeValue.parseTimeValue(units, null, getClass().getSimpleName() + ".unit");
                 if (timeValue != null) {
                     xAxisUnits = timeValue.getMillis();
                 }

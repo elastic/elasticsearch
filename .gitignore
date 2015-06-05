@@ -5,7 +5,6 @@
 *.iws
 work/
 /data/
-/plugins/
 logs/
 .DS_Store
 build/

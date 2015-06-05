@@ -70,8 +70,8 @@ NOTE: If you installed Elasticsearch using a package (.deb, .rpm) this setting w
 [[setup-configuration-memory]]
 ==== Memory Settings
 
-The Linux kernel tries to use as much memory as possible for file system
-caches and eagerly swaps out unused application memory, possibly resulting
+Most operating systems try to use as much memory as possible for file system
+caches and eagerly swap out unused application memory, possibly resulting
 in the elasticsearch process being swapped. Swapping is very bad for
 performance and for node stability, so it should be avoided at all costs.
 
@@ -84,10 +84,16 @@ There are three options:
 The simplest option is to completely disable swap. Usually Elasticsearch
 is the only service running on a box, and its memory usage is controlled
 by the `ES_HEAP_SIZE` environment variable.  There should be no need
-to have swap enabled.  On Linux systems, you can disable swap temporarily
+to have swap enabled.
+
+On Linux systems, you can disable swap temporarily
 by running: `sudo swapoff -a`. To disable it permanently, you will need
 to edit the `/etc/fstab` file and comment out any lines that contain the
 word `swap`.
+
+On Windows, the equivalent can be achieved by disabling the paging file entirely
+via `System Properties → Advanced → Performance → Advanced → Virtual memory`.
+
 --
 
 * **Configure `swappiness`**
@@ -107,8 +113,8 @@ emergencies.
 * **`mlockall`**
 +
 --
-The third option on Linux/Unix systems only, is to use
-http://opengroup.org/onlinepubs/007908799/xsh/mlockall.html[mlockall] to
+The third option is to use
+http://opengroup.org/onlinepubs/007908799/xsh/mlockall.html[mlockall] on Linux/Unix systems, or https://msdn.microsoft.com/en-us/library/windows/desktop/aa366895%28v=vs.85%29.aspx[VirtualLock] on Windows, to
 try to lock the process address space into RAM, preventing any Elasticsearch
 memory from being swapped out.  This can be done, by adding this line
 to the `config/elasticsearch.yml` file:
@@ -128,9 +134,9 @@ curl http://localhost:9200/_nodes/process?pretty
 --------------
 
 If you see that `mlockall` is `false`, then it means that the the `mlockall`
-request has failed.  The most probable reason is that the user running
-Elasticsearch doesn't have permission to lock memory.  This can be granted
-by running `ulimit -l unlimited` as `root` before starting Elasticsearch.
+request has failed.  The most probable reason, on Linux/Unix systems, is that
+the user running Elasticsearch doesn't have permission to lock memory.  This can 
+be granted by running `ulimit -l unlimited` as `root` before starting Elasticsearch.
 
 Another possible reason why `mlockall` can fail is that the temporary directory
 (usually `/tmp`) is mounted with the `noexec` option. This can be solved by

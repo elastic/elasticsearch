@@ -125,5 +125,6 @@
         <module>analysis-stempel</module>
         <module>analysis-phonetic</module>
         <module>analysis-icu</module>
+        <module>cloud-gce</module>
     </modules>
 </project>

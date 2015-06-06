@@ -7,7 +7,6 @@ package org.elasticsearch.watcher.support.clock;
 
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.joda.time.DateTimeZone;
-import org.elasticsearch.common.joda.time.Duration;
 import org.elasticsearch.common.unit.TimeValue;
 
 import java.util.concurrent.TimeUnit;
@@ -46,7 +45,7 @@ public class ClockMock implements Clock {
 
     @Override
     public TimeValue timeElapsedSince(DateTime time) {
-        return TimeValue.timeValueMillis(new Duration(time, now).getMillis());
+        return TimeValue.timeValueMillis(now.getMillis() - time.getMillis());
     }
 
     public ClockMock setTime(DateTime now) {

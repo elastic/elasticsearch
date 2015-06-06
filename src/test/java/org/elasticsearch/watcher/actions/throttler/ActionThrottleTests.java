@@ -54,11 +54,6 @@ import static org.hamcrest.Matchers.greaterThan;
  */
 public class ActionThrottleTests extends AbstractWatcherIntegrationTests {
 
-    @Override
-    protected boolean timeWarped() {
-        return true;
-    }
-
     @Test @Slow @Repeat(iterations = 10)
     public void testSingleActionAckThrottle() throws Exception {
         boolean useClientForAcking = randomBoolean();

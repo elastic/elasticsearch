@@ -47,7 +47,7 @@ public final class SystemClock implements Clock {
 
     @Override
     public TimeValue timeElapsedSince(DateTime time) {
-        return TimeValue.timeValueMillis(System.currentTimeMillis() - time.getMillis());
+        return TimeValue.timeValueMillis(millis() - time.getMillis());
     }
 
 }

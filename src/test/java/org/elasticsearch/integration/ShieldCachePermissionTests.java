@@ -91,7 +91,7 @@ public class ShieldCachePermissionTests extends ShieldIntegrationTest {
 
         // Repeat with unauthorized user!!!!
         try {
-            client().prepareSearch("data").setTypes("a").setQuery(QueryBuilders.filteredQuery(
+            response = client().prepareSearch("data").setTypes("a").setQuery(QueryBuilders.filteredQuery(
                     QueryBuilders.matchAllQuery(),
                     QueryBuilders.termsLookupQuery("token")
                             .lookupIndex("tokens")
@@ -100,7 +100,7 @@ public class ShieldCachePermissionTests extends ShieldIntegrationTest {
                             .lookupPath("tokens")))
                     .putHeader("Authorization", basicAuthHeaderValue(READ_ONE_IDX_USER, new SecuredString("changeme".toCharArray())))
                     .execute().actionGet();
-            fail("search phase exception should have been thrown");
+            fail("search phase exception should have been thrown! response was:\n" + response.toString());
         } catch (SearchPhaseExecutionException e) {
             assertThat(e.toString(), containsString("AuthorizationException"));
         }
@@ -118,13 +118,13 @@ public class ShieldCachePermissionTests extends ShieldIntegrationTest {
 
         // Repeat with unauthorized user!!!!
         try {
-            client().prepareSearch("data").setTypes("a")
+            response = client().prepareSearch("data").setTypes("a")
                     .setTemplateType(ScriptService.ScriptType.INDEXED)
                     .setTemplateName("testTemplate")
                     .setTemplateParams(Collections.<String, Object>singletonMap("name", "token"))
                     .putHeader("Authorization", basicAuthHeaderValue(READ_ONE_IDX_USER, new SecuredString("changeme".toCharArray())))
                     .execute().actionGet();
-            fail("search phase exception should have been thrown");
+            fail("search phase exception should have been thrown! response was:\n" + response.toString());
         } catch (SearchPhaseExecutionException e) {
             assertThat(e.toString(), containsString("AuthorizationException"));
         }

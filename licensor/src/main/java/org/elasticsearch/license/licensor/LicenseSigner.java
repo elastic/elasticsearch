@@ -5,10 +5,10 @@
  */
 package org.elasticsearch.license.licensor;
 
+import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.common.Base64;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
-import org.elasticsearch.common.collect.ImmutableSet;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;

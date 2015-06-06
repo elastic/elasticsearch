@@ -5,13 +5,13 @@
  */
 package org.elasticsearch.license.plugin;
 
+import com.google.common.base.Predicate;
+import com.google.common.collect.Lists;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ProcessedClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.base.Predicate;
-import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.joda.DateMathParser;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.Joda;
@@ -29,6 +29,7 @@ import org.elasticsearch.license.plugin.core.LicensesMetaData;
 import org.elasticsearch.license.plugin.core.LicensesStatus;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.InternalTestCluster;
+import org.joda.time.format.DateTimeFormatter;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -43,7 +44,7 @@ import static org.hamcrest.Matchers.greaterThan;
 public abstract class AbstractLicensesIntegrationTests extends ElasticsearchIntegrationTest {
 
     private final static FormatDateTimeFormatter formatDateTimeFormatter = Joda.forPattern("yyyy-MM-dd");
-    private final static org.elasticsearch.common.joda.time.format.DateTimeFormatter dateTimeFormatter = formatDateTimeFormatter.printer();
+    private final static DateTimeFormatter dateTimeFormatter = formatDateTimeFormatter.printer();
     private final static DateMathParser dateMathParser = new DateMathParser(formatDateTimeFormatter);
 
     public static String dateMathString(String time, final long now) {

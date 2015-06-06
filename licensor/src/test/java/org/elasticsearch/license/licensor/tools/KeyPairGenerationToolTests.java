@@ -5,8 +5,8 @@
  */
 package org.elasticsearch.license.licensor.tools;
 
+import org.apache.commons.cli.MissingOptionException;
 import org.elasticsearch.common.cli.CliToolTestCase;
-import org.elasticsearch.common.cli.commons.MissingOptionException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.license.licensor.tools.KeyPairGeneratorTool.KeyGenerator;

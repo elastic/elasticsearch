@@ -5,8 +5,8 @@
  */
 package org.elasticsearch.license.plugin;
 
+import com.google.common.collect.Sets;
 import org.elasticsearch.action.ActionFuture;
-import org.elasticsearch.common.collect.Sets;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.license.core.License;
 import org.elasticsearch.license.plugin.action.delete.DeleteLicenseAction;

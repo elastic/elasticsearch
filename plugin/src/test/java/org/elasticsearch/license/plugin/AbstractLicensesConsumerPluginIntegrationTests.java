@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.license.plugin;
 
-import org.elasticsearch.common.base.Predicate;
+import com.google.common.base.Predicate;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.gateway.GatewayService;

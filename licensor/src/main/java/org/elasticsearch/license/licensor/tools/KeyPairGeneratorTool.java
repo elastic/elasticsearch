@@ -5,10 +5,10 @@
  */
 package org.elasticsearch.license.licensor.tools;
 
+import org.apache.commons.cli.CommandLine;
 import org.elasticsearch.common.cli.CliTool;
 import org.elasticsearch.common.cli.CliToolConfig;
 import org.elasticsearch.common.cli.Terminal;
-import org.elasticsearch.common.cli.commons.CommandLine;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 

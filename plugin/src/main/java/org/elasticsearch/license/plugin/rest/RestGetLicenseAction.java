@@ -5,8 +5,8 @@
  */
 package org.elasticsearch.license.plugin.rest;
 
+import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;

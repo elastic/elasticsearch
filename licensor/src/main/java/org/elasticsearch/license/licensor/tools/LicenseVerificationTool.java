@@ -5,10 +5,10 @@
  */
 package org.elasticsearch.license.licensor.tools;
 
+import org.apache.commons.cli.CommandLine;
 import org.elasticsearch.common.cli.CliTool;
 import org.elasticsearch.common.cli.CliToolConfig;
 import org.elasticsearch.common.cli.Terminal;
-import org.elasticsearch.common.cli.commons.CommandLine;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -16,7 +16,6 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.license.core.License;
-import org.elasticsearch.license.core.LicenseVerifier;
 import org.elasticsearch.license.core.Licenses;
 
 import java.io.IOException;

@@ -5,15 +5,15 @@
  */
 package org.elasticsearch.license.licensor.tools;
 
+import org.apache.commons.cli.MissingOptionException;
 import org.elasticsearch.common.cli.CliToolTestCase;
-import org.elasticsearch.common.cli.commons.MissingOptionException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.license.licensor.AbstractLicensingTestBase;
-import org.elasticsearch.license.licensor.TestUtils;
 import org.elasticsearch.license.core.License;
 import org.elasticsearch.license.core.Licenses;
+import org.elasticsearch.license.licensor.AbstractLicensingTestBase;
+import org.elasticsearch.license.licensor.TestUtils;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;

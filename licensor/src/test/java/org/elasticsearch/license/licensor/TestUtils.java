@@ -16,15 +16,13 @@ import org.elasticsearch.license.core.DateUtils;
 import org.elasticsearch.license.core.License;
 import org.elasticsearch.license.core.Licenses;
 import org.hamcrest.MatcherAssert;
+import org.joda.time.format.DateTimeFormatter;
 
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.Callable;
-import java.util.concurrent.TimeUnit;
 
-import static com.carrotsearch.randomizedtesting.RandomizedTest.randomBoolean;
-import static com.carrotsearch.randomizedtesting.RandomizedTest.randomInt;
-import static com.carrotsearch.randomizedtesting.RandomizedTest.randomIntBetween;
+import static com.carrotsearch.randomizedtesting.RandomizedTest.*;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.ElasticsearchTestCase.randomFrom;
 import static org.hamcrest.core.IsEqual.equalTo;
@@ -37,7 +35,7 @@ public class TestUtils {
 
     private final static FormatDateTimeFormatter formatDateTimeFormatter = Joda.forPattern("yyyy-MM-dd");
     private final static DateMathParser dateMathParser = new DateMathParser(formatDateTimeFormatter);
-    private final static org.elasticsearch.common.joda.time.format.DateTimeFormatter dateTimeFormatter = formatDateTimeFormatter.printer();
+    private final static DateTimeFormatter dateTimeFormatter = formatDateTimeFormatter.printer();
 
     public static void isSame(Set<License> firstLicenses, Set<License> secondLicenses) {
 

@@ -5,8 +5,8 @@
  */
 package org.elasticsearch.license.licensor.tools;
 
+import org.apache.commons.cli.MissingOptionException;
 import org.elasticsearch.common.cli.CliToolTestCase;
-import org.elasticsearch.common.cli.commons.MissingOptionException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.license.core.License;
@@ -20,8 +20,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
 
-import static org.elasticsearch.common.cli.CliTool.ExitStatus;
 import static org.elasticsearch.common.cli.CliTool.Command;
+import static org.elasticsearch.common.cli.CliTool.ExitStatus;
 import static org.elasticsearch.license.licensor.tools.LicenseGeneratorTool.LicenseGenerator;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.instanceOf;

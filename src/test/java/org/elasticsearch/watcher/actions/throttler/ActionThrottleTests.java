@@ -24,6 +24,7 @@ import org.elasticsearch.watcher.execution.ExecutionState;
 import org.elasticsearch.watcher.execution.ManualExecutionContext;
 import org.elasticsearch.watcher.execution.WatchExecutionResult;
 import org.elasticsearch.watcher.history.WatchRecord;
+import org.elasticsearch.watcher.support.clock.SystemClock;
 import org.elasticsearch.watcher.support.http.HttpRequestTemplate;
 import org.elasticsearch.watcher.support.template.Template;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
@@ -38,7 +39,10 @@ import org.elasticsearch.watcher.trigger.schedule.ScheduleTriggerEvent;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.joda.time.DateTimeZone.UTC;
@@ -50,6 +54,11 @@ import static org.hamcrest.Matchers.*;
 /**
  */
 public class ActionThrottleTests extends AbstractWatcherIntegrationTests {
+
+    @Override
+    protected boolean timeWarped() {
+        return true;
+    }
 
     @Test @Slow @Repeat(iterations = 10)
     public void testSingleActionAckThrottle() throws Exception {
@@ -66,17 +75,20 @@ public class ActionThrottleTests extends AbstractWatcherIntegrationTests {
         assertThat(putWatchResponse.getVersion(), greaterThan(0L));
         refresh();
 
-        assertThat(watcherClient().getWatch(new GetWatchRequest("_id")).actionGet().isFound(), equalTo(true));
+        assertThat(watcherClient().prepareGetWatch("_id").get().isFound(), equalTo(true));
         ManualExecutionContext ctx = getManualExecutionContext(new TimeValue(0, TimeUnit.SECONDS));
         WatchRecord watchRecord = executionService().execute(ctx);
 
         assertThat(watchRecord.execution().actionsResults().get("test_id").action().status(), equalTo(Action.Result.Status.SIMULATED));
+        if (timeWarped()) {
+            timeWarp().clock().fastForward(TimeValue.timeValueSeconds(1));
+        }
         boolean ack = randomBoolean();
         if (ack) {
             if (useClientForAcking) {
                 watcherClient().prepareAckWatch("_id").setActionIds("test_id").get();
             } else {
-                watchService().ackWatch("_id", new String[]{"test_id"}, new TimeValue(5, TimeUnit.SECONDS));
+                watchService().ackWatch("_id", new String[] { "test_id" }, new TimeValue(5, TimeUnit.SECONDS));
             }
         }
         ctx = getManualExecutionContext(new TimeValue(0, TimeUnit.SECONDS));
@@ -364,10 +376,11 @@ public class ActionThrottleTests extends AbstractWatcherIntegrationTests {
 
     private ManualExecutionContext getManualExecutionContext(TimeValue throttlePeriod) {
         ManualTriggerEvent triggerEvent = new ManualTriggerEvent("_id", new ScheduleTriggerEvent(new DateTime(UTC), new DateTime(UTC)));
-        ManualExecutionContext.Builder ctxBuilder = ManualExecutionContext.builder(watchService().getWatch("_id"), triggerEvent, throttlePeriod);
-        ctxBuilder.allActionsMode(ActionExecutionMode.SIMULATE);
-        ctxBuilder.recordExecution(true);
-        return ctxBuilder.build();
+        return ManualExecutionContext.builder(watchService().getWatch("_id"), triggerEvent, throttlePeriod)
+                .executionTime(timeWarped() ? timeWarp().clock().nowUTC() : SystemClock.INSTANCE.nowUTC())
+                .allActionsMode(ActionExecutionMode.SIMULATE)
+                .recordExecution(true)
+                .build();
     }
 
     enum AvailableAction {

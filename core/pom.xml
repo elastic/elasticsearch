@@ -18,8 +18,6 @@
 
 
     <properties>
-        <!-- testing is currently done unshaded :( -->
-        <elasticsearch.thirdparty.config>unshaded</elasticsearch.thirdparty.config>
         <!-- Properties used for building RPM & DEB packages (see common/packaging.properties) -->
         <packaging.elasticsearch.home.dir>/usr/share/elasticsearch</packaging.elasticsearch.home.dir>
         <packaging.elasticsearch.bin.dir>/usr/share/elasticsearch/bin</packaging.elasticsearch.bin.dir>
@@ -415,9 +413,12 @@
                     </execution>
                 </executions>
                 <configuration>
-                    <shadeTestJar>true</shadeTestJar>
+                    <shadedArtifactAttached>true</shadedArtifactAttached>
+                    <shadedClassifierName>shaded</shadedClassifierName>
+                    <shadeTestJar>false</shadeTestJar>
                     <minimizeJar>true</minimizeJar>
                     <promoteTransitiveDependencies>true</promoteTransitiveDependencies>
+                    <createDependencyReducedPom>false</createDependencyReducedPom>
                     <artifactSet>
                         <includes>
                             <include>com.google.guava:guava</include>

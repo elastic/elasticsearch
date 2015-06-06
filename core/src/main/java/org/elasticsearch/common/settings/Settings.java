@@ -1245,7 +1245,7 @@ public final class Settings implements ToXContent {
          * tries and resolve it against an environment variable ({@link System#getenv(String)}), and last, tries
          * and replace it with another setting already set on this builder.
          */
-        public Builder replacePropertyPlaceholders(String... ignoredValues) {
+        public Builder replacePropertyPlaceholders() {
             PropertyPlaceholder propertyPlaceholder = new PropertyPlaceholder("${", "}", false);
             PropertyPlaceholder.PlaceholderResolver placeholderResolver = new PropertyPlaceholder.PlaceholderResolver() {
                     @Override
@@ -1268,26 +1268,22 @@ public final class Settings implements ToXContent {
                     @Override
                     public boolean shouldIgnoreMissing(String placeholderName) {
                         // if its an explicit env var, we are ok with not having a value for it and treat it as optional
-                        if (placeholderName.startsWith("env.")) {
+                        if (placeholderName.startsWith("env.") || placeholderName.startsWith("prompt.")) {
                             return true;
                         }
                         return false;
                     }
+
+                    @Override
+                    public boolean shouldRemoveMissingPlaceholder(String placeholderName) {
+                        if (placeholderName.startsWith("prompt.")) {
+                            return false;
+                        }
+                        return true;
+                    }
                 };
             for (Map.Entry<String, String> entry : Maps.newHashMap(map).entrySet()) {
-                String possiblePlaceholder = entry.getValue();
-                boolean ignored = false;
-                for (String ignoredValue : ignoredValues) {
-                    if (ignoredValue.equals(possiblePlaceholder)) {
-                        ignored = true;
-                        break;
-                    }
-                }
-                if (ignored) {
-                    continue;
-                }
-
-                String value = propertyPlaceholder.replacePlaceholders(possiblePlaceholder, placeholderResolver);
+                String value = propertyPlaceholder.replacePlaceholders(entry.getValue(), placeholderResolver);
                 // if the values exists and has length, we should maintain it  in the map
                 // otherwise, the replace process resolved into removing it
                 if (Strings.hasLength(value)) {

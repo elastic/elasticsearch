@@ -10,7 +10,6 @@ import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.watcher.actions.Action;
 import org.elasticsearch.watcher.actions.ActionWrapper;
 import org.elasticsearch.watcher.actions.email.EmailAction;
@@ -22,11 +21,11 @@ import org.elasticsearch.watcher.client.WatchSourceBuilder;
 import org.elasticsearch.watcher.execution.ActionExecutionMode;
 import org.elasticsearch.watcher.execution.ExecutionState;
 import org.elasticsearch.watcher.execution.ManualExecutionContext;
-import org.elasticsearch.watcher.execution.WatchExecutionResult;
 import org.elasticsearch.watcher.history.WatchRecord;
 import org.elasticsearch.watcher.support.clock.SystemClock;
 import org.elasticsearch.watcher.support.http.HttpRequestTemplate;
 import org.elasticsearch.watcher.support.template.Template;
+import org.elasticsearch.watcher.support.xcontent.MapPath;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
 import org.elasticsearch.watcher.transport.actions.execute.ExecuteWatchResponse;
 import org.elasticsearch.watcher.transport.actions.get.GetWatchRequest;
@@ -40,7 +39,6 @@ import org.junit.Test;
 
 import java.io.IOException;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -49,7 +47,8 @@ import static org.elasticsearch.common.joda.time.DateTimeZone.UTC;
 import static org.elasticsearch.watcher.client.WatchSourceBuilders.watchBuilder;
 import static org.elasticsearch.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.watcher.trigger.schedule.Schedules.interval;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 
 /**
  */
@@ -225,7 +224,7 @@ public class ActionThrottleTests extends AbstractWatcherIntegrationTests {
                 .setRecordExecution(true)
                 .get();
         Map<String, Object> watchRecordMap = executeWatchResponse.getRecordSource().getAsMap();
-        Object resultStatus = getExecutionStatus(actionType, watchRecordMap);
+        Object resultStatus = getExecutionStatus(watchRecordMap);
         assertThat(resultStatus.toString(), equalTo("simulated"));
 
         if (timeWarped()) {
@@ -238,7 +237,7 @@ public class ActionThrottleTests extends AbstractWatcherIntegrationTests {
                 .setRecordExecution(true)
                 .get();
         watchRecordMap = executeWatchResponse.getRecordSource().getAsMap();
-        resultStatus = getExecutionStatus(actionType, watchRecordMap);
+        resultStatus = getExecutionStatus(watchRecordMap);
         assertThat(resultStatus.toString(), equalTo("throttled"));
 
         if (timeWarped()) {
@@ -255,7 +254,7 @@ public class ActionThrottleTests extends AbstractWatcherIntegrationTests {
                             .setRecordExecution(true)
                             .get();
                     Map<String, Object> watchRecordMap = executeWatchResponse.getRecordSource().getAsMap();
-                    Object resultStatus = getExecutionStatus(actionType, watchRecordMap);
+                    Object resultStatus = getExecutionStatus(watchRecordMap);
                     assertThat(resultStatus.toString(), equalTo("simulated"));
                 } catch (IOException ioe) {
                     throw new ElasticsearchException("failed to execute", ioe);
@@ -288,7 +287,7 @@ public class ActionThrottleTests extends AbstractWatcherIntegrationTests {
                 .setRecordExecution(true)
                 .get();
         Map<String, Object> watchRecordMap = executeWatchResponse.getRecordSource().getAsMap();
-        Object resultStatus = getExecutionStatus(actionType, watchRecordMap);
+        Object resultStatus = getExecutionStatus(watchRecordMap);
         assertThat(resultStatus.toString(), equalTo("simulated"));
 
         if (timeWarped()) {
@@ -301,7 +300,7 @@ public class ActionThrottleTests extends AbstractWatcherIntegrationTests {
                 .setRecordExecution(true)
                 .get();
         watchRecordMap = executeWatchResponse.getRecordSource().getAsMap();
-        resultStatus = getExecutionStatus(actionType, watchRecordMap);
+        resultStatus = getExecutionStatus(watchRecordMap);
         assertThat(resultStatus.toString(), equalTo("throttled"));
 
         if (timeWarped()) {
@@ -318,7 +317,7 @@ public class ActionThrottleTests extends AbstractWatcherIntegrationTests {
                             .setRecordExecution(true)
                             .get();
                     Map<String, Object> watchRecordMap = executeWatchResponse.getRecordSource().getAsMap();
-                    Object resultStatus = getExecutionStatus(actionType, watchRecordMap);
+                    Object resultStatus = getExecutionStatus(watchRecordMap);
                     assertThat(resultStatus.toString(), equalTo("simulated"));
                 } catch (IOException ioe) {
                     throw new ElasticsearchException("failed to execute", ioe);
@@ -363,15 +362,8 @@ public class ActionThrottleTests extends AbstractWatcherIntegrationTests {
     }
 
 
-    private String getExecutionStatus(String actionType, Map<String, Object> watchRecordMap) {
-        Object actionResults = XContentMapValues.extractValue(WatchRecord.Field.EXECUTION_RESULT.getPreferredName() + "."
-                + WatchExecutionResult.Field.ACTIONS.getPreferredName(), watchRecordMap);
-
-        assertThat(actionResults, instanceOf(List.class));
-
-        List actionResultsList = (List) actionResults;
-        assertThat(actionResultsList.get(0), instanceOf(Map.class));
-        return XContentMapValues.extractValue(actionType + ".status",  (Map<String,Object>) actionResultsList.get(0)).toString();
+    private String getExecutionStatus(Map<String, Object> watchRecordMap) {
+        return MapPath.eval("result.actions.0.status", watchRecordMap);
     }
 
     private ManualExecutionContext getManualExecutionContext(TimeValue throttlePeriod) {

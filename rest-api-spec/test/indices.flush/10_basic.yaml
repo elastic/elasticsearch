@@ -3,10 +3,14 @@
     - do:
        indices.create:
           index: testing
+          body:
+            settings:
+              index:
+                number_of_replicas: 0
 
     - do:
        cluster.health:
-          wait_for_status: yellow
+          wait_for_status: green
     - do:
        indices.flush_synced:
           index: testing

@@ -6,8 +6,6 @@
 package org.elasticsearch.shield.transport.netty;
 
 import org.elasticsearch.common.netty.OpenChannelsHandler;
-import org.elasticsearch.common.netty.channel.ChannelPipelineFactory;
-import org.elasticsearch.common.netty.handler.ssl.SslHandler;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
@@ -19,6 +17,8 @@ import org.elasticsearch.shield.ssl.ServerSSLService;
 import org.elasticsearch.shield.transport.SSLClientAuth;
 import org.elasticsearch.shield.transport.filter.IPFilter;
 import org.elasticsearch.test.ElasticsearchTestCase;
+import org.jboss.netty.channel.ChannelPipelineFactory;
+import org.jboss.netty.handler.ssl.SslHandler;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -27,8 +27,8 @@ import java.nio.file.Path;
 import java.util.Locale;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
+import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
-import static org.hamcrest.Matchers.*;
 
 public class ShieldNettyHttpServerTransportTests extends ElasticsearchTestCase {
 

@@ -5,9 +5,9 @@
  */
 package org.elasticsearch.shield.authz;
 
+import com.google.common.base.Predicate;
+import com.google.common.collect.ImmutableList;
 import org.elasticsearch.action.get.GetAction;
-import org.elasticsearch.common.base.Predicate;
-import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Before;
 import org.junit.Test;

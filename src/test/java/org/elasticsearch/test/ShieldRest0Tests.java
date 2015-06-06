@@ -5,14 +5,13 @@
  */
 package org.elasticsearch.test;
 
-import java.io.IOException;
-
+import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.test.rest.ElasticsearchRestTestCase;
 import org.elasticsearch.test.rest.RestTestCandidate;
 import org.elasticsearch.test.rest.parser.RestTestParseException;
 
-import com.carrotsearch.randomizedtesting.annotations.Name;
-import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+import java.io.IOException;
 
 /** Rest API tests subset 0 */
 public class ShieldRest0Tests extends ShieldRestTestCase {

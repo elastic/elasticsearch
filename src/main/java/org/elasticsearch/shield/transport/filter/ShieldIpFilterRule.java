@@ -5,11 +5,11 @@
  */
 package org.elasticsearch.shield.transport.filter;
 
-import org.elasticsearch.common.net.InetAddresses;
-import org.elasticsearch.common.netty.handler.ipfilter.IpFilterRule;
-import org.elasticsearch.common.netty.handler.ipfilter.IpSubnetFilterRule;
-import org.elasticsearch.common.netty.handler.ipfilter.PatternRule;
+import com.google.common.net.InetAddresses;
 import org.elasticsearch.shield.ShieldException;
+import org.jboss.netty.handler.ipfilter.IpFilterRule;
+import org.jboss.netty.handler.ipfilter.IpSubnetFilterRule;
+import org.jboss.netty.handler.ipfilter.PatternRule;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;

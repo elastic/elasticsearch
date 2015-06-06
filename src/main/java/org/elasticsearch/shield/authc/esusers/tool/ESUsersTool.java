@@ -5,14 +5,14 @@
  */
 package org.elasticsearch.shield.authc.esusers.tool;
 
+import com.google.common.base.Joiner;
+import com.google.common.collect.*;
+import org.apache.commons.cli.CommandLine;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.base.Joiner;
 import org.elasticsearch.common.cli.CheckFileCommand;
 import org.elasticsearch.common.cli.CliTool;
 import org.elasticsearch.common.cli.CliToolConfig;
 import org.elasticsearch.common.cli.Terminal;
-import org.elasticsearch.common.cli.commons.CommandLine;
-import org.elasticsearch.common.collect.*;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.shield.authc.Realms;

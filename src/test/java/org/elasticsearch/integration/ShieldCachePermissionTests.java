@@ -21,7 +21,8 @@ import org.junit.Test;
 import java.util.Collections;
 
 import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.is;
 
 public class ShieldCachePermissionTests extends ShieldIntegrationTest {
 

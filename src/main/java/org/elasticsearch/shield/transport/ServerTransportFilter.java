@@ -6,11 +6,7 @@
 package org.elasticsearch.shield.transport;
 
 import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.netty.channel.Channel;
-import org.elasticsearch.common.netty.handler.ssl.SslHandler;
-import org.elasticsearch.shield.ShieldException;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.action.ShieldActionMapper;
 import org.elasticsearch.shield.authc.AuthenticationException;
@@ -20,9 +16,10 @@ import org.elasticsearch.shield.authz.AuthorizationService;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.netty.NettyTransportChannel;
+import org.jboss.netty.channel.Channel;
+import org.jboss.netty.handler.ssl.SslHandler;
 
 import javax.net.ssl.SSLPeerUnverifiedException;
-import javax.net.ssl.SSLSession;
 import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
 

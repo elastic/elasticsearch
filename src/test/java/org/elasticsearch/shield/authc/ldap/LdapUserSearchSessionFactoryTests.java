@@ -6,7 +6,6 @@
 package org.elasticsearch.shield.authc.ldap;
 
 import com.unboundid.ldap.sdk.*;
-
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;

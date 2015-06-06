@@ -7,7 +7,6 @@ package org.elasticsearch.shield.transport.netty;
 
 import com.google.common.net.InetAddresses;
 import org.elasticsearch.common.component.Lifecycle;
-import org.elasticsearch.common.netty.channel.*;
 import org.elasticsearch.common.network.NetworkUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
@@ -18,6 +17,7 @@ import org.elasticsearch.shield.audit.AuditTrail;
 import org.elasticsearch.shield.transport.filter.IPFilter;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.transport.Transport;
+import org.jboss.netty.channel.*;
 import org.junit.Before;
 import org.junit.Test;
 

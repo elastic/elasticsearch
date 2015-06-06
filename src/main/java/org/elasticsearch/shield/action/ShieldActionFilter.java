@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.shield.action;
 
+import com.google.common.base.Predicate;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -13,7 +14,6 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilterChain;
-import org.elasticsearch.common.base.Predicate;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -24,10 +24,10 @@ import org.elasticsearch.shield.authc.AuthenticationService;
 import org.elasticsearch.shield.authz.AuthorizationException;
 import org.elasticsearch.shield.authz.AuthorizationService;
 import org.elasticsearch.shield.authz.Privilege;
+import org.elasticsearch.shield.crypto.CryptoService;
+import org.elasticsearch.shield.crypto.SignatureException;
 import org.elasticsearch.shield.license.LicenseEventsNotifier;
 import org.elasticsearch.shield.license.LicenseService;
-import org.elasticsearch.shield.crypto.SignatureException;
-import org.elasticsearch.shield.crypto.CryptoService;
 
 import java.util.ArrayList;
 import java.util.List;

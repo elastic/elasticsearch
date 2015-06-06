@@ -5,12 +5,12 @@
  */
 package org.elasticsearch.shield.audit.index;
 
+import com.google.common.base.Predicate;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
 import org.elasticsearch.action.exists.ExistsResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.base.Predicate;
 import org.elasticsearch.common.inject.util.Providers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
@@ -30,7 +30,6 @@ import org.elasticsearch.test.ShieldIntegrationTest;
 import org.elasticsearch.transport.TransportInfo;
 import org.elasticsearch.transport.TransportMessage;
 import org.elasticsearch.transport.TransportRequest;
-
 import org.junit.After;
 import org.junit.Test;
 
@@ -38,9 +37,9 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.util.Locale;
 
-import static org.elasticsearch.node.NodeBuilder.*;
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope.*;
+import static org.elasticsearch.node.NodeBuilder.nodeBuilder;
 import static org.elasticsearch.shield.audit.index.IndexNameResolver.Rollover.*;
+import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope.SUITE;
 import static org.hamcrest.Matchers.*;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;

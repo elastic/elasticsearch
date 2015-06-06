@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.shield.authc.support;
 
-import org.elasticsearch.common.base.Charsets;
+import com.google.common.base.Charsets;
 
 import java.nio.ByteBuffer;
 import java.nio.CharBuffer;

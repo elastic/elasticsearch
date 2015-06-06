@@ -14,8 +14,8 @@ import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
-import static org.hamcrest.Matchers.*;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
+import static org.hamcrest.Matchers.*;
 
 public class SessionFactoryTests extends ElasticsearchTestCase {
 

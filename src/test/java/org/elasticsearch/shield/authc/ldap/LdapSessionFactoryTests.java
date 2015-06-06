@@ -7,12 +7,12 @@ package org.elasticsearch.shield.authc.ldap;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.shield.authc.RealmConfig;
+import org.elasticsearch.shield.authc.ldap.support.LdapSearchScope;
+import org.elasticsearch.shield.authc.ldap.support.LdapSession;
+import org.elasticsearch.shield.authc.ldap.support.LdapTest;
 import org.elasticsearch.shield.authc.ldap.support.SessionFactory;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.SecuredStringTests;
-import org.elasticsearch.shield.authc.ldap.support.LdapSession;
-import org.elasticsearch.shield.authc.ldap.support.LdapTest;
-import org.elasticsearch.shield.authc.ldap.support.LdapSearchScope;
 import org.elasticsearch.test.junit.annotations.Network;
 import org.junit.Before;
 import org.junit.Test;

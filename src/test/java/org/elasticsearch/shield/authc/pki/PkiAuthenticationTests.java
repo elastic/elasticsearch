@@ -29,7 +29,6 @@ import org.junit.Test;
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManagerFactory;
-
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;

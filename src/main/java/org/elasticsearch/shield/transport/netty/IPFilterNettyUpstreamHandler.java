@@ -5,11 +5,11 @@
  */
 package org.elasticsearch.shield.transport.netty;
 
-import org.elasticsearch.common.netty.channel.ChannelEvent;
-import org.elasticsearch.common.netty.channel.ChannelHandler;
-import org.elasticsearch.common.netty.channel.ChannelHandlerContext;
-import org.elasticsearch.common.netty.handler.ipfilter.IpFilteringHandlerImpl;
 import org.elasticsearch.shield.transport.filter.IPFilter;
+import org.jboss.netty.channel.ChannelEvent;
+import org.jboss.netty.channel.ChannelHandler;
+import org.jboss.netty.channel.ChannelHandlerContext;
+import org.jboss.netty.handler.ipfilter.IpFilteringHandlerImpl;
 
 import java.net.InetSocketAddress;
 

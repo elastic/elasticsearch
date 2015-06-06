@@ -5,8 +5,8 @@
  */
 package org.elasticsearch.shield.transport;
 
+import com.google.common.collect.Maps;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.collect.Maps;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.shield.ShieldException;

@@ -20,8 +20,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
-import static org.elasticsearch.test.ShieldSettingsSource.DEFAULT_USER_NAME;
 import static org.elasticsearch.test.ShieldSettingsSource.DEFAULT_PASSWORD;
+import static org.elasticsearch.test.ShieldSettingsSource.DEFAULT_USER_NAME;
 import static org.hamcrest.CoreMatchers.is;
 
 public class SslMultiPortTests extends ShieldIntegrationTest {

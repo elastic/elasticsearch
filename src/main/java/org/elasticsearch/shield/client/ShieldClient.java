@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.shield.client;
 
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.ClusterAdminClient;
 import org.elasticsearch.client.ElasticsearchClient;
 
 /**

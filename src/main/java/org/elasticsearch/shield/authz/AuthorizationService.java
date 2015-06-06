@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.shield.authz;
 
-import org.elasticsearch.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableList;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.transport.TransportRequest;
 

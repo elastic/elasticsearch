@@ -5,9 +5,9 @@
  */
 package org.elasticsearch.shield.authc.esusers;
 
+import com.google.common.base.Charsets;
+import com.google.common.collect.ImmutableList;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.base.Charsets;
-import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.Settings;

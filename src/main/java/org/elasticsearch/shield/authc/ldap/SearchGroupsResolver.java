@@ -5,15 +5,15 @@
  */
 package org.elasticsearch.shield.authc.ldap;
 
+import com.google.common.primitives.Ints;
 import com.unboundid.ldap.sdk.*;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.primitives.Ints;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.shield.ShieldSettingsException;
-import org.elasticsearch.shield.authc.ldap.support.LdapSession.GroupsResolver;
 import org.elasticsearch.shield.authc.ldap.support.LdapSearchScope;
+import org.elasticsearch.shield.authc.ldap.support.LdapSession.GroupsResolver;
 
 import java.util.LinkedList;
 import java.util.List;

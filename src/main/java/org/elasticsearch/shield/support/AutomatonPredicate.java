@@ -5,9 +5,9 @@
  */
 package org.elasticsearch.shield.support;
 
-import dk.brics.automaton.RunAutomaton;
+import com.google.common.base.Predicate;
 import dk.brics.automaton.Automaton;
-import org.elasticsearch.common.base.Predicate;
+import dk.brics.automaton.RunAutomaton;
 
 /**
 *

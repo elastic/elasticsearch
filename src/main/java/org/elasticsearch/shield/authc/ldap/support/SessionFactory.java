@@ -5,13 +5,13 @@
  */
 package org.elasticsearch.shield.authc.ldap.support;
 
+import com.google.common.primitives.Ints;
 import com.unboundid.ldap.sdk.LDAPConnectionOptions;
 import com.unboundid.ldap.sdk.LDAPException;
 import com.unboundid.ldap.sdk.LDAPURL;
 import com.unboundid.util.ssl.HostNameSSLSocketVerifier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.primitives.Ints;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.shield.ShieldSettingsException;
@@ -20,9 +20,9 @@ import org.elasticsearch.shield.authc.support.SecuredString;
 
 import java.util.regex.Pattern;
 
+import static com.google.common.base.Predicates.contains;
+import static com.google.common.collect.Iterables.all;
 import static java.util.Arrays.asList;
-import static org.elasticsearch.common.base.Predicates.contains;
-import static org.elasticsearch.common.collect.Iterables.all;
 
 /**
  * This factory holds settings needed for authenticating to LDAP and creating LdapConnections.

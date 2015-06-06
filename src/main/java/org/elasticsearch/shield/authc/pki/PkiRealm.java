@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.shield.authc.pki;
 
-import org.elasticsearch.common.base.Strings;
+import com.google.common.base.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;

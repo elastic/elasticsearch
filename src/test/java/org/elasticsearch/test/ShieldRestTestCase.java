@@ -6,8 +6,8 @@
 package org.elasticsearch.test;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
-
 import org.apache.lucene.util.LuceneTestCase;
+import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.client.support.Headers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.Node;
@@ -16,7 +16,6 @@ import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
 import org.elasticsearch.test.rest.ElasticsearchRestTestCase;
 import org.elasticsearch.test.rest.RestTestCandidate;
 import org.elasticsearch.test.rest.client.RestException;
-import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;

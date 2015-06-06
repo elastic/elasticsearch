@@ -32,8 +32,8 @@ import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
 import java.util.EnumSet;
 
-import static org.elasticsearch.shield.audit.AuditUtil.restRequestContent;
 import static org.elasticsearch.shield.audit.AuditUtil.indices;
+import static org.elasticsearch.shield.audit.AuditUtil.restRequestContent;
 
 /**
  * Audit trail implementation that writes events into an index.

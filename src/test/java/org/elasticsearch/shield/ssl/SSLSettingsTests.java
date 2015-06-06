@@ -7,8 +7,8 @@ package org.elasticsearch.shield.ssl;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.shield.ssl.AbstractSSLService.SSLSettings;
+import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
 import javax.net.ssl.KeyManagerFactory;

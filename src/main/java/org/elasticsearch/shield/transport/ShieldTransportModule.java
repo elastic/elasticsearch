@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.shield.transport;
 
-import org.elasticsearch.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableList;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.inject.PreProcessModule;
 import org.elasticsearch.common.inject.util.Providers;

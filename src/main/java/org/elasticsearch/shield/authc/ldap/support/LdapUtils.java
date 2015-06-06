@@ -6,12 +6,10 @@
 package org.elasticsearch.shield.authc.ldap.support;
 
 import com.unboundid.ldap.sdk.*;
-
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.shield.authc.ldap.ShieldLdapException;
 
 import javax.naming.ldap.Rdn;
-
 import java.text.MessageFormat;
 import java.util.Locale;
 

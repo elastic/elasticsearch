@@ -5,10 +5,10 @@
  */
 package org.elasticsearch.shield.support;
 
+import com.google.common.base.Charsets;
 import com.google.common.collect.Sets;
 import com.google.common.jimfs.Configuration;
 import com.google.common.jimfs.Jimfs;
-import org.elasticsearch.common.base.Charsets;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
@@ -23,9 +23,7 @@ import java.util.Set;
 
 import static java.nio.file.attribute.PosixFilePermission.*;
 import static org.elasticsearch.shield.support.ShieldFiles.openAtomicMoveWriter;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.*;
 
 public class ShieldFilesTests extends ElasticsearchTestCase {
 

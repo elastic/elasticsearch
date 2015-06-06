@@ -5,18 +5,19 @@
  */
 package org.elasticsearch.shield.support;
 
-import dk.brics.automaton.BasicAutomata;
+import com.google.common.collect.ImmutableList;
 import dk.brics.automaton.Automaton;
+import dk.brics.automaton.BasicAutomata;
 import dk.brics.automaton.BasicOperations;
 import dk.brics.automaton.RegExp;
-import org.elasticsearch.common.collect.ImmutableList;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
+import static dk.brics.automaton.BasicOperations.minus;
+import static dk.brics.automaton.BasicOperations.union;
 import static dk.brics.automaton.MinimizationOperations.minimize;
-import static dk.brics.automaton.BasicOperations.*;
 
 /**
  *

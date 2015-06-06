@@ -6,8 +6,8 @@
 package org.elasticsearch.shield.transport.netty;
 
 import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.netty.channel.*;
-import org.elasticsearch.common.netty.handler.ssl.SslHandler;
+import org.jboss.netty.channel.*;
+import org.jboss.netty.handler.ssl.SslHandler;
 
 import java.util.LinkedList;
 import java.util.Queue;

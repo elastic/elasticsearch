@@ -5,13 +5,13 @@
  */
 package org.elasticsearch.shield.authz;
 
-import org.elasticsearch.common.base.Predicate;
-import org.elasticsearch.common.cache.CacheBuilder;
-import org.elasticsearch.common.cache.CacheLoader;
-import org.elasticsearch.common.cache.LoadingCache;
-import org.elasticsearch.common.collect.ImmutableList;
-import org.elasticsearch.common.collect.Iterators;
-import org.elasticsearch.common.collect.UnmodifiableIterator;
+import com.google.common.base.Predicate;
+import com.google.common.cache.CacheBuilder;
+import com.google.common.cache.CacheLoader;
+import com.google.common.cache.LoadingCache;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Iterators;
+import com.google.common.collect.UnmodifiableIterator;
 import org.elasticsearch.shield.support.AutomatonPredicate;
 import org.elasticsearch.shield.support.Automatons;
 

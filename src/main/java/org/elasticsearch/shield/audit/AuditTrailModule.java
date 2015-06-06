@@ -5,8 +5,8 @@
  */
 package org.elasticsearch.shield.audit;
 
+import com.google.common.collect.Sets;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.collect.Sets;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.inject.PreProcessModule;
 import org.elasticsearch.common.inject.multibindings.Multibinder;

@@ -5,16 +5,16 @@
  */
 package org.elasticsearch.shield;
 
-import org.elasticsearch.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableList;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.shield.action.ShieldActionModule;
 import org.elasticsearch.shield.audit.AuditTrailModule;
 import org.elasticsearch.shield.authc.AuthenticationModule;
 import org.elasticsearch.shield.authz.AuthorizationModule;
+import org.elasticsearch.shield.crypto.CryptoModule;
 import org.elasticsearch.shield.license.LicenseModule;
 import org.elasticsearch.shield.rest.ShieldRestModule;
-import org.elasticsearch.shield.crypto.CryptoModule;
 import org.elasticsearch.shield.ssl.SSLModule;
 import org.elasticsearch.shield.support.AbstractShieldModule;
 import org.elasticsearch.shield.transport.ShieldTransportModule;

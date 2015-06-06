@@ -6,16 +6,15 @@
 package org.elasticsearch.transport;
 
 import com.google.common.collect.ImmutableSet;
-
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.util.Callback;
+import org.elasticsearch.license.plugin.LicensePlugin;
 import org.elasticsearch.shield.action.ShieldActionModule;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.test.ShieldIntegrationTest;
-import org.elasticsearch.license.plugin.LicensePlugin;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -26,12 +25,7 @@ import java.lang.reflect.Modifier;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
-import java.nio.file.DirectoryStream;
-import java.nio.file.FileSystem;
-import java.nio.file.FileSystems;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
+import java.nio.file.*;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;

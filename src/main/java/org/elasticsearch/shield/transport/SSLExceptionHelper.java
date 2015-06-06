@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.shield.transport;
 
-import org.elasticsearch.common.netty.handler.ssl.NotSslRecordException;
+import org.jboss.netty.handler.ssl.NotSslRecordException;
 
 import javax.net.ssl.SSLException;
 

@@ -5,15 +5,13 @@
  */
 package org.elasticsearch.shield.support;
 
-import org.elasticsearch.common.base.Charsets;
+import com.google.common.base.Charsets;
 
 import java.io.IOException;
 import java.io.Writer;
 import java.nio.file.*;
 import java.nio.file.attribute.PosixFileAttributeView;
 import java.nio.file.attribute.PosixFileAttributes;
-import java.nio.file.attribute.PosixFilePermission;
-import java.util.Set;
 
 public class ShieldFiles {
 

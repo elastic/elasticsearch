@@ -8,7 +8,6 @@ package org.elasticsearch.integration;
 import com.carrotsearch.ant.tasks.junit4.dependencies.com.google.common.collect.Maps;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
-import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.shield.authc.support.Hasher;
 import org.elasticsearch.shield.authc.support.SecuredString;

@@ -10,8 +10,8 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.shield.authz.AuthorizationException;
-import org.elasticsearch.shield.crypto.InternalCryptoService;
 import org.elasticsearch.shield.crypto.CryptoService;
+import org.elasticsearch.shield.crypto.InternalCryptoService;
 import org.elasticsearch.test.ShieldIntegrationTest;
 import org.junit.Test;
 

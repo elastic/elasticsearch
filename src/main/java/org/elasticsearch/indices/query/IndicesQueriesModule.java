@@ -30,26 +30,42 @@ import java.util.Set;
 
 public class IndicesQueriesModule extends AbstractModule {
 
-    private Set<Class<QueryParser>> queryParsersClasses = Sets.newHashSet();
+    private Set<Class<? extends QueryParser>> queryParsersClasses = Sets.newHashSet();
     private Set<QueryParser> queryParsers = Sets.newHashSet();
-    private Set<Class<FilterParser>> filterParsersClasses = Sets.newHashSet();
+    private Set<Class<? extends FilterParser>> filterParsersClasses = Sets.newHashSet();
     private Set<FilterParser> filterParsers = Sets.newHashSet();
 
-    public synchronized IndicesQueriesModule addQuery(Class<QueryParser> queryParser) {
+    /**
+     * Registers a {@link QueryParser} given its class
+     */
+    public synchronized IndicesQueriesModule addQuery(Class<? extends QueryParser> queryParser) {
         queryParsersClasses.add(queryParser);
         return this;
     }
 
+    /**
+     * Registers a {@link QueryParser}
+     * @deprecated use {@link #addQuery(Class) instead}
+     */
+    @Deprecated
     public synchronized IndicesQueriesModule addQuery(QueryParser queryParser) {
         queryParsers.add(queryParser);
         return this;
     }
 
-    public synchronized IndicesQueriesModule addFilter(Class<FilterParser> filterParser) {
+    /**
+     * Registers a {@link FilterParser} given its class
+     */
+    public synchronized IndicesQueriesModule addFilter(Class<? extends FilterParser> filterParser) {
         filterParsersClasses.add(filterParser);
         return this;
     }
 
+    /**
+     * Registers a {@link FilterParser}
+     * @deprecated use {@link #addFilter(Class) instead}
+     */
+    @Deprecated
     public synchronized IndicesQueriesModule addFilter(FilterParser filterParser) {
         filterParsers.add(filterParser);
         return this;
@@ -60,7 +76,7 @@ public class IndicesQueriesModule extends AbstractModule {
         bind(IndicesQueriesRegistry.class).asEagerSingleton();
 
         Multibinder<QueryParser> qpBinders = Multibinder.newSetBinder(binder(), QueryParser.class);
-        for (Class<QueryParser> queryParser : queryParsersClasses) {
+        for (Class<? extends QueryParser> queryParser : queryParsersClasses) {
             qpBinders.addBinding().to(queryParser).asEagerSingleton();
         }
         for (QueryParser queryParser : queryParsers) {
@@ -110,7 +126,7 @@ public class IndicesQueriesModule extends AbstractModule {
         }
 
         Multibinder<FilterParser> fpBinders = Multibinder.newSetBinder(binder(), FilterParser.class);
-        for (Class<FilterParser> filterParser : filterParsersClasses) {
+        for (Class<? extends FilterParser> filterParser : filterParsersClasses) {
             fpBinders.addBinding().to(filterParser).asEagerSingleton();
         }
         for (FilterParser filterParser : filterParsers) {

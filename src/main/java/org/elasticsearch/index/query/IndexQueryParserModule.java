@@ -31,15 +31,14 @@ import org.elasticsearch.index.query.support.InnerHitsQueryParserHelper;
 import java.util.LinkedList;
 import java.util.Map;
 
-/**
- *
- */
 public class IndexQueryParserModule extends AbstractModule {
 
     /**
      * A custom processor that can be extended to process and bind custom implementations of
      * {@link QueryParserFactory}, and {@link FilterParser}.
+     * @deprecated query parsers should be registered globally via {@link org.elasticsearch.indices.query.IndicesQueriesModule#addQuery(Class)} instead
      */
+    @Deprecated
     public static class QueryParsersProcessor {
 
         /**
@@ -121,9 +120,12 @@ public class IndexQueryParserModule extends AbstractModule {
     /**
      * Adds a custom query parser.
      *
+     * @deprecated use {@link org.elasticsearch.indices.query.IndicesQueriesModule#addQuery(Class)} instead
+     *
      * @param name        The name of the query parser
      * @param queryParser the class of the query parser
      */
+    @Deprecated
     public void addQueryParser(String name, Class<? extends QueryParser> queryParser) {
         queries.put(name, queryParser);
     }
@@ -131,9 +133,12 @@ public class IndexQueryParserModule extends AbstractModule {
     /**
      * Adds a custom filter parser.
      *
+     * @deprecated use {@link org.elasticsearch.indices.query.IndicesQueriesModule#addFilter(Class)} instead
+     *
      * @param name         The name of the filter parser
      * @param filterParser the class of the filter parser
      */
+    @Deprecated
     public void addFilterParser(String name, Class<? extends FilterParser> filterParser) {
         filters.put(name, filterParser);
     }
@@ -149,7 +154,7 @@ public class IndexQueryParserModule extends AbstractModule {
         bind(IndexQueryParserService.class).asEagerSingleton();
         bind(InnerHitsQueryParserHelper.class).asEagerSingleton();
 
-        // handle XContenQueryParsers
+        // handle XContentQueryParsers
         MapBinder<String, QueryParserFactory> queryBinder
                 = MapBinder.newMapBinder(binder(), String.class, QueryParserFactory.class);
         Map<String, Settings> xContentQueryParserGroups = settings.getGroups(IndexQueryParserService.Defaults.QUERY_PREFIX);

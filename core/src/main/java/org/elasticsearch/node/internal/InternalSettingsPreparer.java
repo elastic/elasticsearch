@@ -44,8 +44,8 @@ public class InternalSettingsPreparer {
 
     static final List<String> ALLOWED_SUFFIXES = ImmutableList.of(".yml", ".yaml", ".json", ".properties");
 
-    public static final String SECRET_PROMPT_VALUE = "${prompt::secret}";
-    public static final String TEXT_PROMPT_VALUE = "${prompt::text}";
+    public static final String SECRET_PROMPT_VALUE = "${prompt.secret}";
+    public static final String TEXT_PROMPT_VALUE = "${prompt.text}";
     public static final String IGNORE_SYSTEM_PROPERTIES_SETTING = "config.ignore_system_properties";
 
     /**
@@ -72,9 +72,6 @@ public class InternalSettingsPreparer {
     public static Tuple<Settings, Environment> prepareSettings(Settings pSettings, boolean loadConfigSettings, Terminal terminal) {
         // ignore this prefixes when getting properties from es. and elasticsearch.
         String[] ignorePrefixes = new String[]{"es.default.", "elasticsearch.default."};
-        // ignore the special prompt placeholders since they have the same format as property placeholders and will be resolved
-        // as having a default value because of the ':' in the format
-        String[] ignoredPlaceholders = new String[] { SECRET_PROMPT_VALUE, TEXT_PROMPT_VALUE };
         boolean useSystemProperties = !pSettings.getAsBoolean(IGNORE_SYSTEM_PROPERTIES_SETTING, false);
         // just create enough settings to build the environment
         Settings.Builder settingsBuilder = settingsBuilder().put(pSettings);
@@ -84,7 +81,7 @@ public class InternalSettingsPreparer {
                     .putProperties("elasticsearch.", System.getProperties(), ignorePrefixes)
                     .putProperties("es.", System.getProperties(), ignorePrefixes);
         }
-        settingsBuilder.replacePropertyPlaceholders(ignoredPlaceholders);
+        settingsBuilder.replacePropertyPlaceholders();
 
         Environment environment = new Environment(settingsBuilder.build());
 
@@ -122,7 +119,7 @@ public class InternalSettingsPreparer {
             settingsBuilder.putProperties("elasticsearch.", System.getProperties(), ignorePrefixes)
                     .putProperties("es.", System.getProperties(), ignorePrefixes);
         }
-        settingsBuilder.replacePropertyPlaceholders(ignoredPlaceholders);
+        settingsBuilder.replacePropertyPlaceholders();
 
         // allow to force set properties based on configuration of the settings provided
         for (Map.Entry<String, String> entry : pSettings.getAsMap().entrySet()) {
@@ -132,7 +129,7 @@ public class InternalSettingsPreparer {
                 settingsBuilder.put(setting.substring("force.".length()), entry.getValue());
             }
         }
-        settingsBuilder.replacePropertyPlaceholders(ignoredPlaceholders);
+        settingsBuilder.replacePropertyPlaceholders();
 
         // generate the name
         if (settingsBuilder.get("name") == null) {

@@ -30,9 +30,6 @@ import org.elasticsearch.index.query.QueryParser;
 import java.util.Map;
 import java.util.Set;
 
-/**
- *
- */
 public class IndicesQueriesRegistry extends AbstractComponent {
 
     private ImmutableMap<String, QueryParser> queryParsers;
@@ -42,27 +39,17 @@ public class IndicesQueriesRegistry extends AbstractComponent {
         super(settings);
         Map<String, QueryParser> queryParsers = Maps.newHashMap();
         for (QueryParser queryParser : injectedQueryParsers) {
-            addQueryParser(queryParsers, queryParser);
+            for (String name : queryParser.names()) {
+                queryParsers.put(name, queryParser);
+            }
         }
         this.queryParsers = ImmutableMap.copyOf(queryParsers);
     }
 
     /**
-     * Adds a global query parser.
+     * Returns all the registered query parsers
      */
-    public synchronized void addQueryParser(QueryParser queryParser) {
-        Map<String, QueryParser> queryParsers = Maps.newHashMap(this.queryParsers);
-        addQueryParser(queryParsers, queryParser);
-        this.queryParsers = ImmutableMap.copyOf(queryParsers);
-    }
-
     public ImmutableMap<String, QueryParser> queryParsers() {
         return queryParsers;
-    }
-
-    private void addQueryParser(Map<String, QueryParser> queryParsers, QueryParser queryParser) {
-        for (String name : queryParser.names()) {
-            queryParsers.put(name, queryParser);
-        }
     }
 }

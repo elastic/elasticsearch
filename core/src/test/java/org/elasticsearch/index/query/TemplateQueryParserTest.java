@@ -83,7 +83,6 @@ public class TemplateQueryParserTest extends ElasticsearchTestCase {
                 new AnalysisModule(settings),
                 new SimilarityModule(settings),
                 new IndexNameModule(index),
-                new IndexQueryParserModule(settings),
                 new FunctionScoreModule(),
                 new AbstractModule() {
                     @Override
@@ -116,6 +115,35 @@ public class TemplateQueryParserTest extends ElasticsearchTestCase {
         TemplateQueryParser parser = injector.getInstance(TemplateQueryParser.class);
         Query query = parser.parse(context);
         assertTrue("Parsing template query failed.", query instanceof MatchAllDocsQuery);
+    }
+
+    @Test
+    public void testParseTemplateAsSingleStringWithConditionalClause() throws IOException {
+        String templateString = "{" + "  \"inline\" : \"{ \\\"match_{{#use_it}}{{template}}{{/use_it}}\\\":{} }\"," + "  \"params\":{"
+                + "    \"template\":\"all\"," + "    \"use_it\": true" + "  }" + "}";
+        XContentParser templateSourceParser = XContentFactory.xContent(templateString).createParser(templateString);
+        context.reset(templateSourceParser);
+
+        TemplateQueryParser parser = injector.getInstance(TemplateQueryParser.class);
+        Query query = parser.parse(context);
+        assertTrue("Parsing template query failed.", query instanceof MatchAllDocsQuery);
+    }
+
+    /**
+     * Test that the template query parser can parse and evaluate template
+     * expressed as a single string but still it expects only the query
+     * specification (thus this test should fail with specific exception).
+     */
+    @Test(expected = QueryParsingException.class)
+    public void testParseTemplateFailsToParseCompleteQueryAsSingleString() throws IOException {
+        String templateString = "{" + "  \"inline\" : \"{ \\\"size\\\": \\\"{{size}}\\\", \\\"query\\\":{\\\"match_all\\\":{}}}\","
+                + "  \"params\":{" + "    \"size\":2" + "  }\n" + "}";
+
+        XContentParser templateSourceParser = XContentFactory.xContent(templateString).createParser(templateString);
+        context.reset(templateSourceParser);
+
+        TemplateQueryParser parser = injector.getInstance(TemplateQueryParser.class);
+        parser.parse(context);
     }
 
     @Test

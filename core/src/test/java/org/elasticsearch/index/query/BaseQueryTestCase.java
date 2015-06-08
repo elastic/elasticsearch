@@ -113,7 +113,6 @@ public abstract class BaseQueryTestCase<QB extends QueryBuilder<QB>> extends Ela
                 new AnalysisModule(settings),
                 new SimilarityModule(settings),
                 new IndexNameModule(index),
-                new IndexQueryParserModule(settings),
                 new FunctionScoreModule(),
                 new AbstractModule() {
                     @Override

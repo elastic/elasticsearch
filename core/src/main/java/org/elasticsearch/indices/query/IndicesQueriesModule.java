@@ -30,16 +30,10 @@ import java.util.Set;
 
 public class IndicesQueriesModule extends AbstractModule {
 
-    private Set<Class<QueryParser>> queryParsersClasses = Sets.newHashSet();
-    private Set<QueryParser> queryParsers = Sets.newHashSet();
+    private Set<Class<? extends QueryParser>> queryParsersClasses = Sets.newHashSet();
 
-    public synchronized IndicesQueriesModule addQuery(Class<QueryParser> queryParser) {
+    public synchronized IndicesQueriesModule addQuery(Class<? extends QueryParser> queryParser) {
         queryParsersClasses.add(queryParser);
-        return this;
-    }
-
-    public synchronized IndicesQueriesModule addQuery(QueryParser queryParser) {
-        queryParsers.add(queryParser);
         return this;
     }
 
@@ -48,11 +42,8 @@ public class IndicesQueriesModule extends AbstractModule {
         bind(IndicesQueriesRegistry.class).asEagerSingleton();
 
         Multibinder<QueryParser> qpBinders = Multibinder.newSetBinder(binder(), QueryParser.class);
-        for (Class<QueryParser> queryParser : queryParsersClasses) {
+        for (Class<? extends QueryParser> queryParser : queryParsersClasses) {
             qpBinders.addBinding().to(queryParser).asEagerSingleton();
-        }
-        for (QueryParser queryParser : queryParsers) {
-            qpBinders.addBinding().toInstance(queryParser);
         }
         qpBinders.addBinding().to(MatchQueryParser.class).asEagerSingleton();
         qpBinders.addBinding().to(MultiMatchQueryParser.class).asEagerSingleton();

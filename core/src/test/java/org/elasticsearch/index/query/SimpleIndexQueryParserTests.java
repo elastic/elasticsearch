@@ -41,7 +41,6 @@ import org.elasticsearch.action.termvectors.*;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.MoreLikeThisQuery;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.search.function.BoostScoreFunction;
@@ -50,12 +49,9 @@ import org.elasticsearch.common.lucene.search.function.WeightFactorFunction;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.AbstractIndexComponent;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -71,7 +67,6 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.List;
 
@@ -83,86 +78,13 @@ import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBooleanSubQuery;
 import static org.hamcrest.Matchers.*;
 
-/**
- *
- */
 public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
 
     private IndexQueryParserService queryParser;
 
-    private static class DummyQuery extends Query {
-
-        public boolean isFilter;
-
-        @Override
-        public String toString(String field) {
-            return getClass().getSimpleName();
-        }
-
-    }
-
-    public static class DummyQueryParser extends AbstractIndexComponent implements QueryParser {
-
-
-
-        @Inject
-        public DummyQueryParser(Index index, Settings indexSettings) {
-            super(index, indexSettings);
-        }
-
-        @Override
-        public String[] names() {
-            return new String[] {DummyQueryBuilder.NAME};
-        }
-
-        @Override
-        public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
-            return fromXContent(parseContext).toQuery(parseContext);
-
-        }
-
-        @Override
-        public QueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
-            assertEquals(XContentParser.Token.END_OBJECT, parseContext.parser().nextToken());
-            return new DummyQueryBuilder();
-        }
-
-        @Override
-        public DummyQueryBuilder getBuilderPrototype() {
-            return new DummyQueryBuilder();
-        }
-    }
-
-    private static class DummyQueryBuilder extends QueryBuilder {
-
-        public static final String NAME = "dummy";
-
-        @Override
-        protected void doXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject("dummy").endObject();
-        }
-
-        @Override
-        public Query toQuery(QueryParseContext parseContext) throws QueryParsingException, IOException {
-            DummyQuery query = new DummyQuery();
-            query.isFilter = parseContext.isFilter();
-            return query;
-        }
-
-        @Override
-        public String queryId() {
-            return NAME;
-        }
-    }
-
-    private static DummyQueryBuilder dummyQuery() {
-        return new DummyQueryBuilder();
-    }
-
     @Before
     public void setup() throws IOException {
         Settings settings = Settings.settingsBuilder()
-                .put("index.queryparser.query.dummy.type", DummyQueryParser.class)
                 .put("index.cache.filter.type", "none")
                 .put("name", "SimpleIndexQueryParserTests")
                 .build();
@@ -1088,7 +1010,6 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         assertThat(clauses[3].getOccur(), equalTo(BooleanClause.Occur.SHOULD));
     }
 
-
     @Test
     public void testBoolQuery() throws IOException {
         IndexQueryParserService queryParser = queryParser();
@@ -1989,7 +1910,6 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         assertThat(filter.bottomRight().lon(), closeTo(-80, 0.00001));
     }
 
-
     @Test
     public void testGeoBoundingBoxFilter1() throws IOException {
         IndexQueryParserService queryParser = queryParser();
@@ -2489,72 +2409,11 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
     public void testTermsQueryFilter() throws Exception {
         // TermsQuery is tricky in that it parses differently as a query or a filter
         IndexQueryParserService queryParser = queryParser();
-        Query q = queryParser.parse(termsQuery("foo", Arrays.asList("bar"))).query();
+        Query q = queryParser.parse(termsQuery("foo", "bar")).query();
         assertThat(q, instanceOf(BooleanQuery.class));
 
-        ConstantScoreQuery csq = (ConstantScoreQuery) queryParser.parse(constantScoreQuery(termsQuery("foo", Arrays.asList("bar")))).query();
+        ConstantScoreQuery csq = (ConstantScoreQuery) queryParser.parse(constantScoreQuery(termsQuery("foo", "bar"))).query();
         q = csq.getQuery();
         assertThat(q, instanceOf(TermsQuery.class));
-    }
-
-    public void testConstantScoreParsesFilter() throws Exception {
-        IndexQueryParserService queryParser = queryParser();
-        Query q = queryParser.parse(constantScoreQuery(dummyQuery())).query();
-        Query inner = ((ConstantScoreQuery) q).getQuery();
-        assertThat(inner, instanceOf(DummyQuery.class));
-        assertEquals(true, ((DummyQuery) inner).isFilter);
-    }
-
-    public void testBooleanParsesFilter() throws Exception {
-        IndexQueryParserService queryParser = queryParser();
-        // single clause, serialized as inner object
-        Query q = queryParser.parse(boolQuery()
-                .should(dummyQuery())
-                .must(dummyQuery())
-                .filter(dummyQuery())
-                .mustNot(dummyQuery())).query();
-        assertThat(q, instanceOf(BooleanQuery.class));
-        BooleanQuery bq = (BooleanQuery) q;
-        assertEquals(4, bq.clauses().size());
-        for (BooleanClause clause : bq.clauses()) {
-            DummyQuery dummy = (DummyQuery) clause.getQuery();
-            switch (clause.getOccur()) {
-            case FILTER:
-            case MUST_NOT:
-                assertEquals(true, dummy.isFilter);
-                break;
-            case MUST:
-            case SHOULD:
-                assertEquals(false, dummy.isFilter);
-                break;
-            default:
-                throw new AssertionError();
-            }
-        }
-
-        // multiple clauses, serialized as inner arrays
-        q = queryParser.parse(boolQuery()
-                .should(dummyQuery()).should(dummyQuery())
-                .must(dummyQuery()).must(dummyQuery())
-                .filter(dummyQuery()).filter(dummyQuery())
-                .mustNot(dummyQuery()).mustNot(dummyQuery())).query();
-        assertThat(q, instanceOf(BooleanQuery.class));
-        bq = (BooleanQuery) q;
-        assertEquals(8, bq.clauses().size());
-        for (BooleanClause clause : bq.clauses()) {
-            DummyQuery dummy = (DummyQuery) clause.getQuery();
-            switch (clause.getOccur()) {
-            case FILTER:
-            case MUST_NOT:
-                assertEquals(true, dummy.isFilter);
-                break;
-            case MUST:
-            case SHOULD:
-                assertEquals(false, dummy.isFilter);
-                break;
-            default:
-                throw new AssertionError();
-            }
-        }
     }
 }

@@ -389,6 +389,10 @@ public class RecoveryStateTest extends ElasticsearchTestCase {
             for (int j = iterationOps; j > 0; j--) {
                 ops++;
                 translog.incrementRecoveredOperations();
+                if (randomBoolean()) {
+                    translog.decrementRecoveredOperations(1);
+                    translog.incrementRecoveredOperations();
+                }
             }
             assertThat(translog.recoveredOperations(), equalTo(ops));
             assertThat(translog.totalOperations(), equalTo(totalOps));

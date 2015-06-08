@@ -491,7 +491,7 @@ public class MapperService extends AbstractIndexComponent  {
      * registered under the give fullName across all the different {@link DocumentMapper} types.
      *
      * @param fullName The full name
-     * @return All teh {@link FieldMappers} across all the {@link DocumentMapper}s for the given fullName.
+     * @return All the {@link FieldMappers} across all the {@link DocumentMapper}s for the given fullName.
      */
     public FieldMapper fullName(String fullName) {
         FieldMappers mappers = fieldMappers.fullName(fullName);

@@ -119,19 +119,12 @@ public class InternalEngine extends Engine {
         SearcherManager manager = null;
         boolean success = false;
         try {
-            try {
-                boolean autoUpgrade = true;
-                // If the index was created on 0.20.7 (Lucene 3.x) or earlier,
-                // it needs to be upgraded
-                autoUpgrade = Version.indexCreated(engineConfig.getIndexSettings()).onOrBefore(Version.V_0_20_7);
-                if (autoUpgrade) {
-                    logger.debug("[{}] checking for 3x segments to upgrade", shardId);
-                    upgrade3xSegments(store);
-                } else {
-                    logger.debug("[{}] skipping check for 3x segments", shardId);
-                }
-            } catch (IOException ex) {
-                throw new EngineCreationFailureException(shardId, "failed to upgrade 3x segments", ex);
+            // If the index was created on 0.20.7 (Lucene 3.x) or earlier, its commit point (segments_N file) needs to be upgraded:
+            if (Version.indexCreated(engineConfig.getIndexSettings()).onOrBefore(Version.V_0_20_7)) {
+                logger.debug("[{}] checking for 3x segments to upgrade", shardId);
+                maybeUpgrade3xSegments(store);
+            } else {
+                logger.debug("[{}] skipping check for 3x segments", shardId);
             }
             this.onGoingRecoveries = new FlushingRecoveryCounter(this, store, logger);
             this.lastDeleteVersionPruneTimeMSec = engineConfig.getThreadPool().estimatedTimeInMillis();
@@ -1139,10 +1132,25 @@ public class InternalEngine extends Engine {
         }
     }
 
-    protected void upgrade3xSegments(Store store) throws IOException {
+    protected void maybeUpgrade3xSegments(Store store) throws EngineException {
         store.incRef();
         try {
-            if (Lucene.upgradeLucene3xSegmentsMetadata(store.directory())) {
+            boolean doUpgrade;
+            try {
+                doUpgrade = Lucene.indexNeeds3xUpgrading(store.directory());
+            } catch (IOException ex) {
+                // This can happen if commit was truncated (e.g. due to prior disk full), and this case requires user intervention (remove the broken
+                // commit file so Lucene falls back to a previous good one, and also clear ES's corrupted_XXX marker file), and the shard
+                // should be OK:
+                throw new EngineCreationFailureException(shardId, "failed to read commit", ex);
+            }
+        
+            if (doUpgrade) {
+                try {
+                    Lucene.upgradeLucene3xSegmentsMetadata(store.directory());
+                } catch (IOException ex) {
+                    throw new EngineCreationFailureException(shardId, "failed to upgrade 3.x segments_N commit point", ex);
+                }
                 logger.debug("upgraded current 3.x segments file on startup");
             } else {
                 logger.debug("segments file is already after 3.x; not upgrading");

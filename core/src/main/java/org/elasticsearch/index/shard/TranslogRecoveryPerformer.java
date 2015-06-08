@@ -55,8 +55,10 @@ public class TranslogRecoveryPerformer {
     private final IndexCache indexCache;
     private final MapperAnalyzer mapperAnalyzer;
     private final Map<String, Mapping> recoveredTypes = new HashMap<>();
+    private final ShardId shardId;
 
-    protected TranslogRecoveryPerformer(MapperService mapperService, MapperAnalyzer mapperAnalyzer, IndexQueryParserService queryParserService, IndexAliasesService indexAliasesService, IndexCache indexCache) {
+    protected TranslogRecoveryPerformer(ShardId shardId, MapperService mapperService, MapperAnalyzer mapperAnalyzer, IndexQueryParserService queryParserService, IndexAliasesService indexAliasesService, IndexCache indexCache) {
+        this.shardId = shardId;
         this.mapperService = mapperService;
         this.queryParserService = queryParserService;
         this.indexAliasesService = indexAliasesService;
@@ -76,11 +78,31 @@ public class TranslogRecoveryPerformer {
      */
     int performBatchRecovery(Engine engine, Iterable<Translog.Operation> operations) {
         int numOps = 0;
-        for (Translog.Operation operation : operations) {
-            performRecoveryOperation(engine, operation, false);
-            numOps++;
+        try {
+            for (Translog.Operation operation : operations) {
+                performRecoveryOperation(engine, operation, false);
+                numOps++;
+            }
+        } catch (Throwable t) {
+            throw new BatchOperationException(shardId, "failed to apply batch translog operation [" + t.getMessage() + "]", numOps, t);
         }
         return numOps;
+    }
+
+    public static class BatchOperationException extends IndexShardException {
+
+        private final int completedOperations;
+
+        public BatchOperationException(ShardId shardId, String msg, int completedOperations, Throwable cause) {
+            super(shardId, msg, cause);
+            this.completedOperations = completedOperations;
+        }
+
+
+        /** the number of succesful operations performed before the exception was thrown */
+        public int completedOperations() {
+            return completedOperations;
+        }
     }
 
     private void maybeAddMappingUpdate(String type, Mapping update, String docId, boolean allowMappingUpdates) {

@@ -60,7 +60,7 @@ public class Murmur3FieldMapper extends LongFieldMapper {
         @Override
         public Murmur3FieldMapper build(BuilderContext context) {
             setupFieldType(context);
-            Murmur3FieldMapper fieldMapper = new Murmur3FieldMapper(fieldType, docValues, null,
+            Murmur3FieldMapper fieldMapper = new Murmur3FieldMapper(fieldType, docValues,
                     ignoreMalformed(context), coerce(context),
                     fieldDataSettings, context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
             fieldMapper.includeInAll(includeInAll);
@@ -105,10 +105,10 @@ public class Murmur3FieldMapper extends LongFieldMapper {
     }
 
     protected Murmur3FieldMapper(MappedFieldType fieldType, Boolean docValues,
-            Long nullValue, Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce,
+            Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce,
             @Nullable Settings fieldDataSettings,
             Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
-        super(fieldType, docValues, nullValue, ignoreMalformed, coerce,
+        super(fieldType, docValues, ignoreMalformed, coerce,
                 fieldDataSettings, indexSettings, multiFields, copyTo);
     }
 

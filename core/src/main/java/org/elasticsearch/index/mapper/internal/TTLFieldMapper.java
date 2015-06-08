@@ -174,7 +174,7 @@ public class TTLFieldMapper extends LongFieldMapper implements RootMapper {
 
     protected TTLFieldMapper(MappedFieldType fieldType, EnabledAttributeMapper enabled, long defaultTTL, Explicit<Boolean> ignoreMalformed,
                 Explicit<Boolean> coerce, @Nullable Settings fieldDataSettings, Settings indexSettings) {
-        super(fieldType, false, Defaults.NULL_VALUE, ignoreMalformed, coerce,
+        super(fieldType, false, ignoreMalformed, coerce,
             fieldDataSettings, indexSettings, MultiFields.empty(), null);
         this.enabledState = enabled;
         this.defaultTTL = defaultTTL;

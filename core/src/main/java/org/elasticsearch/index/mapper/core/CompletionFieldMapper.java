@@ -297,6 +297,9 @@ public class CompletionFieldMapper extends AbstractFieldMapper {
     public Mapper parse(ParseContext context) throws IOException {
         XContentParser parser = context.parser();
         XContentParser.Token token = parser.currentToken();
+        if (token == XContentParser.Token.VALUE_NULL) {
+            throw new MapperParsingException("completion field [" + fieldType().names().fullName() + "] does not support null values");
+        }
 
         String surfaceForm = null;
         BytesRef payload = null;
@@ -522,11 +525,6 @@ public class CompletionFieldMapper extends AbstractFieldMapper {
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
-    }
-
-    @Override
-    public boolean supportsNullValue() {
-        return false;
     }
 
     @Override

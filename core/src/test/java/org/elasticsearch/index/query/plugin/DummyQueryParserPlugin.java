@@ -27,9 +27,9 @@ import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.BaseQueryParserTemp;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.index.query.QueryParser;
 import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.indices.query.IndicesQueriesModule;
 import org.elasticsearch.plugins.AbstractPlugin;
@@ -61,16 +61,23 @@ public class DummyQueryParserPlugin extends AbstractPlugin {
     }
 
     public static class DummyQueryBuilder extends QueryBuilder {
+        private static final String NAME = "dummy";
+
         @Override
         protected void doXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject("dummy").endObject();
+            builder.startObject(NAME).endObject();
+        }
+
+        @Override
+        public String queryId() {
+            return NAME;
         }
     }
 
-    public static class DummyQueryParser implements QueryParser {
+    public static class DummyQueryParser extends BaseQueryParserTemp {
         @Override
         public String[] names() {
-            return new String[]{"dummy"};
+            return new String[]{DummyQueryBuilder.NAME};
         }
 
         @Override
@@ -78,6 +85,11 @@ public class DummyQueryParserPlugin extends AbstractPlugin {
             XContentParser.Token token = parseContext.parser().nextToken();
             assert token == XContentParser.Token.END_OBJECT;
             return new DummyQuery(parseContext.isFilter());
+        }
+
+        @Override
+        public DummyQueryBuilder getBuilderPrototype() {
+            return new DummyQueryBuilder();
         }
     }
 

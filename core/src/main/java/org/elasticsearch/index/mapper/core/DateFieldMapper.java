@@ -115,8 +115,9 @@ public class DateFieldMapper extends NumberFieldMapper {
         @Override
         public DateFieldMapper build(BuilderContext context) {
             setupFieldType(context);
+            fieldType.setNullValue(nullValue);
             DateFieldMapper fieldMapper = new DateFieldMapper(fieldType,
-                    docValues, nullValue, ignoreMalformed(context), coerce(context),
+                    docValues, ignoreMalformed(context), coerce(context),
                     fieldDataSettings, context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
             fieldMapper.includeInAll(includeInAll);
             return fieldMapper;
@@ -374,12 +375,9 @@ public class DateFieldMapper extends NumberFieldMapper {
         }
     }
 
-    private String nullValue;
-
-    protected DateFieldMapper(MappedFieldType fieldType, Boolean docValues, String nullValue, Explicit<Boolean> ignoreMalformed,Explicit<Boolean> coerce,
+    protected DateFieldMapper(MappedFieldType fieldType, Boolean docValues, Explicit<Boolean> ignoreMalformed,Explicit<Boolean> coerce,
                               @Nullable Settings fieldDataSettings, Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
         super(fieldType, docValues, ignoreMalformed, coerce, fieldDataSettings, indexSettings, multiFields, copyTo);
-        this.nullValue = nullValue;
     }
 
     @Override
@@ -410,15 +408,6 @@ public class DateFieldMapper extends NumberFieldMapper {
     }
 
     @Override
-    public Query nullValueFilter() {
-        if (nullValue == null) {
-            return null;
-        }
-        return new ConstantScoreQuery(termQuery(nullValue, null));
-    }
-
-
-    @Override
     protected boolean customBoost() {
         return true;
     }
@@ -431,13 +420,13 @@ public class DateFieldMapper extends NumberFieldMapper {
             Object externalValue = context.externalValue();
             dateAsString = (String) externalValue;
             if (dateAsString == null) {
-                dateAsString = nullValue;
+                dateAsString = fieldType.nullValueAsString();
             }
         } else {
             XContentParser parser = context.parser();
             XContentParser.Token token = parser.currentToken();
             if (token == XContentParser.Token.VALUE_NULL) {
-                dateAsString = nullValue;
+                dateAsString = fieldType.nullValueAsString();
             } else if (token == XContentParser.Token.VALUE_NUMBER) {
                 dateAsString = parser.text();
             } else if (token == XContentParser.Token.START_OBJECT) {
@@ -448,7 +437,7 @@ public class DateFieldMapper extends NumberFieldMapper {
                     } else {
                         if ("value".equals(currentFieldName) || "_value".equals(currentFieldName)) {
                             if (token == XContentParser.Token.VALUE_NULL) {
-                                dateAsString = nullValue;
+                                dateAsString = fieldType.nullValueAsString();
                             } else {
                                 dateAsString = parser.text();
                             }
@@ -496,9 +485,9 @@ public class DateFieldMapper extends NumberFieldMapper {
             return;
         }
         if (!mergeResult.simulate()) {
-            this.nullValue = ((DateFieldMapper) mergeWith).nullValue;
             this.fieldType = this.fieldType.clone();
             fieldType().setDateTimeFormatter(((DateFieldMapper) mergeWith).fieldType().dateTimeFormatter());
+            this.fieldType.setNullValue(((DateFieldMapper) mergeWith).fieldType().nullValue());
             this.fieldType.freeze();
         }
     }
@@ -511,8 +500,8 @@ public class DateFieldMapper extends NumberFieldMapper {
             builder.field("precision_step", fieldType.numericPrecisionStep());
         }
         builder.field("format", fieldType().dateTimeFormatter().format());
-        if (includeDefaults || nullValue != null) {
-            builder.field("null_value", nullValue);
+        if (includeDefaults || fieldType.nullValueAsString() != null) {
+            builder.field("null_value", fieldType.nullValueAsString());
         }
         if (includeInAll != null) {
             builder.field("include_in_all", includeInAll);

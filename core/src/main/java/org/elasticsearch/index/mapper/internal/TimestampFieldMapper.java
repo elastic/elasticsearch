@@ -251,7 +251,7 @@ public class TimestampFieldMapper extends DateFieldMapper implements RootMapper 
     protected TimestampFieldMapper(MappedFieldType fieldType, Boolean docValues, EnabledAttributeMapper enabledState, String path,
                                    String defaultTimestamp, Boolean ignoreMissing, Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce,
                                    @Nullable Settings fieldDataSettings, Settings indexSettings) {
-        super(fieldType, docValues, Defaults.NULL_VALUE, ignoreMalformed, coerce, fieldDataSettings,
+        super(fieldType, docValues, ignoreMalformed, coerce, fieldDataSettings,
                 indexSettings, MultiFields.empty(), null);
         this.enabledState = enabledState;
         this.path = path;

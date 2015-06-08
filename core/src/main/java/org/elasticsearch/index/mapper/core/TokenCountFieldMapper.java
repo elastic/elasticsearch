@@ -60,17 +60,11 @@ public class TokenCountFieldMapper extends IntegerFieldMapper {
     }
 
     public static class Builder extends NumberFieldMapper.Builder<Builder, TokenCountFieldMapper> {
-        private Integer nullValue = Defaults.NULL_VALUE;
         private NamedAnalyzer analyzer;
 
         public Builder(String name) {
             super(name, Defaults.FIELD_TYPE, Defaults.PRECISION_STEP_32_BIT);
             builder = this;
-        }
-
-        public Builder nullValue(int nullValue) {
-            this.nullValue = nullValue;
-            return this;
         }
 
         public Builder analyzer(NamedAnalyzer analyzer) {
@@ -85,7 +79,7 @@ public class TokenCountFieldMapper extends IntegerFieldMapper {
         @Override
         public TokenCountFieldMapper build(BuilderContext context) {
             setupFieldType(context);
-            TokenCountFieldMapper fieldMapper = new TokenCountFieldMapper(fieldType, docValues, nullValue,
+            TokenCountFieldMapper fieldMapper = new TokenCountFieldMapper(fieldType, docValues,
                     ignoreMalformed(context), coerce(context), fieldDataSettings, context.indexSettings(),
                     analyzer, multiFieldsBuilder.build(this, context), copyTo);
             fieldMapper.includeInAll(includeInAll);
@@ -134,26 +128,24 @@ public class TokenCountFieldMapper extends IntegerFieldMapper {
 
     private NamedAnalyzer analyzer;
 
-    protected TokenCountFieldMapper(MappedFieldType fieldType, Boolean docValues, Integer nullValue,
-            Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce, Settings fieldDataSettings, Settings indexSettings, NamedAnalyzer analyzer,
-            MultiFields multiFields, CopyTo copyTo) {
-        super(fieldType, docValues, nullValue, ignoreMalformed, coerce,
-            fieldDataSettings, indexSettings, multiFields, copyTo);
-
+    protected TokenCountFieldMapper(MappedFieldType fieldType, Boolean docValues, Explicit<Boolean> ignoreMalformed,
+                                    Explicit<Boolean> coerce, Settings fieldDataSettings, Settings indexSettings,
+                                    NamedAnalyzer analyzer, MultiFields multiFields, CopyTo copyTo) {
+        super(fieldType, docValues, ignoreMalformed, coerce, fieldDataSettings, indexSettings, multiFields, copyTo);
         this.analyzer = analyzer;
     }
 
     @Override
     protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException {
         ValueAndBoost valueAndBoost = StringFieldMapper.parseCreateFieldForString(context, null /* Out null value is an int so we convert*/, fieldType.boost());
-        if (valueAndBoost.value() == null && nullValue() == null) {
+        if (valueAndBoost.value() == null && fieldType().nullValue() == null) {
             return;
         }
 
         if (fieldType.indexOptions() != NONE || fieldType.stored() || fieldType().hasDocValues()) {
             int count;
             if (valueAndBoost.value() == null) {
-                count = nullValue();
+                count = fieldType().nullValue();
             } else {
                 count = countPositions(analyzer.analyzer().tokenStream(fieldType().names().shortName(), valueAndBoost.value()));
             }

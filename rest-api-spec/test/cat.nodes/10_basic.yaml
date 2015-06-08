@@ -31,6 +31,16 @@
 
   - do:
       cat.nodes:
+          h: heap.*
+          v: true
+
+  - match:
+      $body: |
+               /^      heap\.current          \s+  heap\.percent  \s+  heap\.max             \s+ \n
+                  (\s+ \d+(\.\d+)?[ptgmk]?b   \s+  \d+            \s+  \d+(\.\d+)?[ptgmk]?b  \s+ \n)+  $/
+
+  - do:
+      cat.nodes:
           h: file_desc.current,file_desc.percent,file_desc.max
           v: true
 

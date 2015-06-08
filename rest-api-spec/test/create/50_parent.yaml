@@ -14,7 +14,7 @@
           wait_for_status: yellow
 
  - do:
-      catch:  /RoutingMissingException/
+      catch:  /routing_missing_exception/
       create:
           index:   test_1
           type:    test
@@ -38,6 +38,6 @@
           fields:  [_parent, _routing]
 
  - match:   { _id:      "1"}
- - match:   { fields._parent: "5"}
- - match:   { fields._routing: "5"}
+ - match:   { _parent: "5"}
+ - match:   { _routing: "5"}
 

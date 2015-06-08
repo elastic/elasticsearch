@@ -1,0 +1,302 @@
+[[search-aggregations-bucket-range-aggregation]]
+=== Range Aggregation
+
+A multi-bucket value source based aggregation that enables the user to define a set of ranges - each representing a bucket. During the aggregation process, the values extracted from each document will be checked against each bucket range and "bucket" the relevant/matching document.
+Note that this aggregration includes the `from` value and excludes the `to` value for each range.
+
+Example:
+
+[source,js]
+--------------------------------------------------
+{
+    "aggs" : {
+        "price_ranges" : {
+            "range" : {
+                "field" : "price",
+                "ranges" : [
+                    { "to" : 50 },
+                    { "from" : 50, "to" : 100 },
+                    { "from" : 100 }
+                ]
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+Response:
+
+[source,js]
+--------------------------------------------------
+{
+    ...
+
+    "aggregations": {
+        "price_ranges" : {
+            "buckets": [
+                {
+                    "to": 50,
+                    "doc_count": 2
+                },
+                {
+                    "from": 50,
+                    "to": 100,
+                    "doc_count": 4
+                },
+                {
+                    "from": 100,
+                    "doc_count": 4
+                }
+            ]
+        }
+    }
+}
+--------------------------------------------------
+
+==== Keyed Response
+
+Setting the `keyed` flag to `true` will associate a unique string key with each bucket and return the ranges as a hash rather than an array:
+
+[source,js]
+--------------------------------------------------
+{
+    "aggs" : {
+        "price_ranges" : {
+            "range" : {
+                "field" : "price",
+                "keyed" : true,
+                "ranges" : [
+                    { "to" : 50 },
+                    { "from" : 50, "to" : 100 },
+                    { "from" : 100 }
+                ]
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+Response:
+
+[source,js]
+--------------------------------------------------
+{
+    ...
+
+    "aggregations": {
+        "price_ranges" : {
+            "buckets": {
+                "*-50.0": {
+                    "to": 50,
+                    "doc_count": 2
+                },
+                "50.0-100.0": {
+                    "from": 50,
+                    "to": 100,
+                    "doc_count": 4
+                },
+                "100.0-*": {
+                    "from": 100,
+                    "doc_count": 4
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+It is also possible to customize the key for each range:
+
+[source,js]
+--------------------------------------------------
+{
+    "aggs" : {
+        "price_ranges" : {
+            "range" : {
+                "field" : "price",
+                "keyed" : true,
+                "ranges" : [
+                    { "key" : "cheap", "to" : 50 },
+                    { "key" : "average", "from" : 50, "to" : 100 },
+                    { "key" : "expensive", "from" : 100 }
+                ]
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+==== Script
+
+[source,js]
+--------------------------------------------------
+{
+    "aggs" : {
+        "price_ranges" : {
+            "range" : {
+                "script" : "doc['price'].value",
+                "ranges" : [
+                    { "to" : 50 },
+                    { "from" : 50, "to" : 100 },
+                    { "from" : 100 }
+                ]
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+This will interpret the `script` parameter as an `inline` script with the default script language and no script parameters. To use a file script use the following syntax:
+
+[source,js]
+--------------------------------------------------
+{
+    "aggs" : {
+        "price_ranges" : {
+            "range" : {
+                "script" : {
+                    "file": "my_script",
+                    "params": {
+                        "field": "price"
+                    }
+                },
+                "ranges" : [
+                    { "to" : 50 },
+                    { "from" : 50, "to" : 100 },
+                    { "from" : 100 }
+                ]
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+TIP: for indexed scripts replace the `file` parameter with an `id` parameter.
+
+==== Value Script
+
+Lets say the product prices are in USD but we would like to get the price ranges in EURO. We can use value script to convert the prices prior the aggregation (assuming conversion rate of 0.8)
+
+[source,js]
+--------------------------------------------------
+{
+    "aggs" : {
+        "price_ranges" : {
+            "range" : {
+                "field" : "price",
+                "script" : "_value * conversion_rate",
+                "params" : {
+                    "conversion_rate" : 0.8
+                },
+                "ranges" : [
+                    { "to" : 35 },
+                    { "from" : 35, "to" : 70 },
+                    { "from" : 70 }
+                ]
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+==== Sub Aggregations
+
+The following example, not only "bucket" the documents to the different buckets but also computes statistics over the prices in each price range
+
+[source,js]
+--------------------------------------------------
+{
+    "aggs" : {
+        "price_ranges" : {
+            "range" : {
+                "field" : "price",
+                "ranges" : [
+                    { "to" : 50 },
+                    { "from" : 50, "to" : 100 },
+                    { "from" : 100 }
+                ]
+            },
+            "aggs" : {
+                "price_stats" : {
+                    "stats" : { "field" : "price" }
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+Response:
+
+[source,js]
+--------------------------------------------------
+{
+    "aggregations": {
+        "price_ranges" : {
+            "buckets": [
+                {
+                    "to": 50,
+                    "doc_count": 2,
+                    "price_stats": {
+                        "count": 2,
+                        "min": 20,
+                        "max": 47,
+                        "avg": 33.5,
+                        "sum": 67
+                    }
+                },
+                {
+                    "from": 50,
+                    "to": 100,
+                    "doc_count": 4,
+                    "price_stats": {
+                        "count": 4,
+                        "min": 60,
+                        "max": 98,
+                        "avg": 82.5,
+                        "sum": 330
+                    }
+                },
+                {
+                    "from": 100,
+                    "doc_count": 4,
+                    "price_stats": {
+                        "count": 4,
+                        "min": 134,
+                        "max": 367,
+                        "avg": 216,
+                        "sum": 864
+                    }
+                }
+            ]
+        }
+    }
+}
+--------------------------------------------------
+
+If a sub aggregation is also based on the same value source as the range aggregation (like the `stats` aggregation in the example above) it is possible to leave out the value source definition for it. The following will return the same response as above:
+
+[source,js]
+--------------------------------------------------
+{
+    "aggs" : {
+        "price_ranges" : {
+            "range" : {
+                "field" : "price",
+                "ranges" : [
+                    { "to" : 50 },
+                    { "from" : 50, "to" : 100 },
+                    { "from" : 100 }
+                ]
+            },
+            "aggs" : {
+                "price_stats" : {
+                    "stats" : {} <1>
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+<1> We don't need to specify the `price` as we "inherit" it by default from the parent `range` aggregation

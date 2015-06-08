@@ -79,7 +79,7 @@ format>> used to parse the provided timestamp value. For example:
 }
 --------------------------------------------------
 
-Note, the default format is `dateOptionalTime`. The timestamp value will
+Note, the default format is `epoch_millis||dateOptionalTime`. The timestamp value will
 first be parsed as a number and if it fails the format will be tried.
 
 [float]
@@ -121,8 +121,6 @@ You can also set the default value to any date respecting <<mapping-timestamp-fi
 --------------------------------------------------
 
 If you don't provide any timestamp value, _timestamp will be set to this default value.
-
-coming[1.5.0]
 
 In elasticsearch 1.4, we allowed setting explicitly `"default":null` which is not possible anymore
 as we added a new `ignore_missing` setting.

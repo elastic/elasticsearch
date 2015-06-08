@@ -69,7 +69,7 @@ $ curl -XPUT 'http://localhost:9200/_cluster/settings' -d '{
 [float]
 ==== 1.0 and later
 
-To back up a running 1.0 or later system, it is simplest to use the snapshot feature.  Complete instructions for backup and restore with snapshots are available http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/modules-snapshots.html[here].
+To back up a running 1.0 or later system, it is simplest to use the snapshot feature.  See the complete instructions for <<modules-snapshots,backup and restore with snapshots>>.
 
 [float]
 [[rolling-upgrades]]
@@ -85,23 +85,32 @@ This syntax applies to Elasticsearch 1.0 and later:
 
 [source,sh]
 --------------------------------------------------
-        curl -XPUT localhost:9200/_cluster/settings -d '{
-                "transient" : {
-                    "cluster.routing.allocation.enable" : "none"
-                }
-        }'
+curl -XPUT localhost:9200/_cluster/settings -d '{
+        "transient" : {
+            "cluster.routing.allocation.enable" : "none"
+        }
+}'
 --------------------------------------------------
+
+* There is no problem continuing to index while doing the upgrade. However, you can speed the process considerably
+by *temporarily* stopping non-essential indexing and issuing a manual <<indices-synced-flush, synced flush>>.
+A synced flush is special kind of flush which can seriously speed up recovery of shards. Elasticsearch automatically
+uses it when an index has been inactive for a while (default is `30m`) but you can manuallky trigger it using the following command:
+
+[source,sh]
+--------------------------------------------------
+curl -XPOST localhost:9200/_all/_flush/synced
+--------------------------------------------------
+
+Note that a synced flush call is a best effort operation. It will fail there are any pending indexing operations. It is safe to issue
+it multiple times if needed.
+
 
 * Shut down a single node within the cluster.
 
-[source,sh]
---------------------------------------------
-curl -XPOST 'http://localhost:9200/_cluster/nodes/_local/_shutdown'
---------------------------------------------
-
 * Confirm that all shards are correctly reallocated to the remaining running nodes.
 
-* Upgrade the stopped node.  To upgrade using a zip or compressed tarball from elasticsearch.org:
+* Upgrade the stopped node.  To upgrade using a zip or compressed tarball from elastic.co:
 ** Extract the zip or tarball to a new directory, usually in the same volume as the current Elasticsearch installation.  Do not overwrite the existing installation, as the downloaded archive will contain a default elasticsearch.yml file and will overwrite your existing configuration.
 ** Copy the configuration files from the old Elasticsearch installation's config directory to the new Elasticsearch installation's config directory.  Move data files from the old Elasticsesarch installation's data directory if necessary.  If data files are not located within the tarball's extraction directory, they will not have to be moved.
 ** The simplest solution for moving from one version to another is to have a symbolic link for 'elasticsearch' that points to the currently running version.  This link can be easily updated and will provide a stable access point to the most recent version.  Update this symbolic link if it is being used.
@@ -115,17 +124,31 @@ curl -XPOST 'http://localhost:9200/_cluster/nodes/_local/_shutdown'
 
 [source,sh]
 --------------------------------------------------
-        curl -XPUT localhost:9200/_cluster/settings -d '{
-                "transient" : {
-                    "cluster.routing.allocation.enable" : "all"
-                }
-        }'
+curl -XPUT localhost:9200/_cluster/settings -d '{
+        "transient" : {
+            "cluster.routing.allocation.enable" : "all"
+        }
+}'
 --------------------------------------------------
 
 * Observe that all shards are properly allocated on all nodes.  Balancing may take some time.
 
 * Repeat this process for all remaining nodes.
 
+[IMPORTANT]
+====================================================
+During a rolling upgrade, primary shards assigned to a node with the higher
+version will never have their replicas assigned to a node with the lower
+version, because the newer version may have a different data format which is
+not understood by the older version.
+
+If it is not possible to assign the replica shards to another node with the
+higher version -- e.g. if there is only one node with the higher version in
+the cluster -- then the replica shards will remain unassigned, i.e. the
+cluster health will be status `yellow`.  As soon as another node with the
+higher version joins the cluster, the replicas should be assigned and the
+cluster health will reach status `green`.
+====================================================
 
 It may be possible to perform the upgrade by installing the new software while the service is running.  This would reduce downtime by ensuring the service was ready to run on the new version as soon as it is stopped on the node being upgraded.  This can be done by installing the new version in its own directory and using the symbolic link method outlined above.  It is important to test this procedure first to be sure that site-specific configuration data and production indices will not be overwritten during the upgrade process.
 
@@ -141,19 +164,14 @@ This syntax is from versions prior to 1.0:
 
 [source,sh]
 --------------------------------------------------
-	curl -XPUT localhost:9200/_cluster/settings -d '{
-		"persistent" : {
-		"cluster.routing.allocation.disable_allocation" : true
-		}
-	}'
+curl -XPUT localhost:9200/_cluster/settings -d '{
+    "persistent" : {
+    "cluster.routing.allocation.disable_allocation" : true
+    }
+}'
 --------------------------------------------------
 
 * Stop all Elasticsearch services on all nodes in the cluster.
-[source,sh]
-------------------------------------------------------
-	curl -XPOST 'http://localhost:9200/_shutdown'
-------------------------------------------------------
-
 * On the first node to be upgraded, extract the archive or install the new package as described above in the Rolling Upgrades section.  Repeat for all nodes.
 
 * After upgrading Elasticsearch on all nodes is complete, the cluster can be started by starting each node individually.
@@ -165,12 +183,12 @@ This syntax is from versions prior to 1.0:
 This syntax is from release 1.0 and later:
 [source,sh]
 ------------------------------------------------------
-	curl -XPUT localhost:9200/_cluster/settings -d '{
-     		"persistent" : {
-		"cluster.routing.allocation.disable_allocation": false,
-         	"cluster.routing.allocation.enable" : "all"
-     		}
- 	}'
+curl -XPUT localhost:9200/_cluster/settings -d '{
+        "persistent" : {
+    "cluster.routing.allocation.disable_allocation": false,
+        "cluster.routing.allocation.enable" : "all"
+        }
+}'
 ------------------------------------------------------
 
 The cluster upgrade can be streamlined by installing the software before stopping cluster services.  If this is done, testing must be performed to ensure that no production data or configuration files are overwritten prior to restart.

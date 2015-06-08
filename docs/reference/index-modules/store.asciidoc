@@ -1,8 +1,6 @@
 [[index-modules-store]]
 == Store
 
-experimental[]
-
 The store module allows you to control how index data is stored.
 
 The index can either be stored in-memory (no persistence) or on-disk
@@ -20,6 +18,7 @@ heap space* using the "Memory" (see below) storage type. It translates
 to the fact that there is no need for extra large JVM heaps (with their
 own consequences) for storing the index in memory.
 
+experimental[All of the settings exposed in the `store` module are expert only and may be removed in the future]
 
 [float]
 [[file-system]]
@@ -28,7 +27,7 @@ own consequences) for storing the index in memory.
 File system based storage is the default storage used. There are
 different implementations or _storage types_. The best one for the
 operating environment will be automatically chosen: `mmapfs` on
-Windows 64bit, `simplefs` on Windows 32bit, and `default` 
+Windows 64bit, `simplefs` on Windows 32bit, and `default`
 (hybrid `niofs` and `mmapfs`) for the rest.
 
 This can be overridden for all indices by adding this to the

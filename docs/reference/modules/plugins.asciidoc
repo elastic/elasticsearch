@@ -26,7 +26,7 @@ plugin --install <org>/<user/component>/<version>
 -----------------------------------
 
 The plugins will be
-automatically downloaded in this case from `download.elasticsearch.org`,
+automatically downloaded in this case from `download.elastic.co`,
 and in case they don't exist there, from maven (central and sonatype).
 
 Note that when the plugin is located in maven central or sonatype
@@ -212,10 +212,13 @@ You can disable that check using `plugins.check_lucene: false`.
 
 .Supported by the community
 * https://github.com/shikhar/eskka[eskka Discovery Plugin] (by Shikhar Bhushan)
+* https://github.com/grantr/elasticsearch-srv-discovery[DNS SRV Discovery Plugin] (by Grant Rodgers)
 
 [float]
 [[river]]
 ==== River Plugins
+
+deprecated[1.5.0,Rivers have been deprecated.  See https://www.elastic.co/blog/deprecating_rivers for more details]
 
 .Supported by Elasticsearch
 * https://github.com/elasticsearch/elasticsearch-river-couchdb[CouchDB River Plugin]
@@ -290,6 +293,7 @@ You can disable that check using `plugins.check_lucene: false`.
 * https://github.com/karmi/elasticsearch-paramedic[Paramedic Plugin] (by Karel Minařík)
 * https://github.com/polyfractal/elasticsearch-segmentspy[SegmentSpy Plugin] (by Zachary Tong)
 * https://github.com/xyu/elasticsearch-whatson[Whatson Plugin] (by Xiao Yu)
+* https://github.com/lmenezes/elasticsearch-kopf[Kopf Plugin] (by lmenezes)
 
 [float]
 [[repository-plugins]]

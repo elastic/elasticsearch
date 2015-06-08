@@ -64,19 +64,21 @@ And here is a sample response:
 `search_type`::
 
     The type of the search operation to perform. Can be
-    `dfs_query_then_fetch`, `dfs_query_and_fetch`, `query_then_fetch`,
-    `query_and_fetch`. Defaults to `query_then_fetch`. See
-    <<search-request-search-type,_Search Type_>> for more.
+    `dfs_query_then_fetch`, `query_then_fetch`, or 'scan'.
+    Defaults to `query_then_fetch`.
+    See <<search-request-search-type,_Search Type_>> for more.
 
 `query_cache`::
 
     Set to `true` or `false` to enable or disable the caching
-    of search results for requests where `?search_type=count`, ie
-    aggregations and suggestions.  See <<index-modules-shard-query-cache>>.
+    of search results for requests where `size` is 0, ie
+    aggregations and suggestions (no top hits returned).
+    See <<index-modules-shard-query-cache>>.
 
 `terminate_after`::
 
-    experimental[] The maximum number of documents to collect for each shard,
+    experimental[The API for this feature may change in the future]
+    The maximum number of documents to collect for each shard,
     upon reaching which the query execution will terminate early. If set, the
     response will have a boolean field `terminated_early` to indicate whether
     the query execution has actually terminated_early. Defaults to no

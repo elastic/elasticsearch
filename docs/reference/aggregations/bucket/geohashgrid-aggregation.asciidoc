@@ -1,0 +1,131 @@
+[[search-aggregations-bucket-geohashgrid-aggregation]]
+=== GeoHash grid Aggregation
+
+A multi-bucket aggregation that works on `geo_point` fields and groups points into buckets that represent cells in a grid.
+The resulting grid can be sparse and only contains cells that have matching data. Each cell is labeled using a http://en.wikipedia.org/wiki/Geohash[geohash] which is of user-definable precision.
+
+* High precision geohashes have a long string length and represent cells that cover only a small area.
+* Low precision geohashes have a short string length and represent cells that each cover a large area.
+
+Geohashes used in this aggregation can have a choice of precision between 1 and 12.
+
+WARNING: The highest-precision geohash of length 12 produces cells that cover less than a square metre of land and so high-precision requests can be very costly in terms of RAM and result sizes.
+Please see the example below on how to first filter the aggregation to a smaller geographic area before requesting high-levels of detail.
+
+The specified field must be of type `geo_point` (which can only be set explicitly in the mappings) and it can also hold an array of `geo_point` fields, in which case all points will be taken into account during aggregation.
+
+
+==== Simple low-precision request
+
+[source,js]
+--------------------------------------------------
+{
+    "aggregations" : {
+        "myLarge-GrainGeoHashGrid" : {
+            "geohash_grid" : {
+                "field" : "location",
+                "precision" : 3
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+Response:
+
+[source,js]
+--------------------------------------------------
+{
+    "aggregations": {
+        "myLarge-GrainGeoHashGrid": {
+            "buckets": [
+                {
+                    "key": "svz",
+                    "doc_count": 10964
+                },
+                {
+                    "key": "sv8",
+                    "doc_count": 3198
+                }
+            ]
+        }
+    }
+}
+--------------------------------------------------
+
+
+
+==== High-precision requests
+
+When requesting detailed buckets (typically for displaying a "zoomed in" map) a filter like <<query-dsl-geo-bounding-box-query,geo_bounding_box>> should be applied to narrow the subject area otherwise potentially millions of buckets will be created and returned.
+
+[source,js]
+--------------------------------------------------
+{
+    "aggregations" : {
+        "zoomedInView" : {
+            "filter" : {
+                "geo_bounding_box" : {
+                    "location" : {
+                        "top_left" : "51.73, 0.9",
+                        "bottom_right" : "51.55, 1.1"
+                    }
+                }
+            },
+            "aggregations":{
+                "zoom1":{
+                    "geohash_grid" : {
+                        "field":"location",
+                        "precision":8,
+                    }
+                }
+            }
+        }
+    }
+ }
+--------------------------------------------------
+
+==== Cell dimensions at the equator
+The table below shows the metric dimensions for cells covered by various string lengths of geohash.
+Cell dimensions vary with latitude and so the table is for the worst-case scenario at the equator.
+
+[horizontal]
+*GeoHash length*::	*Area width x height*
+1::	    5,009.4km x 4,992.6km
+2::	    1,252.3km x 624.1km
+3::	    156.5km x 156km
+4::	    39.1km x 19.5km
+5::	    4.9km x 4.9km
+6::	    1.2km x 609.4m
+7::	    152.9m x 152.4m
+8::	    38.2m x 19m
+9::	    4.8m x 4.8m
+10::	1.2m x 59.5cm
+11::	14.9cm x 14.9cm
+12::	3.7cm x 1.9cm
+
+
+
+==== Options
+
+[horizontal]
+field::         Mandatory. The name of the field indexed with GeoPoints.
+
+precision::     Optional. The string length of the geohashes used to define
+                cells/buckets in the results. Defaults to 5.
+
+size::          Optional. The maximum number of geohash buckets to return
+                (defaults to 10,000). When results are trimmed, buckets are
+                prioritised based on the volumes of documents they contain.
+                A value of `0` will return all buckets that
+                contain a hit, use with caution as this could use a lot of CPU
+                and network bandwidth if there are many buckets.
+
+shard_size::    Optional. To allow for more accurate counting of the top cells
+                returned in the final result the aggregation defaults to
+                returning `max(10,(size x number-of-shards))` buckets from each
+                shard. If this heuristic is undesirable, the number considered
+                from each shard can be over-ridden using this parameter.
+                A value of `0` makes the shard size unlimited.
+
+

@@ -107,6 +107,7 @@ include::indices/refresh.asciidoc[]
 
 include::indices/optimize.asciidoc[]
 
+include::indices/shadow-replicas.asciidoc[]
+
 include::indices/upgrade.asciidoc[]
 
-include::indices/shadow-replicas.asciidoc[]

@@ -1,9 +1,10 @@
 [[elasticsearch-reference]]
-= Reference
+= Elasticsearch Reference
 
-:version: 1.4.3
-:branch:  1.4
-:jdk:     1.8.0_25
+:version:   1.5.2
+:branch:    1.5
+:jdk:       1.8.0_25
+:defguide:  https://www.elastic.co/guide/en/elasticsearch/guide/current
 
 include::getting-started.asciidoc[]
 
@@ -16,6 +17,8 @@ include::api-conventions.asciidoc[]
 include::docs.asciidoc[]
 
 include::search.asciidoc[]
+
+include::aggregations.asciidoc[]
 
 include::indices.asciidoc[]
 
@@ -36,6 +39,9 @@ include::index-modules.asciidoc[]
 include::testing.asciidoc[]
 
 include::glossary.asciidoc[]
+
+include::redirects.asciidoc[]
+
 
 
 

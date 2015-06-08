@@ -5,7 +5,6 @@
 *.iws
 work/
 /data/
-/plugins/
 logs/
 .DS_Store
 build/
@@ -37,4 +36,4 @@ eclipse-build
 nb-configuration.xml
 nbactions.xml
 
-/dependency-reduced-pom.xml
+dependency-reduced-pom.xml

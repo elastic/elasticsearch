@@ -1,0 +1,17 @@
+{
+  "filtered": {
+    "filter": {
+      "nested": {
+        "path": "nested",
+        "query": {
+          "bool": {
+            "must": [],
+            "must_not": [],
+            "should": []
+          }
+        }
+      },
+      "query": []
+    }
+  }
+}

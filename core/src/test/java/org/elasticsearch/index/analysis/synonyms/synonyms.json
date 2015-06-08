@@ -1,0 +1,72 @@
+{
+    "index":{
+        "analysis":{
+            "analyzer":{
+                "synonymAnalyzer":{
+                    "tokenizer":"standard",
+                    "filter":[ "synonym" ]
+                },
+                "synonymAnalyzer_file":{
+                    "tokenizer":"standard",
+                    "filter":[ "synonym_file" ]
+                },
+                "synonymAnalyzerWordnet":{
+                    "tokenizer":"standard",
+                    "filter":[ "synonymWordnet" ]
+                },
+                "synonymAnalyzerWordnet_file":{
+                    "tokenizer":"standard",
+                    "filter":[ "synonymWordnet_file" ]
+                },
+                "synonymAnalyzerWithsettings":{
+                    "tokenizer":"trigram",
+                    "filter":["synonymWithTokenizerSettings"]
+                }
+            },
+            "tokenizer":{
+                "trigram" : {
+                    "type" : "ngram",
+                    "min_gram" : 3,
+                    "max_gram" : 3
+                }
+            },
+            "filter":{
+                "synonym":{
+                    "type":"synonym",
+                    "synonyms":[
+                        "kimchy => shay",
+                        "dude => elasticsearch",
+                        "abides => man!"
+                    ]
+                },
+                "synonym_file":{
+                    "type":"synonym",
+                    "synonyms_path":"org/elasticsearch/index/analysis/synonyms/synonyms.txt"
+                },
+                "synonymWordnet":{
+                    "type":"synonym",
+                    "format":"wordnet",
+                    "synonyms":[
+                        "s(100000001,1,'abstain',v,1,0).",
+                        "s(100000001,2,'refrain',v,1,0).",
+                        "s(100000001,3,'desist',v,1,0)."
+                    ]
+                },
+                "synonymWordnet_file":{
+                    "type":"synonym",
+                    "format":"wordnet",
+                    "synonyms_path":"org/elasticsearch/index/analysis/synonyms/synonyms_wordnet.txt"
+                },
+                "synonymWithTokenizerSettings":{
+                    "type":"synonym",
+                    "synonyms":[
+                        "kimchy => shay"
+                    ],
+                    "tokenizer" : "trigram",
+                    "min_gram" : 3,
+                    "max_gram" : 3
+                }
+            }
+        }
+    }
+}

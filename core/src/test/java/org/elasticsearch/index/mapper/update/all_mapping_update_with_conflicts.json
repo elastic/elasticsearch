@@ -1,0 +1,19 @@
+{
+  "type": {
+    "_all": {
+      "store": false,
+      "enabled": false,
+      "store_term_vectors": false,
+      "store_term_vector_offsets": false,
+      "store_term_vector_positions": false,
+      "store_term_vector_payloads": false,
+      "omit_norms": false,
+      "analyzer": "whitespace",
+      "search_analyzer": "standard",
+      "similarity": "bm25",
+      "fielddata": {
+          "format": "paged_bytes"
+      }
+    }
+  }
+}

@@ -50,6 +50,8 @@ to. The `mode` option can have the following values:
         number based array fields.
 `avg`:: Use the average of all values as sort value. Only applicable
         for number based array fields.
+`median`:: Use the median of all values as sort value.  Only applicable
+           for number based array fields.
 
 ===== Sort mode example usage
 
@@ -192,7 +194,7 @@ Allow to sort by `_geo_distance`. Here is an example:
 
 `distance_type`::
 
-    How to compute the distance. Can either be `sloppy_arc` (default), `arc` (slighly more precise but significantly slower) or `plane` (faster, but inaccurate on long distances and close to the poles).
+    How to compute the distance. Can either be `sloppy_arc` (default), `arc` (slightly more precise but significantly slower) or `plane` (faster, but inaccurate on long distances and close to the poles).
 
 Note: the geo distance sorting supports `sort_mode` options: `min`,
 `max` and `avg`.
@@ -316,10 +318,12 @@ Allow to sort based on custom scripts, here is an example:
     },
     "sort" : {
         "_script" : {
-            "script" : "doc['field_name'].value * factor",
             "type" : "number",
-            "params" : {
-                "factor" : 1.1
+            "script" : {
+                "inline": "doc['field_name'].value * factor",
+                "params" : {
+                    "factor" : 1.1
+                }
             },
             "order" : "asc"
         }

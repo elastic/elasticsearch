@@ -32,5 +32,9 @@ all.
 
 |`include_in_all` |Should the field be included in the `_all` field (if
 enabled). Defaults to `true` or to the parent `object` type setting.
+
+|`doc_values` |Set to `true` to store field values in a column-stride fashion.
+Automatically set to `true` when the <<fielddata-formats,`fielddata` format>> is `doc_values`.
+
 |=======================================================================
 

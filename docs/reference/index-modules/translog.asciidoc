@@ -1,34 +1,94 @@
 [[index-modules-translog]]
 == Translog
 
-Each shard has a transaction log or write ahead log associated with it.
-It allows to guarantee that when an index/delete operation occurs, it is
-applied atomically, while not "committing" the internal Lucene index for
-each request. A flush ("commit") still happens based on several
-parameters:
+Changes to Lucene are only persisted to disk during a Lucene commit,
+which is a relatively heavy operation and so cannot be performed after every
+index or delete operation. Changes that happen after one commit and before another
+will be lost in the event of process exit or HW failure.
+
+To prevent this data loss, each shard has a _transaction log_ or write ahead
+log associated with it. Any index or delete operation is written to the
+translog after being processed by the internal Lucene index.
+
+In the event of a crash, recent transactions can be replayed from the
+transaction log when the shard recovers.
+
+An Elasticsearch flush is the process of performing a Lucene commit and
+starting a new translog. It is done automatically in the background in order
+to make sure the transaction log doesn't grow too large, which would make
+replaying its operations take a considerable amount of time during recovery.
+It is also exposed through an API, though its rarely needed to be performed
+manually.
+
+
+[float]
+=== Flush settings
+
+The following <<indices-update-settings,dynamically updatable>> settings
+control how often the in-memory buffer is flushed to disk:
+
+`index.translog.flush_threshold_size`::
+
+Once the translog hits this size, a flush will happen. Defaults to `512mb`.
 
 `index.translog.flush_threshold_ops`::
 
 After how many operations to flush. Defaults to `unlimited`.
 
-`index.translog.flush_threshold_size`:: 
+`index.translog.flush_threshold_period`::
 
-Once the translog hits this size, a flush will happen. Defaults to `512mb`.
+How long to wait before triggering a flush regardless of translog size. Defaults to `30m`.
 
-`index.translog.flush_threshold_period`:: 
+`index.translog.interval`::
 
-The period with no flush happening to force a flush. Defaults to `30m`.
+How often to check if a flush is needed, randomized between the interval value
+and 2x the interval value. Defaults to `5s`.
 
-`index.translog.interval`:: 
+[float]
+=== Translog settings
 
-How often to check if a flush is needed, randomized
-between the interval value and 2x the interval value. Defaults to `5s`.
+The translog itself is only persisted to disk when it is ++fsync++ed.  Until
+then, data recently written to the translog may only exist in the file system
+cache and could potentially be lost in the event of hardware failure.
 
-`index.gateway.local.sync`::
+The following <<indices-update-settings,dynamically updatable>> settings
+control the behaviour of the transaction log:
 
-How often the translog is ++fsync++ed to disk. Defaults to `5s`.
+`index.translog.sync_interval`::
 
+How often the translog is ++fsync++ed to disk. Defaults to `5s`. Can be set to
+`0` to sync after each operation.
 
-Note: these parameters can be updated at runtime using the Index
-Settings Update API (for example, these number can be increased when
-executing bulk updates to support higher TPS)
+`index.translog.fs.type`::
+
+Either a `buffered` translog (default) which buffers 64kB in memory before
+writing to disk, or a `simple` translog which writes every entry to disk
+immediately.  Whichever is used, these writes are only ++fsync++ed according
+to the `sync_interval`.
+
+The `buffered` translog is written to disk when it reaches 64kB in size, or
+whenever a `sync` is triggered by the `sync_interval`.
+
+.Why don't we `fsync` the translog after every write?
+******************************************************
+
+The disk is the slowest part of any server. An `fsync` ensures that data in
+the file system buffer has been physically written to disk, but this
+persistence comes with a performance cost.
+
+However, the translog is not the only persistence mechanism in Elasticsearch.
+Any index or update request is first written to the primary shard, then
+forwarded in parallel to any replica shards. The primary waits for the action
+to be completed on the replicas before returning success to the client.
+
+If the node holding the primary shard dies for some reason, its transaction
+log could be missing the last 5 seconds of data. However, that data should
+already be available on a replica shard on a different node.  Of course, if
+the whole data centre loses power at the same time, then it is possible that
+you could lose the last 5 seconds (or `sync_interval`) of data.
+
+We are constantly monitoring the perfromance implications of better default
+translog sync semantics, so the default might change as time passes and HW,
+virtualization, and other aspects improve.
+
+******************************************************

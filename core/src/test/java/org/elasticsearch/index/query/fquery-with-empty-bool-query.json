@@ -1,0 +1,18 @@
+{
+  "fquery": {
+    "query": {
+      "filtered": {
+        "query": {
+          "term": {
+            "text": "apache"
+          }
+        },
+        "filter": {
+          "term": {
+            "text": "apache"
+          }
+        }
+      }
+    }
+  }
+}

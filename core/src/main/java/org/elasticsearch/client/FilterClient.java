@@ -1,0 +1,61 @@
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+package org.elasticsearch.client;
+
+import org.elasticsearch.action.*;
+import org.elasticsearch.client.support.AbstractClient;
+
+
+/**
+ * A {@link Client} that contains another {@link Client} which it
+ * uses as its basic source, possibly transforming the requests / responses along the
+ * way or providing additional functionality.
+ */
+public abstract class FilterClient extends AbstractClient {
+
+    protected final Client in;
+
+    /**
+     * Creates a new FilterClient
+     *
+     * @param in the client to delegate to
+     * @see #in()
+     */
+    public FilterClient(Client in) {
+        super(in.settings(), in.threadPool(), in.headers());
+        this.in = in;
+    }
+
+    @Override
+    public void close() {
+        in().close();
+    }
+
+    @Override
+    protected <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> void doExecute(Action<Request, Response, RequestBuilder> action, Request request, ActionListener<Response> listener) {
+        in().execute(action, request, listener);
+    }
+
+    /**
+     * Returns the delegate {@link Client}
+     */
+    protected Client in() {
+        return in;
+    }
+}

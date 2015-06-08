@@ -1,0 +1,17 @@
+[[query-dsl-match-all-query]]
+== Match All Query
+
+The most simple query, which matches all documents, giving them all a `_score`
+of `1.0`.
+
+[source,js]
+--------------------------------------------------
+{ "match_all": {} }
+--------------------------------------------------
+
+The `_score` can be changed with the `boost` parameter:
+
+[source,js]
+--------------------------------------------------
+{ "match_all": { "boost" : 1.2 }}
+--------------------------------------------------

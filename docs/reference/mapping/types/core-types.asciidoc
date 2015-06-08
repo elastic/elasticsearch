@@ -87,7 +87,7 @@ The following table lists all the attributes that can be used with the
 Defaults to the property/field name.
 
 |`store` |Set to `true` to actually store the field in the index, `false` to not
-store it. Since by default ElasticSearch stores all fields of the source
+store it. Since by default Elasticsearch stores all fields of the source
 document in the special `_source` field, this option is primarily useful when
 the `_source` field has been disabled in the type definition. Defaults to
 `false`.
@@ -349,7 +349,7 @@ date type:
 Defaults to the property/field name.
 
 |`format` |The <<mapping-date-format,date
-format>>. Defaults to `dateOptionalTime`.
+format>>. Defaults to `epoch_millis||dateOptionalTime`.
 
 |`store` |Set to `true` to store actual field in the index, `false` to not
 store it. Defaults to `false` (note, the JSON document itself is stored,
@@ -377,6 +377,9 @@ enabled). If `index` is set to `no` this defaults to `false`, otherwise,
 defaults to `true` or to the parent `object` type setting.
 
 |`ignore_malformed` |Ignored a malformed number. Defaults to `false`.
+
+|`numeric_resolution` |The unit to use when passed in a numeric values. Possible
+values include `seconds` and  `milliseconds` (default).
 
 |=======================================================================
 
@@ -422,6 +425,9 @@ and it can be retrieved from it).
 `no` disables `include_in_all`. If set to `no` the field should be either stored
 in `_source`, have `include_in_all` enabled, or `store` be set to
 `true` for this to be useful.
+
+|`doc_values` |Set to `true` to store field values in a column-stride fashion.
+Automatically set to `true` when the fielddata format is `doc_values`.
 
 |`boost` |The boost value. Defaults to `1.0`.
 
@@ -470,22 +476,6 @@ binary type:
 `doc_values`::
 
     Set to `true` to store field values in a column-stride fashion.
-
-`compress`::
-
-    Set to `true` to compress the stored binary value.
-
-`compress_threshold`::
-
-    Compression will only be applied to stored binary fields that are greater
-    than this size. Defaults to `-1`
-
-NOTE: Enabling compression on stored binary fields only makes sense on large
-and highly-compressible values. Otherwise per-field compression is usually not
-worth doing as the space savings do not compensate for the overhead of the
-compression format. Normally, you should not configure any compression and
-just rely on the block compression of stored fields (which is enabled by
-default and can't be disabled).
 
 [float]
 [[fielddata-filters]]

@@ -82,6 +82,113 @@ consumption.  The default for the `human` flag is
 `false`.
 
 [float]
+=== Response Filtering
+
+All REST APIs accept a `filter_path` parameter that can be used to reduce
+the response returned by elasticsearch. This parameter takes a comma
+separated list of filters expressed with the dot notation:
+
+[source,sh]
+--------------------------------------------------
+curl -XGET 'localhost:9200/_search?pretty&filter_path=took,hits.hits._id,hits.hits._score'
+{
+  "took" : 3,
+  "hits" : {
+    "hits" : [
+      {
+        "_id" : "3640",
+        "_score" : 1.0
+      },
+      {
+        "_id" : "3642",
+        "_score" : 1.0
+      }
+    ]
+  }
+}
+--------------------------------------------------
+
+It also supports the `*` wildcard character to match any field or part
+of a field's name:
+
+[source,sh]
+--------------------------------------------------
+curl -XGET 'localhost:9200/_nodes/stats?filter_path=nodes.*.ho*'
+{
+  "nodes" : {
+    "lvJHed8uQQu4brS-SXKsNA" : {
+      "host" : "portable"
+    }
+  }
+}
+--------------------------------------------------
+
+And the `**` wildcard can be used to include fields without knowing the
+exact path of the field. For example, we can return the Lucene version
+of every segment with this request:
+
+[source,sh]
+--------------------------------------------------
+curl 'localhost:9200/_segments?pretty&filter_path=indices.**.version'
+{
+  "indices" : {
+    "movies" : {
+      "shards" : {
+        "0" : [ {
+          "segments" : {
+            "_0" : {
+              "version" : "5.2.0"
+            }
+          }
+        } ],
+        "2" : [ {
+          "segments" : {
+            "_0" : {
+              "version" : "5.2.0"
+            }
+          }
+        } ]
+      }
+    },
+    "books" : {
+      "shards" : {
+        "0" : [ {
+          "segments" : {
+            "_0" : {
+              "version" : "5.2.0"
+            }
+          }
+        } ]
+      }
+    }
+  }
+}
+--------------------------------------------------
+
+Note that elasticsearch sometimes returns directly the raw value of a field,
+like the `_source` field. If you want to filter _source fields, you should
+consider combining the already existing `_source` parameter (see
+<<get-source-filtering,Get API>> for more details) with the `filter_path`
+ parameter like this:
+
+[source,sh]
+--------------------------------------------------
+curl -XGET 'localhost:9200/_search?pretty&filter_path=hits.hits._source&_source=title'
+{
+  "hits" : {
+    "hits" : [ {
+      "_source":{"title":"Book #2"}
+    }, {
+      "_source":{"title":"Book #1"}
+    }, {
+      "_source":{"title":"Book #3"}
+    } ]
+  }
+}
+--------------------------------------------------
+
+
+[float]
 === Flat Settings
 
 The `flat_settings` flag affects rendering of the lists of settings. When
@@ -157,7 +264,7 @@ can be specified as a whole number representing time in milliseconds, or as a ti
 === Distance Units
 
 Wherever distances need to be specified, such as the `distance` parameter in
-the <<query-dsl-geo-distance-filter>>), the default unit if none is specified is
+the <<query-dsl-geo-distance-query>>), the default unit if none is specified is
 the meter. Distances can be specified in other units, such as `"1km"` or
 `"2mi"` (2 miles).
 
@@ -174,7 +281,7 @@ Centimeter::    `cm` or `centimeters`
 Millimeter::    `mm` or `millimeters`
 Nautical mile:: `NM`, `nmi` or `nauticalmiles`
 
-The `precision` parameter in the <<query-dsl-geohash-cell-filter>> accepts
+The `precision` parameter in the <<query-dsl-geohash-cell-query>> accepts
 distances with the above units, but if no unit is specified, then the
 precision is interpreted as the length of the geohash.
 
@@ -219,8 +326,8 @@ the maximum allowed Levenshtein Edit Distance (or number of edits)
 --
 generates an edit distance based on the length of the term. For lengths:
 
-`0..1`:: must match exactly
-`1..5`:: one edit allowed
+`0..2`:: must match exactly
+`3..5`:: one edit allowed
 `>5`:: two edits allowed
 
 `AUTO` should generally be the preferred value for `fuzziness`.
@@ -230,8 +337,7 @@ generates an edit distance based on the length of the term. For lengths:
 
 converted into an edit distance using the formula: `length(term) * (1.0 -
 fuzziness)`, eg a `fuzziness` of `0.6` with a term of length 10 would result
-in an edit distance of `4`. Note: in all APIs except for the
-<<query-dsl-flt-query>>, the maximum allowed edit distance is `2`.
+in an edit distance of `4`. Note: in all APIs the maximum allowed edit distance is `2`.
 
 
 
@@ -242,23 +348,6 @@ All REST APIs accept the `case` parameter. When set to `camelCase`, all
 field names in the result will be returned in camel casing, otherwise,
 underscore casing will be used. Note, this does not apply to the source
 document indexed.
-
-[float]
-=== JSONP
-
-By default JSONP responses are disabled.
-
-When enabled, all REST APIs accept a `callback` parameter
-resulting in a http://en.wikipedia.org/wiki/JSONP[JSONP] result. You can enable
-this behavior by adding the following to `config.yaml`:
-
-    http.jsonp.enable: true
-
-Please note, when enabled, due to the architecture of Elasticsearch, this may pose
-a security risk. Under some circumstances, an attacker may be able to exfiltrate
-data in your Elasticsearch server if they're able to force your browser to make a
-JSONP request on your behalf (e.g. by including a <script> tag on an untrusted site
-with a legitimate query against a local Elasticsearch server).
 
 [float]
 === Request body in query string

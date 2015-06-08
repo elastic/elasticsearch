@@ -166,7 +166,7 @@ setup:
 "Should return test_index_3 if expand_wildcards=closed":
 
   - skip:
-      version:     "0 - 2.0.0"
+      version:     " - 2.0.0"
       reason:      Requires fix for issue 7258
 
   - do:

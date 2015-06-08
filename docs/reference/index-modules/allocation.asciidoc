@@ -43,7 +43,7 @@ to be allocated to a node. This is in contrast to `include` which will
 include a node if ANY rule matches.
 
 The `include`, `exclude` and `require` values can have generic simple
-matching wildcards, for example, `value1*`. Additonally, special attribute
+matching wildcards, for example, `value1*`. Additionally, special attribute
 names called `_ip`, `_name`, `_id` and `_host` can be used to match by node
 ip address, name, id or host name, respectively.
 
@@ -142,6 +142,21 @@ Both watermark settings can be changed dynamically using the cluster
 settings API. By default, Elasticsearch will retrieve information
 about the disk usage of the nodes every 30 seconds. This can also be
 changed by setting the `cluster.info.update.interval` setting.
+
+An example of updating the low watermark to no more than 80% of the disk size, a
+high watermark of at least 50 gigabytes free, and updating the information about
+the cluster every minute:
+
+[source,js]
+--------------------------------------------------
+curl -XPUT localhost:9200/_cluster/settings -d '{
+    "transient" : {
+        "cluster.routing.allocation.disk.watermark.low" : "80%",
+        "cluster.routing.allocation.disk.watermark.high" : "50gb",
+        "cluster.info.update.interval" : "1m"
+    }
+}'
+--------------------------------------------------
 
 By default, Elasticsearch will take into account shards that are currently being
 relocated to the target node when computing a node's disk usage. This can be

@@ -1,0 +1,132 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>org.elasticsearch</groupId>
+    <artifactId>elasticsearch-plugin</artifactId>
+    <version>2.0.0-SNAPSHOT</version>
+    <packaging>pom</packaging>
+    <name>Elasticsearch Plugin POM</name>
+    <inceptionYear>2009</inceptionYear>
+
+    <parent>
+        <groupId>org.elasticsearch</groupId>
+        <artifactId>elasticsearch-parent</artifactId>
+        <version>2.0.0-SNAPSHOT</version>
+    </parent>
+
+    <properties>
+        <elasticsearch.assembly.descriptor>${basedir}/src/main/assemblies/plugin.xml</elasticsearch.assembly.descriptor>
+        <elasticsearch.assembly.appendId>false</elasticsearch.assembly.appendId>
+    </properties>
+
+    <!-- elasticsearch and its test framework -->
+    <dependencies>
+        <dependency>
+            <groupId>org.hamcrest</groupId>
+            <artifactId>hamcrest-all</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>junit</groupId>
+            <artifactId>junit</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.lucene</groupId>
+            <artifactId>lucene-test-framework</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.elasticsearch</groupId>
+            <artifactId>elasticsearch</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.elasticsearch</groupId>
+            <artifactId>elasticsearch</artifactId>
+            <type>test-jar</type>
+        </dependency>
+        <dependency>
+            <groupId>log4j</groupId>
+            <artifactId>log4j</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <!-- typical layout for plugins -->
+    <build>
+        <resources>
+            <resource>
+                <directory>src/main/resources</directory>
+                <filtering>true</filtering>
+                <includes>
+                    <include>**/*.properties</include>
+                </includes>
+            </resource>
+        </resources>
+
+        <testResources>
+            <testResource>
+                <directory>src/test/java</directory>
+                <includes>
+                    <include>**/*.json</include>
+                    <include>**/*.txt</include>
+                </includes>
+            </testResource>
+            <testResource>
+                <directory>src/test/resources</directory>
+                <excludes>
+                    <exclude>elasticsearch.yml</exclude>
+                    <exclude>**/*.properties</exclude>
+                </excludes>
+            </testResource>
+            <testResource>
+                <directory>src/test/resources</directory>
+                <filtering>true</filtering>
+                <includes>
+                    <include>elasticsearch.yml</include>
+                    <include>**/*.properties</include>
+                </includes>
+            </testResource>
+            <!-- shared test resources like log4j.properties -->
+            <testResource>
+                <directory>${elasticsearch.tools.directory}/shared-test-resources</directory>
+                <filtering>false</filtering>
+            </testResource>
+        </testResources>
+
+        <pluginManagement>
+            <plugins>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-assembly-plugin</artifactId>
+                    <configuration>
+                        <appendAssemblyId>${elasticsearch.assembly.appendId}</appendAssemblyId>
+                        <outputDirectory>${project.build.directory}/releases/</outputDirectory>
+                        <descriptors>
+                            <descriptor>${elasticsearch.assembly.descriptor}</descriptor>
+                        </descriptors>
+                    </configuration>
+                    <executions>
+                        <execution>
+                            <phase>package</phase>
+                            <goals>
+                                <goal>single</goal>
+                            </goals>
+                        </execution>
+                    </executions>
+                </plugin>
+            </plugins>
+        </pluginManagement>
+    </build>
+
+    <modules>
+        <module>analysis-kuromoji</module>
+        <module>analysis-smartcn</module>
+        <module>analysis-stempel</module>
+        <module>analysis-phonetic</module>
+        <module>analysis-icu</module>
+        <module>cloud-gce</module>
+        <module>cloud-azure</module>
+        <module>cloud-aws</module>
+    </modules>
+</project>

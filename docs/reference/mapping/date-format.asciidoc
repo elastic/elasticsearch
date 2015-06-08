@@ -198,6 +198,11 @@ year.
 
 |`year_month_day`|A formatter for a four digit year, two digit month of
 year, and two digit day of month.
+
+|`epoch_second`|A formatter for the number of seconds since the epoch.
+
+|`epoch_millis`|A formatter for the number of milliseconds since
+the epoch.
 |=======================================================================
 
 [float]

@@ -8,34 +8,6 @@ actual JSON that was used as the indexed document. It is not indexed
 <<search-search,search>>, the `_source` field is
 returned by default.
 
-Though very handy to have around, the source field does incur storage
-overhead within the index. For this reason, it can be disabled. For
-example:
-
-[source,js]
---------------------------------------------------
-{
-    "tweet" : {
-        "_source" : {"enabled" : false}
-    }
-}
---------------------------------------------------
-
-[float]
-[[include-exclude]]
-==== Includes / Excludes
-
-Allow to specify paths in the source that would be included / excluded
-when it's stored, supporting `*` as wildcard annotation. For example:
-
-[source,js]
---------------------------------------------------
-{
-    "my_type" : {
-        "_source" : {
-            "includes" : ["path1.*", "path2.*"],
-            "excludes" : ["path3.*"]
-        }
-    }
-}
---------------------------------------------------
+Many APIs may use the `_source` field. For example, the
+<<docs-update,Update API>>. To minimize the storage cost of
+`_source`, set `index.codec: best_compression` in index settings.

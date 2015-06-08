@@ -1,0 +1,34 @@
+[[query-dsl-and-query]]
+=== And Query
+
+deprecated[2.0.0, Use the `bool` query instead]
+
+A query that matches documents using the `AND` boolean operator on other
+queries.
+
+[source,js]
+--------------------------------------------------
+{
+    "filtered" : {
+        "query" : {
+            "term" : { "name.first" : "shay" }
+        },
+        "filter" : {
+            "and" : [
+                {
+                    "range" : { 
+                        "postDate" : { 
+                            "from" : "2010-03-01",
+                            "to" : "2010-04-01"
+                        }
+                    }
+                },
+                {
+                    "prefix" : { "name.second" : "ba" }
+                }
+            ]
+        }
+    }
+}
+--------------------------------------------------
+

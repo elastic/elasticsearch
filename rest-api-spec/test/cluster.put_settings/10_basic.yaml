@@ -1,7 +1,7 @@
 ---
 setup:
   - skip:
-      version: 0 - 999
+      version:  "all"
       reason:  leaves transient metadata behind, need to fix it
 ---
 "Test put settings":

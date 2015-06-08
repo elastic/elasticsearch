@@ -41,7 +41,7 @@ What's my largest index by disk usage not including replicas?
 
 [source,shell]
 --------------------------------------------------
-% curl 'localhost:9200/_cat/indices?bytes=b' | sort -rnk7
+% curl 'localhost:9200/_cat/indices?bytes=b' | sort -rnk8
 green open  wiki     2 0  6401 1115 158843725 158843725
 green open  twitter  5 1 11434    0  67155614  33577857
 green open  twitter2 2 0  2030    0   6125085   6125085

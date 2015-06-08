@@ -60,6 +60,7 @@ public class AzureTwoStartedNodesTest extends AbstractAzureComputeServiceTest {
     }
 
     @Test
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/11533")
     public void two_nodes_should_run_using_public_ip() {
         Settings.Builder settings = Settings.settingsBuilder()
                 .put(Management.SERVICE_NAME, "dummy")

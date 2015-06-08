@@ -789,10 +789,10 @@ public class Lucene {
      * Returns <code>true</code> iff the store contains an index that contains segments that were
      * not upgraded to the lucene 4.x format.
      */
-    static boolean indexNeeds3xUpgrading(Directory directory) throws IOException {
-        final String si =  SegmentInfos.getLastCommitSegmentsFileName(directory);
-        if (si != null) {
-            try (IndexInput input = directory.openInput(si, IOContext.READONCE)) {
+    public static boolean indexNeeds3xUpgrading(Directory directory) throws IOException {
+        final String segmentsFile = SegmentInfos.getLastCommitSegmentsFileName(directory);
+        if (segmentsFile != null) {
+            try (IndexInput input = directory.openInput(segmentsFile, IOContext.READONCE)) {
                 return input.readInt() != CodecUtil.CODEC_MAGIC; // check if it's a 4.x commit point
             }
         }
@@ -801,20 +801,18 @@ public class Lucene {
 
     /**
      * Upgrades the segments metadata of the index to match a lucene 4.x index format. In particular it ensures that each
-     * segment has a .si file even if it was written with lucene 3.x
+     * segment has a .si file even if it was written with lucene 3.x.  Only call this if {@link #indexNeeds3xUpgrading}
+     * returned true.
      */
-    public static boolean upgradeLucene3xSegmentsMetadata(Directory directory) throws IOException {
-        if (indexNeeds3xUpgrading(directory)) {
-            try (final IndexWriter iw = new IndexWriter(directory, new IndexWriterConfig(Version.LATEST, Lucene.STANDARD_ANALYZER)
-                    .setMergePolicy(NoMergePolicy.INSTANCE)
-                    .setOpenMode(IndexWriterConfig.OpenMode.APPEND))) {
-                Map<String, String> commitData = iw.getCommitData(); // this is a trick to make IW to actually do a commit - we have to preserve the last committed data as well
-                // for ES to get the translog ID back
-                iw.setCommitData(commitData);
-                iw.commit();
-            }
-            return true;
+    public static void upgradeLucene3xSegmentsMetadata(Directory directory) throws IOException {
+        try (final IndexWriter iw = new IndexWriter(directory, new IndexWriterConfig(Version.LATEST, Lucene.STANDARD_ANALYZER)
+                                                    .setMergePolicy(NoMergePolicy.INSTANCE)
+                                                    .setOpenMode(IndexWriterConfig.OpenMode.APPEND))) {
+            Map<String, String> commitData = iw.getCommitData();
+            // this is a trick to make IW to actually do a commit - we have to preserve the last committed data as well
+            // for ES to get the translog ID back
+            iw.setCommitData(commitData);
+            iw.commit();
         }
-        return false;
     }
 }

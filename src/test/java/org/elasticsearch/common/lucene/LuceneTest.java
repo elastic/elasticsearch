@@ -330,14 +330,7 @@ public class LuceneTest extends ElasticsearchLuceneTestCase {
                         assertTrue(Lucene.indexNeeds3xUpgrading(dir));
                     }
 
-                    for (int i = 0; i < 2; i++) {
-                        boolean upgraded = Lucene.upgradeLucene3xSegmentsMetadata(dir);
-                        if (i == 0) {
-                            assertTrue(upgraded);
-                        } else {
-                            assertFalse(upgraded);
-                        }
-                    }
+                    Lucene.upgradeLucene3xSegmentsMetadata(dir);
 
                     for (int i = 0; i < 2; i++) {
                         assertFalse(Lucene.indexNeeds3xUpgrading(dir));

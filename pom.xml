@@ -41,8 +41,7 @@
 
         <!-- libraries -->
         <lucene.version>5.2.0</lucene.version>
-        <lucene.snapshot.revision>1682335</lucene.snapshot.revision>
-        <lucene.maven.version>5.2.0-snapshot-${lucene.snapshot.revision}</lucene.maven.version>
+        <lucene.maven.version>5.2.0</lucene.maven.version>
         <testframework.version>2.1.14</testframework.version>
         <jackson.version>2.5.3</jackson.version>
         <slf4j.version>1.6.2</slf4j.version>
@@ -113,11 +112,6 @@
             <snapshots>
                 <enabled>false</enabled>
             </snapshots>
-        </repository>
-        <repository>
-            <id>lucene-snapshots</id>
-            <name>Lucene snapshots</name>
-            <url>https://download.elasticsearch.org/lucenesnapshots/${lucene.snapshot.revision}</url>
         </repository>
         <repository>
             <id>oss-snapshots</id>

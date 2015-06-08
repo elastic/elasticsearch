@@ -129,29 +129,40 @@ public class HttpInput implements Input {
 
     public static class Result extends Input.Result {
 
-        private final HttpRequest request;
-        private final int status;
+        private final @Nullable HttpRequest request;
+        private final int statusCode;
 
-        public Result(Payload payload, HttpRequest request, int status) {
+        public Result(HttpRequest request, int statusCode, Payload payload) {
             super(TYPE, payload);
             this.request = request;
-            this.status = status;
+            this.statusCode = statusCode;
+        }
+
+        public Result(@Nullable HttpRequest request, Exception e) {
+            super(TYPE, e);
+            this.request = request;
+            this.statusCode = -1;
         }
 
         public HttpRequest request() {
             return request;
         }
 
-        public int status() {
-            return status;
+        public int statusCode() {
+            return statusCode;
         }
 
         @Override
         protected XContentBuilder typeXContent(XContentBuilder builder, Params params) throws IOException {
-            return builder.startObject(type)
-                    .field(Field.REQUEST.getPreferredName(), request, params)
-                    .field(Field.STATUS.getPreferredName(), status)
-                    .endObject();
+            if (request == null) {
+                return builder;
+            }
+            builder.startObject(type);
+            builder.field(Field.REQUEST.getPreferredName(), request, params);
+            if (statusCode > 0) {
+                builder.field(Field.STATUS_CODE.getPreferredName(), statusCode);
+            }
+            return builder.endObject();
         }
     }
 
@@ -190,7 +201,7 @@ public class HttpInput implements Input {
     interface Field extends Input.Field {
         ParseField REQUEST = new ParseField("request");
         ParseField EXTRACT = new ParseField("extract");
-        ParseField STATUS = new ParseField("status");
+        ParseField STATUS_CODE = new ParseField("status_code");
         ParseField RESPONSE_CONTENT_TYPE = new ParseField("response_content_type");
     }
 }

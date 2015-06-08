@@ -107,10 +107,12 @@ public class SearchInputTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testSearch_InlineTemplate() throws Exception {
+        WatchExecutionContext ctx = createContext();
+
         final String expectedQuery = "{\"template\":{\"query\":{\"filtered\":{\"query\":{\"match\":{\"event_type\":{\"query\":\"a\"," +
                 "\"type\":\"boolean\"}}},\"filter\":{\"range\":{\"_timestamp\":" +
                 "{\"from\":\"{{ctx.trigger.scheduled_time}}||-{{seconds_param}}\",\"to\":\"{{ctx.trigger.scheduled_time}}\"," +
-                "\"include_lower\":true,\"include_upper\":true}}}}}},\"params\":{\"seconds_param\":\"30s\",\"ctx\":{\"metadata\":null,\"watch_id\":\"test-watch\",\"trigger\":{\"triggered_time\":\"1970-01-01T00:01:00.000Z\",\"scheduled_time\":\"1970-01-01T00:01:00.000Z\"},\"execution_time\":\"1970-01-01T00:01:00.000Z\"}}}";
+                "\"include_lower\":true,\"include_upper\":true}}}}}},\"params\":{\"seconds_param\":\"30s\",\"ctx\":{\"id\":\"" + ctx.id().value() + "\",\"metadata\":null,\"watch_id\":\"test-watch\",\"trigger\":{\"triggered_time\":\"1970-01-01T00:01:00.000Z\",\"scheduled_time\":\"1970-01-01T00:01:00.000Z\"},\"execution_time\":\"1970-01-01T00:01:00.000Z\"}}}";
 
         Map<String, Object> params = new HashMap<>();
         params.put("seconds_param", "30s");
@@ -125,13 +127,14 @@ public class SearchInputTests extends ElasticsearchIntegrationTest {
                 .setTemplateSource(templateSource)
                 .request();
 
-
-        SearchInput.Result executedResult = executeSearchInput(request);
+        SearchInput.Result executedResult = executeSearchInput(request, ctx);
         assertThat(areJsonEquivalent(executedResult.executedRequest().templateSource().toUtf8(), expectedQuery), is(true));
     }
 
     @Test
     public void testSearch_IndexedTemplate() throws Exception {
+        WatchExecutionContext ctx = createContext();
+
         PutIndexedScriptRequest indexedScriptRequest = client().preparePutIndexedScript("mustache","test-template", TEMPLATE_QUERY).request();
         assertThat(client().putIndexedScript(indexedScriptRequest).actionGet().isCreated(), is(true));
 
@@ -148,12 +151,14 @@ public class SearchInputTests extends ElasticsearchIntegrationTest {
                 .setTemplateSource(templateSource)
                 .request();
 
-        SearchInput.Result executedResult = executeSearchInput(request);
+        SearchInput.Result executedResult = executeSearchInput(request, ctx);
         assertThat(executedResult.executedRequest().templateSource().toUtf8(), startsWith("{\"template\":{\"id\":\"test-template\""));
     }
 
     @Test
     public void testSearch_OndiskTemplate() throws Exception {
+        WatchExecutionContext ctx = createContext();
+
         Map<String, Object> params = new HashMap<>();
         params.put("seconds_param", "30s");
 
@@ -167,7 +172,7 @@ public class SearchInputTests extends ElasticsearchIntegrationTest {
                 .setTemplateSource(templateSource)
                 .request();
 
-        SearchInput.Result executedResult = executeSearchInput(request);
+        SearchInput.Result executedResult = executeSearchInput(request, ctx);
         assertThat(executedResult.executedRequest().templateSource().toUtf8(), startsWith("{\"template\":{\"file\":\"test_disk_template\""));
     }
 
@@ -243,15 +248,8 @@ public class SearchInputTests extends ElasticsearchIntegrationTest {
         fail("expected a SearchInputException as search type SCAN should not be supported");
     }
 
-    private SearchInput.Result executeSearchInput(SearchRequest request) throws IOException {
-        createIndex("test-search-index");
-        ensureGreen("test-search-index");
-        SearchInput.Builder siBuilder = SearchInput.builder(request);
-
-        SearchInput si = siBuilder.build();
-
-        ExecutableSearchInput searchInput = new ExecutableSearchInput(si, logger, ClientProxy.of(client()));
-        WatchExecutionContext ctx = new TriggeredExecutionContext(
+    private WatchExecutionContext createContext() {
+        return new TriggeredExecutionContext(
                 new Watch("test-watch",
                         new ScheduleTrigger(new IntervalSchedule(new IntervalSchedule.Interval(1, IntervalSchedule.Interval.Unit.MINUTES))),
                         new ExecutableSimpleInput(new SimpleInput(new Payload.Simple()), logger),
@@ -264,6 +262,16 @@ public class SearchInputTests extends ElasticsearchIntegrationTest {
                 new DateTime(60000, UTC),
                 new ScheduleTriggerEvent("test-watch", new DateTime(60000, UTC), new DateTime(60000, UTC)),
                 timeValueSeconds(5));
+    }
+
+    private SearchInput.Result executeSearchInput(SearchRequest request, WatchExecutionContext ctx) throws IOException {
+        createIndex("test-search-index");
+        ensureGreen("test-search-index");
+        SearchInput.Builder siBuilder = SearchInput.builder(request);
+
+        SearchInput si = siBuilder.build();
+
+        ExecutableSearchInput searchInput = new ExecutableSearchInput(si, logger, ClientProxy.of(client()));
         return searchInput.execute(ctx);
     }
 

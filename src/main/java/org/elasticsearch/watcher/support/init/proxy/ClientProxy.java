@@ -28,6 +28,8 @@ import org.elasticsearch.transport.TransportMessage;
 import org.elasticsearch.watcher.shield.ShieldIntegration;
 import org.elasticsearch.watcher.support.init.InitializingService;
 
+import java.util.concurrent.TimeUnit;
+
 /**
  * A lazily initialized proxy to an elasticsearch {@link Client}. Inject this proxy whenever a client
  * needs to injected to be avoid circular dependencies issues.
@@ -88,7 +90,7 @@ public class ClientProxy implements InitializingService.Initializable {
     }
 
     public SearchResponse search(SearchRequest request) {
-        return client.search(preProcess(request)).actionGet();
+        return client.search(preProcess(request)).actionGet(5, TimeUnit.SECONDS);
     }
 
     public SearchResponse searchScroll(String scrollId, TimeValue timeout) {

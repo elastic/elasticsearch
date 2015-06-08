@@ -10,7 +10,10 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.watcher.condition.Condition;
-import org.elasticsearch.watcher.execution.*;
+import org.elasticsearch.watcher.execution.ExecutionState;
+import org.elasticsearch.watcher.execution.WatchExecutionContext;
+import org.elasticsearch.watcher.execution.WatchExecutionResult;
+import org.elasticsearch.watcher.execution.Wid;
 import org.elasticsearch.watcher.input.ExecutableInput;
 import org.elasticsearch.watcher.trigger.TriggerEvent;
 import org.elasticsearch.watcher.watch.Watch;
@@ -31,6 +34,9 @@ public class WatchRecord implements ToXContent {
     private final @Nullable String message;
     private final @Nullable WatchExecutionResult executionResult;
 
+    /**
+     * Called when the execution was aborted before it started
+     */
     public WatchRecord(Wid id, TriggerEvent triggerEvent, String message, ExecutionState state) {
         this.id = id;
         this.triggerEvent = triggerEvent;
@@ -42,6 +48,24 @@ public class WatchRecord implements ToXContent {
         this.metadata = null;
     }
 
+    /**
+     * Called when the execution was aborted due to an error during execution (the given result should reflect
+     * were exactly the execution failed)
+     */
+    public WatchRecord(WatchExecutionContext context, WatchExecutionResult executionResult, String message) {
+        this.id = context.id();
+        this.triggerEvent = context.triggerEvent();
+        this.condition = context.watch().condition().condition();
+        this.input = context.watch().input();
+        this.metadata = context.watch().metadata();
+        this.executionResult = executionResult;
+        this.message = message;
+        this.state = ExecutionState.FAILED;
+    }
+
+    /**
+     * Called when the execution finished.
+     */
     public WatchRecord(WatchExecutionContext context, WatchExecutionResult executionResult) {
         this.id = context.id();
         this.triggerEvent = context.triggerEvent();
@@ -92,7 +116,7 @@ public class WatchRecord implements ToXContent {
         return metadata;
     }
 
-    public WatchExecutionResult execution() {
+    public WatchExecutionResult result() {
         return executionResult;
     }
 

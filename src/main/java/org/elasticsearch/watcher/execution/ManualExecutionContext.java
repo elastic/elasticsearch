@@ -25,8 +25,9 @@ public class ManualExecutionContext extends WatchExecutionContext {
 
     private final Map<String, ActionExecutionMode> actionModes;
     private final boolean recordExecution;
+    private final boolean knownWatch;
 
-    ManualExecutionContext(Watch watch, DateTime executionTime, ManualTriggerEvent triggerEvent,
+    ManualExecutionContext(Watch watch, boolean knownWatch, DateTime executionTime, ManualTriggerEvent triggerEvent,
                            TimeValue defaultThrottlePeriod, Input.Result inputResult, Condition.Result conditionResult,
                            Map<String, ActionExecutionMode> actionModes, boolean recordExecution) {
 
@@ -34,6 +35,7 @@ public class ManualExecutionContext extends WatchExecutionContext {
 
         this.actionModes = actionModes;
         this.recordExecution = recordExecution;
+        this.knownWatch = knownWatch;
 
         if (inputResult != null) {
             onInputResult(inputResult);
@@ -55,6 +57,11 @@ public class ManualExecutionContext extends WatchExecutionContext {
                 }
             }
         }
+    }
+
+    @Override
+    public boolean knownWatch() {
+        return knownWatch;
     }
 
     @Override
@@ -80,8 +87,8 @@ public class ManualExecutionContext extends WatchExecutionContext {
         return recordExecution;
     }
 
-    public static Builder builder(Watch watch, ManualTriggerEvent event, TimeValue defaultThrottlePeriod) {
-        return new Builder(watch, event, defaultThrottlePeriod);
+    public static Builder builder(Watch watch, boolean knownWatch, ManualTriggerEvent event, TimeValue defaultThrottlePeriod) {
+        return new Builder(watch, knownWatch, event, defaultThrottlePeriod);
     }
 
     public static class Builder {
@@ -89,6 +96,7 @@ public class ManualExecutionContext extends WatchExecutionContext {
         static final String ALL = "_all";
 
         private final Watch watch;
+        private final boolean knownWatch;
         private final ManualTriggerEvent triggerEvent;
         private final TimeValue defaultThrottlePeriod;
         protected DateTime executionTime;
@@ -97,8 +105,9 @@ public class ManualExecutionContext extends WatchExecutionContext {
         private Input.Result inputResult;
         private Condition.Result conditionResult;
 
-        private Builder(Watch watch, ManualTriggerEvent triggerEvent, TimeValue defaultThrottlePeriod) {
+        private Builder(Watch watch, boolean knownWatch, ManualTriggerEvent triggerEvent, TimeValue defaultThrottlePeriod) {
             this.watch = watch;
+            this.knownWatch = knownWatch;
             assert triggerEvent != null;
             this.triggerEvent = triggerEvent;
             this.defaultThrottlePeriod = defaultThrottlePeriod;
@@ -140,7 +149,7 @@ public class ManualExecutionContext extends WatchExecutionContext {
             if (executionTime == null) {
                 executionTime = DateTime.now(UTC);
             }
-            return new ManualExecutionContext(watch, executionTime, triggerEvent, defaultThrottlePeriod, inputResult, conditionResult, actionModes.build(), recordExecution);
+            return new ManualExecutionContext(watch, knownWatch, executionTime, triggerEvent, defaultThrottlePeriod, inputResult, conditionResult, actionModes.build(), recordExecution);
         }
     }
 }

@@ -153,7 +153,7 @@ public class HttpSecretsIntegrationTests extends AbstractWatcherIntegrationTests
                 .get();
         assertThat(executeResponse, notNullValue());
         contentSource = executeResponse.getRecordSource();
-        value = contentSource.getValue("result.input.http.status");
+        value = contentSource.getValue("result.input.http.status_code");
         assertThat(value, notNullValue());
         assertThat(value, is((Object) 200));
 

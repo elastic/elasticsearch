@@ -39,7 +39,7 @@ public abstract class ExecutableInput<I extends Input, R extends Input.Result> i
     /**
      * Executes this input
      */
-    public abstract R execute(WatchExecutionContext ctx) throws IOException;
+    public abstract R execute(WatchExecutionContext ctx);
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {

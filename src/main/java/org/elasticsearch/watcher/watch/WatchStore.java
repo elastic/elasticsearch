@@ -30,6 +30,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.watcher.WatcherException;
@@ -144,23 +145,29 @@ public class WatchStore extends AbstractComponent {
      */
     public void updateStatus(Watch watch) throws IOException {
         ensureStarted();
+        if (!watch.status().dirty()) {
+            return;
+        }
+
         // at the moment we store the status together with the watch,
         // so we just need to update the watch itself
         // TODO: consider storing the status in a different documment (watch_status doc) (must smaller docs... faster for frequent updates)
-        if (watch.status().dirty()) {
-            XContentBuilder source = JsonXContent.contentBuilder().
-                    startObject()
-                        .field(Watch.Field.STATUS.getPreferredName(), watch.status(), ToXContent.EMPTY_PARAMS)
-                    .endObject();
-            UpdateRequest updateRequest = new UpdateRequest(INDEX, DOC_TYPE, watch.id());
-            updateRequest.listenerThreaded(false);
-            updateRequest.doc(source);
-            updateRequest.version(watch.version());
+        XContentBuilder source = JsonXContent.contentBuilder().
+                startObject()
+                    .field(Watch.Field.STATUS.getPreferredName(), watch.status(), ToXContent.EMPTY_PARAMS)
+                .endObject();
+        UpdateRequest updateRequest = new UpdateRequest(INDEX, DOC_TYPE, watch.id());
+        updateRequest.listenerThreaded(false);
+        updateRequest.doc(source);
+        updateRequest.version(watch.version());
+        try {
             UpdateResponse response = client.update(updateRequest);
             watch.status().version(response.getVersion());
             watch.version(response.getVersion());
             watch.status().resetDirty();
             // Don't need to update the watches, since we are working on an instance from it.
+        } catch (DocumentMissingException dme) {
+            throw new WatchMissingException("could not update watch [{}] as it could not be found", watch.id(), dme);
         }
     }
 

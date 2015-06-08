@@ -43,6 +43,7 @@ import org.elasticsearch.watcher.actions.webhook.WebhookAction;
 import org.elasticsearch.watcher.condition.script.ExecutableScriptCondition;
 import org.elasticsearch.watcher.condition.script.ScriptCondition;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
+import org.elasticsearch.watcher.execution.Wid;
 import org.elasticsearch.watcher.input.search.ExecutableSearchInput;
 import org.elasticsearch.watcher.input.simple.ExecutableSimpleInput;
 import org.elasticsearch.watcher.input.simple.SimpleInput;
@@ -59,6 +60,7 @@ import org.elasticsearch.watcher.support.template.Template;
 import org.elasticsearch.watcher.support.template.TemplateEngine;
 import org.elasticsearch.watcher.support.template.xmustache.XMustacheScriptEngineService;
 import org.elasticsearch.watcher.support.template.xmustache.XMustacheTemplateEngine;
+import org.elasticsearch.watcher.support.xcontent.ObjectPath;
 import org.elasticsearch.watcher.transform.search.ExecutableSearchTransform;
 import org.elasticsearch.watcher.transform.search.SearchTransform;
 import org.elasticsearch.watcher.trigger.TriggerEvent;
@@ -67,16 +69,19 @@ import org.elasticsearch.watcher.trigger.schedule.ScheduleTrigger;
 import org.elasticsearch.watcher.watch.Payload;
 import org.elasticsearch.watcher.watch.Watch;
 import org.elasticsearch.watcher.watch.WatchStatus;
+import org.hamcrest.Matcher;
 
 import javax.mail.internet.AddressException;
 import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.util.*;
 
+import static com.carrotsearch.randomizedtesting.RandomizedTest.randomInt;
 import static org.elasticsearch.common.joda.time.DateTimeZone.UTC;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.elasticsearch.test.ElasticsearchTestCase.randomFrom;
+import static org.junit.Assert.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -88,6 +93,10 @@ public final class WatcherTestUtils {
     public static final Payload EMPTY_PAYLOAD = new Payload.Simple(ImmutableMap.<String, Object>of());
 
     private WatcherTestUtils() {
+    }
+
+    public static void assertValue(Map<String, Object> map, String path, Matcher<?> matcher) {
+        assertThat(ObjectPath.eval(path, map), (Matcher<Object>) matcher);
     }
 
     public static XContentParser xContentParser(XContentBuilder builder) throws IOException {
@@ -120,17 +129,20 @@ public final class WatcherTestUtils {
     }
 
     public static WatchExecutionContextMockBuilder mockExecutionContextBuilder(String watchId) {
-        return new WatchExecutionContextMockBuilder(watchId);
+        return new WatchExecutionContextMockBuilder(watchId)
+                .wid(new Wid(watchId, randomInt(10), DateTime.now(UTC)));
     }
 
     public static WatchExecutionContext mockExecutionContext(String watchId, Payload payload) {
         return mockExecutionContextBuilder(watchId)
+                .wid(new Wid(watchId, randomInt(10), DateTime.now(UTC)))
                 .payload(payload)
                 .buildMock();
     }
 
     public static WatchExecutionContext mockExecutionContext(String watchId, DateTime time, Payload payload) {
         return mockExecutionContextBuilder(watchId)
+                .wid(new Wid(watchId, randomInt(10), DateTime.now(UTC)))
                 .payload(payload)
                 .time(watchId, time)
                 .buildMock();
@@ -138,6 +150,7 @@ public final class WatcherTestUtils {
 
     public static WatchExecutionContext mockExecutionContext(String watchId, DateTime executionTime, TriggerEvent event, Payload payload) {
         return mockExecutionContextBuilder(watchId)
+                .wid(new Wid(watchId, randomInt(10), DateTime.now(UTC)))
                 .payload(payload)
                 .executionTime(executionTime)
                 .triggerEvent(event)

@@ -6,6 +6,7 @@
 package org.elasticsearch.watcher.actions.email;
 
 import com.carrotsearch.randomizedtesting.annotations.Repeat;
+import com.carrotsearch.randomizedtesting.annotations.Seed;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.MapBuilder;
@@ -101,6 +102,7 @@ public class EmailActionTests extends ElasticsearchTestCase {
 
         Map<String, Object> expectedModel = ImmutableMap.<String, Object>builder()
                 .put("ctx", ImmutableMap.<String, Object>builder()
+                        .put("id", ctx.id().value())
                         .put("watch_id", "watch1")
                         .put("payload", data)
                         .put("metadata", metadata)

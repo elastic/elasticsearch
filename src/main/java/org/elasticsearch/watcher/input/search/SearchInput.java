@@ -126,10 +126,15 @@ public class SearchInput implements Input {
 
     public static class Result extends Input.Result {
 
-        private final SearchRequest request;
+        private final @Nullable SearchRequest request;
 
         public Result(SearchRequest request, Payload payload) {
             super(TYPE, payload);
+            this.request = request;
+        }
+
+        public Result(@Nullable SearchRequest request, Exception e) {
+            super(TYPE, e);
             this.request = request;
         }
 
@@ -139,6 +144,9 @@ public class SearchInput implements Input {
 
         @Override
         protected XContentBuilder typeXContent(XContentBuilder builder, Params params) throws IOException {
+            if (request == null) {
+                return builder;
+            }
             builder.startObject(type);
             builder.field(Field.REQUEST.getPreferredName());
             WatcherUtils.writeSearchRequest(request, builder, params);

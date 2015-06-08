@@ -10,6 +10,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 
 import java.util.Iterator;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Condition;
@@ -17,7 +18,7 @@ import java.util.concurrent.locks.ReentrantLock;
 
 public class CurrentExecutions implements Iterable<ExecutionService.WatchExecution> {
 
-    private final ConcurrentMap<String, ExecutionService.WatchExecution> currentExecutions = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
+    private final ConcurrentMap<String, ExecutionService.WatchExecution> currentExecutions = new ConcurrentHashMap<>();
     private final ReentrantLock lock = new ReentrantLock();
     private final Condition empty = lock.newCondition();
     private boolean seal = false;

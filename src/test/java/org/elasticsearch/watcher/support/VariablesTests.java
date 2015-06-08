@@ -9,6 +9,7 @@ import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
+import org.elasticsearch.watcher.execution.Wid;
 import org.elasticsearch.watcher.test.WatcherTestUtils;
 import org.elasticsearch.watcher.trigger.TriggerEvent;
 import org.elasticsearch.watcher.trigger.schedule.ScheduleTriggerEvent;
@@ -18,6 +19,7 @@ import org.junit.Test;
 import java.util.Map;
 
 import static org.elasticsearch.common.joda.time.DateTimeZone.UTC;
+import static org.elasticsearch.watcher.test.WatcherTestUtils.assertValue;
 import static org.hamcrest.Matchers.*;
 
 /**
@@ -33,25 +35,23 @@ public class VariablesTests extends ElasticsearchTestCase {
         Payload payload = new Payload.Simple(ImmutableMap.<String, Object>builder().put("payload_key", "payload_value").build());
         Map<String, Object> metatdata = ImmutableMap.<String, Object>builder().put("metadata_key", "metadata_value").build();
         TriggerEvent event = new ScheduleTriggerEvent("_watch_id", triggeredTime, scheduledTime);
-        WatchExecutionContext wec = WatcherTestUtils.mockExecutionContextBuilder("_watch_id")
+        Wid wid = new Wid("_watch_id", 0, executionTime);
+        WatchExecutionContext ctx = WatcherTestUtils.mockExecutionContextBuilder("_watch_id")
+                .wid(wid)
                 .executionTime(executionTime)
                 .triggerEvent(event)
                 .payload(payload)
                 .metadata(metatdata)
                 .buildMock();
 
-        Map<String, Object> model = Variables.createCtxModel(wec, payload);
+        Map<String, Object> model = Variables.createCtxModel(ctx, payload);
         assertThat(model, notNullValue());
-        assertThat(model, hasKey(Variables.CTX));
-        assertThat(model.get(Variables.CTX), instanceOf(Map.class));
         assertThat(model.size(), is(1));
-
-        Map<String, Object> ctx = (Map<String, Object>) model.get(Variables.CTX);
-        assertThat(ctx, hasEntry(Variables.WATCH_ID, (Object) "_watch_id"));
-        assertThat(ctx, hasEntry(Variables.EXECUTION_TIME, (Object) executionTime));
-        assertThat(ctx, hasEntry(Variables.TRIGGER, (Object) event.data()));
-        assertThat(ctx, hasEntry(Variables.PAYLOAD, (Object) payload.data()));
-        assertThat(ctx, hasEntry(Variables.METADATA, (Object) metatdata));
-        assertThat(ctx.size(), is(5));
+        assertValue(model, "ctx", instanceOf(Map.class));
+        assertValue(model, "ctx.id", is(wid.value()));
+        assertValue(model, "ctx.execution_time", is(executionTime));
+        assertValue(model, "ctx.trigger", is(event.data()));
+        assertValue(model, "ctx.payload", is(payload.data()));
+        assertValue(model, "ctx.metadata", is(metatdata));
     }
 }

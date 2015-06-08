@@ -21,7 +21,6 @@ import org.elasticsearch.watcher.support.XContentFilterKeysUtils;
 import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
 import org.elasticsearch.watcher.watch.Payload;
 
-import java.io.IOException;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -40,23 +39,31 @@ public class ExecutableSearchInput extends ExecutableInput<SearchInput, SearchIn
         this.client = client;
     }
 
-    @Override
-    public SearchInput.Result execute(WatchExecutionContext ctx) throws IOException {
+    public SearchInput.Result execute(WatchExecutionContext ctx) {
+        SearchRequest request = null;
+        try {
+            request = WatcherUtils.createSearchRequestFromPrototype(input.getSearchRequest(), ctx, null);
+            return doExecute(ctx, request);
+        } catch (Exception e) {
+            logger.error("failed to execute [{}] input for [{}]", e, SearchInput.TYPE, ctx.watch());
+            return new SearchInput.Result(request, e);
+        }
+    }
 
-        SearchRequest request = WatcherUtils.createSearchRequestFromPrototype(input.getSearchRequest(), ctx, null);
+    SearchInput.Result doExecute(WatchExecutionContext ctx, SearchRequest request) throws Exception {
+
         if (logger.isTraceEnabled()) {
             BytesReference source = request.source() != null ? request.source() : request.templateSource();
             logger.trace("[{}] running query for [{}] [{}]", ctx.id(), ctx.watch().id(), XContentHelper.convertToJson(source, false, true));
         }
 
-        // actionGet deals properly with InterruptedException
         SearchResponse response = client.search(request);
+
         if (logger.isDebugEnabled()) {
-            logger.debug("[{}] found [{}] hits", ctx.id(), ctx.watch().id(), response.getHits().getTotalHits());
+            logger.debug("[{}] found [{}] hits", ctx.id(), response.getHits().getTotalHits());
             for (SearchHit hit : response.getHits()) {
                 logger.debug("[{}] hit [{}]", ctx.id(), XContentHelper.toString(hit));
             }
-
         }
 
         final Payload payload;

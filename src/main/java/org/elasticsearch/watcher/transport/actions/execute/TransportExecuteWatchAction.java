@@ -87,7 +87,7 @@ public class TransportExecuteWatchAction extends WatcherTransportAction<ExecuteW
             String triggerType = watch.trigger().type();
             TriggerEvent triggerEvent = triggerService.simulateEvent(triggerType, watch.id(), request.getTriggerData());
 
-            ManualExecutionContext.Builder ctxBuilder = ManualExecutionContext.builder(watch, new ManualTriggerEvent(triggerEvent.jobName(), triggerEvent), executionService.defaultThrottlePeriod());
+            ManualExecutionContext.Builder ctxBuilder = ManualExecutionContext.builder(watch, true, new ManualTriggerEvent(triggerEvent.jobName(), triggerEvent), executionService.defaultThrottlePeriod());
 
             DateTime executionTime = clock.now(UTC);
             ctxBuilder.executionTime(executionTime);

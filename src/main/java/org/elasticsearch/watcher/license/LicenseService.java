@@ -89,7 +89,6 @@ public class LicenseService extends AbstractLifecycleComponent<LicenseService> {
 
     @Override
     protected void doStop() throws ElasticsearchException {
-
     }
 
     @Override

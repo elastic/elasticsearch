@@ -6,6 +6,7 @@
 package org.elasticsearch.watcher.support.http;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.base.Charsets;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -83,6 +84,14 @@ public class HttpClient extends AbstractLifecycleComponent<HttpClient> {
     }
 
     public HttpResponse execute(HttpRequest request) throws IOException {
+        try {
+            return doExecute(request);
+        } catch (SocketTimeoutException ste) {
+            throw new ElasticsearchTimeoutException("failed to execute http request. timeout expired", ste);
+        }
+    }
+
+    public HttpResponse doExecute(HttpRequest request) throws IOException {
         String queryString = null;
         if (request.params() != null && !request.params().isEmpty()) {
             StringBuilder builder = new StringBuilder();

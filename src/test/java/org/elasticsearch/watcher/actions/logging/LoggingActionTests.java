@@ -57,10 +57,15 @@ public class LoggingActionTests extends ElasticsearchTestCase {
     public void testExecute() throws Exception {
         final DateTime now = DateTime.now(UTC);
 
+        WatchExecutionContext ctx = WatcherTestUtils.mockExecutionContextBuilder("_watch_id")
+                .time("_watch_id", now)
+                .buildMock();
+
         final Map<String, Object> expectedModel = ImmutableMap.<String, Object>builder()
                 .put("ctx", ImmutableMap.builder()
-                        .put("execution_time", now)
+                        .put("id", ctx.id().value())
                         .put("watch_id", "_watch_id")
+                        .put("execution_time", now)
                         .put("payload", ImmutableMap.of())
                         .put("metadata", ImmutableMap.of())
                         .put("trigger", ImmutableMap.builder()
@@ -76,9 +81,7 @@ public class LoggingActionTests extends ElasticsearchTestCase {
         ExecutableLoggingAction executable = new ExecutableLoggingAction(action, logger, actionLogger, engine);
         when(engine.render(template, expectedModel)).thenReturn(text);
 
-        WatchExecutionContext ctx = WatcherTestUtils.mockExecutionContextBuilder("_watch_id")
-                .time("_watch_id", now)
-                .buildMock();
+
 
         Action.Result result = executable.execute("_id", ctx, new Payload.Simple());
         verifyLogger(actionLogger, level, text);

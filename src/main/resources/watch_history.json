@@ -112,6 +112,10 @@
                   "type" : "object",
                   "enabled" : false
                 },
+                "status" : {
+                  "type" : "string",
+                  "index" : "not_analyzed"
+                },
                 "search": {
                   "type": "object",
                   "dynamic": true,

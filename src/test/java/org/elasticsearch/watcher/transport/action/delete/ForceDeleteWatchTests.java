@@ -39,9 +39,9 @@ public class ForceDeleteWatchTests extends AbstractWatcherIntegrationTests {
     @Test @Slow @TestLogging("_root:DEBUG")
     public void testForceDelete_LongRunningWatch() throws Exception {
         PutWatchResponse putResponse = watcherClient().preparePutWatch("_name").setSource(watchBuilder()
-                .trigger(schedule(interval("1s")))
+                .trigger(schedule(interval("3s")))
                 .condition(scriptCondition(Script.inline("sleep 5000; return true")))
-                .addAction("_action1", loggingAction("{{ctx.watch_id}}")))
+                .addAction("_action1", loggingAction("executed action: {{ctx.id}}")))
                 .get();
         assertThat(putResponse.getId(), equalTo("_name"));
         Thread.sleep(5000);

@@ -45,6 +45,8 @@ public abstract class WatchExecutionContext {
 
     private long actualExecutionStartMs;
 
+    private boolean sealed = false;
+
     public WatchExecutionContext(Watch watch, DateTime executionTime, TriggerEvent triggerEvent, TimeValue defaultThrottlePeriod) {
         this.id = new Wid(watch.id(), watch.nonce(), executionTime);
         this.watch = watch;
@@ -52,6 +54,16 @@ public abstract class WatchExecutionContext {
         this.triggerEvent = triggerEvent;
         this.defaultThrottlePeriod = defaultThrottlePeriod;
     }
+
+    /**
+     * @return true if the watch associated with this context is known to watcher (i.e. it's stored
+     *              in watcher. This plays a key role in how we handle execution. For example, if
+     *              the watch is known, but then the watch is not there (perhaps deleted in between)
+     *              we abort execution. It also plays a part (along with {@link #recordExecution()}
+     *              in the decision of whether the watch record should be stored and if the watch
+     *              status should be updated.
+     */
+    public abstract boolean knownWatch();
 
     /**
      * @return true if this action should be simulated
@@ -107,6 +119,7 @@ public abstract class WatchExecutionContext {
             transformedPayload = payload;
             return transformedPayload;
         }
+        beforeWatchTransform();
         this.transformResult = watch.transform().execute(this, payload);
         this.payload = transformResult.payload();
         this.transformedPayload = this.payload;
@@ -118,12 +131,16 @@ public abstract class WatchExecutionContext {
     }
 
     public void beforeInput() {
+        assert !sealed;
         executionPhase = ExecutionPhase.INPUT;
     }
 
     public void onInputResult(Input.Result inputResult) {
+        assert !sealed;
         this.inputResult = inputResult;
-        this.payload = inputResult.payload();
+        if (inputResult.status() == Input.Result.Status.SUCCESS) {
+            this.payload = inputResult.payload();
+        }
     }
 
     public Input.Result inputResult() {
@@ -131,10 +148,12 @@ public abstract class WatchExecutionContext {
     }
 
     public void beforeCondition() {
+        assert !sealed;
         executionPhase = ExecutionPhase.CONDITION;
     }
 
     public void onConditionResult(Condition.Result conditionResult) {
+        assert !sealed;
         this.conditionResult = conditionResult;
         if (recordExecution()) {
             watch.status().onCheck(conditionResult.met(), executionTime);
@@ -147,12 +166,8 @@ public abstract class WatchExecutionContext {
     }
 
     public void beforeWatchTransform() {
+        assert !sealed;
         this.executionPhase = ExecutionPhase.WATCH_TRANSFORM;
-    }
-
-    public void onTransformResult(Transform.Result transformResult) {
-        this.transformResult = transformResult;
-        this.payload = transformResult.payload();
     }
 
     public Transform.Result transformResult() {
@@ -160,10 +175,12 @@ public abstract class WatchExecutionContext {
     }
 
     public void beforeAction() {
+        assert !sealed;
         executionPhase = ExecutionPhase.ACTIONS;
     }
 
     public void onActionResult(ActionWrapper.Result result) {
+        assert !sealed;
         actionsResults.put(result.id(), result);
         if (recordExecution()) {
             watch.status().onActionResult(result.id(), executionTime, result.action());
@@ -174,19 +191,29 @@ public abstract class WatchExecutionContext {
         return new ExecutableActions.Results(actionsResults);
     }
 
+    public WatchRecord abortBeforeExecution(String message, ExecutionState state) {
+        sealed = true;
+        return new WatchRecord(id, triggerEvent, message, state);
+    }
+
     public void start() {
+        assert !sealed;
         actualExecutionStartMs = System.currentTimeMillis();
     }
 
+    public WatchRecord abortFailedExecution(String message) {
+        sealed = true;
+        long executionFinishMs = System.currentTimeMillis();
+        WatchExecutionResult result = new WatchExecutionResult(this, executionFinishMs - actualExecutionStartMs);
+        return new WatchRecord(this, result, message);
+    }
+
     public WatchRecord finish() {
+        sealed = true;
         executionPhase = ExecutionPhase.FINISHED;
         long executionFinishMs = System.currentTimeMillis();
         WatchExecutionResult result = new WatchExecutionResult(this, executionFinishMs - actualExecutionStartMs);
         return new WatchRecord(this, result);
-    }
-
-    public WatchRecord abort(String message, ExecutionState state) {
-        return new WatchRecord(id, triggerEvent, message, state);
     }
 
     public WatchExecutionSnapshot createSnapshot(Thread executionThread) {

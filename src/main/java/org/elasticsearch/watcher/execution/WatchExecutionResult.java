@@ -27,8 +27,8 @@ public class WatchExecutionResult implements ToXContent {
 
     private final DateTime executionTime;
     private final long executionDurationMs;
-    private final Input.Result inputResult;
-    private final Condition.Result conditionResult;
+    private final @Nullable Input.Result inputResult;
+    private final @Nullable Condition.Result conditionResult;
     private final @Nullable Transform.Result transformResult;
     private final ExecutableActions.Results actionsResults;
 

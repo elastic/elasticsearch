@@ -20,6 +20,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -158,6 +159,27 @@ public class TriggeredWatchStore extends AbstractComponent {
     }
 
     public void putAll(final List<TriggeredWatch> triggeredWatches, final ActionListener<List<Integer>> listener) throws TriggeredWatchException {
+
+        if (triggeredWatches.isEmpty()) {
+            listener.onResponse(ImmutableList.<Integer>of());
+            return;
+        }
+
+        if (triggeredWatches.size() == 1) {
+            put(triggeredWatches.get(0), new ActionListener<Boolean>() {
+                @Override
+                public void onResponse(Boolean success) {
+                    listener.onResponse(ImmutableList.of(0));
+                }
+
+                @Override
+                public void onFailure(Throwable e) {
+                    listener.onFailure(e);
+                }
+            });
+            return;
+        }
+
         ensureStarted();
         try {
             BulkRequest request = new BulkRequest();

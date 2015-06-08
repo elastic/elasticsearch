@@ -10,8 +10,6 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.watcher.input.ExecutableInput;
 
-import java.io.IOException;
-
 /**
  *
  */
@@ -22,7 +20,7 @@ public class ExecutableNoneInput extends ExecutableInput<NoneInput, NoneInput.Re
     }
 
     @Override
-    public NoneInput.Result execute(WatchExecutionContext ctx) throws IOException {
+    public NoneInput.Result execute(WatchExecutionContext ctx) {
         return NoneInput.Result.INSTANCE;
     }
 

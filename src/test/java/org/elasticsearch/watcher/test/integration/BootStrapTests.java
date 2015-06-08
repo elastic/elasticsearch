@@ -208,7 +208,7 @@ public class BootStrapTests extends AbstractWatcherIntegrationTests {
         SearchResponse searchResponse = client().prepareSearch(HistoryStore.INDEX_PREFIX + "*").get();
         assertHitCount(searchResponse, 1);
         assertThat(searchResponse.getHits().getAt(0).id(), Matchers.equalTo(wid.value()));
-        assertThat(searchResponse.getHits().getAt(0).sourceAsMap().get(WatchRecord.Field.STATE.getPreferredName()).toString(), Matchers.equalTo(ExecutionState.DELETED_WHILE_QUEUED.toString()));
+        assertThat(searchResponse.getHits().getAt(0).sourceAsMap().get(WatchRecord.Field.STATE.getPreferredName()).toString(), Matchers.equalTo(ExecutionState.NOT_EXECUTED_WATCH_MISSING.toString()));
     }
 
 

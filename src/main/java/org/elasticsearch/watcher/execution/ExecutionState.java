@@ -15,7 +15,7 @@ public enum ExecutionState {
     THROTTLED,
     EXECUTED,
     FAILED,
-    DELETED_WHILE_QUEUED;
+    NOT_EXECUTED_WATCH_MISSING;
 
     public String id() {
         return name().toLowerCase(Locale.ROOT);

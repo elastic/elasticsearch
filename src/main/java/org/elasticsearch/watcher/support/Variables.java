@@ -17,6 +17,7 @@ import java.util.Map;
 public final class Variables {
 
     public static final String CTX = "ctx";
+    public static final String ID = "id";
     public static final String WATCH_ID = "watch_id";
     public static final String EXECUTION_TIME = "execution_time";
     public static final String TRIGGER = "trigger";
@@ -25,6 +26,7 @@ public final class Variables {
 
     public static Map<String, Object> createCtxModel(WatchExecutionContext ctx, Payload payload) {
         Map<String, Object> vars = new HashMap<>();
+        vars.put(ID, ctx.id().value());
         vars.put(WATCH_ID, ctx.watch().id());
         vars.put(EXECUTION_TIME, ctx.executionTime());
         vars.put(TRIGGER, ctx.triggerEvent().data());

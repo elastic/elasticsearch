@@ -14,7 +14,7 @@ will use location `/mount/backups/my_backup` to store snapshots.
 
 [source,js]
 -----------------------------------
-$ curl -XPUT 'http://localhost:9200/_snapshot/my_backup' -d '{
+$ curl -XPUT http://localhost:9200/_snapshot/my_backup -d '{
     "type": "fs",
     "settings": {
         "location": "/mount/backups/my_backup",
@@ -25,9 +25,9 @@ $ curl -XPUT 'http://localhost:9200/_snapshot/my_backup' -d '{
 
 Once a repository is registered, its information can be obtained using the following command:
 
-[source,js]
+[source,shell]
 -----------------------------------
-$ curl -XGET 'http://localhost:9200/_snapshot/my_backup?pretty'
+$ curl 'http://localhost:9200/_snapshot/my_backup?pretty'
 -----------------------------------
 [source,js]
 -----------------------------------
@@ -45,16 +45,16 @@ $ curl -XGET 'http://localhost:9200/_snapshot/my_backup?pretty'
 If a repository name is not specified, or `_all` is used as repository name Elasticsearch will return information about
 all repositories currently registered in the cluster:
 
-[source,js]
+[source,shell]
 -----------------------------------
-$ curl -XGET 'http://localhost:9200/_snapshot'
+$ curl http://localhost:9200/_snapshot
 -----------------------------------
 
 or
 
-[source,js]
+[source,shell]
 -----------------------------------
-$ curl -XGET 'http://localhost:9200/_snapshot/_all'
+$ curl http://localhost:9200/_snapshot/_all
 -----------------------------------
 
 [float]
@@ -120,7 +120,7 @@ The verification process can also be executed manually by running the following 
 
 [source,js]
 -----------------------------------
-$ curl -XPOST 'http://localhost:9200/_snapshot/my_backup/_verify'
+$ curl -d '' http://localhost:9200/_snapshot/my_backup/_verify
 -----------------------------------
 
 It returns a list of nodes where repository was successfully verified or an error message if verification process failed.
@@ -134,7 +134,7 @@ command:
 
 [source,js]
 -----------------------------------
-$ curl -XPUT "localhost:9200/_snapshot/my_backup/snapshot_1?wait_for_completion=true"
+$ curl -XPUT -d '' 'http://localhost:9200/_snapshot/my_backup/snapshot_1?wait_for_completion=true'
 -----------------------------------
 
 The `wait_for_completion` parameter specifies whether or not the request should return immediately after snapshot
@@ -147,7 +147,7 @@ specifying the list of indices in the body of the snapshot request.
 
 [source,js]
 -----------------------------------
-$ curl -XPUT "localhost:9200/_snapshot/my_backup/snapshot_1" -d '{
+$ curl -XPUT http://localhost:9200/_snapshot/my_backup/snapshot_1 -d '{
     "indices": "index_1,index_2",
     "ignore_unavailable": "true",
     "include_global_state": false
@@ -185,21 +185,21 @@ Once a snapshot is created information about this snapshot can be obtained using
 
 [source,shell]
 -----------------------------------
-$ curl -XGET "localhost:9200/_snapshot/my_backup/snapshot_1"
+$ curl http://localhost:9200/_snapshot/my_backup/snapshot_1
 -----------------------------------
 
 All snapshots currently stored in the repository can be listed using the following command:
 
 [source,shell]
 -----------------------------------
-$ curl -XGET "localhost:9200/_snapshot/my_backup/_all"
+$ curl http://localhost:9200/_snapshot/my_backup/_all
 -----------------------------------
 
 A snapshot can be deleted from the repository using the following command:
 
 [source,shell]
 -----------------------------------
-$ curl -XDELETE "localhost:9200/_snapshot/my_backup/snapshot_1"
+$ curl -XDELETE -d '' http://localhost:9200/_snapshot/my_backup/snapshot_1
 -----------------------------------
 
 When a snapshot is deleted from a repository, Elasticsearch deletes all files that are associated with the deleted
@@ -212,7 +212,7 @@ A repository can be deleted using the following command:
 
 [source,shell]
 -----------------------------------
-$ curl -XDELETE "localhost:9200/_snapshot/my_backup"
+$ curl -XDELETE -d '' http://localhost:9200/_snapshot/my_backup
 -----------------------------------
 
 When a repository is deleted, Elasticsearch only removes the reference to the location where the repository is storing
@@ -225,7 +225,7 @@ A snapshot can be restored using the following command:
 
 [source,shell]
 -----------------------------------
-$ curl -XPOST "localhost:9200/_snapshot/my_backup/snapshot_1/_restore"
+$ curl -d '' http://localhost:9200/_snapshot/my_backup/snapshot_1/_restore
 -----------------------------------
 
 By default, all indices in the snapshot as well as cluster state are restored. It's possible to select indices that
@@ -238,7 +238,7 @@ Set `include_aliases` to `false` to prevent aliases from being restored together
 
 [source,js]
 -----------------------------------
-$ curl -XPOST "localhost:9200/_snapshot/my_backup/snapshot_1/_restore" -d '{
+$ curl http://localhost:9200/_snapshot/my_backup/snapshot_1/_restore -d '{
     "indices": "index_1,index_2",
     "ignore_unavailable": "true",
     "include_global_state": false,
@@ -271,7 +271,7 @@ the index `index_1` without creating any replicas while switching back to defaul
 
 [source,js]
 -----------------------------------
-$ curl -XPOST "localhost:9200/_snapshot/my_backup/snapshot_1/_restore" -d '{
+$ curl http://localhost:9200/_snapshot/my_backup/snapshot_1/_restore -d '{
     "indices": "index_1",
     "index_settings" : {
         "index.number_of_replicas": 0
@@ -311,7 +311,7 @@ A list of currently running snapshots with their detailed status information can
 
 [source,shell]
 -----------------------------------
-$ curl -XGET "localhost:9200/_snapshot/_status"
+$ curl http://localhost:9200/_snapshot/_status
 -----------------------------------
 
 In this format, the command will return information about all currently running snapshots. By specifying a repository name, it's possible
@@ -319,7 +319,7 @@ to limit the results to a particular repository:
 
 [source,shell]
 -----------------------------------
-$ curl -XGET "localhost:9200/_snapshot/my_backup/_status"
+$ curl http://localhost:9200/_snapshot/my_backup/_status
 -----------------------------------
 
 If both repository name and snapshot id are specified, this command will return detailed status information for the given snapshot even
@@ -327,14 +327,14 @@ if it's not currently running:
 
 [source,shell]
 -----------------------------------
-$ curl -XGET "localhost:9200/_snapshot/my_backup/snapshot_1/_status"
+$ curl http://localhost:9200/_snapshot/my_backup/snapshot_1/_status
 -----------------------------------
 
 Multiple ids are also supported:
 
 [source,shell]
 -----------------------------------
-$ curl -XGET "localhost:9200/_snapshot/my_backup/snapshot_1,snapshot_2/_status"
+$ curl http://localhost:9200/_snapshot/my_backup/snapshot_1,snapshot_2/_status
 -----------------------------------
 
 [float]
@@ -348,7 +348,7 @@ The snapshot operation can be also monitored by periodic calls to the snapshot i
 
 [source,shell]
 -----------------------------------
-$ curl -XGET "localhost:9200/_snapshot/my_backup/snapshot_1"
+$ curl http://localhost:9200/_snapshot/my_backup/snapshot_1
 -----------------------------------
 
 Please note that snapshot info operation uses the same resources and thread pool as the snapshot operation. So,
@@ -359,7 +359,7 @@ To get more immediate and complete information about snapshots the snapshot stat
 
 [source,shell]
 -----------------------------------
-$ curl -XGET "localhost:9200/_snapshot/my_backup/snapshot_1/_status"
+$ curl http://localhost:9200/_snapshot/my_backup/snapshot_1/_status
 -----------------------------------
 
 While snapshot info method returns only basic information about the snapshot in progress, the snapshot status returns

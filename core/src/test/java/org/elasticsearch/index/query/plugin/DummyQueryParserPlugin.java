@@ -52,7 +52,7 @@ public class DummyQueryParserPlugin extends AbstractPlugin {
     public void processModule(Module module) {
         if (module instanceof IndicesQueriesModule) {
             IndicesQueriesModule indicesQueriesModule = (IndicesQueriesModule) module;
-            indicesQueriesModule.addQuery(DummyQueryParserPlugin.DummyQueryParser.class);
+            indicesQueriesModule.addQuery(DummyQueryParser.class);
         }
     }
 

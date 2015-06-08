@@ -47,10 +47,7 @@ import org.elasticsearch.index.IndexShardMissingException;
 import org.elasticsearch.index.engine.RecoveryEngineException;
 import org.elasticsearch.index.mapper.MapperException;
 import org.elasticsearch.index.settings.IndexSettings;
-import org.elasticsearch.index.shard.IllegalIndexShardStateException;
-import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.shard.IndexShardClosedException;
-import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.*;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.indices.IndicesLifecycle;
@@ -308,10 +305,14 @@ public class RecoveryTarget extends AbstractComponent {
                 assert recoveryStatus.indexShard().recoveryState() == recoveryStatus.state();
                 try {
                     recoveryStatus.indexShard().performBatchRecovery(request.operations());
-                } catch (MapperException mapperException) {
+                } catch (TranslogRecoveryPerformer.BatchOperationException exception) {
+                    if (ExceptionsHelper.unwrapCause(exception) instanceof MapperException == false) {
+                        throw exception;
+                    }
                     // in very rare cases a translog replay from primary is processed before a mapping update on this node
                     // which causes local mapping changes. we want to wait until these mappings are processed.
-                    logger.trace("delaying recovery due to missing mapping changes", mapperException);
+                    logger.trace("delaying recovery due to missing mapping changes (rolling back stats for [{}] ops)", exception, exception.completedOperations());
+                    translog.decrementRecoveredOperations(exception.completedOperations());
                     // we do not need to use a timeout here since the entire recovery mechanism has an inactivity protection (it will be
                     // canceled)
                     observer.waitForNextChange(new ClusterStateObserver.Listener() {

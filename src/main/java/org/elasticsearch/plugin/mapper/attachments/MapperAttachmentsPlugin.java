@@ -22,9 +22,8 @@ package org.elasticsearch.plugin.mapper.attachments;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.plugins.AbstractPlugin;
 
+import java.util.ArrayList;
 import java.util.Collection;
-
-import static org.elasticsearch.common.collect.Lists.newArrayList;
 
 /**
  *
@@ -43,7 +42,7 @@ public class MapperAttachmentsPlugin extends AbstractPlugin {
 
     @Override
     public Collection<Class<? extends Module>> indexModules() {
-        Collection<Class<? extends Module>> modules = newArrayList();
+        Collection<Class<? extends Module>> modules = new ArrayList<>();
         modules.add(AttachmentsIndexModule.class);
         return modules;
     }

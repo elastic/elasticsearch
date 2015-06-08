@@ -19,11 +19,11 @@
 
 package org.elasticsearch.index.mapper.attachment.test.standalone;
 
+import org.apache.commons.cli.CommandLine;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.cli.CliTool;
 import org.elasticsearch.common.cli.CliToolConfig;
 import org.elasticsearch.common.cli.Terminal;
-import org.elasticsearch.common.cli.commons.CommandLine;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
@@ -113,7 +113,7 @@ public class StandaloneRunner extends CliTool {
 
             terminal.println("## Extracted text");
             terminal.println("--------------------- BEGIN -----------------------");
-            terminal.println("%s", doc.get(docMapper.mappers().getMapper("file").names().indexName()));
+            terminal.println("%s", doc.get(docMapper.mappers().getMapper("file").fieldType().names().indexName()));
             terminal.println("---------------------- END ------------------------");
             terminal.println("## Metadata");
             printMetadataContent(doc, AttachmentMapper.FieldNames.AUTHOR);
@@ -129,7 +129,7 @@ public class StandaloneRunner extends CliTool {
         }
 
         private void printMetadataContent(ParseContext.Document doc, String field) {
-            terminal.println("- %s: %s", field, doc.get(docMapper.mappers().getMapper("file." + field).names().indexName()));
+            terminal.println("- %s: %s", field, doc.get(docMapper.mappers().getMapper("file." + field).fieldType().names().indexName()));
         }
 
         public static byte[] copyToBytes(Path path) throws IOException {

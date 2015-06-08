@@ -21,17 +21,19 @@ package org.elasticsearch.index.mapper.attachment;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
+import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.Constants;
 import org.apache.tika.Tika;
 import org.apache.tika.language.LanguageIdentifier;
 import org.apache.tika.metadata.Metadata;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.collect.Iterators;
-import org.elasticsearch.common.collect.Lists;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.FieldDataType;
@@ -39,10 +41,7 @@ import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 
 import java.io.IOException;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
+import java.util.*;
 
 import static org.elasticsearch.index.mapper.MapperBuilders.*;
 import static org.elasticsearch.index.mapper.core.TypeParsers.parseMultiField;
@@ -90,6 +89,24 @@ public class AttachmentMapper extends AbstractFieldMapper {
         public static final String LANGUAGE = "language";
     }
 
+    static final class AttachmentFieldType extends MappedFieldType {
+        public AttachmentFieldType() {
+            super(AbstractFieldMapper.Defaults.FIELD_TYPE);
+        }
+
+        protected AttachmentFieldType(AttachmentMapper.AttachmentFieldType ref) {
+            super(ref);
+        }
+
+        public AttachmentMapper.AttachmentFieldType clone() {
+            return new AttachmentMapper.AttachmentFieldType(this);
+        }
+
+        public String value(Object value) {
+            return value == null?null:value.toString();
+        }
+    }
+
     public static class Builder extends AbstractFieldMapper.Builder<Builder, AttachmentMapper> {
 
         private ContentPath.Type pathType = Defaults.PATH_TYPE;
@@ -119,7 +136,7 @@ public class AttachmentMapper extends AbstractFieldMapper {
         private Mapper.Builder languageBuilder = stringField(FieldNames.LANGUAGE);
 
         public Builder(String name) {
-            super(name, new FieldType(AbstractFieldMapper.Defaults.FIELD_TYPE));
+            super(name, new AttachmentFieldType());
             this.builder = this;
             this.contentBuilder = stringField(FieldNames.CONTENT);
         }
@@ -226,10 +243,24 @@ public class AttachmentMapper extends AbstractFieldMapper {
             if (langDetect == null) {
                 langDetect = Boolean.FALSE;
             }
+            MappedFieldType defaultFieldType = AbstractFieldMapper.Defaults.FIELD_TYPE.clone();
+            if(this.fieldType.indexOptions() != IndexOptions.NONE && !this.fieldType.tokenized()) {
+                defaultFieldType.setOmitNorms(true);
+                defaultFieldType.setIndexOptions(IndexOptions.DOCS);
+                if(!this.omitNormsSet && this.fieldType.boost() == 1.0F) {
+                    this.fieldType.setOmitNorms(true);
+                }
 
-            return new AttachmentMapper(buildNames(context), pathType, defaultIndexedChars, ignoreErrors, langDetect, contentMapper,
+                if(!this.indexOptionsSet) {
+                    this.fieldType.setIndexOptions(IndexOptions.DOCS);
+                }
+            }
+
+            defaultFieldType.freeze();
+            this.setupFieldType(context);
+            return new AttachmentMapper(this.fieldType, pathType, defaultIndexedChars, ignoreErrors, langDetect, contentMapper,
                     dateMapper, titleMapper, nameMapper, authorMapper, keywordsMapper, contentTypeMapper, contentLength,
-                    language, context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
+                    language, this.fieldDataSettings, context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
         }
     }
 
@@ -371,13 +402,12 @@ public class AttachmentMapper extends AbstractFieldMapper {
 
     private final FieldMapper languageMapper;
 
-    public AttachmentMapper(Names names, ContentPath.Type pathType, int defaultIndexedChars, Boolean ignoreErrors,
+    public AttachmentMapper(MappedFieldType type, ContentPath.Type pathType, int defaultIndexedChars, Boolean ignoreErrors,
                             Boolean defaultLangDetect, FieldMapper contentMapper,
                             FieldMapper dateMapper, FieldMapper titleMapper, FieldMapper nameMapper, FieldMapper authorMapper,
                             FieldMapper keywordsMapper, FieldMapper contentTypeMapper, FieldMapper contentLengthMapper,
-                            FieldMapper languageMapper, Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
-        super(names, 1.0f, AbstractFieldMapper.Defaults.FIELD_TYPE, false, null, null, null, null, null,
-                indexSettings, multiFields, copyTo);
+                            FieldMapper languageMapper, @Nullable Settings fieldDataSettings, Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
+        super(type, false, fieldDataSettings, indexSettings, multiFields, copyTo);
         this.pathType = pathType;
         this.defaultIndexedChars = defaultIndexedChars;
         this.ignoreErrors = ignoreErrors;
@@ -394,12 +424,7 @@ public class AttachmentMapper extends AbstractFieldMapper {
     }
 
     @Override
-    public Object value(Object value) {
-        return null;
-    }
-
-    @Override
-    public FieldType defaultFieldType() {
+    public MappedFieldType defaultFieldType() {
         return AbstractFieldMapper.Defaults.FIELD_TYPE;
     }
 
@@ -611,17 +636,17 @@ public class AttachmentMapper extends AbstractFieldMapper {
 
     @Override
     public Iterator<Mapper> iterator() {
-        List<FieldMapper> extras = Lists.newArrayList(
-            contentMapper,
-            dateMapper,
-            titleMapper,
-            nameMapper,
-            authorMapper,
-            keywordsMapper,
-            contentTypeMapper,
-            contentLengthMapper,
-            languageMapper);
-        return Iterators.concat(super.iterator(), extras.iterator());
+        List<FieldMapper> extras = Arrays.asList(
+                contentMapper,
+                dateMapper,
+                titleMapper,
+                nameMapper,
+                authorMapper,
+                keywordsMapper,
+                contentTypeMapper,
+                contentLengthMapper,
+                languageMapper);
+        return CollectionUtils.concat(super.iterator(), extras.iterator());
     }
 
     @Override

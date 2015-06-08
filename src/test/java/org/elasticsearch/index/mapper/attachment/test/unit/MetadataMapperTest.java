@@ -64,18 +64,18 @@ public class MetadataMapperTest extends AttachmentUnitTestCase {
                 .endObject().bytes();
 
         ParseContext.Document doc =  docMapper.parse("person", "1", json).rootDoc();
-        assertThat(doc.get(docMapper.mappers().getMapper("file.content").names().indexName()), containsString("World"));
-        assertThat(doc.get(docMapper.mappers().getMapper("file.name").names().indexName()), equalTo(filename));
+        assertThat(doc.get(docMapper.mappers().getMapper("file.content").fieldType().names().indexName()), containsString("World"));
+        assertThat(doc.get(docMapper.mappers().getMapper("file.name").fieldType().names().indexName()), equalTo(filename));
         if (expectedDate == null) {
-            assertThat(doc.getField(docMapper.mappers().getMapper("file.date").names().indexName()), nullValue());
+            assertThat(doc.getField(docMapper.mappers().getMapper("file.date").fieldType().names().indexName()), nullValue());
         } else {
-            assertThat(doc.getField(docMapper.mappers().getMapper("file.date").names().indexName()).numericValue().longValue(), is(expectedDate));
+            assertThat(doc.getField(docMapper.mappers().getMapper("file.date").fieldType().names().indexName()).numericValue().longValue(), is(expectedDate));
         }
-        assertThat(doc.get(docMapper.mappers().getMapper("file.title").names().indexName()), equalTo("Hello"));
-        assertThat(doc.get(docMapper.mappers().getMapper("file.author").names().indexName()), equalTo("kimchy"));
-        assertThat(doc.get(docMapper.mappers().getMapper("file.keywords").names().indexName()), equalTo("elasticsearch,cool,bonsai"));
-        assertThat(doc.get(docMapper.mappers().getMapper("file.content_type").names().indexName()), equalTo("text/html; charset=ISO-8859-1"));
-        assertThat(doc.getField(docMapper.mappers().getMapper("file.content_length").names().indexName()).numericValue().longValue(), is(expectedLength));
+        assertThat(doc.get(docMapper.mappers().getMapper("file.title").fieldType().names().indexName()), equalTo("Hello"));
+        assertThat(doc.get(docMapper.mappers().getMapper("file.author").fieldType().names().indexName()), equalTo("kimchy"));
+        assertThat(doc.get(docMapper.mappers().getMapper("file.keywords").fieldType().names().indexName()), equalTo("elasticsearch,cool,bonsai"));
+        assertThat(doc.get(docMapper.mappers().getMapper("file.content_type").fieldType().names().indexName()), equalTo("text/html; charset=ISO-8859-1"));
+        assertThat(doc.getField(docMapper.mappers().getMapper("file.content_length").fieldType().names().indexName()).numericValue().longValue(), is(expectedLength));
     }
 
     @Test

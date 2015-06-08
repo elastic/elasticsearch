@@ -55,14 +55,21 @@ public class IndicesQueriesRegistry extends AbstractComponent {
     }
 
     /**
-     * Adds a global query parser.
+     * Registers a {@link QueryParser}
+     * @deprecated use {@link IndicesQueriesModule#addQuery(Class) instead}
      */
+    @Deprecated
     public synchronized void addQueryParser(QueryParser queryParser) {
         Map<String, QueryParser> queryParsers = Maps.newHashMap(this.queryParsers);
         addQueryParser(queryParsers, queryParser);
         this.queryParsers = ImmutableMap.copyOf(queryParsers);
     }
 
+    /**
+     * Registers a {@link FilterParser}
+     * @deprecated use {@link IndicesQueriesModule#addFilter(Class) instead}
+     */
+    @Deprecated
     public synchronized void addFilterParser(FilterParser filterParser) {
         Map<String, FilterParser> filterParsers = Maps.newHashMap(this.filterParsers);
         addFilterParser(filterParsers, filterParser);

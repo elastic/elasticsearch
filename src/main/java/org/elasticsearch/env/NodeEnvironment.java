@@ -100,7 +100,6 @@ public class NodeEnvironment extends AbstractComponent implements Closeable {
     public static final String NODE_LOCK_FILENAME = "node.lock";
 
     @Inject
-    @SuppressForbidden(reason = "System.out.*")
     public NodeEnvironment(Settings settings, Environment environment) throws IOException {
         super(settings);
 

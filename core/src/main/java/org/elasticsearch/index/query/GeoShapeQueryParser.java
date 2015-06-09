@@ -32,6 +32,7 @@ import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.geo.GeoShapeFieldMapper;
 import org.elasticsearch.index.search.shape.ShapeFetchService;
 import org.elasticsearch.search.internal.SearchContext;
@@ -138,21 +139,21 @@ public class GeoShapeQueryParser implements QueryParser {
             throw new QueryParsingException(parseContext, "No Shape Relation defined");
         }
 
-        FieldMapper fieldMapper = parseContext.fieldMapper(fieldName);
-        if (fieldMapper == null) {
+        MappedFieldType fieldType = parseContext.fieldMapper(fieldName);
+        if (fieldType == null) {
             throw new QueryParsingException(parseContext, "Failed to find geo_shape field [" + fieldName + "]");
         }
 
         // TODO: This isn't the nicest way to check this
-        if (!(fieldMapper instanceof GeoShapeFieldMapper)) {
+        if (!(fieldType instanceof GeoShapeFieldMapper.GeoShapeFieldType)) {
             throw new QueryParsingException(parseContext, "Field [" + fieldName + "] is not a geo_shape");
         }
 
-        GeoShapeFieldMapper shapeFieldMapper = (GeoShapeFieldMapper) fieldMapper;
+        GeoShapeFieldMapper.GeoShapeFieldType shapeFieldType = (GeoShapeFieldMapper.GeoShapeFieldType) fieldType;
 
-        PrefixTreeStrategy strategy = shapeFieldMapper.fieldType().defaultStrategy();
+        PrefixTreeStrategy strategy = shapeFieldType.defaultStrategy();
         if (strategyName != null) {
-            strategy = shapeFieldMapper.fieldType().resolveStrategy(strategyName);
+            strategy = shapeFieldType.resolveStrategy(strategyName);
         }
         Query query;
         if (strategy instanceof RecursivePrefixTreeStrategy && shapeRelation == ShapeRelation.DISJOINT) {

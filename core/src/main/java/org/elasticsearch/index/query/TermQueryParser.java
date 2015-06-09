@@ -26,6 +26,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.io.IOException;
 
@@ -99,9 +100,9 @@ public class TermQueryParser implements QueryParser {
         }
 
         Query query = null;
-        FieldMapper mapper = parseContext.fieldMapper(fieldName);
-        if (mapper != null) {
-            query = mapper.termQuery(value, parseContext);
+        MappedFieldType fieldType = parseContext.fieldMapper(fieldName);
+        if (fieldType != null) {
+            query = fieldType.termQuery(value, parseContext);
         }
         if (query == null) {
             query = new TermQuery(new Term(fieldName, BytesRefs.toBytesRef(value)));

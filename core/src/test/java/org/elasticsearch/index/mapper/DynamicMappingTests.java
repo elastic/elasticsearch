@@ -165,8 +165,8 @@ public class DynamicMappingTests extends ElasticsearchSingleNodeTest {
     public void testDynamicMappingOnEmptyString() throws Exception {
         IndexService service = createIndex("test");
         client().prepareIndex("test", "type").setSource("empty_field", "").get();
-        FieldMapper mapper = service.mapperService().fullName("empty_field");
-        assertNotNull(mapper);
+        MappedFieldType fieldType = service.mapperService().fullName("empty_field");
+        assertNotNull(fieldType);
     }
 
     public void testTypeNotCreatedOnIndexFailure() throws IOException, InterruptedException {

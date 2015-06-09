@@ -100,16 +100,16 @@ public class CompletionSuggestParser implements SuggestContextParser {
             }
         }
         
-        suggestion.mapper((CompletionFieldMapper)mapperService.smartNameFieldMapper(suggestion.getField()));
+        suggestion.fieldType((CompletionFieldMapper.CompletionFieldType) mapperService.smartNameFieldType(suggestion.getField()));
 
-        CompletionFieldMapper mapper = suggestion.mapper();
-        if (mapper != null) {
-            if (mapper.requiresContext()) {
+        CompletionFieldMapper.CompletionFieldType fieldType = suggestion.fieldType();
+        if (fieldType != null) {
+            if (fieldType.requiresContext()) {
                 if (contextParser == null) {
                     throw new IllegalArgumentException("suggester [completion] requires context to be setup");
                 } else {
                     contextParser.nextToken();
-                    List<ContextQuery> contextQueries = ContextQuery.parseQueries(mapper.getContextMapping(), contextParser);
+                    List<ContextQuery> contextQueries = ContextQuery.parseQueries(fieldType.getContextMapping(), contextParser);
                     suggestion.setContextQuery(contextQueries);
                 }
             } else if (contextParser != null) {

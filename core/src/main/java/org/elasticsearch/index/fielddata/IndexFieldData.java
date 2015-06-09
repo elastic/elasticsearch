@@ -229,7 +229,7 @@ public interface IndexFieldData<FD extends AtomicFieldData> extends IndexCompone
 
     interface Builder {
 
-        IndexFieldData<?> build(Index index, @IndexSettings Settings indexSettings, FieldMapper mapper, IndexFieldDataCache cache,
+        IndexFieldData<?> build(Index index, @IndexSettings Settings indexSettings, MappedFieldType fieldType, IndexFieldDataCache cache,
                              CircuitBreakerService breakerService, MapperService mapperService);
     }
 

@@ -31,6 +31,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.geo.GeoShapeFieldMapper;
 import org.elasticsearch.index.query.GeoShapeQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -457,11 +458,11 @@ public class GeoShapeIntegrationTests extends ElasticsearchIntegrationTest {
         // left orientation test
         IndicesService indicesService = internalCluster().getInstance(IndicesService.class, findNodeName(idxName));
         IndexService indexService = indicesService.indexService(idxName);
-        FieldMapper fieldMapper = indexService.mapperService().smartNameFieldMapper("location");
-        assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
+        MappedFieldType fieldType = indexService.mapperService().smartNameFieldType("location");
+        assertThat(fieldType, instanceOf(GeoShapeFieldMapper.GeoShapeFieldType.class));
 
-        GeoShapeFieldMapper gsfm = (GeoShapeFieldMapper)fieldMapper;
-        ShapeBuilder.Orientation orientation = gsfm.fieldType().orientation();
+        GeoShapeFieldMapper.GeoShapeFieldType gsfm = (GeoShapeFieldMapper.GeoShapeFieldType)fieldType;
+        ShapeBuilder.Orientation orientation = gsfm.orientation();
         assertThat(orientation, equalTo(ShapeBuilder.Orientation.CLOCKWISE));
         assertThat(orientation, equalTo(ShapeBuilder.Orientation.LEFT));
         assertThat(orientation, equalTo(ShapeBuilder.Orientation.CW));
@@ -469,11 +470,11 @@ public class GeoShapeIntegrationTests extends ElasticsearchIntegrationTest {
         // right orientation test
         indicesService = internalCluster().getInstance(IndicesService.class, findNodeName(idxName+"2"));
         indexService = indicesService.indexService(idxName+"2");
-        fieldMapper = indexService.mapperService().smartNameFieldMapper("location");
-        assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
+        fieldType = indexService.mapperService().smartNameFieldType("location");
+        assertThat(fieldType, instanceOf(GeoShapeFieldMapper.GeoShapeFieldType.class));
 
-        gsfm = (GeoShapeFieldMapper)fieldMapper;
-        orientation = gsfm.fieldType().orientation();
+        gsfm = (GeoShapeFieldMapper.GeoShapeFieldType)fieldType;
+        orientation = gsfm.orientation();
         assertThat(orientation, equalTo(ShapeBuilder.Orientation.COUNTER_CLOCKWISE));
         assertThat(orientation, equalTo(ShapeBuilder.Orientation.RIGHT));
         assertThat(orientation, equalTo(ShapeBuilder.Orientation.CCW));

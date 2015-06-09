@@ -113,7 +113,7 @@ public class MapperService extends AbstractIndexComponent  {
 
     private final List<DocumentTypeListener> typeListeners = new CopyOnWriteArrayList<>();
 
-    private volatile ImmutableMap<String, FieldMapper> unmappedFieldMappers = ImmutableMap.of();
+    private volatile ImmutableMap<String, MappedFieldType> unmappedFieldTypes = ImmutableMap.of();
 
     private volatile ImmutableSet<String> parentTypes = ImmutableSet.of();
 
@@ -474,31 +474,29 @@ public class MapperService extends AbstractIndexComponent  {
     }
 
     /**
-     * Returns an {@link FieldMapper} which has the given index name.
+     * Returns an {@link MappedFieldType} which has the given index name.
      *
      * If multiple types have fields with the same index name, the first is returned.
      */
-    public FieldMapper indexName(String indexName) {
+    public MappedFieldType indexName(String indexName) {
         FieldMappers mappers = fieldMappers.indexName(indexName);
         if (mappers == null) {
             return null;
         }
-        return mappers.mapper();
+        return mappers.mapper().fieldType();
     }
 
     /**
-     * Returns the {@link FieldMappers} of all the {@link FieldMapper}s that are
-     * registered under the give fullName across all the different {@link DocumentMapper} types.
+     * Returns the {@link MappedFieldType} for the give fullName.
      *
-     * @param fullName The full name
-     * @return All teh {@link FieldMappers} across all the {@link DocumentMapper}s for the given fullName.
+     * If multiple types have fields with the same full name, the first is returned.
      */
-    public FieldMapper fullName(String fullName) {
+    public MappedFieldType fullName(String fullName) {
         FieldMappers mappers = fieldMappers.fullName(fullName);
         if (mappers == null) {
             return null;
         }
-        return mappers.mapper();
+        return mappers.mapper().fieldType();
     }
 
     /**
@@ -563,17 +561,17 @@ public class MapperService extends AbstractIndexComponent  {
         return null;
     }
 
-    public FieldMapper smartNameFieldMapper(String smartName) {
-        FieldMapper mapper = fullName(smartName);
-        if (mapper != null) {
-            return mapper;
+    public MappedFieldType smartNameFieldType(String smartName) {
+        MappedFieldType fieldType = fullName(smartName);
+        if (fieldType != null) {
+            return fieldType;
         }
         return indexName(smartName);
     }
 
-    public FieldMapper smartNameFieldMapper(String smartName, @Nullable String[] types) {
+    public MappedFieldType smartNameFieldType(String smartName, @Nullable String[] types) {
         if (types == null || types.length == 0 || types.length == 1 && types[0].equals("_all")) {
-            return smartNameFieldMapper(smartName);
+            return smartNameFieldType(smartName);
         }
         for (String type : types) {
             DocumentMapper documentMapper = mappers.get(type);
@@ -582,7 +580,7 @@ public class MapperService extends AbstractIndexComponent  {
                 // see if we find a field for it
                 FieldMappers mappers = documentMapper.mappers().smartName(smartName);
                 if (mappers != null) {
-                    return mappers.mapper();
+                    return mappers.mapper().fieldType();
                 }
             }
         }
@@ -592,10 +590,10 @@ public class MapperService extends AbstractIndexComponent  {
     /**
      * Given a type (eg. long, string, ...), return an anonymous field mapper that can be used for search operations.
      */
-    public FieldMapper unmappedFieldMapper(String type) {
-        final ImmutableMap<String, FieldMapper> unmappedFieldMappers = this.unmappedFieldMappers;
-        FieldMapper mapper = unmappedFieldMappers.get(type);
-        if (mapper == null) {
+    public MappedFieldType unmappedFieldType(String type) {
+        final ImmutableMap<String, MappedFieldType> unmappedFieldMappers = this.unmappedFieldTypes;
+        MappedFieldType fieldType = unmappedFieldMappers.get(type);
+        if (fieldType == null) {
             final Mapper.TypeParser.ParserContext parserContext = documentMapperParser().parserContext();
             Mapper.TypeParser typeParser = parserContext.typeParser(type);
             if (typeParser == null) {
@@ -603,16 +601,16 @@ public class MapperService extends AbstractIndexComponent  {
             }
             final Mapper.Builder<?, ?> builder = typeParser.parse("__anonymous_" + type, ImmutableMap.<String, Object>of(), parserContext);
             final BuilderContext builderContext = new BuilderContext(indexSettings, new ContentPath(1));
-            mapper = (FieldMapper) builder.build(builderContext);
+            fieldType = ((FieldMapper)builder.build(builderContext)).fieldType();
 
             // There is no need to synchronize writes here. In the case of concurrent access, we could just
             // compute some mappers several times, which is not a big deal
-            this.unmappedFieldMappers = ImmutableMap.<String, FieldMapper>builder()
+            this.unmappedFieldTypes = ImmutableMap.<String, MappedFieldType>builder()
                     .putAll(unmappedFieldMappers)
-                    .put(type, mapper)
+                    .put(type, fieldType)
                     .build();
         }
-        return mapper;
+        return fieldType;
     }
 
     public Analyzer searchAnalyzer() {
@@ -702,9 +700,9 @@ public class MapperService extends AbstractIndexComponent  {
 
         @Override
         protected Analyzer getWrappedAnalyzer(String fieldName) {
-            FieldMapper mapper = smartNameFieldMapper(fieldName);
-            if (mapper != null && mapper.fieldType().searchAnalyzer() != null) {
-                return mapper.fieldType().searchAnalyzer();
+            MappedFieldType fieldType = smartNameFieldType(fieldName);
+            if (fieldType != null && fieldType.searchAnalyzer() != null) {
+                return fieldType.searchAnalyzer();
             }
             return defaultAnalyzer;
         }
@@ -721,9 +719,9 @@ public class MapperService extends AbstractIndexComponent  {
 
         @Override
         protected Analyzer getWrappedAnalyzer(String fieldName) {
-            FieldMapper mapper = smartNameFieldMapper(fieldName);
-            if (mapper != null && mapper.fieldType().searchQuoteAnalyzer() != null) {
-                return mapper.fieldType().searchQuoteAnalyzer();
+            MappedFieldType fieldType = smartNameFieldType(fieldName);
+            if (fieldType != null && fieldType.searchQuoteAnalyzer() != null) {
+                return fieldType.searchQuoteAnalyzer();
             }
             return defaultAnalyzer;
         }

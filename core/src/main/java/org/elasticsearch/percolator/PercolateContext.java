@@ -45,6 +45,7 @@ import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.query.IndexQueryParserService;
@@ -651,13 +652,13 @@ public class PercolateContext extends SearchContext {
     }
 
     @Override
-    public FieldMapper smartNameFieldMapper(String name) {
-        return mapperService().smartNameFieldMapper(name, types);
+    public MappedFieldType smartNameFieldType(String name) {
+        return mapperService().smartNameFieldType(name, types);
     }
 
     @Override
-    public FieldMapper smartNameFieldMapperFromAnyType(String name) {
-        return mapperService().smartNameFieldMapper(name);
+    public MappedFieldType smartNameFieldTypeFromAnyType(String name) {
+        return mapperService().smartNameFieldType(name);
     }
 
     @Override

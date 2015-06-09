@@ -31,6 +31,7 @@ import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fieldvisitor.JustSourceFieldsVisitor;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
@@ -54,7 +55,7 @@ final class QueriesLoaderCollector extends SimpleCollector {
     QueriesLoaderCollector(PercolatorQueriesRegistry percolator, ESLogger logger, MapperService mapperService, IndexFieldDataService indexFieldDataService) {
         this.percolator = percolator;
         this.logger = logger;
-        final FieldMapper uidMapper = mapperService.smartNameFieldMapper(UidFieldMapper.NAME);
+        final MappedFieldType uidMapper = mapperService.smartNameFieldType(UidFieldMapper.NAME);
         this.uidFieldData = indexFieldDataService.getForField(uidMapper);
     }
 

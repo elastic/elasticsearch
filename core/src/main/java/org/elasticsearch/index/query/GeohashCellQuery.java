@@ -66,13 +66,13 @@ public class GeohashCellQuery {
      * returns a boolean filter combining the geohashes OR-wise.
      *
      * @param context     Context of the filter
-     * @param fieldMapper field mapper for geopoints
+     * @param fieldType field mapper for geopoints
      * @param geohash     mandatory geohash
      * @param geohashes   optional array of additional geohashes
      * @return a new GeoBoundinboxfilter
      */
-    public static Query create(QueryParseContext context, GeoPointFieldMapper fieldMapper, String geohash, @Nullable List<CharSequence> geohashes) {
-        MappedFieldType geoHashMapper = fieldMapper.fieldType().geohashFieldType();
+    public static Query create(QueryParseContext context, GeoPointFieldMapper.GeoPointFieldType fieldType, String geohash, @Nullable List<CharSequence> geohashes) {
+        MappedFieldType geoHashMapper = fieldType.geohashFieldType();
         if (geoHashMapper == null) {
             throw new IllegalArgumentException("geohash filter needs geohash_prefix to be enabled");
         }
@@ -237,17 +237,17 @@ public class GeohashCellQuery {
                 throw new QueryParsingException(parseContext, "no geohash value provided to geohash_cell filter");
             }
 
-            FieldMapper mapper = parseContext.fieldMapper(fieldName);
-            if (mapper == null) {
+            MappedFieldType fieldType = parseContext.fieldMapper(fieldName);
+            if (fieldType == null) {
                 throw new QueryParsingException(parseContext, "failed to find geo_point field [" + fieldName + "]");
             }
 
-            if (!(mapper instanceof GeoPointFieldMapper)) {
+            if (!(fieldType instanceof GeoPointFieldMapper.GeoPointFieldType)) {
                 throw new QueryParsingException(parseContext, "field [" + fieldName + "] is not a geo_point field");
             }
 
-            GeoPointFieldMapper geoMapper = ((GeoPointFieldMapper) mapper);
-            if (!geoMapper.fieldType().isGeohashPrefixEnabled()) {
+            GeoPointFieldMapper.GeoPointFieldType geoFieldType = ((GeoPointFieldMapper.GeoPointFieldType) fieldType);
+            if (!geoFieldType.isGeohashPrefixEnabled()) {
                 throw new QueryParsingException(parseContext, "can't execute geohash_cell on field [" + fieldName
                         + "], geohash_prefix is not enabled");
             }
@@ -259,9 +259,9 @@ public class GeohashCellQuery {
 
             Query filter;
             if (neighbors) {
-                filter = create(parseContext, geoMapper, geohash, GeoHashUtils.addNeighbors(geohash, new ArrayList<CharSequence>(8)));
+                filter = create(parseContext, geoFieldType, geohash, GeoHashUtils.addNeighbors(geohash, new ArrayList<CharSequence>(8)));
             } else {
-                filter = create(parseContext, geoMapper, geohash, null);
+                filter = create(parseContext, geoFieldType, geohash, null);
             }
 
             return filter;

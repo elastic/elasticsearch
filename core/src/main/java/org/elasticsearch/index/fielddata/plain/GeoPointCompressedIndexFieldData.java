@@ -53,9 +53,9 @@ public class GeoPointCompressedIndexFieldData extends AbstractIndexGeoPointField
     public static class Builder implements IndexFieldData.Builder {
 
         @Override
-        public IndexFieldData<?> build(Index index, @IndexSettings Settings indexSettings, FieldMapper mapper, IndexFieldDataCache cache,
+        public IndexFieldData<?> build(Index index, @IndexSettings Settings indexSettings, MappedFieldType fieldType, IndexFieldDataCache cache,
                                        CircuitBreakerService breakerService, MapperService mapperService) {
-            FieldDataType type = mapper.fieldType().fieldDataType();
+            FieldDataType type = fieldType.fieldDataType();
             final String precisionAsString = type.getSettings().get(PRECISION_KEY);
             final Distance precision;
             if (precisionAsString != null) {
@@ -63,7 +63,7 @@ public class GeoPointCompressedIndexFieldData extends AbstractIndexGeoPointField
             } else {
                 precision = DEFAULT_PRECISION_VALUE;
             }
-            return new GeoPointCompressedIndexFieldData(index, indexSettings, mapper.fieldType().names(), mapper.fieldType().fieldDataType(), cache, precision, breakerService);
+            return new GeoPointCompressedIndexFieldData(index, indexSettings, fieldType.names(), fieldType.fieldDataType(), cache, precision, breakerService);
         }
     }
 

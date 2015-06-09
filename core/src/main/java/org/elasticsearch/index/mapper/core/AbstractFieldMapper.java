@@ -228,6 +228,11 @@ public abstract class AbstractFieldMapper implements FieldMapper {
             return builder;
         }
 
+        public Builder nullValue(Object nullValue) {
+            this.fieldType.setNullValue(nullValue);
+            return this;
+        }
+
         public T multiFieldPathType(ContentPath.Type pathType) {
             multiFieldsBuilder.pathType(pathType);
             return builder;
@@ -440,8 +445,8 @@ public abstract class AbstractFieldMapper implements FieldMapper {
     }
 
     @Override
-    public Query nullValueFilter() {
-        return null;
+    public final Query nullValueFilter() {
+        return fieldType().nullValueQuery();
     }
 
     @Override
@@ -687,11 +692,6 @@ public abstract class AbstractFieldMapper implements FieldMapper {
     @Override
     public final boolean isSortable() {
         return fieldType().isSortable();
-    }
-
-    @Override
-    public boolean supportsNullValue() {
-        return true;
     }
 
     public static class MultiFields {

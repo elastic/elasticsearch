@@ -70,28 +70,19 @@ public class ByteFieldMapper extends NumberFieldMapper {
         static {
             FIELD_TYPE.freeze();
         }
-
-        public static final Byte NULL_VALUE = null;
     }
 
     public static class Builder extends NumberFieldMapper.Builder<Builder, ByteFieldMapper> {
-
-        protected Byte nullValue = Defaults.NULL_VALUE;
 
         public Builder(String name) {
             super(name, Defaults.FIELD_TYPE, Defaults.PRECISION_STEP_8_BIT);
             builder = this;
         }
 
-        public Builder nullValue(byte nullValue) {
-            this.nullValue = nullValue;
-            return this;
-        }
-
         @Override
         public ByteFieldMapper build(BuilderContext context) {
             setupFieldType(context);
-            ByteFieldMapper fieldMapper = new ByteFieldMapper(fieldType, docValues, nullValue, ignoreMalformed(context),
+            ByteFieldMapper fieldMapper = new ByteFieldMapper(fieldType, docValues, ignoreMalformed(context),
                     coerce(context), fieldDataSettings, context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
             fieldMapper.includeInAll(includeInAll);
             return fieldMapper;
@@ -143,6 +134,11 @@ public class ByteFieldMapper extends NumberFieldMapper {
         }
 
         @Override
+        public Byte nullValue() {
+            return (Byte)super.nullValue();
+        }
+
+        @Override
         public Byte value(Object value) {
             if (value == null) {
                 return null;
@@ -191,16 +187,15 @@ public class ByteFieldMapper extends NumberFieldMapper {
         }
     }
 
-    private Byte nullValue;
-
-    private String nullValueAsString;
-
     protected ByteFieldMapper(MappedFieldType fieldType, Boolean docValues,
-                              Byte nullValue, Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce,
+                              Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce,
                               @Nullable Settings fieldDataSettings, Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
         super(fieldType, docValues, ignoreMalformed, coerce, fieldDataSettings, indexSettings, multiFields, copyTo);
-        this.nullValue = nullValue;
-        this.nullValueAsString = nullValue == null ? null : nullValue.toString();
+    }
+
+    @Override
+    public ByteFieldType fieldType() {
+        return (ByteFieldType)fieldType;
     }
 
     @Override
@@ -224,14 +219,6 @@ public class ByteFieldMapper extends NumberFieldMapper {
     }
 
     @Override
-    public Query nullValueFilter() {
-        if (nullValue == null) {
-            return null;
-        }
-        return new ConstantScoreQuery(termQuery(nullValue, null));
-    }
-
-    @Override
     protected boolean customBoost() {
         return true;
     }
@@ -243,17 +230,17 @@ public class ByteFieldMapper extends NumberFieldMapper {
         if (context.externalValueSet()) {
             Object externalValue = context.externalValue();
             if (externalValue == null) {
-                if (nullValue == null) {
+                if (fieldType().nullValue() == null) {
                     return;
                 }
-                value = nullValue;
+                value = fieldType().nullValue();
             } else if (externalValue instanceof String) {
                 String sExternalValue = (String) externalValue;
                 if (sExternalValue.length() == 0) {
-                    if (nullValue == null) {
+                    if (fieldType().nullValue() == null) {
                         return;
                     }
-                    value = nullValue;
+                    value = fieldType().nullValue();
                 } else {
                     value = Byte.parseByte(sExternalValue);
                 }
@@ -267,17 +254,17 @@ public class ByteFieldMapper extends NumberFieldMapper {
             XContentParser parser = context.parser();
             if (parser.currentToken() == XContentParser.Token.VALUE_NULL ||
                     (parser.currentToken() == XContentParser.Token.VALUE_STRING && parser.textLength() == 0)) {
-                if (nullValue == null) {
+                if (fieldType().nullValue() == null) {
                     return;
                 }
-                value = nullValue;
-                if (nullValueAsString != null && (context.includeInAll(includeInAll, this))) {
-                    context.allEntries().addText(fieldType.names().fullName(), nullValueAsString, boost);
+                value = fieldType().nullValue();
+                if (fieldType().nullValueAsString() != null && (context.includeInAll(includeInAll, this))) {
+                    context.allEntries().addText(fieldType.names().fullName(), fieldType().nullValueAsString(), boost);
                 }
             } else if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
                 XContentParser.Token token;
                 String currentFieldName = null;
-                Byte objValue = nullValue;
+                Byte objValue = fieldType().nullValue();
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                     if (token == XContentParser.Token.FIELD_NAME) {
                         currentFieldName = parser.currentName();
@@ -327,8 +314,9 @@ public class ByteFieldMapper extends NumberFieldMapper {
             return;
         }
         if (!mergeResult.simulate()) {
-            this.nullValue = ((ByteFieldMapper) mergeWith).nullValue;
-            this.nullValueAsString = ((ByteFieldMapper) mergeWith).nullValueAsString;
+            this.fieldType = this.fieldType.clone();
+            this.fieldType.setNullValue(((ByteFieldMapper) mergeWith).fieldType().nullValue());
+            this.fieldType.freeze();
         }
     }
 
@@ -339,8 +327,8 @@ public class ByteFieldMapper extends NumberFieldMapper {
         if (includeDefaults || fieldType.numericPrecisionStep() != Defaults.PRECISION_STEP_8_BIT) {
             builder.field("precision_step", fieldType.numericPrecisionStep());
         }
-        if (includeDefaults || nullValue != null) {
-            builder.field("null_value", nullValue);
+        if (includeDefaults || fieldType().nullValue() != null) {
+            builder.field("null_value", fieldType().nullValue());
         }
         if (includeInAll != null) {
             builder.field("include_in_all", includeInAll);

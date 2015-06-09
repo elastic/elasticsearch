@@ -42,6 +42,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.NumericIntegerAnalyzer;
 import org.elasticsearch.index.fielddata.FieldDataType;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -72,13 +73,9 @@ public class IntegerFieldMapper extends NumberFieldMapper {
         static {
             FIELD_TYPE.freeze();
         }
-
-        public static final Integer NULL_VALUE = null;
     }
 
     public static class Builder extends NumberFieldMapper.Builder<Builder, IntegerFieldMapper> {
-
-        protected Integer nullValue = Defaults.NULL_VALUE;
 
         public Builder(String name) {
             super(name, Defaults.FIELD_TYPE, Defaults.PRECISION_STEP_32_BIT);
@@ -86,7 +83,7 @@ public class IntegerFieldMapper extends NumberFieldMapper {
         }
 
         public Builder nullValue(int nullValue) {
-            this.nullValue = nullValue;
+            this.fieldType.setNullValue(nullValue);
             return this;
         }
 
@@ -94,7 +91,7 @@ public class IntegerFieldMapper extends NumberFieldMapper {
         public IntegerFieldMapper build(BuilderContext context) {
             setupFieldType(context);
             IntegerFieldMapper fieldMapper = new IntegerFieldMapper(fieldType, docValues,
-                    nullValue, ignoreMalformed(context), coerce(context), fieldDataSettings,
+                    ignoreMalformed(context), coerce(context), fieldDataSettings,
                     context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
             fieldMapper.includeInAll(includeInAll);
             return fieldMapper;
@@ -132,7 +129,7 @@ public class IntegerFieldMapper extends NumberFieldMapper {
         }
     }
 
-    static final class IntegerFieldType extends NumberFieldType {
+    public static final class IntegerFieldType extends NumberFieldType {
 
         public IntegerFieldType() {}
 
@@ -143,6 +140,11 @@ public class IntegerFieldMapper extends NumberFieldMapper {
         @Override
         public NumberFieldType clone() {
             return new IntegerFieldType(this);
+        }
+
+        @Override
+        public Integer nullValue() {
+            return (Integer)super.nullValue();
         }
 
         @Override
@@ -194,17 +196,16 @@ public class IntegerFieldMapper extends NumberFieldMapper {
         }
     }
 
-    private Integer nullValue;
-
-    private String nullValueAsString;
-
     protected IntegerFieldMapper(MappedFieldType fieldType, Boolean docValues,
-                                 Integer nullValue, Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce,
+                                 Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce,
                                  @Nullable Settings fieldDataSettings,
                                  Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
         super(fieldType, docValues, ignoreMalformed, coerce, fieldDataSettings, indexSettings, multiFields, copyTo);
-        this.nullValue = nullValue;
-        this.nullValueAsString = nullValue == null ? null : nullValue.toString();
+    }
+
+    @Override
+    public IntegerFieldType fieldType() {
+        return (IntegerFieldType)fieldType;
     }
 
     @Override
@@ -217,8 +218,6 @@ public class IntegerFieldMapper extends NumberFieldMapper {
         return new FieldDataType("int");
     }
 
-
-
     private static int parseValue(Object value) {
         if (value instanceof Number) {
             return ((Number) value).intValue();
@@ -227,14 +226,6 @@ public class IntegerFieldMapper extends NumberFieldMapper {
             return Integer.parseInt(((BytesRef) value).utf8ToString());
         }
         return Integer.parseInt(value.toString());
-    }
-
-    @Override
-    public Query nullValueFilter() {
-        if (nullValue == null) {
-            return null;
-        }
-        return new ConstantScoreQuery(termQuery(nullValue, null));
     }
 
     @Override
@@ -249,17 +240,17 @@ public class IntegerFieldMapper extends NumberFieldMapper {
         if (context.externalValueSet()) {
             Object externalValue = context.externalValue();
             if (externalValue == null) {
-                if (nullValue == null) {
+                if (fieldType.nullValue() == null) {
                     return;
                 }
-                value = nullValue;
+                value = fieldType().nullValue();
             } else if (externalValue instanceof String) {
                 String sExternalValue = (String) externalValue;
                 if (sExternalValue.length() == 0) {
-                    if (nullValue == null) {
+                    if (fieldType().nullValue() == null) {
                         return;
                     }
-                    value = nullValue;
+                    value = fieldType().nullValue();
                 } else {
                     value = Integer.parseInt(sExternalValue);
                 }
@@ -273,17 +264,17 @@ public class IntegerFieldMapper extends NumberFieldMapper {
             XContentParser parser = context.parser();
             if (parser.currentToken() == XContentParser.Token.VALUE_NULL ||
                     (parser.currentToken() == XContentParser.Token.VALUE_STRING && parser.textLength() == 0)) {
-                if (nullValue == null) {
+                if (fieldType.nullValue() == null) {
                     return;
                 }
-                value = nullValue;
-                if (nullValueAsString != null && (context.includeInAll(includeInAll, this))) {
-                    context.allEntries().addText(fieldType.names().fullName(), nullValueAsString, boost);
+                value = fieldType().nullValue();
+                if (fieldType.nullValueAsString() != null && (context.includeInAll(includeInAll, this))) {
+                    context.allEntries().addText(fieldType.names().fullName(), fieldType.nullValueAsString(), boost);
                 }
             } else if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
                 XContentParser.Token token;
                 String currentFieldName = null;
-                Integer objValue = nullValue;
+                Integer objValue = fieldType().nullValue();
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                     if (token == XContentParser.Token.FIELD_NAME) {
                         currentFieldName = parser.currentName();
@@ -316,17 +307,13 @@ public class IntegerFieldMapper extends NumberFieldMapper {
 
     protected void addIntegerFields(ParseContext context, List<Field> fields, int value, float boost) {
         if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored()) {
-            CustomIntegerNumericField field = new CustomIntegerNumericField(this, value, (NumberFieldType)fieldType);
+            CustomIntegerNumericField field = new CustomIntegerNumericField(this, value, fieldType);
             field.setBoost(boost);
             fields.add(field);
         }
         if (fieldType().hasDocValues()) {
             addDocValue(context, fields, value);
         }
-    }
-
-    protected Integer nullValue() {
-        return nullValue;
     }
 
     @Override
@@ -341,8 +328,9 @@ public class IntegerFieldMapper extends NumberFieldMapper {
             return;
         }
         if (!mergeResult.simulate()) {
-            this.nullValue = ((IntegerFieldMapper) mergeWith).nullValue;
-            this.nullValueAsString = ((IntegerFieldMapper) mergeWith).nullValueAsString;
+            this.fieldType = this.fieldType.clone();
+            this.fieldType.setNullValue(((FieldMapper)mergeWith).fieldType().nullValue());
+            this.fieldType.freeze();
         }
     }
 
@@ -353,8 +341,8 @@ public class IntegerFieldMapper extends NumberFieldMapper {
         if (includeDefaults || fieldType.numericPrecisionStep() != Defaults.PRECISION_STEP_32_BIT) {
             builder.field("precision_step", fieldType.numericPrecisionStep());
         }
-        if (includeDefaults || nullValue != null) {
-            builder.field("null_value", nullValue);
+        if (includeDefaults || fieldType.nullValue() != null) {
+            builder.field("null_value", fieldType.nullValue());
         }
         if (includeInAll != null) {
             builder.field("include_in_all", includeInAll);

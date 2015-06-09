@@ -23,10 +23,8 @@ import com.carrotsearch.hppc.DoubleArrayList;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Terms;
-import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.NumericRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
@@ -76,28 +74,19 @@ public class DoubleFieldMapper extends NumberFieldMapper {
         static {
             FIELD_TYPE.freeze();
         }
-
-        public static final Double NULL_VALUE = null;
     }
 
     public static class Builder extends NumberFieldMapper.Builder<Builder, DoubleFieldMapper> {
-
-        protected Double nullValue = Defaults.NULL_VALUE;
 
         public Builder(String name) {
             super(name, Defaults.FIELD_TYPE, Defaults.PRECISION_STEP_64_BIT);
             builder = this;
         }
 
-        public Builder nullValue(double nullValue) {
-            this.nullValue = nullValue;
-            return this;
-        }
-
         @Override
         public DoubleFieldMapper build(BuilderContext context) {
             setupFieldType(context);
-            DoubleFieldMapper fieldMapper = new DoubleFieldMapper(fieldType, docValues, nullValue, ignoreMalformed(context), coerce(context),
+            DoubleFieldMapper fieldMapper = new DoubleFieldMapper(fieldType, docValues, ignoreMalformed(context), coerce(context),
                     fieldDataSettings, context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
             fieldMapper.includeInAll(includeInAll);
             return fieldMapper;
@@ -146,6 +135,11 @@ public class DoubleFieldMapper extends NumberFieldMapper {
         @Override
         public NumberFieldType clone() {
             return new DoubleFieldType(this);
+        }
+
+        @Override
+        public Double nullValue() {
+            return (Double)super.nullValue();
         }
 
         @Override
@@ -198,15 +192,14 @@ public class DoubleFieldMapper extends NumberFieldMapper {
         }
     }
 
-    private Double nullValue;
-
-    private String nullValueAsString;
-
-    protected DoubleFieldMapper(MappedFieldType fieldType, Boolean docValues, Double nullValue, Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce,
+    protected DoubleFieldMapper(MappedFieldType fieldType, Boolean docValues, Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce,
                                 @Nullable Settings fieldDataSettings, Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
         super(fieldType, docValues, ignoreMalformed, coerce, fieldDataSettings, indexSettings, multiFields, copyTo);
-        this.nullValue = nullValue;
-        this.nullValueAsString = nullValue == null ? null : nullValue.toString();
+    }
+
+    @Override
+    public DoubleFieldType fieldType() {
+        return (DoubleFieldType)fieldType;
     }
 
     @Override
@@ -217,18 +210,6 @@ public class DoubleFieldMapper extends NumberFieldMapper {
     @Override
     public FieldDataType defaultFieldDataType() {
         return new FieldDataType("double");
-    }
-
-    public Query rangeFilter(Double lowerTerm, Double upperTerm, boolean includeLower, boolean includeUpper) {
-        return NumericRangeQuery.newDoubleRange(fieldType.names().indexName(), fieldType.numericPrecisionStep(), lowerTerm, upperTerm, includeLower, includeUpper);
-    }
-
-    @Override
-    public Query nullValueFilter() {
-        if (nullValue == null) {
-            return null;
-        }
-        return new ConstantScoreQuery(termQuery(nullValue, null));
     }
 
     @Override
@@ -243,17 +224,17 @@ public class DoubleFieldMapper extends NumberFieldMapper {
         if (context.externalValueSet()) {
             Object externalValue = context.externalValue();
             if (externalValue == null) {
-                if (nullValue == null) {
+                if (fieldType().nullValue() == null) {
                     return;
                 }
-                value = nullValue;
+                value = fieldType().nullValue();
             } else if (externalValue instanceof String) {
                 String sExternalValue = (String) externalValue;
                 if (sExternalValue.length() == 0) {
-                    if (nullValue == null) {
+                    if (fieldType().nullValue() == null) {
                         return;
                     }
-                    value = nullValue;
+                    value = fieldType().nullValue();
                 } else {
                     value = Double.parseDouble(sExternalValue);
                 }
@@ -267,17 +248,17 @@ public class DoubleFieldMapper extends NumberFieldMapper {
             XContentParser parser = context.parser();
             if (parser.currentToken() == XContentParser.Token.VALUE_NULL ||
                     (parser.currentToken() == XContentParser.Token.VALUE_STRING && parser.textLength() == 0)) {
-                if (nullValue == null) {
+                if (fieldType().nullValue() == null) {
                     return;
                 }
-                value = nullValue;
-                if (nullValueAsString != null && (context.includeInAll(includeInAll, this))) {
-                    context.allEntries().addText(fieldType.names().fullName(), nullValueAsString, boost);
+                value = fieldType().nullValue();
+                if (fieldType().nullValueAsString() != null && (context.includeInAll(includeInAll, this))) {
+                    context.allEntries().addText(fieldType.names().fullName(), fieldType().nullValueAsString(), boost);
                 }
             } else if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
                 XContentParser.Token token;
                 String currentFieldName = null;
-                Double objValue = nullValue;
+                Double objValue = fieldType().nullValue();
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                     if (token == XContentParser.Token.FIELD_NAME) {
                         currentFieldName = parser.currentName();
@@ -338,8 +319,9 @@ public class DoubleFieldMapper extends NumberFieldMapper {
             return;
         }
         if (!mergeResult.simulate()) {
-            this.nullValue = ((DoubleFieldMapper) mergeWith).nullValue;
-            this.nullValueAsString = ((DoubleFieldMapper) mergeWith).nullValueAsString;
+            this.fieldType = this.fieldType.clone();
+            this.fieldType.setNullValue(((DoubleFieldMapper) mergeWith).fieldType().nullValue());
+            this.fieldType.freeze();
         }
     }
 
@@ -350,8 +332,8 @@ public class DoubleFieldMapper extends NumberFieldMapper {
         if (includeDefaults || fieldType.numericPrecisionStep() != Defaults.PRECISION_STEP_64_BIT) {
             builder.field("precision_step", fieldType.numericPrecisionStep());
         }
-        if (includeDefaults || nullValue != null) {
-            builder.field("null_value", nullValue);
+        if (includeDefaults || fieldType().nullValue() != null) {
+            builder.field("null_value", fieldType().nullValue());
         }
         if (includeInAll != null) {
             builder.field("include_in_all", includeInAll);

@@ -72,13 +72,9 @@ public class LongFieldMapper extends NumberFieldMapper {
         static {
             FIELD_TYPE.freeze();
         }
-
-        public static final Long NULL_VALUE = null;
     }
 
     public static class Builder extends NumberFieldMapper.Builder<Builder, LongFieldMapper> {
-
-        protected Long nullValue = Defaults.NULL_VALUE;
 
         public Builder(String name) {
             super(name, Defaults.FIELD_TYPE, Defaults.PRECISION_STEP_64_BIT);
@@ -86,14 +82,14 @@ public class LongFieldMapper extends NumberFieldMapper {
         }
 
         public Builder nullValue(long nullValue) {
-            this.nullValue = nullValue;
+            this.fieldType.setNullValue(nullValue);
             return this;
         }
 
         @Override
         public LongFieldMapper build(BuilderContext context) {
             setupFieldType(context);
-            LongFieldMapper fieldMapper = new LongFieldMapper(fieldType, docValues, nullValue,
+            LongFieldMapper fieldMapper = new LongFieldMapper(fieldType, docValues,
                     ignoreMalformed(context), coerce(context), fieldDataSettings, context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
             fieldMapper.includeInAll(includeInAll);
             return fieldMapper;
@@ -145,6 +141,11 @@ public class LongFieldMapper extends NumberFieldMapper {
         }
 
         @Override
+        public Long nullValue() {
+            return (Long)super.nullValue();
+        }
+
+        @Override
         public Long value(Object value) {
             if (value == null) {
                 return null;
@@ -193,17 +194,16 @@ public class LongFieldMapper extends NumberFieldMapper {
         }
     }
 
-    private Long nullValue;
-
-    private String nullValueAsString;
-
     protected LongFieldMapper(MappedFieldType fieldType, Boolean docValues,
-                              Long nullValue, Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce,
+                              Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce,
                               @Nullable Settings fieldDataSettings,
                               Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
         super(fieldType, docValues, ignoreMalformed, coerce, fieldDataSettings, indexSettings, multiFields, copyTo);
-        this.nullValue = nullValue;
-        this.nullValueAsString = nullValue == null ? null : nullValue.toString();
+    }
+
+    @Override
+    public LongFieldType fieldType() {
+        return (LongFieldType)fieldType;
     }
 
     @Override
@@ -214,14 +214,6 @@ public class LongFieldMapper extends NumberFieldMapper {
     @Override
     public FieldDataType defaultFieldDataType() {
         return new FieldDataType("long");
-    }
-
-    @Override
-    public Query nullValueFilter() {
-        if (nullValue == null) {
-            return null;
-        }
-        return new ConstantScoreQuery(termQuery(nullValue, null));
     }
 
     @Override
@@ -236,17 +228,17 @@ public class LongFieldMapper extends NumberFieldMapper {
         if (context.externalValueSet()) {
             Object externalValue = context.externalValue();
             if (externalValue == null) {
-                if (nullValue == null) {
+                if (fieldType().nullValue() == null) {
                     return;
                 }
-                value = nullValue;
+                value = fieldType().nullValue();
             } else if (externalValue instanceof String) {
                 String sExternalValue = (String) externalValue;
                 if (sExternalValue.length() == 0) {
-                    if (nullValue == null) {
+                    if (fieldType().nullValue() == null) {
                         return;
                     }
-                    value = nullValue;
+                    value = fieldType().nullValue();
                 } else {
                     value = Long.parseLong(sExternalValue);
                 }
@@ -260,17 +252,17 @@ public class LongFieldMapper extends NumberFieldMapper {
             XContentParser parser = context.parser();
             if (parser.currentToken() == XContentParser.Token.VALUE_NULL ||
                     (parser.currentToken() == XContentParser.Token.VALUE_STRING && parser.textLength() == 0)) {
-                if (nullValue == null) {
+                if (fieldType().nullValue() == null) {
                     return;
                 }
-                value = nullValue;
-                if (nullValueAsString != null && (context.includeInAll(includeInAll, this))) {
-                    context.allEntries().addText(fieldType.names().fullName(), nullValueAsString, boost);
+                value = fieldType().nullValue();
+                if (fieldType().nullValueAsString() != null && (context.includeInAll(includeInAll, this))) {
+                    context.allEntries().addText(fieldType.names().fullName(), fieldType().nullValueAsString(), boost);
                 }
             } else if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
                 XContentParser.Token token;
                 String currentFieldName = null;
-                Long objValue = nullValue;
+                Long objValue = fieldType().nullValue();
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                     if (token == XContentParser.Token.FIELD_NAME) {
                         currentFieldName = parser.currentName();
@@ -320,8 +312,9 @@ public class LongFieldMapper extends NumberFieldMapper {
             return;
         }
         if (!mergeResult.simulate()) {
-            this.nullValue = ((LongFieldMapper) mergeWith).nullValue;
-            this.nullValueAsString = ((LongFieldMapper) mergeWith).nullValueAsString;
+            this.fieldType = this.fieldType.clone();
+            this.fieldType.setNullValue(((LongFieldMapper) mergeWith).fieldType().nullValue());
+            this.fieldType.freeze();
         }
     }
 
@@ -332,8 +325,8 @@ public class LongFieldMapper extends NumberFieldMapper {
         if (includeDefaults || fieldType.numericPrecisionStep() != Defaults.PRECISION_STEP_64_BIT) {
             builder.field("precision_step", fieldType.numericPrecisionStep());
         }
-        if (includeDefaults || nullValue != null) {
-            builder.field("null_value", nullValue);
+        if (includeDefaults || fieldType().nullValue() != null) {
+            builder.field("null_value", fieldType().nullValue());
         }
         if (includeInAll != null) {
             builder.field("include_in_all", includeInAll);

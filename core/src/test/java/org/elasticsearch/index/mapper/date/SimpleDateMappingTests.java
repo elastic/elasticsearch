@@ -228,7 +228,7 @@ public class SimpleDateMappingTests extends ElasticsearchSingleNodeTest {
         NumericRangeQuery<Long> rangeQuery;
         try {
             SearchContext.setCurrent(new TestSearchContext());
-            rangeQuery = (NumericRangeQuery<Long>) defaultMapper.mappers().smartNameFieldMapper("date_field").rangeQuery("10:00:00", "11:00:00", true, true, null);
+            rangeQuery = (NumericRangeQuery<Long>) defaultMapper.mappers().smartNameFieldMapper("date_field").fieldType().rangeQuery("10:00:00", "11:00:00", true, true, null);
         } finally {
             SearchContext.removeCurrent();
         }
@@ -254,7 +254,7 @@ public class SimpleDateMappingTests extends ElasticsearchSingleNodeTest {
         NumericRangeQuery<Long> rangeQuery;
         try {
             SearchContext.setCurrent(new TestSearchContext());
-            rangeQuery = (NumericRangeQuery<Long>) defaultMapper.mappers().smartNameFieldMapper("date_field").rangeQuery("Jan 02 10:00:00", "Jan 02 11:00:00", true, true, null);
+            rangeQuery = (NumericRangeQuery<Long>) defaultMapper.mappers().smartNameFieldMapper("date_field").fieldType().rangeQuery("Jan 02 10:00:00", "Jan 02 11:00:00", true, true, null);
         } finally {
             SearchContext.removeCurrent();
         }

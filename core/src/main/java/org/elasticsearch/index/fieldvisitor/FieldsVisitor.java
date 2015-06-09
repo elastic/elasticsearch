@@ -81,7 +81,7 @@ public abstract class FieldsVisitor extends StoredFieldVisitor {
             }
             List<Object> fieldValues = entry.getValue();
             for (int i = 0; i < fieldValues.size(); i++) {
-                fieldValues.set(i, fieldMapper.valueForSearch(fieldValues.get(i)));
+                fieldValues.set(i, fieldMapper.fieldType().valueForSearch(fieldValues.get(i)));
             }
         }
     }

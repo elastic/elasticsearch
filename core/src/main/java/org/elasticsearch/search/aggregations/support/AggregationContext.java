@@ -35,7 +35,6 @@ import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.Date;
 
 /**
  *
@@ -102,10 +101,10 @@ public class AggregationContext {
             if (config.missing instanceof Number) {
                 missing = (Number) config.missing;
             } else {
-                if (config.fieldContext != null && config.fieldContext.mapper() instanceof DateFieldMapper) {
-                    final DateFieldMapper mapper = (DateFieldMapper) config.fieldContext.mapper();
+                if (config.fieldContext != null && config.fieldContext.fieldType() instanceof DateFieldMapper.DateFieldType) {
+                    final DateFieldMapper.DateFieldType fieldType = (DateFieldMapper.DateFieldType) config.fieldContext.fieldType();
                     try {
-                        missing = mapper.fieldType().dateTimeFormatter().parser().parseDateTime(config.missing.toString()).getMillis();
+                        missing = fieldType.dateTimeFormatter().parser().parseDateTime(config.missing.toString()).getMillis();
                     } catch (IllegalArgumentException e) {
                         throw new SearchParseException(context, "Expected a date value in [missing] but got [" + config.missing + "]", null, e);
                     }

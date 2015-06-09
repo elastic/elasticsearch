@@ -19,6 +19,7 @@
 package org.elasticsearch.search.lookup;
 
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -29,8 +30,8 @@ import java.util.Map;
  */
 public class FieldLookup {
 
-    // we can cached mapper completely per name, since its on an index/shard level (the lookup, and it does not change within the scope of a search request)
-    private final FieldMapper mapper;
+    // we can cached fieldType completely per name, since its on an index/shard level (the lookup, and it does not change within the scope of a search request)
+    private final MappedFieldType fieldType;
 
     private Map<String, List<Object>> fields;
 
@@ -42,12 +43,12 @@ public class FieldLookup {
 
     private boolean valuesLoaded = false;
 
-    FieldLookup(FieldMapper mapper) {
-        this.mapper = mapper;
+    FieldLookup(MappedFieldType fieldType) {
+        this.fieldType = fieldType;
     }
 
-    public FieldMapper mapper() {
-        return mapper;
+    public MappedFieldType fieldType() {
+        return fieldType;
     }
 
     public Map<String, List<Object>> fields() {
@@ -85,7 +86,7 @@ public class FieldLookup {
         }
         valueLoaded = true;
         value = null;
-        List<Object> values = fields.get(mapper.fieldType().names().indexName());
+        List<Object> values = fields.get(fieldType.names().indexName());
         return values != null ? value = values.get(0) : null;
     }
 
@@ -95,6 +96,6 @@ public class FieldLookup {
         }
         valuesLoaded = true;
         values.clear();
-        return values = fields().get(mapper.fieldType().names().indexName());
+        return values = fields().get(fieldType.names().indexName());
     }
 }

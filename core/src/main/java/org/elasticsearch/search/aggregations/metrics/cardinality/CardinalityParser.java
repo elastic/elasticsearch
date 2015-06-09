@@ -72,7 +72,7 @@ public class CardinalityParser implements Aggregator.Parser {
 
         ValuesSourceConfig<?> config = vsParser.config();
 
-        if (rehash == null && config.fieldContext() != null && config.fieldContext().mapper() instanceof Murmur3FieldMapper) {
+        if (rehash == null && config.fieldContext() != null && config.fieldContext().fieldType() instanceof Murmur3FieldMapper.Murmur3FieldType) {
             rehash = false;
         } else if (rehash == null) {
             rehash = true;

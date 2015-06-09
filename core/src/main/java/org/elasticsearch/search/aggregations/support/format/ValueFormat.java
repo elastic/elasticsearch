@@ -71,8 +71,8 @@ public class ValueFormat {
             return new DateTime(format, new ValueFormatter.DateTime(format), new ValueParser.DateMath(format));
         }
 
-        public static DateTime mapper(DateFieldMapper mapper) {
-            return new DateTime(mapper.fieldType().dateTimeFormatter().format(), ValueFormatter.DateTime.mapper(mapper), ValueParser.DateMath.mapper(mapper));
+        public static DateTime mapper(DateFieldMapper.DateFieldType fieldType) {
+            return new DateTime(fieldType.dateTimeFormatter().format(), ValueFormatter.DateTime.mapper(fieldType), ValueParser.DateMath.mapper(fieldType));
         }
 
         public DateTime(String pattern, ValueFormatter formatter, ValueParser parser) {

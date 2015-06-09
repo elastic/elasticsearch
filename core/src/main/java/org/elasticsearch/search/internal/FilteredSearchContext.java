@@ -35,7 +35,7 @@ import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.FieldMappers;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.query.ParsedQuery;
@@ -532,13 +532,13 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    public FieldMapper smartNameFieldMapper(String name) {
-        return in.smartNameFieldMapper(name);
+    public MappedFieldType smartNameFieldType(String name) {
+        return in.smartNameFieldType(name);
     }
 
     @Override
-    public FieldMapper smartNameFieldMapperFromAnyType(String name) {
-        return in.smartNameFieldMapperFromAnyType(name);
+    public MappedFieldType smartNameFieldTypeFromAnyType(String name) {
+        return in.smartNameFieldTypeFromAnyType(name);
     }
 
     @Override

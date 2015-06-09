@@ -29,6 +29,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
 import org.elasticsearch.index.search.geo.GeoPolygonQuery;
 
@@ -136,15 +137,15 @@ public class GeoPolygonQueryParser implements QueryParser {
             }
         }
 
-        FieldMapper mapper = parseContext.fieldMapper(fieldName);
-        if (mapper == null) {
+        MappedFieldType fieldType = parseContext.fieldMapper(fieldName);
+        if (fieldType == null) {
             throw new QueryParsingException(parseContext, "failed to find geo_point field [" + fieldName + "]");
         }
-        if (!(mapper instanceof GeoPointFieldMapper)) {
+        if (!(fieldType instanceof GeoPointFieldMapper.GeoPointFieldType)) {
             throw new QueryParsingException(parseContext, "field [" + fieldName + "] is not a geo_point field");
         }
 
-        IndexGeoPointFieldData indexFieldData = parseContext.getForField(mapper);
+        IndexGeoPointFieldData indexFieldData = parseContext.getForField(fieldType);
         Query query = new GeoPolygonQuery(indexFieldData, shell.toArray(new GeoPoint[shell.size()]));
         if (queryName != null) {
             parseContext.addNamedQuery(queryName, query);

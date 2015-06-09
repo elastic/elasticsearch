@@ -1,6 +1,6 @@
 {
   "termvector" : {
-    "documentation" : "http://www.elastic.co/guide/en/elasticsearch/reference/1.x/docs-termvectors.html",
+    "documentation" : "http://www.elastic.co/guide/en/elasticsearch/reference/1.6/docs-termvectors.html",
     "methods" : ["GET", "POST"],
     "url" : {
       "path" : "/{index}/{type}/_termvector",

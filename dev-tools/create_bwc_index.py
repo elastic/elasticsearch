@@ -129,7 +129,7 @@ def build_version(version_tuple):
 def build_tuple(version_string):
   return [int(x) for x in version_string.split('.')]
 
-def start_node(version, release_dir, data_dir, tcp_port=DEFAULT_TRANSPORT_TCP_PORT, http_port=DEFAULT_HTTP_TCP_PORT, cluster_name=None):
+def start_node(version, release_dir, data_dir, repo_dir, tcp_port=DEFAULT_TRANSPORT_TCP_PORT, http_port=DEFAULT_HTTP_TCP_PORT, cluster_name=None):
   logging.info('Starting node from %s on port %s/%s, data_dir %s' % (release_dir, tcp_port, http_port, data_dir))
   if cluster_name is None:
     cluster_name = 'bwc_index_' + version
@@ -142,7 +142,8 @@ def start_node(version, release_dir, data_dir, tcp_port=DEFAULT_TRANSPORT_TCP_PO
     '-Des.network.host=localhost',
     '-Des.discovery.zen.ping.multicast.enabled=false',
     '-Des.transport.tcp.port=%s' % tcp_port,
-    '-Des.http.port=%s' % http_port
+    '-Des.http.port=%s' % http_port,
+    '-Des.path.repo=%s' % repo_dir
   ]
   if version.startswith('0.') or version.startswith('1.0.0.Beta') :
     cmd.append('-f') # version before 1.0 start in background automatically
@@ -312,7 +313,7 @@ def create_bwc_index(cfg, version):
   node = None
 
   try:
-    node = start_node(version, release_dir, data_dir, cfg.tcp_port, cfg.http_port)
+    node = start_node(version, release_dir, data_dir, repo_dir, cfg.tcp_port, cfg.http_port)
     client = create_client(cfg.http_port)
     index_name = 'index-%s' % version.lower()
     generate_index(client, version, index_name)

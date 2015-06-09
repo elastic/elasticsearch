@@ -69,7 +69,7 @@ public class LimitQueryBuilder extends QueryBuilder<LimitQueryBuilder> {
 
     @Override
     public int hashCode() {
-        return Integer.hashCode(limit);
+        return this.limit;
     }
 
     @Override

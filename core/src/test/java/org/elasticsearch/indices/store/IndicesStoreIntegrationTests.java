@@ -112,8 +112,9 @@ public class IndicesStoreIntegrationTests extends ElasticsearchIntegrationTest {
         assertThat(Files.exists(indexDirectory(node_3, "test")), equalTo(false));
 
         logger.info("--> move shard from node_1 to node_3, and wait for relocation to finish");
+        SlowClusterStateProcessing disruption = null;
         if (randomBoolean()) { // sometimes add cluster-state delay to trigger observers in IndicesStore.ShardActiveRequestHandler
-            final SlowClusterStateProcessing disruption = new SlowClusterStateProcessing(node_3, getRandom(), 0, 0, 1000, 2000);
+            disruption = new SlowClusterStateProcessing(node_3, getRandom(), 0, 0, 1000, 2000);
             internalCluster().setDisruptionScheme(disruption);
             disruption.startDisrupting();
         }
@@ -123,6 +124,12 @@ public class IndicesStoreIntegrationTests extends ElasticsearchIntegrationTest {
                 .setWaitForRelocatingShards(0)
                 .get();
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
+        if (disruption != null) {
+            // we must stop the disruption here, else the delayed cluster state processing on the disrupted node
+            // can potentially delay registering the observer in IndicesStore.ShardActiveRequestHandler.messageReceived()
+            // and therefore sending the response for the shard active request for more than 10s
+            disruption.stopDisrupting();
+        }
 
         assertThat(waitForShardDeletion(node_1, "test", 0), equalTo(false));
         assertThat(waitForIndexDeletion(node_1, "test"), equalTo(false));

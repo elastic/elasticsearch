@@ -291,14 +291,17 @@ public class MappedFieldType extends FieldType {
         this.similarity = similarity;
     }
 
+    /** Returns the value that should be added when JSON null is found, or null if no value should be added */
     public Object nullValue() {
         return nullValue;
     }
 
+    /** Returns the null value stringified, so it can be used for e.g. _all field, or null if there is no null value */
     public String nullValueAsString() {
         return nullValueAsString;
     }
 
+    /** Sets the null value and initializes the string version */
     public void setNullValue(Object nullValue) {
         checkIfFrozen();
         this.nullValue = nullValue;

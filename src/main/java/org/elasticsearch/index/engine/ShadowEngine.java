@@ -23,15 +23,19 @@ import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.search.SearcherFactory;
 import org.apache.lucene.search.SearcherManager;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
 import org.elasticsearch.index.shard.IndexShardException;
 
+import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.nio.file.NoSuchFileException;
 import java.util.Arrays;
 import java.util.List;
 
@@ -58,6 +62,7 @@ public class ShadowEngine extends Engine {
     /** how long to wait for an index to exist */
     public final static String NONEXISTENT_INDEX_RETRY_WAIT = "index.shadow.wait_for_initial_commit";
     public final static TimeValue DEFAULT_NONEXISTENT_INDEX_RETRY_WAIT = TimeValue.timeValueSeconds(5);
+    private static final CommitId EMPTY_COMMIT_ID = new CommitId(new BytesRef());
 
     private volatile SearcherManager searcherManager;
 
@@ -139,12 +144,10 @@ public class ShadowEngine extends Engine {
          * dec the store reference which can essentially close the store and unless we can inc the reference
          * we can't use it.
          */
-        CommitId id = null;
         store.incRef();
         try (ReleasableLock lock = readLock.acquire()) {
             // reread the last committed segment infos
             lastCommittedSegmentInfos = store.readLastCommittedSegmentsInfo();
-            id = CommitId.readCommitID(store, lastCommittedSegmentInfos);
         } catch (Throwable e) {
             if (isClosed.get() == false) {
                 logger.warn("failed to read latest segment infos on flush", e);
@@ -155,7 +158,9 @@ public class ShadowEngine extends Engine {
         } finally {
             store.decRef();
         }
-        return id;
+        // We can just return an empty commit ID since this is a read only engine that
+        // doesn't modify anything so the content of this ID doesn't really matter
+        return EMPTY_COMMIT_ID;
     }
 
     @Override

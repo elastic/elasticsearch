@@ -543,6 +543,9 @@ public class SyncedFlushService extends AbstractComponent {
         }
 
         PreSyncedFlushResponse(Engine.CommitId commitId) {
+            if (commitId == null) {
+                throw new IllegalArgumentException("CommitID must not be null");
+            }
             this.commitId = commitId;
         }
 

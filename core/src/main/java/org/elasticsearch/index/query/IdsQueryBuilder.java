@@ -24,6 +24,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 
 /**
@@ -54,7 +55,22 @@ public class IdsQueryBuilder extends QueryBuilder implements BoostableQueryBuild
     /**
      * Adds ids to the filter.
      */
+    public IdsQueryBuilder addIds(Collection<String> ids) {
+        values.addAll(ids);
+        return this;
+    }
+
+    /**
+     * Adds ids to the filter.
+     */
     public IdsQueryBuilder ids(String... ids) {
+        return addIds(ids);
+    }
+
+    /**
+     * Adds ids to the filter.
+     */
+    public IdsQueryBuilder ids(Collection<String> ids) {
         return addIds(ids);
     }
 

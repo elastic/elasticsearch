@@ -19,15 +19,13 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.Query;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 
 @Deprecated
-public class LimitQueryParser extends BaseQueryParserTemp {
+public class LimitQueryParser extends BaseQueryParser {
 
     @Inject
     public LimitQueryParser() {
@@ -39,7 +37,7 @@ public class LimitQueryParser extends BaseQueryParserTemp {
     }
 
     @Override
-    public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public QueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
         int limit = -1;
@@ -61,8 +59,7 @@ public class LimitQueryParser extends BaseQueryParserTemp {
             throw new QueryParsingException(parseContext, "No value specified for limit query");
         }
 
-        // this filter is deprecated and parses to a filter that matches everything
-        return Queries.newMatchAllQuery();
+        return new LimitQueryBuilder(limit);
     }
 
     @Override

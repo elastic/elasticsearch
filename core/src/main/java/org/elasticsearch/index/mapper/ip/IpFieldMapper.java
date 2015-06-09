@@ -157,7 +157,7 @@ public class IpFieldMapper extends NumberFieldMapper {
         }
     }
 
-    static final class IpFieldType extends NumberFieldType {
+    public static final class IpFieldType extends NumberFieldType {
 
         public IpFieldType() {}
 

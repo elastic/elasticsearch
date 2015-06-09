@@ -108,8 +108,8 @@ public interface ValueParser {
             return parseLong(value, searchContext);
         }
 
-        public static DateMath mapper(DateFieldMapper mapper) {
-            return new DateMath(new DateMathParser(mapper.fieldType().dateTimeFormatter()));
+        public static DateMath mapper(DateFieldMapper.DateFieldType fieldType) {
+            return new DateMath(new DateMathParser(fieldType.dateTimeFormatter()));
         }
     }
 

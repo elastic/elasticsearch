@@ -47,9 +47,9 @@ public class FSTBytesIndexFieldData extends AbstractIndexOrdinalsFieldData {
     public static class Builder implements IndexFieldData.Builder {
 
         @Override
-        public IndexOrdinalsFieldData build(Index index, @IndexSettings Settings indexSettings, FieldMapper mapper,
+        public IndexOrdinalsFieldData build(Index index, @IndexSettings Settings indexSettings, MappedFieldType fieldType,
                                                              IndexFieldDataCache cache, CircuitBreakerService breakerService, MapperService mapperService) {
-            return new FSTBytesIndexFieldData(index, indexSettings, mapper.fieldType().names(), mapper.fieldType().fieldDataType(), cache, breakerService);
+            return new FSTBytesIndexFieldData(index, indexSettings, fieldType.names(), fieldType.fieldDataType(), cache, breakerService);
         }
     }
 

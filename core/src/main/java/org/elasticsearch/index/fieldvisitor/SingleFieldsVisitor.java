@@ -20,6 +20,7 @@ package org.elasticsearch.index.fieldvisitor;
 
 import org.apache.lucene.index.FieldInfo;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.internal.IdFieldMapper;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
@@ -55,7 +56,7 @@ public class SingleFieldsVisitor extends FieldsVisitor {
         super.reset();
     }
 
-    public void postProcess(FieldMapper mapper) {
+    public void postProcess(MappedFieldType fieldType) {
         if (uid != null) {
             switch (field) {
                 case UidFieldMapper.NAME: addValue(field, uid.toString());
@@ -67,12 +68,12 @@ public class SingleFieldsVisitor extends FieldsVisitor {
         if (fieldsValues == null) {
             return;
         }
-        List<Object> fieldValues = fieldsValues.get(mapper.fieldType().names().indexName());
+        List<Object> fieldValues = fieldsValues.get(fieldType.names().indexName());
         if (fieldValues == null) {
             return;
         }
         for (int i = 0; i < fieldValues.size(); i++) {
-            fieldValues.set(i, mapper.valueForSearch(fieldValues.get(i)));
+            fieldValues.set(i, fieldType.valueForSearch(fieldValues.get(i)));
         }
     }
 }

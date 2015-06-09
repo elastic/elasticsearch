@@ -37,7 +37,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.MoreLikeThisQuery;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.Analysis;
-import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.search.morelikethis.MoreLikeThisFetchService;
 import org.elasticsearch.search.internal.SearchContext;
@@ -166,8 +166,8 @@ public class MoreLikeThisQueryParser implements QueryParser {
                     moreLikeFields = Lists.newLinkedList();
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         String field = parser.text();
-                        FieldMapper mapper = parseContext.fieldMapper(field);
-                        moreLikeFields.add(mapper == null ? field : mapper.fieldType().names().indexName());
+                        MappedFieldType fieldType = parseContext.fieldMapper(field);
+                        moreLikeFields.add(fieldType == null ? field : fieldType.names().indexName());
                     }
                 } else if (Fields.DOCUMENT_IDS.match(currentFieldName, parseContext.parseFlags())) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {

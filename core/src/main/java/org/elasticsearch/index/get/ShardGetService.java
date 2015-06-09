@@ -252,7 +252,7 @@ public class ShardGetService extends AbstractIndexShardComponent {
                                 List<Object> values = searchLookup.source().extractRawValues(field);
                                 if (!values.isEmpty()) {
                                     for (int i = 0; i < values.size(); i++) {
-                                        values.set(i, fieldMapper.valueForSearch(values.get(i)));
+                                        values.set(i, fieldMapper.fieldType().valueForSearch(values.get(i)));
                                     }
                                     value = values;
                                 }
@@ -379,7 +379,7 @@ public class ShardGetService extends AbstractIndexShardComponent {
                     List<Object> values = searchLookup.source().extractRawValues(field);
                     if (!values.isEmpty()) {
                         for (int i = 0; i < values.size(); i++) {
-                            values.set(i, fieldMapper.valueForSearch(values.get(i)));
+                            values.set(i, fieldMapper.fieldType().valueForSearch(values.get(i)));
                         }
                         value = values;
                     }

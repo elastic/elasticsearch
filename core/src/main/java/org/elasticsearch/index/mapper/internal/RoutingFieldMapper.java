@@ -185,7 +185,7 @@ public class RoutingFieldMapper extends AbstractFieldMapper implements RootMappe
 
     public String value(Document document) {
         Field field = (Field) document.getField(fieldType.names().indexName());
-        return field == null ? null : (String)value(field);
+        return field == null ? null : (String)fieldType().value(field);
     }
 
     @Override

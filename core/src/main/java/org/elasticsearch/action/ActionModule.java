@@ -21,6 +21,7 @@ package org.elasticsearch.action;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
+
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.health.TransportClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsAction;
@@ -117,6 +118,8 @@ import org.elasticsearch.action.admin.indices.upgrade.post.UpgradeAction;
 import org.elasticsearch.action.admin.indices.upgrade.post.UpgradeSettingsAction;
 import org.elasticsearch.action.admin.indices.validate.query.TransportValidateQueryAction;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryAction;
+import org.elasticsearch.action.admin.indices.validate.template.RenderSearchTemplateAction;
+import org.elasticsearch.action.admin.indices.validate.template.TransportRenderSearchTemplateAction;
 import org.elasticsearch.action.admin.indices.warmer.delete.DeleteWarmerAction;
 import org.elasticsearch.action.admin.indices.warmer.delete.TransportDeleteWarmerAction;
 import org.elasticsearch.action.admin.indices.warmer.get.GetWarmersAction;
@@ -302,6 +305,7 @@ public class ActionModule extends AbstractModule {
         registerAction(ExplainAction.INSTANCE, TransportExplainAction.class);
         registerAction(ClearScrollAction.INSTANCE, TransportClearScrollAction.class);
         registerAction(RecoveryAction.INSTANCE, TransportRecoveryAction.class);
+        registerAction(RenderSearchTemplateAction.INSTANCE, TransportRenderSearchTemplateAction.class);
 
         //Indexed scripts
         registerAction(PutIndexedScriptAction.INSTANCE, TransportPutIndexedScriptAction.class);

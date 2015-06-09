@@ -21,6 +21,9 @@ package org.elasticsearch.client;
 
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.validate.template.RenderSearchTemplateRequest;
+import org.elasticsearch.action.admin.indices.validate.template.RenderSearchTemplateRequestBuilder;
+import org.elasticsearch.action.admin.indices.validate.template.RenderSearchTemplateResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;

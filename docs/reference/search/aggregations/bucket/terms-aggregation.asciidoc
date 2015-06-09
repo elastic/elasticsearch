@@ -464,7 +464,7 @@ TIP: The `script` parameter expects an inline script. Use `script_id` for indexe
 ==== Filtering Values
 
 It is possible to filter the values for which buckets will be created. This can be done using the `include` and
-`exclude` parameters which are based on regular expression strings or arrays of exact values added[1.5.0, support for arrays of values].
+`exclude` parameters which are based on regular expression strings or arrays of exact values.
 
 [source,js]
 --------------------------------------------------

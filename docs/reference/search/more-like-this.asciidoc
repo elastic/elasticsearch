@@ -1,7 +1,7 @@
 [[search-more-like-this]]
 == More Like This API
 
-deprecated[1.6, The More Like This API will be removed in 2.0, instead use the <<query-dsl-mlt-query, More Like This Query>>]
+deprecated[1.6.0, The More Like This API will be removed in 2.0, instead use the <<query-dsl-mlt-query, More Like This Query>>]
 
 The more like this (mlt) API allows to get documents that are "like" a
 specified document. Here is an example:

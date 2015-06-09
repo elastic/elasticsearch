@@ -194,7 +194,7 @@ public class DocumentMapper implements ToXContent {
                 meta);
         this.documentParser = new DocumentParser(index, indexSettings, docMapperParser, this, new ReleasableLock(mappingLock.readLock()));
 
-        this.typeFilter = typeMapper().termQuery(type, null);
+        this.typeFilter = typeMapper().fieldType().termQuery(type, null);
         this.mappingWriteLock = new ReleasableLock(mappingLock.writeLock());
         this.mappingLock = mappingLock;
 

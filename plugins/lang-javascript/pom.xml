@@ -4,26 +4,12 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>org.elasticsearch</groupId>
+    <groupId>org.elasticsearch.plugin</groupId>
     <artifactId>elasticsearch-lang-javascript</artifactId>
-    <version>3.0.0-SNAPSHOT</version>
+
     <packaging>jar</packaging>
     <name>Elasticsearch JavaScript language plugin</name>
     <description>The JavaScript language plugin allows to have javascript as the language of scripts to execute.</description>
-    <url>https://github.com/elastic/elasticsearch-lang-javascript/</url>
-    <inceptionYear>2009</inceptionYear>
-    <licenses>
-        <license>
-            <name>The Apache Software License, Version 2.0</name>
-            <url>http://www.apache.org/licenses/LICENSE-2.0.txt</url>
-            <distribution>repo</distribution>
-        </license>
-    </licenses>
-    <scm>
-        <connection>scm:git:git@github.com:elastic/elasticsearch-lang-javascript.git</connection>
-        <developerConnection>scm:git:git@github.com:elastic/elasticsearch-lang-javascript.git</developerConnection>
-        <url>http://github.com/elastic/elasticsearch-lang-javascript</url>
-    </scm>
 
     <parent>
         <groupId>org.elasticsearch</groupId>
@@ -54,11 +40,4 @@
         </plugins>
     </build>
 
-    <repositories>
-        <repository>
-            <id>oss-snapshots</id>
-            <name>Sonatype OSS Snapshots</name>
-            <url>https://oss.sonatype.org/content/repositories/snapshots/</url>
-        </repository>
-    </repositories>
 </project>

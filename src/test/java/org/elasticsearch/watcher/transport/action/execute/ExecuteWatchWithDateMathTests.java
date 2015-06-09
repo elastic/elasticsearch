@@ -28,7 +28,7 @@ import static org.hamcrest.Matchers.notNullValue;
 /**
  *
  */
-public class WatchExecuteWithDateMathTests extends AbstractWatcherIntegrationTests {
+public class ExecuteWatchWithDateMathTests extends AbstractWatcherIntegrationTests {
 
     @Override
     protected boolean timeWarped() {

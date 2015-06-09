@@ -45,7 +45,7 @@ import static org.hamcrest.Matchers.notNullValue;
 /**
  *
  */
-public class WatchExecuteTests  extends AbstractWatcherIntegrationTests {
+public class ExecuteWatchTests extends AbstractWatcherIntegrationTests {
 
 
     @Test(expected = ActionRequestValidationException.class)

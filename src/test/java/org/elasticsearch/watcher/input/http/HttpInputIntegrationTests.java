@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.watcher.test.integration;
+package org.elasticsearch.watcher.input.http;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -36,7 +36,7 @@ import static org.elasticsearch.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.watcher.trigger.schedule.Schedules.interval;
 import static org.hamcrest.Matchers.equalTo;
 
-public class HttpInputIntegrationTest extends AbstractWatcherIntegrationTests {
+public class HttpInputIntegrationTests extends AbstractWatcherIntegrationTests {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {

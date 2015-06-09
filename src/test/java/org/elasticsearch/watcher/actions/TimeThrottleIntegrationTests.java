@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.watcher.test.integration;
+package org.elasticsearch.watcher.actions;
 
 import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import org.elasticsearch.action.index.IndexResponse;
@@ -35,7 +35,7 @@ import static org.hamcrest.Matchers.is;
 
 /**
  */
-public class WatchTimeThrottleTests extends AbstractWatcherIntegrationTests {
+public class TimeThrottleIntegrationTests extends AbstractWatcherIntegrationTests {
 
     private IndexResponse indexTestDoc() {
         createIndex("actions", "events");

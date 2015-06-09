@@ -23,7 +23,7 @@ import static org.hamcrest.Matchers.*;
 
 /**
  */
-public class TriggeredWatchStoreLifeCycleTest extends AbstractWatcherIntegrationTests {
+public class TriggeredWatchStoreLifeCycleTests extends AbstractWatcherIntegrationTests {
 
     @Test
     public void testPutLoadUpdate() throws Exception {

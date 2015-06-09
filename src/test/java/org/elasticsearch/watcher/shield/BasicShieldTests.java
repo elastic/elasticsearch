@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.watcher.test.integration;
+package org.elasticsearch.watcher.shield;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.joda.time.DateTime;

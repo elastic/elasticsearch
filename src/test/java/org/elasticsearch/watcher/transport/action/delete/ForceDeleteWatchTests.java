@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.watcher.test.integration;
+package org.elasticsearch.watcher.transport.action.delete;
 
 import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -24,10 +24,11 @@ import static org.hamcrest.Matchers.is;
 
 /**
  */
-public class WatchForceDeleteTests extends AbstractWatcherIntegrationTests {
+public class ForceDeleteWatchTests extends AbstractWatcherIntegrationTests {
 
+    //Disable time warping for the force delete long running watch test
     protected boolean timeWarped() {
-        return false; //Disable time warping for the force delete long running watch test
+        return false;
     }
 
     @Override

@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.watcher.test.integration;
+package org.elasticsearch.watcher.transport.action.stats;
 
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.unit.TimeValue;
@@ -36,7 +36,7 @@ import static org.hamcrest.core.IsEqual.equalTo;
 /**
  */
 @ClusterScope(scope = TEST, numClientNodes = 0, transportClientRatio = 0, randomDynamicTemplates = false)
-public class WatchStatsTests extends AbstractWatcherIntegrationTests {
+public class WatcherStatsTests extends AbstractWatcherIntegrationTests {
 
     @Test
     public void testStartedStats() throws Exception {

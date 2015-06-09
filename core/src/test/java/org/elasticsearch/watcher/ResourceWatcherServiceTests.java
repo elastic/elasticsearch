@@ -45,7 +45,7 @@ public class ResourceWatcherServiceTests extends ElasticsearchTestCase {
 
         // checking bwc
         settings = Settings.builder()
-                .put("watcher.interval", "40s") // only applies to medium
+                .put("resource.reload.interval", "40s") // only applies to medium
                 .build();
         service = new ResourceWatcherService(settings, threadPool);
         assertThat(service.highMonitor.interval.millis(), is(timeValueSeconds(5).millis()));
@@ -54,9 +54,9 @@ public class ResourceWatcherServiceTests extends ElasticsearchTestCase {
 
         // checking custom
         settings = Settings.builder()
-                .put("watcher.interval.high", "10s")
-                .put("watcher.interval.medium", "20s")
-                .put("watcher.interval.low", "30s")
+                .put("resource.reload.interval.high", "10s")
+                .put("resource.reload.interval.medium", "20s")
+                .put("resource.reload.interval.low", "30s")
                 .build();
         service = new ResourceWatcherService(settings, threadPool);
         assertThat(service.highMonitor.interval.millis(), is(timeValueSeconds(10).millis()));

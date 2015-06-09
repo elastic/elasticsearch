@@ -685,3 +685,14 @@ curl -XGET 'localhost:9200/test/_search?fields=_timestamp,foo'
    }
 }
 ---------------
+
+=== Settings for resource watcher have been renamed
+
+The setting names for configuring the resource watcher have been renamed
+to prevent clashes with the watcher plugin
+
+* `watcher.enabled` is now `resource.reload.enabled`
+* `watcher.interval` is now `resource.reload.interval`
+* `watcher.interval.low` is now `resource.reload.interval.low`
+* `watcher.interval.medium` is now `resource.reload.interval.medium`
+* `watcher.interval.high` is now `resource.reload.interval.high`

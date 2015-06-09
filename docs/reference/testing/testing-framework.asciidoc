@@ -60,7 +60,7 @@ There are already have a couple of classes, you can inherit from in your own tes
 [[unit-tests]]
 === unit tests
 
-In case you only need to execute a unit test, because your implementation can be isolated that good and does not require an up and running elasticsearch cluster, you can use the `ElasticsearchTestCase`. If you are testing lucene features, use `ElasticsearchLuceneTestCase` and if you are testing concrete token streams, use the `ElasticsearchTokenStreamTestCase` class. Those specific classes execute additional checks, which ensure that no resources leaks are happening, after the test has run.
+In case you only need to execute a unit test, because your implementation can be isolated that well and does not require an up and running elasticsearch cluster, you can use the `ElasticsearchTestCase`. If you are testing lucene features, use `ElasticsearchLuceneTestCase` and if you are testing concrete token streams, use the `ElasticsearchTokenStreamTestCase` class. Those specific classes execute additional checks, which ensure that no resources leaks are happening, after the test has run.
 
 
 [[integration-tests]]

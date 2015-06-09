@@ -342,7 +342,7 @@ appropriate language.
 The `config/scripts` directory is scanned periodically for changes.
 New and changed scripts are reloaded and deleted script are removed
 from preloaded scripts cache. The reload frequency can be specified
-using `watcher.interval` setting, which defaults to `60s`.
+using `resource.reload.interval` setting, which defaults to `60s`.
 To disable script reloading completely set `script.auto_reload_enabled`
 to `false`.
 

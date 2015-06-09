@@ -48,7 +48,7 @@ import org.elasticsearch.repositories.RepositoryName;
 import org.elasticsearch.repositories.RepositorySettings;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 
-public class HdfsRepository extends BlobStoreRepository {
+public class HdfsRepository extends BlobStoreRepository implements FileSystemFactory {
 
     public final static String TYPE = "hdfs";
 
@@ -57,11 +57,14 @@ public class HdfsRepository extends BlobStoreRepository {
     private final ByteSizeValue chunkSize;
     private final boolean compress;
     private final ExecutorService concurrentStreamPool;
-    private final FileSystem fs;
+    private final RepositorySettings repositorySettings;
+    private FileSystem fs;
 
     @Inject
     public HdfsRepository(RepositoryName name, RepositorySettings repositorySettings, IndexShardRepository indexShardRepository) throws IOException {
         super(name.getName(), repositorySettings, indexShardRepository);
+
+        this.repositorySettings = repositorySettings;
 
         String path = repositorySettings.settings().get("path", componentSettings.get("path"));
         if (path == null) {
@@ -69,7 +72,7 @@ public class HdfsRepository extends BlobStoreRepository {
         }
 
         // get configuration
-        fs = initFileSystem(repositorySettings);
+        fs = getFileSystem();
         Path hdfsPath = fs.makeQualified(new Path(path));
         this.basePath = BlobPath.cleanPath();
 
@@ -78,9 +81,32 @@ public class HdfsRepository extends BlobStoreRepository {
                 EsExecutors.daemonThreadFactory(settings, "[hdfs_stream]"));
 
         logger.debug("Using file-system [{}] for URI [{}], path [{}], concurrent_streams [{}]", fs, fs.getUri(), hdfsPath, concurrentStreams);
-        blobStore = new HdfsBlobStore(settings, fs, hdfsPath, concurrentStreamPool);
+        blobStore = new HdfsBlobStore(settings, this, hdfsPath, concurrentStreamPool);
         this.chunkSize = repositorySettings.settings().getAsBytesSize("chunk_size", componentSettings.getAsBytesSize("chunk_size", null));
         this.compress = repositorySettings.settings().getAsBoolean("compress", componentSettings.getAsBoolean("compress", false));
+    }
+
+    // as the FileSystem is long-lived and might go away, make sure to check it before it's being used.
+    @Override
+    public FileSystem getFileSystem() throws IOException {
+        // check if the fs is still alive
+        if (fs != null) {
+            try {
+                fs.getUsed();
+            } catch (IOException ex) {
+                if (ex.getMessage().contains("Filesystem closed")) {
+                    fs = null;
+                }
+                else {
+                    throw ex;
+                }
+            }
+        }
+        if (fs == null) {
+            fs = initFileSystem(repositorySettings);
+        }
+
+        return fs;
     }
 
     private FileSystem initFileSystem(RepositorySettings repositorySettings) throws IOException {
@@ -105,6 +131,9 @@ public class HdfsRepository extends BlobStoreRepository {
         String user = repositorySettings.settings().get("user", componentSettings.get("user"));
 
         try {
+            // disable FS cache
+            String disableFsCache = String.format("fs.%s.impl.disable.cache", actualUri.getScheme());
+            cfg.setBoolean(disableFsCache, true);
             return (user != null ? FileSystem.get(actualUri, cfg, user) : FileSystem.get(actualUri, cfg));
         } catch (Exception ex) {
             throw new ElasticsearchGenerationException(String.format("Cannot create Hdfs file-system for uri [%s]", actualUri), ex);
@@ -175,6 +204,7 @@ public class HdfsRepository extends BlobStoreRepository {
         super.doClose();
 
         IOUtils.closeStream(fs);
+        fs = null;
         concurrentStreamPool.shutdown();
     }
 }

@@ -46,7 +46,7 @@ public class HdfsBlobContainer extends AbstractBlobContainer {
     @Override
     public boolean blobExists(String blobName) {
         try {
-            return blobStore.fileSystem().exists(new Path(path, blobName));
+            return blobStore.fileSystemFactory().getFileSystem().exists(new Path(path, blobName));
         } catch (Exception e) {
             return false;
         }
@@ -54,26 +54,26 @@ public class HdfsBlobContainer extends AbstractBlobContainer {
 
     @Override
     public boolean deleteBlob(String blobName) throws IOException {
-        return blobStore.fileSystem().delete(new Path(path, blobName), true);
+        return blobStore.fileSystemFactory().getFileSystem().delete(new Path(path, blobName), true);
     }
 
 
     @Override
     public InputStream openInput(String blobName) throws IOException {
         // FSDataInputStream does buffering internally
-        return blobStore.fileSystem().open(new Path(path, blobName), blobStore.bufferSizeInBytes());
+        return blobStore.fileSystemFactory().getFileSystem().open(new Path(path, blobName), blobStore.bufferSizeInBytes());
     }
 
     @Override
     public OutputStream createOutput(String blobName) throws IOException {
         Path file = new Path(path, blobName);
         // FSDataOutputStream does buffering internally
-        return blobStore.fileSystem().create(file, true, blobStore.bufferSizeInBytes());
+        return blobStore.fileSystemFactory().getFileSystem().create(file, true, blobStore.bufferSizeInBytes());
     }
 
     @Override
     public ImmutableMap<String, BlobMetaData> listBlobsByPrefix(final @Nullable String blobNamePrefix) throws IOException {
-        FileStatus[] files = blobStore.fileSystem().listStatus(path, new PathFilter() {
+        FileStatus[] files = blobStore.fileSystemFactory().getFileSystem().listStatus(path, new PathFilter() {
             @Override
             public boolean accept(Path path) {
                 return path.getName().startsWith(blobNamePrefix);
@@ -89,8 +89,9 @@ public class HdfsBlobContainer extends AbstractBlobContainer {
         return builder.build();
     }
 
+    @Override
     public ImmutableMap<String, BlobMetaData> listBlobs() throws IOException {
-        FileStatus[] files = blobStore.fileSystem().listStatus(path);
+        FileStatus[] files = blobStore.fileSystemFactory().getFileSystem().listStatus(path);
         if (files == null || files.length == 0) {
             return ImmutableMap.of();
         }

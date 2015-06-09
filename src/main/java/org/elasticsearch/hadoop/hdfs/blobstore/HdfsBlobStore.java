@@ -30,21 +30,24 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.repositories.hdfs.FileSystemFactory;
 
 public class HdfsBlobStore extends AbstractComponent implements BlobStore {
 
-    private final FileSystem fs;
+    private final FileSystemFactory ffs;
     private final Path rootHdfsPath;
     private final Executor executor;
     private final int bufferSizeInBytes;
 
-    public HdfsBlobStore(Settings settings, FileSystem fs, Path path, Executor executor) throws IOException {
+    public HdfsBlobStore(Settings settings, FileSystemFactory ffs, Path path, Executor executor) throws IOException {
         super(settings);
-        this.fs = fs;
+        this.ffs = ffs;
         this.rootHdfsPath = path;
         this.executor = executor;
 
         this.bufferSizeInBytes = (int) settings.getAsBytesSize("buffer_size", new ByteSizeValue(100, ByteSizeUnit.KB)).bytes();
+
+        FileSystem fs = ffs.getFileSystem();
 
         if (!fs.exists(path)) {
             fs.mkdirs(path);
@@ -56,8 +59,8 @@ public class HdfsBlobStore extends AbstractComponent implements BlobStore {
         return rootHdfsPath.toUri().toString();
     }
 
-    public FileSystem fileSystem() {
-        return fs;
+    public FileSystemFactory fileSystemFactory() {
+        return ffs;
     }
 
     public Path path() {
@@ -80,7 +83,7 @@ public class HdfsBlobStore extends AbstractComponent implements BlobStore {
     @Override
     public void delete(BlobPath path) {
         try {
-            fs.delete(translateToHdfsPath(path), true);
+            ffs.getFileSystem().delete(translateToHdfsPath(path), true);
         } catch (IOException ex) {
         }
     }
@@ -88,7 +91,7 @@ public class HdfsBlobStore extends AbstractComponent implements BlobStore {
     private Path buildHdfsPath(BlobPath blobPath) {
         Path path = translateToHdfsPath(blobPath);
         try {
-            fs.mkdirs(path);
+            ffs.getFileSystem().mkdirs(path);
         } catch (IOException e) {
             // ignore
         }

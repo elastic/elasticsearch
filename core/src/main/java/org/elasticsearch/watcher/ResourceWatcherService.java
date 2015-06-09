@@ -35,12 +35,12 @@ import java.util.concurrent.ScheduledFuture;
  *
  * Other elasticsearch services can register their resource watchers with this service using {@link #add(ResourceWatcher)}
  * method. This service will call {@link org.elasticsearch.watcher.ResourceWatcher#checkAndNotify()} method of all
- * registered watcher periodically. The frequency of checks can be specified using {@code watcher.interval} setting, which
- * defaults to {@code 60s}. The service can be disabled by setting {@code watcher.enabled} setting to {@code false}.
+ * registered watcher periodically. The frequency of checks can be specified using {@code resource.reload.interval} setting, which
+ * defaults to {@code 60s}. The service can be disabled by setting {@code resource.reload.enabled} setting to {@code false}.
  */
 public class ResourceWatcherService extends AbstractLifecycleComponent<ResourceWatcherService> {
 
-    public static enum Frequency {
+    public enum Frequency {
 
         /**
          * Defaults to 5 seconds
@@ -59,7 +59,7 @@ public class ResourceWatcherService extends AbstractLifecycleComponent<ResourceW
 
         final TimeValue interval;
 
-        private Frequency(TimeValue interval) {
+        Frequency(TimeValue interval) {
             this.interval = interval;
         }
     }
@@ -78,15 +78,21 @@ public class ResourceWatcherService extends AbstractLifecycleComponent<ResourceW
     @Inject
     public ResourceWatcherService(Settings settings, ThreadPool threadPool) {
         super(settings);
-        this.enabled = settings.getAsBoolean("watcher.enabled", true);
+        this.enabled = settings.getAsBoolean("resource.reload.enabled", true);
         this.threadPool = threadPool;
 
-        TimeValue interval = settings.getAsTime("watcher.interval.low", Frequency.LOW.interval);
+        TimeValue interval = settings.getAsTime("resource.reload.interval.low", Frequency.LOW.interval);
         lowMonitor = new ResourceMonitor(interval, Frequency.LOW);
-        interval = settings.getAsTime("watcher.interval.medium", settings.getAsTime("watcher.interval", Frequency.MEDIUM.interval));
+        interval = settings.getAsTime("resource.reload.interval.medium", settings.getAsTime("resource.reload.interval", Frequency.MEDIUM.interval));
         mediumMonitor = new ResourceMonitor(interval, Frequency.MEDIUM);
-        interval = settings.getAsTime("watcher.interval.high", Frequency.HIGH.interval);
+        interval = settings.getAsTime("resource.reload.interval.high", Frequency.HIGH.interval);
         highMonitor = new ResourceMonitor(interval, Frequency.HIGH);
+
+        logRemovedSetting("watcher.enabled", "resource.reload.enabled");
+        logRemovedSetting("watcher.interval", "resource.reload.interval");
+        logRemovedSetting("watcher.interval.low", "resource.reload.interval.low");
+        logRemovedSetting("watcher.interval.medium", "resource.reload.interval.medium");
+        logRemovedSetting("watcher.interval.high", "resource.reload.interval.high");
     }
 
     @Override

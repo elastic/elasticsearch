@@ -21,7 +21,9 @@ package org.elasticsearch.env;
 
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
+
 import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.*;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
@@ -116,11 +118,15 @@ public class NodeEnvironment extends AbstractComponent implements Closeable {
     // Setting to enable custom index.data_path setting for new indices
     public static final String SETTING_CUSTOM_DATA_PATH_ENABLED = "node.enable_custom_paths";
 
+    // If enabled, the [verbose] SegmentInfos.infoStream logging is sent to System.out:
+    public static final String SETTING_ENABLE_LUCENE_SEGMENT_INFOS_TRACE = "node.enable_lucene_segment_infos_trace";
+
     public static final String NODES_FOLDER = "nodes";
     public static final String INDICES_FOLDER = "indices";
     public static final String NODE_LOCK_FILENAME = "node.lock";
 
     @Inject
+    @SuppressForbidden(reason = "System.out.*")
     public NodeEnvironment(Settings settings, Environment environment) throws IOException {
         super(settings);
 
@@ -186,6 +192,10 @@ public class NodeEnvironment extends AbstractComponent implements Closeable {
         }
 
         maybeLogPathDetails();
+
+        if (settings.getAsBoolean(SETTING_ENABLE_LUCENE_SEGMENT_INFOS_TRACE, false)) {
+            SegmentInfos.setInfoStream(System.out);
+        }
     }
 
     private static void releaseAndNullLocks(Lock[] locks) {

@@ -44,7 +44,7 @@ public class InternalCryptoServiceTests extends ElasticsearchTestCase {
         Files.write(keyFile, InternalCryptoService.generateKey());
         settings = Settings.builder()
                 .put("shield.system_key.file", keyFile.toAbsolutePath())
-                .put("watcher.interval.high", "2s")
+                .put("resource.reload.interval.high", "2s")
                 .put("path.home", createTempDir())
                 .build();
         env = new Environment(settings);

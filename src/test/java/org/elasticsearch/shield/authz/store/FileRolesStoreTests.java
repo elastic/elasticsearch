@@ -133,7 +133,7 @@ public class FileRolesStoreTests extends ElasticsearchTestCase {
             }
 
             Settings settings = Settings.builder()
-                    .put("watcher.interval.high", "500ms")
+                    .put("resource.reload.interval.high", "500ms")
                     .put("shield.authz.store.files.roles", tmp.toAbsolutePath())
                     .put("path.home", createTempDir())
                     .build();

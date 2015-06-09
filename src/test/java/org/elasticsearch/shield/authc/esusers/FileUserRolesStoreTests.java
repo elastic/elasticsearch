@@ -50,7 +50,7 @@ public class FileUserRolesStoreTests extends ElasticsearchTestCase {
     @Before
     public void init() {
         settings = Settings.builder()
-                .put("watcher.interval.high", "2s")
+                .put("resource.reload.interval.high", "2s")
                 .put("path.home", createTempDir())
                 .build();
         env = new Environment(settings);

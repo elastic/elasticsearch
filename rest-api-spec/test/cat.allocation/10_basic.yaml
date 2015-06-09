@@ -61,9 +61,9 @@
               ( \s*                          #allow leading spaces to account for right-justified text
                 \d+                    \s+
                 \d+(\.\d+)?[kmgt]?b    \s+
-                (\d+(\.\d+)?[kmgt]b   \s+)?  #no value from client nodes
-                (\d+(\.\d+)?[kmgt]b   \s+)?  #no value from client nodes
-                (\d+                  \s+)?  #no value from client nodes
+                (\d+(\.\d+)?[kmgt]b   \s+)  #always should return value since we filter out non data nodes by default
+                (\d+(\.\d+)?[kmgt]b   \s+)  #always should return value since we filter out non data nodes by default
+                (\d+                  \s+)  #always should return value since we filter out non data nodes by default
                 [-\w.]+                \s+
                 \d+(\.\d+){3}          \s+
                 \w.*
@@ -111,6 +111,37 @@
             $/
 
 ---
+
+"All Nodes":
+
+   - do:
+         cat.allocation:
+           node_id: "*"
+           v: false
+
+   - match:
+       $body: |
+             /^
+               ( \s*                          #allow leading spaces to account for right-justified text
+                 \d+                    \s+
+                 \d+(\.\d+)?[kmgt]?b    \s+
+                 (\d+(\.\d+)?[kmgt]b   \s+)?  #no value from client nodes
+                 (\d+(\.\d+)?[kmgt]b   \s+)?  #no value from client nodes
+                 (\d+                  \s+)?  #no value from client nodes
+                 [-\w.]+                \s+
+                 \d+(\.\d+){3}          \s+
+                 \w.*
+                 \n
+               )+
+               (
+                 \s*                          #allow leading spaces to account for right-justified text
+                 \d+                    \s+
+                 UNASSIGNED             \s+
+                 \n
+               )?
+             $/
+
+---
 "Column headers":
 
   - do:
@@ -132,9 +163,9 @@
               ( \s*                          #allow leading spaces to account for right-justified text
                 0                      \s+
                 \d+(\.\d+)?[kmgt]?b    \s+
-                (\d+(\.\d+)?[kmgt]b   \s+)?  #no value from client nodes
-                (\d+(\.\d+)?[kmgt]b   \s+)?  #no value from client nodes
-                (\d+                  \s+)?  #no value from client nodes
+                (\d+(\.\d+)?[kmgt]b   \s+)  #always should return value since we filter out non data nodes by default
+                (\d+(\.\d+)?[kmgt]b   \s+)  #always should return value since we filter out non data nodes by default
+                (\d+                  \s+)  #always should return value since we filter out non data nodes by default
                 [-\w.]+                \s+
                 \d+(\.\d+){3}          \s+
                 \w.*
@@ -192,9 +223,9 @@
             /^
               ( 0                   \s+
                 \d+                 \s+
-                (\d+                 \s+)?  #no value from client nodes
-                (\d+                 \s+)?  #no value from client nodes
-                (\d+                 \s+)?  #no value from client nodes
+                (\d+                 \s+)  #always should return value since we filter out non data nodes by default
+                (\d+                 \s+)  #always should return value since we filter out non data nodes by default
+                (\d+                 \s+)  #always should return value since we filter out non data nodes by default
                 [-\w.]+             \s+
                 \d+(\.\d+){3}       \s+
                 \w.*

@@ -77,7 +77,22 @@ public class IdsQueryBuilder extends QueryBuilder<IdsQueryBuilder> implements Bo
     /**
      * Adds ids to the query.
      */
+    public IdsQueryBuilder addIds(Collection<String> ids) {
+        this.ids.addAll(ids);
+        return this;
+    }
+
+    /**
+     * Adds ids to the filter.
+     */
     public IdsQueryBuilder ids(String... ids) {
+        return addIds(ids);
+    }
+
+    /**
+     * Adds ids to the filter.
+     */
+    public IdsQueryBuilder ids(Collection<String> ids) {
         return addIds(ids);
     }
 

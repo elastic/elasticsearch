@@ -1,8 +1,8 @@
 [[cat-fielddata]]
 == cat fielddata
 
-`fielddata` shows information about currently loaded fielddata on a per-node
-basis.
+`fielddata` shows how much heap memory is currently being used by fielddata 
+on every data node in the cluster.
 
 [source,shell]
 --------------------------------------------------

@@ -21,7 +21,6 @@ package org.elasticsearch.index.query;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
-import org.apache.lucene.index.LeafReaderContext;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.queryparser.classic.MapperQueryParser;
@@ -179,7 +178,7 @@ public class QueryParseContext {
         return indexQueryParser.bitsetFilterCache.getBitDocIdSetFilter(filter);
     }
 
-    public <IFD extends IndexFieldData<?>> IFD getForField(FieldMapper mapper) {
+    public <IFD extends IndexFieldData<?>> IFD getForField(MappedFieldType mapper) {
         return indexQueryParser.fieldDataService.getForField(mapper);
     }
 
@@ -280,8 +279,8 @@ public class QueryParseContext {
         return indexQueryParser.mapperService.simpleMatchToIndexNames(pattern, getTypes());
     }
 
-    public FieldMapper fieldMapper(String name) {
-        return failIfFieldMappingNotFound(name, indexQueryParser.mapperService.smartNameFieldMapper(name, getTypes()));
+    public MappedFieldType fieldMapper(String name) {
+        return failIfFieldMappingNotFound(name, indexQueryParser.mapperService.smartNameFieldType(name, getTypes()));
     }
 
     public MapperService.SmartNameObjectMapper smartObjectMapper(String name) {
@@ -291,9 +290,9 @@ public class QueryParseContext {
     /** Gets the search analyzer for the given field, or the default if there is none present for the field
      * TODO: remove this by moving defaults into mappers themselves
      */
-    public Analyzer getSearchAnalyzer(FieldMapper mapper) {
-        if (mapper.fieldType().searchAnalyzer() != null) {
-            return mapper.fieldType().searchAnalyzer();
+    public Analyzer getSearchAnalyzer(MappedFieldType fieldType) {
+        if (fieldType.searchAnalyzer() != null) {
+            return fieldType.searchAnalyzer();
         }
         return mapperService().searchAnalyzer();
     }
@@ -301,9 +300,9 @@ public class QueryParseContext {
     /** Gets the search quote nalyzer for the given field, or the default if there is none present for the field
      * TODO: remove this by moving defaults into mappers themselves
      */
-    public Analyzer getSearchQuoteAnalyzer(FieldMapper mapper) {
-        if (mapper.fieldType().searchQuoteAnalyzer() != null) {
-            return mapper.fieldType().searchQuoteAnalyzer();
+    public Analyzer getSearchQuoteAnalyzer(MappedFieldType fieldType) {
+        if (fieldType.searchQuoteAnalyzer() != null) {
+            return fieldType.searchQuoteAnalyzer();
         }
         return mapperService().searchQuoteAnalyzer();
     }
@@ -316,15 +315,14 @@ public class QueryParseContext {
         this.mapUnmappedFieldAsString = mapUnmappedFieldAsString;
     }
 
-    private FieldMapper failIfFieldMappingNotFound(String name, FieldMapper fieldMapping) {
+    private MappedFieldType failIfFieldMappingNotFound(String name, MappedFieldType fieldMapping) {
         if (allowUnmappedFields) {
             return fieldMapping;
         } else if (mapUnmappedFieldAsString){
             StringFieldMapper.Builder builder = MapperBuilders.stringField(name);
             // it would be better to pass the real index settings, but they are not easily accessible from here...
             Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, indexQueryParser.getIndexCreatedVersion()).build();
-            StringFieldMapper stringFieldMapper = builder.build(new Mapper.BuilderContext(settings, new ContentPath(1)));
-            return stringFieldMapper;
+            return builder.build(new Mapper.BuilderContext(settings, new ContentPath(1))).fieldType();
         } else {
             Version indexCreatedVersion = indexQueryParser.getIndexCreatedVersion();
             if (fieldMapping == null && indexCreatedVersion.onOrAfter(Version.V_1_4_0_Beta1)) {

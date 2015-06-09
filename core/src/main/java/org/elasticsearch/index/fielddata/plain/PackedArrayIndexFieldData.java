@@ -85,9 +85,9 @@ public class PackedArrayIndexFieldData extends AbstractIndexFieldData<AtomicNume
         }
 
         @Override
-        public IndexFieldData<AtomicNumericFieldData> build(Index index, @IndexSettings Settings indexSettings, FieldMapper mapper,
+        public IndexFieldData<AtomicNumericFieldData> build(Index index, @IndexSettings Settings indexSettings, MappedFieldType fieldType,
                                                             IndexFieldDataCache cache, CircuitBreakerService breakerService, MapperService mapperService) {
-            return new PackedArrayIndexFieldData(index, indexSettings, mapper.fieldType().names(), mapper.fieldType().fieldDataType(), cache, numericType, breakerService);
+            return new PackedArrayIndexFieldData(index, indexSettings, fieldType.names(), fieldType.fieldDataType(), cache, numericType, breakerService);
         }
     }
 

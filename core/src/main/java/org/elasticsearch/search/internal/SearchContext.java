@@ -21,16 +21,13 @@ package org.elasticsearch.search.internal;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.MultimapBuilder;
-
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.util.Counter;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
-import org.elasticsearch.common.HasContext;
 import org.elasticsearch.common.HasContextAndHeaders;
-import org.elasticsearch.common.HasHeaders;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
@@ -38,8 +35,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
-import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.FieldMappers;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.query.ParsedQuery;
@@ -343,12 +339,12 @@ public abstract class SearchContext implements Releasable, HasContextAndHeaders 
 
     public abstract ScanContext scanContext();
 
-    public abstract FieldMapper smartNameFieldMapper(String name);
+    public abstract MappedFieldType smartNameFieldType(String name);
 
     /**
      * Looks up the given field, but does not restrict to fields in the types set on this context.
      */
-    public abstract FieldMapper smartNameFieldMapperFromAnyType(String name);
+    public abstract MappedFieldType smartNameFieldTypeFromAnyType(String name);
 
     public abstract MapperService.SmartNameObjectMapper smartNameObjectMapper(String name);
 

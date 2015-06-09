@@ -25,7 +25,7 @@ import org.apache.lucene.index.LeafReader;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.fieldvisitor.SingleFieldsVisitor;
-import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 
 import java.io.IOException;
@@ -136,20 +136,20 @@ public class LeafFieldsLookup implements Map {
     private FieldLookup loadFieldData(String name) {
         FieldLookup data = cachedFieldData.get(name);
         if (data == null) {
-            FieldMapper mapper = mapperService.smartNameFieldMapper(name, types);
-            if (mapper == null) {
+            MappedFieldType fieldType = mapperService.smartNameFieldType(name, types);
+            if (fieldType == null) {
                 throw new IllegalArgumentException("No field found for [" + name + "] in mapping with types " + Arrays.toString(types) + "");
             }
-            data = new FieldLookup(mapper);
+            data = new FieldLookup(fieldType);
             cachedFieldData.put(name, data);
         }
         if (data.fields() == null) {
-            String fieldName = data.mapper().fieldType().names().indexName();
+            String fieldName = data.fieldType().names().indexName();
             fieldVisitor.reset(fieldName);
             try {
                 reader.document(docId, fieldVisitor);
-                fieldVisitor.postProcess(data.mapper());
-                data.fields(ImmutableMap.of(name, fieldVisitor.fields().get(data.mapper().fieldType().names().indexName())));
+                fieldVisitor.postProcess(data.fieldType());
+                data.fields(ImmutableMap.of(name, fieldVisitor.fields().get(data.fieldType().names().indexName())));
             } catch (IOException e) {
                 throw new ElasticsearchParseException("failed to load field [" + name + "]", e);
             }

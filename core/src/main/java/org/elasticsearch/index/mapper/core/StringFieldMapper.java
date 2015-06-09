@@ -184,7 +184,7 @@ public class StringFieldMapper extends AbstractFieldMapper implements AllFieldMa
         }
     }
 
-    static final class StringFieldType extends MappedFieldType {
+    public static final class StringFieldType extends MappedFieldType {
 
         public StringFieldType() {
             super(AbstractFieldMapper.Defaults.FIELD_TYPE);

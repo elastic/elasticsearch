@@ -25,6 +25,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.core.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
@@ -169,8 +170,8 @@ public class ValuesSourceParser<VS extends ValuesSource> {
             return config;
         }
 
-        FieldMapper mapper = context.smartNameFieldMapperFromAnyType(input.field);
-        if (mapper == null) {
+        MappedFieldType fieldType = context.smartNameFieldTypeFromAnyType(input.field);
+        if (fieldType == null) {
             Class<VS> valuesSourceType = valueType != null ? (Class<VS>) valueType.getValuesSourceType() : this.valuesSourceType;
             ValuesSourceConfig<VS> config = new ValuesSourceConfig<>(valuesSourceType);
             config.missing = input.missing;
@@ -183,7 +184,7 @@ public class ValuesSourceParser<VS extends ValuesSource> {
             return config;
         }
 
-        IndexFieldData<?> indexFieldData = context.fieldData().getForField(mapper);
+        IndexFieldData<?> indexFieldData = context.fieldData().getForField(fieldType);
 
         ValuesSourceConfig config;
         if (valuesSourceType == ValuesSource.class) {
@@ -198,10 +199,10 @@ public class ValuesSourceParser<VS extends ValuesSource> {
             config = new ValuesSourceConfig(valuesSourceType);
         }
 
-        config.fieldContext = new FieldContext(input.field, indexFieldData, mapper);
+        config.fieldContext = new FieldContext(input.field, indexFieldData, fieldType);
         config.missing = input.missing;
         config.script = createScript();
-        config.format = resolveFormat(input.format, mapper);
+        config.format = resolveFormat(input.format, fieldType);
         return config;
     }
 
@@ -220,17 +221,17 @@ public class ValuesSourceParser<VS extends ValuesSource> {
         return valueFormat;
     }
 
-    private static ValueFormat resolveFormat(@Nullable String format, FieldMapper mapper) {
-        if (mapper instanceof  DateFieldMapper) {
-            return format != null ? ValueFormat.DateTime.format(format) : ValueFormat.DateTime.mapper((DateFieldMapper) mapper);
+    private static ValueFormat resolveFormat(@Nullable String format, MappedFieldType fieldType) {
+        if (fieldType instanceof  DateFieldMapper.DateFieldType) {
+            return format != null ? ValueFormat.DateTime.format(format) : ValueFormat.DateTime.mapper((DateFieldMapper.DateFieldType) fieldType);
         }
-        if (mapper instanceof IpFieldMapper) {
+        if (fieldType instanceof IpFieldMapper.IpFieldType) {
             return ValueFormat.IPv4;
         }
-        if (mapper instanceof BooleanFieldMapper) {
+        if (fieldType instanceof BooleanFieldMapper.BooleanFieldType) {
             return ValueFormat.BOOLEAN;
         }
-        if (mapper instanceof NumberFieldMapper) {
+        if (fieldType instanceof NumberFieldMapper.NumberFieldType) {
             return format != null ? ValueFormat.Number.format(format) : ValueFormat.RAW;
         }
         return null;

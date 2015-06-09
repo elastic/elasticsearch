@@ -28,7 +28,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lucene.index.FilterableTermsEnum;
 import org.elasticsearch.common.lucene.index.FreqTermsEnum;
-import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -131,7 +131,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
     private final IncludeExclude includeExclude;
     private final String executionHint;
     private String indexedFieldName;
-    private FieldMapper mapper;
+    private MappedFieldType fieldType;
     private FilterableTermsEnum termsEnum;
     private int numberOfAggregatorsCreated = 0;
     private final Query filter;
@@ -152,7 +152,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
         this.significanceHeuristic = significanceHeuristic;
         if (!valueSourceConfig.unmapped()) {
             this.indexedFieldName = config.fieldContext().field();
-            mapper = SearchContext.current().smartNameFieldMapper(indexedFieldName);
+            fieldType = SearchContext.current().smartNameFieldType(indexedFieldName);
         }
         this.filter = filter;
     }
@@ -266,7 +266,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
 
 
     public long getBackgroundFrequency(long term) {
-        BytesRef indexedVal = mapper.indexedValueForSearch(term);
+        BytesRef indexedVal = fieldType.indexedValueForSearch(term);
         return getBackgroundFrequency(indexedVal);
     }
 

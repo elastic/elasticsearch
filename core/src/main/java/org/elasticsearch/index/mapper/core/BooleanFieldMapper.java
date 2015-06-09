@@ -116,7 +116,7 @@ public class BooleanFieldMapper extends AbstractFieldMapper {
         }
     }
 
-    static final class BooleanFieldType extends MappedFieldType {
+    public static final class BooleanFieldType extends MappedFieldType {
 
         public BooleanFieldType() {
             super(AbstractFieldMapper.Defaults.FIELD_TYPE);

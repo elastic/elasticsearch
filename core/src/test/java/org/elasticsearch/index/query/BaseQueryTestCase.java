@@ -207,8 +207,8 @@ public abstract class BaseQueryTestCase<QB extends QueryBuilder<QB>> extends Ela
 
         QueryBuilder newQuery = queryParserService.queryParser(testQuery.getName()).fromXContent(context);
         assertNotSame(newQuery, testQuery);
-        assertEquals(newQuery, testQuery);
-        assertEquals(newQuery.hashCode(), testQuery.hashCode());
+        assertEquals("Queries should be equal: " + newQuery + " vs. " + testQuery, newQuery, testQuery);
+        assertEquals("Queries should have equal hashcodes: " + newQuery + " vs. " + testQuery, newQuery.hashCode(), testQuery.hashCode());
     }
 
     /**

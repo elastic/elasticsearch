@@ -19,22 +19,15 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.LocaleUtils;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.query.SimpleQueryStringBuilder.Operator;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -70,7 +63,7 @@ import java.util.Map;
  * {@code fields} - fields to search, defaults to _all if not set, allows
  * boosting a field with ^n
  */
-public class SimpleQueryStringParser extends BaseQueryParserTemp {
+public class SimpleQueryStringParser extends BaseQueryParser {
 
     @Inject
     public SimpleQueryStringParser(Settings settings) {
@@ -83,7 +76,7 @@ public class SimpleQueryStringParser extends BaseQueryParserTemp {
     }
 
     @Override
-    public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public QueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
         String currentFieldName = null;
@@ -92,11 +85,14 @@ public class SimpleQueryStringParser extends BaseQueryParserTemp {
         String queryName = null;
         String field = null;
         String minimumShouldMatch = null;
-        Map<String, Float> fieldsAndWeights = null;
-        BooleanClause.Occur defaultOperator = null;
-        Analyzer analyzer = null;
+        Map<String, Float> fieldsAndWeights = new HashMap<>();
+        Operator defaultOperator = null;
+        String analyzerName = null;
         int flags = -1;
-        SimpleQueryParser.Settings sqsSettings = new SimpleQueryParser.Settings();
+        boolean lenient = SimpleQueryStringBuilder.DEFAULT_LENIENT;
+        boolean lowercaseExpandedTerms = SimpleQueryStringBuilder.DEFAULT_LOWERCASE_EXPANDED_TERMS;
+        boolean analyzeWildcard = SimpleQueryStringBuilder.DEFAULT_ANALYZE_WILDCARD;
+        Locale locale = null;
 
         XContentParser.Token token;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -119,10 +115,6 @@ public class SimpleQueryStringParser extends BaseQueryParserTemp {
                         }
                         if (fField == null) {
                             fField = parser.text();
-                        }
-
-                        if (fieldsAndWeights == null) {
-                            fieldsAndWeights = new HashMap<>();
                         }
 
                         if (Regex.isSimpleMatchPattern(fField)) {
@@ -149,18 +141,15 @@ public class SimpleQueryStringParser extends BaseQueryParserTemp {
                 } else if ("boost".equals(currentFieldName)) {
                     boost = parser.floatValue();
                 } else if ("analyzer".equals(currentFieldName)) {
-                    analyzer = parseContext.analysisService().analyzer(parser.text());
-                    if (analyzer == null) {
-                        throw new QueryParsingException(parseContext, "[" + SimpleQueryStringBuilder.NAME + "] analyzer [" + parser.text() + "] not found");
-                    }
+                    analyzerName = parser.text();
                 } else if ("field".equals(currentFieldName)) {
                     field = parser.text();
                 } else if ("default_operator".equals(currentFieldName) || "defaultOperator".equals(currentFieldName)) {
                     String op = parser.text();
                     if ("or".equalsIgnoreCase(op)) {
-                        defaultOperator = BooleanClause.Occur.SHOULD;
+                        defaultOperator = Operator.OR;
                     } else if ("and".equalsIgnoreCase(op)) {
-                        defaultOperator = BooleanClause.Occur.MUST;
+                        defaultOperator = Operator.AND;
                     } else {
                         throw new QueryParsingException(parseContext, "[" + SimpleQueryStringBuilder.NAME + "] default operator [" + op + "] is not allowed");
                     }
@@ -177,14 +166,13 @@ public class SimpleQueryStringParser extends BaseQueryParserTemp {
                     }
                 } else if ("locale".equals(currentFieldName)) {
                     String localeStr = parser.text();
-                    Locale locale = LocaleUtils.parse(localeStr);
-                    sqsSettings.locale(locale);
+                    locale = Locale.forLanguageTag(localeStr);
                 } else if ("lowercase_expanded_terms".equals(currentFieldName)) {
-                    sqsSettings.lowercaseExpandedTerms(parser.booleanValue());
+                    lowercaseExpandedTerms = parser.booleanValue();
                 } else if ("lenient".equals(currentFieldName)) {
-                    sqsSettings.lenient(parser.booleanValue());
+                    lenient = parser.booleanValue();
                 } else if ("analyze_wildcard".equals(currentFieldName)) {
-                    sqsSettings.analyzeWildcard(parser.booleanValue());
+                    analyzeWildcard = parser.booleanValue();
                 } else if ("_name".equals(currentFieldName)) {
                     queryName = parser.text();
                 } else if ("minimum_should_match".equals(currentFieldName)) {
@@ -199,45 +187,18 @@ public class SimpleQueryStringParser extends BaseQueryParserTemp {
         if (queryBody == null) {
             throw new QueryParsingException(parseContext, "[" + SimpleQueryStringBuilder.NAME + "] query text missing");
         }
-        
+
         // Support specifying only a field instead of a map
         if (field == null) {
             field = currentFieldName;
         }
 
-        // Use the default field (_all) if no fields specified
-        if (fieldsAndWeights == null) {
-            field = parseContext.defaultField();
-        }
+        SimpleQueryStringBuilder qb = new SimpleQueryStringBuilder(queryBody);
+        qb.boost(boost).fields(fieldsAndWeights).analyzer(analyzerName).queryName(queryName).minimumShouldMatch(minimumShouldMatch);
+        qb.flags(flags).defaultOperator(defaultOperator).locale(locale).lowercaseExpandedTerms(lowercaseExpandedTerms);
+        qb.lenient(lenient).analyzeWildcard(analyzeWildcard).boost(boost);
 
-        // Use standard analyzer by default
-        if (analyzer == null) {
-            analyzer = parseContext.mapperService().searchAnalyzer();
-        }
-
-        if (fieldsAndWeights == null) {
-            fieldsAndWeights = Collections.singletonMap(field, 1.0F);
-        }
-        SimpleQueryParser sqp = new SimpleQueryParser(analyzer, fieldsAndWeights, flags, sqsSettings);
-
-        if (defaultOperator != null) {
-            sqp.setDefaultOperator(defaultOperator);
-        }
-
-        Query query = sqp.parse(queryBody);
-        if (queryName != null) {
-            parseContext.addNamedQuery(queryName, query);
-        }
-
-        if (minimumShouldMatch != null && query instanceof BooleanQuery) {
-            Queries.applyMinimumShouldMatch((BooleanQuery) query, minimumShouldMatch);
-        }
-
-        if (query != null) {
-            query.setBoost(boost);
-        }
-
-        return query;
+        return qb;
     }
 
     @Override

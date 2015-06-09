@@ -13,11 +13,7 @@ set -o pipefail
 # ./migrate.sh 
 # mvn clean install -DskipTests
 
-DIR_TMP="../migration"
-MODULE_CORE="core"
-GIT_BRANCH="refactoring/maven"
-PARENT_NAME="elasticsearch-parent"
-PARENT_GIT="https://github.com/elastic/elasticsearch-parent.git"
+GIT_BRANCH="refactoring/add_lang"
 
 # Insert a new text after a given line
 # insertLinesAfter text_to_find text_to_add newLine_separator filename
@@ -105,11 +101,6 @@ function migratePlugin() {
 
 echo "# STEP 0 : prepare the job"
 
-# echo "## clean $DIR_TMP plugins dev-tools/target target"
-rm -rf $DIR_TMP 
-rm -rf plugins 
-rm -rf dev-tools/target
-rm -rf target
 
 # echo "## create git $GIT_BRANCH work branch"
 
@@ -121,99 +112,13 @@ git branch -D $GIT_BRANCH > /dev/null || :
 git branch $GIT_BRANCH > /dev/null
 git checkout $GIT_BRANCH > /dev/null 2>/dev/null
 
-echo "# STEP 1 : Core module"
-
-# create the tmp work dir
-# echo "## create $DIR_TMP temporary dir"
-mkdir $DIR_TMP
-
-# create the core module
-# echo "## create core module in $MODULE_CORE"
-rm -rf $MODULE_CORE 
-mkdir $MODULE_CORE
-# echo "## create $MODULE_CORE pom.xml"
-cp pom.xml $MODULE_CORE
-# echo "## modify $MODULE_CORE/pom.xml"
-# We move <parent></parent> block on top
-removeLines "<parent>" "<\/parent>" "$MODULE_CORE/pom.xml"
-insertLinesAfter "<\/modelVersion>" "    <parent>§        <groupId>org.elasticsearch<\/groupId>§        <artifactId>elasticsearch-parent<\/artifactId>§        <version>2.0.0-SNAPSHOT<\/version>§    <\/parent>§" "§" "$MODULE_CORE/pom.xml"
-# We clean useless data
-replaceLine "    <version>2.0.0-SNAPSHOT<\/version>" "" "$MODULE_CORE/pom.xml"
-removeLines "<inceptionYear>" "<\/scm>" "$MODULE_CORE/pom.xml"
-removeLines "<repositories>" "<\/repositories>" "$MODULE_CORE/pom.xml"
-
-# echo "## move src in $MODULE_CORE"
-git mv src/ $MODULE_CORE
-# echo "## move bin in $MODULE_CORE"
-git mv bin/ $MODULE_CORE
-# echo "## move config in $MODULE_CORE"
-git mv config/ $MODULE_CORE 
-# echo "## move lib in $MODULE_CORE"
-git mv lib/ $MODULE_CORE 
-# echo "## copy README.textile, LICENSE.txt and NOTICE.txt in $MODULE_CORE"
-cp README.textile $MODULE_CORE 
-cp LICENSE.txt $MODULE_CORE 
-cp NOTICE.txt $MODULE_CORE 
-# echo "## modify rest-api-spec location in $MODULE_CORE/pom.xml"
-replaceLine "                <directory>\${project.basedir}\/rest-api-spec<\/directory>" "                <directory>\${project.basedir}\/..\/rest-api-spec<\/directory>" "$MODULE_CORE/pom.xml"
-
-
-# echo "## commit changes"
-git add .
-git commit -m "create $MODULE_CORE module" > /dev/null
-
-echo "# STEP 2 : Parent pom.xml from $PARENT_GIT"
-
-# echo "## fetch parent project from $PARENT_GIT in $DIR_TMP"
-# If you want to run that locally, uncomment this line and comment one below
-# cp -R ../elasticsearch-parent $DIR_TMP
-git clone $PARENT_GIT $DIR_TMP/$PARENT_NAME > /dev/null 2>/dev/null
-
-cp $DIR_TMP/$PARENT_NAME/pom.xml .
-cp -R $DIR_TMP/$PARENT_NAME/dev-tools .
-cp -R $DIR_TMP/$PARENT_NAME/plugins .
-
-# echo "## commit changes"
-git add .
-git commit -m "create parent pom project from its original location" > /dev/null
-
-echo "# STEP 3 : Add $MODULE_CORE module to pom.xml"
-
-insertLinesBefore "    <\/modules>" "        <module>$MODULE_CORE<\/module>" "§" "pom.xml"
-
-# echo "## change name to Elasticsearch Core"
-replaceLine "    <name>Elasticsearch core<\/name>" "    <name>Elasticsearch Core<\/name>" "$MODULE_CORE/pom.xml"
-
-# echo "## commit changes"
-git add .
-git commit -m "add core module" > /dev/null
 
 echo "# STEP 4 : Migrate plugins"
 
-# We need to add <modules></modules> in the plugins parent project as it does not exist
-insertLinesBefore "<\/project>" "    <modules>§    <\/modules>" "§" "plugins/pom.xml"
-git add plugins/pom.xml
-git commit -m "add modules section"
 # Analysis
-migratePlugin "analysis-kuromoji" 
-migratePlugin "analysis-smartcn"
-migratePlugin "analysis-stempel"
-migratePlugin "analysis-phonetic"
-migratePlugin "analysis-icu"
+migratePlugin "lang-python" 
+migratePlugin "lang-javascript"
 
-# Mapper
-# TODO: look at this one later
-# migratePlugin "mapper-attachments"
-
-# Cloud
-migratePlugin "cloud-gce"
-migratePlugin "cloud-azure"
-migratePlugin "cloud-aws"
-
-echo "# STEP 5 : Clean tmp dir"
-
-# echo "## clean $DIR_TMP"
-rm -rf $DIR_TMP 
 
 echo "you can now run:"
 echo "mvn clean install -DskipTests"

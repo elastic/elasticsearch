@@ -73,28 +73,19 @@ public class ShortFieldMapper extends NumberFieldMapper {
         static {
             FIELD_TYPE.freeze();
         }
-
-        public static final Short NULL_VALUE = null;
     }
 
     public static class Builder extends NumberFieldMapper.Builder<Builder, ShortFieldMapper> {
-
-        protected Short nullValue = Defaults.NULL_VALUE;
 
         public Builder(String name) {
             super(name, Defaults.FIELD_TYPE, DEFAULT_PRECISION_STEP);
             builder = this;
         }
 
-        public Builder nullValue(short nullValue) {
-            this.nullValue = nullValue;
-            return this;
-        }
-
         @Override
         public ShortFieldMapper build(BuilderContext context) {
             setupFieldType(context);
-            ShortFieldMapper fieldMapper = new ShortFieldMapper(fieldType, docValues, nullValue,
+            ShortFieldMapper fieldMapper = new ShortFieldMapper(fieldType, docValues,
                     ignoreMalformed(context), coerce(context), fieldDataSettings,
                     context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
             fieldMapper.includeInAll(includeInAll);
@@ -148,6 +139,11 @@ public class ShortFieldMapper extends NumberFieldMapper {
         }
 
         @Override
+        public Short nullValue() {
+            return (Short)super.nullValue();
+        }
+
+        @Override
         public Short value(Object value) {
             if (value == null) {
                 return null;
@@ -196,18 +192,17 @@ public class ShortFieldMapper extends NumberFieldMapper {
         }
     }
 
-    private Short nullValue;
-
-    private String nullValueAsString;
-
     protected ShortFieldMapper(MappedFieldType fieldType, Boolean docValues,
-                               Short nullValue, Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce,
+                               Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce,
                                @Nullable Settings fieldDataSettings,
                                Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
         super(fieldType, docValues, ignoreMalformed, coerce,
              fieldDataSettings, indexSettings, multiFields, copyTo);
-        this.nullValue = nullValue;
-        this.nullValueAsString = nullValue == null ? null : nullValue.toString();
+    }
+
+    @Override
+    public ShortFieldType fieldType() {
+        return (ShortFieldType)fieldType;
     }
 
     @Override
@@ -231,14 +226,6 @@ public class ShortFieldMapper extends NumberFieldMapper {
     }
 
     @Override
-    public Query nullValueFilter() {
-        if (nullValue == null) {
-            return null;
-        }
-        return new ConstantScoreQuery(termQuery(nullValue, null));
-    }
-
-    @Override
     protected boolean customBoost() {
         return true;
     }
@@ -250,17 +237,17 @@ public class ShortFieldMapper extends NumberFieldMapper {
         if (context.externalValueSet()) {
             Object externalValue = context.externalValue();
             if (externalValue == null) {
-                if (nullValue == null) {
+                if (fieldType().nullValue() == null) {
                     return;
                 }
-                value = nullValue;
+                value = fieldType().nullValue();
             } else if (externalValue instanceof String) {
                 String sExternalValue = (String) externalValue;
                 if (sExternalValue.length() == 0) {
-                    if (nullValue == null) {
+                    if (fieldType().nullValue() == null) {
                         return;
                     }
-                    value = nullValue;
+                    value = fieldType().nullValue();
                 } else {
                     value = Short.parseShort(sExternalValue);
                 }
@@ -274,17 +261,17 @@ public class ShortFieldMapper extends NumberFieldMapper {
             XContentParser parser = context.parser();
             if (parser.currentToken() == XContentParser.Token.VALUE_NULL ||
                     (parser.currentToken() == XContentParser.Token.VALUE_STRING && parser.textLength() == 0)) {
-                if (nullValue == null) {
+                if (fieldType().nullValue() == null) {
                     return;
                 }
-                value = nullValue;
-                if (nullValueAsString != null && (context.includeInAll(includeInAll, this))) {
-                    context.allEntries().addText(fieldType.names().fullName(), nullValueAsString, boost);
+                value = fieldType().nullValue();
+                if (fieldType().nullValueAsString() != null && (context.includeInAll(includeInAll, this))) {
+                    context.allEntries().addText(fieldType.names().fullName(), fieldType().nullValueAsString(), boost);
                 }
             } else if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
                 XContentParser.Token token;
                 String currentFieldName = null;
-                Short objValue = nullValue;
+                Short objValue = fieldType().nullValue();
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                     if (token == XContentParser.Token.FIELD_NAME) {
                         currentFieldName = parser.currentName();
@@ -334,8 +321,9 @@ public class ShortFieldMapper extends NumberFieldMapper {
             return;
         }
         if (!mergeResult.simulate()) {
-            this.nullValue = ((ShortFieldMapper) mergeWith).nullValue;
-            this.nullValueAsString = ((ShortFieldMapper) mergeWith).nullValueAsString;
+            this.fieldType = this.fieldType.clone();
+            this.fieldType.setNullValue(((ShortFieldMapper) mergeWith).fieldType().nullValue());
+            this.fieldType.freeze();
         }
     }
 
@@ -346,8 +334,8 @@ public class ShortFieldMapper extends NumberFieldMapper {
         if (includeDefaults || fieldType.numericPrecisionStep() != DEFAULT_PRECISION_STEP) {
             builder.field("precision_step", fieldType.numericPrecisionStep());
         }
-        if (includeDefaults || nullValue != null) {
-            builder.field("null_value", nullValue);
+        if (includeDefaults || fieldType().nullValue() != null) {
+            builder.field("null_value", fieldType().nullValue());
         }
         if (includeInAll != null) {
             builder.field("include_in_all", includeInAll);

@@ -115,15 +115,10 @@ public class IpFieldMapper extends NumberFieldMapper {
             builder = this;
         }
 
-        public Builder nullValue(String nullValue) {
-            this.nullValue = nullValue;
-            return this;
-        }
-
         @Override
         public IpFieldMapper build(BuilderContext context) {
             setupFieldType(context);
-            IpFieldMapper fieldMapper = new IpFieldMapper(fieldType, docValues, nullValue, ignoreMalformed(context), coerce(context),
+            IpFieldMapper fieldMapper = new IpFieldMapper(fieldType, docValues, ignoreMalformed(context), coerce(context),
                     fieldDataSettings, context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
             fieldMapper.includeInAll(includeInAll);
             return fieldMapper;
@@ -232,15 +227,12 @@ public class IpFieldMapper extends NumberFieldMapper {
         }
     }
 
-    private String nullValue;
-
     protected IpFieldMapper(MappedFieldType fieldType, Boolean docValues,
-                            String nullValue, Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce,
+                            Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce,
                             @Nullable Settings fieldDataSettings,
                             Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
         super(fieldType, docValues, ignoreMalformed, coerce,
               fieldDataSettings, indexSettings, multiFields, copyTo);
-        this.nullValue = nullValue;
     }
 
     @Override
@@ -264,24 +256,16 @@ public class IpFieldMapper extends NumberFieldMapper {
     }
 
     @Override
-    public Query nullValueFilter() {
-        if (nullValue == null) {
-            return null;
-        }
-        return new ConstantScoreQuery(termQuery(nullValue, null));
-    }
-
-    @Override
     protected void innerParseCreateField(ParseContext context, List<Field> fields) throws IOException {
         String ipAsString;
         if (context.externalValueSet()) {
             ipAsString = (String) context.externalValue();
             if (ipAsString == null) {
-                ipAsString = nullValue;
+                ipAsString = fieldType().nullValueAsString();
             }
         } else {
             if (context.parser().currentToken() == XContentParser.Token.VALUE_NULL) {
-                ipAsString = nullValue;
+                ipAsString = fieldType().nullValueAsString();
             } else {
                 ipAsString = context.parser().text();
             }
@@ -317,7 +301,8 @@ public class IpFieldMapper extends NumberFieldMapper {
             return;
         }
         if (!mergeResult.simulate()) {
-            this.nullValue = ((IpFieldMapper) mergeWith).nullValue;
+            this.fieldType = this.fieldType.clone();
+            this.fieldType.setNullValue(((IpFieldMapper) mergeWith).fieldType().nullValue());
         }
     }
 
@@ -328,8 +313,8 @@ public class IpFieldMapper extends NumberFieldMapper {
         if (includeDefaults || fieldType.numericPrecisionStep() != Defaults.PRECISION_STEP_64_BIT) {
             builder.field("precision_step", fieldType.numericPrecisionStep());
         }
-        if (includeDefaults || nullValue != null) {
-            builder.field("null_value", nullValue);
+        if (includeDefaults || fieldType().nullValueAsString() != null) {
+            builder.field("null_value", fieldType().nullValueAsString());
         }
         if (includeInAll != null) {
             builder.field("include_in_all", includeInAll);

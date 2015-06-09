@@ -89,7 +89,7 @@ public class BinaryMappingTests extends ElasticsearchSingleNodeTest {
             BytesRef indexedValue = doc.rootDoc().getBinaryValue("field");
             assertEquals(new BytesRef(value), indexedValue);
             FieldMapper fieldMapper = mapper.mappers().smartNameFieldMapper("field");
-            Object originalValue = fieldMapper.valueForSearch(indexedValue);
+            Object originalValue = fieldMapper.fieldType().valueForSearch(indexedValue);
             assertEquals(new BytesArray(value), originalValue);
         }
     }
@@ -120,7 +120,7 @@ public class BinaryMappingTests extends ElasticsearchSingleNodeTest {
         BytesRef indexedValue = doc.rootDoc().getBinaryValue("field");
         assertEquals(new BytesRef(binaryValue), indexedValue);
         FieldMapper fieldMapper = mapper.mappers().smartNameFieldMapper("field");
-        Object originalValue = fieldMapper.valueForSearch(indexedValue);
+        Object originalValue = fieldMapper.fieldType().valueForSearch(indexedValue);
         assertEquals(new BytesArray(original), originalValue);
     }
 

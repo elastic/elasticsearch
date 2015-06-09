@@ -19,7 +19,11 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.Query;
 import org.elasticsearch.action.search.SearchRequestBuilder;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -28,7 +32,7 @@ import java.io.IOException;
  * @deprecated Use {@link SearchRequestBuilder#setTerminateAfter(int)} instead.
  */
 @Deprecated
-public class LimitQueryBuilder extends QueryBuilder {
+public class LimitQueryBuilder extends QueryBuilder<LimitQueryBuilder> {
 
     public static final String NAME = "limit";
     private final int limit;
@@ -43,6 +47,40 @@ public class LimitQueryBuilder extends QueryBuilder {
         builder.startObject(NAME);
         builder.field("value", limit);
         builder.endObject();
+    }
+
+    @Override
+    public Query toQuery(QueryParseContext parseContext) {
+        // this filter is deprecated and parses to a filter that matches everything
+        return Queries.newMatchAllQuery();
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        LimitQueryBuilder that = (LimitQueryBuilder) o;
+        return Integer.compare(that.limit, limit) == 0;
+    }
+
+    @Override
+    public int hashCode() {
+        return Integer.hashCode(limit);
+    }
+
+    @Override
+    public LimitQueryBuilder readFrom(StreamInput in) throws IOException {
+        LimitQueryBuilder limitQueryBuilder = new LimitQueryBuilder(in.readInt());
+        return limitQueryBuilder;
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeInt(this.limit);
     }
 
     @Override

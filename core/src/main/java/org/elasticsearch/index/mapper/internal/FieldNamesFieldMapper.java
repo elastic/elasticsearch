@@ -187,15 +187,16 @@ public class FieldNamesFieldMapper extends AbstractFieldMapper implements RootMa
         super(fieldType, false, fieldDataSettings, indexSettings);
         this.defaultFieldType = Defaults.FIELD_TYPE;
         this.pre13Index = Version.indexCreated(indexSettings).before(Version.V_1_3_0);
+        if (this.pre13Index) {
+            this.fieldType = this.fieldType.clone();
+            fieldType().setEnabled(false);
+            this.fieldType.freeze();
+        }
     }
 
     @Override
     public FieldNamesFieldType fieldType() {
         return (FieldNamesFieldType)fieldType;
-    }
-
-    public boolean enabled() {
-        return pre13Index == false && fieldType().isEnabled();
     }
 
     @Override

@@ -14,6 +14,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.base.Charsets;
 import org.elasticsearch.common.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.common.io.FileSystemUtils;
@@ -96,13 +97,24 @@ public abstract class AbstractWatcherIntegrationTests extends ElasticsearchInteg
                 // we do this by default in core, but for watcher this isn't needed and only adds noise.
                 .put("index.store.mock.check_index_on_close", false)
                 .put("scroll.size", randomIntBetween(1, 100))
-                .put("plugin.types",
-                        (timeWarped() ? TimeWarpedWatcherPlugin.class.getName() : WatcherPlugin.class.getName()) + "," +
-                                (shieldEnabled ? ShieldPlugin.class.getName() + "," : "") +
-                                licensePluginClass().getName())
+                .put("plugin.types", Strings.collectionToCommaDelimitedString(pluginTypes()))
                 .put(ShieldSettings.settings(shieldEnabled))
                 .put("watcher.trigger.schedule.engine", scheduleImplName)
                 .build();
+    }
+
+    protected List<String> pluginTypes() {
+        List<String> types = new ArrayList<>();
+        if (timeWarped()) {
+            types.add(TimeWarpedWatcherPlugin.class.getName());
+        } else {
+            types.add(WatcherPlugin.class.getName());
+        }
+        if (shieldEnabled) {
+            types.add(ShieldPlugin.class.getName());
+        }
+        types.add(licensePluginClass().getName());
+        return types;
     }
 
     /**
@@ -226,6 +238,11 @@ public abstract class AbstractWatcherIntegrationTests extends ElasticsearchInteg
     protected long docCount(String index, String type, QueryBuilder query) {
         refresh();
         return docCount(index, type, SearchSourceBuilder.searchSource().query(query));
+    }
+
+    protected long watchRecordCount(QueryBuilder query) {
+        refresh();
+        return docCount(HistoryStore.INDEX_PREFIX + "*", HistoryStore.DOC_TYPE, SearchSourceBuilder.searchSource().query(query));
     }
 
     protected long docCount(String index, String type, SearchSourceBuilder source) {

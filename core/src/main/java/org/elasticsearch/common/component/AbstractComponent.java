@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.component;
 
+import com.google.common.base.Strings;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
@@ -50,5 +51,23 @@ public abstract class AbstractComponent {
      */
     public final String nodeName() {
         return settings.get("name", "");
+    }
+
+    /**
+     * Checks for a deprecated setting and logs the correct alternative
+     */
+    protected void logDeprecatedSetting(String settingName, String alternativeName) {
+        if (!Strings.isNullOrEmpty(settings.get(settingName))) {
+            deprecationLogger.deprecated("Setting [{}] is deprecated, use [{}] instead", settingName, alternativeName);
+        }
+    }
+
+    /**
+     * Checks for a removed setting and logs the correct alternative
+     */
+    protected void logRemovedSetting(String settingName, String alternativeName) {
+        if (!Strings.isNullOrEmpty(settings.get(settingName))) {
+            deprecationLogger.deprecated("Setting [{}] has been removed, use [{}] instead", settingName, alternativeName);
+        }
     }
 }

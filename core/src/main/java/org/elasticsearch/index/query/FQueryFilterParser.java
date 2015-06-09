@@ -39,7 +39,7 @@ public class FQueryFilterParser extends BaseQueryParserTemp {
 
     @Override
     public String[] names() {
-        return new String[]{QueryFilterBuilder.FQUERY_NAME};
+        return new String[]{FQueryFilterBuilder.NAME};
     }
 
     @Override
@@ -86,7 +86,7 @@ public class FQueryFilterParser extends BaseQueryParserTemp {
     }
 
     @Override
-    public QueryFilterBuilder getBuilderPrototype() {
-        return QueryFilterBuilder.PROTOTYPE;
+    public FQueryFilterBuilder getBuilderPrototype() {
+        return FQueryFilterBuilder.PROTOTYPE;
     }
 }

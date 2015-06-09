@@ -32,6 +32,9 @@ public class IndicesQueriesModule extends AbstractModule {
 
     private Set<Class<? extends QueryParser>> queryParsersClasses = Sets.newHashSet();
 
+    /**
+     * Registers a {@link QueryParser} given its class
+     */
     public synchronized IndicesQueriesModule addQuery(Class<? extends QueryParser> queryParser) {
         queryParsersClasses.add(queryParser);
         return this;
@@ -83,7 +86,6 @@ public class IndicesQueriesModule extends AbstractModule {
         qpBinders.addBinding().to(TemplateQueryParser.class).asEagerSingleton();
         qpBinders.addBinding().to(TypeQueryParser.class).asEagerSingleton();
         qpBinders.addBinding().to(LimitQueryParser.class).asEagerSingleton();
-        qpBinders.addBinding().to(TermsQueryParser.class).asEagerSingleton();
         qpBinders.addBinding().to(ScriptQueryParser.class).asEagerSingleton();
         qpBinders.addBinding().to(GeoDistanceQueryParser.class).asEagerSingleton();
         qpBinders.addBinding().to(GeoDistanceRangeQueryParser.class).asEagerSingleton();

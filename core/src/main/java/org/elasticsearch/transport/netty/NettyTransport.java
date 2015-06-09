@@ -32,6 +32,7 @@ import org.elasticsearch.common.bytes.ReleasablePagedBytesReference;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lease.Releasables;
@@ -156,8 +157,10 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
     // package visibility for tests
     final ScheduledPing scheduledPing;
 
+    protected final NamedWriteableRegistry namedWriteableRegistry;
+
     @Inject
-    public NettyTransport(Settings settings, ThreadPool threadPool, NetworkService networkService, BigArrays bigArrays, Version version) {
+    public NettyTransport(Settings settings, ThreadPool threadPool, NetworkService networkService, BigArrays bigArrays, Version version, NamedWriteableRegistry namedWriteableRegistry) {
         super(settings);
         this.threadPool = threadPool;
         this.networkService = networkService;
@@ -213,6 +216,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         if (pingSchedule.millis() > 0) {
             threadPool.schedule(pingSchedule, ThreadPool.Names.GENERIC, scheduledPing);
         }
+        this.namedWriteableRegistry = namedWriteableRegistry;
     }
 
     public Settings settings() {
@@ -996,7 +1000,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
     }
 
     public ChannelPipelineFactory configureServerChannelPipelineFactory(String name, Settings settings) {
-        return new ServerChannelPipelineFactory(this, name, settings);
+        return new ServerChannelPipelineFactory(this, name, settings, namedWriteableRegistry);
     }
 
     protected static class ServerChannelPipelineFactory implements ChannelPipelineFactory {
@@ -1004,11 +1008,13 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         protected final NettyTransport nettyTransport;
         protected final String name;
         protected final Settings settings;
+        protected final NamedWriteableRegistry namedWriteableRegistry;
 
-        public ServerChannelPipelineFactory(NettyTransport nettyTransport, String name, Settings settings) {
+        public ServerChannelPipelineFactory(NettyTransport nettyTransport, String name, Settings settings, NamedWriteableRegistry namedWriteableRegistry) {
             this.nettyTransport = nettyTransport;
             this.name = name;
             this.settings = settings;
+            this.namedWriteableRegistry = namedWriteableRegistry;
         }
 
         @Override
@@ -1027,7 +1033,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
                 sizeHeader.setMaxCumulationBufferComponents(nettyTransport.maxCompositeBufferComponents);
             }
             channelPipeline.addLast("size", sizeHeader);
-            channelPipeline.addLast("dispatcher", new MessageChannelHandler(nettyTransport, nettyTransport.logger, name));
+            channelPipeline.addLast("dispatcher", new MessageChannelHandler(nettyTransport, nettyTransport.logger, name, namedWriteableRegistry));
             return channelPipeline;
         }
     }

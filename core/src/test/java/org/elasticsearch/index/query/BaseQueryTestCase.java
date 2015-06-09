@@ -33,6 +33,8 @@ import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.inject.util.Providers;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.FilterStreamInput;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
@@ -89,6 +91,8 @@ public abstract class BaseQueryTestCase<QB extends QueryBuilder<QB>> extends Ela
         return currentTypes;
     }
 
+    private static NamedWriteableRegistry namedWriteableRegistry;
+
     /**
      * Setup for the whole base test class.
      * @throws IOException
@@ -119,6 +123,7 @@ public abstract class BaseQueryTestCase<QB extends QueryBuilder<QB>> extends Ela
                     protected void configure() {
                         bind(ClusterService.class).toProvider(Providers.of((ClusterService) null));
                         bind(CircuitBreakerService.class).to(NoneCircuitBreakerService.class);
+                        bind(NamedWriteableRegistry.class).asEagerSingleton();
                     }
                 }
         ).createInjector();
@@ -136,6 +141,7 @@ public abstract class BaseQueryTestCase<QB extends QueryBuilder<QB>> extends Ela
                     STRING_FIELD_NAME, "type=string").string()), false);
             currentTypes[i] = type;
         }
+        namedWriteableRegistry = injector.getInstance(NamedWriteableRegistry.class);
     }
 
     @AfterClass
@@ -252,7 +258,7 @@ public abstract class BaseQueryTestCase<QB extends QueryBuilder<QB>> extends Ela
         QB testQuery = createTestQueryBuilder();
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             testQuery.writeTo(output);
-            try (StreamInput in = StreamInput.wrap(output.bytes())) {
+            try (StreamInput in = new FilterStreamInput(StreamInput.wrap(output.bytes()), namedWriteableRegistry)) {
                 QB deserializedQuery = createEmptyQueryBuilder().readFrom(in);
                 assertEquals(deserializedQuery, testQuery);
                 assertEquals(deserializedQuery.hashCode(), testQuery.hashCode());

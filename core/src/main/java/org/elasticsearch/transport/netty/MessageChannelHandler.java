@@ -25,6 +25,8 @@ import org.elasticsearch.common.compress.Compressor;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.compress.NotCompressedException;
 import org.elasticsearch.common.io.ThrowableObjectInputStream;
+import org.elasticsearch.common.io.stream.FilterStreamInput;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
@@ -49,13 +51,19 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
     protected final TransportServiceAdapter transportServiceAdapter;
     protected final NettyTransport transport;
     protected final String profileName;
+    private final NamedWriteableRegistry namedWriteableRegistry;
 
     public MessageChannelHandler(NettyTransport transport, ESLogger logger, String profileName) {
+        this(transport, logger, profileName, new NamedWriteableRegistry());
+    }
+
+    public MessageChannelHandler(NettyTransport transport, ESLogger logger, String profileName, NamedWriteableRegistry namedWriteableRegistry) {
         this.threadPool = transport.threadPool();
         this.transportServiceAdapter = transport.transportServiceAdapter();
         this.transport = transport;
         this.logger = logger;
         this.profileName = profileName;
+        this.namedWriteableRegistry = namedWriteableRegistry;
     }
 
     @Override
@@ -109,6 +117,7 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
         } else {
             wrappedStream = streamIn;
         }
+        wrappedStream = new FilterStreamInput(wrappedStream, namedWriteableRegistry);
         wrappedStream.setVersion(version);
 
         if (TransportStatus.isRequest(status)) {

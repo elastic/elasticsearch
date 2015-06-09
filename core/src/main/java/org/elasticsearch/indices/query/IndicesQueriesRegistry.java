@@ -24,6 +24,7 @@ import com.google.common.collect.Maps;
 
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryParser;
 
@@ -35,13 +36,14 @@ public class IndicesQueriesRegistry extends AbstractComponent {
     private ImmutableMap<String, QueryParser> queryParsers;
 
     @Inject
-    public IndicesQueriesRegistry(Settings settings, Set<QueryParser> injectedQueryParsers) {
+    public IndicesQueriesRegistry(Settings settings, Set<QueryParser> injectedQueryParsers, NamedWriteableRegistry namedWriteableRegistry) {
         super(settings);
         Map<String, QueryParser> queryParsers = Maps.newHashMap();
         for (QueryParser queryParser : injectedQueryParsers) {
             for (String name : queryParser.names()) {
                 queryParsers.put(name, queryParser);
             }
+            namedWriteableRegistry.registerPrototype(queryParser.getBuilderPrototype());
         }
         this.queryParsers = ImmutableMap.copyOf(queryParsers);
     }

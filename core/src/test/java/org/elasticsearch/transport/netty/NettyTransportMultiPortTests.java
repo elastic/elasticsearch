@@ -23,6 +23,7 @@ import com.google.common.base.Charsets;
 import org.elasticsearch.Version;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.common.component.Lifecycle;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.network.NetworkUtils;
 import org.elasticsearch.common.settings.Settings;
@@ -195,7 +196,7 @@ public class NettyTransportMultiPortTests extends ElasticsearchTestCase {
     private NettyTransport startNettyTransport(Settings settings, ThreadPool threadPool) {
         BigArrays bigArrays = new MockBigArrays(new PageCacheRecycler(settings, threadPool), new NoneCircuitBreakerService());
 
-        NettyTransport nettyTransport = new NettyTransport(settings, threadPool, new NetworkService(settings), bigArrays, Version.CURRENT);
+        NettyTransport nettyTransport = new NettyTransport(settings, threadPool, new NetworkService(settings), bigArrays, Version.CURRENT, new NamedWriteableRegistry());
         nettyTransport.start();
 
         assertThat(nettyTransport.lifecycleState(), is(Lifecycle.State.STARTED));

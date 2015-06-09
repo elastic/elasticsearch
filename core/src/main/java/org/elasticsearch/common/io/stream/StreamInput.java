@@ -41,7 +41,17 @@ import java.util.*;
  */
 public abstract class StreamInput extends InputStream {
 
+    private final NamedWriteableRegistry namedWriteableRegistry;
+
     private Version version = Version.CURRENT;
+
+    protected StreamInput() {
+        this.namedWriteableRegistry = new NamedWriteableRegistry();
+    }
+
+    protected StreamInput(NamedWriteableRegistry namedWriteableRegistry) {
+        this.namedWriteableRegistry = namedWriteableRegistry;
+    }
 
     public Version getVersion() {
         return this.version;
@@ -245,7 +255,7 @@ public abstract class StreamInput extends InputStream {
         final int charCount = readVInt();
         spare.clear();
         spare.grow(charCount);
-        int c = 0;
+        int c;
         while (spare.length() < charCount) {
             c = readByte() & 0xff;
             switch (c >> 4) {
@@ -337,6 +347,7 @@ public abstract class StreamInput extends InputStream {
     }
 
     @Nullable
+    @SuppressWarnings("unchecked")
     public Map<String, Object> readMap() throws IOException {
         return (Map<String, Object>) readGenericValue();
     }
@@ -480,10 +491,22 @@ public abstract class StreamInput extends InputStream {
     public <T extends Throwable> T readThrowable() throws IOException {
         try {
             ObjectInputStream oin = new ObjectInputStream(this);
-            return (T) oin.readObject();
+            @SuppressWarnings("unchecked")
+            T object = (T) oin.readObject();
+            return object;
         } catch (ClassNotFoundException e) {
             throw new IOException("failed to deserialize exception", e);
         }
+    }
+
+    /**
+     * Reads a {@link NamedWriteable} from the current stream, by first reading its name and then looking for
+     * the corresponding entry in the registry by name, so that the proper object can be read and returned.
+     */
+    public <C> C readNamedWriteable() throws IOException {
+        String name = readString();
+        NamedWriteable<C> namedWriteable = namedWriteableRegistry.getPrototype(name);
+        return namedWriteable.readFrom(this);
     }
 
     public static StreamInput wrap(BytesReference reference) {

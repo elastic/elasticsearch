@@ -22,6 +22,7 @@ package org.elasticsearch.transport;
 import com.google.common.base.Preconditions;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
@@ -63,6 +64,8 @@ public class TransportModule extends AbstractModule {
                 bind(TransportService.class).asEagerSingleton();
             }
         }
+
+        bind(NamedWriteableRegistry.class).asEagerSingleton();
 
         if (configuredTransport != null) {
             logger.info("Using [{}] as transport, overridden by [{}]", configuredTransport.getName(), configuredTransportSource);

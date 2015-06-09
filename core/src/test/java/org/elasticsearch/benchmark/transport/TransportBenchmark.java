@@ -22,6 +22,7 @@ package org.elasticsearch.benchmark.transport;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.StopWatch;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -44,13 +45,13 @@ public class TransportBenchmark {
         LOCAL {
             @Override
             public Transport newTransport(Settings settings, ThreadPool threadPool) {
-                return new LocalTransport(settings, threadPool, Version.CURRENT);
+                return new LocalTransport(settings, threadPool, Version.CURRENT, new NamedWriteableRegistry());
             }
         },
         NETTY {
             @Override
             public Transport newTransport(Settings settings, ThreadPool threadPool) {
-                return new NettyTransport(settings, threadPool, new NetworkService(Settings.EMPTY), BigArrays.NON_RECYCLING_INSTANCE, Version.CURRENT);
+                return new NettyTransport(settings, threadPool, new NetworkService(Settings.EMPTY), BigArrays.NON_RECYCLING_INSTANCE, Version.CURRENT, new NamedWriteableRegistry());
             }
         };
 

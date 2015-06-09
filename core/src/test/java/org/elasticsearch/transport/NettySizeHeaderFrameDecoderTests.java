@@ -21,6 +21,7 @@ package org.elasticsearch.transport;
 
 import com.google.common.base.Charsets;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
@@ -62,7 +63,7 @@ public class NettySizeHeaderFrameDecoderTests extends ElasticsearchTestCase {
         threadPool.setNodeSettingsService(new NodeSettingsService(settings));
         NetworkService networkService = new NetworkService(settings);
         BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(settings, threadPool), new NoneCircuitBreakerService());
-        nettyTransport = new NettyTransport(settings, threadPool, networkService, bigArrays, Version.CURRENT);
+        nettyTransport = new NettyTransport(settings, threadPool, networkService, bigArrays, Version.CURRENT, new NamedWriteableRegistry());
         nettyTransport.start();
         TransportService transportService = new TransportService(nettyTransport, threadPool);
         nettyTransport.transportServiceAdapter(transportService.createAdapter());

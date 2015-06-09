@@ -24,57 +24,30 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
 
 /**
- * A filter that simply wraps a query.
+ * A filter that simply wraps a query. Same as the {@link QueryFilterBuilder} except that it allows also to
+ * associate a name with the query filter.
  * @deprecated Useless now that queries and filters are merged: pass the
  *             query as a filter directly.
  */
 @Deprecated
-public class QueryFilterBuilder extends QueryBuilder {
+public class FQueryFilterBuilder extends QueryFilterBuilder {
 
-    public static final String NAME = "query";
+    public static final String NAME = "fquery";
 
-    private final QueryBuilder queryBuilder;
-
-    private String queryName;
-
-    static final QueryFilterBuilder PROTOTYPE = new QueryFilterBuilder(null);
+    static final FQueryFilterBuilder PROTOTYPE = new FQueryFilterBuilder(null);
 
     /**
      * A filter that simply wraps a query.
      *
      * @param queryBuilder The query to wrap as a filter
      */
-    public QueryFilterBuilder(QueryBuilder queryBuilder) {
-        this.queryBuilder = queryBuilder;
-    }
-
-    /**
-     * Sets the query name for the filter that can be used when searching for matched_filters per hit.
-     */
-    public QueryFilterBuilder queryName(String queryName) {
-        this.queryName = queryName;
-        return this;
+    public FQueryFilterBuilder(QueryBuilder queryBuilder) {
+        super(queryBuilder);
     }
 
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
-        if (queryName == null) {
-            builder.field(NAME);
-            queryBuilder.toXContent(builder, params);
-        } else {
-            //fallback fo fquery when needed, for bw comp
-            buildFQuery(builder, params);
-        }
-    }
-
-    protected void buildFQuery(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(FQueryFilterBuilder.NAME);
-        builder.field("query");
-        queryBuilder.toXContent(builder, params);
-        if (queryName != null) {
-            builder.field("_name", queryName);
-        }
-        builder.endObject();
+        buildFQuery(builder, params);
     }
 
     @Override

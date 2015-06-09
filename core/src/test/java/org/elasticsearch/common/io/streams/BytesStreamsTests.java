@@ -21,12 +21,19 @@ package org.elasticsearch.common.io.streams;
 
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.FilterStreamInput;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Ignore;
 import org.junit.Test;
+
+import java.io.IOException;
 
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
@@ -302,6 +309,50 @@ public class BytesStreamsTests extends ElasticsearchTestCase {
         assertThat(in.readGenericValue(), equalTo((Object)BytesRefs.toBytesRef("bytesref")));
         in.close();
         out.close();
+    }
+
+    @Test
+    public void testNamedWriteable() throws IOException {
+        BytesStreamOutput out = new BytesStreamOutput();
+        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry();
+        namedWriteableRegistry.registerPrototype(new TermQueryBuilder(null, null));
+        TermQueryBuilder termQueryBuilder = new TermQueryBuilder(randomAsciiOfLengthBetween(1, 10), randomAsciiOfLengthBetween(1, 10));
+        out.writeNamedWriteable(termQueryBuilder);
+        StreamInput in = new FilterStreamInput(StreamInput.wrap(out.bytes().toBytes()), namedWriteableRegistry);
+        QueryBuilder queryBuilder = in.readNamedWriteable();
+        assertThat(queryBuilder, equalTo((QueryBuilder)termQueryBuilder));
+    }
+
+    @Test
+    public void testNamedWriteableDuplicates() throws IOException {
+        BytesStreamOutput out = new BytesStreamOutput();
+        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry();
+        namedWriteableRegistry.registerPrototype(new TermQueryBuilder(null, null));
+        try {
+            //wrong class, no registry available
+            namedWriteableRegistry.registerPrototype(new TermQueryBuilder(null, null));
+            fail("registerPrototype should have failed");
+        } catch(IllegalArgumentException e) {
+            assertThat(e.getMessage(), equalTo("named writeable of type [" + TermQueryBuilder.class.getName() + "] with name [" + TermQueryBuilder.NAME + "] is already registered by type [" + TermQueryBuilder.class.getName() + "]"));
+        }
+    }
+
+    @Test
+    public void testNamedWriteableUnknownNamedWriteable() throws IOException {
+        BytesStreamOutput out = new BytesStreamOutput();
+        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry();
+        out.writeNamedWriteable(new MatchAllQueryBuilder());
+        StreamInput in = StreamInput.wrap(out.bytes().toBytes());
+        if (randomBoolean()) {
+            in = new FilterStreamInput(in, namedWriteableRegistry);
+        }
+        try {
+            //no match_all named writeable registered, can write but cannot read it back
+            in.readNamedWriteable();
+            fail("read should have failed");
+        } catch(IllegalArgumentException e) {
+            assertThat(e.getMessage(), equalTo("unknown named writeable with name [" + MatchAllQueryBuilder.NAME + "]"));
+        }
     }
 
     // we ignore this test for now since all existing callers of BytesStreamOutput happily

@@ -20,12 +20,12 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
-import org.elasticsearch.action.support.ToXContentToBytes;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.action.support.ToXContentToBytes;
+import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 
@@ -35,7 +35,7 @@ import java.io.IOException;
  * Base class for all classes producing lucene queries.
  * Supports conversion to BytesReference and creation of lucene Query objects.
  */
-public abstract class QueryBuilder<QB extends QueryBuilder> extends ToXContentToBytes implements Writeable<QB> {
+public abstract class QueryBuilder<QB extends QueryBuilder> extends ToXContentToBytes implements NamedWriteable<QB> {
 
     protected QueryBuilder() {
         super(XContentType.JSON);
@@ -53,6 +53,11 @@ public abstract class QueryBuilder<QB extends QueryBuilder> extends ToXContentTo
      * @return a unique name this query is identified with
      */
     public abstract String queryId();
+
+    @Override
+    public final String getName() {
+        return queryId();
+    }
 
     /**
      * Converts this QueryBuilder to a lucene {@link Query}

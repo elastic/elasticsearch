@@ -41,6 +41,7 @@ import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.internal.AllFieldMapper;
 
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -280,7 +281,7 @@ public class StringFieldMapper extends AbstractFieldMapper implements AllFieldMa
         if (valueAndBoost.value() == null) {
             return;
         }
-        if (ignoreAbove > 0 && valueAndBoost.value().length() > ignoreAbove) {
+        if (ignoreAbove > 0 && lengthInBytes(valueAndBoost.value()) > ignoreAbove) {
             return;
         }
         if (context.includeInAll(includeInAll, this)) {
@@ -297,6 +298,14 @@ public class StringFieldMapper extends AbstractFieldMapper implements AllFieldMa
         }
         if (fields.isEmpty()) {
             context.ignoredValue(fieldType.names().indexName(), valueAndBoost.value());
+        }
+    }
+
+    private int lengthInBytes(final String str) {
+        try {
+            return str.getBytes("UTF-8").length;
+        } catch (UnsupportedEncodingException e) {
+            throw new RuntimeException("Missing the UTF-8 encoding, unexpectedly.", e);
         }
     }
 

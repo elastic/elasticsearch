@@ -105,6 +105,18 @@ public class SimpleStringMappingTests extends ElasticsearchSingleNodeTest {
                 .bytes());
 
         assertThat(doc.rootDoc().getField("field"), nullValue());
+
+
+        // äääöö is 5 characters, but 9 bytes in UTF-8. Lucene
+        // cares about the byte length of the UTF-8 encoding, not the string
+        // length, so ignore_above should do the same.
+        doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
+            .startObject()
+            .field("field", "äääöö")
+            .endObject()
+            .bytes());
+
+        assertThat(doc.rootDoc().getField("field"), nullValue());
     }
 
     private void assertDefaultAnalyzedFieldType(IndexableFieldType fieldType) {
@@ -218,7 +230,7 @@ public class SimpleStringMappingTests extends ElasticsearchSingleNodeTest {
         assertThat(fieldType.omitNorms(), equalTo(false));
         assertParseIdemPotent(fieldType, defaultMapper);
     }
-    
+
     @Test
     public void testSearchQuoteAnalyzerSerialization() throws Exception {
         // Cases where search_quote_analyzer should not be added to the mapping.
@@ -254,7 +266,7 @@ public class SimpleStringMappingTests extends ElasticsearchSingleNodeTest {
             Map<String, Object> serializedMap = getSerializedMap(fieldName, mapper);
             assertFalse(serializedMap.containsKey("search_quote_analyzer"));
         }
-        
+
         // Cases where search_quote_analyzer should be present.
         mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties")
@@ -272,20 +284,20 @@ public class SimpleStringMappingTests extends ElasticsearchSingleNodeTest {
                 .endObject()
                 .endObject()
                 .endObject().endObject().string();
-        
+
         mapper = parser.parse(mapping);
         for (String fieldName : Lists.newArrayList("field1", "field2")) {
             Map<String, Object> serializedMap = getSerializedMap(fieldName, mapper);
             assertEquals(serializedMap.get("search_quote_analyzer"), "simple");
         }
     }
-    
+
     private Map<String, Object> getSerializedMap(String fieldName, DocumentMapper mapper) throws Exception {
         FieldMapper fieldMapper = mapper.mappers().smartNameFieldMapper(fieldName);
         XContentBuilder builder = JsonXContent.contentBuilder().startObject();
         fieldMapper.toXContent(builder, ToXContent.EMPTY_PARAMS).endObject();
         builder.close();
-        
+
         Map<String, Object> fieldMap = JsonXContent.jsonXContent.createParser(builder.bytes()).mapAndClose();
         @SuppressWarnings("unchecked")
         Map<String, Object> result = (Map<String, Object>) fieldMap.get(fieldName);
@@ -465,7 +477,7 @@ public class SimpleStringMappingTests extends ElasticsearchSingleNodeTest {
         assertEquals(DocValuesType.NONE, docValuesType(doc, "str3"));
         assertEquals(DocValuesType.NONE, docValuesType(doc, "str4"));
         assertEquals(DocValuesType.SORTED_SET, docValuesType(doc, "str5"));
-        
+
     }
 
     // TODO: this function shouldn't be necessary.  parsing should just add a single field that is indexed and dv

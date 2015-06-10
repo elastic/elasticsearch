@@ -123,6 +123,9 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
 
             builder.metaData(mdBuilder);
         }
+        if (request.customs()) {
+            builder.customs(currentState.customs());
+        }
         listener.onResponse(new ClusterStateResponse(clusterName, builder.build()));
     }
 

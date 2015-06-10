@@ -17,31 +17,30 @@
  * under the License.
  */
 
-package org.elasticsearch.cluster.metadata;
+package org.elasticsearch.cluster;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-import org.elasticsearch.cluster.AbstractDiffable;
+import org.elasticsearch.cluster.ClusterState.Custom;
+import org.elasticsearch.cluster.metadata.SnapshotId;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
-import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 
 /**
  * Meta data about restore processes that are currently executing
  */
-public class RestoreMetaData extends AbstractDiffable<MetaData.Custom> implements MetaData.Custom {
+public class RestoreInProgress extends AbstractDiffable<Custom> implements Custom {
 
     public static final String TYPE = "restore";
 
-    public static final RestoreMetaData PROTO = new RestoreMetaData();
+    public static final RestoreInProgress PROTO = new RestoreInProgress();
 
     private final ImmutableList<Entry> entries;
 
@@ -50,7 +49,7 @@ public class RestoreMetaData extends AbstractDiffable<MetaData.Custom> implement
      *
      * @param entries list of currently running restore processes
      */
-    public RestoreMetaData(ImmutableList<Entry> entries) {
+    public RestoreInProgress(ImmutableList<Entry> entries) {
         this.entries = entries;
     }
 
@@ -59,7 +58,7 @@ public class RestoreMetaData extends AbstractDiffable<MetaData.Custom> implement
      *
      * @param entries list of currently running restore processes
      */
-    public RestoreMetaData(Entry... entries) {
+    public RestoreInProgress(Entry... entries) {
         this.entries = ImmutableList.copyOf(entries);
     }
 
@@ -93,7 +92,7 @@ public class RestoreMetaData extends AbstractDiffable<MetaData.Custom> implement
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
 
-        RestoreMetaData that = (RestoreMetaData) o;
+        RestoreInProgress that = (RestoreInProgress) o;
 
         if (!entries.equals(that.entries)) return false;
 
@@ -408,7 +407,7 @@ public class RestoreMetaData extends AbstractDiffable<MetaData.Custom> implement
      * {@inheritDoc}
      */
     @Override
-    public RestoreMetaData readFrom(StreamInput in) throws IOException {
+    public RestoreInProgress readFrom(StreamInput in) throws IOException {
         Entry[] entries = new Entry[in.readVInt()];
         for (int i = 0; i < entries.length; i++) {
             SnapshotId snapshotId = SnapshotId.readSnapshotId(in);
@@ -427,7 +426,7 @@ public class RestoreMetaData extends AbstractDiffable<MetaData.Custom> implement
             }
             entries[i] = new Entry(snapshotId, state, indexBuilder.build(), builder.build());
         }
-        return new RestoreMetaData(entries);
+        return new RestoreInProgress(entries);
     }
 
     /**
@@ -449,19 +448,6 @@ public class RestoreMetaData extends AbstractDiffable<MetaData.Custom> implement
                 shardEntry.getValue().writeTo(out);
             }
         }
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public RestoreMetaData fromXContent(XContentParser parser) throws IOException {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public EnumSet<MetaData.XContentContext> context() {
-        return MetaData.API_ONLY;
     }
 
     /**

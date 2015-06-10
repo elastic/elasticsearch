@@ -97,8 +97,6 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData> {
     static {
         // register non plugin custom metadata
         registerPrototype(RepositoriesMetaData.TYPE, RepositoriesMetaData.PROTO);
-        registerPrototype(SnapshotMetaData.TYPE, SnapshotMetaData.PROTO);
-        registerPrototype(RestoreMetaData.TYPE, RestoreMetaData.PROTO);
     }
 
     /**

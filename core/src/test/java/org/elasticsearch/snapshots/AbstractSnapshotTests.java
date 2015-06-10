@@ -19,13 +19,12 @@
 package org.elasticsearch.snapshots;
 
 import com.google.common.base.Predicate;
-import com.google.common.collect.ImmutableList;
 
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksResponse;
 import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.metadata.SnapshotId;
-import org.elasticsearch.cluster.metadata.SnapshotMetaData;
+import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.service.PendingClusterTask;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
@@ -106,8 +105,8 @@ public abstract class AbstractSnapshotTests extends ElasticsearchIntegrationTest
             if (snapshotInfos.get(0).state().completed()) {
                 // Make sure that snapshot clean up operations are finished
                 ClusterStateResponse stateResponse = client().admin().cluster().prepareState().get();
-                SnapshotMetaData snapshotMetaData = stateResponse.getState().getMetaData().custom(SnapshotMetaData.TYPE);
-                if (snapshotMetaData == null || snapshotMetaData.snapshot(snapshotId) == null) {
+                SnapshotsInProgress snapshotsInProgress = stateResponse.getState().custom(SnapshotsInProgress.TYPE);
+                if (snapshotsInProgress == null || snapshotsInProgress.snapshot(snapshotId) == null) {
                     return snapshotInfos.get(0);
                 }
             }

@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.util.*;
@@ -56,6 +57,8 @@ public class RoutingNodes implements Iterable<RoutingNode> {
 
     private final Map<ShardId, List<MutableShardRouting>> assignedShards = newHashMap();
 
+    private final ImmutableOpenMap<String, ClusterState.Custom> customs;
+
     private int inactivePrimaryCount = 0;
 
     private int inactiveShardCount = 0;
@@ -70,6 +73,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         this.metaData = clusterState.metaData();
         this.blocks = clusterState.blocks();
         this.routingTable = clusterState.routingTable();
+        this.customs = clusterState.customs();
 
         Map<String, List<MutableShardRouting>> nodesToShards = newHashMap();
         // fill in the nodeToShards with the "live" nodes
@@ -155,6 +159,14 @@ public class RoutingNodes implements Iterable<RoutingNode> {
 
     public ClusterBlocks getBlocks() {
         return this.blocks;
+    }
+
+    public ImmutableOpenMap<String, ClusterState.Custom> customs() {
+        return this.customs;
+    }
+
+    public <T extends ClusterState.Custom> T custom(String type) {
+        return (T) customs.get(type);
     }
 
     public int requiredAverageNumberOfShardsPerNode() {

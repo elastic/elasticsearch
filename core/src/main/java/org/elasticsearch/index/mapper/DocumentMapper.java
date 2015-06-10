@@ -36,15 +36,12 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.compress.CompressorFactory;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.StringAndBytesText;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.Mapping.SourceTransform;
 import org.elasticsearch.index.mapper.internal.AllFieldMapper;
@@ -481,13 +478,7 @@ public class DocumentMapper implements ToXContent {
 
     private void refreshSource() throws ElasticsearchGenerationException {
         try {
-            BytesStreamOutput bStream = new BytesStreamOutput();
-            try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON, CompressorFactory.defaultCompressor().streamOutput(bStream))) {
-                builder.startObject();
-                toXContent(builder, ToXContent.EMPTY_PARAMS);
-                builder.endObject();
-            }
-            mappingSource = new CompressedXContent(bStream.bytes());
+            mappingSource = new CompressedXContent(this, XContentType.JSON, ToXContent.EMPTY_PARAMS);
         } catch (Exception e) {
             throw new ElasticsearchGenerationException("failed to serialize source for type [" + type + "]", e);
         }

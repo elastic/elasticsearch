@@ -303,13 +303,9 @@ public class IndexAliasesTests extends ElasticsearchIntegrationTest {
         logger.info("--> creating indices");
         createIndex("test1", "test2", "test3");
 
-        client().admin().indices().preparePutMapping("test1", "test2", "test3")
+        assertAcked(client().admin().indices().preparePutMapping("test1", "test2", "test3")
                 .setType("type1")
-                .setSource("name", "type=string")
-                .get();
-        waitForConcreteMappingsOnAll("test1", "type1", "name");
-        waitForConcreteMappingsOnAll("test2", "type1", "name");
-        waitForConcreteMappingsOnAll("test3", "type1", "name");
+                .setSource("name", "type=string"));
 
         ensureGreen();
 
@@ -553,14 +549,8 @@ public class IndexAliasesTests extends ElasticsearchIntegrationTest {
         createIndex("foobarbaz");
         createIndex("bazbar");
 
-        client().admin().indices().preparePutMapping("foobar", "test", "test123", "foobarbaz", "bazbar")
-                .setType("type").setSource("field", "type=string").get();
-        waitForConcreteMappingsOnAll("foobar", "type", "field");
-        waitForConcreteMappingsOnAll("test", "type", "field");
-        waitForConcreteMappingsOnAll("test123", "type", "field");
-        waitForConcreteMappingsOnAll("foobarbaz", "type", "field");
-        waitForConcreteMappingsOnAll("bazbar", "type", "field");
-
+        assertAcked(client().admin().indices().preparePutMapping("foobar", "test", "test123", "foobarbaz", "bazbar")
+                .setType("type").setSource("field", "type=string"));
         ensureGreen();
 
         logger.info("--> creating aliases [alias1, alias2]");

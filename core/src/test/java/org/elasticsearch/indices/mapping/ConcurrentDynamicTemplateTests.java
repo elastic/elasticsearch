@@ -89,29 +89,4 @@ public class ConcurrentDynamicTemplateTests extends ElasticsearchIntegrationTest
 
         }
     }
-
-    @Test
-    public void testDynamicMappingIntroductionPropagatesToAll() throws Exception {
-        int numDocs = randomIntBetween(100, 1000);
-        int numberOfFields = scaledRandomIntBetween(1, 50);
-        Set<Integer> fieldsIdx = Sets.newHashSet();
-        IndexRequestBuilder[] builders = new IndexRequestBuilder[numDocs];
-
-        createIndex("idx");
-        ensureGreen("idx");
-        for (int i = 0; i < numDocs; ++i) {
-            int fieldIdx = i % numberOfFields;
-            fieldsIdx.add(fieldIdx);
-            builders[i] = client().prepareIndex("idx", "type").setSource(jsonBuilder()
-                    .startObject()
-                    .field("str_value_" + fieldIdx, "s" + i)
-                    .field("l_value_" + fieldIdx, i)
-                    .field("d_value_" + fieldIdx, (double)i + 0.01)
-                    .endObject());
-        }
-        indexRandom(false, builders);
-        for (Integer fieldIdx : fieldsIdx) {
-            waitForConcreteMappingsOnAll("idx", "type", "str_value_" + fieldIdx, "l_value_" + fieldIdx, "d_value_" + fieldIdx);
-        }
-    }
 }

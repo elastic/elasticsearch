@@ -109,7 +109,6 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
 
         logger.info("--> Add dummy doc");
         client().prepareIndex("test", "type", "1").setSource("field1", "value").execute().actionGet();
-        waitForConcreteMappingsOnAll("test", "type", "field1");
 
         logger.info("--> register a queries");
         client().prepareIndex("test", PercolatorService.TYPE_NAME, "1")
@@ -198,7 +197,6 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
                 .execute().actionGet();
         assertMatchCount(response, 0l);
         assertThat(response.getMatches(), emptyArray());
-        waitForConcreteMappingsOnAll("test", "type1", "field1", "field2");
 
         // add first query...
         client().prepareIndex("test", PercolatorService.TYPE_NAME, "test1")
@@ -278,12 +276,11 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    public void percolateOnRecreatedIndex() throws Exception {
+    public void storePeroclateQueriesOnRecreatedIndex() throws Exception {
         createIndex("test");
         ensureGreen();
 
         client().prepareIndex("my-queries-index", "test", "1").setSource("field1", "value1").execute().actionGet();
-        waitForConcreteMappingsOnAll("my-queries-index", "test", "field1");
         logger.info("--> register a query");
         client().prepareIndex("my-queries-index", PercolatorService.TYPE_NAME, "kuku1")
                 .setSource(jsonBuilder().startObject()
@@ -298,7 +295,6 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
         ensureGreen();
 
         client().prepareIndex("my-queries-index", "test", "1").setSource("field1", "value1").execute().actionGet();
-        waitForConcreteMappingsOnAll("my-queries-index", "test", "field1");
         logger.info("--> register a query");
         client().prepareIndex("my-queries-index", PercolatorService.TYPE_NAME, "kuku2")
                 .setSource(jsonBuilder().startObject()
@@ -995,7 +991,6 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
 
         logger.info("--> Add dummy doc");
         client().prepareIndex("test", "type", "1").setSource("field1", "value").execute().actionGet();
-        waitForConcreteMappingsOnAll("test", "type", "field1");
 
         logger.info("--> register a queries");
         client().prepareIndex("test", PercolatorService.TYPE_NAME, "1")
@@ -1724,7 +1719,6 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
 
         assertMatchCount(percolateResponse, 0l);
         assertThat(percolateResponse.getMatches(), arrayWithSize(0));
-        waitForConcreteMappingsOnAll("idx", "type", "custom.color");
 
         // The previous percolate request introduced the custom.color field, so now we register the query again
         // and the field name `color` will be resolved to `custom.color` field in mapping via smart field mapping resolving.
@@ -1762,7 +1756,7 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
         assertMatchCount(response, 0l);
         assertThat(response.getMatches(), arrayWithSize(0));
 
-        waitForMappingOnMaster("test", "type1");
+        assertMappingOnMaster("test", "type1");
 
         GetMappingsResponse mappingsResponse = client().admin().indices().prepareGetMappings("test").get();
         assertThat(mappingsResponse.getMappings().get("test"), notNullValue());

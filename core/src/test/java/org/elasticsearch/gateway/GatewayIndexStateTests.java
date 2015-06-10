@@ -104,14 +104,10 @@ public class GatewayIndexStateTests extends ElasticsearchIntegrationTest {
         assertThat(stateResponse.getState().routingTable().index("test").shardsWithState(ShardRoutingState.STARTED).size(), equalTo(test.totalNumShards));
 
         logger.info("--> indexing a simple document");
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value1").execute().actionGet();
-
-        // we need this until we have  https://github.com/elasticsearch/elasticsearch/issues/8688
-        // the test rarely fails else because the master does not apply the new mapping quick enough and it is lost
-        waitForConcreteMappingsOnAll("test", "type1", "field1");
+        client().prepareIndex("test", "type1", "1").setSource("field1", "value1").get();
 
         logger.info("--> closing test index...");
-        client().admin().indices().prepareClose("test").execute().actionGet();
+        client().admin().indices().prepareClose("test").get();
 
         stateResponse = client().admin().cluster().prepareState().execute().actionGet();
         assertThat(stateResponse.getState().metaData().index("test").state(), equalTo(IndexMetaData.State.CLOSE));

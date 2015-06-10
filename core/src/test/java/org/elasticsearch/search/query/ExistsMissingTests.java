@@ -45,6 +45,16 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSear
 
 public class ExistsMissingTests extends ElasticsearchIntegrationTest {
 
+    // TODO: move this to a unit test somewhere...
+    public void testEmptyIndex() throws Exception {
+        createIndex("test");
+        ensureYellow("test");
+        SearchResponse resp = client().prepareSearch("test").setQuery(QueryBuilders.existsQuery("foo")).execute().actionGet();
+        assertSearchResponse(resp);
+        resp = client().prepareSearch("test").setQuery(QueryBuilders.missingQuery("foo")).execute().actionGet();
+        assertSearchResponse(resp);
+    }
+
     public void testExistsMissing() throws Exception {
         XContentBuilder mapping = XContentBuilder.builder(JsonXContent.jsonXContent)
             .startObject()

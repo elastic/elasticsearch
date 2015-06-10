@@ -79,6 +79,10 @@ public class ExistsQueryParser implements QueryParser {
 
     public static Query newFilter(QueryParseContext parseContext, String fieldPattern, String queryName) {
         final FieldNamesFieldMapper.FieldNamesFieldType fieldNamesFieldType = (FieldNamesFieldMapper.FieldNamesFieldType)parseContext.mapperService().fullName(FieldNamesFieldMapper.NAME);
+        if (fieldNamesFieldType == null) {
+            // can only happen when no types exist, so no docs exist either
+            return Queries.newMatchNoDocsQuery();
+        }
 
         MapperService.SmartNameObjectMapper smartNameObjectMapper = parseContext.smartObjectMapper(fieldPattern);
         if (smartNameObjectMapper != null && smartNameObjectMapper.hasMapper()) {

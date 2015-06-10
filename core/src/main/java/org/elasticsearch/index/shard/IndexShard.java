@@ -23,6 +23,8 @@ import com.google.common.base.Charsets;
 import com.google.common.base.Preconditions;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.index.CheckIndex;
+import org.apache.lucene.index.MergePolicy;
+import org.apache.lucene.index.TieredMergePolicy;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.ThreadInterruptedException;
@@ -75,7 +77,6 @@ import org.elasticsearch.index.indexing.IndexingStats;
 import org.elasticsearch.index.indexing.ShardIndexingService;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.merge.MergeStats;
-import org.elasticsearch.index.merge.policy.MergePolicyProvider;
 import org.elasticsearch.index.merge.scheduler.MergeSchedulerProvider;
 import org.elasticsearch.index.percolator.PercolatorQueriesRegistry;
 import org.elasticsearch.index.percolator.stats.ShardPercolateService;
@@ -155,9 +156,9 @@ public class IndexShard extends AbstractIndexShardComponent {
     private final IndicesWarmer warmer;
     private final SnapshotDeletionPolicy deletionPolicy;
     private final SimilarityService similarityService;
-    private final MergePolicyProvider mergePolicyProvider;
     private final EngineConfig engineConfig;
     private final TranslogConfig translogConfig;
+    private final MergePolicyConfig mergePolicyConfig;
 
     private TimeValue refreshInterval;
 
@@ -198,14 +199,13 @@ public class IndexShard extends AbstractIndexShardComponent {
                       ShardFilterCache shardFilterCache, ShardFieldData shardFieldData, PercolatorQueriesRegistry percolatorQueriesRegistry, ShardPercolateService shardPercolateService, CodecService codecService,
                       ShardTermVectorsService termVectorsService, IndexFieldDataService indexFieldDataService, IndexService indexService, ShardSuggestService shardSuggestService,
                       ShardQueryCache shardQueryCache, ShardBitsetFilterCache shardBitsetFilterCache,
-                      @Nullable IndicesWarmer warmer, SnapshotDeletionPolicy deletionPolicy, SimilarityService similarityService, MergePolicyProvider mergePolicyProvider, EngineFactory factory,
+                      @Nullable IndicesWarmer warmer, SnapshotDeletionPolicy deletionPolicy, SimilarityService similarityService, EngineFactory factory,
                       ClusterService clusterService, NodeEnvironment nodeEnv, ShardPath path, BigArrays bigArrays) {
         super(shardId, indexSettingsService.getSettings());
         this.codecService = codecService;
         this.warmer = warmer;
         this.deletionPolicy = deletionPolicy;
         this.similarityService = similarityService;
-        this.mergePolicyProvider = mergePolicyProvider;
         Preconditions.checkNotNull(store, "Store must be provided to the index shard");
         Preconditions.checkNotNull(deletionPolicy, "Snapshot deletion policy must be provided to the index shard");
         this.engineFactory = factory;
@@ -241,6 +241,7 @@ public class IndexShard extends AbstractIndexShardComponent {
         indexSettingsService.addListener(applyRefreshSettings);
         this.mapperAnalyzer = new MapperAnalyzer(mapperService);
         this.path = path;
+        this.mergePolicyConfig = new MergePolicyConfig(logger, indexSettings);
         /* create engine config */
 
         logger.debug("state: [CREATED]");
@@ -251,6 +252,7 @@ public class IndexShard extends AbstractIndexShardComponent {
         this.engineConfig = newEngineConfig(translogConfig);
 
         this.indexShardOperationCounter = new IndexShardOperationCounter(logger, shardId);
+
     }
 
     public Store store() {
@@ -1096,6 +1098,7 @@ public class IndexShard extends AbstractIndexShardComponent {
                     config.setVersionMapSizeSetting(versionMapSize);
                 }
             }
+            mergePolicyConfig.onRefreshSettings(settings);
             if (change) {
                 refresh("apply settings");
             }
@@ -1335,7 +1338,7 @@ public class IndexShard extends AbstractIndexShardComponent {
             }
         };
         return new EngineConfig(shardId,
-                threadPool, indexingService, indexSettingsService, warmer, store, deletionPolicy, mergePolicyProvider, mergeScheduler,
+                threadPool, indexingService, indexSettingsService, warmer, store, deletionPolicy, mergePolicyConfig.getMergePolicy(), mergeScheduler,
                 mapperAnalyzer, similarityService.similarity(), codecService, failedEngineListener, translogRecoveryPerformer, indexCache.filter(), indexCache.filterPolicy(), translogConfig);
     }
 

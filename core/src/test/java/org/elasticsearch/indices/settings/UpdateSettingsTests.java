@@ -31,8 +31,8 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
-import org.elasticsearch.index.merge.policy.TieredMergePolicyProvider;
 import org.elasticsearch.index.merge.scheduler.ConcurrentMergeSchedulerProvider;
+import org.elasticsearch.index.shard.MergePolicyConfig;
 import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
@@ -147,8 +147,8 @@ public class UpdateSettingsTests extends ElasticsearchIntegrationTest {
                                  .put(IndexStore.INDEX_STORE_THROTTLE_TYPE, "none")
                                  .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, "1")
                                  .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "0")
-                                 .put(TieredMergePolicyProvider.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE, "2")
-                                 .put(TieredMergePolicyProvider.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER, "2")
+                                 .put(MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE, "2")
+                                 .put(MergePolicyConfig.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER, "2")
                                  .put(ConcurrentMergeSchedulerProvider.MAX_THREAD_COUNT, "1")
                                  .put(ConcurrentMergeSchedulerProvider.MAX_MERGE_COUNT, "2")
                                  .put(Store.INDEX_STORE_STATS_REFRESH_INTERVAL, 0) // get stats all the time - no caching
@@ -319,8 +319,8 @@ public class UpdateSettingsTests extends ElasticsearchIntegrationTest {
                         .setSettings(Settings.builder()
                                      .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, "1")
                                      .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "0")
-                                     .put(TieredMergePolicyProvider.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE, "2")
-                                     .put(TieredMergePolicyProvider.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER, "2")
+                                     .put(MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE, "2")
+                                     .put(MergePolicyConfig.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER, "2")
                                      .put(ConcurrentMergeSchedulerProvider.MAX_THREAD_COUNT, "1")
                                      .put(ConcurrentMergeSchedulerProvider.MAX_MERGE_COUNT, "2")
                                      .put(ConcurrentMergeSchedulerProvider.AUTO_THROTTLE, "true")
@@ -363,8 +363,8 @@ public class UpdateSettingsTests extends ElasticsearchIntegrationTest {
                         .setSettings(Settings.builder()
                                      .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, "1")
                                      .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "0")
-                                     .put(TieredMergePolicyProvider.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE, "2")
-                                     .put(TieredMergePolicyProvider.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER, "2")
+                                     .put(MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE, "2")
+                                     .put(MergePolicyConfig.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER, "2")
                                      .put(ConcurrentMergeSchedulerProvider.MAX_THREAD_COUNT, "10000")
                                      .put(ConcurrentMergeSchedulerProvider.MAX_MERGE_COUNT, "10000")
                                      ));

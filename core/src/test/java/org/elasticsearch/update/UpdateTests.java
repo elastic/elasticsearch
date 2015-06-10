@@ -36,11 +36,10 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
-import org.elasticsearch.index.merge.policy.MergePolicyModule;
+import org.elasticsearch.index.shard.MergePolicyConfig;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.test.index.merge.NoMergePolicyProvider;
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -639,7 +638,7 @@ public class UpdateTests extends ElasticsearchIntegrationTest {
                         .startObject("_ttl").field("enabled", true).endObject()
                         .endObject()
                         .endObject())
-                .setSettings(Settings.builder().put(MergePolicyModule.MERGE_POLICY_TYPE_KEY, NoMergePolicyProvider.class)));
+                .setSettings(Settings.builder().put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)));
         ensureGreen();
 
         final int numberOfThreads = scaledRandomIntBetween(3,5);
@@ -1374,7 +1373,7 @@ public class UpdateTests extends ElasticsearchIntegrationTest {
                 "type1",
                 XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("_timestamp").field("enabled", true)
                         .field("store", "yes").endObject().startObject("_ttl").field("enabled", true).endObject().endObject().endObject())
-                .setSettings(Settings.builder().put(MergePolicyModule.MERGE_POLICY_TYPE_KEY, NoMergePolicyProvider.class)));
+                .setSettings(Settings.builder().put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)));
         ensureGreen();
 
         final int numberOfThreads = scaledRandomIntBetween(3, 5);

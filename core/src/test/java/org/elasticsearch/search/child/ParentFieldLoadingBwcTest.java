@@ -35,14 +35,12 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.merge.policy.MergePolicyModule;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.MergePolicyConfig;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.test.index.merge.NoMergePolicyProvider;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -66,7 +64,7 @@ public class ParentFieldLoadingBwcTest extends ElasticsearchIntegrationTest {
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(IndexShard.INDEX_REFRESH_INTERVAL, -1)
                     // We never want merges in this test to ensure we have two segments for the last validation
-            .put(MergePolicyModule.MERGE_POLICY_TYPE_KEY, NoMergePolicyProvider.class)
+            .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
             .put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_6_0)
             .build();
 

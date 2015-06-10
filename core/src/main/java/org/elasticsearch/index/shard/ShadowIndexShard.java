@@ -40,7 +40,6 @@ import org.elasticsearch.index.fielddata.ShardFieldData;
 import org.elasticsearch.index.get.ShardGetService;
 import org.elasticsearch.index.indexing.ShardIndexingService;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.merge.policy.MergePolicyProvider;
 import org.elasticsearch.index.merge.scheduler.MergeSchedulerProvider;
 import org.elasticsearch.index.percolator.PercolatorQueriesRegistry;
 import org.elasticsearch.index.percolator.stats.ShardPercolateService;
@@ -51,7 +50,6 @@ import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.suggest.stats.ShardSuggestService;
 import org.elasticsearch.index.termvectors.ShardTermVectorsService;
-import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.warmer.ShardIndexWarmerService;
 import org.elasticsearch.indices.IndicesLifecycle;
 import org.elasticsearch.indices.IndicesWarmer;
@@ -81,7 +79,7 @@ public final class ShadowIndexShard extends IndexShard {
                             IndexService indexService, ShardSuggestService shardSuggestService, ShardQueryCache shardQueryCache,
                             ShardBitsetFilterCache shardBitsetFilterCache, @Nullable IndicesWarmer warmer,
                             SnapshotDeletionPolicy deletionPolicy, SimilarityService similarityService,
-                            MergePolicyProvider mergePolicyProvider, EngineFactory factory, ClusterService clusterService,
+                            EngineFactory factory, ClusterService clusterService,
                             NodeEnvironment nodeEnv, ShardPath path, BigArrays bigArrays) throws IOException {
         super(shardId, indexSettingsService, indicesLifecycle, store, mergeScheduler,
                 threadPool, mapperService, queryParserService, indexCache, indexAliasesService,
@@ -89,7 +87,7 @@ public final class ShadowIndexShard extends IndexShard {
                 shardFieldData, percolatorQueriesRegistry, shardPercolateService, codecService,
                 termVectorsService, indexFieldDataService, indexService, shardSuggestService,
                 shardQueryCache, shardBitsetFilterCache, warmer, deletionPolicy, similarityService,
-                mergePolicyProvider, factory, clusterService, nodeEnv, path, bigArrays);
+                factory, clusterService, nodeEnv, path, bigArrays);
     }
 
     /**

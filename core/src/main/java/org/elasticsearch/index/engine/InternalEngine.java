@@ -45,8 +45,7 @@ import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
 import org.elasticsearch.index.indexing.ShardIndexingService;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.merge.OnGoingMerge;
-import org.elasticsearch.index.merge.policy.ElasticsearchMergePolicy;
-import org.elasticsearch.index.merge.policy.MergePolicyProvider;
+import org.elasticsearch.index.shard.ElasticsearchMergePolicy;
 import org.elasticsearch.index.merge.scheduler.MergeSchedulerProvider;
 import org.elasticsearch.index.search.nested.IncludeNestedDocsQuery;
 import org.elasticsearch.index.shard.ShardId;
@@ -81,7 +80,6 @@ public class InternalEngine extends Engine {
     @Nullable
     private final IndicesWarmer warmer;
     private final Translog translog;
-    private final MergePolicyProvider mergePolicyProvider;
     private final MergeSchedulerProvider mergeScheduler;
 
     private final IndexWriter indexWriter;
@@ -116,7 +114,6 @@ public class InternalEngine extends Engine {
             this.lastDeleteVersionPruneTimeMSec = engineConfig.getThreadPool().estimatedTimeInMillis();
             this.indexingService = engineConfig.getIndexingService();
             this.warmer = engineConfig.getWarmer();
-            this.mergePolicyProvider = engineConfig.getMergePolicyProvider();
             this.mergeScheduler = engineConfig.getMergeScheduler();
             this.dirtyLocks = new Object[engineConfig.getIndexConcurrency() * 50]; // we multiply it to have enough...
             for (int i = 0; i < dirtyLocks.length; i++) {
@@ -1020,7 +1017,7 @@ public class InternalEngine extends Engine {
             }
             iwc.setInfoStream(verbose ? InfoStream.getDefault() : new LoggerInfoStream(logger));
             iwc.setMergeScheduler(mergeScheduler.newMergeScheduler());
-            MergePolicy mergePolicy = mergePolicyProvider.getMergePolicy();
+            MergePolicy mergePolicy = config().getMergePolicy();
             // Give us the opportunity to upgrade old segments while performing
             // background merges
             mergePolicy = new ElasticsearchMergePolicy(mergePolicy);

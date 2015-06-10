@@ -22,6 +22,7 @@ package org.elasticsearch.index.query;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.index.*;
 import org.apache.lucene.queries.TermsFilter;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
@@ -43,10 +44,7 @@ import org.elasticsearch.index.search.morelikethis.MoreLikeThisFetchService;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
 import static org.elasticsearch.index.mapper.Uid.createUidAsBytes;
 
@@ -159,7 +157,7 @@ public class MoreLikeThisQueryParser implements QueryParser {
                 } else if ("fields".equals(currentFieldName)) {
                     moreLikeFields = Lists.newLinkedList();
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        moreLikeFields.add(parseContext.indexName(parser.text()));
+                        moreLikeFields.add(parser.text());
                     }
                 } else if (Fields.DOCUMENT_IDS.match(currentFieldName, parseContext.parseFlags())) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
@@ -204,7 +202,12 @@ public class MoreLikeThisQueryParser implements QueryParser {
         if (moreLikeFields.isEmpty()) {
             return null;
         }
-        mltQuery.setMoreLikeFields(moreLikeFields.toArray(Strings.EMPTY_ARRAY));
+
+        List<String> moreLikeThisIndexFields = new ArrayList<>();
+        for (String field : moreLikeFields) {
+            moreLikeThisIndexFields.add(parseContext.indexName(field));
+        }
+        mltQuery.setMoreLikeFields(moreLikeThisIndexFields.toArray(new String[moreLikeThisIndexFields.size()]));
 
         // support for named query
         if (queryName != null) {
@@ -237,6 +240,21 @@ public class MoreLikeThisQueryParser implements QueryParser {
             }
             // fetching the items with multi-termvectors API
             org.apache.lucene.index.Fields[] likeFields = fetchService.fetch(items);
+            for (int i = 0; i < likeFields.length; i++) {
+                final Map<String, List<String>> fieldToIndexName = new HashMap<>();
+                for (String field : likeFields[i]) {
+                    String indexName = parseContext.indexName(field);
+                    if (indexName.equals(field) == false) {
+                        if (fieldToIndexName.containsKey(indexName) == false) {
+                            fieldToIndexName.put(indexName, new ArrayList<String>());
+                        }
+                        fieldToIndexName.get(indexName).add(field);
+                    }
+                }
+                if (fieldToIndexName.isEmpty() == false) {
+                    likeFields[i] = new MappedIndexedFields(likeFields[i], fieldToIndexName);
+                }
+            }
             items.copyContextAndHeadersFrom(SearchContext.current());
             mltQuery.setLikeText(likeFields);
 
@@ -294,6 +312,52 @@ public class MoreLikeThisQueryParser implements QueryParser {
             TermsFilter filter = new TermsFilter(UidFieldMapper.NAME, uids.toArray(new BytesRef[0]));
             ConstantScoreQuery query = new ConstantScoreQuery(filter);
             boolQuery.add(query, BooleanClause.Occur.MUST_NOT);
+        }
+    }
+
+    /**
+     * This class converts the actual path name to the index name if they happen to be different.
+     * This is needed if the "path" : "just_name" feature is used in mappings where paths like `person.name` are indexed
+     * into just the leave name of the path ie. in this case `name`. For this case we need to somehow map those names to
+     * the actual fields to get the right statistics from the index when we rewrite the MLT query otherwise it will rewrite against
+     * the full path name which is not present in the index at all in that case.
+     * his will result in an empty query and no results are returned
+     */
+    private static class MappedIndexedFields extends org.apache.lucene.index.Fields {
+        private final Map<String, List<String>> fieldToIndexName;
+        private final org.apache.lucene.index.Fields in;
+
+        MappedIndexedFields(org.apache.lucene.index.Fields in, Map<String, List<String>> fieldToIndexName) {
+            this.in = in;
+            this.fieldToIndexName = Collections.unmodifiableMap(fieldToIndexName);
+        }
+
+        @Override
+        public Iterator<String> iterator() {
+            return fieldToIndexName.keySet().iterator();
+        }
+
+        @Override
+        public Terms terms(String field) throws IOException {
+            List<String> indexNames = fieldToIndexName.get(field);
+            if (indexNames == null) {
+                return in.terms(field);
+            } if (indexNames.size() == 1) {
+                return in.terms(indexNames.get(0));
+            }else {
+                final Terms[] terms = new Terms[indexNames.size()];
+                final ReaderSlice[] slice = new ReaderSlice[indexNames.size()];
+                for (int i = 0; i < terms.length; i++) {
+                    terms[i] = in.terms(indexNames.get(i));
+                    slice[i]= new ReaderSlice(0, 1, i);
+                }
+                return new MultiTerms(terms, slice);
+             }
+        }
+
+        @Override
+        public int size() {
+            return fieldToIndexName.size();
         }
     }
 }

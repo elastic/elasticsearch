@@ -39,6 +39,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -665,5 +666,106 @@ public class MoreLikeThisActionTests extends ElasticsearchIntegrationTest {
                 .setQuery(mltQuery).get();
         assertSearchResponse(response);
         assertHitCount(response, 1);
+    }
+
+
+    public void testJustPath() throws IOException, ExecutionException, InterruptedException {
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
+                .startObject("properties")
+                    .startObject("morelikethis")
+                        .field("path", "just_name")
+                        .startObject("properties")
+                            .startObject("from")
+                                .field("type", "string")
+                                .field("path", "just_name")
+                            .endObject()
+                            .startObject("text")
+                                .field("type", "string")
+                                .field("path", "just_name")
+                            .endObject()
+                        .endObject()
+                    .endObject()
+                    .startObject("another_field")
+                        .field("path", "just_name")
+                            .startObject("properties")
+                                .startObject("text")
+                                    .field("type", "string")
+                                    .field("path", "just_name")
+                                .endObject()
+                            .endObject()
+                    .endObject()
+                .endObject().endObject();
+
+        assertAcked(prepareCreate("test")
+                .addMapping("type1", mapping));
+        ensureGreen("test");
+        indexRandom(true, client().prepareIndex("test", "type1", "1").setSource("{ \"morelikethis\"  : { \"text\" : \"hello world\" , \"from\" : \"elasticsearch\" }, \"another_field\"  : { \"text\" : \"foo bar\" }}"),
+                client().prepareIndex("test", "type1", "2").setSource(" { \"morelikethis\" : { \"text\" : \"goodby moon\" , \"from\" : \"elasticsearch\" }, \"another_field\"  : { \"text\" : \"foo bar\" }}"));
+
+        MoreLikeThisQueryBuilder mltQuery = moreLikeThisQuery()
+                .docs((Item)new Item("test", "type1", "1").fields("morelikethis.text"))
+                .minTermFreq(0)
+                .minDocFreq(0)
+                .include(true)
+                .minimumShouldMatch("1%");
+        SearchResponse response = client().prepareSearch("test").setTypes("type1")
+                .setQuery(mltQuery).get();
+        assertSearchResponse(response);
+        assertHitCount(response, 1);
+
+        mltQuery = moreLikeThisQuery()
+                .docs((Item)new Item("test", "type1", "1").fields("morelikethis.text", "another_field.text"))
+                .minTermFreq(0)
+                .minDocFreq(0)
+                .include(true)
+                .minimumShouldMatch("1%");
+        response = client().prepareSearch("test").setTypes("type1")
+                .setQuery(mltQuery).get();
+        assertSearchResponse(response);
+        assertHitCount(response, 2);
+
+        mltQuery = moreLikeThisQuery("morelikethis.text", "another_field.text")
+                .docs((Item) new Item("test", "type1", "1"))
+                .minTermFreq(0)
+                .minDocFreq(0)
+                .include(true)
+                .minimumShouldMatch("1%");
+        response = client().prepareSearch("test").setTypes("type1")
+                .setQuery(mltQuery).get();
+        assertSearchResponse(response);
+        assertHitCount(response, 2);
+
+        mltQuery = moreLikeThisQuery("morelikethis.text", "another_field.text")
+                .likeText("hello world foo bar")
+                .minTermFreq(0)
+                .minDocFreq(0)
+                .include(true)
+                .minimumShouldMatch("1%");
+        response = client().prepareSearch("test").setTypes("type1")
+                .setQuery(mltQuery).get();
+        assertSearchResponse(response);
+        assertHitCount(response, 2);
+
+        mltQuery = moreLikeThisQuery("text")
+                .likeText("hello world foo bar")
+                .minTermFreq(0)
+                .minDocFreq(0)
+                .include(true)
+                .minimumShouldMatch("1%");
+        response = client().prepareSearch("test").setTypes("type1")
+                .setQuery(mltQuery).get();
+        assertSearchResponse(response);
+        assertHitCount(response, 2);
+
+        mltQuery = moreLikeThisQuery()
+                .docs((Item)new Item("test", "type1", "1").fields("morelikethis.text", "morelikethis.from"))
+                .minTermFreq(0)
+                .minDocFreq(0)
+                .include(true)
+                .minimumShouldMatch("1%");
+        response = client().prepareSearch("test").setTypes("type1")
+                .setQuery(mltQuery).get();
+        assertSearchResponse(response);
+        assertHitCount(response, 2);
     }
 }

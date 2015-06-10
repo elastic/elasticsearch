@@ -20,30 +20,12 @@
 package org.elasticsearch.action.admin.indices.shards;
 
 import org.elasticsearch.action.Action;
+import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 
-/**
- * Action for {@link TransportIndicesUnassignedShardsAction}
- *
- * Exposes information about where unassigned shards are located, how recent they are
- * and reports if the shards can be opened
- */
-public class IndicesUnassignedShardsAction extends Action<IndicesUnassignedShardsRequest, IndicesUnassigedShardsResponse, IndicesUnassigedShardsRequestBuilder> {
+public class IndicesShardsStoresRequestBuilder extends MasterNodeReadOperationRequestBuilder<IndicesShardsStoresRequest, IndicesShardsStoresResponse, IndicesShardsStoresRequestBuilder> {
 
-    public static final IndicesUnassignedShardsAction INSTANCE = new IndicesUnassignedShardsAction();
-    public static final String NAME = "indices:monitor/unassigned_shards";
-
-    private IndicesUnassignedShardsAction() {
-        super(NAME);
-    }
-
-    @Override
-    public IndicesUnassigedShardsResponse newResponse() {
-        return new IndicesUnassigedShardsResponse();
-    }
-
-    @Override
-    public IndicesUnassigedShardsRequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new IndicesUnassigedShardsRequestBuilder(client, this);
+    public IndicesShardsStoresRequestBuilder(ElasticsearchClient client, Action<IndicesShardsStoresRequest, IndicesShardsStoresResponse, IndicesShardsStoresRequestBuilder> action, String... indices) {
+        super(client, action, new IndicesShardsStoresRequest(indices));
     }
 }

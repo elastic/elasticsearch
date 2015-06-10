@@ -19,8 +19,9 @@
 
 package org.elasticsearch.rest.action.admin.indices.shards;
 
-import org.elasticsearch.action.admin.indices.shards.IndicesUnassigedShardsResponse;
-import org.elasticsearch.action.admin.indices.shards.IndicesUnassignedShardsRequest;
+import org.elasticsearch.action.admin.indices.shards.IndicesShardsStoresAction;
+import org.elasticsearch.action.admin.indices.shards.IndicesShardsStoresResponse;
+import org.elasticsearch.action.admin.indices.shards.IndicesShardsStoresRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
@@ -34,24 +35,27 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestStatus.OK;
 
 /**
- * Rest action for {@link org.elasticsearch.action.admin.indices.shards.IndicesUnassignedShardsAction}
+ * Rest action for {@link IndicesShardsStoresAction}
  */
-public class RestIndicesUnassignedShardsAction extends BaseRestHandler {
+public class RestIndicesShardStoresAction extends BaseRestHandler {
 
     @Inject
-    public RestIndicesUnassignedShardsAction(Settings settings, RestController controller, Client client) {
+    public RestIndicesShardStoresAction(Settings settings, RestController controller, Client client) {
         super(settings, controller, client);
-        controller.registerHandler(GET, "/_unassigned_shards", this);
-        controller.registerHandler(GET, "/{index}/_unassigned_shards", this);
+        controller.registerHandler(GET, "/_shard_stores/{shards}", this);
+        controller.registerHandler(GET, "/{index}/_shard_stores/{shards}", this);
     }
 
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
-        IndicesUnassignedShardsRequest indicesSegmentsRequest = new IndicesUnassignedShardsRequest(Strings.splitStringByCommaToArray(request.param("index")));
-        indicesSegmentsRequest.indicesOptions(IndicesOptions.fromRequest(request, indicesSegmentsRequest.indicesOptions()));
-        client.admin().indices().unassignedShards(indicesSegmentsRequest, new RestBuilderListener<IndicesUnassigedShardsResponse>(channel) {
+        IndicesShardsStoresRequest indicesShardsStoresRequest = new IndicesShardsStoresRequest(Strings.splitStringByCommaToArray(request.param("index")));
+        if (request.hasParam("shards")) {
+            indicesShardsStoresRequest.shardState(request.param("shards"));
+        }
+        indicesShardsStoresRequest.indicesOptions(IndicesOptions.fromRequest(request, indicesShardsStoresRequest.indicesOptions()));
+        client.admin().indices().shardsStores(indicesShardsStoresRequest, new RestBuilderListener<IndicesShardsStoresResponse>(channel) {
             @Override
-            public RestResponse buildResponse(IndicesUnassigedShardsResponse response, XContentBuilder builder) throws Exception {
+            public RestResponse buildResponse(IndicesShardsStoresResponse response, XContentBuilder builder) throws Exception {
                 builder.startObject();
                 response.toXContent(builder, request);
                 builder.endObject();

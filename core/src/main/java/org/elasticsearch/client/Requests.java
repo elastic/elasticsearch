@@ -49,7 +49,7 @@ import org.elasticsearch.action.admin.indices.optimize.OptimizeRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsRequest;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
-import org.elasticsearch.action.admin.indices.shards.IndicesUnassignedShardsRequest;
+import org.elasticsearch.action.admin.indices.shards.IndicesShardsStoresRequest;
 import org.elasticsearch.action.admin.indices.upgrade.post.UpgradeRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.count.CountRequest;
@@ -186,13 +186,13 @@ public class Requests {
     }
 
     /**
-     * Creates an indices un-assigned shards info request.
-     * @param indices The indices to query un-assigned shards of
-     * @return The indices un-assigned shards request
-     * @see org.elasticsearch.client.IndicesAdminClient#unassignedShards(IndicesUnassignedShardsRequest)
+     * Creates an indices shard stores info request.
+     * @param indices The indices to get shard store information on
+     * @return The indices shard stores request
+     * @see org.elasticsearch.client.IndicesAdminClient#shardsStores(IndicesShardsStoresRequest)
      */
-    public static IndicesUnassignedShardsRequest indicesUnassignedShardsRequest(String... indices) {
-        return new IndicesUnassignedShardsRequest(indices);
+    public static IndicesShardsStoresRequest indicesShardsStoresRequest(String... indices) {
+        return new IndicesShardsStoresRequest(indices);
     }
     /**
      * Creates an indices exists request.

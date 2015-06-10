@@ -81,9 +81,9 @@ import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequestBuilder;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsResponse;
-import org.elasticsearch.action.admin.indices.shards.IndicesUnassigedShardsRequestBuilder;
-import org.elasticsearch.action.admin.indices.shards.IndicesUnassigedShardsResponse;
-import org.elasticsearch.action.admin.indices.shards.IndicesUnassignedShardsRequest;
+import org.elasticsearch.action.admin.indices.shards.IndicesShardsStoresRequestBuilder;
+import org.elasticsearch.action.admin.indices.shards.IndicesShardsStoresResponse;
+import org.elasticsearch.action.admin.indices.shards.IndicesShardsStoresRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequestBuilder;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
@@ -222,27 +222,27 @@ public interface IndicesAdminClient extends ElasticsearchClient {
     IndicesSegmentsRequestBuilder prepareSegments(String... indices);
 
     /**
-     * The un-assigned shards info of one or more indices.
+     * The shards stores info of one or more indices.
      *
-     * @param request The indices un-assigned shards request
+     * @param request The indices shards stores request
      * @return The result future
-     * @see Requests#indicesUnassignedShardsRequest(String...)
+     * @see Requests#indicesShardsStoresRequest(String...)
      */
-    ActionFuture<IndicesUnassigedShardsResponse> unassignedShards(IndicesUnassignedShardsRequest request);
+    ActionFuture<IndicesShardsStoresResponse> shardsStores(IndicesShardsStoresRequest request);
 
     /**
-     * The un-assigned shards info of one or more indices.
+     * The shards stores info of one or more indices.
      *
-     * @param request The indices un-assigned shards request
+     * @param request The indices shards stores request
      * @param listener A listener to be notified with a result
-     * @see Requests#indicesUnassignedShardsRequest(String...)
+     * @see Requests#indicesShardsStoresRequest(String...)
      */
-    void unassignedShards(IndicesUnassignedShardsRequest request, ActionListener<IndicesUnassigedShardsResponse> listener);
+    void shardsStores(IndicesShardsStoresRequest request, ActionListener<IndicesShardsStoresResponse> listener);
 
     /**
-     * The un-assigned shards of one or more indices.
+     * The shards stores info of one or more indices.
      */
-    IndicesUnassigedShardsRequestBuilder prepareUnassignedShards(String... indices);
+    IndicesShardsStoresRequestBuilder prepareShardStores(String... indices);
 
     /**
      * Creates an index using an explicit request allowing to specify the settings of the index.

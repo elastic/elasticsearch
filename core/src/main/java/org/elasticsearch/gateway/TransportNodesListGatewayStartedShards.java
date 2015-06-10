@@ -120,16 +120,11 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
             if (shardStateMetaData != null) {
                 final IndexMetaData metaData = clusterService.state().metaData().index(shardId.index().name()); // it's a mystery why this is sometimes null
                 if (metaData != null) {
-                    final boolean canOpenIndex;
                     try {
-                        canOpenIndex = tryOpenIndex(request.getShardId(), metaData);
-                    } catch (Exception ex) {
+                        tryOpenIndex(request.getShardId(), metaData);
+                    } catch (Exception exception) {
                         logger.trace("{} can't open index for shard [{}]", shardId, shardStateMetaData);
-                        return new NodeGatewayStartedShards(clusterService.localNode(), -1, ExceptionsHelper.detailedMessage(ex));
-                    }
-                    if (canOpenIndex == false) {
-                        logger.trace("{} can't open index for shard [{}]", shardId, shardStateMetaData);
-                        return new NodeGatewayStartedShards(clusterService.localNode(), -1);
+                        return new NodeGatewayStartedShards(clusterService.localNode(), -1, exception);
                     }
                 }
                 // old shard metadata doesn't have the actual index UUID so we need to check if the actual uuid in the metadata
@@ -149,16 +144,16 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
         }
     }
 
-    private boolean tryOpenIndex(ShardId shardId, IndexMetaData metaData) throws IOException {
+    private void tryOpenIndex(ShardId shardId, IndexMetaData metaData) throws IOException {
         final ShardPath shardPath = ShardPath.loadShardPath(logger, nodeEnv, shardId, metaData.settings());
         if (shardPath == null) {
-            return false;
+            throw new IllegalStateException(shardId + " no shard state found");
         }
         try {
-            return Store.tryOpenIndex(shardPath.resolveIndex());
-        } catch (Exception ex) {
-            logger.trace("Can't open index for path [{}]", ex, shardPath.resolveIndex());
-            throw ex;
+            Store.tryOpenIndex(shardPath.resolveIndex());
+        } catch (Exception exception) {
+            logger.trace("Can't open index for path [{}]", exception, shardPath.resolveIndex());
+            throw exception;
         }
     }
 
@@ -280,7 +275,7 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
     public static class NodeGatewayStartedShards extends BaseNodeResponse {
 
         private long version = -1;
-        private String exception = null;
+        private Throwable exception = null;
 
         NodeGatewayStartedShards() {
         }
@@ -288,7 +283,7 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
             this(node, version, null);
         }
 
-        public NodeGatewayStartedShards(DiscoveryNode node, long version, String exception) {
+        public NodeGatewayStartedShards(DiscoveryNode node, long version, Throwable exception) {
             super(node);
             this.version = version;
             this.exception = exception;
@@ -298,7 +293,7 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
             return this.version;
         }
 
-        public String exception() {
+        public Throwable exception() {
             return this.exception;
         }
 
@@ -306,14 +301,22 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             version = in.readLong();
-            exception = in.readOptionalString();
+            if (in.readBoolean()) {
+                exception = in.readThrowable();
+            }
+
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeLong(version);
-            out.writeOptionalString(exception);
+            if (exception != null) {
+                out.writeBoolean(true);
+                out.writeThrowable(exception);
+            } else {
+                out.writeBoolean(false);
+            }
         }
     }
 }

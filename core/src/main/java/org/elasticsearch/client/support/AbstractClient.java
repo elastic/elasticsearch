@@ -176,10 +176,10 @@ import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsAction;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequestBuilder;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsResponse;
-import org.elasticsearch.action.admin.indices.shards.IndicesUnassigedShardsRequestBuilder;
-import org.elasticsearch.action.admin.indices.shards.IndicesUnassigedShardsResponse;
-import org.elasticsearch.action.admin.indices.shards.IndicesUnassignedShardsAction;
-import org.elasticsearch.action.admin.indices.shards.IndicesUnassignedShardsRequest;
+import org.elasticsearch.action.admin.indices.shards.IndicesShardsStoresRequestBuilder;
+import org.elasticsearch.action.admin.indices.shards.IndicesShardsStoresResponse;
+import org.elasticsearch.action.admin.indices.shards.IndicesShardsStoresAction;
+import org.elasticsearch.action.admin.indices.shards.IndicesShardsStoresRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequestBuilder;
@@ -1499,18 +1499,18 @@ public abstract class AbstractClient extends AbstractComponent implements Client
         }
 
         @Override
-        public ActionFuture<IndicesUnassigedShardsResponse> unassignedShards(IndicesUnassignedShardsRequest request) {
-            return execute(IndicesUnassignedShardsAction.INSTANCE, request);
+        public ActionFuture<IndicesShardsStoresResponse> shardsStores(IndicesShardsStoresRequest request) {
+            return execute(IndicesShardsStoresAction.INSTANCE, request);
         }
 
         @Override
-        public void unassignedShards(IndicesUnassignedShardsRequest request, ActionListener<IndicesUnassigedShardsResponse> listener) {
-            execute(IndicesUnassignedShardsAction.INSTANCE, request, listener);
+        public void shardsStores(IndicesShardsStoresRequest request, ActionListener<IndicesShardsStoresResponse> listener) {
+            execute(IndicesShardsStoresAction.INSTANCE, request, listener);
         }
 
         @Override
-        public IndicesUnassigedShardsRequestBuilder prepareUnassignedShards(String... indices) {
-            return new IndicesUnassigedShardsRequestBuilder(this, IndicesUnassignedShardsAction.INSTANCE, indices);
+        public IndicesShardsStoresRequestBuilder prepareShardStores(String... indices) {
+            return new IndicesShardsStoresRequestBuilder(this, IndicesShardsStoresAction.INSTANCE, indices);
         }
 
         @Override

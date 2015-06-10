@@ -50,6 +50,7 @@ public class PipelineAggregationHelperTests extends ElasticsearchTestCase {
         ArrayList<MockBucket> values = new ArrayList<>(size);
 
         boolean lastWasGap = false;
+        boolean emptyHisto = true;
 
         for (int i = 0; i < size; i++) {
             MockBucket bucket = new MockBucket();
@@ -70,13 +71,25 @@ public class PipelineAggregationHelperTests extends ElasticsearchTestCase {
                 bucket.count = randomIntBetween(1, 50);
                 bucket.docValues = new double[bucket.count];
                 for (int j = 0; j < bucket.count; j++) {
-                    bucket.docValues[j] = randomDouble() * randomIntBetween(-20,20);
+                    bucket.docValues[j] = randomDouble() * randomIntBetween(-20, 20);
                 }
                 lastWasGap = false;
+                emptyHisto = false;
             }
 
             bucket.key = i * interval;
             values.add(bucket);
+        }
+
+        if (emptyHisto) {
+            int idx = randomIntBetween(0, values.size()-1);
+            MockBucket bucket = values.get(idx);
+            bucket.count = randomIntBetween(1, 50);
+            bucket.docValues = new double[bucket.count];
+            for (int j = 0; j < bucket.count; j++) {
+                bucket.docValues[j] = randomDouble() * randomIntBetween(-20, 20);
+            }
+            values.set(idx, bucket);
         }
 
         return values;

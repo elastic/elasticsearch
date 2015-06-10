@@ -25,9 +25,16 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
+import java.io.OutputStream;
 import java.util.Arrays;
+import java.util.zip.CRC32;
+import java.util.zip.CheckedOutputStream;
 
 /**
  * Similar class to the {@link String} class except that it internally stores
@@ -37,23 +44,79 @@ import java.util.Arrays;
  */
 public final class CompressedXContent {
 
-    private final byte[] bytes;
-    private int hashCode;
+    private static int crc32(BytesReference data) {
+        OutputStream dummy = new OutputStream() {
+            @Override
+            public void write(int b) throws IOException {
+                // no-op
+            }
+            @Override
+            public void write(byte[] b, int off, int len) throws IOException {
+                // no-op
+            }
+        };
+        CRC32 crc32 = new CRC32();
+        try {
+            data.writeTo(new CheckedOutputStream(dummy, crc32));
+        } catch (IOException bogus) {
+            // cannot happen
+            throw new Error(bogus);
+        }
+        return (int) crc32.getValue();
+    }
 
+    private final byte[] bytes;
+    private final int crc32;
+
+    // Used for serialization
+    private CompressedXContent(byte[] compressed, int crc32) {
+        this.bytes = compressed;
+        this.crc32 = crc32;
+        assertConsistent();
+    }
+
+    /**
+     * Create a {@link CompressedXContent} out of a {@link ToXContent} instance.
+     */
+    public CompressedXContent(ToXContent xcontent, XContentType type, ToXContent.Params params) throws IOException {
+        BytesStreamOutput bStream = new BytesStreamOutput();
+        OutputStream compressedStream = CompressorFactory.defaultCompressor().streamOutput(bStream);
+        CRC32 crc32 = new CRC32();
+        OutputStream checkedStream = new CheckedOutputStream(compressedStream, crc32);
+        try (XContentBuilder builder = XContentFactory.contentBuilder(type, checkedStream)) {
+            builder.startObject();
+            xcontent.toXContent(builder, params);
+            builder.endObject();
+        }
+        this.bytes = bStream.bytes().toBytes();
+        this.crc32 = (int) crc32.getValue();
+        assertConsistent();
+    }
+
+    /**
+     * Create a {@link CompressedXContent} out of a serialized {@link ToXContent}
+     * that may already be compressed.
+     */
     public CompressedXContent(BytesReference data) throws IOException {
         Compressor compressor = CompressorFactory.compressor(data);
         if (compressor != null) {
             // already compressed...
             this.bytes = data.toBytes();
+            this.crc32 = crc32(new BytesArray(uncompressed()));
         } else {
             BytesStreamOutput out = new BytesStreamOutput();
-            try (StreamOutput compressedOutput = CompressorFactory.defaultCompressor().streamOutput(out)) {
+            try (OutputStream compressedOutput = CompressorFactory.defaultCompressor().streamOutput(out)) {
                 data.writeTo(compressedOutput);
             }
             this.bytes = out.bytes().toBytes();
-            assert CompressorFactory.compressor(new BytesArray(bytes)) != null;
+            this.crc32 = crc32(data);
         }
+        assertConsistent();
+    }
 
+    private void assertConsistent() {
+        assert CompressorFactory.compressor(new BytesArray(bytes)) != null;
+        assert this.crc32 == crc32(new BytesArray(uncompressed()));
     }
 
     public CompressedXContent(byte[] data) throws IOException {
@@ -88,12 +151,14 @@ public final class CompressedXContent {
     }
 
     public static CompressedXContent readCompressedString(StreamInput in) throws IOException {
-        byte[] bytes = new byte[in.readVInt()];
-        in.readBytes(bytes, 0, bytes.length);
-        return new CompressedXContent(bytes);
+        int crc32 = in.readInt();
+        byte[] compressed = new byte[in.readVInt()];
+        in.readBytes(compressed, 0, compressed.length);
+        return new CompressedXContent(compressed, crc32);
     }
 
     public void writeTo(StreamOutput out) throws IOException {
+        out.writeInt(crc32);
         out.writeVInt(bytes.length);
         out.writeBytes(bytes);
     }
@@ -109,19 +174,16 @@ public final class CompressedXContent {
             return true;
         }
 
+        if (crc32 != that.crc32) {
+            return false;
+        }
+
         return Arrays.equals(uncompressed(), that.uncompressed());
     }
 
     @Override
     public int hashCode() {
-        if (hashCode == 0) {
-            int h = Arrays.hashCode(uncompressed());
-            if (h == 0) {
-                h = 1;
-            }
-            hashCode = h;
-        }
-        return hashCode;
+        return crc32;
     }
 
     @Override

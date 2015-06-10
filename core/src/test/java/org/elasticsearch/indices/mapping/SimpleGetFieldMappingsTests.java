@@ -133,7 +133,6 @@ public class SimpleGetFieldMappingsTests extends ElasticsearchIntegrationTest {
 
         client().prepareIndex("test", "type", "1").setSource("num", 1).get();
         ensureYellow();
-        waitForConcreteMappingsOnAll("test", "type", "num"); // for num, we need to wait...
 
         GetFieldMappingsResponse response = client().admin().indices().prepareGetFieldMappings().setFields("num", "field1", "obj.subfield").includeDefaults(true).get();
 

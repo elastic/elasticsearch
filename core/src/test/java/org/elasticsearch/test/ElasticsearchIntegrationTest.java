@@ -97,7 +97,6 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType.Loading;
 import org.elasticsearch.index.mapper.internal.SizeFieldMapper;
@@ -866,56 +865,44 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
      * Waits till a (pattern) field name mappings concretely exists on all nodes. Note, this waits for the current
      * started shards and checks for concrete mappings.
      */
-    public void waitForConcreteMappingsOnAll(final String index, final String type, final String... fieldNames) throws Exception {
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                Set<String> nodes = internalCluster().nodesInclude(index);
-                assertThat(nodes, Matchers.not(Matchers.emptyIterable()));
-                for (String node : nodes) {
-                    IndicesService indicesService = internalCluster().getInstance(IndicesService.class, node);
-                    IndexService indexService = indicesService.indexService(index);
-                    assertThat("index service doesn't exists on " + node, indexService, notNullValue());
-                    DocumentMapper documentMapper = indexService.mapperService().documentMapper(type);
-                    assertThat("document mapper doesn't exists on " + node, documentMapper, notNullValue());
-                    for (String fieldName : fieldNames) {
-                        Collection<String> matches = documentMapper.mappers().simpleMatchToFullName(fieldName);
-                        assertThat("field " + fieldName + " doesn't exists on " + node, matches, Matchers.not(emptyIterable()));
-                    }
-                }
+    public void assertConcreteMappingsOnAll(final String index, final String type, final String... fieldNames) throws Exception {
+        Set<String> nodes = internalCluster().nodesInclude(index);
+        assertThat(nodes, Matchers.not(Matchers.emptyIterable()));
+        for (String node : nodes) {
+            IndicesService indicesService = internalCluster().getInstance(IndicesService.class, node);
+            IndexService indexService = indicesService.indexService(index);
+            assertThat("index service doesn't exists on " + node, indexService, notNullValue());
+            DocumentMapper documentMapper = indexService.mapperService().documentMapper(type);
+            assertThat("document mapper doesn't exists on " + node, documentMapper, notNullValue());
+            for (String fieldName : fieldNames) {
+                Collection<String> matches = documentMapper.mappers().simpleMatchToFullName(fieldName);
+                assertThat("field " + fieldName + " doesn't exists on " + node, matches, Matchers.not(emptyIterable()));
             }
-        });
-        waitForMappingOnMaster(index, type, fieldNames);
+        }
+        assertMappingOnMaster(index, type, fieldNames);
     }
 
     /**
      * Waits for the given mapping type to exists on the master node.
      */
-    public void waitForMappingOnMaster(final String index, final String type, final String... fieldNames) throws Exception {
-        assertBusy(new Callable() {
-            @Override
-            public Object call() throws Exception {
-                GetMappingsResponse response = client().admin().indices().prepareGetMappings(index).setTypes(type).get();
-                ImmutableOpenMap<String, MappingMetaData> mappings = response.getMappings().get(index);
-                assertThat(mappings, notNullValue());
-                MappingMetaData mappingMetaData = mappings.get(type);
-                assertThat(mappingMetaData, notNullValue());
+    public void assertMappingOnMaster(final String index, final String type, final String... fieldNames) throws Exception {
+        GetMappingsResponse response = client().admin().indices().prepareGetMappings(index).setTypes(type).get();
+        ImmutableOpenMap<String, MappingMetaData> mappings = response.getMappings().get(index);
+        assertThat(mappings, notNullValue());
+        MappingMetaData mappingMetaData = mappings.get(type);
+        assertThat(mappingMetaData, notNullValue());
 
-                Map<String, Object> mappingSource = mappingMetaData.getSourceAsMap();
-                assertFalse(mappingSource.isEmpty());
-                assertTrue(mappingSource.containsKey("properties"));
+        Map<String, Object> mappingSource = mappingMetaData.getSourceAsMap();
+        assertFalse(mappingSource.isEmpty());
+        assertTrue(mappingSource.containsKey("properties"));
 
-                for (String fieldName : fieldNames) {
-                    Map<String, Object> mappingProperties = (Map<String, Object>) mappingSource.get("properties");
-                    if (fieldName.indexOf('.') != -1) {
-                        fieldName = fieldName.replace(".", ".properties.");
-                    }
-                    assertThat("field " + fieldName + " doesn't exists in mapping " + mappingMetaData.source().string(), XContentMapValues.extractValue(fieldName, mappingProperties), notNullValue());
-                }
-
-                return null;
+        for (String fieldName : fieldNames) {
+            Map<String, Object> mappingProperties = (Map<String, Object>) mappingSource.get("properties");
+            if (fieldName.indexOf('.') != -1) {
+                fieldName = fieldName.replace(".", ".properties.");
             }
-        });
+            assertThat("field " + fieldName + " doesn't exists in mapping " + mappingMetaData.source().string(), XContentMapValues.extractValue(fieldName, mappingProperties), notNullValue());
+        }
     }
 
     /**

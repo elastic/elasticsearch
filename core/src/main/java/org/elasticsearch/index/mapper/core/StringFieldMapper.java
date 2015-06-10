@@ -83,11 +83,6 @@ public class StringFieldMapper extends AbstractFieldMapper implements AllFieldMa
             builder = this;
         }
 
-        public Builder nullValue(String nullValue) {
-            this.nullValue = nullValue;
-            return this;
-        }
-
         @Override
         public Builder searchAnalyzer(NamedAnalyzer searchAnalyzer) {
             super.searchAnalyzer(searchAnalyzer);
@@ -135,7 +130,7 @@ public class StringFieldMapper extends AbstractFieldMapper implements AllFieldMa
             defaultFieldType.freeze();
             setupFieldType(context);
             StringFieldMapper fieldMapper = new StringFieldMapper(
-                    fieldType, defaultFieldType, docValues, nullValue, positionOffsetGap, ignoreAbove,
+                    fieldType, defaultFieldType, docValues, positionOffsetGap, ignoreAbove,
                     fieldDataSettings, context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
             fieldMapper.includeInAll(includeInAll);
             return fieldMapper;
@@ -189,7 +184,7 @@ public class StringFieldMapper extends AbstractFieldMapper implements AllFieldMa
         }
     }
 
-    static final class StringFieldType extends MappedFieldType {
+    public static final class StringFieldType extends MappedFieldType {
 
         public StringFieldType() {
             super(AbstractFieldMapper.Defaults.FIELD_TYPE);
@@ -210,23 +205,29 @@ public class StringFieldMapper extends AbstractFieldMapper implements AllFieldMa
             }
             return value.toString();
         }
+
+        @Override
+        public Query nullValueQuery() {
+            if (nullValue() == null) {
+                return null;
+            }
+            return termQuery(nullValue(), null);
+        }
     }
 
-    private String nullValue;
     private Boolean includeInAll;
     private int positionOffsetGap;
     private int ignoreAbove;
     private final MappedFieldType defaultFieldType;
 
     protected StringFieldMapper(MappedFieldType fieldType, MappedFieldType defaultFieldType, Boolean docValues,
-                                String nullValue, int positionOffsetGap, int ignoreAbove, @Nullable Settings fieldDataSettings,
+                                int positionOffsetGap, int ignoreAbove, @Nullable Settings fieldDataSettings,
                                 Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
         super(fieldType, docValues, fieldDataSettings, indexSettings, multiFields, copyTo);
         if (fieldType.tokenized() && fieldType.indexOptions() != NONE && fieldType().hasDocValues()) {
             throw new MapperParsingException("Field [" + fieldType.names().fullName() + "] cannot be analyzed and have doc values");
         }
         this.defaultFieldType = defaultFieldType;
-        this.nullValue = nullValue;
         this.positionOffsetGap = positionOffsetGap;
         this.ignoreAbove = ignoreAbove;
     }
@@ -274,16 +275,8 @@ public class StringFieldMapper extends AbstractFieldMapper implements AllFieldMa
     }
 
     @Override
-    public Query nullValueFilter() {
-        if (nullValue == null) {
-            return null;
-        }
-        return termQuery(nullValue, null);
-    }
-
-    @Override
     protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException {
-        ValueAndBoost valueAndBoost = parseCreateFieldForString(context, nullValue, fieldType.boost());
+        ValueAndBoost valueAndBoost = parseCreateFieldForString(context, fieldType().nullValueAsString(), fieldType.boost());
         if (valueAndBoost.value() == null) {
             return;
         }
@@ -359,8 +352,10 @@ public class StringFieldMapper extends AbstractFieldMapper implements AllFieldMa
         }
         if (!mergeResult.simulate()) {
             this.includeInAll = ((StringFieldMapper) mergeWith).includeInAll;
-            this.nullValue = ((StringFieldMapper) mergeWith).nullValue;
             this.ignoreAbove = ((StringFieldMapper) mergeWith).ignoreAbove;
+            this.fieldType = this.fieldType.clone();
+            this.fieldType.setNullValue(((StringFieldMapper) mergeWith).fieldType().nullValue());
+            this.fieldType.freeze();
         }
     }
 
@@ -368,8 +363,8 @@ public class StringFieldMapper extends AbstractFieldMapper implements AllFieldMa
     protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
         super.doXContentBody(builder, includeDefaults, params);
 
-        if (includeDefaults || nullValue != null) {
-            builder.field("null_value", nullValue);
+        if (includeDefaults || fieldType().nullValue() != null) {
+            builder.field("null_value", fieldType().nullValue());
         }
         if (includeInAll != null) {
             builder.field("include_in_all", includeInAll);

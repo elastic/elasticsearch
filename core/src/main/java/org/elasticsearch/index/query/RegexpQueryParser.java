@@ -28,6 +28,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.support.QueryParsers;
 
 import java.io.IOException;
@@ -106,9 +107,9 @@ public class RegexpQueryParser extends BaseQueryParserTemp {
         MultiTermQuery.RewriteMethod method = QueryParsers.parseRewriteMethod(rewriteMethod, null);
 
         Query query = null;
-        FieldMapper mapper = parseContext.fieldMapper(fieldName);
-        if (mapper != null) {
-            query = mapper.regexpQuery(value, flagsValue, maxDeterminizedStates, method, parseContext);
+        MappedFieldType fieldType = parseContext.fieldMapper(fieldName);
+        if (fieldType != null) {
+            query = fieldType.regexpQuery(value, flagsValue, maxDeterminizedStates, method, parseContext);
         }
         if (query == null) {
             RegexpQuery regexpQuery = new RegexpQuery(new Term(fieldName, BytesRefs.toBytesRef(value)), flagsValue, maxDeterminizedStates);

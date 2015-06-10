@@ -123,7 +123,7 @@ public class SizeFieldMapper extends IntegerFieldMapper implements RootMapper {
     }
 
     public SizeFieldMapper(EnabledAttributeMapper enabled, MappedFieldType fieldType, @Nullable Settings fieldDataSettings, Settings indexSettings) {
-        super(fieldType, false, Defaults.NULL_VALUE,
+        super(fieldType, false,
                 Defaults.IGNORE_MALFORMED,  Defaults.COERCE, fieldDataSettings,
                 indexSettings, MultiFields.empty(), null);
         this.enabledState = enabled;

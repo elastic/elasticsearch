@@ -165,7 +165,7 @@ public class HasParentQueryParser extends BaseQueryParserTemp {
             ParentFieldMapper parentFieldMapper = documentMapper.parentFieldMapper();
             if (parentFieldMapper.active()) {
                 DocumentMapper parentTypeDocumentMapper = parseContext.mapperService().documentMapper(parentFieldMapper.type());
-                parentChildIndexFieldData = parseContext.getForField(parentFieldMapper);
+                parentChildIndexFieldData = parseContext.getForField(parentFieldMapper.fieldType());
                 if (parentTypeDocumentMapper == null) {
                     // Only add this, if this parentFieldMapper (also a parent)  isn't a child of another parent.
                     parentTypes.add(parentFieldMapper.type());

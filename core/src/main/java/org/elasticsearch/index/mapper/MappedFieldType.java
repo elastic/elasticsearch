@@ -25,6 +25,7 @@ import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.queries.TermsQuery;
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PrefixQuery;
@@ -175,6 +176,8 @@ public class MappedFieldType extends FieldType {
     private SimilarityProvider similarity;
     private Loading normsLoading;
     private FieldDataType fieldDataType;
+    private Object nullValue;
+    private String nullValueAsString; // for sending null value to _all field
 
     protected MappedFieldType(MappedFieldType ref) {
         super(ref);
@@ -187,6 +190,8 @@ public class MappedFieldType extends FieldType {
         this.similarity = ref.similarity();
         this.normsLoading = ref.normsLoading();
         this.fieldDataType = ref.fieldDataType();
+        this.nullValue = ref.nullValue();
+        this.nullValueAsString = ref.nullValueAsString();
     }
 
     public MappedFieldType() {}
@@ -286,6 +291,23 @@ public class MappedFieldType extends FieldType {
         this.similarity = similarity;
     }
 
+    /** Returns the value that should be added when JSON null is found, or null if no value should be added */
+    public Object nullValue() {
+        return nullValue;
+    }
+
+    /** Returns the null value stringified, so it can be used for e.g. _all field, or null if there is no null value */
+    public String nullValueAsString() {
+        return nullValueAsString;
+    }
+
+    /** Sets the null value and initializes the string version */
+    public void setNullValue(Object nullValue) {
+        checkIfFrozen();
+        this.nullValue = nullValue;
+        this.nullValueAsString = nullValue == null ? null : nullValue.toString();
+    }
+
     /** Returns the actual value of the field. */
     public Object value(Object value) {
         return value;
@@ -351,6 +373,13 @@ public class MappedFieldType extends FieldType {
             query.setRewriteMethod(method);
         }
         return query;
+    }
+
+    public Query nullValueQuery() {
+        if (nullValue == null) {
+            return null;
+        }
+        return new ConstantScoreQuery(termQuery(nullValue, null));
     }
 
     /**

@@ -28,18 +28,11 @@ import com.google.common.collect.Iterators;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.index.Term;
-import org.apache.lucene.index.Terms;
-import org.apache.lucene.search.MultiTermQuery;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.fieldstats.FieldStats;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.FieldDataType;
@@ -52,7 +45,6 @@ import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.internal.AllFieldMapper;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.similarity.SimilarityLookupService;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 
@@ -228,6 +220,11 @@ public abstract class AbstractFieldMapper implements FieldMapper {
             return builder;
         }
 
+        public Builder nullValue(Object nullValue) {
+            this.fieldType.setNullValue(nullValue);
+            return this;
+        }
+
         public T multiFieldPathType(ContentPath.Type pathType) {
             multiFieldsBuilder.pathType(pathType);
             return builder;
@@ -381,67 +378,6 @@ public abstract class AbstractFieldMapper implements FieldMapper {
             return Collections.emptyIterator();
         }
         return multiFields.iterator();
-    }
-
-    @Override
-    public final Object value(Object value) {
-        return fieldType().value(value);
-    }
-
-    @Override
-    public final Object valueForSearch(Object value) {
-        return fieldType().valueForSearch(value);
-    }
-
-    // TODO: this is not final so ParentFieldMapper can have custom behavior, per type...
-    @Override
-    public BytesRef indexedValueForSearch(Object value) {
-        return fieldType().indexedValueForSearch(value);
-    }
-
-    @Override
-    public final Query queryStringTermQuery(Term term) {
-        return fieldType().queryStringTermQuery(term);
-    }
-
-    @Override
-    public final boolean useTermQueryWithQueryString() {
-        return fieldType().useTermQueryWithQueryString();
-    }
-
-    @Override
-    public final Query termQuery(Object value, @Nullable QueryParseContext context) {
-        return fieldType().termQuery(value, context);
-    }
-
-    @Override
-    public final Query termsQuery(List values, @Nullable QueryParseContext context) {
-        return fieldType().termsQuery(values, context);
-    }
-
-    @Override
-    public final Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
-        return fieldType().rangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, context);
-    }
-
-    @Override
-    public final Query fuzzyQuery(String value, Fuzziness fuzziness, int prefixLength, int maxExpansions, boolean transpositions) {
-        return fieldType().fuzzyQuery(value, fuzziness, prefixLength, maxExpansions, transpositions);
-    }
-
-    @Override
-    public final Query prefixQuery(Object value, @Nullable MultiTermQuery.RewriteMethod method, @Nullable QueryParseContext context) {
-        return fieldType().prefixQuery(value, method, context);
-    }
-
-    @Override
-    public final Query regexpQuery(Object value, int flags, int maxDeterminizedStates, @Nullable MultiTermQuery.RewriteMethod method, @Nullable QueryParseContext context) {
-        return fieldType().regexpQuery(value, flags, maxDeterminizedStates, method, context);
-    }
-
-    @Override
-    public Query nullValueFilter() {
-        return null;
     }
 
     @Override
@@ -679,21 +615,6 @@ public abstract class AbstractFieldMapper implements FieldMapper {
         multiFields.close();
     }
 
-    @Override
-    public final boolean isNumeric() {
-        return fieldType().isNumeric();
-    }
-
-    @Override
-    public final boolean isSortable() {
-        return fieldType().isSortable();
-    }
-
-    @Override
-    public boolean supportsNullValue() {
-        return true;
-    }
-
     public static class MultiFields {
 
         public static MultiFields empty() {
@@ -902,10 +823,5 @@ public abstract class AbstractFieldMapper implements FieldMapper {
     @Override
     public boolean isGenerated() {
         return false;
-    }
-
-    @Override
-    public final FieldStats stats(Terms terms, int maxDoc) throws IOException {
-        return fieldType().stats(terms, maxDoc);
     }
 }

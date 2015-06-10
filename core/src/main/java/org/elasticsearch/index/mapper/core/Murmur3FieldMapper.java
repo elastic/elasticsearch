@@ -47,6 +47,7 @@ public class Murmur3FieldMapper extends LongFieldMapper {
     public static final String CONTENT_TYPE = "murmur3";
 
     public static class Defaults extends LongFieldMapper.Defaults {
+        public static final MappedFieldType FIELD_TYPE = new Murmur3FieldType();
     }
 
     public static class Builder extends NumberFieldMapper.Builder<Builder, Murmur3FieldMapper> {
@@ -60,7 +61,7 @@ public class Murmur3FieldMapper extends LongFieldMapper {
         @Override
         public Murmur3FieldMapper build(BuilderContext context) {
             setupFieldType(context);
-            Murmur3FieldMapper fieldMapper = new Murmur3FieldMapper(fieldType, docValues, null,
+            Murmur3FieldMapper fieldMapper = new Murmur3FieldMapper(fieldType, docValues,
                     ignoreMalformed(context), coerce(context),
                     fieldDataSettings, context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
             fieldMapper.includeInAll(includeInAll);
@@ -104,11 +105,25 @@ public class Murmur3FieldMapper extends LongFieldMapper {
         }
     }
 
+    // this only exists so a check can be done to match the field type to using murmur3 hashing...
+    public static class Murmur3FieldType extends LongFieldMapper.LongFieldType {
+        public Murmur3FieldType() {}
+
+        protected Murmur3FieldType(Murmur3FieldType ref) {
+            super(ref);
+        }
+
+        @Override
+        public Murmur3FieldType clone() {
+            return new Murmur3FieldType(this);
+        }
+    }
+
     protected Murmur3FieldMapper(MappedFieldType fieldType, Boolean docValues,
-            Long nullValue, Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce,
+            Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce,
             @Nullable Settings fieldDataSettings,
             Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
-        super(fieldType, docValues, nullValue, ignoreMalformed, coerce,
+        super(fieldType, docValues, ignoreMalformed, coerce,
                 fieldDataSettings, indexSettings, multiFields, copyTo);
     }
 

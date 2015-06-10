@@ -29,6 +29,7 @@ import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
 import org.elasticsearch.index.search.geo.GeoDistanceRangeQuery;
 
@@ -145,18 +146,18 @@ public class GeoDistanceQueryParser extends BaseQueryParserTemp {
             GeoUtils.normalizePoint(point, normalizeLat, normalizeLon);
         }
 
-        FieldMapper mapper = parseContext.fieldMapper(fieldName);
-        if (mapper == null) {
+        MappedFieldType fieldType = parseContext.fieldMapper(fieldName);
+        if (fieldType == null) {
             throw new QueryParsingException(parseContext, "failed to find geo_point field [" + fieldName + "]");
         }
-        if (!(mapper instanceof GeoPointFieldMapper)) {
+        if (!(fieldType instanceof GeoPointFieldMapper.GeoPointFieldType)) {
             throw new QueryParsingException(parseContext, "field [" + fieldName + "] is not a geo_point field");
         }
-        GeoPointFieldMapper geoMapper = ((GeoPointFieldMapper) mapper);
+        GeoPointFieldMapper.GeoPointFieldType geoFieldType = ((GeoPointFieldMapper.GeoPointFieldType) fieldType);
 
 
-        IndexGeoPointFieldData indexFieldData = parseContext.getForField(mapper);
-        Query query = new GeoDistanceRangeQuery(point, null, distance, true, false, geoDistance, geoMapper, indexFieldData, optimizeBbox);
+        IndexGeoPointFieldData indexFieldData = parseContext.getForField(fieldType);
+        Query query = new GeoDistanceRangeQuery(point, null, distance, true, false, geoDistance, geoFieldType, indexFieldData, optimizeBbox);
         if (queryName != null) {
             parseContext.addNamedQuery(queryName, query);
         }

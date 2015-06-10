@@ -432,11 +432,7 @@ class DocumentParser implements Closeable {
         // we can only handle null values if we have mappings for them
         Mapper mapper = parentMapper.getMapper(lastFieldName);
         if (mapper != null) {
-            if (mapper instanceof FieldMapper) {
-                if (!((FieldMapper) mapper).supportsNullValue()) {
-                    throw new MapperParsingException("no object mapping found for null value in [" + lastFieldName + "]");
-                }
-            }
+            // TODO: passing null to an object seems bogus?
             parseObjectOrField(context, mapper);
         } else if (parentMapper.dynamic() == ObjectMapper.Dynamic.STRICT) {
             throw new StrictDynamicMappingException(parentMapper.fullPath(), lastFieldName);

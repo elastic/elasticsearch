@@ -23,7 +23,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.lucene.BytesRefs;
-import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 
 /**
  * A Query that matches documents containing a term.
@@ -71,7 +71,7 @@ public class TermQueryBuilder extends BaseTermQueryBuilder<TermQueryBuilder> imp
     @Override
     public Query toQuery(QueryParseContext parseContext) {
         Query query = null;
-        FieldMapper mapper = parseContext.fieldMapper(this.fieldName);
+        MappedFieldType mapper = parseContext.fieldMapper(this.fieldName);
         if (mapper != null) {
             query = mapper.termQuery(this.value, parseContext);
         }

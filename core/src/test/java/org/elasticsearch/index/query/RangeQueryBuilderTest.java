@@ -22,18 +22,11 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.NumericRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermRangeQuery;
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.joda.DateMathParser;
 import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.lucene.BytesRefs;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.mapper.ContentPath;
-import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
-import org.elasticsearch.index.mapper.core.DateFieldMapper.DateFieldType;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.junit.Test;
@@ -112,8 +105,8 @@ public class RangeQueryBuilderTest extends BaseQueryTestCase<RangeQueryBuilder> 
             if (queryBuilder.timeZone() != null) {
                 dateTimeZone = DateTimeZone.forID(queryBuilder.timeZone());
             }
-            FieldMapper mapper = context.fieldMapper(queryBuilder.fieldName());
-            expectedQuery = ((DateFieldMapper) mapper).fieldType().rangeQuery(queryBuilder.from(), queryBuilder.to(), queryBuilder.includeLower(), queryBuilder.includeUpper(), dateTimeZone, forcedDateParser, context);
+            MappedFieldType mapper = context.fieldMapper(queryBuilder.fieldName());
+            expectedQuery = ((DateFieldMapper.DateFieldType) mapper).rangeQuery(queryBuilder.from(), queryBuilder.to(), queryBuilder.includeLower(), queryBuilder.includeUpper(), dateTimeZone, forcedDateParser, context);
         } else if (queryBuilder.fieldName().equals(INT_FIELD_NAME)) {
             expectedQuery = NumericRangeQuery.newIntRange(INT_FIELD_NAME, (Integer) queryBuilder.from(), (Integer) queryBuilder.to(), queryBuilder.includeLower(), queryBuilder.includeUpper());
         } else {

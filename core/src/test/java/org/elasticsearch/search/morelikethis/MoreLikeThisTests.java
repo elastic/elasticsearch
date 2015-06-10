@@ -490,7 +490,7 @@ public class MoreLikeThisTests extends ElasticsearchIntegrationTest {
                     .field("date", "this is not a date!")
                 .endObject();
         MoreLikeThisQueryBuilder mltQuery = moreLikeThisQuery()
-                .docs((Item) new Item().doc(malformedFieldDoc).index("test").type("type1"))
+                .like((Item) new Item().doc(malformedFieldDoc).index("test").type("type1"))
                 .minTermFreq(0)
                 .minDocFreq(0)
                 .minimumShouldMatch("0%");
@@ -502,7 +502,7 @@ public class MoreLikeThisTests extends ElasticsearchIntegrationTest {
         logger.info("Checking with an empty document ...");
         XContentBuilder emptyDoc = jsonBuilder().startObject().endObject();
         mltQuery = moreLikeThisQuery()
-                .docs((Item) new Item().doc(emptyDoc).index("test").type("type1"))
+                .like((Item) new Item().doc(emptyDoc).index("test").type("type1"))
                 .minTermFreq(0)
                 .minDocFreq(0)
                 .minimumShouldMatch("0%");
@@ -514,7 +514,7 @@ public class MoreLikeThisTests extends ElasticsearchIntegrationTest {
         logger.info("Checking when document is malformed ...");
         XContentBuilder malformedDoc = jsonBuilder().startObject();
         mltQuery = moreLikeThisQuery()
-                .docs((Item) new Item().doc(malformedDoc).index("test").type("type1"))
+                .like((Item) new Item().doc(malformedDoc).index("test").type("type1"))
                 .minTermFreq(0)
                 .minDocFreq(0)
                 .minimumShouldMatch("0%");
@@ -530,7 +530,7 @@ public class MoreLikeThisTests extends ElasticsearchIntegrationTest {
                     .field("date", "1000-01-01") // should be properly parsed but ignored ...
                 .endObject();
         mltQuery = moreLikeThisQuery()
-                .docs((Item) new Item().doc(normalDoc).index("test").type("type1"))
+                .like((Item) new Item().doc(normalDoc).index("test").type("type1"))
                 .minTermFreq(0)
                 .minDocFreq(0)
                 .minimumShouldMatch("100%");  // strict all terms must match but date is ignored
@@ -588,4 +588,45 @@ public class MoreLikeThisTests extends ElasticsearchIntegrationTest {
             assertHitCount(response, numFields - (i + 1));
         }
     }
+
+    @Test
+    public void testSelectFields() throws IOException, ExecutionException, InterruptedException {
+        assertAcked(prepareCreate("test")
+                .addMapping("type1", "text", "type=string,analyzer=whitespace", "text1", "type=string,analyzer=whitespace"));
+        ensureGreen("test");
+
+        indexRandom(true, client().prepareIndex("test", "type1", "1").setSource(jsonBuilder()
+                        .startObject()
+                        .field("text", "hello world")
+                        .field("text1", "elasticsearch")
+                        .endObject()),
+                client().prepareIndex("test", "type1", "2").setSource(jsonBuilder()
+                        .startObject()
+                        .field("text", "goodby moon")
+                        .field("text1", "elasticsearch")
+                        .endObject()));
+
+        MoreLikeThisQueryBuilder mltQuery = moreLikeThisQuery()
+                .like(new Item("test", "type1", "1"))
+                .minTermFreq(0)
+                .minDocFreq(0)
+                .include(true)
+                .minimumShouldMatch("1%");
+        SearchResponse response = client().prepareSearch("test").setTypes("type1")
+                .setQuery(mltQuery).get();
+        assertSearchResponse(response);
+        assertHitCount(response, 2);
+
+        mltQuery = moreLikeThisQuery("text")
+                .like(new Item("test", "type1", "1"))
+                .minTermFreq(0)
+                .minDocFreq(0)
+                .include(true)
+                .minimumShouldMatch("1%");
+        response = client().prepareSearch("test").setTypes("type1")
+                .setQuery(mltQuery).get();
+        assertSearchResponse(response);
+        assertHitCount(response, 1);
+    }
+
 }

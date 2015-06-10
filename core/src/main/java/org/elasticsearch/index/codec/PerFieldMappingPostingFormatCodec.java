@@ -26,6 +26,7 @@ import org.apache.lucene.codecs.lucene50.Lucene50StoredFieldsFormat;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.core.CompletionFieldMapper;
 
@@ -54,14 +55,14 @@ public class PerFieldMappingPostingFormatCodec extends Lucene50Codec {
 
     @Override
     public PostingsFormat getPostingsFormatForField(String field) {
-        final FieldMapper indexName = mapperService.indexName(field);
+        final MappedFieldType indexName = mapperService.indexName(field);
         if (indexName == null) {
             logger.warn("no index mapper found for field: [{}] returning default postings format", field);
-        } else if (indexName instanceof CompletionFieldMapper) {
+        } else if (indexName instanceof CompletionFieldMapper.CompletionFieldType) {
             // CompletionFieldMapper needs a special postings format
-            final CompletionFieldMapper mapper = (CompletionFieldMapper) indexName;
+            final CompletionFieldMapper.CompletionFieldType fieldType = (CompletionFieldMapper.CompletionFieldType) indexName;
             final PostingsFormat defaultFormat = super.getPostingsFormatForField(field);
-            return mapper.postingsFormat(defaultFormat);
+            return fieldType.postingsFormat(defaultFormat);
         }
         return super.getPostingsFormatForField(field);
     }

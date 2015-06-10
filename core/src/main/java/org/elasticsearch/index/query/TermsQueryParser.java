@@ -37,6 +37,7 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.indices.cache.filter.terms.TermsLookup;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -157,9 +158,9 @@ public class TermsQueryParser extends BaseQueryParserTemp {
             throw new QueryParsingException(parseContext, "terms query requires a field name, followed by array of terms");
         }
 
-        FieldMapper fieldMapper = parseContext.fieldMapper(fieldName);
-        if (fieldMapper != null) {
-            fieldName = fieldMapper.fieldType().names().indexName();
+        MappedFieldType fieldType = parseContext.fieldMapper(fieldName);
+        if (fieldType != null) {
+            fieldName = fieldType.names().indexName();
         }
 
         if (lookupId != null) {
@@ -179,8 +180,8 @@ public class TermsQueryParser extends BaseQueryParserTemp {
 
         Query query;
         if (parseContext.isFilter()) {
-            if (fieldMapper != null) {
-                query = fieldMapper.termsQuery(terms, parseContext);
+            if (fieldType != null) {
+                query = fieldType.termsQuery(terms, parseContext);
             } else {
                 BytesRef[] filterValues = new BytesRef[terms.size()];
                 for (int i = 0; i < filterValues.length; i++) {
@@ -191,8 +192,8 @@ public class TermsQueryParser extends BaseQueryParserTemp {
         } else {
             BooleanQuery bq = new BooleanQuery();
             for (Object term : terms) {
-                if (fieldMapper != null) {
-                    bq.add(fieldMapper.termQuery(term, parseContext), Occur.SHOULD);
+                if (fieldType != null) {
+                    bq.add(fieldType.termQuery(term, parseContext), Occur.SHOULD);
                 } else {
                     bq.add(new TermQuery(new Term(fieldName, BytesRefs.toBytesRef(term))), Occur.SHOULD);
                 }

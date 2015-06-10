@@ -26,6 +26,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.io.IOException;
 
@@ -88,9 +89,9 @@ public class FieldMaskingSpanQueryParser extends BaseQueryParserTemp {
             throw new QueryParsingException(parseContext, "field_masking_span must have [field] set for it");
         }
 
-        FieldMapper mapper = parseContext.fieldMapper(field);
-        if (mapper != null) {
-            field = mapper.fieldType().names().indexName();
+        MappedFieldType fieldType = parseContext.fieldMapper(field);
+        if (fieldType != null) {
+            field = fieldType.names().indexName();
         }
 
         FieldMaskingSpanQuery query = new FieldMaskingSpanQuery(inner, field);

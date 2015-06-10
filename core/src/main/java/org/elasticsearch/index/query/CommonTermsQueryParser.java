@@ -30,7 +30,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.io.IOException;
 
@@ -161,20 +161,20 @@ public class CommonTermsQueryParser extends BaseQueryParserTemp {
             throw new QueryParsingException(parseContext, "No text specified for text query");
         }
         String field;
-        FieldMapper mapper = parseContext.fieldMapper(fieldName);
-        if (mapper != null) {
-            field = mapper.fieldType().names().indexName();
+        MappedFieldType fieldType = parseContext.fieldMapper(fieldName);
+        if (fieldType != null) {
+            field = fieldType.names().indexName();
         } else {
             field = fieldName;
         }
 
         Analyzer analyzer = null;
         if (queryAnalyzer == null) {
-            if (mapper != null) {
-                analyzer = mapper.fieldType().searchAnalyzer();
+            if (fieldType != null) {
+                analyzer = fieldType.searchAnalyzer();
             }
-            if (analyzer == null && mapper != null) {
-                analyzer = parseContext.getSearchAnalyzer(mapper);
+            if (analyzer == null && fieldType != null) {
+                analyzer = parseContext.getSearchAnalyzer(fieldType);
             }
             if (analyzer == null) {
                 analyzer = parseContext.mapperService().searchAnalyzer();
@@ -186,7 +186,7 @@ public class CommonTermsQueryParser extends BaseQueryParserTemp {
             }
         }
 
-        ExtendedCommonTermsQuery commonsQuery = new ExtendedCommonTermsQuery(highFreqOccur, lowFreqOccur, maxTermFrequency, disableCoords, mapper);
+        ExtendedCommonTermsQuery commonsQuery = new ExtendedCommonTermsQuery(highFreqOccur, lowFreqOccur, maxTermFrequency, disableCoords, fieldType);
         commonsQuery.setBoost(boost);
         Query query = parseQueryString(commonsQuery, value.toString(), field, parseContext, analyzer, lowFreqMinimumShouldMatch, highFreqMinimumShouldMatch);
         if (queryName != null) {

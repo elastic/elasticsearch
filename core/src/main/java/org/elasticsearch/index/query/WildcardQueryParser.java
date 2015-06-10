@@ -26,6 +26,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.support.QueryParsers;
 
 import java.io.IOException;
@@ -91,10 +92,10 @@ public class WildcardQueryParser extends BaseQueryParserTemp {
         }
 
         BytesRef valueBytes;
-        FieldMapper mapper = parseContext.fieldMapper(fieldName);
-        if (mapper != null) {
-            fieldName = mapper.fieldType().names().indexName();
-            valueBytes = mapper.indexedValueForSearch(value);
+        MappedFieldType fieldType = parseContext.fieldMapper(fieldName);
+        if (fieldType != null) {
+            fieldName = fieldType.names().indexName();
+            valueBytes = fieldType.indexedValueForSearch(value);
         } else {
             valueBytes = new BytesRef(value);
         }

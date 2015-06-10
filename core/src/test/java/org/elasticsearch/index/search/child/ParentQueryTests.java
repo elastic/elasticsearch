@@ -94,7 +94,7 @@ public class ParentQueryTests extends AbstractChildTests {
     public void testBasicQuerySanities() {
         Query parentQuery = new TermQuery(new Term("field", "value"));
         ParentFieldMapper parentFieldMapper = SearchContext.current().mapperService().documentMapper("child").parentFieldMapper();
-        ParentChildIndexFieldData parentChildIndexFieldData = SearchContext.current().fieldData().getForField(parentFieldMapper);
+        ParentChildIndexFieldData parentChildIndexFieldData = SearchContext.current().fieldData().getForField(parentFieldMapper.fieldType());
         BitDocIdSetFilter childrenFilter = wrapWithBitSetFilter(new QueryWrapperFilter(new TermQuery(new Term(TypeFieldMapper.NAME, "child"))));
         Query query = new ParentQuery(parentChildIndexFieldData, parentQuery, "parent", childrenFilter);
         QueryUtils.check(query);

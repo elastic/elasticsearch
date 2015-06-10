@@ -228,13 +228,13 @@ public class IndexFieldDataService extends AbstractIndexComponent {
     }
 
     @SuppressWarnings("unchecked")
-    public <IFD extends IndexFieldData<?>> IFD getForField(FieldMapper mapper) {
-        final Names fieldNames = mapper.fieldType().names();
-        final FieldDataType type = mapper.fieldType().fieldDataType();
+    public <IFD extends IndexFieldData<?>> IFD getForField(MappedFieldType fieldType) {
+        final Names fieldNames = fieldType.names();
+        final FieldDataType type = fieldType.fieldDataType();
         if (type == null) {
             throw new IllegalArgumentException("found no fielddata type for field [" + fieldNames.fullName() + "]");
         }
-        final boolean docValues = mapper.fieldType().hasDocValues();
+        final boolean docValues = fieldType.hasDocValues();
         final String key = fieldNames.indexName();
         IndexFieldData<?> fieldData = loadedFieldData.get(key);
         if (fieldData == null) {
@@ -279,7 +279,7 @@ public class IndexFieldDataService extends AbstractIndexComponent {
                         fieldDataCaches.put(fieldNames.indexName(), cache);
                     }
 
-                    fieldData = builder.build(index, indexSettings, mapper, cache, circuitBreakerService, indexService.mapperService());
+                    fieldData = builder.build(index, indexSettings, fieldType, cache, circuitBreakerService, indexService.mapperService());
                     loadedFieldData.put(fieldNames.indexName(), fieldData);
                 }
             } finally {

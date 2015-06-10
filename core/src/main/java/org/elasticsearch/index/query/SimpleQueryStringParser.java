@@ -31,6 +31,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.LocaleUtils;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -128,9 +129,9 @@ public class SimpleQueryStringParser extends BaseQueryParserTemp {
                                 fieldsAndWeights.put(fieldName, fBoost);
                             }
                         } else {
-                            FieldMapper mapper = parseContext.fieldMapper(fField);
-                            if (mapper != null) {
-                                fieldsAndWeights.put(mapper.fieldType().names().indexName(), fBoost);
+                            MappedFieldType fieldType = parseContext.fieldMapper(fField);
+                            if (fieldType != null) {
+                                fieldsAndWeights.put(fieldType.names().indexName(), fBoost);
                             } else {
                                 fieldsAndWeights.put(fField, fBoost);
                             }

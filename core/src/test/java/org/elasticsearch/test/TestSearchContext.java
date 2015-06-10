@@ -36,8 +36,7 @@ import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.cache.filter.FilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
-import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.FieldMappers;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.query.ParsedQuery;
@@ -552,17 +551,17 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public FieldMapper smartNameFieldMapper(String name) {
+    public MappedFieldType smartNameFieldType(String name) {
         if (mapperService() != null) {
-            return mapperService().smartNameFieldMapper(name, types());
+            return mapperService().smartNameFieldType(name, types());
         }
         return null;
     }
 
     @Override
-    public FieldMapper smartNameFieldMapperFromAnyType(String name) {
+    public MappedFieldType smartNameFieldTypeFromAnyType(String name) {
         if (mapperService() != null) {
-            return mapperService().smartNameFieldMapper(name);
+            return mapperService().smartNameFieldType(name);
         }
         return null;
     }

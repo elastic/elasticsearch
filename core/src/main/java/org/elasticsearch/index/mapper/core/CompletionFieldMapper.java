@@ -45,7 +45,6 @@ import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.ParseContext;
-import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.search.suggest.completion.AnalyzingCompletionLookupProvider;
 import org.elasticsearch.search.suggest.completion.Completion090PostingsFormat;
 import org.elasticsearch.search.suggest.completion.CompletionTokenStream;
@@ -72,7 +71,7 @@ public class CompletionFieldMapper extends AbstractFieldMapper {
     public static final String CONTENT_TYPE = "completion";
 
     public static class Defaults extends AbstractFieldMapper.Defaults {
-        public static final MappedFieldType FIELD_TYPE = new CompletionFieldType();
+        public static final CompletionFieldType FIELD_TYPE = new CompletionFieldType();
 
         static {
             FIELD_TYPE.setOmitNorms(true);
@@ -149,8 +148,10 @@ public class CompletionFieldMapper extends AbstractFieldMapper {
         @Override
         public CompletionFieldMapper build(Mapper.BuilderContext context) {
             setupFieldType(context);
-            return new CompletionFieldMapper(fieldType, null, payloads,
-                    preserveSeparators, preservePositionIncrements, maxInputLength, context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo, this.contextMapping);
+            CompletionFieldType completionFieldType = (CompletionFieldType)fieldType;
+            completionFieldType.setProvider(new AnalyzingCompletionLookupProvider(preserveSeparators, false, preservePositionIncrements, payloads));
+            completionFieldType.setContextMapping(contextMapping);
+            return new CompletionFieldMapper(fieldType, maxInputLength, context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
         }
 
     }
@@ -220,7 +221,10 @@ public class CompletionFieldMapper extends AbstractFieldMapper {
         }
     }
 
-    static final class CompletionFieldType extends MappedFieldType {
+    public static final class CompletionFieldType extends MappedFieldType {
+        private PostingsFormat postingsFormat;
+        private AnalyzingCompletionLookupProvider analyzingSuggestLookupProvider;
+        private SortedMap<String, ContextMapping> contextMapping = ContextMapping.EMPTY_MAPPING;
 
         public CompletionFieldType() {
             super(AbstractFieldMapper.Defaults.FIELD_TYPE);
@@ -228,11 +232,44 @@ public class CompletionFieldMapper extends AbstractFieldMapper {
 
         protected CompletionFieldType(CompletionFieldType ref) {
             super(ref);
+            this.postingsFormat = ref.postingsFormat;
+            this.analyzingSuggestLookupProvider = ref.analyzingSuggestLookupProvider;
+            this.contextMapping = ref.contextMapping;
         }
 
         @Override
-        public MappedFieldType clone() {
+        public CompletionFieldType clone() {
             return new CompletionFieldType(this);
+        }
+
+        public void setProvider(AnalyzingCompletionLookupProvider provider) {
+            checkIfFrozen();
+            this.analyzingSuggestLookupProvider = provider;
+        }
+
+        public synchronized PostingsFormat postingsFormat(PostingsFormat in) {
+            if (in instanceof Completion090PostingsFormat) {
+                throw new IllegalStateException("Double wrapping of " + Completion090PostingsFormat.class);
+            }
+            if (postingsFormat == null) {
+                postingsFormat = new Completion090PostingsFormat(in, analyzingSuggestLookupProvider);
+            }
+            return postingsFormat;
+        }
+
+        public void setContextMapping(SortedMap<String, ContextMapping> contextMapping) {
+            checkIfFrozen();
+            this.contextMapping = contextMapping;
+        }
+
+        /** Get the context mapping associated with this completion field */
+        public SortedMap<String, ContextMapping> getContextMapping() {
+            return contextMapping;
+        }
+
+        /** @return true if a context mapping has been defined */
+        public boolean requiresContext() {
+            return contextMapping.isEmpty() == false;
         }
 
         @Override
@@ -251,52 +288,25 @@ public class CompletionFieldMapper extends AbstractFieldMapper {
 
     private static final BytesRef EMPTY = new BytesRef();
 
-    private PostingsFormat postingsFormat;
-    private final AnalyzingCompletionLookupProvider analyzingSuggestLookupProvider;
-    private final boolean payloads;
-    private final boolean preservePositionIncrements;
-    private final boolean preserveSeparators;
     private int maxInputLength;
-    private final SortedMap<String, ContextMapping> contextMapping;
 
-    /**
-     * 
-     * @param contextMappings Configuration of context type. If none should be used set {@link ContextMapping.EMPTY_MAPPING}
-     * @param wrappedPostingsFormat the postings format to wrap, or {@code null} to wrap the codec's default postings format
-     */
-    // Custom postings formats are deprecated but we still accept a postings format here to be able to test backward compatibility
-    // with older postings formats such as Elasticsearch090
-    public CompletionFieldMapper(MappedFieldType fieldType, PostingsFormat wrappedPostingsFormat, boolean payloads,
-                                 boolean preserveSeparators, boolean preservePositionIncrements, int maxInputLength, Settings indexSettings, MultiFields multiFields, CopyTo copyTo, SortedMap<String, ContextMapping> contextMappings) {
+    public CompletionFieldMapper(MappedFieldType fieldType, int maxInputLength, Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
         super(fieldType, false, null, indexSettings, multiFields, copyTo);
-        analyzingSuggestLookupProvider = new AnalyzingCompletionLookupProvider(preserveSeparators, false, preservePositionIncrements, payloads);
-        if (wrappedPostingsFormat == null) {
-            // delayed until postingsFormat() is called
-            this.postingsFormat = null;
-        } else {
-            this.postingsFormat = new Completion090PostingsFormat(wrappedPostingsFormat, analyzingSuggestLookupProvider);
-        }
-        this.preserveSeparators = preserveSeparators;
-        this.payloads = payloads;
-        this.preservePositionIncrements = preservePositionIncrements;
         this.maxInputLength = maxInputLength;
-        this.contextMapping = contextMappings;
     }
 
-    public synchronized PostingsFormat postingsFormat(PostingsFormat in) {
-        if (in instanceof Completion090PostingsFormat) {
-            throw new IllegalStateException("Double wrapping of " + Completion090PostingsFormat.class);
-        }
-        if (postingsFormat == null) {
-            postingsFormat = new Completion090PostingsFormat(in, analyzingSuggestLookupProvider);
-        }
-        return postingsFormat;
+    @Override
+    public CompletionFieldType fieldType() {
+        return (CompletionFieldType)fieldType;
     }
 
     @Override
     public Mapper parse(ParseContext context) throws IOException {
         XContentParser parser = context.parser();
         XContentParser.Token token = parser.currentToken();
+        if (token == XContentParser.Token.VALUE_NULL) {
+            throw new MapperParsingException("completion field [" + fieldType().names().fullName() + "] does not support null values");
+        }
 
         String surfaceForm = null;
         BytesRef payload = null;
@@ -322,7 +332,7 @@ public class CompletionFieldMapper extends AbstractFieldMapper {
                     if (token == Token.START_OBJECT) {
                         while ((token = parser.nextToken()) != Token.END_OBJECT) {
                             String name = parser.text();
-                            ContextMapping mapping = contextMapping.get(name);
+                            ContextMapping mapping = fieldType().getContextMapping().get(name);
                             if (mapping == null) {
                                 throw new ElasticsearchParseException("context [" + name + "] is not defined");
                             } else {
@@ -331,7 +341,7 @@ public class CompletionFieldMapper extends AbstractFieldMapper {
                             }
                         }
                         contextConfig = Maps.newTreeMap();
-                        for (ContextMapping mapping : contextMapping.values()) {
+                        for (ContextMapping mapping : fieldType().getContextMapping().values()) {
                             ContextConfig config = configs.get(mapping.name());
                             contextConfig.put(mapping.name(), config==null ? mapping.defaultConfig() : config);
                         }
@@ -389,7 +399,7 @@ public class CompletionFieldMapper extends AbstractFieldMapper {
 
         if(contextConfig == null) {
             contextConfig = Maps.newTreeMap();
-            for (ContextMapping mapping : contextMapping.values()) {
+            for (ContextMapping mapping : fieldType().getContextMapping().values()) {
                 contextConfig.put(mapping.name(), mapping.defaultConfig());
             }
         }
@@ -402,13 +412,13 @@ public class CompletionFieldMapper extends AbstractFieldMapper {
                 if (input.length() == 0) {
                     continue;
                 }
-                BytesRef suggestPayload = analyzingSuggestLookupProvider.buildPayload(new BytesRef(
-                        input), weight, payload);
+                BytesRef suggestPayload = fieldType().analyzingSuggestLookupProvider.buildPayload(new BytesRef(
+                    input), weight, payload);
                 context.doc().add(getCompletionField(ctx, input, suggestPayload));
             }
         } else {
-            BytesRef suggestPayload = analyzingSuggestLookupProvider.buildPayload(new BytesRef(
-                    surfaceForm), weight, payload);
+            BytesRef suggestPayload = fieldType().analyzingSuggestLookupProvider.buildPayload(new BytesRef(
+                surfaceForm), weight, payload);
             for (String input : inputs) {
                 if (input.length() == 0) {
                     continue;
@@ -425,22 +435,6 @@ public class CompletionFieldMapper extends AbstractFieldMapper {
         }
     }
 
-    /**
-     * Get the context mapping associated with this completion field.
-     */
-    public SortedMap<String, ContextMapping> getContextMapping() {
-        return contextMapping;
-    }
-
-    /** @return true if a context mapping has been defined */
-    public boolean requiresContext() {
-        return !contextMapping.isEmpty();
-    }
-
-    public Field getCompletionField(String input, BytesRef payload) {
-        return getCompletionField(ContextMapping.EMPTY_CONTEXT, input, payload);
-    }
-
     public Field getCompletionField(ContextMapping.Context ctx, String input, BytesRef payload) {
         final String originalInput = input;
         if (input.length() > maxInputLength) {
@@ -454,7 +448,7 @@ public class CompletionFieldMapper extends AbstractFieldMapper {
                         + "] at position " + i + " is a reserved character");
             }
         }
-        return new SuggestField(fieldType.names().indexName(), ctx, input, this.fieldType, payload, analyzingSuggestLookupProvider);
+        return new SuggestField(fieldType.names().indexName(), ctx, input, this.fieldType, payload, fieldType().analyzingSuggestLookupProvider);
     }
 
     public static int correctSubStringLen(String input, int len) {
@@ -466,8 +460,7 @@ public class CompletionFieldMapper extends AbstractFieldMapper {
     }
 
     public BytesRef buildPayload(BytesRef surfaceForm, long weight, BytesRef payload) throws IOException {
-        return analyzingSuggestLookupProvider.buildPayload(
-                surfaceForm, weight, payload);
+        return fieldType().analyzingSuggestLookupProvider.buildPayload(surfaceForm, weight, payload);
     }
 
     private static final class SuggestField extends Field {
@@ -498,15 +491,15 @@ public class CompletionFieldMapper extends AbstractFieldMapper {
         if (fieldType.indexAnalyzer().name().equals(fieldType.searchAnalyzer().name()) == false) {
             builder.field(Fields.SEARCH_ANALYZER.getPreferredName(), fieldType.searchAnalyzer().name());
         }
-        builder.field(Fields.PAYLOADS, this.payloads);
-        builder.field(Fields.PRESERVE_SEPARATORS.getPreferredName(), this.preserveSeparators);
-        builder.field(Fields.PRESERVE_POSITION_INCREMENTS.getPreferredName(), this.preservePositionIncrements);
+        builder.field(Fields.PAYLOADS, fieldType().analyzingSuggestLookupProvider.hasPayloads());
+        builder.field(Fields.PRESERVE_SEPARATORS.getPreferredName(), fieldType().analyzingSuggestLookupProvider.getPreserveSep());
+        builder.field(Fields.PRESERVE_POSITION_INCREMENTS.getPreferredName(), fieldType().analyzingSuggestLookupProvider.getPreservePositionsIncrements());
         builder.field(Fields.MAX_INPUT_LENGTH.getPreferredName(), this.maxInputLength);
         multiFields.toXContent(builder, params);
 
-        if(!contextMapping.isEmpty()) {
+        if(fieldType().requiresContext()) {
             builder.startObject(Fields.CONTEXT);
-            for (ContextMapping mapping : contextMapping.values()) {
+            for (ContextMapping mapping : fieldType().getContextMapping().values()) {
                 builder.value(mapping);
             }
             builder.endObject();
@@ -525,11 +518,6 @@ public class CompletionFieldMapper extends AbstractFieldMapper {
     }
 
     @Override
-    public boolean supportsNullValue() {
-        return false;
-    }
-
-    @Override
     public MappedFieldType defaultFieldType() {
         return Defaults.FIELD_TYPE;
     }
@@ -540,23 +528,23 @@ public class CompletionFieldMapper extends AbstractFieldMapper {
     }
 
     public boolean isStoringPayloads() {
-        return payloads;
+        return fieldType().analyzingSuggestLookupProvider.hasPayloads();
     }
 
     @Override
     public void merge(Mapper mergeWith, MergeResult mergeResult) throws MergeMappingException {
         super.merge(mergeWith, mergeResult);
         CompletionFieldMapper fieldMergeWith = (CompletionFieldMapper) mergeWith;
-        if (payloads != fieldMergeWith.payloads) {
+        if (fieldType().analyzingSuggestLookupProvider.hasPayloads() != fieldMergeWith.fieldType().analyzingSuggestLookupProvider.hasPayloads()) {
             mergeResult.addConflict("mapper [" + fieldType.names().fullName() + "] has different payload values");
         }
-        if (preservePositionIncrements != fieldMergeWith.preservePositionIncrements) {
+        if (fieldType().analyzingSuggestLookupProvider.getPreservePositionsIncrements() != fieldMergeWith.fieldType().analyzingSuggestLookupProvider.getPreservePositionsIncrements()) {
             mergeResult.addConflict("mapper [" + fieldType.names().fullName() + "] has different 'preserve_position_increments' values");
         }
-        if (preserveSeparators != fieldMergeWith.preserveSeparators) {
+        if (fieldType().analyzingSuggestLookupProvider.getPreserveSep() != fieldMergeWith.fieldType().analyzingSuggestLookupProvider.getPreserveSep()) {
             mergeResult.addConflict("mapper [" + fieldType.names().fullName() + "] has different 'preserve_separators' values");
         }
-        if(!ContextMapping.mappingsAreEqual(getContextMapping(), fieldMergeWith.getContextMapping())) {
+        if(!ContextMapping.mappingsAreEqual(fieldType().getContextMapping(), fieldMergeWith.fieldType().getContextMapping())) {
             mergeResult.addConflict("mapper [" + fieldType.names().fullName() + "] has different 'context_mapping' values");
         }
         if (!mergeResult.simulate()) {

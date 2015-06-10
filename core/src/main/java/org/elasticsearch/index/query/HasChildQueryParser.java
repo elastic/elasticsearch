@@ -175,7 +175,7 @@ public class HasChildQueryParser extends BaseQueryParserTemp {
         innerQuery = Queries.filtered(innerQuery, childDocMapper.typeFilter());
 
         final Query query;
-        final ParentChildIndexFieldData parentChildIndexFieldData = parseContext.getForField(parentFieldMapper);
+        final ParentChildIndexFieldData parentChildIndexFieldData = parseContext.getForField(parentFieldMapper.fieldType());
         if (parseContext.indexVersionCreated().onOrAfter(Version.V_2_0_0)) {
             query = joinUtilHelper(parentType, parentChildIndexFieldData, parentDocMapper.typeFilter(), scoreType, innerQuery, minChildren, maxChildren);
         } else {

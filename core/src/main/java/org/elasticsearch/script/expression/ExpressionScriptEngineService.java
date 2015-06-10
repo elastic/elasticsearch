@@ -32,6 +32,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
@@ -152,21 +153,21 @@ public class ExpressionScriptEngineService extends AbstractComponent implements 
                     throw new ExpressionScriptCompilationException("Variable [" + variable + "] does not follow an allowed format of either doc['field'] or doc['field'].method()");
                 }
 
-                FieldMapper field = mapper.smartNameFieldMapper(fieldname);
+                MappedFieldType fieldType = mapper.smartNameFieldType(fieldname);
 
-                if (field == null) {
+                if (fieldType == null) {
                     throw new ExpressionScriptCompilationException("Field [" + fieldname + "] used in expression does not exist in mappings");
                 }
-                if (field.isNumeric() == false) {
+                if (fieldType.isNumeric() == false) {
                     // TODO: more context (which expression?)
                     throw new ExpressionScriptCompilationException("Field [" + fieldname + "] used in expression must be numeric");
                 }
 
-                IndexFieldData<?> fieldData = lookup.doc().fieldDataService().getForField((NumberFieldMapper)field);
+                IndexFieldData<?> fieldData = lookup.doc().fieldDataService().getForField((NumberFieldMapper.NumberFieldType)fieldType);
                 if (methodname == null) {
                     bindings.add(variable, new FieldDataValueSource(fieldData, MultiValueMode.MIN));
                 } else {
-                    bindings.add(variable, getMethodValueSource(field, fieldData, fieldname, methodname));
+                    bindings.add(variable, getMethodValueSource(fieldType, fieldData, fieldname, methodname));
                 }
             }
         }
@@ -174,20 +175,20 @@ public class ExpressionScriptEngineService extends AbstractComponent implements 
         return new ExpressionScript((Expression)compiledScript, bindings, specialValue);
     }
 
-    protected ValueSource getMethodValueSource(FieldMapper field, IndexFieldData<?> fieldData, String fieldName, String methodName) {
+    protected ValueSource getMethodValueSource(MappedFieldType fieldType, IndexFieldData<?> fieldData, String fieldName, String methodName) {
         switch (methodName) {
             case GET_YEAR_METHOD:
-                return getDateMethodValueSource(field, fieldData, fieldName, methodName, Calendar.YEAR);
+                return getDateMethodValueSource(fieldType, fieldData, fieldName, methodName, Calendar.YEAR);
             case GET_MONTH_METHOD:
-                return getDateMethodValueSource(field, fieldData, fieldName, methodName, Calendar.MONTH);
+                return getDateMethodValueSource(fieldType, fieldData, fieldName, methodName, Calendar.MONTH);
             case GET_DAY_OF_MONTH_METHOD:
-                return getDateMethodValueSource(field, fieldData, fieldName, methodName, Calendar.DAY_OF_MONTH);
+                return getDateMethodValueSource(fieldType, fieldData, fieldName, methodName, Calendar.DAY_OF_MONTH);
             case GET_HOUR_OF_DAY_METHOD:
-                return getDateMethodValueSource(field, fieldData, fieldName, methodName, Calendar.HOUR_OF_DAY);
+                return getDateMethodValueSource(fieldType, fieldData, fieldName, methodName, Calendar.HOUR_OF_DAY);
             case GET_MINUTES_METHOD:
-                return getDateMethodValueSource(field, fieldData, fieldName, methodName, Calendar.MINUTE);
+                return getDateMethodValueSource(fieldType, fieldData, fieldName, methodName, Calendar.MINUTE);
             case GET_SECONDS_METHOD:
-                return getDateMethodValueSource(field, fieldData, fieldName, methodName, Calendar.SECOND);
+                return getDateMethodValueSource(fieldType, fieldData, fieldName, methodName, Calendar.SECOND);
             case MINIMUM_METHOD:
                 return new FieldDataValueSource(fieldData, MultiValueMode.MIN);
             case MAXIMUM_METHOD:
@@ -205,8 +206,8 @@ public class ExpressionScriptEngineService extends AbstractComponent implements 
         }
     }
 
-    protected ValueSource getDateMethodValueSource(FieldMapper field, IndexFieldData<?> fieldData, String fieldName, String methodName, int calendarType) {
-        if (!(field instanceof DateFieldMapper)) {
+    protected ValueSource getDateMethodValueSource(MappedFieldType fieldType, IndexFieldData<?> fieldData, String fieldName, String methodName, int calendarType) {
+        if (!(fieldType instanceof DateFieldMapper.DateFieldType)) {
             throw new IllegalArgumentException("Member method [" + methodName + "] can only be used with a date field type, not the field [" + fieldName + "].");
         }
 

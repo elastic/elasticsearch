@@ -27,6 +27,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
 import org.elasticsearch.index.search.geo.InMemoryGeoBoundingBoxQuery;
 import org.elasticsearch.index.search.geo.IndexedGeoBoundingBoxQuery;
@@ -159,20 +160,20 @@ public class GeoBoundingBoxQueryParser extends BaseQueryParserTemp {
             }
         }
 
-        FieldMapper mapper = parseContext.fieldMapper(fieldName);
-        if (mapper == null) {
+        MappedFieldType fieldType = parseContext.fieldMapper(fieldName);
+        if (fieldType == null) {
             throw new QueryParsingException(parseContext, "failed to find geo_point field [" + fieldName + "]");
         }
-        if (!(mapper instanceof GeoPointFieldMapper)) {
+        if (!(fieldType instanceof GeoPointFieldMapper.GeoPointFieldType)) {
             throw new QueryParsingException(parseContext, "field [" + fieldName + "] is not a geo_point field");
         }
-        GeoPointFieldMapper geoMapper = ((GeoPointFieldMapper) mapper);
+        GeoPointFieldMapper.GeoPointFieldType geoFieldType = ((GeoPointFieldMapper.GeoPointFieldType) fieldType);
 
         Query filter;
         if ("indexed".equals(type)) {
-            filter = IndexedGeoBoundingBoxQuery.create(topLeft, bottomRight, geoMapper);
+            filter = IndexedGeoBoundingBoxQuery.create(topLeft, bottomRight, geoFieldType);
         } else if ("memory".equals(type)) {
-            IndexGeoPointFieldData indexFieldData = parseContext.getForField(mapper);
+            IndexGeoPointFieldData indexFieldData = parseContext.getForField(fieldType);
             filter = new InMemoryGeoBoundingBoxQuery(topLeft, bottomRight, indexFieldData);
         } else {
             throw new QueryParsingException(parseContext, "geo bounding box type [" + type

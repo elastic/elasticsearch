@@ -28,6 +28,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.support.QueryParsers;
 
 import java.io.IOException;
@@ -113,9 +114,9 @@ public class FuzzyQueryParser extends BaseQueryParserTemp {
         }
 
         Query query = null;
-        FieldMapper mapper = parseContext.fieldMapper(fieldName);
-        if (mapper != null) {
-            query = mapper.fuzzyQuery(value, fuzziness, prefixLength, maxExpansions, transpositions);
+        MappedFieldType fieldType = parseContext.fieldMapper(fieldName);
+        if (fieldType != null) {
+            query = fieldType.fuzzyQuery(value, fuzziness, prefixLength, maxExpansions, transpositions);
         }
         if (query == null) {
             query = new FuzzyQuery(new Term(fieldName, value), fuzziness.asDistance(value), prefixLength, maxExpansions, transpositions);

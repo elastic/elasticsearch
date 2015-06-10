@@ -98,7 +98,7 @@ public class FieldNamesFieldMapperTests extends ElasticsearchSingleNodeTest {
             .endObject().endObject().string();
         DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
         FieldNamesFieldMapper fieldNamesMapper = docMapper.rootMapper(FieldNamesFieldMapper.class);
-        assertTrue(fieldNamesMapper.enabled());
+        assertTrue(fieldNamesMapper.fieldType().isEnabled());
 
         ParsedDocument doc = docMapper.parse("type", "1", XContentFactory.jsonBuilder()
             .startObject()
@@ -115,7 +115,7 @@ public class FieldNamesFieldMapperTests extends ElasticsearchSingleNodeTest {
             .endObject().endObject().string();
         DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
         FieldNamesFieldMapper fieldNamesMapper = docMapper.rootMapper(FieldNamesFieldMapper.class);
-        assertFalse(fieldNamesMapper.enabled());
+        assertFalse(fieldNamesMapper.fieldType().isEnabled());
 
         ParsedDocument doc = docMapper.parse("type", "1", XContentFactory.jsonBuilder()
             .startObject()
@@ -131,7 +131,7 @@ public class FieldNamesFieldMapperTests extends ElasticsearchSingleNodeTest {
         Settings indexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_2_4.id).build();
         DocumentMapper docMapper = createIndex("test", indexSettings).mapperService().documentMapperParser().parse(mapping);
         FieldNamesFieldMapper fieldNamesMapper = docMapper.rootMapper(FieldNamesFieldMapper.class);
-        assertFalse(fieldNamesMapper.enabled());
+        assertFalse(fieldNamesMapper.fieldType().isEnabled());
     }
     
     public void testDisablingBackcompat() throws Exception {
@@ -143,7 +143,7 @@ public class FieldNamesFieldMapperTests extends ElasticsearchSingleNodeTest {
         Settings indexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build();
         DocumentMapper docMapper = createIndex("test", indexSettings).mapperService().documentMapperParser().parse(mapping);
         FieldNamesFieldMapper fieldNamesMapper = docMapper.rootMapper(FieldNamesFieldMapper.class);
-        assertFalse(fieldNamesMapper.enabled());
+        assertFalse(fieldNamesMapper.fieldType().isEnabled());
 
         ParsedDocument doc = docMapper.parse("type", "1", XContentFactory.jsonBuilder()
             .startObject()
@@ -177,10 +177,10 @@ public class FieldNamesFieldMapperTests extends ElasticsearchSingleNodeTest {
         DocumentMapper mapperEnabled = parser.parse(enabledMapping);
         DocumentMapper mapperDisabled = parser.parse(disabledMapping);
         mapperEnabled.merge(mapperDisabled.mapping(), false);
-        assertFalse(mapperEnabled.rootMapper(FieldNamesFieldMapper.class).enabled());
+        assertFalse(mapperEnabled.rootMapper(FieldNamesFieldMapper.class).fieldType().isEnabled());
 
         mapperEnabled = parser.parse(enabledMapping);
         mapperDisabled.merge(mapperEnabled.mapping(), false);
-        assertTrue(mapperEnabled.rootMapper(FieldNamesFieldMapper.class).enabled());
+        assertTrue(mapperEnabled.rootMapper(FieldNamesFieldMapper.class).fieldType().isEnabled());
     }
 }

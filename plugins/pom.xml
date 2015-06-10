@@ -128,5 +128,7 @@
         <module>cloud-gce</module>
         <module>cloud-azure</module>
         <module>cloud-aws</module>
+        <module>lang-python</module>
+        <module>lang-javascript</module>
     </modules>
 </project>

@@ -39,6 +39,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.analysis.*;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.internal.AllFieldMapper;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.ShardId;
@@ -108,13 +109,13 @@ public class TransportAnalyzeAction extends TransportSingleCustomOperationAction
             if (indexService == null) {
                 throw new IllegalArgumentException("No index provided, and trying to analyzer based on a specific field which requires the index parameter");
             }
-            FieldMapper fieldMapper = indexService.mapperService().smartNameFieldMapper(request.field());
-            if (fieldMapper != null) {
-                if (fieldMapper.isNumeric()) {
+            MappedFieldType fieldType = indexService.mapperService().smartNameFieldType(request.field());
+            if (fieldType != null) {
+                if (fieldType.isNumeric()) {
                     throw new IllegalArgumentException("Can't process field [" + request.field() + "], Analysis requests are not supported on numeric fields");
                 }
-                analyzer = fieldMapper.fieldType().indexAnalyzer();
-                field = fieldMapper.fieldType().names().indexName();
+                analyzer = fieldType.indexAnalyzer();
+                field = fieldType.names().indexName();
                 
             }
         }

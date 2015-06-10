@@ -28,7 +28,7 @@ import org.elasticsearch.common.joda.DateMathParser;
 import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
 import org.joda.time.DateTimeZone;
 
@@ -281,9 +281,9 @@ public class RangeQueryBuilder extends MultiTermQueryBuilder<RangeQueryBuilder> 
     @Override
     public Query toQuery(QueryParseContext parseContext) throws QueryParsingException, IOException {
         Query query = null;
-        FieldMapper mapper = parseContext.fieldMapper(this.fieldName);
+        MappedFieldType mapper = parseContext.fieldMapper(this.fieldName);
         if (mapper != null) {
-            if (mapper instanceof DateFieldMapper) {
+            if (mapper instanceof DateFieldMapper.DateFieldType) {
                 DateMathParser forcedDateParser = null;
                 if (this.format  != null) {
                     forcedDateParser = new DateMathParser(Joda.forPattern(this.format));
@@ -292,7 +292,7 @@ public class RangeQueryBuilder extends MultiTermQueryBuilder<RangeQueryBuilder> 
                 if (this.timeZone != null) {
                     dateTimeZone = DateTimeZone.forID(this.timeZone);
                 }
-                query = ((DateFieldMapper) mapper).fieldType().rangeQuery(from, to, includeLower, includeUpper, dateTimeZone, forcedDateParser, parseContext);
+                query = ((DateFieldMapper.DateFieldType) mapper).rangeQuery(from, to, includeLower, includeUpper, dateTimeZone, forcedDateParser, parseContext);
             } else  {
                 if (timeZone != null) {
                     throw new QueryParsingException(parseContext, "[range] time_zone can not be applied to non date field ["

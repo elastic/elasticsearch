@@ -66,7 +66,7 @@ public class FieldNamesFieldMapper extends AbstractFieldMapper implements RootMa
     public static class Defaults extends AbstractFieldMapper.Defaults {
         public static final String NAME = FieldNamesFieldMapper.NAME;
         
-        public static final EnabledAttributeMapper ENABLED_STATE = EnabledAttributeMapper.UNSET_ENABLED;
+        public static final boolean ENABLED = true;
         public static final MappedFieldType FIELD_TYPE = new FieldNamesFieldType();
 
         static {
@@ -82,7 +82,7 @@ public class FieldNamesFieldMapper extends AbstractFieldMapper implements RootMa
     }
 
     public static class Builder extends AbstractFieldMapper.Builder<Builder, FieldNamesFieldMapper> {
-        private EnabledAttributeMapper enabledState = Defaults.ENABLED_STATE;
+        private boolean enabled = Defaults.ENABLED;
 
         public Builder() {
             super(Defaults.NAME, Defaults.FIELD_TYPE);
@@ -97,14 +97,16 @@ public class FieldNamesFieldMapper extends AbstractFieldMapper implements RootMa
         }
         
         public Builder enabled(boolean enabled) {
-            this.enabledState = enabled ? EnabledAttributeMapper.ENABLED : EnabledAttributeMapper.DISABLED;
+            this.enabled = enabled;
             return this;
         }
 
         @Override
         public FieldNamesFieldMapper build(BuilderContext context) {
-            fieldType.setNames(new MappedFieldType.Names(name, indexName, indexName, name));
-            return new FieldNamesFieldMapper(fieldType, enabledState, fieldDataSettings, context.indexSettings());
+            setupFieldType(context);
+            FieldNamesFieldType fieldNamesFieldType = (FieldNamesFieldType)fieldType;
+            fieldNamesFieldType.setEnabled(enabled);
+            return new FieldNamesFieldMapper(fieldType, fieldDataSettings, context.indexSettings());
         }
     }
 
@@ -133,7 +135,9 @@ public class FieldNamesFieldMapper extends AbstractFieldMapper implements RootMa
         }
     }
 
-    static final class FieldNamesFieldType extends MappedFieldType {
+    public static final class FieldNamesFieldType extends MappedFieldType {
+
+        private boolean enabled = Defaults.ENABLED;
 
         public FieldNamesFieldType() {
             super(AbstractFieldMapper.Defaults.FIELD_TYPE);
@@ -141,10 +145,20 @@ public class FieldNamesFieldMapper extends AbstractFieldMapper implements RootMa
 
         protected FieldNamesFieldType(FieldNamesFieldType ref) {
             super(ref);
+            this.enabled = ref.enabled;
+        }
+
+        public void setEnabled(boolean enabled) {
+            checkIfFrozen();
+            this.enabled = enabled;
+        }
+
+        public boolean isEnabled() {
+            return enabled;
         }
 
         @Override
-        public MappedFieldType clone() {
+        public FieldNamesFieldType clone() {
             return new FieldNamesFieldType(this);
         }
 
@@ -163,22 +177,26 @@ public class FieldNamesFieldMapper extends AbstractFieldMapper implements RootMa
     }
 
     private final MappedFieldType defaultFieldType;
-    private EnabledAttributeMapper enabledState;
     private final boolean pre13Index; // if the index was created before 1.3, _field_names is always disabled
 
     public FieldNamesFieldMapper(Settings indexSettings) {
-        this(Defaults.FIELD_TYPE.clone(), Defaults.ENABLED_STATE, null, indexSettings);
+        this(Defaults.FIELD_TYPE.clone(), null, indexSettings);
     }
 
-    public FieldNamesFieldMapper(MappedFieldType fieldType, EnabledAttributeMapper enabledState, @Nullable Settings fieldDataSettings, Settings indexSettings) {
+    public FieldNamesFieldMapper(MappedFieldType fieldType, @Nullable Settings fieldDataSettings, Settings indexSettings) {
         super(fieldType, false, fieldDataSettings, indexSettings);
         this.defaultFieldType = Defaults.FIELD_TYPE;
         this.pre13Index = Version.indexCreated(indexSettings).before(Version.V_1_3_0);
-        this.enabledState = enabledState;
+        if (this.pre13Index) {
+            this.fieldType = this.fieldType.clone();
+            fieldType().setEnabled(false);
+            this.fieldType.freeze();
+        }
     }
 
-    public boolean enabled() {
-        return pre13Index == false && enabledState.enabled;
+    @Override
+    public FieldNamesFieldType fieldType() {
+        return (FieldNamesFieldType)fieldType;
     }
 
     @Override
@@ -240,7 +258,7 @@ public class FieldNamesFieldMapper extends AbstractFieldMapper implements RootMa
 
     @Override
     protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException {
-        if (enabledState.enabled == false) {
+        if (fieldType().isEnabled() == false) {
             return;
         }
         for (ParseContext.Document document : context.docs()) {
@@ -270,13 +288,13 @@ public class FieldNamesFieldMapper extends AbstractFieldMapper implements RootMa
         }
         boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
 
-        if (includeDefaults == false && fieldType().equals(Defaults.FIELD_TYPE) && enabledState == Defaults.ENABLED_STATE) {
+        if (includeDefaults == false && fieldType().equals(Defaults.FIELD_TYPE) && fieldType().isEnabled() == Defaults.ENABLED) {
             return builder;
         }
         
         builder.startObject(NAME);
-        if (includeDefaults || enabledState != Defaults.ENABLED_STATE) {
-            builder.field("enabled", enabledState.enabled);
+        if (includeDefaults || fieldType().isEnabled() != Defaults.ENABLED) {
+            builder.field("enabled", fieldType().isEnabled());
         }
         if (indexCreatedBefore2x && (includeDefaults || fieldType().equals(Defaults.FIELD_TYPE) == false)) {
             super.doXContentBody(builder, includeDefaults, params);
@@ -290,8 +308,10 @@ public class FieldNamesFieldMapper extends AbstractFieldMapper implements RootMa
     public void merge(Mapper mergeWith, MergeResult mergeResult) throws MergeMappingException {
         FieldNamesFieldMapper fieldNamesMapperMergeWith = (FieldNamesFieldMapper)mergeWith;
         if (!mergeResult.simulate()) {
-            if (fieldNamesMapperMergeWith.enabledState != enabledState && !fieldNamesMapperMergeWith.enabledState.unset()) {
-                this.enabledState = fieldNamesMapperMergeWith.enabledState;
+            if (fieldNamesMapperMergeWith.fieldType().isEnabled() != fieldType().isEnabled()) {
+                this.fieldType = fieldType().clone();
+                fieldType().setEnabled(fieldNamesMapperMergeWith.fieldType().isEnabled());
+                fieldType().freeze();
             }
         }
     }

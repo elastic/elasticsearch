@@ -53,7 +53,6 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -62,7 +61,6 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.indices.*;
-import org.elasticsearch.river.RiverIndexName;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -93,7 +91,6 @@ public class MetaDataCreateIndexService extends AbstractComponent {
     private final AllocationService allocationService;
     private final MetaDataService metaDataService;
     private final Version version;
-    private final String riverIndexName;
     private final AliasValidator aliasValidator;
     private final IndexTemplateFilter indexTemplateFilter;
     private final NodeEnvironment nodeEnv;
@@ -101,7 +98,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
     @Inject
     public MetaDataCreateIndexService(Settings settings, ThreadPool threadPool, ClusterService clusterService,
                                       IndicesService indicesService, AllocationService allocationService, MetaDataService metaDataService,
-                                      Version version, @RiverIndexName String riverIndexName, AliasValidator aliasValidator,
+                                      Version version, AliasValidator aliasValidator,
                                       Set<IndexTemplateFilter> indexTemplateFilters, NodeEnvironment nodeEnv) {
         super(settings);
         this.threadPool = threadPool;
@@ -110,7 +107,6 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         this.allocationService = allocationService;
         this.metaDataService = metaDataService;
         this.version = version;
-        this.riverIndexName = riverIndexName;
         this.aliasValidator = aliasValidator;
         this.nodeEnv = nodeEnv;
 
@@ -163,7 +159,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         if (index.contains("#")) {
             throw new InvalidIndexNameException(new Index(index), index, "must not contain '#'");
         }
-        if (!index.equals(riverIndexName) && index.charAt(0) == '_') {
+        if (index.charAt(0) == '_') {
             throw new InvalidIndexNameException(new Index(index), index, "must not start with '_'");
         }
         if (!index.toLowerCase(Locale.ROOT).equals(index)) {
@@ -306,11 +302,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                         indexSettingsBuilder.put(SETTING_NUMBER_OF_SHARDS, settings.getAsInt(SETTING_NUMBER_OF_SHARDS, 1));
                     } else {
                         if (indexSettingsBuilder.get(SETTING_NUMBER_OF_SHARDS) == null) {
-                            if (request.index().equals(riverIndexName)) {
-                                indexSettingsBuilder.put(SETTING_NUMBER_OF_SHARDS, settings.getAsInt(SETTING_NUMBER_OF_SHARDS, 1));
-                            } else {
-                                indexSettingsBuilder.put(SETTING_NUMBER_OF_SHARDS, settings.getAsInt(SETTING_NUMBER_OF_SHARDS, 5));
-                            }
+                            indexSettingsBuilder.put(SETTING_NUMBER_OF_SHARDS, settings.getAsInt(SETTING_NUMBER_OF_SHARDS, 5));
                         }
                     }
                     if (request.index().equals(ScriptService.SCRIPT_INDEX)) {
@@ -318,11 +310,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                         indexSettingsBuilder.put(SETTING_AUTO_EXPAND_REPLICAS, "0-all");
                     } else {
                         if (indexSettingsBuilder.get(SETTING_NUMBER_OF_REPLICAS) == null) {
-                            if (request.index().equals(riverIndexName)) {
-                                indexSettingsBuilder.put(SETTING_NUMBER_OF_REPLICAS, settings.getAsInt(SETTING_NUMBER_OF_REPLICAS, 1));
-                            } else {
-                                indexSettingsBuilder.put(SETTING_NUMBER_OF_REPLICAS, settings.getAsInt(SETTING_NUMBER_OF_REPLICAS, 1));
-                            }
+                            indexSettingsBuilder.put(SETTING_NUMBER_OF_REPLICAS, settings.getAsInt(SETTING_NUMBER_OF_REPLICAS, 1));
                         }
                     }
 

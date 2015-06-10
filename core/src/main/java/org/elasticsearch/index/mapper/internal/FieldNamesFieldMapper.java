@@ -46,6 +46,7 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
 import static org.elasticsearch.index.mapper.MapperBuilders.fieldNames;
@@ -146,6 +147,20 @@ public class FieldNamesFieldMapper extends AbstractFieldMapper implements RootMa
         protected FieldNamesFieldType(FieldNamesFieldType ref) {
             super(ref);
             this.enabled = ref.enabled;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (!(o instanceof FieldNamesFieldType)) return false;
+            if (!super.equals(o)) return false;
+            FieldNamesFieldType that = (FieldNamesFieldType) o;
+            return Objects.equals(enabled, that.enabled);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(super.hashCode(), enabled);
         }
 
         public void setEnabled(boolean enabled) {
@@ -288,7 +303,7 @@ public class FieldNamesFieldMapper extends AbstractFieldMapper implements RootMa
         }
         boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
 
-        if (includeDefaults == false && fieldType().equals(Defaults.FIELD_TYPE) && fieldType().isEnabled() == Defaults.ENABLED) {
+        if (includeDefaults == false && fieldType().isEnabled() == Defaults.ENABLED) {
             return builder;
         }
         

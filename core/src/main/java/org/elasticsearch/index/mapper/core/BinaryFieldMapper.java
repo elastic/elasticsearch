@@ -49,6 +49,7 @@ import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import static org.elasticsearch.index.mapper.MapperBuilders.binaryField;
 import static org.elasticsearch.index.mapper.core.TypeParsers.parseField;
@@ -82,7 +83,7 @@ public class BinaryFieldMapper extends AbstractFieldMapper {
         @Override
         public BinaryFieldMapper build(BuilderContext context) {
             setupFieldType(context);
-            ((BinaryFieldType)fieldType).tryUncompressing = context.indexCreatedVersion().before(Version.V_2_0_0);
+            ((BinaryFieldType)fieldType).setTryUncompressing(context.indexCreatedVersion().before(Version.V_2_0_0));
             return new BinaryFieldMapper(fieldType, docValues,
                     fieldDataSettings, context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
         }
@@ -106,7 +107,7 @@ public class BinaryFieldMapper extends AbstractFieldMapper {
     }
 
     static final class BinaryFieldType extends MappedFieldType {
-        protected boolean tryUncompressing = false;
+        private boolean tryUncompressing = false;
 
         public BinaryFieldType() {
             super(AbstractFieldMapper.Defaults.FIELD_TYPE);
@@ -120,6 +121,29 @@ public class BinaryFieldMapper extends AbstractFieldMapper {
         @Override
         public MappedFieldType clone() {
             return new BinaryFieldType(this);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (!(o instanceof BinaryFieldType)) return false;
+            if (!super.equals(o)) return false;
+            BinaryFieldType that = (BinaryFieldType) o;
+            return Objects.equals(tryUncompressing, that.tryUncompressing);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(super.hashCode(), tryUncompressing);
+        }
+
+        public boolean tryUncompressing() {
+            return tryUncompressing;
+        }
+
+        public void setTryUncompressing(boolean tryUncompressing) {
+            checkIfFrozen();
+            this.tryUncompressing = tryUncompressing;
         }
 
         @Override

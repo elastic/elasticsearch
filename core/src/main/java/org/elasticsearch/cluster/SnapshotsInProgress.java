@@ -17,22 +17,20 @@
  * under the License.
  */
 
-package org.elasticsearch.cluster.metadata;
+package org.elasticsearch.cluster;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-import org.elasticsearch.cluster.AbstractDiffable;
-import org.elasticsearch.cluster.metadata.MetaData.Custom;
+import org.elasticsearch.cluster.ClusterState.Custom;
+import org.elasticsearch.cluster.metadata.SnapshotId;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
-import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 
@@ -41,17 +39,17 @@ import static com.google.common.collect.Maps.newHashMap;
 /**
  * Meta data about snapshots that are currently executing
  */
-public class SnapshotMetaData extends AbstractDiffable<Custom> implements MetaData.Custom {
+public class SnapshotsInProgress extends AbstractDiffable<Custom> implements Custom {
     public static final String TYPE = "snapshots";
 
-    public static final SnapshotMetaData PROTO = new SnapshotMetaData();
+    public static final SnapshotsInProgress PROTO = new SnapshotsInProgress();
 
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
 
-        SnapshotMetaData that = (SnapshotMetaData) o;
+        SnapshotsInProgress that = (SnapshotsInProgress) o;
 
         if (!entries.equals(that.entries)) return false;
 
@@ -312,11 +310,11 @@ public class SnapshotMetaData extends AbstractDiffable<Custom> implements MetaDa
     private final ImmutableList<Entry> entries;
 
 
-    public SnapshotMetaData(ImmutableList<Entry> entries) {
+    public SnapshotsInProgress(ImmutableList<Entry> entries) {
         this.entries = entries;
     }
 
-    public SnapshotMetaData(Entry... entries) {
+    public SnapshotsInProgress(Entry... entries) {
         this.entries = ImmutableList.copyOf(entries);
     }
 
@@ -339,7 +337,7 @@ public class SnapshotMetaData extends AbstractDiffable<Custom> implements MetaDa
     }
 
     @Override
-    public SnapshotMetaData readFrom(StreamInput in) throws IOException {
+    public SnapshotsInProgress readFrom(StreamInput in) throws IOException {
         Entry[] entries = new Entry[in.readVInt()];
         for (int i = 0; i < entries.length; i++) {
             SnapshotId snapshotId = SnapshotId.readSnapshotId(in);
@@ -361,7 +359,7 @@ public class SnapshotMetaData extends AbstractDiffable<Custom> implements MetaDa
             }
             entries[i] = new Entry(snapshotId, includeGlobalState, state, indexBuilder.build(), startTime, builder.build());
         }
-        return new SnapshotMetaData(entries);
+        return new SnapshotsInProgress(entries);
     }
 
     @Override
@@ -383,16 +381,6 @@ public class SnapshotMetaData extends AbstractDiffable<Custom> implements MetaDa
                 out.writeByte(shardEntry.getValue().state().value());
             }
         }
-    }
-
-    @Override
-    public SnapshotMetaData fromXContent(XContentParser parser) throws IOException {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public EnumSet<MetaData.XContentContext> context() {
-        return MetaData.API_ONLY;
     }
 
     static final class Fields {

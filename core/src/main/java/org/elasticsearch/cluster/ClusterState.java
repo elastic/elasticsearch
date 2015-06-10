@@ -117,6 +117,12 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
         customPrototypes.put(type, proto);
     }
 
+    static {
+        // register non plugin custom parts
+        registerPrototype(SnapshotsInProgress.TYPE, SnapshotsInProgress.PROTO);
+        registerPrototype(RestoreInProgress.TYPE, RestoreInProgress.PROTO);
+    }
+
     @Nullable
     public static <T extends Custom> T lookupPrototype(String type) {
         //noinspection unchecked
@@ -247,6 +253,10 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
 
     public ImmutableOpenMap<String, Custom> getCustoms() {
         return this.customs;
+    }
+
+    public <T extends Custom> T custom(String type) {
+        return (T) customs.get(type);
     }
 
     public ClusterName getClusterName() {

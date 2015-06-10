@@ -34,6 +34,8 @@ import org.elasticsearch.index.gateway.IndexShardGatewayService;
 import org.elasticsearch.index.get.ShardGetService;
 import org.elasticsearch.index.indexing.ShardIndexingService;
 import org.elasticsearch.index.indexing.slowlog.ShardSlowLogIndexingService;
+import org.elasticsearch.index.merge.scheduler.ConcurrentMergeSchedulerProvider;
+import org.elasticsearch.index.merge.scheduler.MergeSchedulerProvider;
 import org.elasticsearch.index.percolator.PercolatorQueriesRegistry;
 import org.elasticsearch.index.percolator.stats.ShardPercolateService;
 import org.elasticsearch.index.search.slowlog.ShardSlowLogSearchService;
@@ -90,7 +92,7 @@ public class IndexShardModule extends AbstractModule {
         }
 
         bind(EngineFactory.class).to(settings.getAsClass(ENGINE_FACTORY, DEFAULT_ENGINE_FACTORY_CLASS, ENGINE_PREFIX, ENGINE_SUFFIX));
-
+        bind(MergeSchedulerProvider.class).to(ConcurrentMergeSchedulerProvider.class).asEagerSingleton();
         bind(ShardIndexWarmerService.class).asEagerSingleton();
         bind(ShardIndexingService.class).asEagerSingleton();
         bind(ShardSlowLogIndexingService.class).asEagerSingleton();

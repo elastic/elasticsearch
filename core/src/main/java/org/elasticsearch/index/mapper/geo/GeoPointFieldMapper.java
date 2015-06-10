@@ -312,6 +312,28 @@ public class GeoPointFieldMapper extends AbstractFieldMapper implements ArrayVal
             return new GeoPointFieldType(this);
         }
 
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (!(o instanceof GeoPointFieldType)) return false;
+            if (!super.equals(o)) return false;
+            GeoPointFieldType that = (GeoPointFieldType) o;
+            return java.util.Objects.equals(geohashPrecision, that.geohashPrecision) &&
+                java.util.Objects.equals(geohashPrefixEnabled, that.geohashPrefixEnabled) &&
+                java.util.Objects.equals(validateLon, that.validateLon) &&
+                java.util.Objects.equals(validateLat, that.validateLat) &&
+                java.util.Objects.equals(normalizeLon, that.normalizeLon) &&
+                java.util.Objects.equals(normalizeLat, that.normalizeLat) &&
+                java.util.Objects.equals(geohashFieldType, that.geohashFieldType) &&
+                java.util.Objects.equals(latFieldType, that.latFieldType) &&
+                java.util.Objects.equals(lonFieldType, that.lonFieldType);
+        }
+
+        @Override
+        public int hashCode() {
+            return java.util.Objects.hash(super.hashCode(), geohashFieldType, geohashPrecision, geohashPrefixEnabled, latFieldType, lonFieldType, validateLon, validateLat, normalizeLon, normalizeLat);
+        }
+
         public boolean isGeohashEnabled() {
             return geohashFieldType != null;
         }

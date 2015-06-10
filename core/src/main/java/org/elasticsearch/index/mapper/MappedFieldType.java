@@ -46,6 +46,7 @@ import org.elasticsearch.index.similarity.SimilarityProvider;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * This defines the core properties and functions to operate on a field.
@@ -200,7 +201,31 @@ public class MappedFieldType extends FieldType {
         return new MappedFieldType(this);
     }
 
-    // norelease: we need to override freeze() and add safety checks that all settings are actually set
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof MappedFieldType)) return false;
+        if (!super.equals(o)) return false;
+        MappedFieldType fieldType = (MappedFieldType) o;
+        return Objects.equals(boost, fieldType.boost) &&
+            Objects.equals(docValues, fieldType.docValues) &&
+            Objects.equals(names, fieldType.names) &&
+            Objects.equals(indexAnalyzer, fieldType.indexAnalyzer) &&
+            Objects.equals(searchAnalyzer, fieldType.searchAnalyzer) &&
+            Objects.equals(searchQuoteAnalyzer(), fieldType.searchQuoteAnalyzer()) &&
+            Objects.equals(similarity, fieldType.similarity) &&
+            Objects.equals(normsLoading, fieldType.normsLoading) &&
+            Objects.equals(fieldDataType, fieldType.fieldDataType) &&
+            Objects.equals(nullValue, fieldType.nullValue) &&
+            Objects.equals(nullValueAsString, fieldType.nullValueAsString);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), names, boost, docValues, indexAnalyzer, searchAnalyzer, searchQuoteAnalyzer, similarity, normsLoading, fieldDataType, nullValue, nullValueAsString);
+    }
+
+// norelease: we need to override freeze() and add safety checks that all settings are actually set
 
     public boolean isNumeric() {
         return false;

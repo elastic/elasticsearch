@@ -19,6 +19,10 @@
 
 package org.elasticsearch.common.settings.loader;
 
+import org.apache.log4j.AppenderSkeleton;
+import org.apache.log4j.Level;
+import org.apache.log4j.Logger;
+import org.apache.log4j.spi.LoggingEvent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
@@ -48,5 +52,47 @@ public class YamlSettingsLoaderTests extends ElasticsearchTestCase {
         assertThat(settings.getAsArray("test1.test3").length, equalTo(2));
         assertThat(settings.getAsArray("test1.test3")[0], equalTo("test3-1"));
         assertThat(settings.getAsArray("test1.test3")[1], equalTo("test3-2"));
+    }
+    
+    @Test
+    public void testYamlSettingsNoFile() throws Exception {
+        String invalidResourceName = "org/elasticsearch/common/settings/loader/no-test-settings.yml";
+        MockAppender mockAppender = new MockAppender();
+        Logger rootLogger = Logger.getRootLogger();
+        Level savedLevel = rootLogger.getLevel();
+        rootLogger.addAppender(mockAppender);
+        rootLogger.setLevel(Level.WARN);
+        rootLogger.addAppender(mockAppender);
+        try {
+            Settings defaultSettings = settingsBuilder()
+                .loadFromClasspath(invalidResourceName)
+                .build();
+            assertTrue(mockAppender.sawLoadFailed);
+            assertFalse(defaultSettings == null);
+        } finally {
+            rootLogger.removeAppender(mockAppender);
+            rootLogger.setLevel(savedLevel);
+        }
+    }
+    
+    private static class MockAppender extends AppenderSkeleton {
+        public boolean sawLoadFailed = false;
+
+        @Override
+        protected void append(LoggingEvent event) {
+            String message = event.getMessage().toString();
+            if (event.getLevel() == Level.WARN && message.contains("Failed to load settings from [")) {
+                sawLoadFailed = true;
+            }
+        }
+
+        @Override
+        public boolean requiresLayout() {
+            return false;
+        }
+
+        @Override
+        public void close() {
+        }
     }
 }

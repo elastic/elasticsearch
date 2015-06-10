@@ -25,6 +25,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
+
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Classes;
@@ -32,6 +33,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.property.PropertyPlaceholder;
 import org.elasticsearch.common.settings.loader.SettingsLoader;
 import org.elasticsearch.common.settings.loader.SettingsLoaderFactory;
@@ -60,6 +63,7 @@ import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
  */
 public final class Settings implements ToXContent {
 
+    private static final ESLogger logger = Loggers.getLogger(Settings.class);
     public static final Settings EMPTY = new Builder().build();
     private static final Pattern ARRAY_PATTERN = Pattern.compile("(.*)\\.\\d+$");
 
@@ -1178,6 +1182,7 @@ public final class Settings implements ToXContent {
             }
             InputStream is = classLoader.getResourceAsStream(resourceName);
             if (is == null) {
+                logger.warn("Failed to load settings from [" + resourceName + "]");
                 return this;
             }
 

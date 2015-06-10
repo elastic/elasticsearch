@@ -9,26 +9,12 @@ where the index data is stored, and are immutable up to delete markers.
 Segments are, periodically, merged into larger segments to keep the
 index size at bay and expunge deletes.
 
-[float]
-[[policy]]
-=== Policy
-
-The index merge policy module allows one to control which segments of a
-shard index are to be merged. There are several types of policies with
-the default set to `tiered`.
-
-[float]
-[[tiered]]
-==== tiered
-
 Merges segments of approximately equal size, subject to an allowed
-number of segments per tier. This is similar to `log_bytes_size` merge
-policy, except this merge policy is able to merge non-adjacent segment,
-and separates how many segments are merged at once from how many
-segments are allowed per tier. This merge policy also does not
-over-merge (i.e., cascade merges).
+number of segments per tier. The merge policy is able to merge
+non-adjacent segments, and separates how many segments are merged at once from how many
+segments are allowed per tier. It also does not over-merge (i.e., cascade merges).
 
-This policy has the following settings:
+The merge policy has the following settings:
 
 `index.merge.policy.expunge_deletes_allowed`::
 
@@ -72,7 +58,7 @@ This policy has the following settings:
 	Higher values favor selecting merges that reclaim deletions. A value of
 	`0.0` means deletions don't impact merge selection. Defaults to `2.0`.
 
-For normal merging, this policy first computes a "budget" of how many
+For normal merging, the policy first computes a "budget" of how many
 segments are allowed to be in the index. If the index is over-budget,
 then the policy sorts segments by decreasing size (proportionally considering percent
 deletes), and then finds the least-cost merge. Merge cost is measured by
@@ -92,83 +78,6 @@ segments to be in an index, and causing searches to be slower. Use the
 indices segments API to see the segments that an index has, and
 possibly either increase the `max_merged_segment` or issue an optimize
 call for the index (try and aim to issue it on a low traffic time).
-
-[float]
-[[log-byte-size]]
-==== log_byte_size
-
-A merge policy that merges segments into levels of exponentially
-increasing *byte size*, where each level has fewer segments than the
-value of the merge factor. Whenever extra segments (beyond the merge
-factor upper bound) are encountered, all segments within the level are
-merged.
-
-This policy has the following settings:
-
-[cols="<,<",options="header",]
-|=======================================================================
-|Setting |Description
-|index.merge.policy.merge_factor |Determines how often segment indices
-are merged by index operation. With smaller values, less RAM is used
-while indexing, and searches on unoptimized indices are faster, but
-indexing speed is slower. With larger values, more RAM is used during
-indexing, and while searches on unoptimized indices are slower, indexing
-is faster. Thus larger values (greater than 10) are best for batch index
-creation, and smaller values (lower than 10) for indices that are
-interactively maintained. Defaults to `10`.
-
-|index.merge.policy.min_merge_size |A size setting type which sets the
-minimum size for the lowest level segments. Any segments below this size
-are considered to be on the same level (even if they vary drastically in
-size) and will be merged whenever there are mergeFactor of them. This
-effectively truncates the "long tail" of small segments that would
-otherwise be created into a single level. If you set this too large, it
-could greatly increase the merging cost during indexing (if you flush
-many small segments). Defaults to `1.6mb`
-
-|index.merge.policy.max_merge_size |A size setting type which sets the
-largest segment (measured by total byte size of the segment's files)
-that may be merged with other segments. Defaults to unbounded.
-
-|index.merge.policy.max_merge_docs |Determines the largest segment
-(measured by document count) that may be merged with other segments.
-Defaults to unbounded.
-|=======================================================================
-
-[float]
-[[log-doc]]
-==== log_doc
-
-A merge policy that tries to merge segments into levels of exponentially
-increasing *document count*, where each level has fewer segments than
-the value of the merge factor. Whenever extra segments (beyond the merge
-factor upper bound) are encountered, all segments within the level are
-merged.
-
-[cols="<,<",options="header",]
-|=======================================================================
-|Setting |Description
-|index.merge.policy.merge_factor |Determines how often segment indices
-are merged by index operation. With smaller values, less RAM is used
-while indexing, and searches on unoptimized indices are faster, but
-indexing speed is slower. With larger values, more RAM is used during
-indexing, and while searches on unoptimized indices are slower, indexing
-is faster. Thus larger values (greater than 10) are best for batch index
-creation, and smaller values (lower than 10) for indices that are
-interactively maintained. Defaults to `10`.
-
-|index.merge.policy.min_merge_docs |Sets the minimum size for the lowest
-level segments. Any segments below this size are considered to be on the
-same level (even if they vary drastically in size) and will be merged
-whenever there are mergeFactor of them. This effectively truncates the
-"long tail" of small segments that would otherwise be created into a
-single level. If you set this too large, it could greatly increase the
-merging cost during indexing (if you flush many small segments).
-Defaults to `1000`.
-
-|index.merge.policy.max_merge_docs |Determines the largest segment
-(measured by document count) that may be merged with other segments.
-Defaults to unbounded.
 |=======================================================================
 
 [float]

@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.merge.policy;
+package org.elasticsearch.index.shard;
 
 import org.apache.lucene.analysis.CannedTokenStream;
 import org.apache.lucene.analysis.Token;
@@ -36,6 +36,7 @@ import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.mapper.internal.VersionFieldMapper;
+import org.elasticsearch.index.shard.VersionFieldUpgrader;
 import org.elasticsearch.test.ElasticsearchTestCase;
 
 /** Tests upgrading old document versions from _uid payloads to _version docvalues */

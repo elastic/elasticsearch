@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.merge.policy;
+package org.elasticsearch.index.shard;
 
 import org.apache.lucene.codecs.DocValuesProducer;
 import org.apache.lucene.index.CodecReader;

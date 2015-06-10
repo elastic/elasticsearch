@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.merge.policy;
+package org.elasticsearch.index.shard;
 
 import com.google.common.collect.Lists;
 import org.apache.lucene.index.*;

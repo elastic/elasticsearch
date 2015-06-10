@@ -23,10 +23,7 @@ import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.TextField;
-import org.apache.lucene.index.IndexDeletionPolicy;
-import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.index.LiveIndexWriterConfig;
-import org.apache.lucene.index.Term;
+import org.apache.lucene.index.*;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
@@ -51,8 +48,6 @@ import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
-import org.elasticsearch.index.merge.policy.LogByteSizeMergePolicyProvider;
-import org.elasticsearch.index.merge.policy.MergePolicyProvider;
 import org.elasticsearch.index.merge.scheduler.ConcurrentMergeSchedulerProvider;
 import org.elasticsearch.index.merge.scheduler.MergeSchedulerProvider;
 import org.elasticsearch.index.settings.IndexSettingsService;
@@ -202,10 +197,6 @@ public class ShadowEngineTests extends ElasticsearchTestCase {
         return new SnapshotDeletionPolicy(createIndexDeletionPolicy());
     }
 
-    protected MergePolicyProvider<?> createMergePolicy() {
-        return new LogByteSizeMergePolicyProvider(store, new IndexSettingsService(new Index("test"), EMPTY_SETTINGS));
-    }
-
     protected MergeSchedulerProvider createMergeScheduler(IndexSettingsService indexSettingsService) {
         return new ConcurrentMergeSchedulerProvider(shardId, EMPTY_SETTINGS, threadPool, indexSettingsService);
     }
@@ -232,7 +223,7 @@ public class ShadowEngineTests extends ElasticsearchTestCase {
         IndexWriterConfig iwc = newIndexWriterConfig();
         TranslogConfig translogConfig = new TranslogConfig(shardId, translogPath, indexSettingsService.getSettings(), Translog.Durabilty.REQUEST, BigArrays.NON_RECYCLING_INSTANCE, threadPool);
         EngineConfig config = new EngineConfig(shardId, threadPool, new ShardIndexingService(shardId, EMPTY_SETTINGS, new ShardSlowLogIndexingService(shardId, EMPTY_SETTINGS, indexSettingsService)), indexSettingsService
-                , null, store, createSnapshotDeletionPolicy(), createMergePolicy(), mergeSchedulerProvider,
+                , null, store, createSnapshotDeletionPolicy(),newMergePolicy(), mergeSchedulerProvider,
                 iwc.getAnalyzer(), iwc.getSimilarity() , new CodecService(shardId.index()), new Engine.FailedEngineListener() {
             @Override
             public void onFailedEngine(ShardId shardId, String reason, @Nullable Throwable t) {

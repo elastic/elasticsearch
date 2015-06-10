@@ -176,7 +176,7 @@ public class HoltWintersModel extends MovAvgModel {
      * @return                  Returns an array of doubles, since most smoothing methods operate on floating points
      */
     @Override
-    public <T extends Number> double[] predict(Collection<T> values, int numPredictions) {
+    protected <T extends Number> double[] doPredict(Collection<T> values, int numPredictions) {
         return next(values, numPredictions);
     }
 

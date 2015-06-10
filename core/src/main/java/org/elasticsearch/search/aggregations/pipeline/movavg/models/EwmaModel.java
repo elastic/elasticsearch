@@ -29,6 +29,7 @@ import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.text.ParseException;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Map;
 
@@ -50,6 +51,15 @@ public class EwmaModel extends MovAvgModel {
         this.alpha = alpha;
     }
 
+    @Override
+    protected <T extends Number> double[] doPredict(Collection<T> values, int numPredictions) {
+        double[] predictions = new double[numPredictions];
+
+        // EWMA just emits the same final prediction repeatedly.
+        Arrays.fill(predictions, next(values));
+
+        return predictions;
+    }
 
     @Override
     public <T extends Number> double next(Collection<T> values) {

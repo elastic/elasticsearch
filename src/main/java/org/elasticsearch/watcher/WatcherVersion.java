@@ -26,6 +26,8 @@ public class WatcherVersion implements Serializable {
 
     public static final int V_1_0_0_Beta1_ID = /*00*/1000001;
     public static final WatcherVersion V_1_0_0_Beta1 = new WatcherVersion(V_1_0_0_Beta1_ID, false, Version.V_1_5_0, LicenseVersion.V_1_0_0);
+    public static final int V_1_0_0_Beta2_ID = /*00*/1000002;
+    public static final WatcherVersion V_1_0_0_Beta2 = new WatcherVersion(V_1_0_0_Beta2_ID, false, Version.V_1_5_0, LicenseVersion.V_1_0_0);
     public static final int V_2_0_0_ID = /*00*/2000099;
     public static final WatcherVersion V_2_0_0 = new WatcherVersion(V_2_0_0_ID, false, Version.V_1_5_0, LicenseVersion.V_1_0_0);
 
@@ -39,6 +41,8 @@ public class WatcherVersion implements Serializable {
         switch (id) {
             case V_1_0_0_Beta1_ID:
                 return V_1_0_0_Beta1;
+            case V_1_0_0_Beta2_ID:
+                return V_1_0_0_Beta2;
             case V_2_0_0_ID:
                 return V_2_0_0;
             default:

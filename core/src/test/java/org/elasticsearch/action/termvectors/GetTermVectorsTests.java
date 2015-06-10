@@ -917,7 +917,7 @@ public class GetTermVectorsTests extends AbstractTermVectorsTests {
             assertThat(resp.isExists(), equalTo(true));
             checkBrownFoxTermVector(resp.getFields(), "field1", false);
             // we should have created a mapping for this field
-            waitForMappingOnMaster("test", "type1", "non_existing");
+            assertMappingOnMaster("test", "type1", "non_existing");
             // and return the generated term vectors
             checkBrownFoxTermVector(resp.getFields(), "non_existing", false);
         }

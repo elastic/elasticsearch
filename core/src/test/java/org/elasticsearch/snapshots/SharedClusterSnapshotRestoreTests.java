@@ -196,9 +196,6 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
         String docId = Integer.toString(randomInt());
         index(indexName, typeName, docId, "value", expectedValue);
 
-        // TODO: Remove after dynamic mapping flushing is implemented
-        waitForConcreteMappingsOnAll(indexName, typeName, "value");
-
         logger.info("-->  creating repository");
         assertAcked(client.admin().cluster().preparePutRepository(repoName)
                 .setType("fs").setSettings(Settings.settingsBuilder()

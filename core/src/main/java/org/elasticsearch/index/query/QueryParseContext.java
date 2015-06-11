@@ -267,18 +267,37 @@ public class QueryParseContext {
         return result;
     }
 
+    /**
+     * @deprecated replaced by calls to parseInnerFilterToQueryBuilder() for the resulting queries
+     */
     @Nullable
+    @Deprecated
     public Query parseInnerFilter() throws QueryParsingException, IOException {
+        QueryBuilder builder = parseInnerFilterToQueryBuilder();
+        Query result = null;
+        if (builder != null) {
+            result = builder.toQuery(this);
+        }
+        return result;
+    }
+
+    /**
+     * @return
+     * @throws QueryParsingException
+     * @throws IOException
+     */
+    @Nullable
+    public QueryBuilder parseInnerFilterToQueryBuilder() throws QueryParsingException, IOException {
         final boolean originalIsFilter = isFilter;
         try {
             isFilter = true;
-            return parseInnerQuery();
+            return parseInnerQueryBuilder();
         } finally {
             isFilter = originalIsFilter;
         }
     }
 
-    public Query parseInnerFilter(String queryName) throws IOException, QueryParsingException {
+    public QueryBuilder parseInnerFilterToQueryBuilder(String queryName) throws IOException, QueryParsingException {
         final boolean originalIsFilter = isFilter;
         try {
             isFilter = true;
@@ -286,10 +305,20 @@ public class QueryParseContext {
             if (queryParser == null) {
                 throw new QueryParsingException(this, "No query registered for [" + queryName + "]");
             }
-            return queryParser.parse(this);
+            return queryParser.fromXContent(this);
         } finally {
             isFilter = originalIsFilter;
         }
+    }
+
+    /**
+     * @deprecated replaced by calls to parseInnerFilterToQueryBuilder(String queryName) for the resulting queries
+     */
+    @Nullable
+    @Deprecated
+    public Query parseInnerFilter(String queryName) throws IOException, QueryParsingException {
+        QueryBuilder builder = parseInnerFilterToQueryBuilder(queryName);
+        return (builder != null) ? builder.toQuery(this) : null;
     }
 
     public Collection<String> simpleMatchToIndexNames(String pattern) {

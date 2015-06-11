@@ -3,7 +3,7 @@ Mapper Attachments Type for Elasticsearch
 
 The mapper attachments plugin adds the `attachment` type to Elasticsearch using [Apache Tika](http://lucene.apache.org/tika/).
 The `attachment` type allows to index different "attachment" type field (encoded as `base64`), for example,
-microsoft office formats, open document formats, ePub, HTML, and so on (full list can be found [here](http://tika.apache.org/1.5/formats.html)).
+microsoft office formats, open document formats, ePub, HTML, and so on (full list can be found [here](http://tika.apache.org/1.8/formats.html)).
 
 In order to install the plugin, run: 
 
@@ -16,7 +16,8 @@ You need to install a version matching your Elasticsearch version:
 |       Elasticsearch    | Attachments Plugin|                                                             Docs                                                                   |
 |------------------------|-------------------|------------------------------------------------------------------------------------------------------------------------------------|
 |    master              | Build from source | See below                                                                                                                          |
-|    es-1.x              | Build from source | [2.6.0-SNAPSHOT](https://github.com/elasticsearch/elasticsearch-mapper-attachments/tree/es-1.x/#version-260-snapshot-for-elasticsearch-1x)|
+|    es-1.x              | Build from source | [2.7.0-SNAPSHOT](https://github.com/elasticsearch/elasticsearch-mapper-attachments/tree/es-1.x/#version-270-snapshot-for-elasticsearch-1x)|
+|    es-1.6              | Build from source | [2.6.0-SNAPSHOT](https://github.com/elasticsearch/elasticsearch-mapper-attachments/tree/es-1.6/#version-260-snapshot-for-elasticsearch-16)|
 |    es-1.5              |     2.5.0         | [2.5.0](https://github.com/elastic/elasticsearch-mapper-attachments/tree/v2.5.0/#version-250-for-elasticsearch-15)                  |
 |    es-1.4              |     2.4.3         | [2.4.3](https://github.com/elasticsearch/elasticsearch-mapper-attachments/tree/v2.4.3/#version-243-for-elasticsearch-14)                  |
 |    es-1.3              |     2.3.2         | [2.3.2](https://github.com/elasticsearch/elasticsearch-mapper-attachments/tree/v2.3.2/#version-232-for-elasticsearch-13)                  |

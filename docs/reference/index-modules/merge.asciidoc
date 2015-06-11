@@ -78,7 +78,6 @@ segments to be in an index, and causing searches to be slower. Use the
 indices segments API to see the segments that an index has, and
 possibly either increase the `max_merged_segment` or issue an optimize
 call for the index (try and aim to issue it on a low traffic time).
-|=======================================================================
 
 [float]
 [[scheduling]]

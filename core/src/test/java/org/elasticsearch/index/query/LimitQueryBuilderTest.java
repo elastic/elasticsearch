@@ -30,11 +30,6 @@ public class LimitQueryBuilderTest extends BaseQueryTestCase<LimitQueryBuilder> 
         return Queries.newMatchAllQuery();
     }
 
-    @Override
-    protected LimitQueryBuilder createEmptyQueryBuilder() {
-        return new LimitQueryBuilder(0);
-    }
-
     /**
      * @return a LimitQueryBuilder with random limit between 0 and 20
      */

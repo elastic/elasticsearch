@@ -57,6 +57,7 @@ import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.test.TestSearchContext;
+import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolModule;
 import org.junit.After;
@@ -75,11 +76,14 @@ import static org.hamcrest.Matchers.is;
 @Ignore
 public abstract class BaseQueryTestCase<QB extends QueryBuilder<QB>> extends ElasticsearchTestCase {
 
+    protected static final String OBJECT_FIELD_NAME = "object";
     protected static final String DATE_FIELD_NAME = "age";
     protected static final String INT_FIELD_NAME = "price";
     protected static final String STRING_FIELD_NAME = "text";
     protected static final String DOUBLE_FIELD_NAME = "double";
     protected static final String BOOLEAN_FIELD_NAME = "boolean";
+    protected static final String[] mappedFieldNames = new String[] { DATE_FIELD_NAME, INT_FIELD_NAME, STRING_FIELD_NAME,
+            DOUBLE_FIELD_NAME, BOOLEAN_FIELD_NAME, OBJECT_FIELD_NAME };
 
     private static Injector injector;
     private static IndexQueryParserService queryParserService;
@@ -102,7 +106,8 @@ public abstract class BaseQueryTestCase<QB extends QueryBuilder<QB>> extends Ela
         Settings settings = Settings.settingsBuilder()
                 .put("name", BaseQueryTestCase.class.toString())
                 .put("path.home", createTempDir())
-                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetaData.SETTING_VERSION_CREATED, VersionUtils.randomVersionBetween(random(),
+                        Version.V_1_0_0, Version.CURRENT))
                 .build();
 
         index = new Index("test");
@@ -138,7 +143,10 @@ public abstract class BaseQueryTestCase<QB extends QueryBuilder<QB>> extends Ela
                     INT_FIELD_NAME, "type=integer",
                     DOUBLE_FIELD_NAME, "type=double",
                     BOOLEAN_FIELD_NAME, "type=boolean",
-                    STRING_FIELD_NAME, "type=string").string()), false);
+                    STRING_FIELD_NAME, "type=string",
+                    OBJECT_FIELD_NAME, "type=object",
+                    OBJECT_FIELD_NAME+"."+DATE_FIELD_NAME, "type=date",
+                    OBJECT_FIELD_NAME+"."+INT_FIELD_NAME, "type=integer").string()), false);
             currentTypes[i] = type;
         }
         namedWriteableRegistry = injector.getInstance(NamedWriteableRegistry.class);
@@ -165,7 +173,7 @@ public abstract class BaseQueryTestCase<QB extends QueryBuilder<QB>> extends Ela
             }
         } else {
             if (randomBoolean()) {
-                types = new String[]{MetaData.ALL};
+                types = new String[] { MetaData.ALL };
             } else {
                 types = new String[0];
             }
@@ -191,11 +199,6 @@ public abstract class BaseQueryTestCase<QB extends QueryBuilder<QB>> extends Ela
      * Create the query that is being tested
      */
     protected abstract QB createTestQueryBuilder();
-
-    /**
-     * Creates an empty builder of the type of query under test
-     */
-    protected abstract QB createEmptyQueryBuilder();
 
     /**
      * Generic test that creates new query from the test query and checks both for equality
@@ -259,7 +262,8 @@ public abstract class BaseQueryTestCase<QB extends QueryBuilder<QB>> extends Ela
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             testQuery.writeTo(output);
             try (StreamInput in = new FilterStreamInput(StreamInput.wrap(output.bytes()), namedWriteableRegistry)) {
-                QB deserializedQuery = createEmptyQueryBuilder().readFrom(in);
+                QueryBuilder prototype = queryParserService.queryParser(testQuery.queryId()).getBuilderPrototype();
+                QueryBuilder deserializedQuery = prototype.readFrom(in);
                 assertEquals(deserializedQuery, testQuery);
                 assertEquals(deserializedQuery.hashCode(), testQuery.hashCode());
                 assertNotSame(deserializedQuery, testQuery);

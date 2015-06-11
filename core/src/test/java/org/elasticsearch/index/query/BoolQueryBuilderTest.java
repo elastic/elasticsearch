@@ -84,11 +84,6 @@ public class BoolQueryBuilderTest extends BaseQueryTestCase<BoolQueryBuilder> {
     }
 
     @Override
-    protected BoolQueryBuilder createEmptyQueryBuilder() {
-        return new BoolQueryBuilder();
-    }
-
-    @Override
     protected Query createExpectedQuery(BoolQueryBuilder queryBuilder, QueryParseContext context) throws IOException {
         if (!queryBuilder.hasClauses()) {
             return new MatchAllDocsQuery();

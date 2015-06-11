@@ -31,11 +31,6 @@ public class MatchAllQueryBuilderTest extends BaseQueryTestCase<MatchAllQueryBui
         return matchAllDocsQuery;
     }
 
-    @Override
-    protected MatchAllQueryBuilder createEmptyQueryBuilder() {
-        return new MatchAllQueryBuilder();
-    }
-
     /**
      * @return a MatchAllQuery with random boost between 0.1f and 2.0f
      */

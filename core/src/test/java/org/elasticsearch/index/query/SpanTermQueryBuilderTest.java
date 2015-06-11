@@ -26,11 +26,6 @@ import org.apache.lucene.search.spans.SpanTermQuery;
 public class SpanTermQueryBuilderTest extends BaseTermQueryTestCase<SpanTermQueryBuilder> {
 
     @Override
-    protected SpanTermQueryBuilder createEmptyQueryBuilder() {
-        return new SpanTermQueryBuilder(null, null);
-    }
-    
-    @Override
     protected SpanTermQueryBuilder createQueryBuilder(String fieldName, Object value) {
         return new SpanTermQueryBuilder(fieldName, value);
     }

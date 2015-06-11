@@ -92,8 +92,11 @@
 * https://github.com/twitter/storehaus[Twitter Storehaus]:
   Thin asynchronous Scala client for Storehaus.
 
-* https://doc.tiki.org/Elasticsearch[Tiki Wiki CMS Groupware]
+* https://doc.tiki.org/Elasticsearch[Tiki Wiki CMS Groupware]:
   Tiki has native support for Elasticsearch. This provides faster & better search (facets, etc), along with some Natural Language Processing features (ex.: More like this)
 
-* https://github.com/reachkrishnaraj/kafka-elasticsearch-standalone-consumer[Kafka Standalone Consumer]
+* https://github.com/reachkrishnaraj/kafka-elasticsearch-standalone-consumer[Kafka Standalone Consumer]:
   Easily Scaleable & Extendable, Kafka Standalone Consumer that will read the messages from Kafka, processes and index them in ElasticSearch
+  
+* http://www.searchtechnologies.com/aspire-for-elasticsearch[Aspire for Elasticsearch]:
+  Aspire, from Search Technologies, is a powerful connector and processing framework designed for unstructured data. It has connectors to internal and external repositories including SharePoint, Documentum, Jive, RDB, file systems, websites and more, and can transform and normalize this data before indexing in Elasticsearch. 

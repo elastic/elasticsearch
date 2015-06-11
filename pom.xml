@@ -19,6 +19,7 @@
         <module>core</module>
         <module>licensor</module>
         <module>plugin</module>
+        <module>plugin-api</module>
     </modules>
 
     <properties>

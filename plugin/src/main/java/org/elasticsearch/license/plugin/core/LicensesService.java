@@ -741,125 +741,8 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
         }
     }
 
-    public static class TrialLicenseOptions {
-        final TimeValue duration;
-        final int maxNodes;
 
-        public TrialLicenseOptions(TimeValue duration, int maxNodes) {
-            this.duration = duration;
-            this.maxNodes = maxNodes;
-        }
-    }
 
-    public static class ExpirationStatus {
-        private final boolean expired;
-        private final TimeValue time;
-
-        private ExpirationStatus(boolean expired, TimeValue time) {
-            this.expired = expired;
-            this.time = time;
-        }
-
-        public boolean expired() {
-            return expired;
-        }
-
-        public TimeValue time() {
-            return time;
-        }
-    }
-
-    public static interface LicenseCallback {
-        void on(License license, ExpirationStatus status);
-    }
-
-    public static abstract class ExpirationCallback implements LicenseCallback {
-
-        public enum Orientation { PRE, POST }
-
-        public static abstract class Pre extends ExpirationCallback {
-
-            /**
-             * Callback schedule prior to license expiry
-             *
-             * @param min latest relative time to execute before license expiry
-             * @param max earliest relative time to execute before license expiry
-             * @param frequency interval between execution
-             */
-            public Pre(TimeValue min, TimeValue max, TimeValue frequency) {
-                super(Orientation.PRE, min, max, frequency);
-            }
-
-            @Override
-            public boolean matches(long expirationDate, long now) {
-                long expiryDuration = expirationDate - now;
-                if (expiryDuration > 0l) {
-                    if (expiryDuration <= max().getMillis()) {
-                        return expiryDuration >= min().getMillis();
-                    }
-                }
-                return false;
-            }
-        }
-
-        public static abstract class Post extends ExpirationCallback {
-
-            /**
-             * Callback schedule after license expiry
-             *
-             * @param min earliest relative time to execute after license expiry
-             * @param max latest relative time to execute after license expiry
-             * @param frequency interval between execution
-             */
-            public Post(TimeValue min, TimeValue max, TimeValue frequency) {
-                super(Orientation.POST, min, max, frequency);
-            }
-
-            @Override
-            public boolean matches(long expirationDate, long now) {
-                long postExpiryDuration = now - expirationDate;
-                if (postExpiryDuration > 0l) {
-                    if (postExpiryDuration <= max().getMillis()) {
-                        return postExpiryDuration >= min().getMillis();
-                    }
-                }
-                return false;
-            }
-        }
-
-        private final Orientation orientation;
-        private final TimeValue min;
-        private final TimeValue max;
-        private final TimeValue frequency;
-
-        private ExpirationCallback(Orientation orientation, TimeValue min, TimeValue max, TimeValue frequency) {
-            this.orientation = orientation;
-            this.min = (min == null) ? TimeValue.timeValueMillis(0) : min;
-            this.max = (max == null) ? TimeValue.timeValueMillis(Long.MAX_VALUE) : max;
-            this.frequency = frequency;
-            if (frequency == null) {
-                throw new IllegalArgumentException("frequency can not be null");
-            }
-        }
-
-        public Orientation orientation() {
-            return orientation;
-        }
-
-        public TimeValue min() {
-            return min;
-        }
-
-        public TimeValue max() {
-            return max;
-        }
-
-        public TimeValue frequency() {
-            return frequency;
-        }
-
-        public abstract boolean matches(long expirationDate, long now);
-    }
 
     /**
      * Stores configuration and listener for a feature
@@ -993,6 +876,7 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
             }
         }
 
+        @Override
         public String toString() {
             return "(feature: " + feature + ", enabled: " + enabled + ")";
         }

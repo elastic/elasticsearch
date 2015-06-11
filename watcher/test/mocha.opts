@@ -1,0 +1,2 @@
+--require expect.js
+--reporter spec

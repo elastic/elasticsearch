@@ -26,8 +26,12 @@ parameter.
 documents.
 |=======================================================================
 
-IMPORTANT: If this query is used in a filter context and it has `should`
+[IMPORTANT]
+.Bool query in filter context
+========================================================================
+If this query is used in a filter context and it has `should`
 clauses then at least one `should` clause is required to match.
+========================================================================
 
 The bool query also supports `disable_coord` parameter (defaults to
 `false`). Basically the coord similarity computes a score factor based

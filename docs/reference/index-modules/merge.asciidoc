@@ -199,9 +199,3 @@ indexing will see the throttle move higher to allow merges to keep up
 with ongoing indexing.  This is a dynamic setting (you can <<indices-update-settings,change it
 at any time on a running index>>).
 
-[float]
-==== SerialMergeScheduler
-
-This is accepted for backwards compatibility, but just uses
-ConcurrentMergeScheduler with index.merge.scheduler.max_thread_count
-set to 1 so that only 1 merge may run at a time.

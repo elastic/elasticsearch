@@ -90,6 +90,11 @@ public class MissingQueryParser extends BaseQueryParserTemp {
         }
 
         final FieldNamesFieldMapper.FieldNamesFieldType fieldNamesFieldType = (FieldNamesFieldMapper.FieldNamesFieldType)parseContext.mapperService().fullName(FieldNamesFieldMapper.NAME);
+        if (fieldNamesFieldType == null) {
+            // can only happen when no types exist, so no docs exist either
+            return Queries.newMatchNoDocsQuery();
+        }
+
         MapperService.SmartNameObjectMapper smartNameObjectMapper = parseContext.smartObjectMapper(fieldPattern);
         if (smartNameObjectMapper != null && smartNameObjectMapper.hasMapper()) {
             // automatic make the object mapper pattern

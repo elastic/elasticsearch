@@ -157,7 +157,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
             final SnapshotId snapshotId = new SnapshotId(request.repository(), request.name());
             final Snapshot snapshot = repository.readSnapshot(snapshotId);
             List<String> filteredIndices = SnapshotUtils.filterIndices(snapshot.indices(), request.indices(), request.indicesOptions());
-            MetaData metaDataIn = repository.readSnapshotMetaData(snapshotId, filteredIndices);
+            MetaData metaDataIn = repository.readSnapshotMetaData(snapshotId, snapshot, filteredIndices);
 
             final MetaData metaData;
             if (snapshot.version().before(Version.V_2_0_0)) {

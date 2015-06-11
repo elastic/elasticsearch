@@ -19,12 +19,8 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.MatchAllDocsQuery;
-import org.apache.lucene.search.Query;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 
@@ -32,12 +28,11 @@ import java.io.IOException;
 import java.util.List;
 
 import static com.google.common.collect.Lists.newArrayList;
-import static org.elasticsearch.common.lucene.search.Queries.fixNegativeQueryIfNeeded;
 
 /**
- *
+ * Parser for the {@link BoolQueryBuilder}
  */
-public class BoolQueryParser extends BaseQueryParserTemp {
+public class BoolQueryParser extends BaseQueryParser {
 
     @Inject
     public BoolQueryParser(Settings settings) {
@@ -50,19 +45,23 @@ public class BoolQueryParser extends BaseQueryParserTemp {
     }
 
     @Override
-    public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public QueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
-        boolean disableCoord = false;
+        boolean disableCoord = BoolQueryBuilder.DISABLE_COORD_DEFAULT;
+        boolean adjustPureNegative = BoolQueryBuilder.ADJUST_PURE_NEGATIVE_DEFAULT;
         float boost = 1.0f;
         String minimumShouldMatch = null;
 
-        List<BooleanClause> clauses = newArrayList();
-        boolean adjustPureNegative = true;
+        List<QueryBuilder> mustClauses = newArrayList();
+        List<QueryBuilder> mustNotClauses = newArrayList();
+        List<QueryBuilder> shouldClauses = newArrayList();
+        List<QueryBuilder> filterClauses = newArrayList();
         String queryName = null;
 
         String currentFieldName = null;
         XContentParser.Token token;
+        QueryBuilder query;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
@@ -71,31 +70,31 @@ public class BoolQueryParser extends BaseQueryParserTemp {
             } else if (token == XContentParser.Token.START_OBJECT) {
                 switch (currentFieldName) {
                 case "must":
-                    Query query = parseContext.parseInnerQuery();
+                    query = parseContext.parseInnerQueryBuilder();
                     if (query != null) {
-                        clauses.add(new BooleanClause(query, BooleanClause.Occur.MUST));
+                        mustClauses.add(query);
                     }
                     break;
                 case "should":
-                    query = parseContext.parseInnerQuery();
+                    query = parseContext.parseInnerQueryBuilder();
                     if (query != null) {
-                        clauses.add(new BooleanClause(query, BooleanClause.Occur.SHOULD));
+                        shouldClauses.add(query);
                         if (parseContext.isFilter() && minimumShouldMatch == null) {
                             minimumShouldMatch = "1";
                         }
                     }
                     break;
                 case "filter":
-                    query = parseContext.parseInnerFilter();
+                    query = parseContext.parseInnerFilterToQueryBuilder();
                     if (query != null) {
-                        clauses.add(new BooleanClause(query, BooleanClause.Occur.FILTER));
+                        filterClauses.add(query);
                     }
                     break;
                 case "must_not":
                 case "mustNot":
-                    query = parseContext.parseInnerFilter();
+                    query = parseContext.parseInnerFilterToQueryBuilder();
                     if (query != null) {
-                        clauses.add(new BooleanClause(query, BooleanClause.Occur.MUST_NOT));
+                        mustNotClauses.add(query);
                     }
                     break;
                 default:
@@ -105,31 +104,31 @@ public class BoolQueryParser extends BaseQueryParserTemp {
                 while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                     switch (currentFieldName) {
                     case "must":
-                        Query query = parseContext.parseInnerQuery();
+                        query = parseContext.parseInnerQueryBuilder();
                         if (query != null) {
-                            clauses.add(new BooleanClause(query, BooleanClause.Occur.MUST));
+                            mustClauses.add(query);
                         }
                         break;
                     case "should":
-                        query = parseContext.parseInnerQuery();
+                        query = parseContext.parseInnerQueryBuilder();
                         if (query != null) {
-                            clauses.add(new BooleanClause(query, BooleanClause.Occur.SHOULD));
+                            shouldClauses.add(query);
                             if (parseContext.isFilter() && minimumShouldMatch == null) {
                                 minimumShouldMatch = "1";
                             }
                         }
                         break;
                     case "filter":
-                        query = parseContext.parseInnerFilter();
+                        query = parseContext.parseInnerFilterToQueryBuilder();
                         if (query != null) {
-                            clauses.add(new BooleanClause(query, BooleanClause.Occur.FILTER));
+                            filterClauses.add(query);
                         }
                         break;
                     case "must_not":
                     case "mustNot":
-                        query = parseContext.parseInnerFilter();
+                        query = parseContext.parseInnerFilterToQueryBuilder();
                         if (query != null) {
-                            clauses.add(new BooleanClause(query, BooleanClause.Occur.MUST_NOT));
+                            mustNotClauses.add(query);
                         }
                         break;
                     default:
@@ -154,22 +153,18 @@ public class BoolQueryParser extends BaseQueryParserTemp {
                 }
             }
         }
-
-        if (clauses.isEmpty()) {
-            return new MatchAllDocsQuery();
-        }
-
-        BooleanQuery booleanQuery = new BooleanQuery(disableCoord);
-        for (BooleanClause clause : clauses) {
-            booleanQuery.add(clause);
-        }
-        booleanQuery.setBoost(boost);
-        Queries.applyMinimumShouldMatch(booleanQuery, minimumShouldMatch);
-        Query query = adjustPureNegative ? fixNegativeQueryIfNeeded(booleanQuery) : booleanQuery;
-        if (queryName != null) {
-            parseContext.addNamedQuery(queryName, query);
-        }
-        return query;
+        BoolQueryBuilder boolQuery = new BoolQueryBuilder();
+        boolQuery.must(mustClauses);
+        boolQuery.mustNot(mustNotClauses);
+        boolQuery.should(shouldClauses);
+        boolQuery.filter(filterClauses);
+        boolQuery.boost(boost);
+        boolQuery.disableCoord(disableCoord);
+        boolQuery.adjustPureNegative(adjustPureNegative);
+        boolQuery.minimumNumberShouldMatch(minimumShouldMatch);
+        boolQuery.queryName(queryName);
+        boolQuery.validate();
+        return boolQuery;
     }
 
     @Override

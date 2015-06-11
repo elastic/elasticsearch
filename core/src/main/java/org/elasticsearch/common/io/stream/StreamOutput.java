@@ -457,4 +457,15 @@ public abstract class StreamOutput extends OutputStream {
         writeString(namedWriteable.getName());
         namedWriteable.writeTo(this);
     }
+
+    /**
+     * Writes a list of {@link NamedWriteable} to the current stream, by first writing its size and then iterating over the objects
+     * in the list
+     */
+    public void writeNamedWritableList(List<? extends NamedWriteable> list) throws IOException {
+        writeInt(list.size());
+        for (NamedWriteable obj : list) {
+            writeNamedWriteable(obj);
+        }
+    }
 }

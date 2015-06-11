@@ -40,7 +40,7 @@ import org.elasticsearch.index.fielddata.ShardFieldData;
 import org.elasticsearch.index.get.ShardGetService;
 import org.elasticsearch.index.indexing.ShardIndexingService;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.merge.scheduler.MergeSchedulerProvider;
+import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.percolator.PercolatorQueriesRegistry;
 import org.elasticsearch.index.percolator.stats.ShardPercolateService;
 import org.elasticsearch.index.query.IndexQueryParserService;
@@ -67,7 +67,7 @@ public final class ShadowIndexShard extends IndexShard {
 
     @Inject
     public ShadowIndexShard(ShardId shardId, IndexSettingsService indexSettingsService,
-                            IndicesLifecycle indicesLifecycle, Store store, MergeSchedulerProvider mergeScheduler,
+                            IndicesLifecycle indicesLifecycle, Store store,
                             ThreadPool threadPool, MapperService mapperService,
                             IndexQueryParserService queryParserService, IndexCache indexCache,
                             IndexAliasesService indexAliasesService, ShardIndexingService indexingService,
@@ -81,7 +81,7 @@ public final class ShadowIndexShard extends IndexShard {
                             SnapshotDeletionPolicy deletionPolicy, SimilarityService similarityService,
                             EngineFactory factory, ClusterService clusterService,
                             NodeEnvironment nodeEnv, ShardPath path, BigArrays bigArrays) throws IOException {
-        super(shardId, indexSettingsService, indicesLifecycle, store, mergeScheduler,
+        super(shardId, indexSettingsService, indicesLifecycle, store,
                 threadPool, mapperService, queryParserService, indexCache, indexAliasesService,
                 indexingService, getService, searchService, shardWarmerService, shardFilterCache,
                 shardFieldData, percolatorQueriesRegistry, shardPercolateService, codecService,
@@ -102,6 +102,11 @@ public final class ShadowIndexShard extends IndexShard {
             throw new IllegalStateException("can't promote shard to primary");
         }
         super.updateRoutingEntry(newRouting, persistState);
+    }
+
+    @Override
+    public MergeStats mergeStats() {
+        return new MergeStats();
     }
 
     @Override

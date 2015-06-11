@@ -48,9 +48,8 @@ import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
-import org.elasticsearch.index.merge.scheduler.ConcurrentMergeSchedulerProvider;
-import org.elasticsearch.index.merge.scheduler.MergeSchedulerProvider;
 import org.elasticsearch.index.settings.IndexSettingsService;
+import org.elasticsearch.index.shard.MergeSchedulerConfig;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardUtils;
 import org.elasticsearch.index.store.DirectoryService;
@@ -197,33 +196,30 @@ public class ShadowEngineTests extends ElasticsearchTestCase {
         return new SnapshotDeletionPolicy(createIndexDeletionPolicy());
     }
 
-    protected MergeSchedulerProvider createMergeScheduler(IndexSettingsService indexSettingsService) {
-        return new ConcurrentMergeSchedulerProvider(shardId, EMPTY_SETTINGS, threadPool, indexSettingsService);
-    }
 
     protected ShadowEngine createShadowEngine(Store store) {
         IndexSettingsService indexSettingsService = new IndexSettingsService(shardId.index(), Settings.builder().put(defaultSettings).put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build());
-        return createShadowEngine(indexSettingsService, store, createMergeScheduler(indexSettingsService));
+        return createShadowEngine(indexSettingsService, store);
     }
 
     protected InternalEngine createInternalEngine(Store store, Path translogPath) {
         IndexSettingsService indexSettingsService = new IndexSettingsService(shardId.index(), Settings.builder().put(defaultSettings).put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build());
-        return createInternalEngine(indexSettingsService, store, translogPath, createMergeScheduler(indexSettingsService));
+        return createInternalEngine(indexSettingsService, store, translogPath);
     }
 
-    protected ShadowEngine createShadowEngine(IndexSettingsService indexSettingsService, Store store, MergeSchedulerProvider mergeSchedulerProvider) {
-        return new ShadowEngine(config(indexSettingsService, store, null, mergeSchedulerProvider));
+    protected ShadowEngine createShadowEngine(IndexSettingsService indexSettingsService, Store store) {
+        return new ShadowEngine(config(indexSettingsService, store, null, new MergeSchedulerConfig(indexSettingsService.indexSettings())));
     }
 
-    protected InternalEngine createInternalEngine(IndexSettingsService indexSettingsService, Store store, Path translogPath, MergeSchedulerProvider mergeSchedulerProvider) {
-        return new InternalEngine(config(indexSettingsService, store, translogPath, mergeSchedulerProvider), true);
+    protected InternalEngine createInternalEngine(IndexSettingsService indexSettingsService, Store store, Path translogPath) {
+        return new InternalEngine(config(indexSettingsService, store, translogPath, new MergeSchedulerConfig(indexSettingsService.indexSettings())), true);
     }
 
-    public EngineConfig config(IndexSettingsService indexSettingsService, Store store, Path translogPath, MergeSchedulerProvider mergeSchedulerProvider) {
+    public EngineConfig config(IndexSettingsService indexSettingsService, Store store, Path translogPath, MergeSchedulerConfig mergeSchedulerConfig) {
         IndexWriterConfig iwc = newIndexWriterConfig();
         TranslogConfig translogConfig = new TranslogConfig(shardId, translogPath, indexSettingsService.getSettings(), Translog.Durabilty.REQUEST, BigArrays.NON_RECYCLING_INSTANCE, threadPool);
         EngineConfig config = new EngineConfig(shardId, threadPool, new ShardIndexingService(shardId, EMPTY_SETTINGS, new ShardSlowLogIndexingService(shardId, EMPTY_SETTINGS, indexSettingsService)), indexSettingsService
-                , null, store, createSnapshotDeletionPolicy(),newMergePolicy(), mergeSchedulerProvider,
+                , null, store, createSnapshotDeletionPolicy(),newMergePolicy(), mergeSchedulerConfig,
                 iwc.getAnalyzer(), iwc.getSimilarity() , new CodecService(shardId.index()), new Engine.FailedEngineListener() {
             @Override
             public void onFailedEngine(ShardId shardId, String reason, @Nullable Throwable t) {

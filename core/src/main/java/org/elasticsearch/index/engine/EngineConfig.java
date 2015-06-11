@@ -22,6 +22,7 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.MergePolicy;
+import org.elasticsearch.index.shard.MergeSchedulerConfig;
 import org.apache.lucene.search.QueryCache;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.similarities.Similarity;
@@ -34,7 +35,6 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.deletionpolicy.SnapshotDeletionPolicy;
 import org.elasticsearch.index.indexing.ShardIndexingService;
-import org.elasticsearch.index.merge.scheduler.MergeSchedulerProvider;
 import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.TranslogRecoveryPerformer;
@@ -70,7 +70,7 @@ public final class EngineConfig {
     private final Store store;
     private final SnapshotDeletionPolicy deletionPolicy;
     private final MergePolicy mergePolicy;
-    private final MergeSchedulerProvider mergeScheduler;
+    private final MergeSchedulerConfig mergeSchedulerConfig;
     private final Analyzer analyzer;
     private final Similarity similarity;
     private final CodecService codecService;
@@ -142,7 +142,7 @@ public final class EngineConfig {
      */
     public EngineConfig(ShardId shardId, ThreadPool threadPool, ShardIndexingService indexingService,
                         IndexSettingsService indexSettingsService, IndicesWarmer warmer, Store store, SnapshotDeletionPolicy deletionPolicy,
-                        MergePolicy mergePolicy, MergeSchedulerProvider mergeScheduler, Analyzer analyzer,
+                        MergePolicy mergePolicy, MergeSchedulerConfig mergeSchedulerConfig, Analyzer analyzer,
                         Similarity similarity, CodecService codecService, Engine.FailedEngineListener failedEngineListener,
                         TranslogRecoveryPerformer translogRecoveryPerformer, QueryCache filterCache, QueryCachingPolicy filterCachingPolicy, TranslogConfig translogConfig) {
         this.shardId = shardId;
@@ -153,7 +153,7 @@ public final class EngineConfig {
         this.store = store;
         this.deletionPolicy = deletionPolicy;
         this.mergePolicy = mergePolicy;
-        this.mergeScheduler = mergeScheduler;
+        this.mergeSchedulerConfig = mergeSchedulerConfig;
         this.analyzer = analyzer;
         this.similarity = similarity;
         this.codecService = codecService;
@@ -347,11 +347,10 @@ public final class EngineConfig {
     }
 
     /**
-     * Returns the {@link org.elasticsearch.index.merge.scheduler.MergeSchedulerProvider} used to obtain
-     * a {@link org.apache.lucene.index.MergeScheduler} for the engines {@link org.apache.lucene.index.IndexWriter}
+     * Returns the {@link MergeSchedulerConfig}
      */
-    public MergeSchedulerProvider getMergeScheduler() {
-        return mergeScheduler;
+    public MergeSchedulerConfig getMergeSchedulerConfig() {
+        return mergeSchedulerConfig;
     }
 
     /**

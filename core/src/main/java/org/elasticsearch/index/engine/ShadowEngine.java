@@ -242,4 +242,5 @@ public class ShadowEngine extends Engine {
     protected SegmentInfos getLastCommittedSegmentInfos() {
         return lastCommittedSegmentInfos;
     }
+
 }

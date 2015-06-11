@@ -25,6 +25,7 @@ import org.apache.lucene.index.IndexWriter.IndexReaderWarmer;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.*;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
@@ -39,17 +40,17 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.math.MathUtils;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
 import org.elasticsearch.index.indexing.ShardIndexingService;
 import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.merge.OnGoingMerge;
-import org.elasticsearch.index.shard.ElasticsearchMergePolicy;
-import org.elasticsearch.index.merge.scheduler.MergeSchedulerProvider;
+import org.elasticsearch.index.shard.*;
 import org.elasticsearch.index.search.nested.IncludeNestedDocsQuery;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.shard.TranslogRecoveryPerformer;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.index.translog.TranslogCorruptedException;
@@ -68,9 +69,6 @@ import java.util.concurrent.locks.ReentrantLock;
  *
  */
 public class InternalEngine extends Engine {
-    private final FailEngineOnMergeFailure mergeSchedulerFailureListener;
-    private final MergeSchedulerListener mergeSchedulerListener;
-
     /**
      * When we last pruned expired tombstones from versionMap.deletes:
      */
@@ -80,7 +78,7 @@ public class InternalEngine extends Engine {
     @Nullable
     private final IndicesWarmer warmer;
     private final Translog translog;
-    private final MergeSchedulerProvider mergeScheduler;
+    private final ElasticsearchConcurrentMergeScheduler mergeScheduler;
 
     private final IndexWriter indexWriter;
 
@@ -109,12 +107,13 @@ public class InternalEngine extends Engine {
         IndexWriter writer = null;
         Translog translog = null;
         SearcherManager manager = null;
+        EngineMergeScheduler scheduler = null;
         boolean success = false;
         try {
             this.lastDeleteVersionPruneTimeMSec = engineConfig.getThreadPool().estimatedTimeInMillis();
             this.indexingService = engineConfig.getIndexingService();
             this.warmer = engineConfig.getWarmer();
-            this.mergeScheduler = engineConfig.getMergeScheduler();
+            mergeScheduler = scheduler = new EngineMergeScheduler(engineConfig.getShardId(), engineConfig.getIndexSettings(), engineConfig.getMergeSchedulerConfig());
             this.dirtyLocks = new Object[engineConfig.getIndexConcurrency() * 50]; // we multiply it to have enough...
             for (int i = 0; i < dirtyLocks.length; i++) {
                 dirtyLocks[i] = new Object();
@@ -139,10 +138,6 @@ public class InternalEngine extends Engine {
             manager = createSearcherManager();
             this.searcherManager = manager;
             this.versionMap.setManager(searcherManager);
-            this.mergeSchedulerFailureListener = new FailEngineOnMergeFailure();
-            this.mergeSchedulerListener = new MergeSchedulerListener();
-            this.mergeScheduler.addListener(mergeSchedulerListener);
-            this.mergeScheduler.addFailureListener(mergeSchedulerFailureListener);
             try {
                 if (skipInitialTranslogRecovery) {
                     // make sure we point at the latest translog from now on..
@@ -156,7 +151,7 @@ public class InternalEngine extends Engine {
             success = true;
         } finally {
             if (success == false) {
-                IOUtils.closeWhileHandlingException(writer, translog, manager);
+                IOUtils.closeWhileHandlingException(writer, translog, manager, scheduler);
                 versionMap.clear();
                 if (isClosed.get() == false) {
                     // failure we need to dec the store reference
@@ -667,6 +662,7 @@ public class InternalEngine extends Engine {
         // for a long time:
         maybePruneDeletedTombstones();
         versionMapRefreshPending.set(false);
+        mergeScheduler.refreshConfig();
     }
 
     @Override
@@ -971,8 +967,6 @@ public class InternalEngine extends Engine {
                 logger.warn("failed to rollback writer on close", e);
             } finally {
                 store.decRef();
-                this.mergeScheduler.removeListener(mergeSchedulerListener);
-                this.mergeScheduler.removeFailureListener(mergeSchedulerFailureListener);
                 logger.debug("engine closed [{}]", reason);
             }
         }
@@ -1016,7 +1010,7 @@ public class InternalEngine extends Engine {
             } catch (Throwable ignore) {
             }
             iwc.setInfoStream(verbose ? InfoStream.getDefault() : new LoggerInfoStream(logger));
-            iwc.setMergeScheduler(mergeScheduler.newMergeScheduler());
+            iwc.setMergeScheduler(mergeScheduler);
             MergePolicy mergePolicy = config().getMergePolicy();
             // Give us the opportunity to upgrade old segments while performing
             // background merges
@@ -1155,24 +1149,18 @@ public class InternalEngine extends Engine {
     }
 
 
-    class FailEngineOnMergeFailure implements MergeSchedulerProvider.FailureListener {
-        @Override
-        public void onFailedMerge(MergePolicy.MergeException e) {
-            if (Lucene.isCorruptionException(e)) {
-                failEngine("corrupt file detected source: [merge]", e);
-            } else {
-                failEngine("merge exception", e);
-            }
-        }
-    }
 
-    class MergeSchedulerListener implements MergeSchedulerProvider.Listener {
+    private final class EngineMergeScheduler extends ElasticsearchConcurrentMergeScheduler {
         private final AtomicInteger numMergesInFlight = new AtomicInteger(0);
         private final AtomicBoolean isThrottling = new AtomicBoolean();
 
+        EngineMergeScheduler(ShardId shardId, Settings indexSettings, MergeSchedulerConfig config) {
+            super(shardId, indexSettings, config);
+        }
+
         @Override
         public synchronized void beforeMerge(OnGoingMerge merge) {
-            int maxNumMerges = mergeScheduler.getMaxMerges();
+            int maxNumMerges = mergeScheduler.getMaxMergeCount();
             if (numMergesInFlight.incrementAndGet() > maxNumMerges) {
                 if (isThrottling.getAndSet(true) == false) {
                     logger.info("now throttling indexing: numMergesInFlight={}, maxNumMerges={}", numMergesInFlight, maxNumMerges);
@@ -1184,13 +1172,31 @@ public class InternalEngine extends Engine {
 
         @Override
         public synchronized void afterMerge(OnGoingMerge merge) {
-            int maxNumMerges = mergeScheduler.getMaxMerges();
+            int maxNumMerges = mergeScheduler.getMaxMergeCount();
             if (numMergesInFlight.decrementAndGet() < maxNumMerges) {
                 if (isThrottling.getAndSet(false)) {
                     logger.info("stop throttling indexing: numMergesInFlight={}, maxNumMerges={}", numMergesInFlight, maxNumMerges);
                     indexingService.throttlingDeactivated();
                     deactivateThrottling();
                 }
+            }
+        }
+        @Override
+        protected void handleMergeException(final Directory dir, final Throwable exc) {
+            logger.error("failed to merge", exc);
+            if (config().getMergeSchedulerConfig().isNotifyOnMergeFailure()) {
+                engineConfig.getThreadPool().generic().execute(new AbstractRunnable() {
+                    @Override
+                    public void onFailure(Throwable t) {
+                        logger.debug("merge failure action rejected", t);
+                    }
+
+                    @Override
+                    protected void doRun() throws Exception {
+                        MergePolicy.MergeException e = new MergePolicy.MergeException(exc, dir);
+                        failEngine("merge failed", e);
+                    }
+                });
             }
         }
     }
@@ -1216,5 +1222,14 @@ public class InternalEngine extends Engine {
     private void commitIndexWriter(IndexWriter writer, Translog translog) throws IOException {
         commitIndexWriter(writer, translog, null);
     }
+
+    public void onSettingsChanged() {
+        mergeScheduler.refreshConfig();
+    }
+
+    public MergeStats getMergeStats() {
+        return mergeScheduler.stats();
+    }
+
 
 }

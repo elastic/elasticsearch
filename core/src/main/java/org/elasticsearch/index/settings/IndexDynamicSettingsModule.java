@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.settings;
 
+import org.elasticsearch.index.shard.MergeSchedulerConfig;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.allocation.decider.DisableAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
@@ -30,7 +31,6 @@ import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.indexing.slowlog.ShardSlowLogIndexingService;
-import org.elasticsearch.index.merge.scheduler.ConcurrentMergeSchedulerProvider;
 import org.elasticsearch.index.search.slowlog.ShardSlowLogSearchService;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.MergePolicyConfig;
@@ -51,9 +51,9 @@ public class IndexDynamicSettingsModule extends AbstractModule {
         indexDynamicSettings = new DynamicSettings();
         indexDynamicSettings.addDynamicSetting(IndexStore.INDEX_STORE_THROTTLE_MAX_BYTES_PER_SEC, Validator.BYTES_SIZE);
         indexDynamicSettings.addDynamicSetting(IndexStore.INDEX_STORE_THROTTLE_TYPE);
-        indexDynamicSettings.addDynamicSetting(ConcurrentMergeSchedulerProvider.MAX_THREAD_COUNT);
-        indexDynamicSettings.addDynamicSetting(ConcurrentMergeSchedulerProvider.MAX_MERGE_COUNT);
-        indexDynamicSettings.addDynamicSetting(ConcurrentMergeSchedulerProvider.AUTO_THROTTLE);
+        indexDynamicSettings.addDynamicSetting(MergeSchedulerConfig.MAX_THREAD_COUNT);
+        indexDynamicSettings.addDynamicSetting(MergeSchedulerConfig.MAX_MERGE_COUNT);
+        indexDynamicSettings.addDynamicSetting(MergeSchedulerConfig.AUTO_THROTTLE);
         indexDynamicSettings.addDynamicSetting(FilterAllocationDecider.INDEX_ROUTING_REQUIRE_GROUP + "*");
         indexDynamicSettings.addDynamicSetting(FilterAllocationDecider.INDEX_ROUTING_INCLUDE_GROUP + "*");
         indexDynamicSettings.addDynamicSetting(FilterAllocationDecider.INDEX_ROUTING_EXCLUDE_GROUP + "*");

@@ -64,41 +64,26 @@ import static com.google.common.collect.Maps.newHashMapWithExpectedSize;
 
 /**
  */
-public class ShardGetService extends AbstractIndexShardComponent {
-
-    private final ScriptService scriptService;
-
+public final class ShardGetService extends AbstractIndexShardComponent {
     private final MapperService mapperService;
-
-    private final IndexFieldDataService fieldDataService;
-
-    private IndexShard indexShard;
-
     private final MeanMetric existsMetric = new MeanMetric();
     private final MeanMetric missingMetric = new MeanMetric();
     private final CounterMetric currentMetric = new CounterMetric();
+    private final IndexShard indexShard;
 
-    @Inject
-    public ShardGetService(ShardId shardId, @IndexSettings Settings indexSettings, ScriptService scriptService,
-                           MapperService mapperService, IndexFieldDataService fieldDataService) {
-        super(shardId, indexSettings);
-        this.scriptService = scriptService;
+    public ShardGetService(IndexShard indexShard,
+                           MapperService mapperService) {
+        super(indexShard.shardId(), indexShard.indexSettings());
         this.mapperService = mapperService;
-        this.fieldDataService = fieldDataService;
+        this.indexShard = indexShard;
     }
 
     public GetStats stats() {
         return new GetStats(existsMetric.count(), TimeUnit.NANOSECONDS.toMillis(existsMetric.sum()), missingMetric.count(), TimeUnit.NANOSECONDS.toMillis(missingMetric.sum()), currentMetric.count());
     }
 
-    // sadly, to overcome cyclic dep, we need to do this and inject it ourselves...
-    public ShardGetService setIndexShard(IndexShard indexShard) {
-        this.indexShard = indexShard;
-        return this;
-    }
 
-    public GetResult get(String type, String id, String[] gFields, boolean realtime, long version, VersionType versionType, FetchSourceContext fetchSourceContext, boolean ignoreErrorsOnGeneratedFields)
-            {
+    public GetResult get(String type, String id, String[] gFields, boolean realtime, long version, VersionType versionType, FetchSourceContext fetchSourceContext, boolean ignoreErrorsOnGeneratedFields) {
         currentMetric.inc();
         try {
             long now = System.nanoTime();
@@ -151,7 +136,7 @@ public class ShardGetService extends AbstractIndexShardComponent {
     /**
      * decides what needs to be done based on the request input and always returns a valid non-null FetchSourceContext
      */
-    protected FetchSourceContext normalizeFetchSourceContent(@Nullable FetchSourceContext context, @Nullable String[] gFields) {
+    private FetchSourceContext normalizeFetchSourceContent(@Nullable FetchSourceContext context, @Nullable String[] gFields) {
         if (context != null) {
             return context;
         }
@@ -166,7 +151,7 @@ public class ShardGetService extends AbstractIndexShardComponent {
         return FetchSourceContext.DO_NOT_FETCH_SOURCE;
     }
 
-    public GetResult innerGet(String type, String id, String[] gFields, boolean realtime, long version, VersionType versionType, FetchSourceContext fetchSourceContext, boolean ignoreErrorsOnGeneratedFields) {
+    private GetResult innerGet(String type, String id, String[] gFields, boolean realtime, long version, VersionType versionType, FetchSourceContext fetchSourceContext, boolean ignoreErrorsOnGeneratedFields) {
         fetchSourceContext = normalizeFetchSourceContent(fetchSourceContext, gFields);
 
         boolean loadSource = (gFields != null && gFields.length > 0) || fetchSourceContext.fetchSource();
@@ -238,7 +223,7 @@ public class ShardGetService extends AbstractIndexShardComponent {
                             value = source.source.length();
                         } else {
                             if (searchLookup == null) {
-                                searchLookup = new SearchLookup(mapperService, fieldDataService, new String[]{type});
+                                searchLookup = new SearchLookup(mapperService, null, new String[]{type});
                                 searchLookup.source().setSource(source.source);
                             }
 
@@ -370,7 +355,7 @@ public class ShardGetService extends AbstractIndexShardComponent {
                     }
                 } else if (!fieldMapper.fieldType().stored() && !fieldMapper.isGenerated()) {
                     if (searchLookup == null) {
-                        searchLookup = new SearchLookup(mapperService, fieldDataService, new String[]{type});
+                        searchLookup = new SearchLookup(mapperService, null, new String[]{type});
                         LeafSearchLookup leafSearchLookup = searchLookup.getLeafSearchLookup(docIdAndVersion.context);
                         searchLookup.source().setSource(source);
                         leafSearchLookup.setDocument(docIdAndVersion.docId);

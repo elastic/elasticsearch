@@ -109,6 +109,8 @@ call for the index (try and aim to issue it on a low traffic time).
 [[log-byte-size]]
 ==== log_byte_size
 
+deprecated[1.6.0,This policy will be removed in 2.0 in favour of the <<tiered,tiered>> merge policy]
+
 A merge policy that merges segments into levels of exponentially
 increasing *byte size*, where each level has fewer segments than the
 value of the merge factor. Whenever extra segments (beyond the merge
@@ -150,6 +152,8 @@ Defaults to unbounded.
 [float]
 [[log-doc]]
 ==== log_doc
+
+deprecated[1.6.0,This policy will be removed in 2.0 in favour of the <<tiered,tiered>> merge policy]
 
 A merge policy that tries to merge segments into levels of exponentially
 increasing *document count*, where each level has fewer segments than

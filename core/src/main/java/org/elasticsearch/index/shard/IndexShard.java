@@ -22,7 +22,7 @@ package org.elasticsearch.index.shard;
 import com.google.common.base.Charsets;
 import com.google.common.base.Preconditions;
 import org.apache.lucene.codecs.PostingsFormat;
-import org.apache.lucene.index.*;
+import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.ThreadInterruptedException;
@@ -192,7 +192,7 @@ public class IndexShard extends AbstractIndexShardComponent {
 
     @Inject
     public IndexShard(ShardId shardId, IndexSettingsService indexSettingsService, IndicesLifecycle indicesLifecycle, Store store,
-                      ThreadPool threadPool, MapperService mapperService, IndexQueryParserService queryParserService, IndexCache indexCache, IndexAliasesService indexAliasesService, ShardIndexingService indexingService, ShardGetService getService, ShardSearchService searchService, ShardIndexWarmerService shardWarmerService,
+                      ThreadPool threadPool, MapperService mapperService, IndexQueryParserService queryParserService, IndexCache indexCache, IndexAliasesService indexAliasesService, ShardIndexingService indexingService, ShardSearchService searchService, ShardIndexWarmerService shardWarmerService,
                       ShardFilterCache shardFilterCache, ShardFieldData shardFieldData, PercolatorQueriesRegistry percolatorQueriesRegistry, ShardPercolateService shardPercolateService, CodecService codecService,
                       ShardTermVectorsService termVectorsService, IndexFieldDataService indexFieldDataService, IndexService indexService, ShardSuggestService shardSuggestService,
                       ShardQueryCache shardQueryCache, ShardBitsetFilterCache shardBitsetFilterCache,
@@ -216,7 +216,7 @@ public class IndexShard extends AbstractIndexShardComponent {
         this.indexCache = indexCache;
         this.indexAliasesService = indexAliasesService;
         this.indexingService = indexingService;
-        this.getService = getService.setIndexShard(this);
+        this.getService = new ShardGetService(this, mapperService);
         this.termVectorsService = termVectorsService.setIndexShard(this);
         this.searchService = searchService;
         this.shardWarmerService = shardWarmerService;

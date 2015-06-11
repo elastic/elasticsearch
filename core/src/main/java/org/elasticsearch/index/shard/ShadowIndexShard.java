@@ -48,7 +48,6 @@ import org.elasticsearch.index.search.stats.ShardSearchService;
 import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.Store;
-import org.elasticsearch.index.suggest.stats.ShardSuggestService;
 import org.elasticsearch.index.termvectors.ShardTermVectorsService;
 import org.elasticsearch.index.warmer.ShardIndexWarmerService;
 import org.elasticsearch.indices.IndicesLifecycle;
@@ -76,7 +75,7 @@ public final class ShadowIndexShard extends IndexShard {
                             ShardFieldData shardFieldData, PercolatorQueriesRegistry percolatorQueriesRegistry,
                             ShardPercolateService shardPercolateService, CodecService codecService,
                             ShardTermVectorsService termVectorsService, IndexFieldDataService indexFieldDataService,
-                            IndexService indexService, ShardSuggestService shardSuggestService, ShardQueryCache shardQueryCache,
+                            IndexService indexService, ShardQueryCache shardQueryCache,
                             ShardBitsetFilterCache shardBitsetFilterCache, @Nullable IndicesWarmer warmer,
                             SnapshotDeletionPolicy deletionPolicy, SimilarityService similarityService,
                             EngineFactory factory, ClusterService clusterService,
@@ -85,7 +84,7 @@ public final class ShadowIndexShard extends IndexShard {
                 threadPool, mapperService, queryParserService, indexCache, indexAliasesService,
                 indexingService, getService, searchService, shardWarmerService, shardFilterCache,
                 shardFieldData, percolatorQueriesRegistry, shardPercolateService, codecService,
-                termVectorsService, indexFieldDataService, indexService, shardSuggestService,
+                termVectorsService, indexFieldDataService, indexService,
                 shardQueryCache, shardBitsetFilterCache, warmer, deletionPolicy, similarityService,
                 factory, clusterService, nodeEnv, path, bigArrays);
     }

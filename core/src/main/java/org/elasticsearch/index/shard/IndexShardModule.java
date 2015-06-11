@@ -38,7 +38,6 @@ import org.elasticsearch.index.percolator.stats.ShardPercolateService;
 import org.elasticsearch.index.search.slowlog.ShardSlowLogSearchService;
 import org.elasticsearch.index.search.stats.ShardSearchService;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotAndRestoreService;
-import org.elasticsearch.index.suggest.stats.ShardSuggestService;
 import org.elasticsearch.index.termvectors.ShardTermVectorsService;
 import org.elasticsearch.index.translog.TranslogService;
 import org.elasticsearch.index.warmer.ShardIndexWarmerService;
@@ -103,7 +102,6 @@ public class IndexShardModule extends AbstractModule {
         bind(ShardPercolateService.class).asEagerSingleton();
         bind(ShardTermVectorsService.class).asEagerSingleton();
         bind(IndexShardSnapshotAndRestoreService.class).asEagerSingleton();
-        bind(ShardSuggestService.class).asEagerSingleton();
     }
 
 

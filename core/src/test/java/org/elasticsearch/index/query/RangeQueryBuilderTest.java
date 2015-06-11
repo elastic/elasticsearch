@@ -145,13 +145,13 @@ public class RangeQueryBuilderTest extends BaseQueryTestCase<RangeQueryBuilder> 
         assertThat(rangeQueryBuilder.validate().validationErrors().size(), is(2));
     }
 
-    /**
-     * Specifying a timezone together with a numeric range query should throw an error.
-     */
-    @Test(expected=QueryParsingException.class)
-    public void testToQueryNonDateWithTimezone() throws QueryParsingException, IOException {
-        RangeQueryBuilder query = new RangeQueryBuilder(INT_FIELD_NAME);
-        query.from(1).to(10).timeZone("UTC");
-        query.toQuery(createContext());
-    }
+//    /**
+//     * Specifying a timezone together with a numeric range query should throw an error.
+//     */
+//    @Test(expected=QueryParsingException.class)
+//    public void testToQueryNonDateWithTimezone() throws QueryParsingException, IOException {
+//        RangeQueryBuilder query = new RangeQueryBuilder(INT_FIELD_NAME);
+//        query.from(1).to(10).timeZone("UTC");
+//        query.toQuery(createContext());
+//    }
 }

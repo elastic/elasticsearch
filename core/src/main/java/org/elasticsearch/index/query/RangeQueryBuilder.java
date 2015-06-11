@@ -304,10 +304,6 @@ public class RangeQueryBuilder extends MultiTermQueryBuilder<RangeQueryBuilder> 
         }
 
         if (query == null) {
-            if (this.timeZone != null) {
-                throw new QueryParsingException(parseContext, "[range] time_zone can not be applied to non date field ["
-                        + fieldName + "]");
-            }
             query = new TermRangeQuery(this.fieldName, BytesRefs.toBytesRef(from), BytesRefs.toBytesRef(to), includeLower, includeUpper);
         }
 

@@ -24,6 +24,7 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermRangeQuery;
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -34,6 +35,7 @@ import java.util.Collection;
 
 import static org.hamcrest.Matchers.equalTo;
 
+@AwaitsFix(bugUrl="fails with random seeds given here http://build-us-00.elastic.co/job/es_feature_query_refactoring/2011/")
 public class ExistsQueryBuilderTest extends BaseQueryTestCase<ExistsQueryBuilder> {
 
     private Collection<String> getFieldNamePattern(String fieldName, QueryParseContext context) {

@@ -24,7 +24,6 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermRangeQuery;
-import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -35,10 +34,9 @@ import java.util.Collection;
 
 import static org.hamcrest.Matchers.equalTo;
 
-@AwaitsFix(bugUrl="fails with random seeds given here http://build-us-00.elastic.co/job/es_feature_query_refactoring/2011/")
 public class ExistsQueryBuilderTest extends BaseQueryTestCase<ExistsQueryBuilder> {
 
-    private Collection<String> getFieldNamePattern(String fieldName, QueryParseContext context) {
+    private static Collection<String> getFieldNamePattern(String fieldName, QueryParseContext context) {
         if (getCurrentTypes().length > 0 && fieldName.equals(BaseQueryTestCase.OBJECT_FIELD_NAME)) {
             // "object" field has two inner fields (age, price), so if query hits that field, we
             // extend field name with wildcard to match both nested fields. This is similar to what
@@ -78,8 +76,10 @@ public class ExistsQueryBuilderTest extends BaseQueryTestCase<ExistsQueryBuilder
         if (queryBuilder.queryName() != null) {
             Query namedQuery = context.copyNamedFilters().get(queryBuilder.queryName());
             Collection<String> fields = getFieldNamePattern(queryBuilder.name(), context);
+            final FieldNamesFieldMapper.FieldNamesFieldType fieldNamesFieldType = (FieldNamesFieldMapper.FieldNamesFieldType)
+                    context.mapperService().fullName(FieldNamesFieldMapper.NAME);
 
-            if (fields.isEmpty()) {
+            if (fieldNamesFieldType == null || fields.isEmpty()) {
                 assertNull(namedQuery);
             } else {
                 query = ((ConstantScoreQuery) query).getQuery();

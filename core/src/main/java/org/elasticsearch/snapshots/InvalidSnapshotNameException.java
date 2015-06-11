@@ -19,14 +19,13 @@
 
 package org.elasticsearch.snapshots;
 
-import org.elasticsearch.ElasticsearchWrapperException;
 import org.elasticsearch.cluster.metadata.SnapshotId;
 import org.elasticsearch.rest.RestStatus;
 
 /**
  * Thrown on the attempt to create a snapshot with invalid name
  */
-public class InvalidSnapshotNameException extends SnapshotException implements ElasticsearchWrapperException {
+public class InvalidSnapshotNameException extends SnapshotException {
 
     public InvalidSnapshotNameException(SnapshotId snapshot, String desc) {
         super(snapshot, "Invalid snapshot name [" + snapshot.getSnapshot() + "], " + desc);

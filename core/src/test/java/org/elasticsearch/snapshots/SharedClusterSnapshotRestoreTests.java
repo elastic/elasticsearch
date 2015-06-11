@@ -1887,4 +1887,45 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
         // Check that cluster state update task was called only once
         assertEquals(1, restoreListener.count());
     }
+
+    @Test
+    public void snapshotNameTest() throws Exception {
+
+        final Client client = client();
+
+        logger.info("-->  creating repository");
+        assertAcked(client.admin().cluster().preparePutRepository("test-repo")
+                .setType("fs").setSettings(Settings.settingsBuilder()
+                        .put("location", randomRepoPath())
+                        .put("compress", randomBoolean())
+                        .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
+
+        try {
+            client.admin().cluster().prepareGetSnapshots("test-repo").setSnapshots("_foo").get();
+            fail("shouldn't be here");
+        } catch (InvalidSnapshotNameException ex) {
+            assertThat(ex.getMessage(), containsString("Invalid snapshot name"));
+        }
+
+        try {
+            client.admin().cluster().prepareCreateSnapshot("test-repo", "_foo").get();
+            fail("shouldn't be here");
+        } catch (InvalidSnapshotNameException ex) {
+            assertThat(ex.getMessage(), containsString("Invalid snapshot name"));
+        }
+
+        try {
+            client.admin().cluster().prepareDeleteSnapshot("test-repo", "_foo").get();
+            fail("shouldn't be here");
+        } catch (InvalidSnapshotNameException ex) {
+            assertThat(ex.getMessage(), containsString("Invalid snapshot name"));
+        }
+
+        try {
+            client.admin().cluster().prepareSnapshotStatus("test-repo").setSnapshots("_foo").get();
+            fail("shouldn't be here");
+        } catch (InvalidSnapshotNameException ex) {
+            assertThat(ex.getMessage(), containsString("Invalid snapshot name"));
+        }
+    }
 }

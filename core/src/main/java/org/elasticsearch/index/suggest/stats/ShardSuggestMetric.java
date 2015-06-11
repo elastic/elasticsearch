@@ -32,15 +32,9 @@ import java.util.concurrent.TimeUnit;
 /**
  *
  */
-public class ShardSuggestService extends AbstractIndexShardComponent {
-
+public final class ShardSuggestMetric {
     private final MeanMetric suggestMetric = new MeanMetric();
     private final CounterMetric currentMetric = new CounterMetric();
-
-    @Inject
-    public ShardSuggestService(ShardId shardId, @IndexSettings Settings indexSettings) {
-        super(shardId, indexSettings);
-    }
 
     /**
      * Called before suggest
@@ -64,5 +58,4 @@ public class ShardSuggestService extends AbstractIndexShardComponent {
     public SuggestStats stats() {
         return new SuggestStats(suggestMetric.count(), TimeUnit.NANOSECONDS.toMillis(suggestMetric.sum()), currentMetric.count());
     }
-
 }

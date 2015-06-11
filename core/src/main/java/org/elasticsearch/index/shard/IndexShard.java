@@ -22,7 +22,7 @@ package org.elasticsearch.index.shard;
 import com.google.common.base.Charsets;
 import com.google.common.base.Preconditions;
 import org.apache.lucene.codecs.PostingsFormat;
-import org.apache.lucene.index.*;
+import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.ThreadInterruptedException;
@@ -88,7 +88,7 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.Store.MetadataSnapshot;
 import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.index.store.StoreStats;
-import org.elasticsearch.index.suggest.stats.ShardSuggestService;
+import org.elasticsearch.index.suggest.stats.ShardSuggestMetric;
 import org.elasticsearch.index.suggest.stats.SuggestStats;
 import org.elasticsearch.index.termvectors.ShardTermVectorsService;
 import org.elasticsearch.index.translog.Translog;
@@ -142,7 +142,7 @@ public class IndexShard extends AbstractIndexShardComponent {
     private final ShardTermVectorsService termVectorsService;
     private final IndexFieldDataService indexFieldDataService;
     private final IndexService indexService;
-    private final ShardSuggestService shardSuggestService;
+    private final ShardSuggestMetric shardSuggestMetric = new ShardSuggestMetric();
     private final ShardBitsetFilterCache shardBitsetFilterCache;
     private final DiscoveryNode localNode;
 
@@ -194,7 +194,7 @@ public class IndexShard extends AbstractIndexShardComponent {
     public IndexShard(ShardId shardId, IndexSettingsService indexSettingsService, IndicesLifecycle indicesLifecycle, Store store,
                       ThreadPool threadPool, MapperService mapperService, IndexQueryParserService queryParserService, IndexCache indexCache, IndexAliasesService indexAliasesService, ShardIndexingService indexingService, ShardGetService getService, ShardSearchService searchService, ShardIndexWarmerService shardWarmerService,
                       ShardFilterCache shardFilterCache, ShardFieldData shardFieldData, PercolatorQueriesRegistry percolatorQueriesRegistry, ShardPercolateService shardPercolateService, CodecService codecService,
-                      ShardTermVectorsService termVectorsService, IndexFieldDataService indexFieldDataService, IndexService indexService, ShardSuggestService shardSuggestService,
+                      ShardTermVectorsService termVectorsService, IndexFieldDataService indexFieldDataService, IndexService indexService,
                       ShardQueryCache shardQueryCache, ShardBitsetFilterCache shardBitsetFilterCache,
                       @Nullable IndicesWarmer warmer, SnapshotDeletionPolicy deletionPolicy, SimilarityService similarityService, EngineFactory factory,
                       ClusterService clusterService, NodeEnvironment nodeEnv, ShardPath path, BigArrays bigArrays) {
@@ -227,7 +227,6 @@ public class IndexShard extends AbstractIndexShardComponent {
         this.shardPercolateService = shardPercolateService;
         this.indexFieldDataService = indexFieldDataService;
         this.indexService = indexService;
-        this.shardSuggestService = shardSuggestService;
         this.shardBitsetFilterCache = shardBitsetFilterCache;
         assert clusterService.localNode() != null : "Local node is null lifecycle state is: " + clusterService.lifecycleState();
         this.localNode = clusterService.localNode();
@@ -273,8 +272,8 @@ public class IndexShard extends AbstractIndexShardComponent {
         return termVectorsService;
     }
 
-    public ShardSuggestService shardSuggestService() {
-        return shardSuggestService;
+    public ShardSuggestMetric getSuggestMetric() {
+        return shardSuggestMetric;
     }
 
     public ShardBitsetFilterCache shardBitsetFilterCache() {
@@ -646,7 +645,7 @@ public class IndexShard extends AbstractIndexShardComponent {
     }
 
     public SuggestStats suggestStats() {
-        return shardSuggestService.stats();
+        return shardSuggestMetric.stats();
     }
 
     public CompletionStats completionStats(String... fields) {

@@ -34,4 +34,9 @@ public class SpanTermQueryBuilderTest extends BaseTermQueryTestCase<SpanTermQuer
     protected Query createLuceneTermQuery(Term term) {
         return new SpanTermQuery(term);
     }
+
+    @Override
+    protected RandomQueryBuilder<SpanTermQueryBuilder> getRandomQueryBuilder() {
+        return new RandomSpanTermQueryBuilder();
+    }
 }

@@ -32,56 +32,6 @@ import static org.hamcrest.Matchers.is;
 
 @Ignore
 public abstract class BaseTermQueryTestCase<QB extends BaseTermQueryBuilder<QB>> extends BaseQueryTestCase<QB> {
-    
-    protected final QB createTestQueryBuilder() {
-        String fieldName = null;
-        Object value;
-        switch (randomIntBetween(0, 3)) {
-            case 0:
-                if (randomBoolean()) {
-                    fieldName = BOOLEAN_FIELD_NAME;
-                }
-                value = randomBoolean();
-                break;
-            case 1:
-                if (randomBoolean()) {
-                    fieldName = STRING_FIELD_NAME;
-                }
-                if (frequently()) {
-                    value = randomAsciiOfLengthBetween(1, 10);
-                } else {
-                    // generate unicode string in 10% of cases
-                    value = randomUnicodeOfLength(10);
-                }
-                break;
-            case 2:
-                if (randomBoolean()) {
-                    fieldName = INT_FIELD_NAME;
-                }
-                value = randomInt(10000);
-                break;
-            case 3:
-                if (randomBoolean()) {
-                    fieldName = DOUBLE_FIELD_NAME;
-                }
-                value = randomDouble();
-                break;
-            default:
-                throw new UnsupportedOperationException();
-        }
-
-        if (fieldName == null) {
-            fieldName = randomAsciiOfLengthBetween(1, 10);
-        }
-        QB query = createQueryBuilder(fieldName, value);
-        if (randomBoolean()) {
-            query.boost(2.0f / randomIntBetween(1, 20));
-        }
-        if (randomBoolean()) {
-            query.queryName(randomAsciiOfLengthBetween(1, 10));
-        }
-        return query;
-    }
 
     protected abstract QB createQueryBuilder(String fieldName, Object value);
 

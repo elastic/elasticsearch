@@ -19,12 +19,7 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermRangeQuery;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.apache.lucene.search.*;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.internal.FieldNamesFieldMapper;
@@ -57,7 +52,7 @@ public class ExistsQueryBuilderTest extends BaseQueryTestCase<ExistsQueryBuilder
 
         BooleanQuery boolFilter = new BooleanQuery();
         for (String field : fields) {
-            if (fieldNamesFieldType != null && fieldNamesFieldType.isEnabled()) {
+            if (fieldNamesFieldType.isEnabled()) {
                 boolFilter.add(fieldNamesFieldType.termQuery(field, context), BooleanClause.Occur.SHOULD);
             } else {
                 MappedFieldType fieldType = context.fieldMapper(field);
@@ -87,26 +82,7 @@ public class ExistsQueryBuilderTest extends BaseQueryTestCase<ExistsQueryBuilder
     }
 
     @Override
-    protected ExistsQueryBuilder createTestQueryBuilder() {
-        String fieldPattern;
-        if (randomBoolean()) {
-            fieldPattern = randomFrom(mappedFieldNames);
-        } else {
-            fieldPattern = randomAsciiOfLengthBetween(1, 10);
-        }
-        // also sometimes test wildcard patterns
-        if (randomBoolean()) {
-            if (randomBoolean()) {
-                fieldPattern = fieldPattern + "*";
-            } else {
-                fieldPattern = MetaData.ALL;
-            }
-        }
-        ExistsQueryBuilder query = new ExistsQueryBuilder(fieldPattern);
-
-        if (randomBoolean()) {
-            query.queryName(randomAsciiOfLengthBetween(1, 10));
-        }
-        return query;
+    protected RandomQueryBuilder<ExistsQueryBuilder> getRandomQueryBuilder() {
+        return new RandomExistsQueryBuilder();
     }
 }

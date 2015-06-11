@@ -19,31 +19,9 @@
 
 package org.elasticsearch.index.query;
 
-import com.carrotsearch.randomizedtesting.generators.RandomInts;
-
 import java.util.Random;
 
-/**
- * Utility class for creating random QueryBuilders.
- * So far only leaf queries like {@link MatchAllQueryBuilder}, {@link TermQueryBuilder} or
- * {@link IdsQueryBuilder} are returned.
- */
-public class RandomQueryBuilder {
+public interface RandomQueryBuilder<QB extends QueryBuilder> {
 
-    /**
-     * @param r random seed
-     * @return a random {@link QueryBuilder}
-     */
-    public static QueryBuilder create(Random r) {
-        QueryBuilder query = null;
-        switch (RandomInts.randomIntBetween(r, 0, 2)) {
-        case 0:
-            return new MatchAllQueryBuilderTest().createTestQueryBuilder();
-        case 1:
-            return new TermQueryBuilderTest().createTestQueryBuilder();
-        case 2:
-            return new IdsQueryBuilderTest().createTestQueryBuilder();
-        }
-        return query;
-    }
+    QB newQueryBuilder(Random random);
 }

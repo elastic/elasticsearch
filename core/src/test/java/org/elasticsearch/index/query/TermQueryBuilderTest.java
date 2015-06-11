@@ -25,9 +25,6 @@ import org.apache.lucene.search.TermQuery;
 
 public class TermQueryBuilderTest extends BaseTermQueryTestCase<TermQueryBuilder> {
 
-    /**
-     * @return a TermQuery with random field name and value, optional random boost and queryname
-     */
     @Override
     protected TermQueryBuilder createQueryBuilder(String fieldName, Object value) {
         return new TermQueryBuilder(fieldName, value);
@@ -36,5 +33,10 @@ public class TermQueryBuilderTest extends BaseTermQueryTestCase<TermQueryBuilder
     @Override
     protected Query createLuceneTermQuery(Term term) {
         return new TermQuery(term);
+    }
+
+    @Override
+    protected RandomQueryBuilder<TermQueryBuilder> getRandomQueryBuilder() {
+        return new RandomTermQueryBuilder();
     }
 }

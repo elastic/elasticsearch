@@ -27,65 +27,15 @@ import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
-import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class RangeQueryBuilderTest extends BaseQueryTestCase<RangeQueryBuilder> {
-
-    private static final List<String> TIMEZONE_IDS = new ArrayList<>(DateTimeZone.getAvailableIDs());
-
-    @Override
-    protected RangeQueryBuilder createTestQueryBuilder() {
-        RangeQueryBuilder query;
-        // switch between numeric and date ranges
-        if (randomBoolean()) {
-            if (randomBoolean()) {
-                // use mapped integer field for numeric range queries
-                query = new RangeQueryBuilder(INT_FIELD_NAME);
-                query.from(randomIntBetween(1, 100));
-                query.to(randomIntBetween(101, 200));
-            } else {
-                // use unmapped field for numeric range queries
-                query = new RangeQueryBuilder(randomAsciiOfLengthBetween(1, 10));
-                query.from(0.0-randomDouble());
-                query.to(randomDouble());
-            }
-        } else {
-            // use mapped date field, using date string representation
-            query = new RangeQueryBuilder(DATE_FIELD_NAME);
-            query.from(new DateTime(System.currentTimeMillis() - randomIntBetween(0, 1000000)).toString());
-            query.to(new DateTime(System.currentTimeMillis() + randomIntBetween(0, 1000000)).toString());
-            if (randomBoolean()) {
-                query.timeZone(TIMEZONE_IDS.get(randomIntBetween(0, TIMEZONE_IDS.size()-1)));
-            }
-            if (randomBoolean()) {
-                query.format("yyyy-MM-dd'T'HH:mm:ss.SSSZZ");
-            }
-        }
-        query.includeLower(randomBoolean()).includeUpper(randomBoolean());
-        if (randomBoolean()) {
-            query.boost(2.0f / randomIntBetween(1, 20));
-        }
-        if (randomBoolean()) {
-            query.queryName(randomAsciiOfLengthBetween(1, 10));
-        }
-
-        if (randomBoolean()) {
-            query.from(null);
-        }
-        if (randomBoolean()) {
-            query.to(null);
-        }
-        return query;
-    }
 
     @Override
     protected Query createExpectedQuery(RangeQueryBuilder queryBuilder, QueryParseContext context) throws IOException {
@@ -153,5 +103,10 @@ public class RangeQueryBuilderTest extends BaseQueryTestCase<RangeQueryBuilder> 
         RangeQueryBuilder query = new RangeQueryBuilder(INT_FIELD_NAME);
         query.from(1).to(10).timeZone("UTC");
         query.toQuery(createContext());
+    }
+
+    @Override
+    protected RandomQueryBuilder<RangeQueryBuilder> getRandomQueryBuilder() {
+        return new RandomRangeQueryBuilder();
     }
 }

@@ -31,16 +31,8 @@ public class MatchAllQueryBuilderTest extends BaseQueryTestCase<MatchAllQueryBui
         return matchAllDocsQuery;
     }
 
-    /**
-     * @return a MatchAllQuery with random boost between 0.1f and 2.0f
-     */
     @Override
-    protected MatchAllQueryBuilder createTestQueryBuilder() {
-        MatchAllQueryBuilder query = new MatchAllQueryBuilder();
-        if (randomBoolean()) {
-            query.boost(2.0f / randomIntBetween(1, 20));
-        }
-        return query;
+    protected RandomQueryBuilder<MatchAllQueryBuilder> getRandomQueryBuilder() {
+        return new RandomMatchAllQueryBuilder();
     }
-
 }

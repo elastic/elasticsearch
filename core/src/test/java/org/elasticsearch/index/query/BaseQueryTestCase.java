@@ -82,7 +82,7 @@ public abstract class BaseQueryTestCase<QB extends QueryBuilder<QB>> extends Ela
     protected static final String STRING_FIELD_NAME = "text";
     protected static final String DOUBLE_FIELD_NAME = "double";
     protected static final String BOOLEAN_FIELD_NAME = "boolean";
-    protected static final String[] mappedFieldNames = new String[] { DATE_FIELD_NAME, INT_FIELD_NAME, STRING_FIELD_NAME,
+    protected static final String[] MAPPED_FIELD_NAMES = new String[] { DATE_FIELD_NAME, INT_FIELD_NAME, STRING_FIELD_NAME,
             DOUBLE_FIELD_NAME, BOOLEAN_FIELD_NAME, OBJECT_FIELD_NAME };
 
     private static Injector injector;
@@ -195,10 +195,11 @@ public abstract class BaseQueryTestCase<QB extends QueryBuilder<QB>> extends Ela
         SearchContext.removeCurrent();
     }
 
-    /**
-     * Create the query that is being tested
-     */
-    protected abstract QB createTestQueryBuilder();
+    protected QB createTestQueryBuilder() {
+        return getRandomQueryBuilder().newQueryBuilder(random());
+    }
+
+    protected abstract RandomQueryBuilder<QB> getRandomQueryBuilder();
 
     /**
      * Generic test that creates new query from the test query and checks both for equality

@@ -82,44 +82,7 @@ public class IdsQueryBuilderTest extends BaseQueryTestCase<IdsQueryBuilder> {
     }
 
     @Override
-    protected IdsQueryBuilder createTestQueryBuilder() {
-        String[] types;
-        if (getCurrentTypes().length > 0 && randomBoolean()) {
-            int numberOfTypes = randomIntBetween(1, getCurrentTypes().length);
-            types = new String[numberOfTypes];
-            for (int i = 0; i < numberOfTypes; i++) {
-                if (frequently()) {
-                    types[i] = randomFrom(getCurrentTypes());
-                } else {
-                    types[i] = randomAsciiOfLengthBetween(1, 10);
-                }
-            }
-        } else {
-            if (randomBoolean()) {
-                types = new String[]{MetaData.ALL};
-            } else {
-                types = new String[0];
-            }
-        }
-        int numberOfIds = randomIntBetween(0, 10);
-        String[] ids = new String[numberOfIds];
-        for (int i = 0; i < numberOfIds; i++) {
-            ids[i] = randomAsciiOfLengthBetween(1, 10);
-        }
-        IdsQueryBuilder query;
-        if (types.length > 0 || randomBoolean()) {
-            query = new IdsQueryBuilder(types);
-            query.addIds(ids);
-        } else {
-            query = new IdsQueryBuilder();
-            query.addIds(ids);
-        }
-        if (randomBoolean()) {
-            query.boost(2.0f / randomIntBetween(1, 20));
-        }
-        if (randomBoolean()) {
-            query.queryName(randomAsciiOfLengthBetween(1, 10));
-        }
-        return query;
+    protected RandomQueryBuilder<IdsQueryBuilder> getRandomQueryBuilder() {
+        return new RandomIdsQueryBuilder();
     }
 }

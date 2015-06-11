@@ -47,43 +47,6 @@ public class BoolQueryBuilderTest extends BaseQueryTestCase<BoolQueryBuilder> {
     }
 
     @Override
-    protected BoolQueryBuilder createTestQueryBuilder() {
-        BoolQueryBuilder query = new BoolQueryBuilder();
-        if (randomBoolean()) {
-            query.boost(2.0f / randomIntBetween(1, 20));
-        }
-        if (randomBoolean()) {
-            query.adjustPureNegative(randomBoolean());
-        }
-        if (randomBoolean()) {
-            query.disableCoord(randomBoolean());
-        }
-        if (randomBoolean()) {
-            query.minimumNumberShouldMatch(randomIntBetween(1, 10));
-        }
-        int mustClauses = randomIntBetween(0, 3);
-        for (int i = 0; i < mustClauses; i++) {
-            query.must(RandomQueryBuilder.create(random()));
-        }
-        int mustNotClauses = randomIntBetween(0, 3);
-        for (int i = 0; i < mustNotClauses; i++) {
-            query.mustNot(RandomQueryBuilder.create(random()));
-        }
-        int shouldClauses = randomIntBetween(0, 3);
-        for (int i = 0; i < shouldClauses; i++) {
-            query.should(RandomQueryBuilder.create(random()));
-        }
-        int filterClauses = randomIntBetween(0, 3);
-        for (int i = 0; i < filterClauses; i++) {
-            query.filter(RandomQueryBuilder.create(random()));
-        }
-        if (randomBoolean()) {
-            query.queryName(randomUnicodeOfLengthBetween(3, 15));
-        }
-        return query;
-    }
-
-    @Override
     protected Query createExpectedQuery(BoolQueryBuilder queryBuilder, QueryParseContext context) throws IOException {
         if (!queryBuilder.hasClauses()) {
             return new MatchAllDocsQuery();
@@ -97,8 +60,7 @@ public class BoolQueryBuilderTest extends BaseQueryTestCase<BoolQueryBuilder> {
         addBooleanClauses(context, boolQuery, queryBuilder.filter(), BooleanClause.Occur.FILTER);
 
         Queries.applyMinimumShouldMatch(boolQuery, queryBuilder.minimumNumberShouldMatch());
-        Query returnedQuery = queryBuilder.adjustPureNegative() ? fixNegativeQueryIfNeeded(boolQuery) : boolQuery;
-        return returnedQuery;
+        return queryBuilder.adjustPureNegative() ? fixNegativeQueryIfNeeded(boolQuery) : boolQuery;
     }
 
     private static void addBooleanClauses(QueryParseContext parseContext, BooleanQuery booleanQuery, List<QueryBuilder> clauses, Occur occurs)
@@ -106,5 +68,10 @@ public class BoolQueryBuilderTest extends BaseQueryTestCase<BoolQueryBuilder> {
         for (QueryBuilder query : clauses) {
             booleanQuery.add(new BooleanClause(query.toQuery(parseContext), occurs));
         }
+    }
+
+    @Override
+    protected RandomQueryBuilder<BoolQueryBuilder> getRandomQueryBuilder() {
+        return new RandomBoolQueryBuilder();
     }
 }

@@ -135,6 +135,7 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
      * @throws SnapshotMissingException if snapshot is not found
      */
     public Snapshot snapshot(SnapshotId snapshotId) {
+        validate(snapshotId);
         List<SnapshotsInProgress.Entry> entries = currentSnapshots(snapshotId.getRepository(), new String[]{snapshotId.getSnapshot()});
         if (!entries.isEmpty()) {
             return inProgressSnapshot(entries.iterator().next());
@@ -191,6 +192,7 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
      */
     public void createSnapshot(final SnapshotRequest request, final CreateSnapshotListener listener) {
         final SnapshotId snapshotId = new SnapshotId(request.repository(), request.name());
+        validate(snapshotId);
         clusterService.submitStateUpdateTask(request.cause(), new TimeoutClusterStateUpdateTask() {
 
             private SnapshotsInProgress.Entry newSnapshot = null;
@@ -253,26 +255,31 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
         if (repositoriesMetaData == null || repositoriesMetaData.repository(request.repository()) == null) {
             throw new RepositoryMissingException(request.repository());
         }
-        if (!Strings.hasLength(request.name())) {
-            throw new InvalidSnapshotNameException(new SnapshotId(request.repository(), request.name()), "cannot be empty");
+        validate(new SnapshotId(request.repository(), request.name()));
+    }
+    
+    private static void validate(SnapshotId snapshotId) {
+        String name = snapshotId.getSnapshot();
+        if (!Strings.hasLength(name)) {
+            throw new InvalidSnapshotNameException(snapshotId, "cannot be empty");
         }
-        if (request.name().contains(" ")) {
-            throw new InvalidSnapshotNameException(new SnapshotId(request.repository(), request.name()), "must not contain whitespace");
+        if (name.contains(" ")) {
+            throw new InvalidSnapshotNameException(snapshotId, "must not contain whitespace");
         }
-        if (request.name().contains(",")) {
-            throw new InvalidSnapshotNameException(new SnapshotId(request.repository(), request.name()), "must not contain ','");
+        if (name.contains(",")) {
+            throw new InvalidSnapshotNameException(snapshotId, "must not contain ','");
         }
-        if (request.name().contains("#")) {
-            throw new InvalidSnapshotNameException(new SnapshotId(request.repository(), request.name()), "must not contain '#'");
+        if (name.contains("#")) {
+            throw new InvalidSnapshotNameException(snapshotId, "must not contain '#'");
         }
-        if (request.name().charAt(0) == '_') {
-            throw new InvalidSnapshotNameException(new SnapshotId(request.repository(), request.name()), "must not start with '_'");
+        if (name.charAt(0) == '_') {
+            throw new InvalidSnapshotNameException(snapshotId, "must not start with '_'");
         }
-        if (!request.name().toLowerCase(Locale.ROOT).equals(request.name())) {
-            throw new InvalidSnapshotNameException(new SnapshotId(request.repository(), request.name()), "must be lowercase");
+        if (!name.toLowerCase(Locale.ROOT).equals(name)) {
+            throw new InvalidSnapshotNameException(snapshotId, "must be lowercase");
         }
-        if (!Strings.validFileName(request.name())) {
-            throw new InvalidSnapshotNameException(new SnapshotId(request.repository(), request.name()), "must not contain the following characters " + Strings.INVALID_FILENAME_CHARS);
+        if (!Strings.validFileName(name)) {
+            throw new InvalidSnapshotNameException(snapshotId, "must not contain the following characters " + Strings.INVALID_FILENAME_CHARS);
         }
     }
 
@@ -316,7 +323,6 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
 
                 @Override
                 public ClusterState execute(ClusterState currentState) {
-                    MetaData metaData = currentState.metaData();
                     SnapshotsInProgress snapshots = currentState.custom(SnapshotsInProgress.TYPE);
                     ImmutableList.Builder<SnapshotsInProgress.Entry> entries = ImmutableList.builder();
                     for (SnapshotsInProgress.Entry entry : snapshots.entries()) {
@@ -472,6 +478,7 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
      * @return map of shard id to snapshot status
      */
     public ImmutableMap<ShardId, IndexShardSnapshotStatus> currentSnapshotShards(SnapshotId snapshotId) {
+        validate(snapshotId);
         SnapshotShards snapshotShards = shardSnapshots.get(snapshotId);
         if (snapshotShards == null) {
             return null;
@@ -491,6 +498,7 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
      * @return map of shard id to snapshot status
      */
     public ImmutableMap<ShardId, IndexShardSnapshotStatus> snapshotShards(SnapshotId snapshotId) throws IOException {
+        validate(snapshotId);
         ImmutableMap.Builder<ShardId, IndexShardSnapshotStatus> shardStatusBuilder = ImmutableMap.builder();
         Repository repository = repositoriesService.repository(snapshotId.getRepository());
         IndexShardRepository indexShardRepository = repositoriesService.indexShardRepository(snapshotId.getRepository());
@@ -1174,6 +1182,7 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
      * @param listener   listener
      */
     public void deleteSnapshot(final SnapshotId snapshotId, final DeleteSnapshotListener listener) {
+        validate(snapshotId);
         clusterService.submitStateUpdateTask("delete snapshot", new ProcessedClusterStateUpdateTask() {
 
             boolean waitForSnapshot = false;

@@ -27,6 +27,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.*;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.inject.Inject;
@@ -66,6 +67,13 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
     @Override
     public void list(ShardId shardId, IndexMetaData indexMetaData, String[] nodesIds, ActionListener<NodesGatewayStartedShards> listener) {
         execute(new Request(shardId, indexMetaData.getUUID(), nodesIds), listener);
+    }
+
+    @Override
+    protected String[] resolveNodes(Request request, ClusterState clusterState) {
+        // default implementation may filter out non existent nodes. it's important to keep exactly the ids
+        // we were given for accounting on the caller
+        return request.nodesIds();
     }
 
     @Override

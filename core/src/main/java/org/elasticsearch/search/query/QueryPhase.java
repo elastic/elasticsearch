@@ -65,7 +65,6 @@ public class QueryPhase implements SearchPhase {
                 .put("query", new QueryParseElement())
                 .put("queryBinary", new QueryBinaryParseElement())
                 .put("query_binary", new QueryBinaryParseElement())
-                .put("filter", new PostFilterParseElement()) // For bw comp reason, should be removed in version 1.1
                 .put("post_filter", new PostFilterParseElement())
                 .put("postFilter", new PostFilterParseElement())
                 .put("filterBinary", new FilterBinaryParseElement())

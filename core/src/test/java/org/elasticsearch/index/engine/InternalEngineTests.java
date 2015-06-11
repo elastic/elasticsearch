@@ -683,24 +683,29 @@ public class InternalEngineTests extends ElasticsearchTestCase {
     }
 
     public void testSyncedFlush() throws IOException {
-        final String syncId = randomUnicodeOfCodepointLengthBetween(10, 20);
-        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, null);
-        engine.create(new Engine.Create(null, newUid("1"), doc));
-        Engine.CommitId commitID = engine.flush();
-        assertThat(commitID, equalTo(new Engine.CommitId(store.readLastCommittedSegmentsInfo().getId())));
-        byte[] wrongBytes = Base64.decode(commitID.toString());
-        wrongBytes[0] = (byte) ~wrongBytes[0];
-        Engine.CommitId wrongId = new Engine.CommitId(wrongBytes);
-        assertEquals("should fail to sync flush with wrong id (but no docs)", engine.syncFlush(syncId + "1", wrongId),
-                Engine.SyncedFlushResult.COMMIT_MISMATCH);
-        engine.create(new Engine.Create(null, newUid("2"), doc));
-        assertEquals("should fail to sync flush with right id but pending doc", engine.syncFlush(syncId + "2", commitID),
-                Engine.SyncedFlushResult.PENDING_OPERATIONS);
-        commitID = engine.flush();
-        assertEquals("should succeed to flush commit with right id and no pending doc", engine.syncFlush(syncId, commitID),
-                Engine.SyncedFlushResult.SUCCESS);
-        assertEquals(store.readLastCommittedSegmentsInfo().getUserData().get(Engine.SYNC_COMMIT_ID), syncId);
-        assertEquals(engine.getLastCommittedSegmentInfos().getUserData().get(Engine.SYNC_COMMIT_ID), syncId);
+        IndexSettingsService indexSettingsService = new IndexSettingsService(shardId.index(), Settings.builder().put(defaultSettings).put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build());
+        try (Store store = createStore();
+             Engine engine = new InternalEngine(config(indexSettingsService, store, createTempDir(), createMergeScheduler(indexSettingsService),
+                     new LogByteSizeMergePolicy()), false)) {
+            final String syncId = randomUnicodeOfCodepointLengthBetween(10, 20);
+            ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, null);
+            engine.create(new Engine.Create(null, newUid("1"), doc));
+            Engine.CommitId commitID = engine.flush();
+            assertThat(commitID, equalTo(new Engine.CommitId(store.readLastCommittedSegmentsInfo().getId())));
+            byte[] wrongBytes = Base64.decode(commitID.toString());
+            wrongBytes[0] = (byte) ~wrongBytes[0];
+            Engine.CommitId wrongId = new Engine.CommitId(wrongBytes);
+            assertEquals("should fail to sync flush with wrong id (but no docs)", engine.syncFlush(syncId + "1", wrongId),
+                    Engine.SyncedFlushResult.COMMIT_MISMATCH);
+            engine.create(new Engine.Create(null, newUid("2"), doc));
+            assertEquals("should fail to sync flush with right id but pending doc", engine.syncFlush(syncId + "2", commitID),
+                    Engine.SyncedFlushResult.PENDING_OPERATIONS);
+            commitID = engine.flush();
+            assertEquals("should succeed to flush commit with right id and no pending doc", engine.syncFlush(syncId, commitID),
+                    Engine.SyncedFlushResult.SUCCESS);
+            assertEquals(store.readLastCommittedSegmentsInfo().getUserData().get(Engine.SYNC_COMMIT_ID), syncId);
+            assertEquals(engine.getLastCommittedSegmentInfos().getUserData().get(Engine.SYNC_COMMIT_ID), syncId);
+        }
     }
 
     public void testSycnedFlushSurvivesEngineRestart() throws IOException {

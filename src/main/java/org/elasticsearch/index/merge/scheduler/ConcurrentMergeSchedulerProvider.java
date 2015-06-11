@@ -172,7 +172,9 @@ public class ConcurrentMergeSchedulerProvider extends MergeSchedulerProvider {
                 logger.info("updating [{}] from [{}] to [{}]", MAX_MERGE_COUNT_KEY, ConcurrentMergeSchedulerProvider.this.maxMergeCount, maxMergeCount);
                 ConcurrentMergeSchedulerProvider.this.maxMergeCount = maxMergeCount;
                 for (CustomConcurrentMergeScheduler scheduler : schedulers) {
-                    scheduler.setMaxMergesAndThreads(maxMergeCount, ConcurrentMergeSchedulerProvider.this.maxThreadCount);
+                    // NOTE: we pass maxMergeCount+1 here so that CMS will allow one too many merges to kick off which then allows
+                    // InternalEngine.IndexThrottle to detect too-many-merges and throttle:
+                    scheduler.setMaxMergesAndThreads(maxMergeCount + 1, ConcurrentMergeSchedulerProvider.this.maxThreadCount);
                 }
             }
         }

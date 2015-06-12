@@ -58,44 +58,11 @@ public class ScoreFunctionBuilders {
     }
 
     public static ScriptScoreFunctionBuilder scriptFunction(Script script) {
-        return (new ScriptScoreFunctionBuilder()).script(script);
+        return (new ScriptScoreFunctionBuilder(script));
     }
 
-    /**
-     * @deprecated Use {@link #scriptFunction(Script)} instead.
-     */
-    @Deprecated
     public static ScriptScoreFunctionBuilder scriptFunction(String script) {
-        return (new ScriptScoreFunctionBuilder()).script(script);
-    }
-
-    /**
-     * @deprecated Use {@link #scriptFunction(Script)} instead.
-     */
-    @Deprecated
-    public static ScriptScoreFunctionBuilder scriptFunction(String script, String lang) {
-        return (new ScriptScoreFunctionBuilder()).script(script).lang(lang);
-    }
-
-    /**
-     * @deprecated Use {@link #scriptFunction(Script)} instead.
-     */
-    @Deprecated
-    public static ScriptScoreFunctionBuilder scriptFunction(String script, String lang, Map<String, Object> params) {
-        return (new ScriptScoreFunctionBuilder()).script(script).lang(lang).params(params);
-    }
-
-    /**
-     * @deprecated Use {@link #scriptFunction(Script)} instead.
-     */
-    @Deprecated
-    public static ScriptScoreFunctionBuilder scriptFunction(String script, Map<String, Object> params) {
-        return (new ScriptScoreFunctionBuilder()).script(script).params(params);
-    }
-
-    @Deprecated
-    public static FactorBuilder factorFunction(float boost) {
-        return (new FactorBuilder()).boostFactor(boost);
+        return (new ScriptScoreFunctionBuilder(new Script(script)));
     }
 
     public static RandomScoreFunctionBuilder randomFunction(int seed) {

@@ -23,6 +23,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.test.ElasticsearchBackwardsCompatIntegrationTest;
 import org.junit.Test;
 
@@ -112,8 +113,8 @@ public class FunctionScoreBackwardCompatibilityTests extends ElasticsearchBackwa
                         searchSource().query(
                                 functionScoreQuery(termQuery("text", "value"))
                                         .add(gaussDecayFunction("loc", new GeoPoint(10, 20), "1000km"))
-                                        .add(scriptFunction("_index['text']['value'].tf()"))
-                                        .add(termQuery("text", "boosted"), factorFunction(5))
+                                        .add(scriptFunction(new Script("_index['text']['value'].tf()")))
+                                        .add(termQuery("text", "boosted"), weightFactorFunction(5))
                         ))).actionGet();
         assertSearchResponse(response);
         assertOrderedSearchHits(response, ids);

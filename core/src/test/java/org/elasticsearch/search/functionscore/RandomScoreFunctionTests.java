@@ -28,10 +28,7 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.hamcrest.CoreMatchers;
 import org.junit.Ignore;
 
-import java.util.Arrays;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 
 import static com.google.common.collect.Lists.newArrayList;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -113,75 +110,6 @@ public class RandomScoreFunctionTests extends ElasticsearchIntegrationTest {
                 refresh();
             }
         }
-    }
-
-    /*
-     * TODO Remove in 2.0
-     */
-    public void testScoreAccessWithinScriptOldScriptAPI() throws Exception {
-        assertAcked(prepareCreate("test")
-                .addMapping("type", "body", "type=string", "index", "type=" + randomFrom(new String[]{"short", "float", "long", "integer", "double"})));
-        ensureYellow();
-
-        int docCount = randomIntBetween(100, 200);
-        for (int i = 0; i < docCount; i++) {
-            client().prepareIndex("test", "type", "" + i).setSource("body", randomFrom(newArrayList("foo", "bar", "baz")), "index", i).get();
-        }
-        refresh();
-
-        // Test for accessing _score
-        SearchResponse resp = client().prepareSearch("test")
-                .setQuery(functionScoreQuery(matchQuery("body", "foo"))
-                        .add(fieldValueFactorFunction("index").factor(2))
-                        .add(scriptFunction("log(doc['index'].value + (factor * _score))").param("factor", randomIntBetween(2, 4))))
-                .get();
-        assertNoFailures(resp);
-        SearchHit firstHit = resp.getHits().getAt(0);
-        assertThat(firstHit.getScore(), greaterThan(1f));
-
-        // Test for accessing _score.intValue()
-        resp = client().prepareSearch("test")
-                .setQuery(functionScoreQuery(matchQuery("body", "foo"))
-                        .add(fieldValueFactorFunction("index").factor(2))
-                        .add(scriptFunction("log(doc['index'].value + (factor * _score.intValue()))")
-                                .param("factor", randomIntBetween(2, 4))))
-                .get();
-        assertNoFailures(resp);
-        firstHit = resp.getHits().getAt(0);
-        assertThat(firstHit.getScore(), greaterThan(1f));
-
-        // Test for accessing _score.longValue()
-        resp = client().prepareSearch("test")
-                .setQuery(functionScoreQuery(matchQuery("body", "foo"))
-                        .add(fieldValueFactorFunction("index").factor(2))
-                        .add(scriptFunction("log(doc['index'].value + (factor * _score.longValue()))")
-                                .param("factor", randomIntBetween(2, 4))))
-                .get();
-        assertNoFailures(resp);
-        firstHit = resp.getHits().getAt(0);
-        assertThat(firstHit.getScore(), greaterThan(1f));
-
-        // Test for accessing _score.floatValue()
-        resp = client().prepareSearch("test")
-                .setQuery(functionScoreQuery(matchQuery("body", "foo"))
-                        .add(fieldValueFactorFunction("index").factor(2))
-                        .add(scriptFunction("log(doc['index'].value + (factor * _score.floatValue()))")
-                                .param("factor", randomIntBetween(2, 4))))
-                .get();
-        assertNoFailures(resp);
-        firstHit = resp.getHits().getAt(0);
-        assertThat(firstHit.getScore(), greaterThan(1f));
-
-        // Test for accessing _score.doubleValue()
-        resp = client().prepareSearch("test")
-                .setQuery(functionScoreQuery(matchQuery("body", "foo"))
-                        .add(fieldValueFactorFunction("index").factor(2))
-                        .add(scriptFunction("log(doc['index'].value + (factor * _score.doubleValue()))")
-                                .param("factor", randomIntBetween(2, 4))))
-                .get();
-        assertNoFailures(resp);
-        firstHit = resp.getHits().getAt(0);
-        assertThat(firstHit.getScore(), greaterThan(1f));
     }
 
     public void testScoreAccessWithinScript() throws Exception {

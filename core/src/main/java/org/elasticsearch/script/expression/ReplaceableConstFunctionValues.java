@@ -19,44 +19,26 @@
 
 package org.elasticsearch.script.expression;
 
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.queries.function.FunctionValues;
-import org.apache.lucene.queries.function.ValueSource;
-
-import java.io.IOException;
-import java.util.Map;
 
 /**
- * A {@link ValueSource} which has a stub {@link FunctionValues} that holds a dynamically replaceable constant double.
+ * A support class for an executable expression script that allows the double returned
+ * by a {@link FunctionValues} to be modified.
  */
-class ReplaceableConstValueSource extends ValueSource {
-    final ReplaceableConstFunctionValues fv;
+public class ReplaceableConstFunctionValues extends FunctionValues {
+    private double value = 0;
 
-    public ReplaceableConstValueSource() {
-        fv = new ReplaceableConstFunctionValues();
+    public void setValue(double value) {
+        this.value = value;
     }
 
     @Override
-    public FunctionValues getValues(Map map, LeafReaderContext atomicReaderContext) throws IOException {
-        return fv;
+    public double doubleVal(int doc) {
+        return value;
     }
 
     @Override
-    public boolean equals(Object o) {
-        return o == this;
-    }
-
-    @Override
-    public int hashCode() {
-        return System.identityHashCode(this);
-    }
-
-    @Override
-    public String description() {
-        return "replaceableConstDouble";
-    }
-
-    public void setValue(double v) {
-        fv.setValue(v);
+    public String toString(int i) {
+        return "ReplaceableConstFunctionValues: " + value;
     }
 }

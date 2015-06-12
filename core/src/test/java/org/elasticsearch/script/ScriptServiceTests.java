@@ -159,8 +159,8 @@ public class ScriptServiceTests extends ElasticsearchTestCase {
         CompiledScript groovyScript = scriptService.compile(
                 new Script("file_script", ScriptType.FILE, GroovyScriptEngineService.NAME, null), randomFrom(scriptContexts));
         assertThat(groovyScript.lang(), equalTo(GroovyScriptEngineService.NAME));
-        CompiledScript expressionScript = scriptService.compile(new Script("file_script", ScriptType.FILE,
-                ExpressionScriptEngineService.NAME, null), randomFrom(scriptContexts));
+        CompiledScript expressionScript = scriptService.compile(new Script("file_script", ScriptType.FILE, ExpressionScriptEngineService.NAME,
+                null), randomFrom(new ScriptContext[] {ScriptContext.Standard.AGGS, ScriptContext.Standard.SEARCH}));
         assertThat(expressionScript.lang(), equalTo(ExpressionScriptEngineService.NAME));
     }
 
@@ -207,9 +207,12 @@ public class ScriptServiceTests extends ElasticsearchTestCase {
             assertCompileRejected(GroovyScriptEngineService.NAME, "script", ScriptType.INDEXED, scriptContext);
             assertCompileAccepted(GroovyScriptEngineService.NAME, "file_script", ScriptType.FILE, scriptContext);
             //expression engine is sandboxed, all scripts are enabled by default
-            assertCompileAccepted(ExpressionScriptEngineService.NAME, "script", ScriptType.INLINE, scriptContext);
-            assertCompileAccepted(ExpressionScriptEngineService.NAME, "script", ScriptType.INDEXED, scriptContext);
-            assertCompileAccepted(ExpressionScriptEngineService.NAME, "file_script", ScriptType.FILE, scriptContext);
+            if (!scriptContext.getKey().equals(ScriptContext.Standard.MAPPING.getKey()) &&
+                    !scriptContext.getKey().equals(ScriptContext.Standard.UPDATE.getKey())) {
+                assertCompileAccepted(ExpressionScriptEngineService.NAME, "script", ScriptType.INLINE, scriptContext);
+                assertCompileAccepted(ExpressionScriptEngineService.NAME, "script", ScriptType.INDEXED, scriptContext);
+                assertCompileAccepted(ExpressionScriptEngineService.NAME, "file_script", ScriptType.FILE, scriptContext);
+            }
             //mustache engine is sandboxed, all scripts are enabled by default
             assertCompileAccepted(MustacheScriptEngineService.NAME, "script", ScriptType.INLINE, scriptContext);
             assertCompileAccepted(MustacheScriptEngineService.NAME, "script", ScriptType.INDEXED, scriptContext);
@@ -311,6 +314,12 @@ public class ScriptServiceTests extends ElasticsearchTestCase {
                 //Otherwise they are always considered file ones as they can be found in the static cache.
                 String script = scriptType == ScriptType.FILE ? "file_script" : "script";
                 for (ScriptContext scriptContext : this.scriptContexts) {
+                    // skip script contexts that aren't allowed for expressions
+                    if (scriptEngineService instanceof ExpressionScriptEngineService &&
+                            (scriptContext.getKey().equals(ScriptContext.Standard.MAPPING.getKey()) ||
+                             scriptContext.getKey().equals(ScriptContext.Standard.UPDATE.getKey()))) {
+                        continue;
+                    }
                     //fallback mechanism: 1) engine specific settings 2) op based settings 3) source based settings
                     ScriptMode scriptMode = engineSettings.get(scriptEngineService.types()[0] + "." + scriptType + "." + scriptContext.getKey());
                     if (scriptMode == null) {

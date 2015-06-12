@@ -72,7 +72,7 @@ public class CustomScriptContextTests extends ElasticsearchIntegrationTest {
         }
 
         CompiledScript compiledScript = scriptService.compile(new Script("1", ScriptService.ScriptType.INLINE, "expression", null),
-                randomFrom(ScriptContext.Standard.values()));
+                randomFrom(new ScriptContext[] {ScriptContext.Standard.AGGS, ScriptContext.Standard.SEARCH}));
         assertThat(compiledScript, notNullValue());
 
         compiledScript = scriptService.compile(new Script("1", ScriptService.ScriptType.INLINE, "mustache", null),
